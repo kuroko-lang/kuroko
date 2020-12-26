@@ -3,6 +3,7 @@
 #include "kuroko.h"
 #include "chunk.h"
 #include "value.h"
+#include "table.h"
 
 typedef struct {
 	KrkChunk * chunk;
@@ -10,6 +11,7 @@ typedef struct {
 	size_t stackSize;
 	KrkValue * stack;
 	KrkValue * stackTop;
+	KrkTable strings;
 	KrkObj * objects;
 } KrkVM;
 

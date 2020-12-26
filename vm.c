@@ -5,6 +5,7 @@
 #include "memory.h"
 #include "compiler.h"
 #include "object.h"
+#include "table.h"
 
 /* Why is this static... why do we do this to ourselves... */
 KrkVM vm;
@@ -52,10 +53,11 @@ KrkValue krk_peep(int distance) {
 void krk_initVM() {
 	resetStack();
 	vm.objects = NULL;
+	krk_initTable(&vm.strings);
 }
 
 void krk_freeVM() {
-	/* todo */
+	krk_freeTable(&vm.strings);
 	krk_freeObjects();
 	FREE_ARRAY(size_t, vm.stack, vm.stackSize);
 }

@@ -7,8 +7,8 @@ typedef struct Obj KrkObj;
 typedef struct ObjString KrkString;
 
 typedef enum {
-	VAL_BOOLEAN,
 	VAL_NONE,
+	VAL_BOOLEAN,
 	VAL_INTEGER,
 	VAL_FLOATING,
 	VAL_OBJECT,

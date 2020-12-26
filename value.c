@@ -48,10 +48,8 @@ int krk_valuesEqual(KrkValue a, KrkValue b) {
 		case VAL_INTEGER:  return AS_INTEGER(a) == AS_INTEGER(b);
 		case VAL_FLOATING: return AS_FLOATING(a) == AS_FLOATING(b);
 		case VAL_OBJECT: {
-			if (IS_STRING(a) && IS_STRING(b)) {
-				return (AS_STRING(a)->length == AS_STRING(b)->length) &&
-					memcmp(AS_STRING(a)->chars, AS_STRING(b)->chars, AS_STRING(a)->length) == 0;
-			}
+			if (IS_STRING(a) && IS_STRING(b)) return AS_OBJECT(a) == AS_OBJECT(b);
+			/* otherwise we need to do... fun stuff (push, call compare, etc.)*/
 			return 0;
 		}
 		default: return 0;

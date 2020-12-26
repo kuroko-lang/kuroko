@@ -8,7 +8,7 @@
 int main(int argc, char * argv[]) {
 	krk_initVM();
 
-	krk_interpret("\"hello\" + \"hellf\" + 1.4");
+	krk_interpret("(\"hello\" + \"hellf\" + 1.4) == \"hellohellf1.4\"");
 
 #if 0
 	KrkChunk chunk;

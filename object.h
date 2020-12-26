@@ -23,6 +23,7 @@ struct ObjString {
 	KrkObj obj;
 	size_t length;
 	char * chars;
+	uint32_t hash;
 };
 
 static inline int isObjType(KrkValue value, ObjType type) {
