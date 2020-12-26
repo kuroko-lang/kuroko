@@ -61,7 +61,7 @@ KrkString * copyString(const char * chars, size_t length) {
 void krk_printObject(FILE * f, KrkValue value) {
 	switch (OBJECT_TYPE(value)) {
 		case OBJ_STRING:
-			fprintf(stderr, "%s", AS_CSTRING(value));
+			fprintf(f, "%s", AS_CSTRING(value));
 			break;
 	}
 }

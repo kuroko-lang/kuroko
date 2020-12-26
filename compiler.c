@@ -27,7 +27,7 @@ typedef enum {
 	PREC_PRIMARY
 } Precedence;
 
-typedef void (*ParseFn)(void);
+typedef void (*ParseFn)(int);
 
 typedef struct {
 	ParseFn prefix;
@@ -42,7 +42,13 @@ static KrkChunk * currentChunk() {
 }
 
 static void parsePrecedence(Precedence precedence);
+static size_t parseVariable(const char * errorMessage);
+static void defineVariable(size_t global);
+static size_t identifierConstant(KrkToken * name);
 static ParseRule * getRule(KrkTokenType type);
+static void expression();
+static void statement();
+static void declaration();
 
 static void errorAt(KrkToken * token, const char * message) {
 	if (parser.panicMode) return;
@@ -88,6 +94,16 @@ static void consume(KrkTokenType type, const char * message) {
 	errorAtCurrent(message);
 }
 
+static int check(KrkTokenType type) {
+	return parser.current.type == type;
+}
+
+static int match(KrkTokenType type) {
+	if (!check(type)) return 0;
+	advance();
+	return 1;
+}
+
 static void emitByte(uint8_t byte) {
 	krk_writeChunk(currentChunk(), byte, parser.previous.line);
 }
@@ -105,11 +121,17 @@ static void endCompiler() {
 	emitReturn();
 }
 
+static void endOfLine() {
+	if (!(match(TOKEN_EOL) || match(TOKEN_EOF))) {
+		errorAtCurrent("Expected end of line.");
+	}
+}
+
 static void emitConstant(KrkValue value) {
 	krk_writeConstant(currentChunk(), value, parser.previous.line);
 }
 
-static void number() {
+static void number(int canAssign) {
 	const char * start= parser.previous.start;
 	int base = 10;
 	if (start[0] == '0' && (start[1] == 'x' || start[1] == 'X')) {
@@ -136,7 +158,7 @@ static void number() {
 	emitConstant(INTEGER_VAL(value));
 }
 
-static void binary() {
+static void binary(int canAssign) {
 	KrkTokenType operatorType = parser.previous.type;
 	ParseRule * rule = getRule(operatorType);
 	parsePrecedence((Precedence)(rule->precedence + 1));
@@ -157,7 +179,7 @@ static void binary() {
 	}
 }
 
-static void literal() {
+static void literal(int canAssign) {
 	switch (parser.previous.type) {
 		case TOKEN_FALSE: emitByte(OP_FALSE); break;
 		case TOKEN_NONE:  emitByte(OP_NONE); break;
@@ -170,12 +192,77 @@ static void expression() {
 	parsePrecedence(PREC_ASSIGNMENT);
 }
 
-static void grouping() {
+static void varDeclaration() {
+	ssize_t global = parseVariable("Expected variable name.");
+
+	if (match(TOKEN_EQUAL)) {
+		expression();
+	} else {
+		emitByte(OP_NONE);
+	}
+
+	endOfLine();
+	defineVariable(global);
+}
+
+static void printStatement() {
+	expression();
+	endOfLine();
+	emitByte(OP_PRINT);
+}
+
+static void synchronize() {
+	parser.panicMode = 0;
+	while (parser.current.type != TOKEN_EOF) {
+		if (parser.previous.type == TOKEN_EOL) return;
+
+		switch (parser.current.type) {
+			case TOKEN_CLASS:
+			case TOKEN_DEF:
+			case TOKEN_LET:
+			case TOKEN_FOR:
+			case TOKEN_IF:
+			case TOKEN_WHILE:
+			case TOKEN_PRINT:
+			case TOKEN_RETURN:
+				return;
+			default: break;
+		}
+
+		advance();
+	}
+}
+
+static void declaration() {
+	if (match(TOKEN_LET)) {
+		varDeclaration();
+	} else {
+		statement();
+	}
+
+	if (parser.panicMode) synchronize();
+}
+
+static void expressionStatement() {
+	expression();
+	endOfLine();
+	emitByte(OP_POP);
+}
+
+static void statement() {
+	if (match(TOKEN_PRINT)) {
+		printStatement();
+	} else {
+		expressionStatement();
+	}
+}
+
+static void grouping(int canAssign) {
 	expression();
 	consume(TOKEN_RIGHT_PAREN, "Expect ')' after expression.");
 }
 
-static void unary() {
+static void unary(int canAssign) {
 	KrkTokenType operatorType = parser.previous.type;
 
 	parsePrecedence(PREC_UNARY);
@@ -193,8 +280,26 @@ static void unary() {
 	}
 }
 
-static void string() {
+static void string(int canAssign) {
 	emitConstant(OBJECT_VAL(copyString(parser.previous.start + 1, parser.previous.length - 2)));
+}
+
+#define EMIT_CONSTANT_OP(opc, arg) do { if (arg < 256) { emitBytes(opc, arg); } \
+	else { emitBytes(opc ## _LONG, arg >> 16); emitBytes(arg >> 8, arg); } } while (0)
+
+static void namedVariable(KrkToken name, int canAssign) {
+	size_t arg = identifierConstant(&name);
+
+	if (canAssign && match(TOKEN_EQUAL)) {
+		expression();
+		EMIT_CONSTANT_OP(OP_SET_GLOBAL, arg);
+	} else {
+		EMIT_CONSTANT_OP(OP_GET_GLOBAL, arg);
+	}
+}
+
+static void variable(int canAssign) {
+	namedVariable(parser.previous, canAssign);
 }
 
 ParseRule rules[] = {
@@ -220,7 +325,7 @@ ParseRule rules[] = {
 	[TOKEN_GREATER_EQUAL] = {NULL,     binary, PREC_COMPARISON},
 	[TOKEN_LESS]          = {NULL,     binary, PREC_COMPARISON},
 	[TOKEN_LESS_EQUAL]    = {NULL,     binary, PREC_COMPARISON},
-	[TOKEN_IDENTIFIER]    = {NULL,     NULL,   PREC_NONE},
+	[TOKEN_IDENTIFIER]    = {variable, NULL,   PREC_NONE},
 	[TOKEN_STRING]        = {string,   NULL,   PREC_NONE},
 	[TOKEN_NUMBER]        = {number,   NULL,   PREC_NONE},
 	[TOKEN_CODEPOINT]     = {NULL,     NULL,   PREC_NONE}, /* should be equivalent to number */
@@ -256,12 +361,30 @@ static void parsePrecedence(Precedence precedence) {
 		error("expect expression");
 		return;
 	}
-	prefixRule();
+	int canAssign = precedence <= PREC_ASSIGNMENT;
+	prefixRule(canAssign);
 	while (precedence <= getRule(parser.current.type)->precedence) {
 		advance();
 		ParseFn infixRule = getRule(parser.previous.type)->infix;
-		infixRule();
+		infixRule(canAssign);
 	}
+
+	if (canAssign && match(TOKEN_EQUAL)) {
+		error("invalid assignment target");
+	}
+}
+
+static size_t identifierConstant(KrkToken * name) {
+	return krk_addConstant(currentChunk(), OBJECT_VAL(copyString(name->start, name->length)));
+}
+
+static size_t parseVariable(const char * errorMessage) {
+	consume(TOKEN_IDENTIFIER, errorMessage);
+	return identifierConstant(&parser.previous);
+}
+
+static void defineVariable(size_t global) {
+	EMIT_CONSTANT_OP(OP_DEFINE_GLOBAL, global);
 }
 
 static ParseRule * getRule(KrkTokenType type) {
@@ -276,8 +399,10 @@ int krk_compile(const char * src, KrkChunk * chunk) {
 	parser.panicMode = 0;
 
 	advance();
-	expression();
-	consume(TOKEN_EOF, "Expected end of expression.");
+
+	while (!match(TOKEN_EOF)) {
+		declaration();
+	}
 
 	endCompiler();
 	return !parser.hadError;

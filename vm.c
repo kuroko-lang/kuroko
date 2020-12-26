@@ -53,10 +53,12 @@ KrkValue krk_peep(int distance) {
 void krk_initVM() {
 	resetStack();
 	vm.objects = NULL;
+	krk_initTable(&vm.globals);
 	krk_initTable(&vm.strings);
 }
 
 void krk_freeVM() {
+	krk_freeTable(&vm.globals);
 	krk_freeTable(&vm.strings);
 	krk_freeObjects();
 	FREE_ARRAY(size_t, vm.stack, vm.stackSize);
@@ -158,9 +160,27 @@ static void addObjects() {
 
 #define DEBUG
 
-static KrkValue run() {
 #define READ_BYTE() (*vm.ip++)
 #define BINARY_OP(op) { KrkValue b = krk_pop(); KrkValue a = krk_pop(); krk_push(op(a,b)); break; }
+#define READ_CONSTANT(s) (vm.chunk->constants.values[readBytes(s)])
+#define READ_STRING(s) AS_STRING(READ_CONSTANT(s))
+
+static size_t readBytes(int num) {
+	if (num == 1) return READ_BYTE();
+	else if (num == 2) {
+		unsigned int top = READ_BYTE();
+		unsigned int bot = READ_BYTE();
+		return (top << 8) | (bot);
+	} else if (num == 3) {
+		unsigned int top = READ_BYTE();
+		unsigned int mid = READ_BYTE();
+		unsigned int bot = READ_BYTE();
+		return (top << 16) | (mid << 8) | (bot);
+	}
+	return 0;
+}
+
+static KrkValue run() {
 
 	for (;;) {
 #ifdef DEBUG
@@ -175,6 +195,11 @@ static KrkValue run() {
 #endif
 		uint8_t opcode;
 		switch ((opcode = READ_BYTE())) {
+			case OP_PRINT: {
+				krk_printValue(stdout, krk_pop());
+				fprintf(stdout, "\n");
+				break;
+			}
 			case OP_RETURN: {
 				krk_printValue(stdout, krk_pop());
 				fprintf(stdout, "\n");
@@ -201,17 +226,9 @@ static KrkValue run() {
 				else { runtimeError("Incompatible operand type for prefix negation."); return NONE_VAL(); }
 				break;
 			}
+			case OP_CONSTANT_LONG:
 			case OP_CONSTANT: {
-				size_t index = READ_BYTE();
-				KrkValue constant = vm.chunk->constants.values[index];
-				krk_push(constant);
-				break;
-			}
-			case OP_CONSTANT_LONG: {
-				size_t top = READ_BYTE();
-				size_t mid = READ_BYTE();
-				size_t low = READ_BYTE();
-				size_t index = (top << 16) | (mid << 8) | (low);
+				size_t index = readBytes(opcode == OP_CONSTANT ? 1 : 3);
 				KrkValue constant = vm.chunk->constants.values[index];
 				krk_push(constant);
 				break;
@@ -220,6 +237,36 @@ static KrkValue run() {
 			case OP_TRUE:  krk_push(BOOLEAN_VAL(1)); break;
 			case OP_FALSE: krk_push(BOOLEAN_VAL(0)); break;
 			case OP_NOT:   krk_push(BOOLEAN_VAL(isFalsey(krk_pop()))); break;
+			case OP_POP:   krk_pop(); break;
+			case OP_DEFINE_GLOBAL_LONG:
+			case OP_DEFINE_GLOBAL: {
+				KrkString * name = READ_STRING((opcode == OP_DEFINE_GLOBAL ? 1 : 3));
+				krk_tableSet(&vm.globals, OBJECT_VAL(name), krk_peep(0));
+				krk_pop();
+				break;
+			}
+			case OP_GET_GLOBAL_LONG:
+			case OP_GET_GLOBAL: {
+				KrkString * name = READ_STRING((opcode == OP_GET_GLOBAL ? 1 : 3));
+				KrkValue value;
+				if (!krk_tableGet(&vm.globals, OBJECT_VAL(name), &value)) {
+					runtimeError("Undefined variable '%s'.", name->chars);
+					return NONE_VAL();
+				}
+				krk_push(value);
+				break;
+			}
+			case OP_SET_GLOBAL_LONG:
+			case OP_SET_GLOBAL: {
+				KrkString * name = READ_STRING((opcode == OP_SET_GLOBAL ? 1 : 3));
+				if (krk_tableSet(&vm.globals, OBJECT_VAL(name), krk_peep(0))) {
+					krk_tableDelete(&vm.globals, OBJECT_VAL(name));
+					/* TODO: This should probably just work as an assignment? */
+					runtimeError("Undefined variable '%s'.", name->chars);
+					return NONE_VAL();
+				}
+				break;
+			}
 		}
 	}
 

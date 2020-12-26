@@ -72,9 +72,6 @@ static void skipWhitespace() {
 			case '\t':
 				advance();
 				break;
-			case '\n':
-				scanner.line++;
-				scanner.startOfLine = 1;
 			default:
 				return;
 		}
@@ -228,6 +225,12 @@ KrkToken krk_scanToken() {
 	if (isAtEnd()) return makeToken(TOKEN_EOF);
 
 	char c = advance();
+
+	if (c == '\n') {
+		scanner.line++;
+		scanner.startOfLine = 1;
+		return makeToken(TOKEN_EOL);
+	}
 
 	if (isAlpha(c)) return identifier();
 	if (isDigit(c)) return number(c);

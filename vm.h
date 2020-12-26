@@ -11,6 +11,7 @@ typedef struct {
 	size_t stackSize;
 	KrkValue * stack;
 	KrkValue * stackTop;
+	KrkTable globals;
 	KrkTable strings;
 	KrkObj * objects;
 } KrkVM;

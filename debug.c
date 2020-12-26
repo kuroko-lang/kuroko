@@ -11,6 +11,17 @@ void krk_disassembleChunk(KrkChunk * chunk, const char * name) {
 }
 
 #define SIMPLE(opc) case opc: fprintf(stderr, "%s\n", #opc); return offset + 1;
+#define CONSTANT(opc) case opc: { size_t constant = chunk->code[offset + 1]; \
+	fprintf(stderr, "%-16s %4d '", #opc, (int)constant); \
+	krk_printValue(stderr, chunk->constants.values[constant]); \
+	fprintf(stderr,"' (type=%s)\n", typeName(chunk->constants.values[constant])); \
+	return offset + 2; } \
+	case opc ## _LONG: { size_t constant = (chunk->code[offset + 1] << 16) | \
+	(chunk->code[offset + 2] << 8) | (chunk->code[offset + 3]); \
+	fprintf(stderr, "%-16s %4d '", #opc "_LONG", (int)constant); \
+	krk_printValue(stderr, chunk->constants.values[constant]); \
+	fprintf(stderr,"' (type=%s)\n", typeName(chunk->constants.values[constant])); \
+	return offset + 4; }
 
 size_t krk_disassembleInstruction(KrkChunk * chunk, size_t offset) {
 	fprintf(stderr, "%04u ", (unsigned int)offset);
@@ -35,24 +46,12 @@ size_t krk_disassembleInstruction(KrkChunk * chunk, size_t offset) {
 		SIMPLE(OP_EQUAL)
 		SIMPLE(OP_GREATER)
 		SIMPLE(OP_LESS)
-		case OP_CONSTANT:
-			{
-				uint8_t constant = chunk->code[offset + 1];
-				fprintf(stderr, "%-16s %4d '", "OP_CONSTANT", constant);
-				krk_printValue(stderr, chunk->constants.values[constant]);
-				fprintf(stderr, "' (type=%s)\n", typeName(chunk->constants.values[constant]));
-			}
-			return offset + 2;
-		case OP_CONSTANT_LONG:
-			{
-				size_t constant = (chunk->code[offset + 1] << 16) |
-						(chunk->code[offset + 2] << 8) |
-						(chunk->code[offset + 3] << 0);
-				fprintf(stderr, "%-16s %10d '", "OP_CONSTANT_LONG", (int)constant);
-				krk_printValue(stderr, chunk->constants.values[constant]);
-				fprintf(stderr, "' (type=%s)\n", typeName(chunk->constants.values[constant]));
-			}
-			return offset + 4;
+		SIMPLE(OP_PRINT)
+		SIMPLE(OP_POP)
+		CONSTANT(OP_DEFINE_GLOBAL)
+		CONSTANT(OP_CONSTANT)
+		CONSTANT(OP_GET_GLOBAL)
+		CONSTANT(OP_SET_GLOBAL)
 		default:
 			fprintf(stderr, "Unknown opcode: %02x\n", opcode);
 			return offset + 1;

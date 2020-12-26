@@ -23,9 +23,17 @@ typedef enum {
 	OP_TRUE,
 	OP_FALSE,
 	OP_NOT,
+	OP_POP,
 	OP_EQUAL,
 	OP_GREATER,
 	OP_LESS,
+	OP_PRINT,
+	OP_DEFINE_GLOBAL,
+	OP_DEFINE_GLOBAL_LONG,
+	OP_GET_GLOBAL,
+	OP_GET_GLOBAL_LONG,
+	OP_SET_GLOBAL,
+	OP_SET_GLOBAL_LONG,
 } KrkOpCode;
 
 /**
@@ -43,4 +51,5 @@ extern void krk_initChunk(KrkChunk * chunk);
 extern void krk_writeChunk(KrkChunk * chunk, uint8_t byte, size_t line);
 extern void krk_freeChunk(KrkChunk * chunk);
 extern size_t krk_addConstant(KrkChunk * chunk, KrkValue value);
+extern void krk_emitConstant(KrkChunk * chunk, size_t ind);
 extern size_t krk_writeConstant(KrkChunk * chunk, KrkValue value, size_t line);

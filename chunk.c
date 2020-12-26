@@ -34,8 +34,7 @@ size_t krk_addConstant(KrkChunk * chunk, KrkValue value) {
 	return chunk->constants.count - 1;
 }
 
-size_t krk_writeConstant(KrkChunk * chunk, KrkValue value, size_t line) {
-	size_t ind = krk_addConstant(chunk, value);
+void krk_emitConstant(KrkChunk * chunk, size_t ind) {
 	if (ind >= 256) {
 		krk_writeChunk(chunk, OP_CONSTANT_LONG, 1);
 		krk_writeChunk(chunk, 0xFF & (ind >> 16), 1);
@@ -45,5 +44,10 @@ size_t krk_writeConstant(KrkChunk * chunk, KrkValue value, size_t line) {
 		krk_writeChunk(chunk, OP_CONSTANT, 1);
 		krk_writeChunk(chunk, ind, 1);
 	}
+}
+
+size_t krk_writeConstant(KrkChunk * chunk, KrkValue value, size_t line) {
+	size_t ind = krk_addConstant(chunk, value);
+	krk_emitConstant(chunk, ind);
 	return ind;
 }
