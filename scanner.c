@@ -81,7 +81,13 @@ static void skipWhitespace() {
 static KrkToken makeIndentation() {
 	while (!isAtEnd() && peek() == ' ') advance();
 	if (peek() == '\n') {
-		return errorToken("Empty indentation line is invalid.");
+		/* Pretend we didn't see this line */
+		return makeToken(TOKEN_INDENTATION);
+	}
+	if (peek() == '#') {
+		KrkToken out = makeToken(TOKEN_INDENTATION);
+		while (!isAtEnd() && peek() != '\n') advance();
+		return out;
 	}
 	return makeToken(TOKEN_INDENTATION);
 }
@@ -175,6 +181,7 @@ static KrkTokenType identifierType() {
 	switch (*scanner.start) {
 		case 'a': return checkKeyword(1, "nd", TOKEN_AND);
 		case 'c': return checkKeyword(1, "lass", TOKEN_CLASS);
+		case 'b': return checkKeyword(1, "lock", TOKEN_BLOCK);
 		case 'd': return checkKeyword(1, "ef", TOKEN_DEF);
 		case 'e': return checkKeyword(1, "lse", TOKEN_ELSE);
 		case 'f': return checkKeyword(1, "or", TOKEN_FOR);
@@ -210,9 +217,8 @@ KrkToken krk_scanToken() {
 	/* If at start of line, do thing */
 	if (scanner.startOfLine && peek() == ' ') {
 		scanner.start = scanner.cur;
-		return makeIndentation();
-	} else {
 		scanner.startOfLine = 0;
+		return makeIndentation();
 	}
 
 	/* Eat whitespace */
@@ -228,9 +234,17 @@ KrkToken krk_scanToken() {
 
 	if (c == '\n') {
 		scanner.line++;
-		scanner.startOfLine = 1;
-		return makeToken(TOKEN_EOL);
+		if (scanner.startOfLine) {
+			/* Ignore completely blank lines */
+			return makeToken(TOKEN_RETRY);
+		} else {
+			scanner.startOfLine = 1;
+			return makeToken(TOKEN_EOL);
+		}
 	}
+
+	/* Not indentation, not a linefeed on an empty line, must be not be start of line any more */
+	scanner.startOfLine = 0;
 
 	if (isAlpha(c)) return identifier();
 	if (isDigit(c)) return number(c);

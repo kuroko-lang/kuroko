@@ -36,6 +36,7 @@ typedef enum {
 
 	TOKEN_INDENTATION,
 
+	TOKEN_BLOCK, /* temporary XXX remove me */
 	TOKEN_RETRY,
 	TOKEN_EOL,
 

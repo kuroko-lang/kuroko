@@ -10,7 +10,7 @@ void krk_initValueArray(KrkValueArray * array) {
 }
 
 void krk_writeValueArray(KrkValueArray * array, KrkValue value) {
-	if (array->capacity < array->count - 1) {
+	if (array->capacity < array->count + 1) {
 		int old = array->capacity;
 		array->capacity = GROW_CAPACITY(old);
 		array->values = GROW_ARRAY(KrkValue, array->values, old, array->capacity);

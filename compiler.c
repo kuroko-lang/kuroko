@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "kuroko.h"
 #include "compiler.h"
@@ -35,16 +36,36 @@ typedef struct {
 	Precedence precedence;
 } ParseRule;
 
+typedef struct {
+	KrkToken name;
+	ssize_t depth;
+} Local;
+
+typedef struct {
+	Local  locals[256];
+	size_t localCount;
+	size_t scopeDepth;
+} Compiler;
+
 Parser parser;
+Compiler * current = NULL;
+
 KrkChunk * compilingChunk;
 static KrkChunk * currentChunk() {
 	return compilingChunk;
 }
 
+static void initCompiler(Compiler * compiler) {
+	compiler->localCount = 0;
+	compiler->scopeDepth = 0;
+	current = compiler;
+}
+
 static void parsePrecedence(Precedence precedence);
-static size_t parseVariable(const char * errorMessage);
+static ssize_t parseVariable(const char * errorMessage);
 static void defineVariable(size_t global);
-static size_t identifierConstant(KrkToken * name);
+static ssize_t identifierConstant(KrkToken * name);
+static ssize_t resolveLocal(Compiler * compiler, KrkToken * name);
 static ParseRule * getRule(KrkTokenType type);
 static void expression();
 static void statement();
@@ -249,9 +270,49 @@ static void expressionStatement() {
 	emitByte(OP_POP);
 }
 
+static void block() {
+	consume(TOKEN_COLON, "Blocks must start with a colon; where's your colon?");
+
+	if (match(TOKEN_EOL)) {
+		/* Begin actual blocks */
+		if (check(TOKEN_INDENTATION)) {
+			/* TODO: Check if this is correctly indented more than the current block */
+			size_t currentIndentation = parser.current.length;
+			do {
+				if (parser.current.length != currentIndentation) break;
+				advance();
+				declaration();
+			} while (check(TOKEN_INDENTATION));
+		} else {
+			errorAtCurrent("Expected indentation for block");
+		}
+	} else {
+		errorAtCurrent("Unsupported single-line block");
+	}
+}
+
+static void beginScope() {
+	current->scopeDepth++;
+}
+
+static void endScope() {
+	current->scopeDepth--;
+	while (current->localCount > 0 &&
+	       current->locals[current->localCount - 1].depth > current->scopeDepth) {
+		emitByte(OP_POP);
+		current->localCount--;
+	}
+}
+
 static void statement() {
+	if (match(TOKEN_EOL)) return; /* Meaningless blank line */
+
 	if (match(TOKEN_PRINT)) {
 		printStatement();
+	} else if (match(TOKEN_BLOCK)) {
+		beginScope();
+		block();
+		endScope();
 	} else {
 		expressionStatement();
 	}
@@ -288,13 +349,22 @@ static void string(int canAssign) {
 	else { emitBytes(opc ## _LONG, arg >> 16); emitBytes(arg >> 8, arg); } } while (0)
 
 static void namedVariable(KrkToken name, int canAssign) {
-	size_t arg = identifierConstant(&name);
-
-	if (canAssign && match(TOKEN_EQUAL)) {
-		expression();
-		EMIT_CONSTANT_OP(OP_SET_GLOBAL, arg);
+	ssize_t arg = resolveLocal(current, &name);
+	if (arg != -1) {
+		if (canAssign && match(TOKEN_EQUAL)) {
+			expression();
+			EMIT_CONSTANT_OP(OP_SET_LOCAL, arg);
+		} else {
+			EMIT_CONSTANT_OP(OP_GET_LOCAL, arg);
+		}
 	} else {
-		EMIT_CONSTANT_OP(OP_GET_GLOBAL, arg);
+		arg = identifierConstant(&name);
+		if (canAssign && match(TOKEN_EQUAL)) {
+			expression();
+			EMIT_CONSTANT_OP(OP_SET_GLOBAL, arg);
+		} else {
+			EMIT_CONSTANT_OP(OP_GET_GLOBAL, arg);
+		}
 	}
 }
 
@@ -374,16 +444,68 @@ static void parsePrecedence(Precedence precedence) {
 	}
 }
 
-static size_t identifierConstant(KrkToken * name) {
+static ssize_t identifierConstant(KrkToken * name) {
 	return krk_addConstant(currentChunk(), OBJECT_VAL(copyString(name->start, name->length)));
 }
 
-static size_t parseVariable(const char * errorMessage) {
+static int identifiersEqual(KrkToken * a, KrkToken * b) {
+	return (a->length == b->length && memcmp(a->start, b->start, a->length) == 0);
+}
+
+static ssize_t resolveLocal(Compiler * compiler, KrkToken * name) {
+	for (ssize_t i = compiler->localCount - 1; i >= 0; i--) {
+		Local * local = &compiler->locals[i];
+		if (identifiersEqual(name, &local->name)) {
+			if (local->depth == -1) {
+				error("can not initialize value recursively (are you shadowing something?)");
+			}
+			return i;
+		}
+	}
+	return -1;
+}
+
+static void addLocal(KrkToken name) {
+	if (current->localCount == 256) {
+		error("too many locals");
+		return;
+	}
+	Local * local = &current->locals[current->localCount++];
+	local->name = name;
+	local->depth = -1;
+}
+
+static void declareVariable() {
+	if (current->scopeDepth == 0) return;
+	KrkToken * name = &parser.previous;
+	/* Detect duplicate definition */
+	for (ssize_t i = current->localCount - 1; i >= 0; i--) {
+		Local * local = &current->locals[i];
+		if (local->depth != -1 && local->depth < current->scopeDepth) break;
+		if (identifiersEqual(name, &local->name)) error("Duplicate definition");
+	}
+	addLocal(*name);
+}
+
+static ssize_t parseVariable(const char * errorMessage) {
 	consume(TOKEN_IDENTIFIER, errorMessage);
+
+	declareVariable();
+	if (current->scopeDepth > 0) return 0;
+
 	return identifierConstant(&parser.previous);
 }
 
+static void markInitialized() {
+	current->locals[current->localCount - 1].depth = current->scopeDepth;
+}
+
 static void defineVariable(size_t global) {
+	if (current->scopeDepth > 0) {
+		markInitialized();
+		return;
+	}
+
 	EMIT_CONSTANT_OP(OP_DEFINE_GLOBAL, global);
 }
 
@@ -393,6 +515,8 @@ static ParseRule * getRule(KrkTokenType type) {
 
 int krk_compile(const char * src, KrkChunk * chunk) {
 	krk_initScanner(src);
+	Compiler compiler;
+	initCompiler(&compiler);
 	compilingChunk = chunk;
 
 	parser.hadError = 0;

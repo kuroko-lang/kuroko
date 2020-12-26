@@ -267,6 +267,18 @@ static KrkValue run() {
 				}
 				break;
 			}
+			case OP_GET_LOCAL_LONG:
+			case OP_GET_LOCAL: {
+				uint32_t slot = readBytes((opcode == OP_GET_LOCAL ? 1 : 3));
+				krk_push(vm.stack[slot]);
+				break;
+			}
+			case OP_SET_LOCAL_LONG:
+			case OP_SET_LOCAL: {
+				uint32_t slot = readBytes((opcode == OP_SET_LOCAL ? 1 : 3));
+				vm.stack[slot] = krk_peep(0);
+				break;
+			}
 		}
 	}
 
