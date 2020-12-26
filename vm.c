@@ -184,7 +184,7 @@ static KrkValue run() {
 
 	for (;;) {
 #ifdef DEBUG
-		fprintf(stderr, "          ");
+		fprintf(stderr, "        | ");
 		for (KrkValue * slot = vm.stack; slot < vm.stackTop; slot++) {
 			fprintf(stderr, "[ ");
 			krk_printValue(stderr, *slot);
@@ -277,6 +277,25 @@ static KrkValue run() {
 			case OP_SET_LOCAL: {
 				uint32_t slot = readBytes((opcode == OP_SET_LOCAL ? 1 : 3));
 				vm.stack[slot] = krk_peep(0);
+				break;
+			}
+			case OP_JUMP_IF_FALSE: {
+				uint16_t offset = readBytes(2);
+				if (isFalsey(krk_peep(0))) vm.ip += offset;
+				break;
+			}
+			case OP_JUMP_IF_TRUE: {
+				uint16_t offset = readBytes(2);
+				if (!isFalsey(krk_peep(0))) vm.ip += offset;
+				break;
+			}
+			case OP_JUMP: {
+				vm.ip += readBytes(2);
+				break;
+			}
+			case OP_LOOP: {
+				uint16_t offset = readBytes(2);
+				vm.ip -= offset;
 				break;
 			}
 		}

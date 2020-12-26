@@ -187,8 +187,8 @@ static KrkTokenType identifierType() {
 		case 'f': return checkKeyword(1, "or", TOKEN_FOR);
 		case 'F': return checkKeyword(1, "alse", TOKEN_FALSE);
 		case 'i': if (MORE(1)) switch (scanner.start[1]) {
-			case 'f': return checkKeyword(2, "f", TOKEN_IF);
-			case 'n': return checkKeyword(2, "n", TOKEN_IN);
+			case 'f': return checkKeyword(2, "", TOKEN_IF);
+			case 'n': return checkKeyword(2, "", TOKEN_IN);
 		} break;
 		case 'l': return checkKeyword(1, "et", TOKEN_LET);
 		case 'n': return checkKeyword(1, "ot", TOKEN_NOT);
@@ -236,6 +236,7 @@ KrkToken krk_scanToken() {
 		scanner.line++;
 		if (scanner.startOfLine) {
 			/* Ignore completely blank lines */
+			fprintf(stderr, "Completely blank line %d\n", (int)scanner.line-1);
 			return makeToken(TOKEN_RETRY);
 		} else {
 			scanner.startOfLine = 1;

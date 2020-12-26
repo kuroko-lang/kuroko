@@ -70,6 +70,8 @@ static ParseRule * getRule(KrkTokenType type);
 static void expression();
 static void statement();
 static void declaration();
+static void or_(int canAssign);
+static void and_(int canAssign);
 
 static void errorAt(KrkToken * token, const char * message) {
 	if (parser.panicMode) return;
@@ -84,6 +86,7 @@ static void errorAt(KrkToken * token, const char * message) {
 
 	fprintf(stderr, ": %s\n", message);
 	parser.hadError = 1;
+	__asm__("int $3");
 }
 
 static void error(const char * message) {
@@ -91,6 +94,8 @@ static void error(const char * message) {
 }
 
 static void errorAtCurrent(const char * message) {
+	errorAt(&parser.previous, "(token before actual error)");
+	parser.panicMode = 0;
 	errorAt(&parser.current, message);
 }
 
@@ -222,13 +227,11 @@ static void varDeclaration() {
 		emitByte(OP_NONE);
 	}
 
-	endOfLine();
 	defineVariable(global);
 }
 
 static void printStatement() {
 	expression();
-	endOfLine();
 	emitByte(OP_PRINT);
 }
 
@@ -257,6 +260,8 @@ static void synchronize() {
 static void declaration() {
 	if (match(TOKEN_LET)) {
 		varDeclaration();
+	} else if (check(TOKEN_EOL)) {
+		return;
 	} else {
 		statement();
 	}
@@ -266,29 +271,54 @@ static void declaration() {
 
 static void expressionStatement() {
 	expression();
-	endOfLine();
 	emitByte(OP_POP);
 }
 
-static void block() {
-	consume(TOKEN_COLON, "Blocks must start with a colon; where's your colon?");
-
+static void block(int indentation) {
 	if (match(TOKEN_EOL)) {
 		/* Begin actual blocks */
 		if (check(TOKEN_INDENTATION)) {
-			/* TODO: Check if this is correctly indented more than the current block */
 			size_t currentIndentation = parser.current.length;
+			if (currentIndentation <= indentation) {
+				errorAtCurrent("Unexpected indentation level for new block");
+			}
 			do {
 				if (parser.current.length != currentIndentation) break;
 				advance();
 				declaration();
+				if (check(TOKEN_EOL)) endOfLine();
 			} while (check(TOKEN_INDENTATION));
+			fprintf(stderr, "Exiting from block %d to indentation level %d (line %d)\n",
+				(int)currentIndentation, check(TOKEN_INDENTATION) ? (int)parser.current.length : 0, (int)parser.previous.line);
 		} else {
 			errorAtCurrent("Expected indentation for block");
 		}
 	} else {
 		errorAtCurrent("Unsupported single-line block");
 	}
+}
+
+static int emitJump(uint8_t opcode) {
+	emitByte(opcode);
+	emitBytes(0xFF, 0xFF);
+	return currentChunk()->count - 2;
+}
+
+static void patchJump(int offset) {
+	int jump = currentChunk()->count - offset - 2;
+	if (jump > 0xFFFF) {
+		error("Unsupported far jump (we'll get there)");
+	}
+
+	currentChunk()->code[offset] = (jump >> 8) & 0xFF;
+	currentChunk()->code[offset + 1] =  (jump) & 0xFF;
+}
+
+static void emitLoop(int loopStart) {
+	emitByte(OP_LOOP);
+	int offset = currentChunk()->count - loopStart + 2;
+	if (offset > 0xFFFF) error("offset too big");
+	emitBytes(offset >> 8, offset);
 }
 
 static void beginScope() {
@@ -304,15 +334,131 @@ static void endScope() {
 	}
 }
 
+static void ifStatement() {
+	/* Figure out what block level contains us so we can match our partner else */
+	int blockWidth = (parser.previous.type == TOKEN_INDENTATION) ? parser.previous.length : 0;
+
+	/* Collect the if token that started this statement */
+	advance();
+
+	/* Collect condition expression */
+	expression();
+
+	/* if EXPR: */
+	consume(TOKEN_COLON, "Expect ':' after condition.");
+
+	int thenJump = emitJump(OP_JUMP_IF_FALSE);
+	emitByte(OP_POP);
+
+	/* Start a new scope and enter a block */
+	beginScope();
+	block(blockWidth);
+	endScope();
+
+	fprintf(stderr, "Done with block for if that was intended %d, next should be indentation/else?\n", blockWidth);
+
+	int elseJump = emitJump(OP_JUMP);
+	patchJump(thenJump);
+	emitByte(OP_POP);
+
+	/* See if we have a matching else block */
+	if (blockWidth == 0 || (check(TOKEN_INDENTATION) && (parser.current.length == blockWidth))) {
+		if (blockWidth) advance();
+		if (match(TOKEN_ELSE)) {
+			/* TODO ELIF or ELSE IF */
+			consume(TOKEN_COLON, "Expect ':' after else.");
+			fprintf(stderr, "beginning else %d\n", blockWidth);
+			beginScope();
+			block(blockWidth);
+			endScope();
+			fprintf(stderr, "ending else %d (%d)\n", blockWidth, (int)parser.current.line);
+		}
+	}
+
+	patchJump(elseJump);
+}
+
+static void whileStatement() {
+	int blockWidth = (parser.previous.type == TOKEN_INDENTATION) ? parser.previous.length : 0;
+	advance();
+
+	int loopStart = currentChunk()->count;
+
+	expression();
+	consume(TOKEN_COLON, "Expect ':' after condition.");
+
+	int exitJump = emitJump(OP_JUMP_IF_FALSE);
+	emitByte(OP_POP);
+
+	beginScope();
+	block(blockWidth);
+	endScope();
+
+	emitLoop(loopStart);
+
+	patchJump(exitJump);
+	emitByte(OP_POP);
+}
+
+static void forStatement() {
+	/* I'm not sure if I want this to be more like Python or C/Lox/etc. */
+	int blockWidth = (parser.previous.type == TOKEN_INDENTATION) ? parser.previous.length : 0;
+	advance();
+
+	/* For now this is going to be kinda broken */
+	beginScope();
+
+	varDeclaration();
+	consume(TOKEN_COMMA,"expect ,");
+
+	int loopStart = currentChunk()->count;
+	expression(); /* condition */
+	int exitJump = emitJump(OP_JUMP_IF_FALSE);
+	emitByte(OP_POP);
+
+	if (check(TOKEN_COMMA)) {
+		advance();
+		int bodyJump = emitJump(OP_JUMP);
+		int incrementStart = currentChunk()->count;
+		expression();
+		emitByte(OP_POP);
+
+		emitLoop(loopStart);
+		loopStart = incrementStart;
+		patchJump(bodyJump);
+	}
+
+	consume(TOKEN_COLON,"expect :");
+
+	block(blockWidth);
+
+	emitLoop(loopStart);
+	patchJump(exitJump);
+	emitByte(OP_POP);
+	endScope();
+}
+
 static void statement() {
-	if (match(TOKEN_EOL)) return; /* Meaningless blank line */
+	if (check(TOKEN_EOL)) {
+		return; /* Meaningless blank line */
+	}
 
 	if (match(TOKEN_PRINT)) {
 		printStatement();
-	} else if (match(TOKEN_BLOCK)) {
-		beginScope();
-		block();
-		endScope();
+	} else if (check(TOKEN_IF)) {
+		/*
+		 * We check rather than match because we need to look at the indentation
+		 * token that came before this (if it was one) to figure out what block
+		 * indentation level we're at, so that we can match our companion else
+		 * and make sure it's not the else for a higher if block.
+		 *
+		 * TODO: Are there other things where we want to do this?
+		 */
+		ifStatement();
+	} else if (check(TOKEN_WHILE)) {
+		whileStatement();
+	} else if (check(TOKEN_FOR)) {
+		forStatement();
 	} else {
 		expressionStatement();
 	}
@@ -399,7 +545,7 @@ ParseRule rules[] = {
 	[TOKEN_STRING]        = {string,   NULL,   PREC_NONE},
 	[TOKEN_NUMBER]        = {number,   NULL,   PREC_NONE},
 	[TOKEN_CODEPOINT]     = {NULL,     NULL,   PREC_NONE}, /* should be equivalent to number */
-	[TOKEN_AND]           = {NULL,     NULL,   PREC_NONE},
+	[TOKEN_AND]           = {NULL,     and_,   PREC_AND},
 	[TOKEN_CLASS]         = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_ELSE]          = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_FALSE]         = {literal,  NULL,   PREC_NONE},
@@ -410,7 +556,7 @@ ParseRule rules[] = {
 	[TOKEN_LET]           = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_NONE]          = {literal,  NULL,   PREC_NONE},
 	[TOKEN_NOT]           = {unary,    NULL,   PREC_NONE},
-	[TOKEN_OR]            = {NULL,     NULL,   PREC_NONE},
+	[TOKEN_OR]            = {NULL,     or_,    PREC_OR},
 	[TOKEN_PRINT]         = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_RETURN]        = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_SELF]          = {NULL,     NULL,   PREC_NONE},
@@ -509,6 +655,20 @@ static void defineVariable(size_t global) {
 	EMIT_CONSTANT_OP(OP_DEFINE_GLOBAL, global);
 }
 
+static void and_(int canAssign) {
+	int endJump = emitJump(OP_JUMP_IF_FALSE);
+	emitByte(OP_POP);
+	parsePrecedence(PREC_AND);
+	patchJump(endJump);
+}
+
+static void or_(int canAssign) {
+	int endJump = emitJump(OP_JUMP_IF_TRUE);
+	emitByte(OP_POP);
+	parsePrecedence(PREC_OR);
+	patchJump(endJump);
+}
+
 static ParseRule * getRule(KrkTokenType type) {
 	return &rules[type];
 }
@@ -526,6 +686,7 @@ int krk_compile(const char * src, KrkChunk * chunk) {
 
 	while (!match(TOKEN_EOF)) {
 		declaration();
+		if (check(TOKEN_EOL)) advance();
 	}
 
 	endCompiler();

@@ -29,6 +29,10 @@ void krk_disassembleChunk(KrkChunk * chunk, const char * name) {
 	(chunk->code[offset + 2] << 8) | (chunk->code[offset + 3]); \
 	fprintf(stderr, "%-16s %4d\n", #opc "_LONG", (int)operand); \
 	return offset + 4; }
+#define JUMP(opc,sign) case opc: { uint16_t jump = (chunk->code[offset + 1] << 8) | \
+	(chunk->code[offset + 2]); \
+	fprintf(stderr, "%-16s %4d -> %d\n", #opc, (int)offset, (int)(offset + 3 sign jump)); \
+	return offset + 3; }
 
 size_t krk_disassembleInstruction(KrkChunk * chunk, size_t offset) {
 	fprintf(stderr, "%04u ", (unsigned int)offset);
@@ -61,6 +65,10 @@ size_t krk_disassembleInstruction(KrkChunk * chunk, size_t offset) {
 		CONSTANT(OP_SET_GLOBAL)
 		OPERAND(OP_SET_LOCAL)
 		OPERAND(OP_GET_LOCAL)
+		JUMP(OP_JUMP,+)
+		JUMP(OP_JUMP_IF_FALSE,+)
+		JUMP(OP_JUMP_IF_TRUE,+)
+		JUMP(OP_LOOP,-)
 		default:
 			fprintf(stderr, "Unknown opcode: %02x\n", opcode);
 			return offset + 1;

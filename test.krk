@@ -2,7 +2,8 @@ print "Hello, world"
 let a = "Hello,"
 let b = "world"
 print a + " " + b
-block:
+
+if True or False:
     let a = "This is a new variable"
     print "I'm in a block"
     # This should work
@@ -11,6 +12,26 @@ block:
     print b
 
     print "I am still in the block"
+    if True and False:
+
+        print "This is a nested if!"
+        print "None of this should happen"
+    else:
+        print "foo"
+
+else:
+    print "This is the other branch"
 
 print a
 print b
+
+let i = 5
+
+while i:
+    print "BUTTS"
+    i = i - 1
+
+for c = 10, c, c = c - 1:
+    print "c = " + c
+
+print "done"
