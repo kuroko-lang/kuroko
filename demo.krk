@@ -1,0 +1,15 @@
+import system
+
+class Foo:
+
+    def __init__(bar):
+        self.bar = bar
+
+    def getBar():
+        return self.bar
+
+foo = Foo(42)
+
+
+
+
