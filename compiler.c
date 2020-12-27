@@ -408,10 +408,8 @@ static void endScope() {
 	while (current->localCount > 0 &&
 	       current->locals[current->localCount - 1].depth > current->scopeDepth) {
 		if (current->locals[current->localCount - 1].isCaptured) {
-			fprintf(stderr, "Emitting close\n");
 			emitByte(OP_CLOSE_UPVALUE);
 		} else {
-			fprintf(stderr, "emitting pop\n");
 			emitByte(OP_POP);
 		}
 		current->localCount--;
