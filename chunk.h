@@ -42,6 +42,7 @@ typedef enum {
 	OP_JUMP_IF_TRUE,
 	OP_JUMP,
 	OP_LOOP,
+	OP_CALL,
 } KrkOpCode;
 
 /**
@@ -59,5 +60,5 @@ extern void krk_initChunk(KrkChunk * chunk);
 extern void krk_writeChunk(KrkChunk * chunk, uint8_t byte, size_t line);
 extern void krk_freeChunk(KrkChunk * chunk);
 extern size_t krk_addConstant(KrkChunk * chunk, KrkValue value);
-extern void krk_emitConstant(KrkChunk * chunk, size_t ind);
+extern void krk_emitConstant(KrkChunk * chunk, size_t ind, size_t line);
 extern size_t krk_writeConstant(KrkChunk * chunk, KrkValue value, size_t line);

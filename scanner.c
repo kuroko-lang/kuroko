@@ -236,7 +236,6 @@ KrkToken krk_scanToken() {
 		scanner.line++;
 		if (scanner.startOfLine) {
 			/* Ignore completely blank lines */
-			fprintf(stderr, "Completely blank line %d\n", (int)scanner.line-1);
 			return makeToken(TOKEN_RETRY);
 		} else {
 			scanner.startOfLine = 1;

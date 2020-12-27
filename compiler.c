@@ -6,6 +6,7 @@
 #include "compiler.h"
 #include "scanner.h"
 #include "object.h"
+#include "debug.h"
 
 typedef struct {
 	KrkToken current;
@@ -41,8 +42,17 @@ typedef struct {
 	ssize_t depth;
 } Local;
 
-typedef struct {
-	Local  locals[256];
+typedef enum {
+	TYPE_FUNCTION,
+	TYPE_MODULE,
+} FunctionType;
+
+#define MAX_LOCALS 256
+typedef struct Compiler {
+	struct Compiler * enclosing;
+	KrkFunction * function;
+	FunctionType type;
+	Local  locals[MAX_LOCALS];
 	size_t localCount;
 	size_t scopeDepth;
 } Compiler;
@@ -50,23 +60,37 @@ typedef struct {
 Parser parser;
 Compiler * current = NULL;
 
-KrkChunk * compilingChunk;
 static KrkChunk * currentChunk() {
-	return compilingChunk;
+	return &current->function->chunk;
 }
 
-static void initCompiler(Compiler * compiler) {
+static void initCompiler(Compiler * compiler, FunctionType type) {
+	compiler->enclosing = current;
+	compiler->function = NULL;
+	compiler->type = type;
 	compiler->localCount = 0;
 	compiler->scopeDepth = 0;
+	compiler->function = newFunction();
 	current = compiler;
+
+	if (type != TYPE_MODULE) {
+		current->function->name = copyString(parser.previous.start, parser.previous.length);
+	}
+
+	Local * local = &current->locals[current->localCount++];
+	local->depth = 0;
+	local->name.start = "";
+	local->name.length = 0;
 }
 
 static void parsePrecedence(Precedence precedence);
 static ssize_t parseVariable(const char * errorMessage);
 static void defineVariable(size_t global);
+static uint8_t argumentList();
 static ssize_t identifierConstant(KrkToken * name);
 static ssize_t resolveLocal(Compiler * compiler, KrkToken * name);
 static ParseRule * getRule(KrkTokenType type);
+static void defDeclaration();
 static void expression();
 static void statement();
 static void declaration();
@@ -86,7 +110,6 @@ static void errorAt(KrkToken * token, const char * message) {
 
 	fprintf(stderr, ": %s\n", message);
 	parser.hadError = 1;
-	__asm__("int $3");
 }
 
 static void error(const char * message) {
@@ -140,11 +163,21 @@ static void emitBytes(uint8_t byte1, uint8_t byte2) {
 }
 
 static void emitReturn() {
-	emitByte(OP_RETURN);
+	emitBytes(OP_NONE, OP_RETURN);
 }
 
-static void endCompiler() {
+static KrkFunction * endCompiler() {
 	emitReturn();
+	KrkFunction * function = current->function;
+#define DEBUG
+#ifdef DEBUG
+	if (!parser.hadError) {
+		krk_disassembleChunk(currentChunk(), function->name != NULL ? function->name->chars : "<module>");
+	}
+#endif
+
+	current = current->enclosing;
+	return function;
 }
 
 static void endOfLine() {
@@ -205,6 +238,11 @@ static void binary(int canAssign) {
 	}
 }
 
+static void call(int canAssign) {
+	uint8_t argCount = argumentList();
+	emitBytes(OP_CALL, argCount);
+}
+
 static void literal(int canAssign) {
 	switch (parser.previous.type) {
 		case TOKEN_FALSE: emitByte(OP_FALSE); break;
@@ -258,7 +296,9 @@ static void synchronize() {
 }
 
 static void declaration() {
-	if (match(TOKEN_LET)) {
+	if (check(TOKEN_DEF)) {
+		defDeclaration();
+	} else if (match(TOKEN_LET)) {
 		varDeclaration();
 	} else if (check(TOKEN_EOL)) {
 		return;
@@ -272,6 +312,19 @@ static void declaration() {
 static void expressionStatement() {
 	expression();
 	emitByte(OP_POP);
+}
+
+static void beginScope() {
+	current->scopeDepth++;
+}
+
+static void endScope() {
+	current->scopeDepth--;
+	while (current->localCount > 0 &&
+	       current->locals[current->localCount - 1].depth > current->scopeDepth) {
+		emitByte(OP_POP);
+		current->localCount--;
+	}
 }
 
 static void block(int indentation) {
@@ -288,14 +341,53 @@ static void block(int indentation) {
 				declaration();
 				if (check(TOKEN_EOL)) endOfLine();
 			} while (check(TOKEN_INDENTATION));
-			fprintf(stderr, "Exiting from block %d to indentation level %d (line %d)\n",
-				(int)currentIndentation, check(TOKEN_INDENTATION) ? (int)parser.current.length : 0, (int)parser.previous.line);
+			//fprintf(stderr, "Exiting from block %d to indentation level %d (line %d)\n",
+			//	(int)currentIndentation, check(TOKEN_INDENTATION) ? (int)parser.current.length : 0, (int)parser.previous.line);
 		} else {
 			errorAtCurrent("Expected indentation for block");
 		}
 	} else {
 		errorAtCurrent("Unsupported single-line block");
 	}
+}
+
+static void function(FunctionType type, int blockWidth) {
+	Compiler compiler;
+	initCompiler(&compiler, type);
+
+	beginScope();
+
+	consume(TOKEN_LEFT_PAREN, "Expected start of parameter list after function name.");
+	if (!check(TOKEN_RIGHT_PAREN)) {
+		do {
+			current->function->arity++;
+			if (current->function->arity > 255) errorAtCurrent("too many function parameters");
+			ssize_t paramConstant = parseVariable("Expect parameter name.");
+			defineVariable(paramConstant);
+		} while (match(TOKEN_COMMA));
+	}
+	consume(TOKEN_RIGHT_PAREN, "Expected end of parameter list.");
+
+	consume(TOKEN_COLON, "Expected colon after function signature.");
+	block(blockWidth);
+
+	KrkFunction * function = endCompiler();
+	emitConstant(OBJECT_VAL(function));
+}
+
+static void markInitialized() {
+	if (current->scopeDepth == 0) return;
+	current->locals[current->localCount - 1].depth = current->scopeDepth;
+}
+
+static void defDeclaration() {
+	int blockWidth = (parser.previous.type == TOKEN_INDENTATION) ? parser.previous.length : 0;
+	advance(); /* Collect the `def` */
+
+	ssize_t global = parseVariable("Expected function name.");
+	markInitialized();
+	function(TYPE_FUNCTION, blockWidth);
+	defineVariable(global);
 }
 
 static int emitJump(uint8_t opcode) {
@@ -321,19 +413,6 @@ static void emitLoop(int loopStart) {
 	emitBytes(offset >> 8, offset);
 }
 
-static void beginScope() {
-	current->scopeDepth++;
-}
-
-static void endScope() {
-	current->scopeDepth--;
-	while (current->localCount > 0 &&
-	       current->locals[current->localCount - 1].depth > current->scopeDepth) {
-		emitByte(OP_POP);
-		current->localCount--;
-	}
-}
-
 static void ifStatement() {
 	/* Figure out what block level contains us so we can match our partner else */
 	int blockWidth = (parser.previous.type == TOKEN_INDENTATION) ? parser.previous.length : 0;
@@ -355,8 +434,6 @@ static void ifStatement() {
 	block(blockWidth);
 	endScope();
 
-	fprintf(stderr, "Done with block for if that was intended %d, next should be indentation/else?\n", blockWidth);
-
 	int elseJump = emitJump(OP_JUMP);
 	patchJump(thenJump);
 	emitByte(OP_POP);
@@ -367,11 +444,9 @@ static void ifStatement() {
 		if (match(TOKEN_ELSE)) {
 			/* TODO ELIF or ELSE IF */
 			consume(TOKEN_COLON, "Expect ':' after else.");
-			fprintf(stderr, "beginning else %d\n", blockWidth);
 			beginScope();
 			block(blockWidth);
 			endScope();
-			fprintf(stderr, "ending else %d (%d)\n", blockWidth, (int)parser.current.line);
 		}
 	}
 
@@ -408,7 +483,9 @@ static void forStatement() {
 	/* For now this is going to be kinda broken */
 	beginScope();
 
+	/* actually should be `for NAME in ITERABLE` ... */
 	varDeclaration();
+
 	consume(TOKEN_COMMA,"expect ,");
 
 	int loopStart = currentChunk()->count;
@@ -438,6 +515,15 @@ static void forStatement() {
 	endScope();
 }
 
+static void returnStatement() {
+	if (check(TOKEN_EOL) || check(TOKEN_EOF)) {
+		emitReturn();
+	} else {
+		expression();
+		emitByte(OP_RETURN);
+	}
+}
+
 static void statement() {
 	if (check(TOKEN_EOL)) {
 		return; /* Meaningless blank line */
@@ -459,6 +545,8 @@ static void statement() {
 		whileStatement();
 	} else if (check(TOKEN_FOR)) {
 		forStatement();
+	} else if (match(TOKEN_RETURN)) {
+		returnStatement();
 	} else {
 		expressionStatement();
 	}
@@ -519,7 +607,7 @@ static void variable(int canAssign) {
 }
 
 ParseRule rules[] = {
-	[TOKEN_LEFT_PAREN]    = {grouping, NULL,   PREC_NONE},
+	[TOKEN_LEFT_PAREN]    = {grouping, call,   PREC_CALL},
 	[TOKEN_RIGHT_PAREN]   = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_LEFT_BRACE]    = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_RIGHT_BRACE]   = {NULL,     NULL,   PREC_NONE},
@@ -612,7 +700,7 @@ static ssize_t resolveLocal(Compiler * compiler, KrkToken * name) {
 }
 
 static void addLocal(KrkToken name) {
-	if (current->localCount == 256) {
+	if (current->localCount == MAX_LOCALS) {
 		error("too many locals");
 		return;
 	}
@@ -642,10 +730,6 @@ static ssize_t parseVariable(const char * errorMessage) {
 	return identifierConstant(&parser.previous);
 }
 
-static void markInitialized() {
-	current->locals[current->localCount - 1].depth = current->scopeDepth;
-}
-
 static void defineVariable(size_t global) {
 	if (current->scopeDepth > 0) {
 		markInitialized();
@@ -653,6 +737,19 @@ static void defineVariable(size_t global) {
 	}
 
 	EMIT_CONSTANT_OP(OP_DEFINE_GLOBAL, global);
+}
+
+static uint8_t argumentList() {
+	uint8_t argCount = 0;
+	if (!check(TOKEN_RIGHT_PAREN)) {
+		do {
+			expression();
+			if (argCount == 255) error("Too many arguments to function."); // Need long call...
+			argCount++;
+		} while (match(TOKEN_COMMA));
+	}
+	consume(TOKEN_RIGHT_PAREN, "Expected ')' after arguments.");
+	return argCount;
 }
 
 static void and_(int canAssign) {
@@ -673,11 +770,10 @@ static ParseRule * getRule(KrkTokenType type) {
 	return &rules[type];
 }
 
-int krk_compile(const char * src, KrkChunk * chunk) {
+KrkFunction * krk_compile(const char * src) {
 	krk_initScanner(src);
 	Compiler compiler;
-	initCompiler(&compiler);
-	compilingChunk = chunk;
+	initCompiler(&compiler, TYPE_MODULE);
 
 	parser.hadError = 0;
 	parser.panicMode = 0;
@@ -689,6 +785,6 @@ int krk_compile(const char * src, KrkChunk * chunk) {
 		if (check(TOKEN_EOL)) advance();
 	}
 
-	endCompiler();
-	return !parser.hadError;
+	KrkFunction * function = endCompiler();
+	return parser.hadError ? NULL : function;
 }

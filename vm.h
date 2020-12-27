@@ -1,13 +1,21 @@
 #pragma once
 
 #include "kuroko.h"
-#include "chunk.h"
 #include "value.h"
 #include "table.h"
+#include "object.h"
+
+#define FRAMES_MAX 64
 
 typedef struct {
-	KrkChunk * chunk;
+	KrkFunction * function;
 	uint8_t * ip;
+	KrkValue * slots;
+} CallFrame;
+
+typedef struct {
+	CallFrame frames[FRAMES_MAX];
+	size_t frameCount;
 	size_t stackSize;
 	KrkValue * stack;
 	KrkValue * stackTop;

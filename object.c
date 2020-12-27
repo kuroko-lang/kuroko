@@ -63,5 +63,26 @@ void krk_printObject(FILE * f, KrkValue value) {
 		case OBJ_STRING:
 			fprintf(f, "%s", AS_CSTRING(value));
 			break;
+		case OBJ_FUNCTION:
+			if (AS_FUNCTION(value)->name == NULL) fprintf(f, "<module>");
+			else fprintf(f, "<def %s>", AS_FUNCTION(value)->name->chars);
+			break;
+		case OBJ_NATIVE:
+			fprintf(f, "<native bind>");
+			break;
 	}
+}
+
+KrkFunction * newFunction() {
+	KrkFunction * function = ALLOCATE_OBJECT(KrkFunction, OBJ_FUNCTION);
+	function->arity = 0;
+	function->name = NULL;
+	krk_initChunk(&function->chunk);
+	return function;
+}
+
+KrkNative * newNative(NativeFn function) {
+	KrkNative * native = ALLOCATE_OBJECT(KrkNative, OBJ_NATIVE);
+	native->function = function;
+	return native;
 }

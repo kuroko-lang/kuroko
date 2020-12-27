@@ -19,6 +19,16 @@ static void freeObject(KrkObj * object) {
 			FREE(KrkString, object);
 			break;
 		}
+		case OBJ_FUNCTION: {
+			KrkFunction * function = (KrkFunction*)object;
+			krk_freeChunk(&function->chunk);
+			FREE(KrkFunction, object);
+			break;
+		}
+		case OBJ_NATIVE: {
+			FREE(KrkNative, object);
+			break;
+		}
 	}
 }
 

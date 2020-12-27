@@ -1,37 +1,13 @@
-print "Hello, world"
-let a = "Hello,"
-let b = "world"
-print a + " " + b
+def thing(): # We can put a comment here, right?
+    print "This is a function that does a thing!"
+    print "Yay!"
+    return 123
 
-if True or False:
-    let a = "This is a new variable"
-    print "I'm in a block"
-    # This should work
-    print a
-    
-    print b
+print "This is other code."
+print thing
+let result = thing()
+print result
 
-    print "I am still in the block"
-    if True and False:
+result = sleep(1)
 
-        print "This is a nested if!"
-        print "None of this should happen"
-    else:
-        print "foo"
-
-else:
-    print "This is the other branch"
-
-print a
-print b
-
-let i = 5
-
-while i:
-    print "BUTTS"
-    i = i - 1
-
-for c = 10, c, c = c - 1:
-    print "c = " + c
-
-print "done"
+print "Did I sleep? " + result

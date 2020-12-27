@@ -1,5 +1,6 @@
 #include <stdarg.h>
 #include <string.h>
+#include <unistd.h>
 #include "vm.h"
 #include "debug.h"
 #include "memory.h"
@@ -12,6 +13,7 @@ KrkVM vm;
 
 static void resetStack() {
 	vm.stackTop = vm.stack;
+	vm.frameCount = 0;
 }
 
 static void runtimeError(const char * fmt, ...) {
@@ -20,9 +22,19 @@ static void runtimeError(const char * fmt, ...) {
 	vfprintf(stderr, fmt, args);
 	va_end(args);
 	fprintf(stderr, "\n");
-	size_t instruction = vm.ip - vm.chunk->code - 1;
-	size_t line = vm.chunk->lines[instruction];
-	fprintf(stderr, "[line %d] in script\n", (int)line);
+
+	for (int i = vm.frameCount - 1; i >= 0; i--) {
+		CallFrame * frame = &vm.frames[i];
+		KrkFunction * function = frame->function;
+		size_t instruction = frame->ip - function->chunk.code - 1;
+		fprintf(stderr, "[line %d] in ", (int)function->chunk.lines[instruction]);
+		if (function->name == NULL) {
+			fprintf(stderr, "module\n");
+		} else {
+			fprintf(stderr, "%s()\n", function->name->chars);
+		}
+	}
+
 	resetStack();
 }
 
@@ -46,8 +58,66 @@ KrkValue krk_pop() {
 	return *vm.stackTop;
 }
 
-KrkValue krk_peep(int distance) {
+KrkValue krk_peek(int distance) {
 	return vm.stackTop[-1 - distance];
+}
+
+static void defineNative(const char * name, NativeFn function) {
+	krk_push(OBJECT_VAL(copyString(name, (int)strlen(name))));
+	krk_push(OBJECT_VAL(newNative(function)));
+	krk_tableSet(&vm.globals, vm.stack[0], vm.stack[1]);
+	krk_pop();
+	krk_pop();
+}
+
+static KrkValue krk_sleep(int argc, KrkValue argv[]) {
+	if (argc < 1) {
+		runtimeError("sleep: expect at least one argument.");
+		return BOOLEAN_VAL(0);
+	} else if (!IS_INTEGER(argv[0])) {
+		runtimeError("sleep: argument must be integer");
+		return BOOLEAN_VAL(0);
+	}
+
+	usleep(AS_INTEGER(argv[0]) * 1000000);
+
+	return BOOLEAN_VAL(1);
+}
+
+static int call(KrkFunction * function, int argCount) {
+	if (argCount != function->arity) {
+		runtimeError("Wrong number of arguments (%d expected, got %d)", function->arity, argCount);
+		return 0;
+	}
+	if (vm.frameCount == FRAMES_MAX) {
+		runtimeError("Too many call frames.");
+		return 0;
+	}
+	CallFrame * frame = &vm.frames[vm.frameCount++];
+	frame->function = function;
+	frame->ip = function->chunk.code;
+	frame->slots = vm.stackTop - argCount - 1;
+	return 1;
+}
+
+static int callValue(KrkValue callee, int argCount) {
+	if (IS_OBJECT(callee)) {
+		switch (OBJECT_TYPE(callee)) {
+			case OBJ_FUNCTION:
+				return call(AS_FUNCTION(callee), argCount);
+			case OBJ_NATIVE: {
+				NativeFn native = AS_NATIVE(callee);
+				KrkValue result = native(argCount, vm.stackTop - argCount);
+				vm.stackTop -= argCount + 1;
+				krk_push(result);
+				return 1;
+			}
+			default:
+				break;
+		}
+	}
+	runtimeError("Attempted to call non-callable type.");
+	return 0;
 }
 
 void krk_initVM() {
@@ -55,6 +125,7 @@ void krk_initVM() {
 	vm.objects = NULL;
 	krk_initTable(&vm.globals);
 	krk_initTable(&vm.strings);
+	defineNative("sleep", krk_sleep);
 }
 
 void krk_freeVM() {
@@ -158,14 +229,12 @@ static void addObjects() {
 	}
 }
 
-#define DEBUG
-
-#define READ_BYTE() (*vm.ip++)
+#define READ_BYTE() (*frame->ip++)
 #define BINARY_OP(op) { KrkValue b = krk_pop(); KrkValue a = krk_pop(); krk_push(op(a,b)); break; }
-#define READ_CONSTANT(s) (vm.chunk->constants.values[readBytes(s)])
+#define READ_CONSTANT(s) (frame->function->chunk.constants.values[readBytes(frame,s)])
 #define READ_STRING(s) AS_STRING(READ_CONSTANT(s))
 
-static size_t readBytes(int num) {
+static size_t readBytes(CallFrame * frame, int num) {
 	if (num == 1) return READ_BYTE();
 	else if (num == 2) {
 		unsigned int top = READ_BYTE();
@@ -181,8 +250,10 @@ static size_t readBytes(int num) {
 }
 
 static KrkValue run() {
+	CallFrame* frame = &vm.frames[vm.frameCount - 1];
 
 	for (;;) {
+#undef DEBUG
 #ifdef DEBUG
 		fprintf(stderr, "        | ");
 		for (KrkValue * slot = vm.stack; slot < vm.stackTop; slot++) {
@@ -191,7 +262,8 @@ static KrkValue run() {
 			fprintf(stderr, " ]");
 		}
 		fprintf(stderr, "\n");
-		krk_disassembleInstruction(vm.chunk, (size_t)(vm.ip - vm.chunk->code));
+		krk_disassembleInstruction(&frame->function->chunk,
+			(size_t)(frame->ip - frame->function->chunk.code));
 #endif
 		uint8_t opcode;
 		switch ((opcode = READ_BYTE())) {
@@ -201,9 +273,17 @@ static KrkValue run() {
 				break;
 			}
 			case OP_RETURN: {
-				krk_printValue(stdout, krk_pop());
-				fprintf(stdout, "\n");
-				return INTEGER_VAL(0);
+				KrkValue result = krk_pop();
+				vm.frameCount--;
+				if (vm.frameCount == 0) {
+					krk_pop();
+					return INTEGER_VAL(0);
+				}
+
+				vm.stackTop = frame->slots;
+				krk_push(result);
+				frame = &vm.frames[vm.frameCount - 1];
+				break;
 			}
 			case OP_EQUAL: {
 				KrkValue b = krk_pop();
@@ -211,9 +291,10 @@ static KrkValue run() {
 				krk_push(BOOLEAN_VAL(krk_valuesEqual(a,b)));
 				break;
 			}
+			case OP_LESS: BINARY_OP(less);
 			case OP_GREATER: BINARY_OP(greater)
 			case OP_ADD:
-				if (IS_OBJECT(krk_peep(0)) || IS_OBJECT(krk_peep(1))) addObjects();
+				if (IS_OBJECT(krk_peek(0)) || IS_OBJECT(krk_peek(1))) addObjects();
 				else BINARY_OP(add)
 				break;
 			case OP_SUBTRACT: BINARY_OP(subtract)
@@ -228,8 +309,8 @@ static KrkValue run() {
 			}
 			case OP_CONSTANT_LONG:
 			case OP_CONSTANT: {
-				size_t index = readBytes(opcode == OP_CONSTANT ? 1 : 3);
-				KrkValue constant = vm.chunk->constants.values[index];
+				size_t index = readBytes(frame, opcode == OP_CONSTANT ? 1 : 3);
+				KrkValue constant = frame->function->chunk.constants.values[index];
 				krk_push(constant);
 				break;
 			}
@@ -241,7 +322,7 @@ static KrkValue run() {
 			case OP_DEFINE_GLOBAL_LONG:
 			case OP_DEFINE_GLOBAL: {
 				KrkString * name = READ_STRING((opcode == OP_DEFINE_GLOBAL ? 1 : 3));
-				krk_tableSet(&vm.globals, OBJECT_VAL(name), krk_peep(0));
+				krk_tableSet(&vm.globals, OBJECT_VAL(name), krk_peek(0));
 				krk_pop();
 				break;
 			}
@@ -259,7 +340,7 @@ static KrkValue run() {
 			case OP_SET_GLOBAL_LONG:
 			case OP_SET_GLOBAL: {
 				KrkString * name = READ_STRING((opcode == OP_SET_GLOBAL ? 1 : 3));
-				if (krk_tableSet(&vm.globals, OBJECT_VAL(name), krk_peep(0))) {
+				if (krk_tableSet(&vm.globals, OBJECT_VAL(name), krk_peek(0))) {
 					krk_tableDelete(&vm.globals, OBJECT_VAL(name));
 					/* TODO: This should probably just work as an assignment? */
 					runtimeError("Undefined variable '%s'.", name->chars);
@@ -269,33 +350,41 @@ static KrkValue run() {
 			}
 			case OP_GET_LOCAL_LONG:
 			case OP_GET_LOCAL: {
-				uint32_t slot = readBytes((opcode == OP_GET_LOCAL ? 1 : 3));
-				krk_push(vm.stack[slot]);
+				uint32_t slot = readBytes(frame, (opcode == OP_GET_LOCAL ? 1 : 3));
+				krk_push(frame->slots[slot]);
 				break;
 			}
 			case OP_SET_LOCAL_LONG:
 			case OP_SET_LOCAL: {
-				uint32_t slot = readBytes((opcode == OP_SET_LOCAL ? 1 : 3));
-				vm.stack[slot] = krk_peep(0);
+				uint32_t slot = readBytes(frame, (opcode == OP_SET_LOCAL ? 1 : 3));
+				frame->slots[slot] = krk_peek(0);
 				break;
 			}
 			case OP_JUMP_IF_FALSE: {
-				uint16_t offset = readBytes(2);
-				if (isFalsey(krk_peep(0))) vm.ip += offset;
+				uint16_t offset = readBytes(frame, 2);
+				if (isFalsey(krk_peek(0))) frame->ip += offset;
 				break;
 			}
 			case OP_JUMP_IF_TRUE: {
-				uint16_t offset = readBytes(2);
-				if (!isFalsey(krk_peep(0))) vm.ip += offset;
+				uint16_t offset = readBytes(frame, 2);
+				if (!isFalsey(krk_peek(0))) frame->ip += offset;
 				break;
 			}
 			case OP_JUMP: {
-				vm.ip += readBytes(2);
+				frame->ip += readBytes(frame, 2);
 				break;
 			}
 			case OP_LOOP: {
-				uint16_t offset = readBytes(2);
-				vm.ip -= offset;
+				uint16_t offset = readBytes(frame, 2);
+				frame->ip -= offset;
+				break;
+			}
+			case OP_CALL: {
+				int argCount = READ_BYTE();
+				if (!callValue(krk_peek(argCount), argCount)) {
+					return NONE_VAL();
+				}
+				frame = &vm.frames[vm.frameCount - 1];
 				break;
 			}
 		}
@@ -306,16 +395,11 @@ static KrkValue run() {
 }
 
 int krk_interpret(const char * src) {
-	KrkChunk chunk;
-	krk_initChunk(&chunk);
-	if (!krk_compile(src, &chunk)) {
-		krk_freeChunk(&chunk);
-		return 1;
-	}
-	vm.chunk = &chunk;
-	vm.ip = vm.chunk->code;
+	KrkFunction * function = krk_compile(src);
+
+	krk_push(OBJECT_VAL(function));
+	callValue(OBJECT_VAL(function), 0);
 
 	KrkValue result = run();
-	krk_freeChunk(&chunk);
 	return IS_NONE(result);
 }

@@ -1,5 +1,5 @@
 #pragma once
 
-#include "chunk.h"
+#include "object.h"
 
-int krk_compile(const char * src, KrkChunk * chunk);
+KrkFunction * krk_compile(const char * src);
