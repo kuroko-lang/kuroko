@@ -155,6 +155,11 @@ static void closeUpvalues(KrkValue * last) {
 void krk_initVM() {
 	resetStack();
 	vm.objects = NULL;
+	vm.bytesAllocated = 0;
+	vm.nextGC = 1024 * 1024;
+	vm.grayCount = 0;
+	vm.grayCapacity = 0;
+	vm.grayStack = NULL;
 	krk_initTable(&vm.globals);
 	krk_initTable(&vm.strings);
 	defineNative("sleep", krk_sleep);
@@ -231,12 +236,14 @@ static void concatenate(const char * a, const char * b, size_t al, size_t bl) {
 	chars[length] = '\0';
 
 	KrkString * result = takeString(chars, length);
+	krk_pop();
+	krk_pop();
 	krk_push(OBJECT_VAL(result));
 }
 
 static void addObjects() {
-	KrkValue _b = krk_pop();
-	KrkValue _a = krk_pop();
+	KrkValue _b = krk_peek(0);
+	KrkValue _a = krk_peek(1);
 
 	if (IS_STRING(_a)) {
 		KrkString * a = AS_STRING(_a);
@@ -260,6 +267,8 @@ static void addObjects() {
 		concatenate(a->chars,tmp,a->length,strlen(tmp));
 	} else {
 		runtimeError("Can not concatenate types %s and %s", typeName(_a), typeName(_b)); \
+		krk_pop();
+		krk_pop();
 		krk_push(NONE_VAL());
 	}
 }
@@ -281,7 +290,9 @@ static size_t readBytes(CallFrame * frame, int num) {
 		unsigned int bot = READ_BYTE();
 		return (top << 16) | (mid << 8) | (bot);
 	}
-	return 0;
+
+	runtimeError("Invalid byte read?");
+	return (size_t)-1;
 }
 
 static KrkValue run() {

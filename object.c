@@ -14,6 +14,7 @@
 static KrkObj * allocateObject(size_t size, ObjType type) {
 	KrkObj * object = (KrkObj*)krk_reallocate(NULL, 0, size);
 	object->type = type;
+	object->isMarked = 0;
 	object->next = vm.objects;
 	vm.objects = object;
 	return object;
@@ -24,7 +25,9 @@ static KrkString * allocateString(char * chars, size_t length, uint32_t hash) {
 	string->length = length;
 	string->chars = chars;
 	string->hash = hash;
+	krk_push(OBJECT_VAL(string));
 	krk_tableSet(&vm.strings, OBJECT_VAL(string), NONE_VAL());
+	krk_pop();
 	return string;
 }
 
@@ -51,7 +54,7 @@ KrkString * takeString(char * chars, size_t length) {
 KrkString * copyString(const char * chars, size_t length) {
 	uint32_t hash = hashString(chars, length);
 	KrkString * interned = tableFindString(&vm.strings, chars, length, hash);
-	if (interned != NULL) return interned;
+	if (interned) return interned;
 	char * heapChars = ALLOCATE(char, length + 1);
 	memcpy(heapChars, chars, length);
 	heapChars[length] = '\0';

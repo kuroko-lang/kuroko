@@ -1,5 +1,6 @@
 #include "chunk.h"
 #include "memory.h"
+#include "vm.h"
 
 void krk_initChunk(KrkChunk * chunk) {
 	chunk->count = 0;
@@ -30,7 +31,9 @@ void krk_freeChunk(KrkChunk * chunk) {
 }
 
 size_t krk_addConstant(KrkChunk * chunk, KrkValue value) {
+	krk_push(value);
 	krk_writeValueArray(&chunk->constants, value);
+	krk_pop();
 	return chunk->constants.count - 1;
 }
 

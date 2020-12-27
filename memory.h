@@ -1,6 +1,8 @@
 #pragma once
 
 #include "kuroko.h"
+#include "object.h"
+#include "table.h"
 
 #define GROW_CAPACITY(c) ((c) < 8 ? 8 : (c) * 2)
 #define GROW_ARRAY(t,p,o,n) (t*)krk_reallocate(p,sizeof(t)*o,sizeof(t)*n)
@@ -12,3 +14,8 @@
 
 extern void * krk_reallocate(void *, size_t, size_t);
 extern void krk_freeObjects(void);
+extern void krk_collectGarbage(void);
+extern void krk_markValue(KrkValue value);
+extern void krk_markObject(KrkObj * object);
+extern void krk_markTable(KrkTable * table);
+extern void krk_tableRemoveWhite(KrkTable * table);

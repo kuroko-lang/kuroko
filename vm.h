@@ -23,6 +23,11 @@ typedef struct {
 	KrkTable strings;
 	KrkUpvalue * openUpvalues;
 	KrkObj * objects;
+	size_t bytesAllocated;
+	size_t nextGC;
+	size_t grayCount;
+	size_t grayCapacity;
+	KrkObj** grayStack;
 } KrkVM;
 
 extern KrkVM vm;

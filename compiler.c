@@ -4,6 +4,7 @@
 
 #include "kuroko.h"
 #include "compiler.h"
+#include "memory.h"
 #include "scanner.h"
 #include "object.h"
 #include "debug.h"
@@ -197,8 +198,8 @@ static void endOfLine() {
 	}
 }
 
-static void emitConstant(KrkValue value) {
-	krk_writeConstant(currentChunk(), value, parser.previous.line);
+static size_t emitConstant(KrkValue value) {
+	return krk_writeConstant(currentChunk(), value, parser.previous.line);
 }
 
 static void number(int canAssign) {
@@ -604,7 +605,7 @@ static void unary(int canAssign) {
 
 static void string(int canAssign) {
 	/* TODO: needs to handle escape sequences */
-	emitConstant(OBJECT_VAL(copyString(parser.previous.start + 1, parser.previous.length - 2)));
+	size_t r = emitConstant(OBJECT_VAL(copyString(parser.previous.start + 1, parser.previous.length - 2)));
 }
 
 /* TODO
@@ -854,4 +855,12 @@ KrkFunction * krk_compile(const char * src) {
 
 	KrkFunction * function = endCompiler();
 	return parser.hadError ? NULL : function;
+}
+
+void krk_markCompilerRoots() {
+	Compiler * compiler = current;
+	while (compiler != NULL) {
+		krk_markObject((KrkObj*)compiler->function);
+		compiler = compiler->enclosing;
+	}
 }
