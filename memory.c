@@ -51,6 +51,8 @@ static void freeObject(KrkObj * object) {
 			break;
 		}
 		case OBJ_CLASS: {
+			KrkClass * _class = (KrkClass*)object;
+			krk_freeTable(&_class->methods);
 			FREE(KrkClass, object);
 			break;
 		}
@@ -59,6 +61,9 @@ static void freeObject(KrkObj * object) {
 			FREE(KrkInstance, object);
 			break;
 		}
+		case OBJ_BOUND_METHOD:
+			FREE(KrkBoundMethod, object);
+			break;
 	}
 }
 
@@ -118,11 +123,18 @@ static void blackenObject(KrkObj * object) {
 		case OBJ_CLASS: {
 			KrkClass * _class = (KrkClass *)object;
 			krk_markObject((KrkObj*)_class->name);
+			krk_markTable(&_class->methods);
 			break;
 		}
 		case OBJ_INSTANCE: {
 			krk_markObject((KrkObj*)((KrkInstance*)object)->_class);
 			krk_markTable(&((KrkInstance*)object)->fields);
+			break;
+		}
+		case OBJ_BOUND_METHOD: {
+			KrkBoundMethod * bound = (KrkBoundMethod *)object;
+			krk_markValue(bound->receiver);
+			krk_markObject((KrkObj*)bound->method);
 			break;
 		}
 		case OBJ_NATIVE:
@@ -185,6 +197,7 @@ static void markRoots() {
 	}
 	krk_markTable(&vm.globals);
 	krk_markCompilerRoots();
+	krk_markObject((KrkObj*)vm.__init__);
 }
 
 void krk_collectGarbage(void) {

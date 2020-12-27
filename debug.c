@@ -78,6 +78,7 @@ size_t krk_disassembleInstruction(KrkChunk * chunk, size_t offset) {
 		CONSTANT(OP_CLASS,(void)0)
 		CONSTANT(OP_GET_PROPERTY, (void)0)
 		CONSTANT(OP_SET_PROPERTY, (void)0)
+		CONSTANT(OP_METHOD, (void)0)
 		CONSTANT(OP_CLOSURE, CLOSURE_MORE)
 		OPERANDL(OP_SET_LOCAL)
 		OPERANDL(OP_GET_LOCAL)

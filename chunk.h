@@ -56,6 +56,8 @@ typedef enum {
 	OP_SET_PROPERTY_LONG,
 	OP_GET_PROPERTY,
 	OP_GET_PROPERTY_LONG,
+	OP_METHOD,
+	OP_METHOD_LONG,
 } KrkOpCode;
 
 /**

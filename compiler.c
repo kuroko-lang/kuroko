@@ -52,6 +52,8 @@ typedef struct {
 typedef enum {
 	TYPE_FUNCTION,
 	TYPE_MODULE,
+	TYPE_METHOD,
+	TYPE_INIT,
 } FunctionType;
 
 #define MAX_LOCALS 256
@@ -65,8 +67,14 @@ typedef struct Compiler {
 	Upvalue upvalues[MAX_LOCALS];
 } Compiler;
 
+typedef struct ClassCompiler {
+	struct ClassCompiler * enclosing;
+	KrkToken name;
+} ClassCompiler;
+
 Parser parser;
 Compiler * current = NULL;
+ClassCompiler * currentClass = NULL;
 
 static KrkChunk * currentChunk() {
 	return &current->function->chunk;
@@ -90,9 +98,15 @@ static void initCompiler(Compiler * compiler, FunctionType type) {
 
 	Local * local = &current->locals[current->localCount++];
 	local->depth = 0;
-	local->name.start = "";
-	local->name.length = 0;
 	local->isCaptured = 0;
+
+	if (type != TYPE_FUNCTION) {
+		local->name.start = "self";
+		local->name.length = 4;
+	} else {
+		local->name.start = "";
+		local->name.length = 0;
+	}
 }
 
 static void parsePrecedence(Precedence precedence);
@@ -110,6 +124,7 @@ static void or_(int canAssign);
 static void and_(int canAssign);
 static void classDeclaration();
 static void declareVariable();
+static void namedVariable(KrkToken name, int canAssign);
 
 static void errorAt(KrkToken * token, const char * message) {
 	if (parser.panicMode) return;
@@ -177,7 +192,12 @@ static void emitBytes(uint8_t byte1, uint8_t byte2) {
 }
 
 static void emitReturn() {
-	emitBytes(OP_NONE, OP_RETURN);
+	if (current->type == TYPE_INIT) {
+		emitBytes(OP_GET_LOCAL, 0);
+	} else {
+		emitByte(OP_NONE);
+	}
+	emitByte(OP_RETURN);
 }
 
 static KrkFunction * endCompiler() {
@@ -396,6 +416,12 @@ static void function(FunctionType type, int blockWidth) {
 	consume(TOKEN_LEFT_PAREN, "Expected start of parameter list after function name.");
 	if (!check(TOKEN_RIGHT_PAREN)) {
 		do {
+			if (match(TOKEN_SELF)) {
+				if (type != TYPE_INIT && type != TYPE_METHOD) {
+					error("Invalid use of `self` as a function paramenter.");
+				}
+				continue;
+			}
 			current->function->arity++;
 			if (current->function->arity > 255) errorAtCurrent("too many function parameters");
 			ssize_t paramConstant = parseVariable("Expect parameter name.");
@@ -418,19 +444,65 @@ static void function(FunctionType type, int blockWidth) {
 	}
 }
 
+static void method(int blockWidth) {
+	/* This is actually "inside of a class definition", and that might mean
+	 * arbitrary blank lines we need to accept... Sorry. */
+	if (check(TOKEN_EOL)) return;
+
+	/* def method(...): - just like functions; unlike Python, I'm just always
+	 * going to assign `self` because Lox always assigns `this`; it should not
+	 * show up in the initializer list; I may add support for it being there
+	 * as a redundant thing, just to make more Python stuff work with changes. */
+	consume(TOKEN_DEF, "expected a definition, got nothing");
+	consume(TOKEN_IDENTIFIER, "expected method name");
+	size_t ind = identifierConstant(&parser.previous);
+	FunctionType type = TYPE_METHOD;
+
+	if (parser.previous.length == 8 && memcmp(parser.previous.start, "__init__", 8) == 0) {
+		type = TYPE_INIT;
+	}
+
+	function(type, blockWidth);
+	EMIT_CONSTANT_OP(OP_METHOD, ind);
+}
+
 static void classDeclaration() {
 	int blockWidth = (parser.previous.type == TOKEN_INDENTATION) ? parser.previous.length : 0;
 	advance(); /* Collect the `class` */
 
 	consume(TOKEN_IDENTIFIER, "Expected class name.");
+	KrkToken className = parser.previous;
 	size_t constInd = identifierConstant(&parser.previous);
 	declareVariable();
 
 	EMIT_CONSTANT_OP(OP_CLASS, constInd);
 	defineVariable(constInd);
 
+	ClassCompiler classCompiler;
+	classCompiler.name = parser.previous;
+	classCompiler.enclosing = currentClass;
+	currentClass = &classCompiler;
+
+	namedVariable(className, 0);
+
 	consume(TOKEN_COLON, "Expected colon after class");
-	/* TODO block semantics */
+	if (match(TOKEN_EOL)) {
+		if (check(TOKEN_INDENTATION)) {
+			size_t currentIndentation = parser.current.length;
+			if (currentIndentation <= blockWidth) {
+				errorAtCurrent("Unexpected indentation level for class");
+			}
+			do {
+				if (parser.current.length != currentIndentation) break;
+				advance(); /* Pass the indentation */
+				method(currentIndentation);
+				if (check(TOKEN_EOL)) endOfLine();
+			} while (check(TOKEN_INDENTATION));
+			/* Exit from block */
+		}
+	} /* else empty class (and at end of file?) we'll allow it for now... */
+	emitByte(OP_POP);
+	currentClass = currentClass->enclosing;
 }
 
 static void markInitialized() {
@@ -577,6 +649,9 @@ static void returnStatement() {
 	if (check(TOKEN_EOL) || check(TOKEN_EOF)) {
 		emitReturn();
 	} else {
+		if (current->type == TYPE_INIT) {
+			error("Can not return values from __init__");
+		}
 		expression();
 		emitByte(OP_RETURN);
 	}
@@ -703,6 +778,14 @@ static void variable(int canAssign) {
 	namedVariable(parser.previous, canAssign);
 }
 
+static void self(int canAssign) {
+	if (currentClass == NULL) {
+		error("Invalid reference to `self` outside of a class method.");
+		return;
+	}
+	variable(0);
+}
+
 ParseRule rules[] = {
 	[TOKEN_LEFT_PAREN]    = {grouping, call,   PREC_CALL},
 	[TOKEN_RIGHT_PAREN]   = {NULL,     NULL,   PREC_NONE},
@@ -744,7 +827,7 @@ ParseRule rules[] = {
 	[TOKEN_OR]            = {NULL,     or_,    PREC_OR},
 	[TOKEN_PRINT]         = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_RETURN]        = {NULL,     NULL,   PREC_NONE},
-	[TOKEN_SELF]          = {NULL,     NULL,   PREC_NONE},
+	[TOKEN_SELF]          = {self,     NULL,   PREC_NONE},
 	[TOKEN_SUPER]         = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_TRUE]          = {literal,  NULL,   PREC_NONE},
 	[TOKEN_WHILE]         = {NULL,     NULL,   PREC_NONE},

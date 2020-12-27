@@ -59,7 +59,11 @@ print "The function call returned: " + result
 # figured something with arguments would be more useful? The purpose of this
 # language is to be used for writing syntax highlighters, configs, and also
 # plugins for bim, so native bindings are going to be very important.
-result = sleep(0.1)
+class SystemModule: # Blank class is supported, and basically makes a struct?
+let system = SystemModule()
+system.sleep = __krk_builtin_sleep
+
+result = system.sleep(0.1)
 
 print "Call to sleep returned: " + result
 
@@ -87,7 +91,9 @@ funcs.f()
 funcs.g()
 funcs.h()
 
-def outer():
+def outer(): # test
+    #foo
+    #multiple lines
     let x = "outside"
     def inner():
         print x
@@ -102,10 +108,30 @@ closure()
 # This is surprisingly similar to Python already...
 print "Let's do some classes."
 class Test: # This is a test class
+    # `self` is actually optional - it's implictly passed.
+    # If you include it in a parameter list, it's completely ignored.
+    def __init__(self):
+        self.foo = "bax"
+
+    # Look, a method!
+    def doAThing():
+        print "yay: " + self.foo
 
 print Test
 let test = Test()
 print test
+test.doAThing()
 test.foo = "bar"
 print test.foo
+print test.doAThing
+test.doAThing()
+
+# Nope
+#print self
+# Also nope
+#def notAMethod():
+#    print self
+# Definitely nope
+#def notAMethoDeither(self):
+#    print self
 

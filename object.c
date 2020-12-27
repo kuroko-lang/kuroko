@@ -85,6 +85,9 @@ void krk_printObject(FILE * f, KrkValue value) {
 		case OBJ_INSTANCE:
 			fprintf(f, "<instance of %s>", AS_INSTANCE(value)->_class->name->chars);
 			break;
+		case OBJ_BOUND_METHOD:
+			fprintf(f, "<bound <def %s>>", AS_BOUND_METHOD(value)->method->function->name->chars);
+			break;
 	}
 }
 
@@ -126,6 +129,7 @@ KrkUpvalue * newUpvalue(KrkValue * slot) {
 KrkClass * newClass(KrkString * name) {
 	KrkClass * _class = ALLOCATE_OBJECT(KrkClass, OBJ_CLASS);
 	_class->name = name;
+	krk_initTable(&_class->methods);
 	return _class;
 }
 
@@ -134,4 +138,11 @@ KrkInstance * newInstance(KrkClass * _class) {
 	instance->_class = _class;
 	krk_initTable(&instance->fields);
 	return instance;
+}
+
+KrkBoundMethod * newBoundMethod(KrkValue receiver, KrkClosure * method) {
+	KrkBoundMethod * bound = ALLOCATE_OBJECT(KrkBoundMethod, OBJ_BOUND_METHOD);
+	bound->receiver = receiver;
+	bound->method = method;
+	return bound;
 }

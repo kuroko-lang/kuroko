@@ -21,6 +21,7 @@ typedef struct {
 	KrkValue * stackTop;
 	KrkTable globals;
 	KrkTable strings;
+	KrkString * __init__;
 	KrkUpvalue * openUpvalues;
 	KrkObj * objects;
 	size_t bytesAllocated;

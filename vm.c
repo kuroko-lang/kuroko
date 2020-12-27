@@ -119,7 +119,19 @@ static int callValue(KrkValue callee, int argCount) {
 			case OBJ_CLASS: {
 				KrkClass * _class = AS_CLASS(callee);
 				vm.stackTop[-argCount - 1] = OBJECT_VAL(newInstance(_class));
+				KrkValue initializer;
+				if (krk_tableGet(&_class->methods, OBJECT_VAL(vm.__init__), &initializer)) {
+					return call(AS_CLOSURE(initializer), argCount);
+				} else if (argCount != 0) {
+					runtimeError("Class does not have an __init__ but arguments were passed to initializer: %d\n", argCount);
+					return 0;
+				}
 				return 1;
+			}
+			case OBJ_BOUND_METHOD: {
+				KrkBoundMethod * bound = AS_BOUND_METHOD(callee);
+				vm.stackTop[-argCount - 1] = bound->receiver;
+				return call(bound->method, argCount);
 			}
 			default:
 				break;
@@ -127,6 +139,15 @@ static int callValue(KrkValue callee, int argCount) {
 	}
 	runtimeError("Attempted to call non-callable type.");
 	return 0;
+}
+
+static int bindMethod(KrkClass * _class, KrkString * name) {
+	KrkValue method;
+	if (!krk_tableGet(&_class->methods, OBJECT_VAL(name), &method)) return 0;
+	KrkBoundMethod * bound = newBoundMethod(krk_peek(0), AS_CLOSURE(method));
+	krk_pop();
+	krk_push(OBJECT_VAL(bound));
+	return 1;
 }
 
 static KrkUpvalue * captureUpvalue(KrkValue * local) {
@@ -158,6 +179,13 @@ static void closeUpvalues(KrkValue * last) {
 	}
 }
 
+static void defineMethod(KrkString * name) {
+	KrkValue method = krk_peek(0);
+	KrkClass * _class = AS_CLASS(krk_peek(1));
+	krk_tableSet(&_class->methods, OBJECT_VAL(name), method);
+	krk_pop();
+}
+
 void krk_initVM() {
 	resetStack();
 	vm.objects = NULL;
@@ -168,12 +196,15 @@ void krk_initVM() {
 	vm.grayStack = NULL;
 	krk_initTable(&vm.globals);
 	krk_initTable(&vm.strings);
-	defineNative("sleep", krk_sleep);
+	vm.__init__ = NULL;
+	vm.__init__ = copyString("__init__", 8);
+	defineNative("__krk_builtin_sleep", krk_sleep);
 }
 
 void krk_freeVM() {
 	krk_freeTable(&vm.globals);
 	krk_freeTable(&vm.strings);
+	vm.__init__ = NULL;
 	krk_freeObjects();
 	FREE_ARRAY(size_t, vm.stack, vm.stackSize);
 }
@@ -490,8 +521,11 @@ static KrkValue run() {
 					krk_push(value);
 					break;
 				}
-				runtimeError("Undefined property '%s'.", name->chars);
-				return NONE_VAL();
+				if (!bindMethod(instance->_class, name)) {
+					runtimeError("Undefined property/method '%s'.", name->chars);
+					return NONE_VAL();
+				}
+				break;
 			}
 			case OP_SET_PROPERTY_LONG:
 			case OP_SET_PROPERTY: {
@@ -505,6 +539,11 @@ static KrkValue run() {
 				KrkValue value = krk_pop();
 				krk_pop(); /* instance */
 				krk_push(value); /* Moves value in */
+				break;
+			}
+			case OP_METHOD_LONG:
+			case OP_METHOD: {
+				defineMethod(READ_STRING((opcode == OP_METHOD ? 1 : 3)));
 				break;
 			}
 		}

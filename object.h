@@ -21,6 +21,8 @@
 #define AS_CLASS(value)    ((KrkClass *)AS_OBJECT(value))
 #define IS_INSTANCE(value) isObjType(value, OBJ_INSTANCE)
 #define AS_INSTANCE(value) ((KrkInstance *)AS_OBJECT(value))
+#define IS_BOUND_METHOD(value) isObjType(value, OBJ_BOUND_METHOD)
+#define AS_BOUND_METHOD(value) ((KrkBoundMethod*)AS_OBJECT(value))
 
 typedef enum {
 	OBJ_FUNCTION,
@@ -30,6 +32,7 @@ typedef enum {
 	OBJ_UPVALUE,
 	OBJ_CLASS,
 	OBJ_INSTANCE,
+	OBJ_BOUND_METHOD,
 } ObjType;
 
 struct Obj {
@@ -70,6 +73,7 @@ typedef struct {
 typedef struct {
 	KrkObj obj;
 	KrkString * name;
+	KrkTable methods;
 } KrkClass;
 
 typedef struct {
@@ -77,6 +81,12 @@ typedef struct {
 	KrkClass * _class;
 	KrkTable fields;
 } KrkInstance;
+
+typedef struct {
+	KrkObj obj;
+	KrkValue receiver;
+	KrkClosure * method;
+} KrkBoundMethod;
 
 typedef KrkValue (*NativeFn)(int argCount, KrkValue* args);
 typedef struct {
@@ -97,3 +107,4 @@ extern KrkClosure * newClosure(KrkFunction * function);
 extern KrkUpvalue * newUpvalue(KrkValue * slot);
 extern KrkClass * newClass(KrkString * name);
 extern KrkInstance * newInstance(KrkClass * _class);
+extern KrkBoundMethod * newBoundMethod(KrkValue receiver, KrkClosure * method);
