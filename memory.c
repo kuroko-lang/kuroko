@@ -197,7 +197,9 @@ static void markRoots() {
 	}
 	krk_markTable(&vm.globals);
 	krk_markCompilerRoots();
-	krk_markObject((KrkObj*)vm.__init__);
+	for (int i = 0; i < METHOD__MAX; ++i) {
+		krk_markValue(vm.specialMethodNames[i]);
+	}
 }
 
 void krk_collectGarbage(void) {

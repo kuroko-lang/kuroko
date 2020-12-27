@@ -11,6 +11,8 @@
 /* Why is this static... why do we do this to ourselves... */
 KrkVM vm;
 
+static KrkValue run();
+
 static void resetStack() {
 	vm.stackTop = vm.stack;
 	vm.frameCount = 0;
@@ -88,6 +90,64 @@ static KrkValue krk_sleep(int argc, KrkValue argv[]) {
 	return BOOLEAN_VAL(1);
 }
 
+static KrkValue krk_expose_hash_new(int argc, KrkValue argv[]) {
+	/* This is absuing the existing object system so it can work without
+	 * having to add any new types to the garbage collector, and yes
+	 * it is absolute terrible, do not use it. */
+	KrkClass * map = newClass(NULL);
+	return OBJECT_VAL(map);
+}
+
+static KrkValue krk_expose_hash_get(int argc, KrkValue argv[]) {
+	if (argc < 2 || !IS_CLASS(argv[0])) return NONE_VAL();
+	KrkClass * map = AS_CLASS(argv[0]);
+	KrkValue out = NONE_VAL();
+	krk_tableGet(&map->methods, argv[1], &out);
+	return out;
+}
+
+static KrkValue krk_expose_hash_set(int argc, KrkValue argv[]) {
+	if (argc < 3 || !IS_CLASS(argv[0])) return NONE_VAL();
+	KrkClass * map = AS_CLASS(argv[0]);
+	krk_tableSet(&map->methods, argv[1], argv[2]);
+	return BOOLEAN_VAL(1);
+}
+
+static KrkValue krk_expose_list_new(int argc, KrkValue argv[]) {
+	KrkFunction * list = newFunction(NULL);
+	return OBJECT_VAL(list);
+}
+
+static KrkValue krk_expose_list_get(int argc, KrkValue argv[]) {
+	if (argc < 2 || !IS_FUNCTION(argv[0]) || !IS_INTEGER(argv[1])) return NONE_VAL();
+	KrkFunction * list = AS_FUNCTION(argv[0]);
+	int index = AS_INTEGER(argv[1]);
+	if (index < 0 || index >= list->chunk.constants.count) return NONE_VAL();
+	return list->chunk.constants.values[index];
+}
+
+static KrkValue krk_expose_list_set(int argc, KrkValue argv[]) {
+	if (argc < 3 || !IS_FUNCTION(argv[0]) || !IS_INTEGER(argv[1])) return NONE_VAL();
+	KrkFunction * list = AS_FUNCTION(argv[0]);
+	int index = AS_INTEGER(argv[1]);
+	if (index < 0 || index >= list->chunk.constants.count) return NONE_VAL();
+	list->chunk.constants.values[index] = argv[1];
+	return BOOLEAN_VAL(1);
+}
+
+static KrkValue krk_expose_list_append(int argc, KrkValue argv[]) {
+	if (argc < 2 || !IS_FUNCTION(argv[0])) return NONE_VAL();
+	KrkFunction * list = AS_FUNCTION(argv[0]);
+	krk_writeValueArray(&list->chunk.constants, argv[1]);
+	return INTEGER_VAL(list->chunk.constants.count-1);
+}
+
+static KrkValue krk_expose_list_length(int argc, KrkValue argv[]) {
+	if (argc < 1 || !IS_FUNCTION(argv[0])) return NONE_VAL();
+	KrkFunction * list = AS_FUNCTION(argv[0]);
+	return INTEGER_VAL(list->chunk.constants.count);
+}
+
 static int call(KrkClosure * closure, int argCount) {
 	if (argCount != closure->function->arity) {
 		runtimeError("Wrong number of arguments (%d expected, got %d)", closure->function->arity, argCount);
@@ -100,7 +160,7 @@ static int call(KrkClosure * closure, int argCount) {
 	CallFrame * frame = &vm.frames[vm.frameCount++];
 	frame->closure = closure;
 	frame->ip = closure->function->chunk.code;
-	frame->slots = vm.stackTop - argCount - 1;
+	frame->slots = (vm.stackTop - argCount - 1) - vm.stack;
 	return 1;
 }
 
@@ -120,7 +180,7 @@ static int callValue(KrkValue callee, int argCount) {
 				KrkClass * _class = AS_CLASS(callee);
 				vm.stackTop[-argCount - 1] = OBJECT_VAL(newInstance(_class));
 				KrkValue initializer;
-				if (krk_tableGet(&_class->methods, OBJECT_VAL(vm.__init__), &initializer)) {
+				if (krk_tableGet(&_class->methods, vm.specialMethodNames[METHOD_INIT], &initializer)) {
 					return call(AS_CLOSURE(initializer), argCount);
 				} else if (argCount != 0) {
 					runtimeError("Class does not have an __init__ but arguments were passed to initializer: %d\n", argCount);
@@ -157,7 +217,7 @@ static KrkUpvalue * captureUpvalue(KrkValue * local) {
 		prevUpvalue = upvalue;
 		upvalue = upvalue->next;
 	}
-	if (upvalue && upvalue->location == local) {
+	if (upvalue != NULL && upvalue->location == local) {
 		return upvalue;
 	}
 	KrkUpvalue * createdUpvalue = newUpvalue(local);
@@ -196,15 +256,30 @@ void krk_initVM() {
 	vm.grayStack = NULL;
 	krk_initTable(&vm.globals);
 	krk_initTable(&vm.strings);
-	vm.__init__ = NULL;
-	vm.__init__ = copyString("__init__", 8);
+	memset(vm.specialMethodNames,0,sizeof(vm.specialMethodNames));
+
+	vm.specialMethodNames[METHOD_INIT] = OBJECT_VAL(copyString("__init__", 8));
+	vm.specialMethodNames[METHOD_STR]  = OBJECT_VAL(copyString("__str__",  7));
+
 	defineNative("__krk_builtin_sleep", krk_sleep);
+
+	/* Hash maps */
+	defineNative("__krk_builtin_hash_new", krk_expose_hash_new);
+	defineNative("__krk_builtin_hash_set", krk_expose_hash_set);
+	defineNative("__krk_builtin_hash_get", krk_expose_hash_get);
+
+	/* Lists */
+	defineNative("__krk_builtin_list_new", krk_expose_list_new);
+	defineNative("__krk_builtin_list_get", krk_expose_list_get);
+	defineNative("__krk_builtin_list_set", krk_expose_list_set);
+	defineNative("__krk_builtin_list_append", krk_expose_list_append);
+	defineNative("__krk_builtin_list_length", krk_expose_list_length);
 }
 
 void krk_freeVM() {
 	krk_freeTable(&vm.globals);
 	krk_freeTable(&vm.strings);
-	vm.__init__ = NULL;
+	memset(vm.specialMethodNames,0,sizeof(vm.specialMethodNames));
 	krk_freeObjects();
 	FREE_ARRAY(size_t, vm.stack, vm.stackSize);
 }
@@ -226,6 +301,8 @@ const char * typeName(KrkValue value) {
 		if (IS_FUNCTION(value)) return "Function";
 		if (IS_NATIVE(value)) return "Native";
 		if (IS_CLOSURE(value)) return "Closure";
+		if (IS_CLASS(value)) return "Class";
+		if (IS_INSTANCE(value)) return "Instance";
 		return "(Unspecified Object)";
 	}
 	return "???";
@@ -289,7 +366,7 @@ static void addObjects() {
 			concatenate(a->chars,b->chars,a->length,b->length);
 			return;
 		}
-		char tmp[256];
+		char tmp[256] = {0};
 		if (IS_INTEGER(_b)) {
 			sprintf(tmp, "%d", AS_INTEGER(_b));
 		} else if (IS_FLOATING(_b)) {
@@ -298,6 +375,24 @@ static void addObjects() {
 			sprintf(tmp, "%s", AS_BOOLEAN(_b) ? "True" : "False");
 		} else if (IS_NONE(_b)) {
 			sprintf(tmp, "None");
+		} else if (IS_INSTANCE(_b)) {
+			KrkValue method;
+			if (!krk_tableGet(&AS_INSTANCE(_b)->_class->methods, vm.specialMethodNames[METHOD_STR], &method)) {
+				sprintf(tmp, "<instance>");
+			} else {
+				/* Push the object for self reference */
+				krk_push(_b);
+				call(AS_CLOSURE(method), 0);
+				int previousExitFrame = vm.exitOnFrame;
+				vm.exitOnFrame = vm.frameCount - 1;
+				KrkValue result = run();
+				vm.exitOnFrame = previousExitFrame;
+				if (!IS_STRING(result)) {
+					runtimeError("__str__ produced something that wasn't a string: %s", typeName(result));
+					return;
+				}
+				sprintf(tmp, "%s", AS_CSTRING(result));
+			}
 		} else {
 			sprintf(tmp, "<Object>");
 		}
@@ -339,10 +434,13 @@ static KrkValue run() {
 #undef DEBUG
 #ifdef DEBUG
 		fprintf(stderr, "        | ");
+		int i = 0;
 		for (KrkValue * slot = vm.stack; slot < vm.stackTop; slot++) {
 			fprintf(stderr, "[ ");
+			if (i == frame->slots) fprintf(stderr, "*");
 			krk_printValue(stderr, *slot);
 			fprintf(stderr, " ]");
+			i++;
 		}
 		fprintf(stderr, "\n");
 		krk_disassembleInstruction(&frame->closure->function->chunk,
@@ -357,12 +455,12 @@ static KrkValue run() {
 			}
 			case OP_RETURN: {
 				KrkValue result = krk_pop();
-				closeUpvalues(frame->slots);
+				closeUpvalues(&vm.stack[frame->slots]);
 				vm.frameCount--;
 				if (vm.frameCount == 0) {
 					return result;
 				}
-				vm.stackTop = frame->slots;
+				vm.stackTop = &vm.stack[frame->slots];
 				if (vm.frameCount == vm.exitOnFrame) {
 					return result;
 				}
@@ -455,13 +553,13 @@ static KrkValue run() {
 			case OP_GET_LOCAL_LONG:
 			case OP_GET_LOCAL: {
 				uint32_t slot = readBytes(frame, (opcode == OP_GET_LOCAL ? 1 : 3));
-				krk_push(frame->slots[slot]);
+				krk_push(vm.stack[frame->slots + slot]);
 				break;
 			}
 			case OP_SET_LOCAL_LONG:
 			case OP_SET_LOCAL: {
 				uint32_t slot = readBytes(frame, (opcode == OP_SET_LOCAL ? 1 : 3));
-				frame->slots[slot] = krk_peek(0);
+				vm.stack[frame->slots + slot] = krk_peek(0);
 				break;
 			}
 			case OP_JUMP_IF_FALSE: {
@@ -500,7 +598,7 @@ static KrkValue run() {
 					int isLocal = READ_BYTE();
 					int index = READ_BYTE();
 					if (isLocal) {
-						closure->upvalues[i] = captureUpvalue(frame->slots + index);
+						closure->upvalues[i] = captureUpvalue(&vm.stack[frame->slots + index]);
 					} else {
 						closure->upvalues[i] = frame->closure->upvalues[index];
 					}
@@ -566,6 +664,26 @@ static KrkValue run() {
 			case OP_METHOD_LONG:
 			case OP_METHOD: {
 				defineMethod(READ_STRING((opcode == OP_METHOD ? 1 : 3)));
+				break;
+			}
+			case OP_INHERIT: {
+				KrkValue superclass = krk_peek(1);
+				if (!IS_CLASS(superclass)) {
+					runtimeError("Superclass must be a class.");
+					return NONE_VAL();
+				}
+				KrkClass * subclass = AS_CLASS(krk_peek(0));
+				krk_tableAddAll(&AS_CLASS(superclass)->methods, &subclass->methods);
+				krk_pop();
+				break;
+			}
+			case OP_GET_SUPER_LONG:
+			case OP_GET_SUPER: {
+				KrkString * name = READ_STRING((opcode == OP_GET_SUPER ? 1 : 3));
+				KrkClass * superclass = AS_CLASS(krk_pop());
+				if (!bindMethod(superclass, name)) {
+					return NONE_VAL();
+				}
 				break;
 			}
 		}

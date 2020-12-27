@@ -82,11 +82,9 @@ if True:
         print c
     funcs.f = f
     funcs.g = g
-    funcs.h = h
 
 funcs.f()
 funcs.g()
-funcs.h()
 
 def outer(): # test
     #foo
@@ -123,6 +121,26 @@ print test.foo
 print test.doAThing
 test.doAThing()
 
+
+class SuperClass():
+    def __init__(self):
+        self.a = "class"
+    def aMethod(self):
+        print "This is a great " + self.a + "!"
+    def __str__(self):
+        return "(I am a " + self.a + ")"
+    def __get__(self, ind):
+        return "(get[" + ind + "])"
+    def __set__(self, ind, val):
+        print "(set[" + ind + "] = " + val + ")"
+
+class SubClass(SuperClass):
+    def __init__(self):
+        self.a = "teapot"
+
+let subclass = SubClass()
+subclass.aMethod()
+
 # Nope
 #print self
 # Also nope
@@ -132,3 +150,23 @@ test.doAThing()
 #def notAMethoDeither(self):
 #    print self
 
+print "Subclass says: " + subclass
+
+subclass.__get__(123)
+print subclass[123]
+subclass[456] = "test"
+
+print "Let's make a hashmap:"
+let hash = system.HashMap()
+hash["hello"] = "world"
+print hash["hello"]
+
+print "Let's make some lists:"
+let list = system.List()
+print "Length before: " + list.length()
+list.append(1)
+list.append(2)
+list.append(3)
+print "Length after: " + list.length()
+for j = 0, j < list.length(), j = j + 1:
+    print "j=" + j + ", list[j]=" + list[j]

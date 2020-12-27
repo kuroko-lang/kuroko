@@ -70,6 +70,7 @@ typedef struct Compiler {
 typedef struct ClassCompiler {
 	struct ClassCompiler * enclosing;
 	KrkToken name;
+	int hasSuperClass;
 } ClassCompiler;
 
 Parser parser;
@@ -111,6 +112,7 @@ static void initCompiler(Compiler * compiler, FunctionType type) {
 
 static void parsePrecedence(Precedence precedence);
 static ssize_t parseVariable(const char * errorMessage);
+static void variable(int canAssign);
 static void defineVariable(size_t global);
 static uint8_t argumentList();
 static ssize_t identifierConstant(KrkToken * name);
@@ -125,6 +127,7 @@ static void and_(int canAssign);
 static void classDeclaration();
 static void declareVariable();
 static void namedVariable(KrkToken name, int canAssign);
+static void addLocal(KrkToken name);
 
 static void errorAt(KrkToken * token, const char * message) {
 	if (parser.panicMode) return;
@@ -182,6 +185,17 @@ static int match(KrkTokenType type) {
 	return 1;
 }
 
+static int identifiersEqual(KrkToken * a, KrkToken * b) {
+	return (a->length == b->length && memcmp(a->start, b->start, a->length) == 0);
+}
+
+static KrkToken syntheticToken(const char * text) {
+	KrkToken token;
+	token.start = text;
+	token.length = (int)strlen(text);
+	return token;
+}
+
 static void emitByte(uint8_t byte) {
 	krk_writeChunk(currentChunk(), byte, parser.previous.line);
 }
@@ -203,7 +217,7 @@ static void emitReturn() {
 static KrkFunction * endCompiler() {
 	emitReturn();
 	KrkFunction * function = current->function;
-#define DEBUG
+#undef DEBUG
 #ifdef DEBUG
 	if (!parser.hadError) {
 		krk_disassembleChunk(currentChunk(), function->name != NULL ? function->name->chars : "<module>");
@@ -282,6 +296,25 @@ static void call(int canAssign) {
 	emitBytes(OP_CALL, argCount);
 }
 
+static void get_(int canAssign) {
+	/* Synthesize get */
+	KrkToken _get = syntheticToken("__get__");
+	KrkToken _set = syntheticToken("__set__");
+	size_t indGet = identifierConstant(&_get);
+	size_t indSet = identifierConstant(&_set);
+	size_t offset = currentChunk()->count + 1;
+	emitBytes(OP_GET_PROPERTY, indGet); /* TODO what if it's > 256 */
+	expression();
+	consume(TOKEN_RIGHT_SQUARE, "Expected ending square bracket...");
+	if (canAssign && match(TOKEN_EQUAL)) {
+		expression();
+		currentChunk()->code[offset] = indSet;
+		emitBytes(OP_CALL, 2);
+	} else {
+		emitBytes(OP_CALL, 1);
+	}
+}
+
 static void dot(int canAssign) {
 	consume(TOKEN_IDENTIFIER, "Expected propert name");
 	size_t ind = identifierConstant(&parser.previous);
@@ -307,7 +340,7 @@ static void expression() {
 }
 
 static void varDeclaration() {
-	ssize_t global = parseVariable("Expected variable name.");
+	ssize_t ind = parseVariable("Expected variable name.");
 
 	if (match(TOKEN_EQUAL)) {
 		expression();
@@ -315,7 +348,7 @@ static void varDeclaration() {
 		emitByte(OP_NONE);
 	}
 
-	defineVariable(global);
+	defineVariable(ind);
 }
 
 static void printStatement() {
@@ -375,8 +408,10 @@ static void endScope() {
 	while (current->localCount > 0 &&
 	       current->locals[current->localCount - 1].depth > current->scopeDepth) {
 		if (current->locals[current->localCount - 1].isCaptured) {
+			fprintf(stderr, "Emitting close\n");
 			emitByte(OP_CLOSE_UPVALUE);
 		} else {
+			fprintf(stderr, "emitting pop\n");
 			emitByte(OP_POP);
 		}
 		current->localCount--;
@@ -480,8 +515,27 @@ static void classDeclaration() {
 
 	ClassCompiler classCompiler;
 	classCompiler.name = parser.previous;
+	classCompiler.hasSuperClass = 0;
 	classCompiler.enclosing = currentClass;
 	currentClass = &classCompiler;
+
+	if (match(TOKEN_LEFT_PAREN)) {
+		if (match(TOKEN_IDENTIFIER)) {
+			variable(0);
+			if (identifiersEqual(&className, &parser.previous)) {
+				error("A class can not inherit from itself.");
+			}
+
+			beginScope();
+			addLocal(syntheticToken("super"));
+			defineVariable(0);
+
+			namedVariable(className, 0);
+			emitByte(OP_INHERIT);
+			classCompiler.hasSuperClass = 1;
+		}
+		consume(TOKEN_RIGHT_PAREN, "Expected closing brace after superclass.");
+	}
 
 	namedVariable(className, 0);
 
@@ -502,6 +556,9 @@ static void classDeclaration() {
 		}
 	} /* else empty class (and at end of file?) we'll allow it for now... */
 	emitByte(OP_POP);
+	if (classCompiler.hasSuperClass) {
+		endScope();
+	}
 	currentClass = currentClass->enclosing;
 }
 
@@ -796,12 +853,28 @@ static void self(int canAssign) {
 	variable(0);
 }
 
+static void super_(int canAssign) {
+	if (currentClass == NULL) {
+		error("Invalid reference to `super` outside of a class.");
+	} else if (!currentClass->hasSuperClass) {
+		error("Invalid reference to `super` from a base class.");
+	}
+	consume(TOKEN_LEFT_PAREN, "Expected `super` to be called.");
+	consume(TOKEN_RIGHT_PAREN, "`super` can not take arguments.");
+	consume(TOKEN_DOT, "Expected a field of `super()` to be referenced.");
+	consume(TOKEN_IDENTIFIER, "Expected a field name.");
+	size_t ind = identifierConstant(&parser.previous);
+	namedVariable(syntheticToken("self"), 0);
+	namedVariable(syntheticToken("super"), 0);
+	EMIT_CONSTANT_OP(OP_GET_SUPER, ind);
+}
+
 ParseRule rules[] = {
 	[TOKEN_LEFT_PAREN]    = {grouping, call,   PREC_CALL},
 	[TOKEN_RIGHT_PAREN]   = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_LEFT_BRACE]    = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_RIGHT_BRACE]   = {NULL,     NULL,   PREC_NONE},
-	[TOKEN_LEFT_SQUARE]   = {NULL,     NULL,   PREC_NONE},
+	[TOKEN_LEFT_SQUARE]   = {NULL,     get_,   PREC_CALL},
 	[TOKEN_RIGHT_SQUARE]  = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_COLON]         = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_COMMA]         = {NULL,     NULL,   PREC_NONE},
@@ -838,7 +911,7 @@ ParseRule rules[] = {
 	[TOKEN_PRINT]         = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_RETURN]        = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_SELF]          = {self,     NULL,   PREC_NONE},
-	[TOKEN_SUPER]         = {NULL,     NULL,   PREC_NONE},
+	[TOKEN_SUPER]         = {super_,   NULL,   PREC_NONE},
 	[TOKEN_TRUE]          = {literal,  NULL,   PREC_NONE},
 	[TOKEN_WHILE]         = {NULL,     NULL,   PREC_NONE},
 
@@ -870,10 +943,6 @@ static void parsePrecedence(Precedence precedence) {
 
 static ssize_t identifierConstant(KrkToken * name) {
 	return krk_addConstant(currentChunk(), OBJECT_VAL(copyString(name->start, name->length)));
-}
-
-static int identifiersEqual(KrkToken * a, KrkToken * b) {
-	return (a->length == b->length && memcmp(a->start, b->start, a->length) == 0);
 }
 
 static ssize_t resolveLocal(Compiler * compiler, KrkToken * name) {

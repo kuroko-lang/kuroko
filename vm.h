@@ -10,8 +10,15 @@
 typedef struct {
 	KrkClosure * closure;
 	uint8_t * ip;
-	KrkValue * slots;
+	size_t slots;
 } CallFrame;
+
+typedef enum {
+	METHOD_INIT,
+	METHOD_STR,
+
+	METHOD__MAX,
+} KrkSpecialMethods;
 
 typedef struct {
 	CallFrame frames[FRAMES_MAX];
@@ -22,7 +29,6 @@ typedef struct {
 	KrkTable globals;
 	KrkTable strings;
 	KrkTable modules;
-	KrkString * __init__;
 	KrkUpvalue * openUpvalues;
 	KrkObj * objects;
 	size_t bytesAllocated;
@@ -31,6 +37,7 @@ typedef struct {
 	size_t grayCapacity;
 	size_t exitOnFrame;
 	KrkObj** grayStack;
+	KrkValue specialMethodNames[METHOD__MAX];
 } KrkVM;
 
 extern KrkVM vm;

@@ -40,8 +40,8 @@ void krk_disassembleChunk(KrkChunk * chunk, const char * name) {
 #define CLOSURE_MORE \
 	KrkFunction * function = AS_FUNCTION(chunk->constants.values[constant]); \
 	for (size_t j = 0; j < function->upvalueCount; ++j) { \
-		int isLocal = chunk->code[offset++]; \
-		int index = chunk->code[offset++]; \
+		int isLocal = chunk->code[offset++ + 2]; \
+		int index = chunk->code[offset++ + 2]; \
 		fprintf(stderr, "%04d      |                     %s %d\n", \
 			(int)offset - 2, isLocal ? "local" : "upvalue", index); \
 	}
@@ -71,6 +71,7 @@ size_t krk_disassembleInstruction(KrkChunk * chunk, size_t offset) {
 		SIMPLE(OP_LESS)
 		SIMPLE(OP_PRINT)
 		SIMPLE(OP_POP)
+		SIMPLE(OP_INHERIT)
 		CONSTANT(OP_DEFINE_GLOBAL,(void)0)
 		CONSTANT(OP_CONSTANT,(void)0)
 		CONSTANT(OP_GET_GLOBAL,(void)0)
@@ -81,6 +82,7 @@ size_t krk_disassembleInstruction(KrkChunk * chunk, size_t offset) {
 		CONSTANT(OP_METHOD, (void)0)
 		CONSTANT(OP_CLOSURE, CLOSURE_MORE)
 		CONSTANT(OP_IMPORT, (void)0)
+		CONSTANT(OP_GET_SUPER, (void)0)
 		OPERANDL(OP_SET_LOCAL)
 		OPERANDL(OP_GET_LOCAL)
 		OPERANDL(OP_SET_UPVALUE)

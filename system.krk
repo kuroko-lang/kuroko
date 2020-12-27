@@ -1,11 +1,36 @@
 # This is a module
 class SystemModule:
 
+class HashMap:
+    def __init__(self):
+        self._get = __krk_builtin_hash_get
+        self._set = __krk_builtin_hash_set
+        self._map = __krk_builtin_hash_new()
+    def __get__(self, ind):
+        return self._get(self._map, ind)
+    def __set__(self, ind, val):
+        self._set(self._map, ind, val)
+
+class List:
+    def __init__(self):
+        self._get = __krk_builtin_list_get
+        self._set = __krk_builtin_list_set
+        self._app = __krk_builtin_list_append
+        self._len = __krk_builtin_list_length
+        self._list = __krk_builtin_list_new()
+    def __get__(self, ind):
+        return self._get(self._list, ind)
+    def __set__(self, ind, val):
+        return self._set(self._list, ind, val)
+    def append(self, val):
+        return self._app(self._list, val)
+    def length(self):
+        return self._len(self._list)
+
 let module = SystemModule()
 module.sleep = __krk_builtin_sleep
 
-print "You imported the system module."
-print "It has a module: " + module
-print "Which has a function: " + module.sleep
+module.HashMap = HashMap
+module.List    = List
 
 return module
