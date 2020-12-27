@@ -21,6 +21,7 @@ typedef struct {
 	KrkValue * stackTop;
 	KrkTable globals;
 	KrkTable strings;
+	KrkTable modules;
 	KrkString * __init__;
 	KrkUpvalue * openUpvalues;
 	KrkObj * objects;
@@ -28,6 +29,7 @@ typedef struct {
 	size_t nextGC;
 	size_t grayCount;
 	size_t grayCapacity;
+	size_t exitOnFrame;
 	KrkObj** grayStack;
 } KrkVM;
 
@@ -35,7 +37,8 @@ extern KrkVM vm;
 
 extern void krk_initVM(void);
 extern void krk_freeVM(void);
-extern int krk_interpret(const char * src);
+extern KrkValue krk_interpret(const char * src, int newScope);
+extern KrkValue krk_runfile(const char * fileName, int newScope);
 extern void krk_push(KrkValue value);
 extern KrkValue krk_pop(void);
 extern const char * typeName(KrkValue value);

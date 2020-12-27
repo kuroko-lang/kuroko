@@ -183,6 +183,7 @@ static KrkTokenType identifierType() {
 		case 'i': if (MORE(1)) switch (scanner.start[1]) {
 			case 'f': return checkKeyword(2, "", TOKEN_IF);
 			case 'n': return checkKeyword(2, "", TOKEN_IN);
+			case 'm': return checkKeyword(2, "port", TOKEN_IMPORT);
 		} break;
 		case 'l': return checkKeyword(1, "et", TOKEN_LET);
 		case 'n': return checkKeyword(1, "ot", TOKEN_NOT);

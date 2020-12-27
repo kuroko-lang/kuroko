@@ -1,0 +1,11 @@
+# This is a module
+class SystemModule:
+
+let module = SystemModule()
+module.sleep = __krk_builtin_sleep
+
+print "You imported the system module."
+print "It has a module: " + module
+print "Which has a function: " + module.sleep
+
+return module

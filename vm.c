@@ -363,6 +363,9 @@ static KrkValue run() {
 					return result;
 				}
 				vm.stackTop = frame->slots;
+				if (vm.frameCount == vm.exitOnFrame) {
+					return result;
+				}
 				krk_push(result);
 				frame = &vm.frames[vm.frameCount - 1];
 				break;
@@ -428,6 +431,25 @@ static KrkValue run() {
 					runtimeError("Undefined variable '%s'.", name->chars);
 					return NONE_VAL();
 				}
+				break;
+			}
+			case OP_IMPORT_LONG:
+			case OP_IMPORT: {
+				KrkString * name = READ_STRING((opcode == OP_IMPORT ? 1 : 3));
+				KrkValue module;
+				if (!krk_tableGet(&vm.modules, OBJECT_VAL(name), &module)) {
+					/* Try to open it */
+					char tmp[256];
+					sprintf(tmp, "%s.krk", name->chars);
+					vm.exitOnFrame = vm.frameCount;
+					module = krk_runfile(tmp,1);
+					vm.exitOnFrame = -1;
+					if (!IS_OBJECT(module)) {
+						runtimeError("Failed to import module - expected to receive an object, but got a %s instead.", typeName(module));
+					}
+					krk_tableSet(&vm.modules, OBJECT_VAL(name), module);
+				}
+				krk_push(module);
 				break;
 			}
 			case OP_GET_LOCAL_LONG:
@@ -553,8 +575,8 @@ static KrkValue run() {
 #undef READ_BYTE
 }
 
-int krk_interpret(const char * src) {
-	KrkFunction * function = krk_compile(src);
+KrkValue krk_interpret(const char * src, int newScope) {
+	KrkFunction * function = krk_compile(src, newScope);
 
 	krk_push(OBJECT_VAL(function));
 	KrkClosure * closure = newClosure(function);
@@ -563,6 +585,26 @@ int krk_interpret(const char * src) {
 	krk_push(OBJECT_VAL(closure));
 	callValue(OBJECT_VAL(closure), 0);
 
-	KrkValue result = run();
-	return IS_NONE(result);
+	return run();
 }
+
+
+KrkValue krk_runfile(const char * fileName, int newScope) {
+	FILE * f = fopen(fileName,"r");
+	if (!f) return NONE_VAL();
+
+	fseek(f, 0, SEEK_END);
+	size_t size = ftell(f);
+	fseek(f, 0, SEEK_SET);
+
+	char * buf = malloc(size+1);
+	fread(buf, 1, size, f);
+	fclose(f);
+	buf[size] = '\0';
+
+	KrkValue result = krk_interpret(buf, newScope);
+	free(buf);
+
+	return result;
+}
+

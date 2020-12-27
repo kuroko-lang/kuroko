@@ -61,6 +61,7 @@ KrkString * copyString(const char * chars, size_t length) {
 	return allocateString(heapChars, length, hash);
 }
 
+#define NAME(obj) ((obj)->name ? obj->name->chars : "(unnamed)")
 void krk_printObject(FILE * f, KrkValue value) {
 	switch (OBJECT_TYPE(value)) {
 		case OBJ_STRING:
@@ -68,25 +69,25 @@ void krk_printObject(FILE * f, KrkValue value) {
 			break;
 		case OBJ_FUNCTION:
 			if (AS_FUNCTION(value)->name == NULL) fprintf(f, "<module>");
-			else fprintf(f, "<def %s>", AS_FUNCTION(value)->name->chars);
+			else fprintf(f, "<def %s>", NAME(AS_FUNCTION(value)));
 			break;
 		case OBJ_NATIVE:
 			fprintf(f, "<native bind>");
 			break;
 		case OBJ_CLOSURE:
-			fprintf(f, "<closure <def %s>>", AS_CLOSURE(value)->function->name->chars);
+			fprintf(f, "<closure <def %s>>", NAME(AS_CLOSURE(value)->function));
 			break;
 		case OBJ_UPVALUE:
 			fprintf(f, "<upvalue>");
 			break;
 		case OBJ_CLASS:
-			fprintf(f, "<class %s>", AS_CLASS(value)->name->chars);
+			fprintf(f, "<class %s>", NAME(AS_CLASS(value)));
 			break;
 		case OBJ_INSTANCE:
-			fprintf(f, "<instance of %s>", AS_INSTANCE(value)->_class->name->chars);
+			fprintf(f, "<instance of %s>", NAME(AS_INSTANCE(value)->_class));
 			break;
 		case OBJ_BOUND_METHOD:
-			fprintf(f, "<bound <def %s>>", AS_BOUND_METHOD(value)->method->function->name->chars);
+			fprintf(f, "<bound <def %s>>", NAME(AS_BOUND_METHOD(value)->method->function));
 			break;
 	}
 }

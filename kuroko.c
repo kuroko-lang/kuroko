@@ -8,21 +8,11 @@
 int main(int argc, char * argv[]) {
 	krk_initVM();
 
-	FILE * f = fopen("test.krk","r");
-	if (!f) return 1;
-	fseek(f, 0, SEEK_END);
-	size_t size = ftell(f);
-	fseek(f, 0, SEEK_SET);
-
-	char * buf = malloc(size+1);
-	fread(buf, 1, size, f);
-	fclose(f);
-	buf[size] = '\0';
-
-	krk_interpret(buf);
+	KrkValue result = krk_runfile("test.krk",0);
 
 	krk_freeVM();
 
-	free(buf);
+	if (IS_INTEGER(result)) return AS_INTEGER(result);
+
 	return 0;
 }

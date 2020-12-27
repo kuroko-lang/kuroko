@@ -22,6 +22,7 @@ typedef enum {
 	TOKEN_FALSE, /* False */
 	TOKEN_FOR,   /* for */
 	TOKEN_IF,    /* if */
+	TOKEN_IMPORT,/* import */
 	TOKEN_IN,    /* in */
 	TOKEN_LET,   /* let */
 	TOKEN_NONE,  /* None */

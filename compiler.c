@@ -657,6 +657,14 @@ static void returnStatement() {
 	}
 }
 
+static void importStatement() {
+	consume(TOKEN_IDENTIFIER, "Expected module name");
+	declareVariable();
+	size_t ind = identifierConstant(&parser.previous);
+	EMIT_CONSTANT_OP(OP_IMPORT, ind);
+	defineVariable(ind);
+}
+
 static void statement() {
 	if (check(TOKEN_EOL)) {
 		return; /* Meaningless blank line */
@@ -680,6 +688,8 @@ static void statement() {
 		forStatement();
 	} else if (match(TOKEN_RETURN)) {
 		returnStatement();
+	} else if (match(TOKEN_IMPORT)) {
+		importStatement();
 	} else {
 		expressionStatement();
 	}
@@ -951,10 +961,12 @@ static ParseRule * getRule(KrkTokenType type) {
 	return &rules[type];
 }
 
-KrkFunction * krk_compile(const char * src) {
+KrkFunction * krk_compile(const char * src, int newScope) {
 	krk_initScanner(src);
 	Compiler compiler;
 	initCompiler(&compiler, TYPE_MODULE);
+
+	if (newScope) beginScope();
 
 	parser.hadError = 0;
 	parser.panicMode = 0;
