@@ -70,12 +70,19 @@ void krk_printObject(FILE * f, KrkValue value) {
 		case OBJ_NATIVE:
 			fprintf(f, "<native bind>");
 			break;
+		case OBJ_CLOSURE:
+			fprintf(f, "<closure <def %s>>", AS_CLOSURE(value)->function->name->chars);
+			break;
+		case OBJ_UPVALUE:
+			fprintf(f, "<upvalue>");
+			break;
 	}
 }
 
 KrkFunction * newFunction() {
 	KrkFunction * function = ALLOCATE_OBJECT(KrkFunction, OBJ_FUNCTION);
 	function->arity = 0;
+	function->upvalueCount = 0;
 	function->name = NULL;
 	krk_initChunk(&function->chunk);
 	return function;
@@ -85,4 +92,24 @@ KrkNative * newNative(NativeFn function) {
 	KrkNative * native = ALLOCATE_OBJECT(KrkNative, OBJ_NATIVE);
 	native->function = function;
 	return native;
+}
+
+KrkClosure * newClosure(KrkFunction * function) {
+	KrkUpvalue ** upvalues = ALLOCATE(KrkUpvalue*, function->upvalueCount);
+	for (size_t i = 0; i < function->upvalueCount; ++i) {
+		upvalues[i] = NULL;
+	}
+	KrkClosure * closure = ALLOCATE_OBJECT(KrkClosure, OBJ_CLOSURE);
+	closure->function = function;
+	closure->upvalues = upvalues;
+	closure->upvalueCount = function->upvalueCount;
+	return closure;
+}
+
+KrkUpvalue * newUpvalue(KrkValue * slot) {
+	KrkUpvalue * upvalue = ALLOCATE_OBJECT(KrkUpvalue, OBJ_UPVALUE);
+	upvalue->location = slot;
+	upvalue->next = NULL;
+	upvalue->closed = NONE_VAL();
+	return upvalue;
 }

@@ -14,11 +14,15 @@
 #define AS_FUNCTION(value) ((KrkFunction *)AS_OBJECT(value))
 #define IS_NATIVE(value)   isObjType(value, OBJ_NATIVE)
 #define AS_NATIVE(value)   (((KrkNative *)AS_OBJECT(value))->function)
+#define IS_CLOSURE(value)  isObjType(value, OBJ_CLOSURE)
+#define AS_CLOSURE(value)  ((KrkClosure *)AS_OBJECT(value))
 
 typedef enum {
 	OBJ_FUNCTION,
 	OBJ_NATIVE,
+	OBJ_CLOSURE,
 	OBJ_STRING,
+	OBJ_UPVALUE,
 } ObjType;
 
 struct Obj {
@@ -33,12 +37,28 @@ struct ObjString {
 	uint32_t hash;
 };
 
+typedef struct KrkUpvalue {
+	KrkObj obj;
+	KrkValue * location;
+	KrkValue   closed;
+	struct KrkUpvalue * next;
+} KrkUpvalue;
+
 typedef struct {
 	KrkObj obj;
 	int arity;
+	size_t upvalueCount;
 	KrkChunk chunk;
 	KrkString * name;
 } KrkFunction;
+
+typedef struct {
+	KrkObj obj;
+	KrkFunction * function;
+	KrkUpvalue ** upvalues;
+	size_t upvalueCount;
+} KrkClosure;
+
 
 typedef KrkValue (*NativeFn)(int argCount, KrkValue* args);
 typedef struct {
@@ -56,3 +76,7 @@ extern void krk_printObject(FILE * f, KrkValue value);
 
 extern KrkFunction * newFunction();
 extern KrkNative * newNative(NativeFn function);
+
+extern KrkClosure * newClosure(KrkFunction * function);
+
+extern KrkUpvalue * newUpvalue(KrkValue * slot);

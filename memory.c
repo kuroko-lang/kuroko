@@ -29,6 +29,16 @@ static void freeObject(KrkObj * object) {
 			FREE(KrkNative, object);
 			break;
 		}
+		case OBJ_CLOSURE: {
+			KrkClosure * closure = (KrkClosure*)object;
+			FREE_ARRAY(KrkUpvalue*,closure->upvalues,closure->upvalueCount);
+			FREE(KrkClosure, object);
+			break;
+		}
+		case OBJ_UPVALUE: {
+			FREE(KrkUpvalue, object);
+			break;
+		}
 	}
 }
 

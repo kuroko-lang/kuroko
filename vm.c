@@ -14,6 +14,7 @@ KrkVM vm;
 static void resetStack() {
 	vm.stackTop = vm.stack;
 	vm.frameCount = 0;
+	vm.openUpvalues = NULL;
 }
 
 static void runtimeError(const char * fmt, ...) {
@@ -25,7 +26,7 @@ static void runtimeError(const char * fmt, ...) {
 
 	for (int i = vm.frameCount - 1; i >= 0; i--) {
 		CallFrame * frame = &vm.frames[i];
-		KrkFunction * function = frame->function;
+		KrkFunction * function = frame->closure->function;
 		size_t instruction = frame->ip - function->chunk.code - 1;
 		fprintf(stderr, "[line %d] in ", (int)function->chunk.lines[instruction]);
 		if (function->name == NULL) {
@@ -86,9 +87,9 @@ static KrkValue krk_sleep(int argc, KrkValue argv[]) {
 	return BOOLEAN_VAL(1);
 }
 
-static int call(KrkFunction * function, int argCount) {
-	if (argCount != function->arity) {
-		runtimeError("Wrong number of arguments (%d expected, got %d)", function->arity, argCount);
+static int call(KrkClosure * closure, int argCount) {
+	if (argCount != closure->function->arity) {
+		runtimeError("Wrong number of arguments (%d expected, got %d)", closure->function->arity, argCount);
 		return 0;
 	}
 	if (vm.frameCount == FRAMES_MAX) {
@@ -96,8 +97,8 @@ static int call(KrkFunction * function, int argCount) {
 		return 0;
 	}
 	CallFrame * frame = &vm.frames[vm.frameCount++];
-	frame->function = function;
-	frame->ip = function->chunk.code;
+	frame->closure = closure;
+	frame->ip = closure->function->chunk.code;
 	frame->slots = vm.stackTop - argCount - 1;
 	return 1;
 }
@@ -105,8 +106,8 @@ static int call(KrkFunction * function, int argCount) {
 static int callValue(KrkValue callee, int argCount) {
 	if (IS_OBJECT(callee)) {
 		switch (OBJECT_TYPE(callee)) {
-			case OBJ_FUNCTION:
-				return call(AS_FUNCTION(callee), argCount);
+			case OBJ_CLOSURE:
+				return call(AS_CLOSURE(callee), argCount);
 			case OBJ_NATIVE: {
 				NativeFn native = AS_NATIVE(callee);
 				KrkValue result = native(argCount, vm.stackTop - argCount);
@@ -120,6 +121,35 @@ static int callValue(KrkValue callee, int argCount) {
 	}
 	runtimeError("Attempted to call non-callable type.");
 	return 0;
+}
+
+static KrkUpvalue * captureUpvalue(KrkValue * local) {
+	KrkUpvalue * prevUpvalue = NULL;
+	KrkUpvalue * upvalue = vm.openUpvalues;
+	while (upvalue != NULL && upvalue->location > local) {
+		prevUpvalue = upvalue;
+		upvalue = upvalue->next;
+	}
+	if (upvalue && upvalue->location == local) {
+		return upvalue;
+	}
+	KrkUpvalue * createdUpvalue = newUpvalue(local);
+	createdUpvalue->next = upvalue;
+	if (prevUpvalue == NULL) {
+		vm.openUpvalues = createdUpvalue;
+	} else {
+		prevUpvalue->next = createdUpvalue;
+	}
+	return createdUpvalue;
+}
+
+static void closeUpvalues(KrkValue * last) {
+	while (vm.openUpvalues != NULL && vm.openUpvalues->location >= last) {
+		KrkUpvalue * upvalue = vm.openUpvalues;
+		upvalue->closed = *upvalue->location;
+		upvalue->location = &upvalue->closed;
+		vm.openUpvalues = upvalue->next;
+	}
 }
 
 void krk_initVM() {
@@ -151,6 +181,9 @@ const char * typeName(KrkValue value) {
 	if (value.type == VAL_FLOATING) return "Floating";
 	if (value.type == VAL_OBJECT) {
 		if (IS_STRING(value)) return "String";
+		if (IS_FUNCTION(value)) return "Function";
+		if (IS_NATIVE(value)) return "Native";
+		if (IS_CLOSURE(value)) return "Closure";
 		return "(Unspecified Object)";
 	}
 	return "???";
@@ -233,7 +266,7 @@ static void addObjects() {
 
 #define READ_BYTE() (*frame->ip++)
 #define BINARY_OP(op) { KrkValue b = krk_pop(); KrkValue a = krk_pop(); krk_push(op(a,b)); break; }
-#define READ_CONSTANT(s) (frame->function->chunk.constants.values[readBytes(frame,s)])
+#define READ_CONSTANT(s) (frame->closure->function->chunk.constants.values[readBytes(frame,s)])
 #define READ_STRING(s) AS_STRING(READ_CONSTANT(s))
 
 static size_t readBytes(CallFrame * frame, int num) {
@@ -264,8 +297,8 @@ static KrkValue run() {
 			fprintf(stderr, " ]");
 		}
 		fprintf(stderr, "\n");
-		krk_disassembleInstruction(&frame->function->chunk,
-			(size_t)(frame->ip - frame->function->chunk.code));
+		krk_disassembleInstruction(&frame->closure->function->chunk,
+			(size_t)(frame->ip - frame->closure->function->chunk.code));
 #endif
 		uint8_t opcode;
 		switch ((opcode = READ_BYTE())) {
@@ -276,6 +309,7 @@ static KrkValue run() {
 			}
 			case OP_RETURN: {
 				KrkValue result = krk_pop();
+				closeUpvalues(frame->slots);
 				vm.frameCount--;
 				if (vm.frameCount == 0) {
 					krk_pop();
@@ -312,7 +346,7 @@ static KrkValue run() {
 			case OP_CONSTANT_LONG:
 			case OP_CONSTANT: {
 				size_t index = readBytes(frame, opcode == OP_CONSTANT ? 1 : 3);
-				KrkValue constant = frame->function->chunk.constants.values[index];
+				KrkValue constant = frame->closure->function->chunk.constants.values[index];
 				krk_push(constant);
 				break;
 			}
@@ -389,6 +423,38 @@ static KrkValue run() {
 				frame = &vm.frames[vm.frameCount - 1];
 				break;
 			}
+			case OP_CLOSURE_LONG:
+			case OP_CLOSURE: {
+				KrkFunction * function = AS_FUNCTION(READ_CONSTANT((opcode == OP_CLOSURE ? 1 : 3)));
+				KrkClosure * closure = newClosure(function);
+				krk_push(OBJECT_VAL(closure));
+				for (size_t i = 0; i < closure->upvalueCount; ++i) {
+					int isLocal = READ_BYTE();
+					int index = READ_BYTE();
+					if (isLocal) {
+						closure->upvalues[i] = captureUpvalue(frame->slots + index);
+					} else {
+						closure->upvalues[i] = frame->closure->upvalues[index];
+					}
+				}
+				break;
+			}
+			case OP_GET_UPVALUE_LONG:
+			case OP_GET_UPVALUE: {
+				int slot = readBytes(frame, (opcode == OP_GET_UPVALUE) ? 1 : 3);
+				krk_push(*frame->closure->upvalues[slot]->location);
+				break;
+			}
+			case OP_SET_UPVALUE_LONG:
+			case OP_SET_UPVALUE: {
+				int slot = readBytes(frame, (opcode == OP_SET_UPVALUE) ? 1 : 3);
+				*frame->closure->upvalues[slot]->location = krk_peek(0);
+				break;
+			}
+			case OP_CLOSE_UPVALUE:
+				closeUpvalues(vm.stackTop - 1);
+				krk_pop();
+				break;
 		}
 	}
 
@@ -400,7 +466,11 @@ int krk_interpret(const char * src) {
 	KrkFunction * function = krk_compile(src);
 
 	krk_push(OBJECT_VAL(function));
-	callValue(OBJECT_VAL(function), 0);
+	KrkClosure * closure = newClosure(function);
+	krk_pop();
+
+	krk_push(OBJECT_VAL(closure));
+	callValue(OBJECT_VAL(closure), 0);
 
 	KrkValue result = run();
 	return IS_NONE(result);

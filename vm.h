@@ -8,7 +8,7 @@
 #define FRAMES_MAX 64
 
 typedef struct {
-	KrkFunction * function;
+	KrkClosure * closure;
 	uint8_t * ip;
 	KrkValue * slots;
 } CallFrame;
@@ -21,6 +21,7 @@ typedef struct {
 	KrkValue * stackTop;
 	KrkTable globals;
 	KrkTable strings;
+	KrkUpvalue * openUpvalues;
 	KrkObj * objects;
 } KrkVM;
 

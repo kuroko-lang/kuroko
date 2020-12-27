@@ -64,3 +64,25 @@ result = sleep(0.5)
 print "Call to sleep returned: " + result
 
 function("something else")
+
+if True:
+    let a = 1
+    def f():
+        print a
+    let b = 2
+    def g():
+        print b
+    let c = 3
+    def h():
+        print c
+
+def outer():
+    let x = "outside"
+    def inner():
+        print x
+    return inner
+
+print "Function is defined, creating it..."
+let closure = outer()
+print "And executing the result..."
+closure()

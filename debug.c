@@ -11,16 +11,18 @@ void krk_disassembleChunk(KrkChunk * chunk, const char * name) {
 }
 
 #define SIMPLE(opc) case opc: fprintf(stderr, "%s\n", #opc); return offset + 1;
-#define CONSTANT(opc) case opc: { size_t constant = chunk->code[offset + 1]; \
+#define CONSTANT(opc,more) case opc: { size_t constant = chunk->code[offset + 1]; \
 	fprintf(stderr, "%-16s %4d '", #opc, (int)constant); \
 	krk_printValue(stderr, chunk->constants.values[constant]); \
 	fprintf(stderr,"' (type=%s)\n", typeName(chunk->constants.values[constant])); \
+	more; \
 	return offset + 2; } \
 	case opc ## _LONG: { size_t constant = (chunk->code[offset + 1] << 16) | \
 	(chunk->code[offset + 2] << 8) | (chunk->code[offset + 3]); \
 	fprintf(stderr, "%-16s %4d '", #opc "_LONG", (int)constant); \
 	krk_printValue(stderr, chunk->constants.values[constant]); \
 	fprintf(stderr,"' (type=%s)\n", typeName(chunk->constants.values[constant])); \
+	more; \
 	return offset + 4; }
 #define OPERANDB(opc) case opc: { uint32_t operand = chunk->code[offset + 1]; \
 	fprintf(stderr, "%-16s %4d\n", #opc, (int)operand); \
@@ -34,6 +36,15 @@ void krk_disassembleChunk(KrkChunk * chunk, const char * name) {
 	(chunk->code[offset + 2]); \
 	fprintf(stderr, "%-16s %4d -> %d\n", #opc, (int)offset, (int)(offset + 3 sign jump)); \
 	return offset + 3; }
+
+#define CLOSURE_MORE \
+	KrkFunction * function = AS_FUNCTION(chunk->constants.values[constant]); \
+	for (size_t j = 0; j < function->upvalueCount; ++j) { \
+		int isLocal = chunk->code[offset++]; \
+		int index = chunk->code[offset++]; \
+		fprintf(stderr, "%04d      |                     %s %d\n", \
+			(int)offset - 2, isLocal ? "local" : "upvalue", index); \
+	}
 
 size_t krk_disassembleInstruction(KrkChunk * chunk, size_t offset) {
 	fprintf(stderr, "%04u ", (unsigned int)offset);
@@ -60,17 +71,21 @@ size_t krk_disassembleInstruction(KrkChunk * chunk, size_t offset) {
 		SIMPLE(OP_LESS)
 		SIMPLE(OP_PRINT)
 		SIMPLE(OP_POP)
-		CONSTANT(OP_DEFINE_GLOBAL)
-		CONSTANT(OP_CONSTANT)
-		CONSTANT(OP_GET_GLOBAL)
-		CONSTANT(OP_SET_GLOBAL)
+		CONSTANT(OP_DEFINE_GLOBAL,(void)0)
+		CONSTANT(OP_CONSTANT,(void)0)
+		CONSTANT(OP_GET_GLOBAL,(void)0)
+		CONSTANT(OP_SET_GLOBAL,(void)0)
+		CONSTANT(OP_CLOSURE, CLOSURE_MORE)
 		OPERANDL(OP_SET_LOCAL)
 		OPERANDL(OP_GET_LOCAL)
+		OPERANDL(OP_SET_UPVALUE)
+		OPERANDL(OP_GET_UPVALUE)
 		JUMP(OP_JUMP,+)
 		JUMP(OP_JUMP_IF_FALSE,+)
 		JUMP(OP_JUMP_IF_TRUE,+)
 		JUMP(OP_LOOP,-)
 		OPERANDB(OP_CALL)
+		SIMPLE(OP_CLOSE_UPVALUE)
 		default:
 			fprintf(stderr, "Unknown opcode: %02x\n", opcode);
 			return offset + 1;
