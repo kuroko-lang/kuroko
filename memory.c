@@ -2,6 +2,7 @@
 #include "memory.h"
 #include "object.h"
 #include "compiler.h"
+#include "table.h"
 
 void * krk_reallocate(void * ptr, size_t old, size_t new) {
 	vm.bytesAllocated += new - old;
@@ -47,6 +48,15 @@ static void freeObject(KrkObj * object) {
 		}
 		case OBJ_UPVALUE: {
 			FREE(KrkUpvalue, object);
+			break;
+		}
+		case OBJ_CLASS: {
+			FREE(KrkClass, object);
+			break;
+		}
+		case OBJ_INSTANCE: {
+			krk_freeTable(&((KrkInstance*)object)->fields);
+			FREE(KrkInstance, object);
 			break;
 		}
 	}
@@ -105,6 +115,16 @@ static void blackenObject(KrkObj * object) {
 		case OBJ_UPVALUE:
 			krk_markValue(((KrkUpvalue*)object)->closed);
 			break;
+		case OBJ_CLASS: {
+			KrkClass * _class = (KrkClass *)object;
+			krk_markObject((KrkObj*)_class->name);
+			break;
+		}
+		case OBJ_INSTANCE: {
+			krk_markObject((KrkObj*)((KrkInstance*)object)->_class);
+			krk_markTable(&((KrkInstance*)object)->fields);
+			break;
+		}
 		case OBJ_NATIVE:
 		case OBJ_STRING:
 			break;

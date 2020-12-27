@@ -108,6 +108,8 @@ static void statement();
 static void declaration();
 static void or_(int canAssign);
 static void and_(int canAssign);
+static void classDeclaration();
+static void declareVariable();
 
 static void errorAt(KrkToken * token, const char * message) {
 	if (parser.panicMode) return;
@@ -260,6 +262,17 @@ static void call(int canAssign) {
 	emitBytes(OP_CALL, argCount);
 }
 
+static void dot(int canAssign) {
+	consume(TOKEN_IDENTIFIER, "Expected propert name");
+	size_t ind = identifierConstant(&parser.previous);
+	if (canAssign && match(TOKEN_EQUAL)) {
+		expression();
+		EMIT_CONSTANT_OP(OP_SET_PROPERTY, ind);
+	} else {
+		EMIT_CONSTANT_OP(OP_GET_PROPERTY, ind);
+	}
+}
+
 static void literal(int canAssign) {
 	switch (parser.previous.type) {
 		case TOKEN_FALSE: emitByte(OP_FALSE); break;
@@ -317,6 +330,8 @@ static void declaration() {
 		defDeclaration();
 	} else if (match(TOKEN_LET)) {
 		varDeclaration();
+	} else if (check(TOKEN_CLASS)) {
+		classDeclaration();
 	} else if (check(TOKEN_EOL)) {
 		return;
 	} else {
@@ -401,6 +416,21 @@ static void function(FunctionType type, int blockWidth) {
 		emitByte(compiler.upvalues[i].isLocal ? 1 : 0);
 		emitByte(compiler.upvalues[i].index);
 	}
+}
+
+static void classDeclaration() {
+	int blockWidth = (parser.previous.type == TOKEN_INDENTATION) ? parser.previous.length : 0;
+	advance(); /* Collect the `class` */
+
+	consume(TOKEN_IDENTIFIER, "Expected class name.");
+	size_t constInd = identifierConstant(&parser.previous);
+	declareVariable();
+
+	EMIT_CONSTANT_OP(OP_CLASS, constInd);
+	defineVariable(constInd);
+
+	consume(TOKEN_COLON, "Expected colon after class");
+	/* TODO block semantics */
 }
 
 static void markInitialized() {
@@ -682,7 +712,7 @@ ParseRule rules[] = {
 	[TOKEN_RIGHT_SQUARE]  = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_COLON]         = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_COMMA]         = {NULL,     NULL,   PREC_NONE},
-	[TOKEN_DOT]           = {NULL,     NULL,   PREC_NONE},
+	[TOKEN_DOT]           = {NULL,     dot,    PREC_CALL},
 	[TOKEN_MINUS]         = {unary,    binary, PREC_TERM},
 	[TOKEN_PLUS]          = {NULL,     binary, PREC_TERM},
 	[TOKEN_SEMICOLON]     = {NULL,     NULL,   PREC_NONE},

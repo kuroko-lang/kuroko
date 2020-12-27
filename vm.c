@@ -54,7 +54,8 @@ void krk_push(KrkValue value) {
 KrkValue krk_pop() {
 	vm.stackTop--;
 	if (vm.stackTop < vm.stack) {
-		fprintf(stderr, "XXX: Stack overflow?");
+		fprintf(stderr, "stack overflow - too many pops\n");
+		return NONE_VAL();
 	}
 	return *vm.stackTop;
 }
@@ -113,6 +114,11 @@ static int callValue(KrkValue callee, int argCount) {
 				KrkValue result = native(argCount, vm.stackTop - argCount);
 				vm.stackTop -= argCount + 1;
 				krk_push(result);
+				return 1;
+			}
+			case OBJ_CLASS: {
+				KrkClass * _class = AS_CLASS(callee);
+				vm.stackTop[-argCount - 1] = OBJECT_VAL(newInstance(_class));
 				return 1;
 			}
 			default:
@@ -323,10 +329,8 @@ static KrkValue run() {
 				closeUpvalues(frame->slots);
 				vm.frameCount--;
 				if (vm.frameCount == 0) {
-					krk_pop();
-					return INTEGER_VAL(0);
+					return result;
 				}
-
 				vm.stackTop = frame->slots;
 				krk_push(result);
 				frame = &vm.frames[vm.frameCount - 1];
@@ -466,6 +470,43 @@ static KrkValue run() {
 				closeUpvalues(vm.stackTop - 1);
 				krk_pop();
 				break;
+			case OP_CLASS_LONG:
+			case OP_CLASS: {
+				KrkString * name = READ_STRING((opcode == OP_CLASS ? 1 : 3));
+				krk_push(OBJECT_VAL(newClass(name)));
+				break;
+			}
+			case OP_GET_PROPERTY_LONG:
+			case OP_GET_PROPERTY: {
+				if (!IS_INSTANCE(krk_peek(0))) {
+					runtimeError("Don't know how to retreive properties for %s yet", typeName(krk_peek(0)));
+					return NONE_VAL();
+				}
+				KrkInstance * instance = AS_INSTANCE(krk_peek(0));
+				KrkString * name = READ_STRING((opcode == OP_GET_PROPERTY ? 1 : 3));
+				KrkValue value;
+				if (krk_tableGet(&instance->fields, OBJECT_VAL(name), &value)) {
+					krk_pop();
+					krk_push(value);
+					break;
+				}
+				runtimeError("Undefined property '%s'.", name->chars);
+				return NONE_VAL();
+			}
+			case OP_SET_PROPERTY_LONG:
+			case OP_SET_PROPERTY: {
+				if (!IS_INSTANCE(krk_peek(1))) {
+					runtimeError("Don't know how to set properties for %s yet", typeName(krk_peek(1)));
+					return NONE_VAL();
+				}
+				KrkInstance * instance = AS_INSTANCE(krk_peek(1));
+				KrkString * name = READ_STRING((opcode == OP_SET_PROPERTY ? 1 : 3));
+				krk_tableSet(&instance->fields, OBJECT_VAL(name), krk_peek(0));
+				KrkValue value = krk_pop();
+				krk_pop(); /* instance */
+				krk_push(value); /* Moves value in */
+				break;
+			}
 		}
 	}
 

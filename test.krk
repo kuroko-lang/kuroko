@@ -59,12 +59,16 @@ print "The function call returned: " + result
 # figured something with arguments would be more useful? The purpose of this
 # language is to be used for writing syntax highlighters, configs, and also
 # plugins for bim, so native bindings are going to be very important.
-result = sleep(0.5)
+result = sleep(0.1)
 
 print "Call to sleep returned: " + result
 
 function("something else")
 
+# This is some stuff to test closures
+class Funcs:
+
+let funcs = Funcs()
 if True:
     let a = 1
     def f():
@@ -75,6 +79,13 @@ if True:
     let c = 3
     def h():
         print c
+    funcs.f = f
+    funcs.g = g
+    funcs.h = h
+
+funcs.f()
+funcs.g()
+funcs.h()
 
 def outer():
     let x = "outside"
@@ -85,4 +96,16 @@ def outer():
 print "Function is defined, creating it..."
 let closure = outer()
 print "And executing the result..."
+# This should correctly print "outside"
 closure()
+
+# This is surprisingly similar to Python already...
+print "Let's do some classes."
+class Test: # This is a test class
+
+print Test
+let test = Test()
+print test
+test.foo = "bar"
+print test.foo
+

@@ -10,7 +10,6 @@
 #include <stdlib.h>
 #include "kuroko.h"
 #include "value.h"
-#include "object.h"
 
 typedef struct {
 	KrkValue key;

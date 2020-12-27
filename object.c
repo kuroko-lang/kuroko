@@ -79,6 +79,12 @@ void krk_printObject(FILE * f, KrkValue value) {
 		case OBJ_UPVALUE:
 			fprintf(f, "<upvalue>");
 			break;
+		case OBJ_CLASS:
+			fprintf(f, "<class %s>", AS_CLASS(value)->name->chars);
+			break;
+		case OBJ_INSTANCE:
+			fprintf(f, "<instance of %s>", AS_INSTANCE(value)->_class->name->chars);
+			break;
 	}
 }
 
@@ -115,4 +121,17 @@ KrkUpvalue * newUpvalue(KrkValue * slot) {
 	upvalue->next = NULL;
 	upvalue->closed = NONE_VAL();
 	return upvalue;
+}
+
+KrkClass * newClass(KrkString * name) {
+	KrkClass * _class = ALLOCATE_OBJECT(KrkClass, OBJ_CLASS);
+	_class->name = name;
+	return _class;
+}
+
+KrkInstance * newInstance(KrkClass * _class) {
+	KrkInstance * instance = ALLOCATE_OBJECT(KrkInstance, OBJ_INSTANCE);
+	instance->_class = _class;
+	krk_initTable(&instance->fields);
+	return instance;
 }

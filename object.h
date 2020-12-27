@@ -5,6 +5,7 @@
 #include "kuroko.h"
 #include "value.h"
 #include "chunk.h"
+#include "table.h"
 
 #define OBJECT_TYPE(value) (AS_OBJECT(value)->type)
 #define IS_STRING(value)   isObjType(value, OBJ_STRING)
@@ -16,6 +17,10 @@
 #define AS_NATIVE(value)   (((KrkNative *)AS_OBJECT(value))->function)
 #define IS_CLOSURE(value)  isObjType(value, OBJ_CLOSURE)
 #define AS_CLOSURE(value)  ((KrkClosure *)AS_OBJECT(value))
+#define IS_CLASS(value)    isObjType(value, OBJ_CLASS)
+#define AS_CLASS(value)    ((KrkClass *)AS_OBJECT(value))
+#define IS_INSTANCE(value) isObjType(value, OBJ_INSTANCE)
+#define AS_INSTANCE(value) ((KrkInstance *)AS_OBJECT(value))
 
 typedef enum {
 	OBJ_FUNCTION,
@@ -23,6 +28,8 @@ typedef enum {
 	OBJ_CLOSURE,
 	OBJ_STRING,
 	OBJ_UPVALUE,
+	OBJ_CLASS,
+	OBJ_INSTANCE,
 } ObjType;
 
 struct Obj {
@@ -60,6 +67,16 @@ typedef struct {
 	size_t upvalueCount;
 } KrkClosure;
 
+typedef struct {
+	KrkObj obj;
+	KrkString * name;
+} KrkClass;
+
+typedef struct {
+	KrkObj obj;
+	KrkClass * _class;
+	KrkTable fields;
+} KrkInstance;
 
 typedef KrkValue (*NativeFn)(int argCount, KrkValue* args);
 typedef struct {
@@ -74,10 +91,9 @@ static inline int isObjType(KrkValue value, ObjType type) {
 extern KrkString * takeString(char * chars, size_t length);
 extern KrkString * copyString(const char * chars, size_t length);
 extern void krk_printObject(FILE * f, KrkValue value);
-
 extern KrkFunction * newFunction();
 extern KrkNative * newNative(NativeFn function);
-
 extern KrkClosure * newClosure(KrkFunction * function);
-
 extern KrkUpvalue * newUpvalue(KrkValue * slot);
+extern KrkClass * newClass(KrkString * name);
+extern KrkInstance * newInstance(KrkClass * _class);
