@@ -127,30 +127,25 @@ static int isDigit(char c) {
 }
 
 static KrkToken number(char c) {
-	if (c == 0) {
-		/* Hexadecimal */
+	if (c == '0') {
 		if (peek() == 'x' || peek() == 'X') {
+			/* Hexadecimal */
 			advance();
-			do {
-				char n = peek();
-				if (isDigit(n) || (n >= 'a' && n <= 'f') || (n >= 'A' && n <= 'F')) {
-					advance();
-					continue;
-				}
-			} while (0);
+			while (isDigit(peek()) || (peek() >= 'a' && peek() <= 'f') ||
+			       (peek() >= 'A' && peek() <= 'F')) advance();
 			return makeToken(TOKEN_NUMBER);
-		}
-
-		/* Binary */
-		if (peek() == 'b' || peek() == 'B') {
+		} else if (peek() == 'b' || peek() == 'B') {
+			/* Binary */
 			advance();
 			while (peek() == '0' || peek() == '1') advance();
 			return makeToken(TOKEN_NUMBER);
+		} if (peek() == 'o' || peek() == 'O') {
+			/* Octal - must be 0o, none of those silly 0123 things */
+			advance();
+			while (peek() >= '0' && peek() <= '7') advance();
+			return makeToken(TOKEN_NUMBER);
 		}
-
-		/* Octal */
-		while (peek() >= '0' && peek() <= '7') advance();
-		return makeToken(TOKEN_NUMBER);
+		/* Otherwise, decimal and maybe 0.123 floating */
 	}
 
 	/* Decimal */

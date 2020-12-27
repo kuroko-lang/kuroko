@@ -191,20 +191,23 @@ static void emitConstant(KrkValue value) {
 }
 
 static void number(int canAssign) {
-	const char * start= parser.previous.start;
+	const char * start = parser.previous.start;
 	int base = 10;
+
+	/*  These special cases for hexadecimal, binary, octal values. */
 	if (start[0] == '0' && (start[1] == 'x' || start[1] == 'X')) {
-		base = 10;
+		base = 16;
 		start += 2;
 	} else if (start[0] == '0' && (start[1] == 'b' || start[1] == 'B')) {
 		base = 2;
 		start += 2;
-	} else if (start[0] == '0') {
+	} else if (start[0] == '0' && (start[1] == 'o' || start[1] == 'O')) {
 		base = 8;
-		start += 1;
+		start += 2;
 	}
+
+	/* If it wasn't a special base, it may be a floating point value. */
 	if (base == 10) {
-		/* See if it's a float */
 		for (size_t j = 0; j < parser.previous.length; ++j) {
 			if (parser.previous.start[j] == '.') {
 				double value = strtod(start, NULL);
@@ -213,6 +216,8 @@ static void number(int canAssign) {
 			}
 		}
 	}
+
+	/* If we got here, it's an integer of some sort. */
 	int value = strtol(start, NULL, base);
 	emitConstant(INTEGER_VAL(value));
 }
