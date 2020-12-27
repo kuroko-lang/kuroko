@@ -629,23 +629,41 @@ static KrkValue run() {
 			}
 			case OP_GET_PROPERTY_LONG:
 			case OP_GET_PROPERTY: {
-				if (!IS_INSTANCE(krk_peek(0))) {
-					runtimeError("Don't know how to retreive properties for %s yet", typeName(krk_peek(0)));
-					return NONE_VAL();
-				}
-				KrkInstance * instance = AS_INSTANCE(krk_peek(0));
 				KrkString * name = READ_STRING((opcode == OP_GET_PROPERTY ? 1 : 3));
-				KrkValue value;
-				if (krk_tableGet(&instance->fields, OBJECT_VAL(name), &value)) {
-					krk_pop();
-					krk_push(value);
-					break;
-				}
-				if (!bindMethod(instance->_class, name)) {
-					runtimeError("Undefined property/method '%s'.", name->chars);
-					return NONE_VAL();
+				switch (krk_peek(0).type) {
+					case VAL_OBJECT:
+						switch (OBJECT_TYPE(krk_peek(0))) {
+							case OBJ_INSTANCE: {
+								KrkInstance * instance = AS_INSTANCE(krk_peek(0));
+								KrkValue value;
+								if (krk_tableGet(&instance->fields, OBJECT_VAL(name), &value)) {
+									krk_pop();
+									krk_push(value);
+								} else if (!bindMethod(instance->_class, name)) {
+									goto _undefined;
+								}
+								break;
+							}
+							case OBJ_STRING: {
+								KrkString * string = AS_STRING(krk_peek(0));
+								if (!strcmp(name->chars,"length")) {
+									krk_pop(); /* The string */
+									krk_push(INTEGER_VAL(string->length));
+								} else {
+									goto _undefined;
+								}
+								break;
+							}
+						}
+						break;
+					default:
+						runtimeError("Don't know how to retreive properties for %s yet", typeName(krk_peek(0)));
+						return NONE_VAL();
 				}
 				break;
+_undefined:
+				runtimeError("Field '%s' of %s is not defined.", name->chars, typeName(krk_peek(0)));
+				return NONE_VAL();
 			}
 			case OP_SET_PROPERTY_LONG:
 			case OP_SET_PROPERTY: {
