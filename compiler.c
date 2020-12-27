@@ -581,8 +581,18 @@ static void unary(int canAssign) {
 }
 
 static void string(int canAssign) {
+	/* TODO: needs to handle escape sequences */
 	emitConstant(OBJECT_VAL(copyString(parser.previous.start + 1, parser.previous.length - 2)));
 }
+
+/* TODO
+static void codepoint(int canAssign) {
+  // Convert utf8 bytes to single codepoint; error on multiple codepoints.
+  // Emit as constant Integer value? Or as separate Codepoint value?
+  // The latter could add to strings as utf8 bytes, but compare to
+  // Integers as the numerical value...
+}
+*/
 
 #define EMIT_CONSTANT_OP(opc, arg) do { if (arg < 256) { emitBytes(opc, arg); } \
 	else { emitBytes(opc ## _LONG, arg >> 16); emitBytes(arg >> 8, arg); } } while (0)
@@ -637,7 +647,7 @@ ParseRule rules[] = {
 	[TOKEN_IDENTIFIER]    = {variable, NULL,   PREC_NONE},
 	[TOKEN_STRING]        = {string,   NULL,   PREC_NONE},
 	[TOKEN_NUMBER]        = {number,   NULL,   PREC_NONE},
-	[TOKEN_CODEPOINT]     = {NULL,     NULL,   PREC_NONE}, /* should be equivalent to number */
+	[TOKEN_CODEPOINT]     = {NULL,     NULL,   PREC_NONE}, /* TODO */
 	[TOKEN_AND]           = {NULL,     and_,   PREC_AND},
 	[TOKEN_CLASS]         = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_ELSE]          = {NULL,     NULL,   PREC_NONE},

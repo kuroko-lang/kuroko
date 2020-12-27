@@ -176,7 +176,6 @@ static KrkTokenType identifierType() {
 	switch (*scanner.start) {
 		case 'a': return checkKeyword(1, "nd", TOKEN_AND);
 		case 'c': return checkKeyword(1, "lass", TOKEN_CLASS);
-		case 'b': return checkKeyword(1, "lock", TOKEN_BLOCK);
 		case 'd': return checkKeyword(1, "ef", TOKEN_DEF);
 		case 'e': return checkKeyword(1, "lse", TOKEN_ELSE);
 		case 'f': return checkKeyword(1, "or", TOKEN_FOR);
