@@ -74,12 +74,14 @@ static KrkValue krk_sleep(int argc, KrkValue argv[]) {
 	if (argc < 1) {
 		runtimeError("sleep: expect at least one argument.");
 		return BOOLEAN_VAL(0);
-	} else if (!IS_INTEGER(argv[0])) {
-		runtimeError("sleep: argument must be integer");
-		return BOOLEAN_VAL(0);
 	}
 
-	usleep(AS_INTEGER(argv[0]) * 1000000);
+	/* Accept an integer or a floating point. Anything else, just ignore. */
+	unsigned int usecs = (IS_INTEGER(argv[0]) ? AS_INTEGER(argv[0]) :
+	                      (IS_FLOATING(argv[0]) ? AS_FLOATING(argv[0]) : 0)) *
+	                      1000000;
+
+	usleep(usecs);
 
 	return BOOLEAN_VAL(1);
 }

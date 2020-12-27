@@ -1,13 +1,66 @@
-def thing(): # We can put a comment here, right?
+# You may want to look at this in an editor with the syntax highlighting
+# set to Python. Not even bim has a highlighter for Kuroko yet.
+
+if False:
+    print "Kuroko has Python-style syntax"
+    print "with significant whitespace."
+
+    print "Blank lines are ignored."
+    # Comments should work, too.
+    print "None of this should print, since it's in an `if False:`"
+
+# Coincidentally, Lox has a print statement like Python 2 did.
+# I don't know if I'll keep it (haven't we all moved on to Python 3?)
+# but for now it's what we have. You _can_ put parens around print values,
+# including immediately after the 'print' token, and it'll work just fine.
+# Actually the way the scanner works, there's a lot of stuff that doesn't
+# need whitespace even though you might think it should have it...
+print "This is the first line that should print."
+
+# Concatenation currently requires the first argument be a string.
+# Other values then get converted to strings as you go.
+print "We can do simple concatenation " + 123 + "."
+
+# Lox only has a 'Number' type for numerical values, but we have
+# Integer and Floating to separate the two.
+print 4.2 * 9.7 # Should be 40.74
+print 1 + 2 + 3
+
+# Other bases:
+print "Hex: " + 0xFF + " Octal: " + 0o123 + " Binary: " + 0b1010
+
+# This `for init, cond, step:` syntax is possibly temporary? I do intend to
+# implement iterators and `for VAR in ITER:` like in Python, but C-style for
+# loops are also useful...
+for i = 0, i < 10, i = i + 1:
+    print "i = " + i
+
+# Functions work like in Python, though currently no default values.
+def function(arg): # And of course the parser will handle comments here...
     print "This is a function that does a thing!"
-    print "Yay!"
-    return 123
+    if arg == "demo": # Or here...
+        print "You passed 'demo' as an argument!"
+    else: # And definitely here.
+        print "You passed something else."
+    return 42
 
-print "This is other code."
-print thing
-let result = thing()
-print result
+print "This code is after the function definition"
 
-result = sleep(1)
+# While I'm following the book, variable declarations are explicit with `let`.
+# I don't know if I want to implement Python's scoping rules, which are a bit
+# ... different from other languages in that lots of control flow that you
+# would normally think of as introducing scope does not do so in Python. For
+# now we're following traditional scoping rules, and a simple `let foo` at
+# the head of the appropriate block should work okay.
+let result = function("demo")
+print "The function call returned: " + result
 
-print "Did I sleep? " + result
+# `sleep()` is a native function bind. Lox has `clock` as an example, but I
+# figured something with arguments would be more useful? The purpose of this
+# language is to be used for writing syntax highlighters, configs, and also
+# plugins for bim, so native bindings are going to be very important.
+result = sleep(0.5)
+
+print "Call to sleep returned: " + result
+
+function("something else")
