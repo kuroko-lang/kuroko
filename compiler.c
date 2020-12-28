@@ -301,6 +301,7 @@ static void binary(int canAssign) {
 		case TOKEN_MINUS:    emitByte(OP_SUBTRACT); break;
 		case TOKEN_ASTERISK: emitByte(OP_MULTIPLY); break;
 		case TOKEN_SOLIDUS:  emitByte(OP_DIVIDE); break;
+		case TOKEN_MODULO:   emitByte(OP_MODULO); break;
 		default: return;
 	}
 }
@@ -732,7 +733,6 @@ static void forStatement() {
 
 		/* LOOP STARTS HERE */
 		loopStart = currentChunk()->count;
-		emitByte(0xFF);
 
 		/* Call the iterator */
 		EMIT_CONSTANT_OP(OP_GET_LOCAL, indLoopIter);
@@ -971,6 +971,7 @@ ParseRule rules[] = {
 	[TOKEN_SEMICOLON]     = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_SOLIDUS]       = {NULL,     binary, PREC_FACTOR},
 	[TOKEN_ASTERISK]      = {NULL,     binary, PREC_FACTOR},
+	[TOKEN_MODULO]        = {NULL,     binary, PREC_FACTOR},
 	[TOKEN_BANG]          = {unary,    NULL,   PREC_NONE},
 	[TOKEN_BANG_EQUAL]    = {NULL,     binary, PREC_EQUALITY},
 	[TOKEN_EQUAL]         = {NULL,     NULL,   PREC_NONE},

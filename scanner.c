@@ -282,6 +282,7 @@ KrkToken krk_scanToken() {
 		case ';': return makeToken(TOKEN_SEMICOLON);
 		case '/': return makeToken(TOKEN_SOLIDUS);
 		case '*': return makeToken(TOKEN_ASTERISK);
+		case '%': return makeToken(TOKEN_MODULO);
 
 		case '!': return makeToken(match('=') ? TOKEN_BANG_EQUAL : TOKEN_BANG);
 		case '=': return makeToken(match('=') ? TOKEN_EQUAL_EQUAL : TOKEN_EQUAL);

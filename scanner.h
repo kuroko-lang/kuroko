@@ -44,6 +44,7 @@ typedef enum {
 	TOKEN_EOL, /* 47 */
 
 	TOKEN_EXPORT, /* 48 */
+	TOKEN_MODULO,
 
 	TOKEN_ERROR,
 	TOKEN_EOF,

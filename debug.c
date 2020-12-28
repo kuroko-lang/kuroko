@@ -62,6 +62,7 @@ size_t krk_disassembleInstruction(KrkChunk * chunk, size_t offset) {
 		SIMPLE(OP_MULTIPLY)
 		SIMPLE(OP_DIVIDE)
 		SIMPLE(OP_NEGATE)
+		SIMPLE(OP_MODULO)
 		SIMPLE(OP_NONE)
 		SIMPLE(OP_TRUE)
 		SIMPLE(OP_FALSE)

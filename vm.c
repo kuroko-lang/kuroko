@@ -455,6 +455,11 @@ MAKE_BIN_OP(subtract,-)
 MAKE_BIN_OP(multiply,*)
 MAKE_BIN_OP(divide,/)
 
+static KrkValue modulo(KrkValue a, KrkValue b) {
+	if (!IS_INTEGER(a) || !IS_INTEGER(b)) return NONE_VAL();
+	return INTEGER_VAL(AS_INTEGER(a) % AS_INTEGER(b));
+}
+
 #define MAKE_COMPARATOR(name, operator) \
 	static KrkValue name (KrkValue a, KrkValue b) { \
 		if (IS_INTEGER(a) && IS_INTEGER(b)) return BOOLEAN_VAL(AS_INTEGER(a) operator AS_INTEGER(b)); \
@@ -676,6 +681,7 @@ static KrkValue run() {
 			case OP_SUBTRACT: BINARY_OP(subtract)
 			case OP_MULTIPLY: BINARY_OP(multiply)
 			case OP_DIVIDE: BINARY_OP(divide)
+			case OP_MODULO: BINARY_OP(modulo)
 			case OP_NEGATE: {
 				KrkValue value = krk_pop();
 				if (IS_INTEGER(value)) krk_push(INTEGER_VAL(-AS_INTEGER(value)));
