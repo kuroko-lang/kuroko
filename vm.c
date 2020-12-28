@@ -864,13 +864,17 @@ static KrkValue run() {
 							case OBJ_STRING: {
 								/* vm.specialMethodNames[NAME_LEN] ? */
 								if (!strcmp(name->chars,"length")) {
+									KRK_PAUSE_GC();
 									KrkBoundMethod * bound = krk_newBoundMethod(krk_peek(0), boundNative(_string_length,0));
 									krk_pop(); /* The string */
 									krk_push(OBJECT_VAL(bound));
+									KRK_RESUME_GC();
 								} else if (krk_valuesEqual(OBJECT_VAL(name), vm.specialMethodNames[METHOD_GET])) {
+									KRK_PAUSE_GC();
 									KrkBoundMethod * bound = krk_newBoundMethod(krk_peek(0), boundNative(_string_get,1));
 									krk_pop(); /* The string */
 									krk_push(OBJECT_VAL(bound));
+									KRK_RESUME_GC();
 								} else if (krk_valuesEqual(OBJECT_VAL(name), vm.specialMethodNames[METHOD_SET])) {
 									runtimeError("Strings are not mutable.");
 									return NONE_VAL();
