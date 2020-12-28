@@ -26,7 +26,7 @@ static void runtimeError(const char * fmt, ...) {
 	va_end(args);
 	fprintf(stderr, "\nTraceback, most recent first, %d call frames:\n", (int)vm.frameCount);
 
-	for (int i = 0; i <= vm.frameCount - 1; i++) {
+	for (size_t i = 0; i <= vm.frameCount - 1; i++) {
 		CallFrame * frame = &vm.frames[i];
 		KrkFunction * function = frame->closure->function;
 		size_t instruction = frame->ip - function->chunk.code - 1;
@@ -65,8 +65,8 @@ KrkValue krk_peek(int distance) {
 }
 
 static void defineNative(const char * name, NativeFn function) {
-	krk_push(OBJECT_VAL(copyString(name, (int)strlen(name))));
-	krk_push(OBJECT_VAL(newNative(function)));
+	krk_push(OBJECT_VAL(krk_copyString(name, (int)strlen(name))));
+	krk_push(OBJECT_VAL(krk_newNative(function)));
 	krk_tableSet(&vm.globals, vm.stack[0], vm.stack[1]);
 	krk_pop();
 	krk_pop();
@@ -92,7 +92,7 @@ static KrkValue krk_expose_hash_new(int argc, KrkValue argv[]) {
 	/* This is absuing the existing object system so it can work without
 	 * having to add any new types to the garbage collector, and yes
 	 * it is absolute terrible, do not use it. */
-	KrkClass * map = newClass(NULL);
+	KrkClass * map = krk_newClass(NULL);
 	return OBJECT_VAL(map);
 }
 
@@ -112,7 +112,7 @@ static KrkValue krk_expose_hash_set(int argc, KrkValue argv[]) {
 }
 
 static KrkValue krk_expose_list_new(int argc, KrkValue argv[]) {
-	KrkFunction * list = newFunction(NULL);
+	KrkFunction * list = krk_newFunction(NULL);
 	return OBJECT_VAL(list);
 }
 
@@ -120,7 +120,7 @@ static KrkValue krk_expose_list_get(int argc, KrkValue argv[]) {
 	if (argc < 2 || !IS_FUNCTION(argv[0]) || !IS_INTEGER(argv[1])) return NONE_VAL();
 	KrkFunction * list = AS_FUNCTION(argv[0]);
 	int index = AS_INTEGER(argv[1]);
-	if (index < 0 || index >= list->chunk.constants.count) return NONE_VAL();
+	if (index < 0 || index >= (int)list->chunk.constants.count) return NONE_VAL();
 	return list->chunk.constants.values[index];
 }
 
@@ -128,7 +128,7 @@ static KrkValue krk_expose_list_set(int argc, KrkValue argv[]) {
 	if (argc < 3 || !IS_FUNCTION(argv[0]) || !IS_INTEGER(argv[1])) return NONE_VAL();
 	KrkFunction * list = AS_FUNCTION(argv[0]);
 	int index = AS_INTEGER(argv[1]);
-	if (index < 0 || index >= list->chunk.constants.count) return NONE_VAL();
+	if (index < 0 || index >= (int)list->chunk.constants.count) return NONE_VAL();
 	list->chunk.constants.values[index] = argv[2];
 	return BOOLEAN_VAL(1);
 }
@@ -180,7 +180,7 @@ static int callValue(KrkValue callee, int argCount) {
 			}
 			case OBJ_CLASS: {
 				KrkClass * _class = AS_CLASS(callee);
-				vm.stackTop[-argCount - 1] = OBJECT_VAL(newInstance(_class));
+				vm.stackTop[-argCount - 1] = OBJECT_VAL(krk_newInstance(_class));
 				KrkValue initializer;
 				if (krk_tableGet(&_class->methods, vm.specialMethodNames[METHOD_INIT], &initializer)) {
 					return call(AS_CLOSURE(initializer), argCount);
@@ -199,14 +199,14 @@ static int callValue(KrkValue callee, int argCount) {
 				break;
 		}
 	}
-	runtimeError("Attempted to call non-callable type: %s", typeName(callee));
+	runtimeError("Attempted to call non-callable type: %s", krk_typeName(callee));
 	return 0;
 }
 
 static int bindMethod(KrkClass * _class, KrkString * name) {
 	KrkValue method;
 	if (!krk_tableGet(&_class->methods, OBJECT_VAL(name), &method)) return 0;
-	KrkBoundMethod * bound = newBoundMethod(krk_peek(0), AS_CLOSURE(method));
+	KrkBoundMethod * bound = krk_newBoundMethod(krk_peek(0), AS_CLOSURE(method));
 	krk_pop();
 	krk_push(OBJECT_VAL(bound));
 	return 1;
@@ -222,7 +222,7 @@ static KrkUpvalue * captureUpvalue(KrkValue * local) {
 	if (upvalue != NULL && upvalue->location == local) {
 		return upvalue;
 	}
-	KrkUpvalue * createdUpvalue = newUpvalue(local);
+	KrkUpvalue * createdUpvalue = krk_newUpvalue(local);
 	createdUpvalue->next = upvalue;
 	if (prevUpvalue == NULL) {
 		vm.openUpvalues = createdUpvalue;
@@ -265,8 +265,8 @@ void krk_initVM() {
 	krk_initTable(&vm.strings);
 	memset(vm.specialMethodNames,0,sizeof(vm.specialMethodNames));
 
-	vm.specialMethodNames[METHOD_INIT] = OBJECT_VAL(copyString("__init__", 8));
-	vm.specialMethodNames[METHOD_STR]  = OBJECT_VAL(copyString("__str__",  7));
+	vm.specialMethodNames[METHOD_INIT] = OBJECT_VAL(krk_copyString("__init__", 8));
+	vm.specialMethodNames[METHOD_STR]  = OBJECT_VAL(krk_copyString("__str__",  7));
 
 	defineNative("__krk_builtin_sleep", krk_sleep);
 
@@ -298,7 +298,7 @@ static int isFalsey(KrkValue value) {
 	/* IS_STRING && length == 0; IS_ARRAY && length == 0; IS_INSTANCE && __bool__ returns 0... */
 }
 
-const char * typeName(KrkValue value) {
+const char * krk_typeName(KrkValue value) {
 	if (value.type == VAL_BOOLEAN) return "Boolean";
 	if (value.type == VAL_NONE) return "None";
 	if (value.type == VAL_INTEGER) return "Integer";
@@ -324,7 +324,7 @@ const char * typeName(KrkValue value) {
 		} else if (IS_FLOATING(b)) { \
 			if (IS_INTEGER(a)) return FLOATING_VAL((double)AS_INTEGER(a) operator AS_FLOATING(b)); \
 		} \
-		runtimeError("Incompatible types for binary operand %s: %s and %s", #operator, typeName(a), typeName(b)); \
+		runtimeError("Incompatible types for binary operand %s: %s and %s", #operator, krk_typeName(a), krk_typeName(b)); \
 		return NONE_VAL(); \
 	}
 
@@ -342,7 +342,7 @@ MAKE_BIN_OP(divide,/)
 		} else if (IS_FLOATING(b)) { \
 			if (IS_INTEGER(a)) return BOOLEAN_VAL(AS_INTEGER(a) operator AS_INTEGER(b)); \
 		} \
-		runtimeError("Can not compare types %s and %s", typeName(a), typeName(b)); \
+		runtimeError("Can not compare types %s and %s", krk_typeName(a), krk_typeName(b)); \
 		return NONE_VAL(); \
 	}
 
@@ -356,7 +356,7 @@ static void concatenate(const char * a, const char * b, size_t al, size_t bl) {
 	memcpy(chars + al, b, bl);
 	chars[length] = '\0';
 
-	KrkString * result = takeString(chars, length);
+	KrkString * result = krk_takeString(chars, length);
 	krk_pop();
 	krk_pop();
 	krk_push(OBJECT_VAL(result));
@@ -395,7 +395,7 @@ static void addObjects() {
 				KrkValue result = run();
 				vm.exitOnFrame = previousExitFrame;
 				if (!IS_STRING(result)) {
-					runtimeError("__str__ produced something that wasn't a string: %s", typeName(result));
+					runtimeError("__str__ produced something that wasn't a string: %s", krk_typeName(result));
 					return;
 				}
 				sprintf(tmp, "%s", AS_CSTRING(result));
@@ -405,7 +405,7 @@ static void addObjects() {
 		}
 		concatenate(a->chars,tmp,a->length,strlen(tmp));
 	} else {
-		runtimeError("Can not concatenate types %s and %s", typeName(_a), typeName(_b)); \
+		runtimeError("Can not concatenate types %s and %s", krk_typeName(_a), krk_typeName(_b)); \
 		krk_pop();
 		krk_pop();
 		krk_push(NONE_VAL());
@@ -436,10 +436,10 @@ static size_t readBytes(CallFrame * frame, int num) {
 
 static KrkClosure * boundNative(NativeFn method, int arity) {
 	/* Build an object */
-	KrkValue nativeFunction = OBJECT_VAL(newNative(method));
+	KrkValue nativeFunction = OBJECT_VAL(krk_newNative(method));
 
 	/* Build a function that calls it */
-	KrkFunction * methodWrapper = newFunction();
+	KrkFunction * methodWrapper = krk_newFunction();
 	methodWrapper->arity = arity; /* This is WITHOUT the self reference */
 	krk_writeConstant(&methodWrapper->chunk, nativeFunction, 1);
 
@@ -457,7 +457,7 @@ static KrkClosure * boundNative(NativeFn method, int arity) {
 
 	/* Return from the wrapper with whatever result we got from the native method */
 	krk_writeChunk(&methodWrapper->chunk, OP_RETURN, 1);
-	return newClosure(methodWrapper);
+	return krk_newClosure(methodWrapper);
 }
 
 static KrkValue _string_get(int argc, KrkValue argv[]) {
@@ -470,11 +470,11 @@ static KrkValue _string_get(int argc, KrkValue argv[]) {
 		return NONE_VAL();
 	}
 	if (!IS_INTEGER(argv[1])) {
-		runtimeError("Strings can not index by %s", typeName(argv[1]));
+		runtimeError("Strings can not index by %s", krk_typeName(argv[1]));
 		return NONE_VAL();
 	}
 	int asInt = AS_INTEGER(argv[1]);
-	if (asInt < 0 || asInt >= AS_STRING(argv[0])->length) {
+	if (asInt < 0 || asInt >= (int)AS_STRING(argv[0])->length) {
 		runtimeError("String index out of range: %d", asInt);
 		return NONE_VAL();
 	}
@@ -488,7 +488,7 @@ static KrkValue run() {
 #ifdef ENABLE_DEBUGGING
 		if (vm.enableTracing) {
 			fprintf(stderr, "        | ");
-			int i = 0;
+			size_t i = 0;
 			for (KrkValue * slot = vm.stack; slot < vm.stackTop; slot++) {
 				fprintf(stderr, "[ ");
 				if (i == frame->slots) fprintf(stderr, "*");
@@ -594,12 +594,11 @@ static KrkValue run() {
 					/* Try to open it */
 					char tmp[256];
 					sprintf(tmp, "%s.krk", name->chars);
-					int myFrame = vm.frameCount;
 					vm.exitOnFrame = vm.frameCount;
 					module = krk_runfile(tmp,1,name->chars,tmp);
 					vm.exitOnFrame = -1;
 					if (!IS_OBJECT(module)) {
-						runtimeError("Failed to import module - expected to receive an object, but got a %s instead.", typeName(module));
+						runtimeError("Failed to import module - expected to receive an object, but got a %s instead.", krk_typeName(module));
 						return NONE_VAL();
 					}
 					krk_push(module);
@@ -651,7 +650,7 @@ static KrkValue run() {
 			case OP_CLOSURE_LONG:
 			case OP_CLOSURE: {
 				KrkFunction * function = AS_FUNCTION(READ_CONSTANT((opcode == OP_CLOSURE ? 1 : 3)));
-				KrkClosure * closure = newClosure(function);
+				KrkClosure * closure = krk_newClosure(function);
 				krk_push(OBJECT_VAL(closure));
 				for (size_t i = 0; i < closure->upvalueCount; ++i) {
 					int isLocal = READ_BYTE();
@@ -683,7 +682,7 @@ static KrkValue run() {
 			case OP_CLASS_LONG:
 			case OP_CLASS: {
 				KrkString * name = READ_STRING((opcode == OP_CLASS ? 1 : 3));
-				KrkClass * _class = newClass(name);
+				KrkClass * _class = krk_newClass(name);
 				_class->filename = frame->closure->function->chunk.filename;
 				krk_push(OBJECT_VAL(_class));
 				break;
@@ -731,7 +730,7 @@ static KrkValue run() {
 									krk_pop(); /* The string */
 									krk_push(INTEGER_VAL(string->length));
 								} else if (!strcmp(name->chars,"__get__")) {
-									KrkBoundMethod * bound = newBoundMethod(krk_peek(0), boundNative(_string_get,1));
+									KrkBoundMethod * bound = krk_newBoundMethod(krk_peek(0), boundNative(_string_get,1));
 									krk_pop(); /* The string */
 									krk_push(OBJECT_VAL(bound));
 								} else if (!strcmp(name->chars,"__set__")) {
@@ -742,6 +741,8 @@ static KrkValue run() {
 								}
 								break;
 							}
+							default:
+								break;
 						}
 						break;
 					case VAL_FLOATING: {
@@ -757,18 +758,18 @@ static KrkValue run() {
 						break;
 					}
 					default:
-						runtimeError("Don't know how to retreive properties for %s yet", typeName(krk_peek(0)));
+						runtimeError("Don't know how to retreive properties for %s yet", krk_typeName(krk_peek(0)));
 						return NONE_VAL();
 				}
 				break;
 _undefined:
-				runtimeError("Field '%s' of %s is not defined.", name->chars, typeName(krk_peek(0)));
+				runtimeError("Field '%s' of %s is not defined.", name->chars, krk_typeName(krk_peek(0)));
 				return NONE_VAL();
 			}
 			case OP_SET_PROPERTY_LONG:
 			case OP_SET_PROPERTY: {
 				if (!IS_INSTANCE(krk_peek(1))) {
-					runtimeError("Don't know how to set properties for %s yet", typeName(krk_peek(1)));
+					runtimeError("Don't know how to set properties for %s yet", krk_typeName(krk_peek(1)));
 					return NONE_VAL();
 				}
 				KrkInstance * instance = AS_INSTANCE(krk_peek(1));
@@ -818,9 +819,9 @@ KrkValue krk_interpret(const char * src, int newScope, char * fromName, char * f
 
 	krk_push(OBJECT_VAL(function));
 
-	function->name = copyString(fromName, strlen(fromName));
+	function->name = krk_copyString(fromName, strlen(fromName));
 
-	KrkClosure * closure = newClosure(function);
+	KrkClosure * closure = krk_newClosure(function);
 	krk_pop();
 
 	krk_push(OBJECT_VAL(closure));

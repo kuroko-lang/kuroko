@@ -92,11 +92,11 @@ static void initCompiler(Compiler * compiler, FunctionType type) {
 	compiler->type = type;
 	compiler->localCount = 0;
 	compiler->scopeDepth = 0;
-	compiler->function = newFunction();
+	compiler->function = krk_newFunction();
 	current = compiler;
 
 	if (type != TYPE_MODULE) {
-		current->function->name = copyString(parser.previous.start, parser.previous.length);
+		current->function->name = krk_copyString(parser.previous.start, parser.previous.length);
 	}
 
 	Local * local = &current->locals[current->localCount++];
@@ -420,7 +420,7 @@ static void beginScope() {
 static void endScope() {
 	current->scopeDepth--;
 	while (current->localCount > 0 &&
-	       current->locals[current->localCount - 1].depth > current->scopeDepth) {
+	       current->locals[current->localCount - 1].depth > (ssize_t)current->scopeDepth) {
 		if (current->locals[current->localCount - 1].isCaptured) {
 			emitByte(OP_CLOSE_UPVALUE);
 		} else {
@@ -430,7 +430,7 @@ static void endScope() {
 	}
 }
 
-static void block(int indentation) {
+static void block(size_t indentation) {
 	if (match(TOKEN_EOL)) {
 		/* Begin actual blocks */
 		if (check(TOKEN_INDENTATION)) {
@@ -464,7 +464,7 @@ static void block(int indentation) {
 	}
 }
 
-static void function(FunctionType type, int blockWidth) {
+static void function(FunctionType type, size_t blockWidth) {
 	Compiler compiler;
 	initCompiler(&compiler, type);
 	compiler.function->chunk.filename = compiler.enclosing->function->chunk.filename;
@@ -502,7 +502,7 @@ static void function(FunctionType type, int blockWidth) {
 	}
 }
 
-static void method(int blockWidth) {
+static void method(size_t blockWidth) {
 	/* This is actually "inside of a class definition", and that might mean
 	 * arbitrary blank lines we need to accept... Sorry. */
 	if (check(TOKEN_EOL)) return;
@@ -525,7 +525,7 @@ static void method(int blockWidth) {
 }
 
 static void classDeclaration() {
-	int blockWidth = (parser.previous.type == TOKEN_INDENTATION) ? parser.previous.length : 0;
+	size_t blockWidth = (parser.previous.type == TOKEN_INDENTATION) ? parser.previous.length : 0;
 	advance(); /* Collect the `class` */
 
 	consume(TOKEN_IDENTIFIER, "Expected class name.");
@@ -591,7 +591,7 @@ static void markInitialized() {
 }
 
 static void defDeclaration() {
-	int blockWidth = (parser.previous.type == TOKEN_INDENTATION) ? parser.previous.length : 0;
+	size_t blockWidth = (parser.previous.type == TOKEN_INDENTATION) ? parser.previous.length : 0;
 	advance(); /* Collect the `def` */
 
 	ssize_t global = parseVariable("Expected function name.");
@@ -625,7 +625,7 @@ static void emitLoop(int loopStart) {
 
 static void ifStatement() {
 	/* Figure out what block level contains us so we can match our partner else */
-	int blockWidth = (parser.previous.type == TOKEN_INDENTATION) ? parser.previous.length : 0;
+	size_t blockWidth = (parser.previous.type == TOKEN_INDENTATION) ? parser.previous.length : 0;
 
 	/* Collect the if token that started this statement */
 	advance();
@@ -675,7 +675,7 @@ static void ifStatement() {
 }
 
 static void whileStatement() {
-	int blockWidth = (parser.previous.type == TOKEN_INDENTATION) ? parser.previous.length : 0;
+	size_t blockWidth = (parser.previous.type == TOKEN_INDENTATION) ? parser.previous.length : 0;
 	advance();
 
 	int loopStart = currentChunk()->count;
@@ -698,7 +698,7 @@ static void whileStatement() {
 
 static void forStatement() {
 	/* I'm not sure if I want this to be more like Python or C/Lox/etc. */
-	int blockWidth = (parser.previous.type == TOKEN_INDENTATION) ? parser.previous.length : 0;
+	size_t blockWidth = (parser.previous.type == TOKEN_INDENTATION) ? parser.previous.length : 0;
 	advance();
 
 	/* For now this is going to be kinda broken */
@@ -715,10 +715,9 @@ static void forStatement() {
 
 		KrkToken _it = syntheticToken("__loop_iter");
 		KrkToken _iter = syntheticToken("__iter__");
-		size_t indLoopIter, indIterCall;
+		size_t indLoopIter = current->localCount;
 
 		/* __loop_iter = */
-		indLoopIter = current->localCount;
 		addLocal(_it);
 		defineVariable(indLoopIter);
 
@@ -855,8 +854,7 @@ static void unary(int canAssign) {
 }
 
 static void string(int canAssign) {
-	/* TODO: needs to handle escape sequences */
-	size_t r = emitConstant(OBJECT_VAL(copyString(parser.previous.start + 1, parser.previous.length - 2)));
+	emitConstant(OBJECT_VAL(krk_copyString(parser.previous.start + 1, parser.previous.length - 2)));
 }
 
 /* TODO
@@ -872,7 +870,7 @@ static size_t addUpvalue(Compiler * compiler, ssize_t index, int isLocal) {
 	size_t upvalueCount = compiler->function->upvalueCount;
 	for (size_t i = 0; i < upvalueCount; ++i) {
 		Upvalue * upvalue = &compiler->upvalues[i];
-		if (upvalue->index == index && upvalue->isLocal == isLocal) {
+		if ((ssize_t)upvalue->index == index && upvalue->isLocal == isLocal) {
 			return i;
 		}
 	}
@@ -1021,7 +1019,7 @@ static void parsePrecedence(Precedence precedence) {
 }
 
 static ssize_t identifierConstant(KrkToken * name) {
-	return krk_addConstant(currentChunk(), OBJECT_VAL(copyString(name->start, name->length)));
+	return krk_addConstant(currentChunk(), OBJECT_VAL(krk_copyString(name->start, name->length)));
 }
 
 static ssize_t resolveLocal(Compiler * compiler, KrkToken * name) {
@@ -1054,7 +1052,7 @@ static void declareVariable() {
 	/* Detect duplicate definition */
 	for (ssize_t i = current->localCount - 1; i >= 0; i--) {
 		Local * local = &current->locals[i];
-		if (local->depth != -1 && local->depth < current->scopeDepth) break;
+		if (local->depth != -1 && local->depth < (ssize_t)current->scopeDepth) break;
 		if (identifiersEqual(name, &local->name)) error("Duplicate definition");
 	}
 	addLocal(*name);
@@ -1113,7 +1111,7 @@ KrkFunction * krk_compile(const char * src, int newScope, char * fileName) {
 	krk_initScanner(src);
 	Compiler compiler;
 	initCompiler(&compiler, TYPE_MODULE);
-	compiler.function->chunk.filename = copyString(fileName, strlen(fileName));
+	compiler.function->chunk.filename = krk_copyString(fileName, strlen(fileName));
 
 	if (newScope) beginScope();
 

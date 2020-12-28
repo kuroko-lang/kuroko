@@ -109,7 +109,7 @@ int krk_tableDelete(KrkTable * table, KrkValue key) {
 	return 1;
 }
 
-KrkString * tableFindString(KrkTable * table, const char * chars, size_t length, uint32_t hash) {
+KrkString * krk_tableFindString(KrkTable * table, const char * chars, size_t length, uint32_t hash) {
 	if (table->count == 0) return NULL;
 
 	uint32_t index = hash % table->capacity;

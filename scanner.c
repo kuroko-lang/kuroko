@@ -169,7 +169,7 @@ static int isAlpha(char c) {
 
 static int checkKeyword(size_t start, const char * rest, KrkTokenType type) {
 	size_t length = strlen(rest);
-	if (scanner.cur - scanner.start == start + length &&
+	if ((size_t)(scanner.cur - scanner.start) == start + length &&
 		memcmp(scanner.start + start, rest, length) == 0) return type;
 	return TOKEN_IDENTIFIER;
 }

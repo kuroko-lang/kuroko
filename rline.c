@@ -72,95 +72,6 @@ char * rline_history_prev(int item) {
 	return rline_history_get(rline_history_count - item);
 }
 
-void rline_reverse_search(rline_context_t * context) {
-	char input[512] = {0};
-	int collected = 0;
-	int start_at = 0;
-	int changed = 0;
-	fprintf(stderr, "\033[G\033[0m\033[s");
-	fflush(stderr);
-	char * match = "";
-	int match_index = 0;
-	while (1) {
-		/* Find matches */
-try_rev_search_again:
-		if (collected && changed) {
-			match = "";
-			match_index = 0;
-			for (int i = start_at; i < rline_history_count; i++) {
-				char * c = rline_history_prev(i+1);
-				if (strstr(c, input)) {
-					match = c;
-					match_index = i;
-					break;
-				}
-			}
-			if (!strcmp(match,"")) {
-				if (start_at) {
-					start_at = 0;
-					goto try_rev_search_again;
-				}
-				collected--;
-				input[collected] = '\0';
-				if (collected) {
-					goto try_rev_search_again;
-				}
-			}
-		}
-		fprintf(stderr, "\033[u(reverse-i-search)`%s': %s\033[K", input, match);
-		fflush(stderr);
-		changed = 0;
-
-		int key_sym = fgetc(stdin);
-		switch (key_sym) {
-			case -1:
-				break;
-			case 0x08:
-			case 0x7F: /* delete */
-				if (collected > 0) {
-					collected--;
-					input[collected] = '\0';
-					start_at = 0;
-					changed = 1;
-				}
-				break;
-			case 3:
-				printf("^C\n");
-				return;
-			case 12:
-				start_at = match_index + 1;
-				changed = 1;
-				break;
-			case '\0':
-				context->cancel = 1;
-			case '\r':
-			case '\n':
-				memcpy(context->buffer, match, strlen(match) + 1);
-				context->collected = strlen(match);
-				context->offset = context->collected;
-				if (!context->quiet && context->callbacks->redraw_prompt) {
-					fprintf(stderr, "\033[G\033[K");
-					context->callbacks->redraw_prompt(context);
-				}
-				fprintf(stderr, "\033[s");
-				if (key_sym == '\n' && !context->quiet) {
-					fprintf(stderr, "\n");
-				}
-				return;
-			default:
-				if (key_sym < 128) {
-					input[collected] = (char)key_sym;
-					collected++;
-					input[collected] = '\0';
-					start_at = 0;
-					changed = 1;
-				}
-				break;
-		}
-	}
-}
-
-
 #define UTF8_ACCEPT 0
 #define UTF8_REJECT 1
 
@@ -232,7 +143,7 @@ typedef struct {
 	int available;
 	int actual;
 	int istate;
-	char_t   text[0];
+	char_t   text[];
 } line_t;
 
 /**
@@ -1811,16 +1722,6 @@ static int read_line(void) {
 							/* Tab complete */
 							rline_context_t context = {0};
 							call_rline_func(tab_complete_func, &context);
-							immediate = 0;
-						}
-						break;
-					case 18:
-						{
-							rline_context_t context = {0};
-							call_rline_func(rline_reverse_search, &context);
-							if (!context.cancel) {
-								return 1;
-							}
 							immediate = 0;
 						}
 						break;

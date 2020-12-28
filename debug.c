@@ -14,14 +14,14 @@ void krk_disassembleChunk(KrkChunk * chunk, const char * name) {
 #define CONSTANT(opc,more) case opc: { size_t constant = chunk->code[offset + 1]; \
 	fprintf(stderr, "%-16s %4d '", #opc, (int)constant); \
 	krk_printValue(stderr, chunk->constants.values[constant]); \
-	fprintf(stderr,"' (type=%s)\n", typeName(chunk->constants.values[constant])); \
+	fprintf(stderr,"' (type=%s)\n", krk_typeName(chunk->constants.values[constant])); \
 	more; \
 	return offset + 2; } \
 	case opc ## _LONG: { size_t constant = (chunk->code[offset + 1] << 16) | \
 	(chunk->code[offset + 2] << 8) | (chunk->code[offset + 3]); \
 	fprintf(stderr, "%-16s %4d '", #opc "_LONG", (int)constant); \
 	krk_printValue(stderr, chunk->constants.values[constant]); \
-	fprintf(stderr,"' (type=%s)\n", typeName(chunk->constants.values[constant])); \
+	fprintf(stderr,"' (type=%s)\n", krk_typeName(chunk->constants.values[constant])); \
 	more; \
 	return offset + 4; }
 #define OPERANDB(opc) case opc: { uint32_t operand = chunk->code[offset + 1]; \

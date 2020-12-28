@@ -25,7 +25,7 @@ typedef struct {
 extern void krk_initTable(KrkTable * table);
 extern void krk_freeTable(KrkTable * table);
 extern void krk_tableAddAll(KrkTable * from, KrkTable * to);
-extern KrkString * tableFindString(KrkTable * table, const char * chars, size_t length, uint32_t hash);
+extern KrkString * krk_tableFindString(KrkTable * table, const char * chars, size_t length, uint32_t hash);
 extern int krk_tableSet(KrkTable * table, KrkValue key, KrkValue value);
 extern int krk_tableGet(KrkTable * table, KrkValue key, KrkValue * value);
 extern int krk_tableDelete(KrkTable * table, KrkValue key);

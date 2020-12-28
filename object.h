@@ -99,13 +99,13 @@ static inline int isObjType(KrkValue value, ObjType type) {
 	return IS_OBJECT(value) && AS_OBJECT(value)->type == type;
 }
 
-extern KrkString * takeString(char * chars, size_t length);
-extern KrkString * copyString(const char * chars, size_t length);
+extern KrkString * krk_takeString(char * chars, size_t length);
+extern KrkString * krk_copyString(const char * chars, size_t length);
 extern void krk_printObject(FILE * f, KrkValue value);
-extern KrkFunction * newFunction();
-extern KrkNative * newNative(NativeFn function);
-extern KrkClosure * newClosure(KrkFunction * function);
-extern KrkUpvalue * newUpvalue(KrkValue * slot);
-extern KrkClass * newClass(KrkString * name);
-extern KrkInstance * newInstance(KrkClass * _class);
-extern KrkBoundMethod * newBoundMethod(KrkValue receiver, KrkClosure * method);
+extern KrkFunction *    krk_newFunction();
+extern KrkNative *      krk_newNative(NativeFn function);
+extern KrkClosure *     krk_newClosure(KrkFunction * function);
+extern KrkUpvalue *     krk_newUpvalue(KrkValue * slot);
+extern KrkClass *       krk_newClass(KrkString * name);
+extern KrkInstance *    krk_newInstance(KrkClass * _class);
+extern KrkBoundMethod * krk_newBoundMethod(KrkValue receiver, KrkClosure * method);

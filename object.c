@@ -41,9 +41,9 @@ static uint32_t hashString(const char * key, size_t length) {
 	return hash;
 }
 
-KrkString * takeString(char * chars, size_t length) {
+KrkString * krk_takeString(char * chars, size_t length) {
 	uint32_t hash = hashString(chars, length);
-	KrkString * interned = tableFindString(&vm.strings, chars, length, hash);
+	KrkString * interned = krk_tableFindString(&vm.strings, chars, length, hash);
 	if (interned != NULL) {
 		FREE_ARRAY(char, chars, length + 1);
 		return interned;
@@ -51,9 +51,9 @@ KrkString * takeString(char * chars, size_t length) {
 	return allocateString(chars, length, hash);
 }
 
-KrkString * copyString(const char * chars, size_t length) {
+KrkString * krk_copyString(const char * chars, size_t length) {
 	uint32_t hash = hashString(chars, length);
-	KrkString * interned = tableFindString(&vm.strings, chars, length, hash);
+	KrkString * interned = krk_tableFindString(&vm.strings, chars, length, hash);
 	if (interned) return interned;
 	char * heapChars = ALLOCATE(char, length + 1);
 	memcpy(heapChars, chars, length);
@@ -92,7 +92,7 @@ void krk_printObject(FILE * f, KrkValue value) {
 	}
 }
 
-KrkFunction * newFunction() {
+KrkFunction * krk_newFunction() {
 	KrkFunction * function = ALLOCATE_OBJECT(KrkFunction, OBJ_FUNCTION);
 	function->arity = 0;
 	function->upvalueCount = 0;
@@ -101,13 +101,13 @@ KrkFunction * newFunction() {
 	return function;
 }
 
-KrkNative * newNative(NativeFn function) {
+KrkNative * krk_newNative(NativeFn function) {
 	KrkNative * native = ALLOCATE_OBJECT(KrkNative, OBJ_NATIVE);
 	native->function = function;
 	return native;
 }
 
-KrkClosure * newClosure(KrkFunction * function) {
+KrkClosure * krk_newClosure(KrkFunction * function) {
 	KrkUpvalue ** upvalues = ALLOCATE(KrkUpvalue*, function->upvalueCount);
 	for (size_t i = 0; i < function->upvalueCount; ++i) {
 		upvalues[i] = NULL;
@@ -119,7 +119,7 @@ KrkClosure * newClosure(KrkFunction * function) {
 	return closure;
 }
 
-KrkUpvalue * newUpvalue(KrkValue * slot) {
+KrkUpvalue * krk_newUpvalue(KrkValue * slot) {
 	KrkUpvalue * upvalue = ALLOCATE_OBJECT(KrkUpvalue, OBJ_UPVALUE);
 	upvalue->location = slot;
 	upvalue->next = NULL;
@@ -127,7 +127,7 @@ KrkUpvalue * newUpvalue(KrkValue * slot) {
 	return upvalue;
 }
 
-KrkClass * newClass(KrkString * name) {
+KrkClass * krk_newClass(KrkString * name) {
 	KrkClass * _class = ALLOCATE_OBJECT(KrkClass, OBJ_CLASS);
 	_class->name = name;
 	_class->filename = NULL;
@@ -135,14 +135,14 @@ KrkClass * newClass(KrkString * name) {
 	return _class;
 }
 
-KrkInstance * newInstance(KrkClass * _class) {
+KrkInstance * krk_newInstance(KrkClass * _class) {
 	KrkInstance * instance = ALLOCATE_OBJECT(KrkInstance, OBJ_INSTANCE);
 	instance->_class = _class;
 	krk_initTable(&instance->fields);
 	return instance;
 }
 
-KrkBoundMethod * newBoundMethod(KrkValue receiver, KrkClosure * method) {
+KrkBoundMethod * krk_newBoundMethod(KrkValue receiver, KrkClosure * method) {
 	KrkBoundMethod * bound = ALLOCATE_OBJECT(KrkBoundMethod, OBJ_BOUND_METHOD);
 	bound->receiver = receiver;
 	bound->method = method;

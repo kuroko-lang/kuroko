@@ -94,7 +94,7 @@ int main(int argc, char * argv[]) {
 
 				int is_spaces = 1;
 				int count_spaces = 0;
-				for (int j = 0; j < lineLength; ++j) {
+				for (size_t j = 0; j < lineLength; ++j) {
 					if (lines[i][j] != ' ' && lines[i][j] != '\n') {
 						is_spaces = 0;
 						break;
@@ -124,7 +124,7 @@ int main(int argc, char * argv[]) {
 				allData = malloc(totalData + 1);
 				allData[0] = '\0';
 			}
-			for (int i = 0; i < lineCount; ++i) {
+			for (size_t i = 0; i < lineCount; ++i) {
 				if (valid) strcat(allData, lines[i]);
 				rline_history_insert(strdup(lines[i]));
 				free(lines[i]);
