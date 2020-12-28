@@ -272,7 +272,7 @@ static void defineMethod(KrkString * name) {
 	krk_pop();
 }
 
-static void quickGlobal(const char name[], KrkObj * obj) {
+void krk_attachNamedObject(KrkTable * table, const char name[], KrkObj * obj) {
 	krk_push(OBJECT_VAL(krk_copyString(name,strlen(name))));
 	krk_push(OBJECT_VAL(obj));
 	krk_tableSet(&vm.globals, vm.stack[0], vm.stack[1]);
@@ -308,10 +308,10 @@ void krk_initVM() {
 
 	/* Create built-in class `object` */
 	vm.object_class = krk_newClass(S("object"));
-	quickGlobal("object", (KrkObj*)vm.object_class);
+	krk_attachNamedObject(&vm.globals, "object", (KrkObj*)vm.object_class);
 
 	vm.builtins = krk_newInstance(vm.object_class);
-	quickGlobal("__builtins__", (KrkObj*)vm.builtins);
+	krk_attachNamedObject(&vm.globals, "__builtins__", (KrkObj*)vm.builtins);
 
 	krk_defineNative(&vm.builtins->fields, "sleep", krk_sleep);
 
@@ -327,6 +327,14 @@ void krk_initVM() {
 	krk_defineNative(&vm.builtins->fields, "list_set", krk_expose_list_set);
 	krk_defineNative(&vm.builtins->fields, "list_append", krk_expose_list_append);
 	krk_defineNative(&vm.builtins->fields, "list_length", krk_expose_list_length);
+
+	/* Now read the builtins module */
+	KrkValue builtinsModule = krk_runfile(MODULE_PATH "/__builtins__.krk", 1, "__builtins__","__builtins__");
+	if (!IS_OBJECT(builtinsModule)) {
+		fprintf(stderr, "VM startup failure: Failed to load __builtins__ module.\n");
+	} else {
+		krk_attachNamedObject(&vm.builtins->fields, "__builtins__", AS_OBJECT(builtinsModule));
+	}
 }
 
 void krk_freeVM() {

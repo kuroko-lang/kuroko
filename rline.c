@@ -519,7 +519,7 @@ char * syn_py_keywords[] = {
 	"class","def","return","del","if","else","elif","for","while","continue",
 	"break","assert","as","and","or","except","finally","from","global",
 	"import","in","is","lambda","with","nonlocal","not","pass","raise","try","yield",
-	"let",
+	"let","export","print",
 	NULL
 };
 

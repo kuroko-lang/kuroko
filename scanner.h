@@ -43,6 +43,8 @@ typedef enum {
 	TOKEN_RETRY, /* 46 */
 	TOKEN_EOL, /* 47 */
 
+	TOKEN_EXPORT, /* 48 */
+
 	TOKEN_ERROR,
 	TOKEN_EOF,
 } KrkTokenType;

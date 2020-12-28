@@ -800,6 +800,14 @@ static void importStatement() {
 	defineVariable(ind);
 }
 
+static void exportStatement() {
+	consume(TOKEN_IDENTIFIER, "Expected variable name");
+	namedVariable(parser.previous, 0);
+	size_t ind = identifierConstant(&parser.previous);
+	EMIT_CONSTANT_OP(OP_DEFINE_GLOBAL, ind);
+	EMIT_CONSTANT_OP(OP_SET_GLOBAL, ind);
+}
+
 static void statement() {
 	if (check(TOKEN_EOL)) {
 		return; /* Meaningless blank line */
@@ -807,6 +815,8 @@ static void statement() {
 
 	if (match(TOKEN_PRINT)) {
 		printStatement();
+	} else if (match(TOKEN_EXPORT)) {
+		exportStatement();
 	} else if (check(TOKEN_IF)) {
 		/*
 		 * We check rather than match because we need to look at the indentation

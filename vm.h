@@ -63,3 +63,4 @@ extern void krk_push(KrkValue value);
 extern KrkValue krk_pop(void);
 extern const char * krk_typeName(KrkValue value);
 extern void krk_defineNative(KrkTable * table, const char * name, NativeFn function);
+extern void krk_attachNamedObject(KrkTable * table, const char name[], KrkObj * obj);

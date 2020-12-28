@@ -180,7 +180,10 @@ static KrkTokenType identifierType() {
 		case 'a': return checkKeyword(1, "nd", TOKEN_AND);
 		case 'c': return checkKeyword(1, "lass", TOKEN_CLASS);
 		case 'd': return checkKeyword(1, "ef", TOKEN_DEF);
-		case 'e': return checkKeyword(1, "lse", TOKEN_ELSE);
+		case 'e': if (MORE(1)) switch(scanner.start[1]) {
+			case 'l': return checkKeyword(2, "se", TOKEN_ELSE);
+			case 'x': return checkKeyword(2, "port", TOKEN_EXPORT);
+		} break;
 		case 'f': return checkKeyword(1, "or", TOKEN_FOR);
 		case 'F': return checkKeyword(1, "alse", TOKEN_FALSE);
 		case 'i': if (MORE(1)) switch (scanner.start[1]) {

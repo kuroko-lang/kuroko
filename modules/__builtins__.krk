@@ -1,0 +1,112 @@
+class list(object):
+    def __init__(self):
+        self._list = __builtins__.list_new()
+    def __get__(self, ind):
+        return __builtins__.list_get(self._list, ind)
+    def __set__(self, ind, val):
+        return __builtins__.list_set(self._list, ind, val)
+    def append(self, val):
+        return __builtins__.list_append(self._list, val)
+    def length(self):
+        return __builtins__.list_length(self._list)
+    def extend(self, iterable):
+        for v in iterable:
+            self.append(v)
+        return self.length()
+    def __str__(self):
+        let base = "["
+        let len = self.length()
+        for i = 0, i < len, i = i + 1:
+            if i > 0:
+                base = base + ", "
+            base = base + __builtins__.list_get(self._list,i)
+        return base + "]"
+    def __iter__(self):
+        let me = self
+        def makeIter(ind):
+            let l = me
+            let len = l.length()
+            let i = ind
+            def iter():
+                if i >= len:
+                    return iter
+                let out = l[i]
+                i = i + 1
+                return out
+            return iter
+        return makeIter(0)
+export list
+
+class dict(object):
+    def __init__(self):
+        self._map = __builtins__.hash_new()
+    def __get__(self, ind):
+        return __builtins__.hash_get(self._map, ind)
+    def __set__(self, ind, val):
+        return __builtins__.hash_set(self._map, ind, val)
+    def __str__(self):
+        let out = "{"
+        let first = True
+        for v in self.keys():
+            if not first:
+                out = out + ", "
+                first = False
+            out = out + v + ": " + self[v]
+        out = out + "}"
+        return out
+    def length(self):
+        return __builtins__.hash_count(self._map)
+    def capacity(self):
+        return __builtins__.hash_capacity(self._map)
+    def keys(self):
+        class KeyIterator():
+            def __init__(self, target):
+                self.target = target
+            def __iter__(self):
+                let me = self
+                def makeIter(ind):
+                    let m = me.target
+                    let c = m.capacity()
+                    let i = ind
+                    def iter():
+                        let out = None
+                        while out == None and i < c:
+                            out = __builtins__.hash_key_at_index(m._map,i)
+                            i = i + 1
+                        if out == None:
+                            return iter
+                        else:
+                            return out
+                    return iter
+                return makeIter(0)
+        return KeyIterator(self)
+export dict
+
+class range:
+    def __init__(self, min, max):
+        self.min = min
+        self.max = max
+    def __iter__(self):
+        let me = self
+        def makeIter(ind):
+            let l = me
+            let i = ind
+            def iter():
+                if i >= l.max:
+                    return iter
+                let out = i
+                i = i + 1
+                return out
+            return iter
+        return makeIter(self.min)
+export range
+
+def len(obj):
+    return obj.length()
+export len
+
+def str(obj):
+    return "" + obj
+export str
+
+return object()
