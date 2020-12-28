@@ -10,6 +10,8 @@
 #include "vm.h"
 #include "memory.h"
 
+#include "rline.h"
+
 int main(int argc, char * argv[]) {
 	krk_initVM();
 
@@ -34,6 +36,11 @@ int main(int argc, char * argv[]) {
 		/* Run the repl */
 		int exit = 0;
 
+		rline_exit_string="";
+		rline_exp_set_syntax("python");
+		//rline_exp_set_shell_commands(shell_commands, shell_commands_len);
+		//rline_exp_set_tab_complete_func(tab_complete_func);
+
 		while (!exit) {
 			size_t lineCapacity = 8;
 			size_t lineCount = 0;
@@ -42,19 +49,25 @@ int main(int argc, char * argv[]) {
 			int valid = 1;
 			char * allData = NULL;
 			int inBlock = 0;
+			int blockWidth = 0;
 
-			fprintf(stdout, ">>> ");
-			fflush(stdout);
+			rline_exp_set_prompts(">>> ", "", 4, 0);
 
 			while (1) {
+				/* This would be a nice place for line editing */
+				char buf[4096] = {0};
+
 				if (inBlock) {
-					fprintf(stdout, "  > ");
-					fflush(stdout);
+					rline_exp_set_prompts("  > ", "", 4, 0);
+					rline_preload = malloc(blockWidth + 1);
+					for (int i = 0; i < blockWidth; ++i) {
+						rline_preload[i] = ' ';
+					}
+					rline_preload[blockWidth] = '\0';
 				}
 
-				/* This would be a nice place for line editing */
-				char buf[4096];
-				if (!fgets(buf, 4096, stdin)) {
+				if (rline(buf, 4096) == 0) {
+					valid = 0;
 					exit = 1;
 					break;
 				}
@@ -75,10 +88,28 @@ int main(int argc, char * argv[]) {
 				size_t lineLength = strlen(lines[i]);
 				totalData += lineLength;
 
-				if (inBlock && lineLength != 1) {
-					continue;
-				} else if (lineLength > 2 && lines[i][lineLength-2] == ':') {
+				int is_spaces = 1;
+				int count_spaces = 0;
+				for (int j = 0; j < lineLength; ++j) {
+					if (lines[i][j] != ' ' && lines[i][j] != '\n') {
+						is_spaces = 0;
+						break;
+					}
+					count_spaces += 1;
+				}
+
+				if (lineLength > 2 && lines[i][lineLength-2] == ':') {
 					inBlock = 1;
+					blockWidth = count_spaces + 4;
+					continue;
+				} else if (inBlock && lineLength != 1) {
+					if (is_spaces) {
+						free(lines[i]);
+						totalData -= lineLength;
+						lineCount--;
+						break;
+					}
+					blockWidth = count_spaces;
 					continue;
 				}
 

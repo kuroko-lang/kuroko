@@ -593,11 +593,13 @@ static KrkValue run() {
 					/* Try to open it */
 					char tmp[256];
 					sprintf(tmp, "%s.krk", name->chars);
+					int myFrame = vm.frameCount;
 					vm.exitOnFrame = vm.frameCount;
 					module = krk_runfile(tmp,1,name->chars,tmp);
 					vm.exitOnFrame = -1;
 					if (!IS_OBJECT(module)) {
 						runtimeError("Failed to import module - expected to receive an object, but got a %s instead.", typeName(module));
+						return NONE_VAL();
 					}
 					krk_tableSet(&vm.modules, OBJECT_VAL(name), module);
 				}
