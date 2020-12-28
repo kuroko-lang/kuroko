@@ -721,6 +721,18 @@ static KrkValue run() {
 							}
 						}
 						break;
+					case VAL_FLOATING: {
+						if (!strcmp(name->chars, "asInteger")) {
+							krk_push(INTEGER_VAL((int)AS_FLOATING(krk_pop())));
+						} else goto _undefined;
+						break;
+					}
+					case VAL_INTEGER: {
+						if (!strcmp(name->chars, "asFloating")) {
+							krk_push(FLOATING_VAL((int)AS_INTEGER(krk_pop())));
+						} else goto _undefined;
+						break;
+					}
 					default:
 						runtimeError("Don't know how to retreive properties for %s yet", typeName(krk_peek(0)));
 						return NONE_VAL();

@@ -10,3 +10,5 @@ class Test:
 # Instances have a __class__ property synthesized by the VM
 let test = Test()
 print test.__class__
+
+print (37.45).asInteger
