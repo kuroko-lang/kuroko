@@ -1,6 +1,8 @@
 # Kuroko - A bytecode-compiled scripting language
 
-This project is my take on following Robert Nystrom's [_Crafting Interpreters_](https://craftinginterpreters.com/).
+This bytecode VM / compiler is substantially based on Robert Nystrom's [_Crafting Interpreters_](https://craftinginterpreters.com/).
+
+![screenshot](https://cdn.discordapp.com/attachments/711112727426367571/792981309675929640/Screenshot_from_2020-12-28_14-04-02.png)
 
 Instead of implementing Lox, I am aiming for a language with a syntax reminiscent of Python - one with significant whitespace and generally the same keywords.
 
