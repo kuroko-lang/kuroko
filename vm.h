@@ -54,3 +54,4 @@ extern KrkValue krk_runfile(const char * fileName, int newScope, char *, char *)
 extern void krk_push(KrkValue value);
 extern KrkValue krk_pop(void);
 extern const char * krk_typeName(KrkValue value);
+extern void krk_defineNative(const char * name, NativeFn function);

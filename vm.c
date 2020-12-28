@@ -64,7 +64,7 @@ KrkValue krk_peek(int distance) {
 	return vm.stackTop[-1 - distance];
 }
 
-static void defineNative(const char * name, NativeFn function) {
+void krk_defineNative(const char * name, NativeFn function) {
 	krk_push(OBJECT_VAL(krk_copyString(name, (int)strlen(name))));
 	krk_push(OBJECT_VAL(krk_newNative(function)));
 	krk_tableSet(&vm.globals, vm.stack[0], vm.stack[1]);
@@ -268,19 +268,19 @@ void krk_initVM() {
 	vm.specialMethodNames[METHOD_INIT] = OBJECT_VAL(krk_copyString("__init__", 8));
 	vm.specialMethodNames[METHOD_STR]  = OBJECT_VAL(krk_copyString("__str__",  7));
 
-	defineNative("__krk_builtin_sleep", krk_sleep);
+	krk_defineNative("__krk_builtin_sleep", krk_sleep);
 
 	/* Hash maps */
-	defineNative("__krk_builtin_hash_new", krk_expose_hash_new);
-	defineNative("__krk_builtin_hash_set", krk_expose_hash_set);
-	defineNative("__krk_builtin_hash_get", krk_expose_hash_get);
+	krk_defineNative("__krk_builtin_hash_new", krk_expose_hash_new);
+	krk_defineNative("__krk_builtin_hash_set", krk_expose_hash_set);
+	krk_defineNative("__krk_builtin_hash_get", krk_expose_hash_get);
 
 	/* Lists */
-	defineNative("__krk_builtin_list_new", krk_expose_list_new);
-	defineNative("__krk_builtin_list_get", krk_expose_list_get);
-	defineNative("__krk_builtin_list_set", krk_expose_list_set);
-	defineNative("__krk_builtin_list_append", krk_expose_list_append);
-	defineNative("__krk_builtin_list_length", krk_expose_list_length);
+	krk_defineNative("__krk_builtin_list_new", krk_expose_list_new);
+	krk_defineNative("__krk_builtin_list_get", krk_expose_list_get);
+	krk_defineNative("__krk_builtin_list_set", krk_expose_list_set);
+	krk_defineNative("__krk_builtin_list_append", krk_expose_list_append);
+	krk_defineNative("__krk_builtin_list_length", krk_expose_list_length);
 }
 
 void krk_freeVM() {
@@ -840,7 +840,9 @@ KrkValue krk_runfile(const char * fileName, int newScope, char * fromName, char 
 	fseek(f, 0, SEEK_SET);
 
 	char * buf = malloc(size+1);
-	fread(buf, 1, size, f);
+	if (fread(buf, 1, size, f) != size) {
+		fprintf(stderr, "Warning: Failed to read file.\n");
+	}
 	fclose(f);
 	buf[size] = '\0';
 

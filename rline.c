@@ -231,7 +231,8 @@ static int getch(int immediate) {
 	int ret = poll(fds,1,10);
 	if (ret > 0 && fds[0].revents & POLLIN) {
 		unsigned char buf[1];
-		read(STDIN_FILENO, buf, 1);
+		int r = read(STDIN_FILENO, buf, 1);
+		if (r != 1) return -1;
 		return buf[0];
 	} else {
 		return -1;
@@ -1599,7 +1600,7 @@ char * rline_preload = NULL;
  */
 static int read_line(void) {
 	int cin;
-	uint32_t c;
+	uint32_t c = 0;
 	int timeout = 0;
 	int this_buf[20];
 	uint32_t istate = 0;
@@ -1654,6 +1655,10 @@ static int read_line(void) {
 						}
 						render_line();
 						place_cursor_actual();
+						if (!*rline_exit_string) {
+							set_colors(COLOR_ALT_FG, COLOR_ALT_BG);
+							printf("^D\033[0m");
+						}
 						return 1;
 					} else { /* Otherwise act like delete */
 						if (column < the_line->actual) {
