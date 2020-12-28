@@ -57,7 +57,7 @@ int main(int argc, char * argv[]) {
 		int exit = 0;
 
 		/* Bind help() command */
-		krk_defineNative("help", _krk_repl_help);
+		krk_defineNative(&vm.globals, "help", _krk_repl_help);
 
 		rline_exit_string="";
 		rline_exp_set_syntax("python");

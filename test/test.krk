@@ -1,5 +1,7 @@
 #!/home/klange/Projects/kuroko/kuroko
 import system
+import hashmap
+import list
 # You may want to look at this in an editor with the syntax highlighting
 # set to Python. Not even bim has a highlighter for Kuroko yet.
 
@@ -158,20 +160,20 @@ print subclass[123]
 subclass[456] = "test"
 
 print "Let's make a hashmap:"
-let hash = system.HashMap()
+let hash = hashmap()
 hash["hello"] = "world"
 print hash["hello"]
 
 print "Let's make some lists:"
-let list = system.List()
-print "Length before: " + list.length()
-list.append(1)
-list.append(2)
-list.append(3)
-print "Length after: " + list.length()
-for j = 0, j < list.length(), j = j + 1:
-    print "j=" + j + ", list[j]=" + list[j]
+let l = list()
+print "Length before: " + l.length()
+l.append(1)
+l.append(2)
+l.append(3)
+print "Length after: " + l.length()
+for j = 0, j < l.length(), j = j + 1:
+    print "j=" + j + ", list[j]=" + l[j]
 
-print "Can we call properties of strings?".length
+print "Can we call properties of strings?".length() # Of course we can.
 
 return 0

@@ -1,0 +1,19 @@
+class Range:
+    def __init__(self, min, max):
+        self.min = min
+        self.max = max
+    def __iter__(self):
+        let me = self
+        def makeIter(ind):
+            let l = me
+            let i = ind
+            def iter():
+                if i >= l.max:
+                    return iter
+                let out = i
+                i = i + 1
+                return out
+            return iter
+        return makeIter(self.min)
+
+return Range

@@ -16,6 +16,11 @@ typedef struct {
 typedef enum {
 	METHOD_INIT,
 	METHOD_STR,
+	METHOD_GET,
+	METHOD_SET,
+	METHOD_CLASS,
+	METHOD_NAME,
+	METHOD_FILE,
 
 	METHOD__MAX,
 } KrkSpecialMethods;
@@ -39,6 +44,9 @@ typedef struct {
 	KrkObj** grayStack;
 	KrkValue specialMethodNames[METHOD__MAX];
 
+	KrkClass * object_class;
+	KrkInstance * builtins;
+
 	unsigned char enableDebugging:1;
 	unsigned char enableTracing:1;
 	unsigned char enableScanTracing:1;
@@ -54,4 +62,4 @@ extern KrkValue krk_runfile(const char * fileName, int newScope, char *, char *)
 extern void krk_push(KrkValue value);
 extern KrkValue krk_pop(void);
 extern const char * krk_typeName(KrkValue value);
-extern void krk_defineNative(const char * name, NativeFn function);
+extern void krk_defineNative(KrkTable * table, const char * name, NativeFn function);

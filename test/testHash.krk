@@ -1,0 +1,14 @@
+import hashmap
+
+let h = hashmap()
+
+h["hello"] = "world"
+h["foo"] = "bar"
+h[1] = 2
+h[3] = 4
+
+for v in h.keys():
+    print v
+
+for v in h.keys():
+    print "" + v + ": " + h[v]

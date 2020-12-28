@@ -1,0 +1,35 @@
+class HashMap:
+    def __init__(self):
+        self._map = __builtins__.hash_new()
+    def __get__(self, ind):
+        return __builtins__.hash_get(self._map, ind)
+    def __set__(self, ind, val):
+        return __builtins__.hash_set(self._map, ind, val)
+    def __str__(self):
+        return "<HashMap>"
+    def capacity(self):
+        return __builtins__.hash_capacity(self._map)
+    def keys(self):
+        class KeyIterator():
+            def __init__(self, target):
+                self.target = target
+            def __iter__(self):
+                let me = self
+                def makeIter(ind):
+                    let m = me.target
+                    let c = m.capacity()
+                    let i = ind
+                    def iter():
+                        let out = None
+                        while out == None and i < c:
+                            out = __builtins__.hash_key_at_index(m._map,i)
+                            i = i + 1
+                        if out == None:
+                            return iter
+                        else:
+                            return out
+                    return iter
+                return makeIter(0)
+        return KeyIterator(self)
+
+return HashMap

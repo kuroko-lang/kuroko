@@ -8,6 +8,8 @@
 #include "object.h"
 #include "table.h"
 
+#define MODULE_PATH "modules"
+
 /* Why is this static... why do we do this to ourselves... */
 KrkVM vm;
 
@@ -64,10 +66,10 @@ KrkValue krk_peek(int distance) {
 	return vm.stackTop[-1 - distance];
 }
 
-void krk_defineNative(const char * name, NativeFn function) {
+void krk_defineNative(KrkTable * table, const char * name, NativeFn function) {
 	krk_push(OBJECT_VAL(krk_copyString(name, (int)strlen(name))));
 	krk_push(OBJECT_VAL(krk_newNative(function)));
-	krk_tableSet(&vm.globals, vm.stack[0], vm.stack[1]);
+	krk_tableSet(table, vm.stack[0], vm.stack[1]);
 	krk_pop();
 	krk_pop();
 }
@@ -109,6 +111,28 @@ static KrkValue krk_expose_hash_set(int argc, KrkValue argv[]) {
 	KrkClass * map = AS_CLASS(argv[0]);
 	krk_tableSet(&map->methods, argv[1], argv[2]);
 	return BOOLEAN_VAL(1);
+}
+
+static KrkValue krk_expose_hash_capacity(int argc, KrkValue argv[]) {
+	if (argc < 1 || !IS_CLASS(argv[0])) return NONE_VAL();
+	KrkClass * map = AS_CLASS(argv[0]);
+	return INTEGER_VAL(map->methods.capacity);
+}
+
+static KrkValue krk_expose_hash_count(int argc, KrkValue argv[]) {
+	if (argc < 1 || !IS_CLASS(argv[0])) return NONE_VAL();
+	KrkClass * map = AS_CLASS(argv[0]);
+	return INTEGER_VAL(map->methods.count);
+}
+
+static KrkValue krk_expose_hash_key_at_index(int argc, KrkValue argv[]) {
+	if (argc < 2 || !IS_CLASS(argv[0])) return NONE_VAL();
+	if (!IS_INTEGER(argv[1])) return NONE_VAL();
+	int i = AS_INTEGER(argv[1]);
+	KrkClass * map = AS_CLASS(argv[0]);
+	if (i < 0 || i > (int)map->methods.capacity) return NONE_VAL();
+	KrkTableEntry entry = map->methods.entries[i];
+	return entry.key;
 }
 
 static KrkValue krk_expose_list_new(int argc, KrkValue argv[]) {
@@ -248,6 +272,14 @@ static void defineMethod(KrkString * name) {
 	krk_pop();
 }
 
+static void quickGlobal(const char name[], KrkObj * obj) {
+	krk_push(OBJECT_VAL(krk_copyString(name,strlen(name))));
+	krk_push(OBJECT_VAL(obj));
+	krk_tableSet(&vm.globals, vm.stack[0], vm.stack[1]);
+	krk_pop();
+	krk_pop();
+}
+
 void krk_initVM() {
 	vm.enableDebugging = 0;
 	vm.enableTracing = 0;
@@ -265,22 +297,36 @@ void krk_initVM() {
 	krk_initTable(&vm.strings);
 	memset(vm.specialMethodNames,0,sizeof(vm.specialMethodNames));
 
-	vm.specialMethodNames[METHOD_INIT] = OBJECT_VAL(krk_copyString("__init__", 8));
-	vm.specialMethodNames[METHOD_STR]  = OBJECT_VAL(krk_copyString("__str__",  7));
+#define S(c) (krk_copyString(c,sizeof(c)-1))
+	vm.specialMethodNames[METHOD_INIT] = OBJECT_VAL(S("__init__"));
+	vm.specialMethodNames[METHOD_STR]  = OBJECT_VAL(S("__str__"));
+	vm.specialMethodNames[METHOD_GET]  = OBJECT_VAL(S("__get__"));
+	vm.specialMethodNames[METHOD_SET]  = OBJECT_VAL(S("__set__"));
+	vm.specialMethodNames[METHOD_CLASS]= OBJECT_VAL(S("__class__"));
+	vm.specialMethodNames[METHOD_NAME] = OBJECT_VAL(S("__name__"));
+	vm.specialMethodNames[METHOD_FILE] = OBJECT_VAL(S("__file__"));
 
-	krk_defineNative("__krk_builtin_sleep", krk_sleep);
+	/* Create built-in class `object` */
+	vm.object_class = krk_newClass(S("object"));
+	quickGlobal("object", (KrkObj*)vm.object_class);
 
-	/* Hash maps */
-	krk_defineNative("__krk_builtin_hash_new", krk_expose_hash_new);
-	krk_defineNative("__krk_builtin_hash_set", krk_expose_hash_set);
-	krk_defineNative("__krk_builtin_hash_get", krk_expose_hash_get);
+	vm.builtins = krk_newInstance(vm.object_class);
+	quickGlobal("__builtins__", (KrkObj*)vm.builtins);
 
-	/* Lists */
-	krk_defineNative("__krk_builtin_list_new", krk_expose_list_new);
-	krk_defineNative("__krk_builtin_list_get", krk_expose_list_get);
-	krk_defineNative("__krk_builtin_list_set", krk_expose_list_set);
-	krk_defineNative("__krk_builtin_list_append", krk_expose_list_append);
-	krk_defineNative("__krk_builtin_list_length", krk_expose_list_length);
+	krk_defineNative(&vm.builtins->fields, "sleep", krk_sleep);
+
+	krk_defineNative(&vm.builtins->fields, "hash_new", krk_expose_hash_new);
+	krk_defineNative(&vm.builtins->fields, "hash_set", krk_expose_hash_set);
+	krk_defineNative(&vm.builtins->fields, "hash_get", krk_expose_hash_get);
+	krk_defineNative(&vm.builtins->fields, "hash_key_at_index", krk_expose_hash_key_at_index);
+	krk_defineNative(&vm.builtins->fields, "hash_capacity", krk_expose_hash_capacity);
+	krk_defineNative(&vm.builtins->fields, "hash_count", krk_expose_hash_count);
+
+	krk_defineNative(&vm.builtins->fields, "list_new", krk_expose_list_new);
+	krk_defineNative(&vm.builtins->fields, "list_get", krk_expose_list_get);
+	krk_defineNative(&vm.builtins->fields, "list_set", krk_expose_list_set);
+	krk_defineNative(&vm.builtins->fields, "list_append", krk_expose_list_append);
+	krk_defineNative(&vm.builtins->fields, "list_length", krk_expose_list_length);
 }
 
 void krk_freeVM() {
@@ -603,7 +649,7 @@ static KrkValue run() {
 				if (!krk_tableGet(&vm.modules, OBJECT_VAL(name), &module)) {
 					/* Try to open it */
 					char tmp[256];
-					sprintf(tmp, "%s.krk", name->chars);
+					sprintf(tmp, MODULE_PATH "/%s.krk", name->chars);
 					vm.exitOnFrame = vm.frameCount;
 					module = krk_runfile(tmp,1,name->chars,tmp);
 					vm.exitOnFrame = -1;
@@ -711,7 +757,7 @@ static KrkValue run() {
 									krk_push(value);
 								} else if (!bindMethod(instance->_class, name)) {
 									/* Try synthentic properties */
-									if (!strcmp(name->chars,"__class__")) {
+									if (krk_valuesEqual(OBJECT_VAL(name), vm.specialMethodNames[METHOD_CLASS])) {
 										krk_pop();
 										krk_push(OBJECT_VAL(instance->_class));
 									} else {
@@ -722,10 +768,10 @@ static KrkValue run() {
 							}
 							case OBJ_CLASS: {
 								KrkClass * _class = AS_CLASS(krk_peek(0));
-								if (!strcmp(name->chars,"__name__")) {
+								if (krk_valuesEqual(OBJECT_VAL(name), vm.specialMethodNames[METHOD_NAME])) {
 									krk_pop(); /* class */
 									krk_push(OBJECT_VAL(_class->name));
-								} else if (!strcmp(name->chars,"__file__")) {
+								} else if (krk_valuesEqual(OBJECT_VAL(name), vm.specialMethodNames[METHOD_FILE])) {
 									krk_pop();
 									krk_push(OBJECT_VAL(_class->filename));
 								} else {
@@ -739,11 +785,11 @@ static KrkValue run() {
 									KrkBoundMethod * bound = krk_newBoundMethod(krk_peek(0), boundNative(_string_length,0));
 									krk_pop(); /* The string */
 									krk_push(OBJECT_VAL(bound));
-								} else if (!strcmp(name->chars,"__get__")) {
+								} else if (krk_valuesEqual(OBJECT_VAL(name), vm.specialMethodNames[METHOD_GET])) {
 									KrkBoundMethod * bound = krk_newBoundMethod(krk_peek(0), boundNative(_string_get,1));
 									krk_pop(); /* The string */
 									krk_push(OBJECT_VAL(bound));
-								} else if (!strcmp(name->chars,"__set__")) {
+								} else if (krk_valuesEqual(OBJECT_VAL(name), vm.specialMethodNames[METHOD_SET])) {
 									runtimeError("Strings are not mutable.");
 									return NONE_VAL();
 								} else {

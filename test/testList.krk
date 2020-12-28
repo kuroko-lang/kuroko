@@ -1,6 +1,6 @@
-import system
+import list
 
-let l = system.List()
+let l = list()
 
 l.append(1)
 l.append(2)
