@@ -8,6 +8,7 @@
 #include "scanner.h"
 #include "object.h"
 #include "debug.h"
+#include "vm.h"
 
 typedef struct {
 	KrkToken current;
@@ -217,9 +218,8 @@ static void emitReturn() {
 static KrkFunction * endCompiler() {
 	emitReturn();
 	KrkFunction * function = current->function;
-#undef DEBUG
-#ifdef DEBUG
-	if (!parser.hadError) {
+#ifdef ENABLE_DEBUGGING
+	if (vm.enableDebugging && !parser.hadError) {
 		krk_disassembleChunk(currentChunk(), function->name != NULL ? function->name->chars : "<module>");
 	}
 #endif

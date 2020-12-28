@@ -38,6 +38,9 @@ typedef struct {
 	size_t exitOnFrame;
 	KrkObj** grayStack;
 	KrkValue specialMethodNames[METHOD__MAX];
+
+	char enableDebugging;
+	char enableTracing;
 } KrkVM;
 
 extern KrkVM vm;

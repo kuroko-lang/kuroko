@@ -197,7 +197,7 @@ static int callValue(KrkValue callee, int argCount) {
 				break;
 		}
 	}
-	runtimeError("Attempted to call non-callable type.");
+	runtimeError("Attempted to call non-callable type: %s", typeName(callee));
 	return 0;
 }
 
@@ -247,6 +247,9 @@ static void defineMethod(KrkString * name) {
 }
 
 void krk_initVM() {
+	vm.enableDebugging = 0;
+	vm.enableTracing = 0;
+
 	resetStack();
 	vm.objects = NULL;
 	vm.bytesAllocated = 0;
@@ -427,24 +430,72 @@ static size_t readBytes(CallFrame * frame, int num) {
 	return (size_t)-1;
 }
 
+static KrkClosure * boundNative(NativeFn method, int arity) {
+	/* Build an object */
+	KrkValue nativeFunction = OBJECT_VAL(newNative(method));
+
+	/* Build a function that calls it */
+	KrkFunction * methodWrapper = newFunction();
+	methodWrapper->arity = arity; /* This is WITHOUT the self reference */
+	krk_writeConstant(&methodWrapper->chunk, nativeFunction, 1);
+
+	/* Stack silliness */
+	krk_writeChunk(&methodWrapper->chunk, OP_GET_LOCAL, 1); /* Should be bind receiver */
+	krk_writeChunk(&methodWrapper->chunk, 0, 1);
+	for (int i = 0; i < arity; ++i) {
+		krk_writeChunk(&methodWrapper->chunk, OP_GET_LOCAL, 1); /* Should be arguments */
+		krk_writeChunk(&methodWrapper->chunk, i + 1, 1);
+	}
+
+	/* Call with these arguments */
+	krk_writeChunk(&methodWrapper->chunk, OP_CALL, 1);
+	krk_writeChunk(&methodWrapper->chunk, arity + 1, 1); /* arguments to call with */
+
+	/* Return from the wrapper with whatever result we got from the native method */
+	krk_writeChunk(&methodWrapper->chunk, OP_RETURN, 1);
+	return newClosure(methodWrapper);
+}
+
+static KrkValue _string_get(int argc, KrkValue argv[]) {
+	if (argc != 2) {
+		runtimeError("Wrong number of arguments to String.__get__");
+		return NONE_VAL();
+	}
+	if (!IS_STRING(argv[0])) {
+		runtimeError("First argument to __get__ must be String");
+		return NONE_VAL();
+	}
+	if (!IS_INTEGER(argv[1])) {
+		runtimeError("Strings can not index by %s", typeName(argv[1]));
+		return NONE_VAL();
+	}
+	int asInt = AS_INTEGER(argv[1]);
+	if (asInt < 0 || asInt >= AS_STRING(argv[0])->length) {
+		runtimeError("String index out of range: %d", asInt);
+		return NONE_VAL();
+	}
+	return INTEGER_VAL(AS_CSTRING(argv[0])[asInt]);
+}
+
 static KrkValue run() {
 	CallFrame* frame = &vm.frames[vm.frameCount - 1];
 
 	for (;;) {
-#undef DEBUG
-#ifdef DEBUG
-		fprintf(stderr, "        | ");
-		int i = 0;
-		for (KrkValue * slot = vm.stack; slot < vm.stackTop; slot++) {
-			fprintf(stderr, "[ ");
-			if (i == frame->slots) fprintf(stderr, "*");
-			krk_printValue(stderr, *slot);
-			fprintf(stderr, " ]");
-			i++;
+#ifdef ENABLE_DEBUGGING
+		if (vm.enableTracing) {
+			fprintf(stderr, "        | ");
+			int i = 0;
+			for (KrkValue * slot = vm.stack; slot < vm.stackTop; slot++) {
+				fprintf(stderr, "[ ");
+				if (i == frame->slots) fprintf(stderr, "*");
+				krk_printValue(stderr, *slot);
+				fprintf(stderr, " ]");
+				i++;
+			}
+			fprintf(stderr, "\n");
+			krk_disassembleInstruction(&frame->closure->function->chunk,
+				(size_t)(frame->ip - frame->closure->function->chunk.code));
 		}
-		fprintf(stderr, "\n");
-		krk_disassembleInstruction(&frame->closure->function->chunk,
-			(size_t)(frame->ip - frame->closure->function->chunk.code));
 #endif
 		uint8_t opcode;
 		switch ((opcode = READ_BYTE())) {
@@ -640,15 +691,29 @@ static KrkValue run() {
 									krk_pop();
 									krk_push(value);
 								} else if (!bindMethod(instance->_class, name)) {
-									goto _undefined;
+									/* Try synthentic properties */
+									if (!strcmp(name->chars,"__class__")) {
+										krk_pop();
+										krk_push(OBJECT_VAL(instance->_class));
+									} else {
+										goto _undefined;
+									}
 								}
 								break;
 							}
 							case OBJ_STRING: {
 								KrkString * string = AS_STRING(krk_peek(0));
+								/* vm.specialMethodNames[NAME_LEN] ? */
 								if (!strcmp(name->chars,"length")) {
 									krk_pop(); /* The string */
 									krk_push(INTEGER_VAL(string->length));
+								} else if (!strcmp(name->chars,"__get__")) {
+									KrkBoundMethod * bound = newBoundMethod(krk_peek(0), boundNative(_string_get,1));
+									krk_pop(); /* The string */
+									krk_push(OBJECT_VAL(bound));
+								} else if (!strcmp(name->chars,"__set__")) {
+									runtimeError("Strings are not mutable.");
+									return NONE_VAL();
 								} else {
 									goto _undefined;
 								}
