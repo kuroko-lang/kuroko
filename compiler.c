@@ -443,6 +443,18 @@ static void block(int indentation) {
 				declaration();
 				if (check(TOKEN_EOL)) endOfLine();
 			} while (check(TOKEN_INDENTATION));
+#ifdef ENABLE_DEBUGGING
+			if (vm.enableDebugging) {
+				fprintf(stderr, "On line %d, ", (int)parser.current.line);
+				if (check(TOKEN_INDENTATION)) {
+					fprintf(stderr, "Exiting block from %d to %d\n",
+						(int)currentIndentation, (int)parser.current.length);
+				} else {
+					fprintf(stderr, "Exiting block from %d to something that isn't indentation.\n",
+						(int)currentIndentation);
+				}
+			}
+#endif
 		} else {
 			errorAtCurrent("Expected indentation for block");
 		}
@@ -691,26 +703,71 @@ static void forStatement() {
 	/* For now this is going to be kinda broken */
 	beginScope();
 
-	/* actually should be `for NAME in ITERABLE` ... */
+	ssize_t loopInd = current->localCount;
 	varDeclaration();
 
-	consume(TOKEN_COMMA,"expect ,");
+	int loopStart;
+	int exitJump;
 
-	int loopStart = currentChunk()->count;
-	expression(); /* condition */
-	int exitJump = emitJump(OP_JUMP_IF_FALSE);
-	emitByte(OP_POP);
+	if (match(TOKEN_IN)) {
+		defineVariable(loopInd);
 
-	if (check(TOKEN_COMMA)) {
-		advance();
-		int bodyJump = emitJump(OP_JUMP);
-		int incrementStart = currentChunk()->count;
+		KrkToken _it = syntheticToken("__loop_iter");
+		KrkToken _iter = syntheticToken("__iter__");
+		size_t indLoopIter, indIterCall;
+
+		/* __loop_iter = */
+		indLoopIter = current->localCount;
+		addLocal(_it);
+		defineVariable(indLoopIter);
+
+		/* ITERABLE.__iter__() */
 		expression();
+		ssize_t ind = identifierConstant(&_iter);
+		EMIT_CONSTANT_OP(OP_GET_PROPERTY, ind);
+		emitBytes(OP_CALL, 0);
+
+		/* assign */
+		EMIT_CONSTANT_OP(OP_SET_LOCAL, indLoopIter);
+
+		/* LOOP STARTS HERE */
+		loopStart = currentChunk()->count;
+		emitByte(0xFF);
+
+		/* Call the iterator */
+		EMIT_CONSTANT_OP(OP_GET_LOCAL, indLoopIter);
+		emitBytes(OP_CALL, 0);
+
+		/* Assign the result to our loop index */
+		EMIT_CONSTANT_OP(OP_SET_LOCAL, loopInd);
+
+		/* Get the loop iterator again */
+		EMIT_CONSTANT_OP(OP_GET_LOCAL, indLoopIter);
+		emitByte(OP_EQUAL);
+		emitByte(OP_NOT);
+		exitJump = emitJump(OP_JUMP_IF_FALSE);
 		emitByte(OP_POP);
 
-		emitLoop(loopStart);
-		loopStart = incrementStart;
-		patchJump(bodyJump);
+	} else {
+		consume(TOKEN_COMMA,"expect ,");
+		loopStart = currentChunk()->count;
+
+
+		expression(); /* condition */
+		exitJump = emitJump(OP_JUMP_IF_FALSE);
+		emitByte(OP_POP);
+
+		if (check(TOKEN_COMMA)) {
+			advance();
+			int bodyJump = emitJump(OP_JUMP);
+			int incrementStart = currentChunk()->count;
+			expression();
+			emitByte(OP_POP);
+
+			emitLoop(loopStart);
+			loopStart = incrementStart;
+			patchJump(bodyJump);
+		}
 	}
 
 	consume(TOKEN_COLON,"expect :");

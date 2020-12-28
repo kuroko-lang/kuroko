@@ -49,7 +49,9 @@ int krk_valuesEqual(KrkValue a, KrkValue b) {
 		case VAL_FLOATING: return AS_FLOATING(a) == AS_FLOATING(b);
 		case VAL_OBJECT: {
 			if (IS_STRING(a) && IS_STRING(b)) return AS_OBJECT(a) == AS_OBJECT(b);
-			/* otherwise we need to do... fun stuff (push, call compare, etc.)*/
+			/* If their pointers are equal, assume they are always equivalent */
+			if (AS_OBJECT(a) == AS_OBJECT(b)) return 1;
+			/* TODO: __eq__ */
 			return 0;
 		}
 		default: return 0;

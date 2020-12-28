@@ -1,0 +1,13 @@
+import system
+
+let l = system.List()
+
+l.append(1)
+l.append(2)
+l.append("string")
+l.append(3.14159)
+
+for v in l:
+    print v
+
+return 0

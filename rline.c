@@ -749,12 +749,12 @@ int syn_py_calculate(struct syntax_state * state) {
 		case 0:
 			if (charat() == '#') {
 				paint_comment(state);
-			} else if (state->i == 0 && match_and_paint(state, "import", FLAG_PRAGMA, c_keyword_qualifier)) {
-				return 0;
+#if 0
 			} else if (charat() == '@') {
 				paint(1, FLAG_PRAGMA);
 				while (c_keyword_qualifier(charat())) paint(1, FLAG_PRAGMA);
 				return 0;
+#endif
 			} else if (charat() == '"') {
 				if (nextchar() == '"' && charrel(2) == '"') {
 					paint(3, FLAG_STRING);
