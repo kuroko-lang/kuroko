@@ -1,5 +1,3 @@
-import list
-
 let l = list()
 
 l.append(1)

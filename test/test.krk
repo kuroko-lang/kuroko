@@ -1,7 +1,5 @@
 #!/home/klange/Projects/kuroko/kuroko
 import system
-import hashmap
-import list
 # You may want to look at this in an editor with the syntax highlighting
 # set to Python. Not even bim has a highlighter for Kuroko yet.
 
@@ -160,7 +158,7 @@ print subclass[123]
 subclass[456] = "test"
 
 print "Let's make a hashmap:"
-let hash = hashmap()
+let hash = dict()
 hash["hello"] = "world"
 print hash["hello"]
 

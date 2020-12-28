@@ -1,6 +1,4 @@
-import hashmap
-
-let h = hashmap()
+let h = dict()
 
 h["hello"] = "world"
 h["foo"] = "bar"

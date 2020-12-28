@@ -47,15 +47,17 @@ typedef struct {
 	KrkClass * object_class;
 	KrkInstance * builtins;
 
-	unsigned char enableDebugging:1;
-	unsigned char enableTracing:1;
-	unsigned char enableScanTracing:1;
-	unsigned char enableStressGC:1;
+	int flags;
 } KrkVM;
+
+#define KRK_ENABLE_TRACING      (1 << 0)
+#define KRK_ENABLE_DEBUGGING    (1 << 1)
+#define KRK_ENABLE_SCAN_TRACING (1 << 2)
+#define KRK_ENABLE_STRESS_GC    (1 << 3)
 
 extern KrkVM vm;
 
-extern void krk_initVM(void);
+extern void krk_initVM(int flags);
 extern void krk_freeVM(void);
 extern KrkValue krk_interpret(const char * src, int newScope, char *, char *);
 extern KrkValue krk_runfile(const char * fileName, int newScope, char *, char *);

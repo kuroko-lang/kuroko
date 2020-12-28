@@ -163,7 +163,7 @@ static void advance() {
 		parser.current = krk_scanToken();
 
 #ifdef ENABLE_SCAN_TRACING
-		if (vm.enableScanTracing) {
+		if (vm.flags & KRK_ENABLE_SCAN_TRACING) {
 			fprintf(stderr, "Token %d '%.*s' on line %d\n", parser.current.type,
 				(int)parser.current.length,
 				parser.current.start,
@@ -233,7 +233,7 @@ static KrkFunction * endCompiler() {
 	emitReturn();
 	KrkFunction * function = current->function;
 #ifdef ENABLE_DEBUGGING
-	if (vm.enableDebugging && !parser.hadError) {
+	if ((vm.flags & KRK_ENABLE_DEBUGGING) && !parser.hadError) {
 		krk_disassembleChunk(currentChunk(), function->name != NULL ? function->name->chars : "<module>");
 	}
 #endif
@@ -445,7 +445,7 @@ static void block(size_t indentation) {
 				if (check(TOKEN_EOL)) endOfLine();
 			} while (check(TOKEN_INDENTATION));
 #ifdef ENABLE_DEBUGGING
-			if (vm.enableDebugging) {
+			if (vm.flags & KRK_ENABLE_DEBUGGING) {
 				fprintf(stderr, "On line %d, ", (int)parser.current.line);
 				if (check(TOKEN_INDENTATION)) {
 					fprintf(stderr, "Exiting block from %d to %d\n",

@@ -30,25 +30,26 @@ static KrkValue _krk_repl_help(int argc, KrkValue argv[]) {
 }
 
 int main(int argc, char * argv[]) {
-	krk_initVM();
-
+	int flags = 0;
 	int opt;
 	while ((opt = getopt(argc, argv, "tdgs")) != -1) {
 		switch (opt) {
 			case 't':
-				vm.enableTracing = 1;
+				flags |= KRK_ENABLE_TRACING;
 				break;
 			case 'd':
-				vm.enableDebugging = 1;
+				flags |= KRK_ENABLE_DEBUGGING;
 				break;
 			case 's':
-				vm.enableScanTracing = 1;
+				flags |= KRK_ENABLE_SCAN_TRACING;
 				break;
 			case 'g':
-				vm.enableStressGC = 1;
+				flags |= KRK_ENABLE_STRESS_GC;
 				break;
 		}
 	}
+
+	krk_initVM(flags);
 
 	KrkValue result = INTEGER_VAL(0);
 

@@ -1,4 +1,4 @@
-class list(object):
+class list():
     def __init__(self):
         self._list = __builtins__.list_new()
     def __get__(self, ind):
@@ -37,7 +37,7 @@ class list(object):
         return makeIter(0)
 export list
 
-class dict(object):
+class dict():
     def __init__(self):
         self._map = __builtins__.hash_new()
     def __get__(self, ind):
@@ -50,7 +50,7 @@ class dict(object):
         for v in self.keys():
             if not first:
                 out = out + ", "
-                first = False
+            first = False
             out = out + v + ": " + self[v]
         out = out + "}"
         return out

@@ -1,6 +1,7 @@
 #include <stdarg.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/utsname.h>
 #include "vm.h"
 #include "debug.h"
 #include "memory.h"
@@ -9,11 +10,15 @@
 #include "table.h"
 
 #define MODULE_PATH "modules"
+#define S(c) (krk_copyString(c,sizeof(c)-1))
 
 /* Why is this static... why do we do this to ourselves... */
 KrkVM vm;
 
 static KrkValue run();
+static int callValue(KrkValue callee, int argCount);
+static int bindMethod(KrkClass * _class, KrkString * name);
+static int call(KrkClosure * closure, int argCount);
 
 static void resetStack() {
 	vm.stackTop = vm.stack;
@@ -170,6 +175,52 @@ static KrkValue krk_expose_list_length(int argc, KrkValue argv[]) {
 	return INTEGER_VAL(list->chunk.constants.count);
 }
 
+static void runNext(void) {
+	size_t oldExit = vm.exitOnFrame;
+	vm.exitOnFrame = vm.frameCount - 1;
+	run();
+	vm.exitOnFrame = oldExit;
+}
+
+static KrkInstance * _dict_create(KrkValue * outClass) {
+	krk_tableGet(&vm.globals,OBJECT_VAL(S("dict")), outClass);
+	KrkInstance * outDict = krk_newInstance(AS_CLASS(*outClass));
+	krk_push(OBJECT_VAL(outDict));
+	KrkValue tmp;
+	if (krk_tableGet(&AS_CLASS(*outClass)->methods, vm.specialMethodNames[METHOD_INIT], &tmp)) {
+		call(AS_CLOSURE(tmp), 0);
+		runNext();
+	}
+	return outDict;
+}
+
+static void _dict_set(KrkValue dictClass, KrkInstance * dict, KrkValue key, KrkValue value) {
+	krk_push(OBJECT_VAL(dict));
+	krk_push(key);
+	krk_push(value);
+	KrkValue tmp;
+	if (krk_tableGet(&AS_CLASS(dictClass)->methods, vm.specialMethodNames[METHOD_SET], &tmp)) {
+		call(AS_CLOSURE(tmp), 2);
+		runNext();
+	}
+}
+
+static KrkValue krk_uname(int argc, KrkValue argv[]) {
+	struct utsname buf;
+	if (uname(&buf) < 0) return NONE_VAL();
+
+	/* Make a new dictionary */
+	KrkValue dictClass;
+	KrkInstance * dict = _dict_create(&dictClass);
+	_dict_set(dictClass, dict, OBJECT_VAL(S("sysname")), OBJECT_VAL(krk_copyString(buf.sysname,strlen(buf.sysname))));
+	_dict_set(dictClass, dict, OBJECT_VAL(S("nodename")), OBJECT_VAL(krk_copyString(buf.nodename,strlen(buf.nodename))));
+	_dict_set(dictClass, dict, OBJECT_VAL(S("release")), OBJECT_VAL(krk_copyString(buf.release,strlen(buf.release))));
+	_dict_set(dictClass, dict, OBJECT_VAL(S("version")), OBJECT_VAL(krk_copyString(buf.version,strlen(buf.version))));
+	_dict_set(dictClass, dict, OBJECT_VAL(S("machine")), OBJECT_VAL(krk_copyString(buf.machine,strlen(buf.machine))));
+
+	return OBJECT_VAL(dict);
+}
+
 static int call(KrkClosure * closure, int argCount) {
 	if (argCount != closure->function->arity) {
 		runtimeError("Wrong number of arguments (%d expected, got %d)", closure->function->arity, argCount);
@@ -280,11 +331,8 @@ void krk_attachNamedObject(KrkTable * table, const char name[], KrkObj * obj) {
 	krk_pop();
 }
 
-void krk_initVM() {
-	vm.enableDebugging = 0;
-	vm.enableTracing = 0;
-	vm.enableScanTracing = 0;
-	vm.enableStressGC = 0;
+void krk_initVM(int flags) {
+	vm.flags = flags;
 
 	resetStack();
 	vm.objects = NULL;
@@ -297,7 +345,6 @@ void krk_initVM() {
 	krk_initTable(&vm.strings);
 	memset(vm.specialMethodNames,0,sizeof(vm.specialMethodNames));
 
-#define S(c) (krk_copyString(c,sizeof(c)-1))
 	vm.specialMethodNames[METHOD_INIT] = OBJECT_VAL(S("__init__"));
 	vm.specialMethodNames[METHOD_STR]  = OBJECT_VAL(S("__str__"));
 	vm.specialMethodNames[METHOD_GET]  = OBJECT_VAL(S("__get__"));
@@ -313,8 +360,6 @@ void krk_initVM() {
 	vm.builtins = krk_newInstance(vm.object_class);
 	krk_attachNamedObject(&vm.globals, "__builtins__", (KrkObj*)vm.builtins);
 
-	krk_defineNative(&vm.builtins->fields, "sleep", krk_sleep);
-
 	krk_defineNative(&vm.builtins->fields, "hash_new", krk_expose_hash_new);
 	krk_defineNative(&vm.builtins->fields, "hash_set", krk_expose_hash_set);
 	krk_defineNative(&vm.builtins->fields, "hash_get", krk_expose_hash_get);
@@ -328,6 +373,10 @@ void krk_initVM() {
 	krk_defineNative(&vm.builtins->fields, "list_append", krk_expose_list_append);
 	krk_defineNative(&vm.builtins->fields, "list_length", krk_expose_list_length);
 
+	/* Set some other built-ins for the system module */
+	krk_defineNative(&vm.builtins->fields, "sleep", krk_sleep);
+	krk_defineNative(&vm.builtins->fields, "uname", krk_uname);
+
 	/* Now read the builtins module */
 	KrkValue builtinsModule = krk_runfile(MODULE_PATH "/__builtins__.krk", 1, "__builtins__","__builtins__");
 	if (!IS_OBJECT(builtinsModule)) {
@@ -335,6 +384,7 @@ void krk_initVM() {
 	} else {
 		krk_attachNamedObject(&vm.builtins->fields, "__builtins__", AS_OBJECT(builtinsModule));
 	}
+	resetStack();
 }
 
 void krk_freeVM() {
@@ -364,6 +414,7 @@ const char * krk_typeName(KrkValue value) {
 		if (IS_CLOSURE(value)) return "Closure";
 		if (IS_CLASS(value)) return "Class";
 		if (IS_INSTANCE(value)) return "Instance";
+		if (IS_BOUND_METHOD(value)) return "BoundMethod";
 		return "(Unspecified Object)";
 	}
 	return "???";
@@ -550,7 +601,7 @@ static KrkValue run() {
 
 	for (;;) {
 #ifdef ENABLE_DEBUGGING
-		if (vm.enableTracing) {
+		if (vm.flags & KRK_ENABLE_TRACING) {
 			fprintf(stderr, "        | ");
 			size_t i = 0;
 			for (KrkValue * slot = vm.stack; slot < vm.stackTop; slot++) {
@@ -577,6 +628,7 @@ static KrkValue run() {
 				closeUpvalues(&vm.stack[frame->slots]);
 				vm.frameCount--;
 				if (vm.frameCount == 0) {
+					krk_pop();
 					return result;
 				}
 				vm.stackTop = &vm.stack[frame->slots];
