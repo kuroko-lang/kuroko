@@ -252,6 +252,7 @@ void krk_initVM() {
 	vm.enableDebugging = 0;
 	vm.enableTracing = 0;
 	vm.enableScanTracing = 0;
+	vm.enableStressGC = 0;
 
 	resetStack();
 	vm.objects = NULL;
@@ -601,7 +602,9 @@ static KrkValue run() {
 						runtimeError("Failed to import module - expected to receive an object, but got a %s instead.", typeName(module));
 						return NONE_VAL();
 					}
+					krk_push(module);
 					krk_tableSet(&vm.modules, OBJECT_VAL(name), module);
+					break;
 				}
 				krk_push(module);
 				break;
@@ -813,9 +816,10 @@ KrkValue krk_interpret(const char * src, int newScope, char * fromName, char * f
 
 	if (!function) return NONE_VAL();
 
+	krk_push(OBJECT_VAL(function));
+
 	function->name = copyString(fromName, strlen(fromName));
 
-	krk_push(OBJECT_VAL(function));
 	KrkClosure * closure = newClosure(function);
 	krk_pop();
 

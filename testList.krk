@@ -7,6 +7,12 @@ l.append(2)
 l.append("string")
 l.append(3.14159)
 
+def foo():
+    print "bar"
+
+l.append(foo)
+l.append("world")
+
 for v in l:
     print v
 

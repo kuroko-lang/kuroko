@@ -16,7 +16,7 @@ int main(int argc, char * argv[]) {
 	krk_initVM();
 
 	int opt;
-	while ((opt = getopt(argc, argv, "tds")) != -1) {
+	while ((opt = getopt(argc, argv, "tdgs")) != -1) {
 		switch (opt) {
 			case 't':
 				vm.enableTracing = 1;
@@ -26,6 +26,9 @@ int main(int argc, char * argv[]) {
 				break;
 			case 's':
 				vm.enableScanTracing = 1;
+				break;
+			case 'g':
+				vm.enableStressGC = 1;
 				break;
 		}
 	}
@@ -117,7 +120,7 @@ int main(int argc, char * argv[]) {
 			}
 
 			if (valid) {
-				allData = malloc(totalData);
+				allData = malloc(totalData + 1);
 				allData[0] = '\0';
 			}
 			for (int i = 0; i < lineCount; ++i) {

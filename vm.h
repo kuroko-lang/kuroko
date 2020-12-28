@@ -39,9 +39,10 @@ typedef struct {
 	KrkObj** grayStack;
 	KrkValue specialMethodNames[METHOD__MAX];
 
-	char enableDebugging;
-	char enableTracing;
-	char enableScanTracing;
+	char enableDebugging:1;
+	char enableTracing:1;
+	char enableScanTracing:1;
+	char enableStressGC:1;
 } KrkVM;
 
 extern KrkVM vm;
