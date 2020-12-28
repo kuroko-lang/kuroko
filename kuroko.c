@@ -61,7 +61,7 @@ int main(int argc, char * argv[]) {
 		krk_defineNative(&vm.globals, "help", _krk_repl_help);
 
 		rline_exit_string="";
-		rline_exp_set_syntax("python");
+		rline_exp_set_syntax("krk");
 		//rline_exp_set_shell_commands(shell_commands, shell_commands_len);
 		//rline_exp_set_tab_complete_func(tab_complete_func);
 
