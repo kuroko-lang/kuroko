@@ -1,4 +1,4 @@
-CFLAGS = -g -O3 -Wall -Wextra -pedantic -Wno-unused-parameter
+CFLAGS = -g -O3 -Wall -Wextra -pedantic -Wno-unused-parameter -DDEBUG
 OBJS = $(patsubst %.c, %.o, $(sort $(wildcard *.c)))
 TARGET = kuroko
 
