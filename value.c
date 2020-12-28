@@ -29,7 +29,7 @@ void krk_printValue(FILE * f, KrkValue value) {
 	if (IS_FLOATING(value)) {
 		fprintf(f, "%g", AS_FLOATING(value));
 	} else if (IS_INTEGER(value)) {
-		fprintf(f, "%d", AS_INTEGER(value));
+		fprintf(f, "%d", (int)AS_INTEGER(value));
 	} else if (IS_BOOLEAN(value)) {
 		fprintf(f, "%s", AS_BOOLEAN(value) ? "True" : "False");
 	} else if (IS_NONE(value)) {
