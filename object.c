@@ -119,7 +119,7 @@ KrkClosure * krk_newClosure(KrkFunction * function) {
 	return closure;
 }
 
-KrkUpvalue * krk_newUpvalue(KrkValue * slot) {
+KrkUpvalue * krk_newUpvalue(int slot) {
 	KrkUpvalue * upvalue = ALLOCATE_OBJECT(KrkUpvalue, OBJ_UPVALUE);
 	upvalue->location = slot;
 	upvalue->next = NULL;

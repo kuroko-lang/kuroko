@@ -50,7 +50,7 @@ struct ObjString {
 
 typedef struct KrkUpvalue {
 	KrkObj obj;
-	KrkValue * location;
+	int location;
 	KrkValue   closed;
 	struct KrkUpvalue * next;
 } KrkUpvalue;
@@ -105,7 +105,7 @@ extern void krk_printObject(FILE * f, KrkValue value);
 extern KrkFunction *    krk_newFunction();
 extern KrkNative *      krk_newNative(NativeFn function);
 extern KrkClosure *     krk_newClosure(KrkFunction * function);
-extern KrkUpvalue *     krk_newUpvalue(KrkValue * slot);
+extern KrkUpvalue *     krk_newUpvalue(int slot);
 extern KrkClass *       krk_newClass(KrkString * name);
 extern KrkInstance *    krk_newInstance(KrkClass * _class);
 extern KrkBoundMethod * krk_newBoundMethod(KrkValue receiver, KrkClosure * method);

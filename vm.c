@@ -216,7 +216,8 @@ static KrkValue krk_uname(int argc, KrkValue argv[]) {
 	struct utsname buf;
 	if (uname(&buf) < 0) return NONE_VAL();
 
-	/* Make a new dictionary */
+	KRK_PAUSE_GC();
+
 	KrkValue dictClass;
 	KrkInstance * dict = _dict_create(&dictClass);
 	_dict_set(dictClass, dict, OBJECT_VAL(S("sysname")), OBJECT_VAL(krk_copyString(buf.sysname,strlen(buf.sysname))));
@@ -225,7 +226,11 @@ static KrkValue krk_uname(int argc, KrkValue argv[]) {
 	_dict_set(dictClass, dict, OBJECT_VAL(S("version")), OBJECT_VAL(krk_copyString(buf.version,strlen(buf.version))));
 	_dict_set(dictClass, dict, OBJECT_VAL(S("machine")), OBJECT_VAL(krk_copyString(buf.machine,strlen(buf.machine))));
 
-	return OBJECT_VAL(dict);
+	KrkValue result = OBJECT_VAL(dict);
+
+	KRK_RESUME_GC();
+
+	return result;
 }
 
 static int call(KrkClosure * closure, int argCount) {
@@ -294,17 +299,17 @@ static int bindMethod(KrkClass * _class, KrkString * name) {
 	return 1;
 }
 
-static KrkUpvalue * captureUpvalue(KrkValue * local) {
+static KrkUpvalue * captureUpvalue(int index) {
 	KrkUpvalue * prevUpvalue = NULL;
 	KrkUpvalue * upvalue = vm.openUpvalues;
-	while (upvalue != NULL && upvalue->location > local) {
+	while (upvalue != NULL && upvalue->location > index) {
 		prevUpvalue = upvalue;
 		upvalue = upvalue->next;
 	}
-	if (upvalue != NULL && upvalue->location == local) {
+	if (upvalue != NULL && upvalue->location == index) {
 		return upvalue;
 	}
-	KrkUpvalue * createdUpvalue = krk_newUpvalue(local);
+	KrkUpvalue * createdUpvalue = krk_newUpvalue(index);
 	createdUpvalue->next = upvalue;
 	if (prevUpvalue == NULL) {
 		vm.openUpvalues = createdUpvalue;
@@ -314,11 +319,13 @@ static KrkUpvalue * captureUpvalue(KrkValue * local) {
 	return createdUpvalue;
 }
 
-static void closeUpvalues(KrkValue * last) {
+#define UPVALUE_LOCATION(upvalue) (upvalue->location == -1 ? &upvalue->closed : &vm.stack[upvalue->location])
+
+static void closeUpvalues(int last) {
 	while (vm.openUpvalues != NULL && vm.openUpvalues->location >= last) {
 		KrkUpvalue * upvalue = vm.openUpvalues;
-		upvalue->closed = *upvalue->location;
-		upvalue->location = &upvalue->closed;
+		upvalue->closed = vm.stack[upvalue->location];
+		upvalue->location = -1;
 		vm.openUpvalues = upvalue->next;
 	}
 }
@@ -340,6 +347,7 @@ void krk_attachNamedObject(KrkTable * table, const char name[], KrkObj * obj) {
 
 void krk_initVM(int flags) {
 	vm.flags = flags;
+	KRK_PAUSE_GC();
 
 	resetStack();
 	vm.objects = NULL;
@@ -392,6 +400,8 @@ void krk_initVM(int flags) {
 		krk_attachNamedObject(&vm.builtins->fields, "__builtins__", AS_OBJECT(builtinsModule));
 	}
 	resetStack();
+
+	KRK_RESUME_GC();
 }
 
 void krk_freeVM() {
@@ -637,7 +647,7 @@ static KrkValue run() {
 			}
 			case OP_RETURN: {
 				KrkValue result = krk_pop();
-				closeUpvalues(&vm.stack[frame->slots]);
+				closeUpvalues(frame->slots);
 				vm.frameCount--;
 				if (vm.frameCount == 0) {
 					krk_pop();
@@ -784,7 +794,7 @@ static KrkValue run() {
 					int isLocal = READ_BYTE();
 					int index = READ_BYTE();
 					if (isLocal) {
-						closure->upvalues[i] = captureUpvalue(&vm.stack[frame->slots + index]);
+						closure->upvalues[i] = captureUpvalue(frame->slots + index);
 					} else {
 						closure->upvalues[i] = frame->closure->upvalues[index];
 					}
@@ -794,17 +804,17 @@ static KrkValue run() {
 			case OP_GET_UPVALUE_LONG:
 			case OP_GET_UPVALUE: {
 				int slot = readBytes(frame, (opcode == OP_GET_UPVALUE) ? 1 : 3);
-				krk_push(*frame->closure->upvalues[slot]->location);
+				krk_push(*UPVALUE_LOCATION(frame->closure->upvalues[slot]));
 				break;
 			}
 			case OP_SET_UPVALUE_LONG:
 			case OP_SET_UPVALUE: {
 				int slot = readBytes(frame, (opcode == OP_SET_UPVALUE) ? 1 : 3);
-				*frame->closure->upvalues[slot]->location = krk_peek(0);
+				*UPVALUE_LOCATION(frame->closure->upvalues[slot]) = krk_peek(0);
 				break;
 			}
 			case OP_CLOSE_UPVALUE:
-				closeUpvalues(vm.stackTop - 1);
+				closeUpvalues((vm.stackTop - vm.stack)-1);
 				krk_pop();
 				break;
 			case OP_CLASS_LONG:

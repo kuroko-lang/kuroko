@@ -7,7 +7,7 @@
 void * krk_reallocate(void * ptr, size_t old, size_t new) {
 	vm.bytesAllocated += new - old;
 
-	if (new > old && ptr != vm.stack) {
+	if (new > old && ptr != vm.stack && !(vm.flags & KRK_GC_PAUSED)) {
 #ifdef ENABLE_STRESS_GC
 		if (vm.flags & KRK_ENABLE_STRESS_GC) {
 			krk_collectGarbage();

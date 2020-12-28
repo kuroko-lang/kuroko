@@ -55,6 +55,8 @@ typedef struct {
 #define KRK_ENABLE_SCAN_TRACING (1 << 2)
 #define KRK_ENABLE_STRESS_GC    (1 << 3)
 
+#define KRK_GC_PAUSED           (1 << 10)
+
 extern KrkVM vm;
 
 extern void krk_initVM(int flags);
@@ -66,3 +68,6 @@ extern KrkValue krk_pop(void);
 extern const char * krk_typeName(KrkValue value);
 extern void krk_defineNative(KrkTable * table, const char * name, NativeFn function);
 extern void krk_attachNamedObject(KrkTable * table, const char name[], KrkObj * obj);
+
+#define KRK_PAUSE_GC() do { vm.flags |= KRK_GC_PAUSED; } while (0)
+#define KRK_RESUME_GC() do { vm.flags &= ~(KRK_GC_PAUSED); } while (0)
