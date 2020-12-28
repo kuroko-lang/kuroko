@@ -129,7 +129,7 @@ static KrkValue krk_expose_list_set(int argc, KrkValue argv[]) {
 	KrkFunction * list = AS_FUNCTION(argv[0]);
 	int index = AS_INTEGER(argv[1]);
 	if (index < 0 || index >= list->chunk.constants.count) return NONE_VAL();
-	list->chunk.constants.values[index] = argv[1];
+	list->chunk.constants.values[index] = argv[2];
 	return BOOLEAN_VAL(1);
 }
 
