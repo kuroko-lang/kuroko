@@ -73,6 +73,7 @@ typedef struct {
 	size_t  capacity;
 	uint8_t * code;
 	size_t * lines;
+	KrkString * filename;
 	KrkValueArray constants;
 } KrkChunk;
 

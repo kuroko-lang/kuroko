@@ -45,7 +45,7 @@ static KrkToken errorToken(const char * errorStr) {
 }
 
 static char advance() {
-	return *(scanner.cur++);
+	return (*scanner.cur == '\0') ? '\0' : *(scanner.cur++);
 }
 
 static int match(char expected) {
@@ -226,6 +226,8 @@ KrkToken krk_scanToken() {
 	if (isAtEnd()) return makeToken(TOKEN_EOF);
 
 	char c = advance();
+
+	if (isAtEnd()) return makeToken(TOKEN_EOF);
 
 	if (c == '\n') {
 		scanner.line++;

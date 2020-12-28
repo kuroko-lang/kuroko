@@ -160,6 +160,16 @@ static void advance() {
 
 	for (;;) {
 		parser.current = krk_scanToken();
+
+#ifdef ENABLE_SCAN_TRACING
+		if (vm.enableScanTracing) {
+			fprintf(stderr, "Token %d '%.*s' on line %d\n", parser.current.type,
+				(int)parser.current.length,
+				parser.current.start,
+				(int)parser.current.line);
+		}
+#endif
+
 		if (parser.current.type == TOKEN_RETRY) continue;
 		if (parser.current.type != TOKEN_ERROR) break;
 
@@ -209,6 +219,9 @@ static void emitBytes(uint8_t byte1, uint8_t byte2) {
 static void emitReturn() {
 	if (current->type == TYPE_INIT) {
 		emitBytes(OP_GET_LOCAL, 0);
+	} else if (current->type == TYPE_MODULE) {
+		/* Un-pop the last stack value */
+		emitBytes(OP_GET_LOCAL, 1);
 	} else {
 		emitByte(OP_NONE);
 	}
@@ -443,6 +456,7 @@ static void block(int indentation) {
 static void function(FunctionType type, int blockWidth) {
 	Compiler compiler;
 	initCompiler(&compiler, type);
+	compiler.function->chunk.filename = compiler.enclosing->function->chunk.filename;
 
 	beginScope();
 
@@ -1028,10 +1042,11 @@ static ParseRule * getRule(KrkTokenType type) {
 	return &rules[type];
 }
 
-KrkFunction * krk_compile(const char * src, int newScope) {
+KrkFunction * krk_compile(const char * src, int newScope, char * fileName) {
 	krk_initScanner(src);
 	Compiler compiler;
 	initCompiler(&compiler, TYPE_MODULE);
+	compiler.function->chunk.filename = copyString(fileName, strlen(fileName));
 
 	if (newScope) beginScope();
 

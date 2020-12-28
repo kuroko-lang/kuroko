@@ -7,6 +7,7 @@ void krk_initChunk(KrkChunk * chunk) {
 	chunk->capacity = 0;
 	chunk->code = NULL;
 	chunk->lines = NULL;
+	chunk->filename = NULL;
 	krk_initValueArray(&chunk->constants);
 }
 

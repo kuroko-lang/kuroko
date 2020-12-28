@@ -41,14 +41,15 @@ typedef struct {
 
 	char enableDebugging;
 	char enableTracing;
+	char enableScanTracing;
 } KrkVM;
 
 extern KrkVM vm;
 
 extern void krk_initVM(void);
 extern void krk_freeVM(void);
-extern KrkValue krk_interpret(const char * src, int newScope);
-extern KrkValue krk_runfile(const char * fileName, int newScope);
+extern KrkValue krk_interpret(const char * src, int newScope, char *, char *);
+extern KrkValue krk_runfile(const char * fileName, int newScope, char *, char *);
 extern void krk_push(KrkValue value);
 extern KrkValue krk_pop(void);
 extern const char * typeName(KrkValue value);

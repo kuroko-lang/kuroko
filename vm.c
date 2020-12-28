@@ -24,18 +24,16 @@ static void runtimeError(const char * fmt, ...) {
 	va_start(args, fmt);
 	vfprintf(stderr, fmt, args);
 	va_end(args);
-	fprintf(stderr, "\n");
+	fprintf(stderr, "\nTraceback, most recent first, %d call frames:\n", (int)vm.frameCount);
 
-	for (int i = vm.frameCount - 1; i >= 0; i--) {
+	for (int i = 0; i <= vm.frameCount - 1; i++) {
 		CallFrame * frame = &vm.frames[i];
 		KrkFunction * function = frame->closure->function;
 		size_t instruction = frame->ip - function->chunk.code - 1;
-		fprintf(stderr, "[line %d] in ", (int)function->chunk.lines[instruction]);
-		if (function->name == NULL) {
-			fprintf(stderr, "module\n");
-		} else {
-			fprintf(stderr, "%s()\n", function->name->chars);
-		}
+		fprintf(stderr, "  File \"%s\", line %d, in %s\n",
+			(function->chunk.filename ? function->chunk.filename->chars : "?"),
+			(int)function->chunk.lines[instruction],
+			(function->name ? function->name->chars : "(unnamed)"));
 	}
 
 	resetStack();
@@ -56,7 +54,7 @@ void krk_push(KrkValue value) {
 KrkValue krk_pop() {
 	vm.stackTop--;
 	if (vm.stackTop < vm.stack) {
-		fprintf(stderr, "stack overflow - too many pops\n");
+		fprintf(stderr, "stack underflow!\n");
 		return NONE_VAL();
 	}
 	return *vm.stackTop;
@@ -172,6 +170,10 @@ static int callValue(KrkValue callee, int argCount) {
 			case OBJ_NATIVE: {
 				NativeFn native = AS_NATIVE(callee);
 				KrkValue result = native(argCount, vm.stackTop - argCount);
+				if (vm.stackTop == vm.stack) {
+					/* Runtime error returned from native method */
+					return 0;
+				}
 				vm.stackTop -= argCount + 1;
 				krk_push(result);
 				return 1;
@@ -249,6 +251,7 @@ static void defineMethod(KrkString * name) {
 void krk_initVM() {
 	vm.enableDebugging = 0;
 	vm.enableTracing = 0;
+	vm.enableScanTracing = 0;
 
 	resetStack();
 	vm.objects = NULL;
@@ -591,7 +594,7 @@ static KrkValue run() {
 					char tmp[256];
 					sprintf(tmp, "%s.krk", name->chars);
 					vm.exitOnFrame = vm.frameCount;
-					module = krk_runfile(tmp,1);
+					module = krk_runfile(tmp,1,name->chars,tmp);
 					vm.exitOnFrame = -1;
 					if (!IS_OBJECT(module)) {
 						runtimeError("Failed to import module - expected to receive an object, but got a %s instead.", typeName(module));
@@ -788,8 +791,10 @@ _undefined:
 #undef READ_BYTE
 }
 
-KrkValue krk_interpret(const char * src, int newScope) {
-	KrkFunction * function = krk_compile(src, newScope);
+KrkValue krk_interpret(const char * src, int newScope, char * fromName, char * fromFile) {
+	KrkFunction * function = krk_compile(src, newScope, fromFile);
+
+	function->name = copyString(fromName, strlen(fromName));
 
 	krk_push(OBJECT_VAL(function));
 	KrkClosure * closure = newClosure(function);
@@ -802,7 +807,7 @@ KrkValue krk_interpret(const char * src, int newScope) {
 }
 
 
-KrkValue krk_runfile(const char * fileName, int newScope) {
+KrkValue krk_runfile(const char * fileName, int newScope, char * fromName, char * fromFile) {
 	FILE * f = fopen(fileName,"r");
 	if (!f) return NONE_VAL();
 
@@ -815,7 +820,7 @@ KrkValue krk_runfile(const char * fileName, int newScope) {
 	fclose(f);
 	buf[size] = '\0';
 
-	KrkValue result = krk_interpret(buf, newScope);
+	KrkValue result = krk_interpret(buf, newScope, fromName, fromFile);
 	free(buf);
 
 	return result;

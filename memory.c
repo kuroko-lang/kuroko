@@ -114,6 +114,7 @@ static void blackenObject(KrkObj * object) {
 		case OBJ_FUNCTION: {
 			KrkFunction * function = (KrkFunction *)object;
 			krk_markObject((KrkObj*)function->name);
+			krk_markObject((KrkObj*)function->chunk.filename);
 			markArray(&function->chunk.constants);
 			break;
 		}
