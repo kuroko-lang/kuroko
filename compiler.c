@@ -64,10 +64,12 @@ typedef struct Compiler {
 	struct Compiler * enclosing;
 	KrkFunction * function;
 	FunctionType type;
-	Local  locals[MAX_LOCALS];
 	size_t localCount;
 	size_t scopeDepth;
-	Upvalue upvalues[MAX_LOCALS];
+	size_t localsSpace;
+	Local  * locals;
+	size_t upvaluesSpace;
+	Upvalue * upvalues;
 } Compiler;
 
 typedef struct ClassCompiler {
@@ -94,6 +96,10 @@ static void initCompiler(Compiler * compiler, FunctionType type) {
 	compiler->localCount = 0;
 	compiler->scopeDepth = 0;
 	compiler->function = krk_newFunction();
+	compiler->localsSpace = 8;
+	compiler->locals = GROW_ARRAY(Local,NULL,0,8);
+	compiler->upvaluesSpace = 0;
+	compiler->upvalues = NULL;
 	current = compiler;
 
 	if (type != TYPE_MODULE) {
@@ -255,6 +261,11 @@ static KrkFunction * endCompiler() {
 	return function;
 }
 
+static void freeCompiler(Compiler * compiler) {
+	FREE_ARRAY(Local,compiler->locals, compiler->localsSpace);
+	FREE_ARRAY(Upvalue,compiler->upvalues, compiler->upvaluesSpace);
+}
+
 static void endOfLine() {
 	if (!(match(TOKEN_EOL) || match(TOKEN_EOF))) {
 		errorAtCurrent("Expected end of line.");
@@ -380,8 +391,12 @@ static void varDeclaration() {
 }
 
 static void printStatement() {
-	expression();
-	emitByte(OP_PRINT);
+	int argCount = 0;
+	do {
+		expression();
+		argCount++;
+	} while (match(TOKEN_COMMA));
+	EMIT_CONSTANT_OP(OP_PRINT, argCount);
 }
 
 static void synchronize() {
@@ -499,10 +514,8 @@ static void function(FunctionType type, size_t blockWidth) {
 			if (match(TOKEN_EQUAL)) {
 				consume(TOKEN_NONE,"Optional arguments can only be assigned the default value of None.");
 				current->function->defaultArgs++;
-				if (current->function->defaultArgs > 255) errorAtCurrent("too many function parameters");
 			} else {
 				current->function->requiredArgs++;
-				if (current->function->requiredArgs > 255) errorAtCurrent("too many function parameters");
 			}
 		} while (match(TOKEN_COMMA));
 	}
@@ -518,8 +531,13 @@ static void function(FunctionType type, size_t blockWidth) {
 	for (size_t i = 0; i < function->upvalueCount; ++i) {
 		/* TODO: if the maximum count changes, fix the sizes for this */
 		emitByte(compiler.upvalues[i].isLocal ? 1 : 0);
-		emitByte(compiler.upvalues[i].index);
+		if (i > 255) {
+			emitByte((compiler.upvalues[i].index >> 16) & 0xFF);
+			emitByte((compiler.upvalues[i].index >> 8) & 0xFF);
+		}
+		emitByte((compiler.upvalues[i].index) & 0xFF);
 	}
+	freeCompiler(&compiler);
 }
 
 static void method(size_t blockWidth) {
@@ -1010,9 +1028,10 @@ static size_t addUpvalue(Compiler * compiler, ssize_t index, int isLocal) {
 			return i;
 		}
 	}
-	if (upvalueCount == MAX_LOCALS) {
-		error("Too many closure variables in function.");
-		return 0;
+	if (upvalueCount + 1 > current->upvaluesSpace) {
+		size_t old = current->upvaluesSpace;
+		current->upvaluesSpace = GROW_CAPACITY(old);
+		current->upvalues = GROW_ARRAY(Upvalue,current->upvalues,old,current->upvaluesSpace);
 	}
 	compiler->upvalues[upvalueCount].isLocal = isLocal;
 	compiler->upvalues[upvalueCount].index = index;
@@ -1091,7 +1110,6 @@ static void list(int canAssign) {
 		do {
 			expression();
 			/* TOKEN_FOR for comprehensions? */
-			if (argCount == 255) error("Too many values in list expression.");
 			argCount++;
 		} while (match(TOKEN_COMMA));
 	}
@@ -1211,9 +1229,10 @@ static ssize_t resolveLocal(Compiler * compiler, KrkToken * name) {
 }
 
 static void addLocal(KrkToken name) {
-	if (current->localCount == MAX_LOCALS) {
-		error("too many locals");
-		return;
+	if (current->localCount + 1 > current->localsSpace) {
+		size_t old = current->localsSpace;
+		current->localsSpace = GROW_CAPACITY(old);
+		current->locals = GROW_ARRAY(Local,current->locals,old,current->localsSpace);
 	}
 	Local * local = &current->locals[current->localCount++];
 	local->name = name;
@@ -1256,7 +1275,6 @@ static uint8_t argumentList() {
 	if (!check(TOKEN_RIGHT_PAREN)) {
 		do {
 			expression();
-			if (argCount == 255) error("Too many arguments to function."); // Need long call...
 			argCount++;
 		} while (match(TOKEN_COMMA));
 	}
@@ -1304,6 +1322,7 @@ KrkFunction * krk_compile(const char * src, int newScope, char * fileName) {
 	}
 
 	KrkFunction * function = endCompiler();
+	freeCompiler(&compiler);
 	return parser.hadError ? NULL : function;
 }
 

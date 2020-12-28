@@ -729,21 +729,13 @@ static void addObjects() {
 #define READ_CONSTANT(s) (frame->closure->function->chunk.constants.values[readBytes(frame,s)])
 #define READ_STRING(s) AS_STRING(READ_CONSTANT(s))
 
-static size_t readBytes(CallFrame * frame, int num) {
-	if (num == 1) return READ_BYTE();
-	else if (num == 2) {
-		unsigned int top = READ_BYTE();
-		unsigned int bot = READ_BYTE();
-		return (top << 8) | (bot);
-	} else if (num == 3) {
-		unsigned int top = READ_BYTE();
-		unsigned int mid = READ_BYTE();
-		unsigned int bot = READ_BYTE();
-		return (top << 16) | (mid << 8) | (bot);
+static inline size_t readBytes(CallFrame * frame, int num) {
+	size_t out = READ_BYTE();
+	while (--num) {
+		out <<= 8;
+		out |= (READ_BYTE() & 0xFF);
 	}
-
-	krk_runtimeError("Invalid byte read?");
-	return (size_t)-1;
+	return out;
 }
 
 static KrkClosure * boundNative(NativeFn method, int arity) {
@@ -764,8 +756,16 @@ static KrkClosure * boundNative(NativeFn method, int arity) {
 	}
 
 	/* Call with these arguments */
-	krk_writeChunk(&methodWrapper->chunk, OP_CALL, 1);
-	krk_writeChunk(&methodWrapper->chunk, arity + 1, 1); /* arguments to call with */
+	if (arity > 255) {
+		int n = arity + 1;
+		krk_writeChunk(&methodWrapper->chunk, OP_CALL_LONG, 1);
+		krk_writeChunk(&methodWrapper->chunk, (n >> 16) & 0xFF, 1);
+		krk_writeChunk(&methodWrapper->chunk, (n >> 8) & 0xFF, 1);
+		krk_writeChunk(&methodWrapper->chunk, (n >> 0) & 0xFF, 1);
+	} else {
+		krk_writeChunk(&methodWrapper->chunk, OP_CALL, 1);
+		krk_writeChunk(&methodWrapper->chunk, arity + 1, 1); /* arguments to call with */
+	}
 
 	/* Return from the wrapper with whatever result we got from the native method */
 	krk_writeChunk(&methodWrapper->chunk, OP_RETURN, 1);
@@ -898,15 +898,26 @@ static KrkValue run() {
 				(size_t)(frame->ip - frame->closure->function->chunk.code));
 		}
 #endif
-		uint8_t opcode;
-		switch ((opcode = READ_BYTE())) {
+		uint8_t opcode = READ_BYTE();
+		int operandWidth = (opcode & (1 << 7)) ? 3 : 1;
+
+		switch (opcode) {
+			case OP_PRINT_LONG:
 			case OP_PRINT: {
-				if (!IS_STRING(krk_peek(0))) {
-					krk_push(OBJECT_VAL(S("")));
-					krk_swap();
-					addObjects();
+				uint32_t args = readBytes(frame, operandWidth);
+				for (uint32_t i = 0; i < args; ++i) {
+					KrkValue printable = krk_peek(args-i-1);
+					if (!IS_STRING(printable)) {
+						krk_push(OBJECT_VAL(S("")));
+						krk_push(printable);
+						addObjects();
+						printable = krk_pop();
+					}
+					fprintf(stdout, "%s%s", AS_CSTRING(printable), (i == args - 1) ? "\n" : " ");
 				}
-				fprintf(stdout, "%s\n", AS_CSTRING(krk_pop()));
+				for (uint32_t i = 0; i < args; ++i) {
+					krk_pop();
+				}
 				break;
 			}
 			case OP_RETURN: {
@@ -950,7 +961,7 @@ static KrkValue run() {
 			}
 			case OP_CONSTANT_LONG:
 			case OP_CONSTANT: {
-				size_t index = readBytes(frame, opcode == OP_CONSTANT ? 1 : 3);
+				size_t index = readBytes(frame, operandWidth);
 				KrkValue constant = frame->closure->function->chunk.constants.values[index];
 				krk_push(constant);
 				break;
@@ -962,14 +973,14 @@ static KrkValue run() {
 			case OP_POP:   krk_pop(); break;
 			case OP_DEFINE_GLOBAL_LONG:
 			case OP_DEFINE_GLOBAL: {
-				KrkString * name = READ_STRING((opcode == OP_DEFINE_GLOBAL ? 1 : 3));
+				KrkString * name = READ_STRING(operandWidth);
 				krk_tableSet(&vm.globals, OBJECT_VAL(name), krk_peek(0));
 				krk_pop();
 				break;
 			}
 			case OP_GET_GLOBAL_LONG:
 			case OP_GET_GLOBAL: {
-				KrkString * name = READ_STRING((opcode == OP_GET_GLOBAL ? 1 : 3));
+				KrkString * name = READ_STRING(operandWidth);
 				KrkValue value;
 				if (!krk_tableGet(&vm.globals, OBJECT_VAL(name), &value)) {
 					krk_runtimeError("Undefined variable '%s'.", name->chars);
@@ -980,7 +991,7 @@ static KrkValue run() {
 			}
 			case OP_SET_GLOBAL_LONG:
 			case OP_SET_GLOBAL: {
-				KrkString * name = READ_STRING((opcode == OP_SET_GLOBAL ? 1 : 3));
+				KrkString * name = READ_STRING(operandWidth);
 				if (krk_tableSet(&vm.globals, OBJECT_VAL(name), krk_peek(0))) {
 					krk_tableDelete(&vm.globals, OBJECT_VAL(name));
 					/* TODO: This should probably just work as an assignment? */
@@ -991,7 +1002,7 @@ static KrkValue run() {
 			}
 			case OP_IMPORT_LONG:
 			case OP_IMPORT: {
-				KrkString * name = READ_STRING((opcode == OP_IMPORT ? 1 : 3));
+				KrkString * name = READ_STRING(operandWidth);
 				KrkValue module;
 				if (!krk_tableGet(&vm.modules, OBJECT_VAL(name), &module)) {
 					/* Try to open it */
@@ -1014,13 +1025,13 @@ static KrkValue run() {
 			}
 			case OP_GET_LOCAL_LONG:
 			case OP_GET_LOCAL: {
-				uint32_t slot = readBytes(frame, (opcode == OP_GET_LOCAL ? 1 : 3));
+				uint32_t slot = readBytes(frame, operandWidth);
 				krk_push(vm.stack[frame->slots + slot]);
 				break;
 			}
 			case OP_SET_LOCAL_LONG:
 			case OP_SET_LOCAL: {
-				uint32_t slot = readBytes(frame, (opcode == OP_SET_LOCAL ? 1 : 3));
+				uint32_t slot = readBytes(frame, operandWidth);
 				vm.stack[frame->slots + slot] = krk_peek(0);
 				break;
 			}
@@ -1054,8 +1065,9 @@ static KrkValue run() {
 				vm.flags |= KRK_HAS_EXCEPTION;
 				goto _finishException;
 			}
+			case OP_CALL_LONG:
 			case OP_CALL: {
-				int argCount = READ_BYTE();
+				int argCount = readBytes(frame, operandWidth);
 				if (!callValue(krk_peek(argCount), argCount)) {
 					if (vm.flags & KRK_HAS_EXCEPTION) goto _finishException;
 					return NONE_VAL();
@@ -1065,12 +1077,12 @@ static KrkValue run() {
 			}
 			case OP_CLOSURE_LONG:
 			case OP_CLOSURE: {
-				KrkFunction * function = AS_FUNCTION(READ_CONSTANT((opcode == OP_CLOSURE ? 1 : 3)));
+				KrkFunction * function = AS_FUNCTION(READ_CONSTANT(operandWidth));
 				KrkClosure * closure = krk_newClosure(function);
 				krk_push(OBJECT_VAL(closure));
 				for (size_t i = 0; i < closure->upvalueCount; ++i) {
 					int isLocal = READ_BYTE();
-					int index = READ_BYTE();
+					int index = readBytes(frame,(i > 255) ? 3 : 1);
 					if (isLocal) {
 						closure->upvalues[i] = captureUpvalue(frame->slots + index);
 					} else {
@@ -1081,13 +1093,13 @@ static KrkValue run() {
 			}
 			case OP_GET_UPVALUE_LONG:
 			case OP_GET_UPVALUE: {
-				int slot = readBytes(frame, (opcode == OP_GET_UPVALUE) ? 1 : 3);
+				int slot = readBytes(frame, operandWidth);
 				krk_push(*UPVALUE_LOCATION(frame->closure->upvalues[slot]));
 				break;
 			}
 			case OP_SET_UPVALUE_LONG:
 			case OP_SET_UPVALUE: {
-				int slot = readBytes(frame, (opcode == OP_SET_UPVALUE) ? 1 : 3);
+				int slot = readBytes(frame, operandWidth);
 				*UPVALUE_LOCATION(frame->closure->upvalues[slot]) = krk_peek(0);
 				break;
 			}
@@ -1097,7 +1109,7 @@ static KrkValue run() {
 				break;
 			case OP_CLASS_LONG:
 			case OP_CLASS: {
-				KrkString * name = READ_STRING((opcode == OP_CLASS ? 1 : 3));
+				KrkString * name = READ_STRING(operandWidth);
 				KrkClass * _class = krk_newClass(name);
 				_class->filename = frame->closure->function->chunk.filename;
 				krk_tableAddAll(&vm.object_class->methods, &_class->methods);
@@ -1106,7 +1118,7 @@ static KrkValue run() {
 			}
 			case OP_GET_PROPERTY_LONG:
 			case OP_GET_PROPERTY: {
-				KrkString * name = READ_STRING((opcode == OP_GET_PROPERTY ? 1 : 3));
+				KrkString * name = READ_STRING(operandWidth);
 				switch (krk_peek(0).type) {
 					case VAL_OBJECT:
 						switch (OBJECT_TYPE(krk_peek(0))) {
@@ -1196,7 +1208,7 @@ _undefined:
 					goto _finishException;
 				}
 				KrkInstance * instance = AS_INSTANCE(krk_peek(1));
-				KrkString * name = READ_STRING((opcode == OP_SET_PROPERTY ? 1 : 3));
+				KrkString * name = READ_STRING(operandWidth);
 				krk_tableSet(&instance->fields, OBJECT_VAL(name), krk_peek(0));
 				KrkValue value = krk_pop();
 				krk_pop(); /* instance */
@@ -1205,7 +1217,7 @@ _undefined:
 			}
 			case OP_METHOD_LONG:
 			case OP_METHOD: {
-				defineMethod(READ_STRING((opcode == OP_METHOD ? 1 : 3)));
+				defineMethod(READ_STRING(operandWidth));
 				break;
 			}
 			case OP_INHERIT: {
@@ -1221,7 +1233,7 @@ _undefined:
 			}
 			case OP_GET_SUPER_LONG:
 			case OP_GET_SUPER: {
-				KrkString * name = READ_STRING((opcode == OP_GET_SUPER ? 1 : 3));
+				KrkString * name = READ_STRING(operandWidth);
 				KrkClass * superclass = AS_CLASS(krk_pop());
 				if (!bindMethod(superclass, name)) {
 					return NONE_VAL();
