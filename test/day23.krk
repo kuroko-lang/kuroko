@@ -15,17 +15,15 @@ def __main__():
     print "Done, ordering is " + ordering.length()
 
     print "Starting loop..."
+    #__builtins__.set_tracing("tracing=1")
 
     let m0 = 5
-    let m1 = 0
-    let m2 = 0
-    let m3 = 0
     let nx = 0
     let px = 0
     for i in range(0,10000000):
-        m1 = ordering[m0]
-        m2 = ordering[m1]
-        m3 = ordering[m2]
+        let m1 = ordering[m0]
+        let m2 = ordering[m1]
+        let m3 = ordering[m2]
         ordering[m0] = ordering[m3]
         nx = ((m0 + 999998) % 1000000) + 1
         while (nx == m1) or (nx == m2) or (nx == m3):

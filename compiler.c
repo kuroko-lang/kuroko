@@ -772,7 +772,9 @@ static void forStatement() {
 
 	consume(TOKEN_COLON,"expect :");
 
+	beginScope();
 	block(blockWidth);
+	endScope();
 
 	emitLoop(loopStart);
 	patchJump(exitJump);
