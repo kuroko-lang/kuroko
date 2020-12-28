@@ -67,6 +67,13 @@ KrkValue krk_pop() {
 	return *vm.stackTop;
 }
 
+void krk_swap() {
+	KrkValue b = krk_pop();
+	KrkValue a = krk_pop();
+	krk_push(b);
+	krk_push(a);
+}
+
 KrkValue krk_peek(int distance) {
 	return vm.stackTop[-1 - distance];
 }
@@ -619,6 +626,11 @@ static KrkValue run() {
 		uint8_t opcode;
 		switch ((opcode = READ_BYTE())) {
 			case OP_PRINT: {
+				if (!IS_STRING(krk_peek(0))) {
+					krk_push(OBJECT_VAL(S("")));
+					krk_swap();
+					addObjects();
+				}
 				krk_printValue(stdout, krk_pop());
 				fprintf(stdout, "\n");
 				break;
