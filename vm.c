@@ -680,7 +680,9 @@ static KrkValue run() {
 			case OP_CLASS_LONG:
 			case OP_CLASS: {
 				KrkString * name = READ_STRING((opcode == OP_CLASS ? 1 : 3));
-				krk_push(OBJECT_VAL(newClass(name)));
+				KrkClass * _class = newClass(name);
+				_class->filename = frame->closure->function->chunk.filename;
+				krk_push(OBJECT_VAL(_class));
 				break;
 			}
 			case OP_GET_PROPERTY_LONG:
@@ -703,6 +705,19 @@ static KrkValue run() {
 									} else {
 										goto _undefined;
 									}
+								}
+								break;
+							}
+							case OBJ_CLASS: {
+								KrkClass * _class = AS_CLASS(krk_peek(0));
+								if (!strcmp(name->chars,"__name__")) {
+									krk_pop(); /* class */
+									krk_push(OBJECT_VAL(_class->name));
+								} else if (!strcmp(name->chars,"__file__")) {
+									krk_pop();
+									krk_push(OBJECT_VAL(_class->filename));
+								} else {
+									goto _undefined;
 								}
 								break;
 							}
@@ -795,6 +810,8 @@ _undefined:
 
 KrkValue krk_interpret(const char * src, int newScope, char * fromName, char * fromFile) {
 	KrkFunction * function = krk_compile(src, newScope, fromFile);
+
+	if (!function) return NONE_VAL();
 
 	function->name = copyString(fromName, strlen(fromName));
 

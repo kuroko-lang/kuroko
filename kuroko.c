@@ -122,6 +122,7 @@ int main(int argc, char * argv[]) {
 			}
 			for (int i = 0; i < lineCount; ++i) {
 				if (valid) strcat(allData, lines[i]);
+				rline_history_insert(strdup(lines[i]));
 				free(lines[i]);
 			}
 			FREE_ARRAY(char *, lines, lineCapacity);

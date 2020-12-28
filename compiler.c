@@ -438,13 +438,11 @@ static void block(int indentation) {
 				errorAtCurrent("Unexpected indentation level for new block");
 			}
 			do {
-				if (parser.current.length != currentIndentation) break;
-				advance();
+				if (parser.current.length < currentIndentation) break;
+				advance(); /* Pass indentation */
 				declaration();
 				if (check(TOKEN_EOL)) endOfLine();
 			} while (check(TOKEN_INDENTATION));
-			//fprintf(stderr, "Exiting from block %d to indentation level %d (line %d)\n",
-			//	(int)currentIndentation, check(TOKEN_INDENTATION) ? (int)parser.current.length : 0, (int)parser.previous.line);
 		} else {
 			errorAtCurrent("Expected indentation for block");
 		}
@@ -559,7 +557,7 @@ static void classDeclaration() {
 				errorAtCurrent("Unexpected indentation level for class");
 			}
 			do {
-				if (parser.current.length != currentIndentation) break;
+				if (parser.current.length < currentIndentation) break;
 				advance(); /* Pass the indentation */
 				method(currentIndentation);
 				if (check(TOKEN_EOL)) endOfLine();
@@ -639,13 +637,24 @@ static void ifStatement() {
 
 	/* See if we have a matching else block */
 	if (blockWidth == 0 || (check(TOKEN_INDENTATION) && (parser.current.length == blockWidth))) {
-		if (blockWidth) advance();
+		/* This is complicated */
+		KrkToken previous;
+		if (blockWidth) {
+			previous = parser.previous;
+			advance();
+		}
 		if (match(TOKEN_ELSE)) {
 			/* TODO ELIF or ELSE IF */
 			consume(TOKEN_COLON, "Expect ':' after else.");
 			beginScope();
 			block(blockWidth);
 			endScope();
+		} else {
+			krk_ungetToken(parser.current);
+			parser.current = parser.previous;
+			if (blockWidth) {
+				parser.previous = previous;
+			}
 		}
 	}
 

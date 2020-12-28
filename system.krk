@@ -10,6 +10,8 @@ class HashMap:
         return self._get(self._map, ind)
     def __set__(self, ind, val):
         self._set(self._map, ind, val)
+    def __str__(self):
+        return "<HashMap>"
 
 class List:
     def __init__(self):
@@ -26,6 +28,14 @@ class List:
         return self._app(self._list, val)
     def length(self):
         return self._len(self._list)
+    def __str__(self):
+        let base = "["
+        let len = self._len(self._list)
+        for i = 0, i < len, i = i + 1:
+            if i > 0:
+                base = base + ", "
+            base = base + self._get(self._list,i)
+        return base + "]"
 
 let module = SystemModule()
 module.sleep = __krk_builtin_sleep

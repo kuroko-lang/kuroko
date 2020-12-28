@@ -130,6 +130,7 @@ KrkUpvalue * newUpvalue(KrkValue * slot) {
 KrkClass * newClass(KrkString * name) {
 	KrkClass * _class = ALLOCATE_OBJECT(KrkClass, OBJ_CLASS);
 	_class->name = name;
+	_class->filename = NULL;
 	krk_initTable(&_class->methods);
 	return _class;
 }

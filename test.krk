@@ -173,3 +173,5 @@ for j = 0, j < list.length(), j = j + 1:
     print "j=" + j + ", list[j]=" + list[j]
 
 print "Can we call properties of strings?".length
+
+return 0

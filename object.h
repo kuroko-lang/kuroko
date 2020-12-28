@@ -73,6 +73,7 @@ typedef struct {
 typedef struct {
 	KrkObj obj;
 	KrkString * name;
+	KrkString * filename;
 	KrkTable methods;
 } KrkClass;
 

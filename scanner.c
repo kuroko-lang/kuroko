@@ -10,6 +10,8 @@ typedef struct {
 	const char * cur;
 	size_t line;
 	int startOfLine;
+	int hasUnget;
+	KrkToken unget;
 } KrkScanner;
 
 KrkScanner scanner;
@@ -19,6 +21,7 @@ void krk_initScanner(const char * src) {
 	scanner.cur   = src;
 	scanner.line  = 1;
 	scanner.startOfLine = 1;
+	scanner.hasUnget = 0;
 	/* file, etc. ? */
 }
 
@@ -207,7 +210,22 @@ static KrkToken identifier() {
 	return makeToken(identifierType());
 }
 
+void krk_ungetToken(KrkToken token) {
+	if (scanner.hasUnget) {
+		fprintf(stderr, "(internal error) Tried to unget multiple times, this is not valid.\n");
+		exit(1);
+	}
+	scanner.hasUnget = 1;
+	scanner.unget = token;
+}
+
+
 KrkToken krk_scanToken() {
+
+	if (scanner.hasUnget) {
+		scanner.hasUnget = 0;
+		return scanner.unget;
+	}
 
 	/* If at start of line, do thing */
 	if (scanner.startOfLine && peek() == ' ') {

@@ -124,6 +124,7 @@ static void blackenObject(KrkObj * object) {
 		case OBJ_CLASS: {
 			KrkClass * _class = (KrkClass *)object;
 			krk_markObject((KrkObj*)_class->name);
+			krk_markObject((KrkObj*)_class->filename);
 			krk_markTable(&_class->methods);
 			break;
 		}
