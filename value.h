@@ -18,8 +18,8 @@ typedef enum {
 typedef struct {
 	KrkValueType type;
 	union {
-		int8_t  boolean;
-		int32_t integer;
+		char boolean;
+		long integer;
 		double  floating;
 		KrkObj *   object;
 	} as;

@@ -502,7 +502,7 @@ static void addObjects() {
 		}
 		char tmp[256] = {0};
 		if (IS_INTEGER(_b)) {
-			sprintf(tmp, "%d", (int)AS_INTEGER(_b));
+			sprintf(tmp, "%ld", (long)AS_INTEGER(_b));
 		} else if (IS_FLOATING(_b)) {
 			sprintf(tmp, "%g", AS_FLOATING(_b));
 		} else if (IS_BOOLEAN(_b)) {

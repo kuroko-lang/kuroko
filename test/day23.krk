@@ -1,0 +1,40 @@
+def __main__():
+    let ordering = list()
+    ordering.append(0)
+    ordering.append(4) # 1 -> 4
+    ordering.append(10)# 2 -> 10
+    ordering.append(8) # 3 -> 8
+    ordering.append(7) # 4 -> 7
+    ordering.append(3) # 5 -> 3
+    ordering.append(2) # 6 -> 2
+    ordering.append(6) # 7 -> 6
+    ordering.append(9) # 8 -> 9
+    ordering.append(1) # 9 -> 1
+    ordering.extend(range(11,1000001))
+    ordering.append(5) # 1,000,000 -> 5
+    print "Done, ordering is " + ordering.length()
+
+    print "Starting loop..."
+
+    let m0 = 5
+    let m1 = 0
+    let m2 = 0
+    let m3 = 0
+    let nx = 0
+    let px = 0
+    for i in range(0,10000000):
+        m1 = ordering[m0]
+        m2 = ordering[m1]
+        m3 = ordering[m2]
+        ordering[m0] = ordering[m3]
+        nx = ((m0 + 999998) % 1000000) + 1
+        while (nx == m1) or (nx == m2) or (nx == m3):
+            nx = ((nx + 999998) % 1000000) + 1
+        px = ordering[nx]
+        ordering[nx] = m1
+        ordering[m3] = px
+        m0 = ordering[m0]
+
+    print ordering[1]*ordering[ordering[1]]
+
+__main__()
