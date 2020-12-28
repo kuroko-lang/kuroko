@@ -69,6 +69,7 @@ int main(int argc, char * argv[]) {
 					rline_preload[blockWidth] = '\0';
 				}
 
+				rline_scroll = 0;
 				if (rline(buf, 4096) == 0) {
 					valid = 0;
 					exit = 1;
