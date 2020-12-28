@@ -460,6 +460,16 @@ static KrkClosure * boundNative(NativeFn method, int arity) {
 	return krk_newClosure(methodWrapper);
 }
 
+static KrkValue _string_length(int argc, KrkValue argv[]) {
+	if (argc != 1) {
+		return NONE_VAL();
+	}
+	if (!IS_STRING(argv[0])) {
+		return NONE_VAL();
+	}
+	return INTEGER_VAL(AS_STRING(argv[0])->length);
+}
+
 static KrkValue _string_get(int argc, KrkValue argv[]) {
 	if (argc != 2) {
 		runtimeError("Wrong number of arguments to String.__get__");
@@ -724,11 +734,11 @@ static KrkValue run() {
 								break;
 							}
 							case OBJ_STRING: {
-								KrkString * string = AS_STRING(krk_peek(0));
 								/* vm.specialMethodNames[NAME_LEN] ? */
 								if (!strcmp(name->chars,"length")) {
+									KrkBoundMethod * bound = krk_newBoundMethod(krk_peek(0), boundNative(_string_length,0));
 									krk_pop(); /* The string */
-									krk_push(INTEGER_VAL(string->length));
+									krk_push(OBJECT_VAL(bound));
 								} else if (!strcmp(name->chars,"__get__")) {
 									KrkBoundMethod * bound = krk_newBoundMethod(krk_peek(0), boundNative(_string_get,1));
 									krk_pop(); /* The string */
