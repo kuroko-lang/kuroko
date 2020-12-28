@@ -233,6 +233,19 @@ static KrkValue krk_uname(int argc, KrkValue argv[]) {
 	return result;
 }
 
+static KrkValue krk_set_tracing(int argc, KrkValue argv[]) {
+	if (argc < 1) return NONE_VAL();
+	else if (!strcmp(AS_CSTRING(argv[0]),"tracing=1")) vm.flags |= KRK_ENABLE_TRACING;
+	else if (!strcmp(AS_CSTRING(argv[0]),"debugging=1")) vm.flags |= KRK_ENABLE_DEBUGGING;
+	else if (!strcmp(AS_CSTRING(argv[0]),"scantracing=1")) vm.flags |= KRK_ENABLE_SCAN_TRACING;
+	else if (!strcmp(AS_CSTRING(argv[0]),"stressgc=1")) vm.flags |= KRK_ENABLE_STRESS_GC;
+	else if (!strcmp(AS_CSTRING(argv[0]),"tracing=0")) vm.flags &= ~KRK_ENABLE_TRACING;
+	else if (!strcmp(AS_CSTRING(argv[0]),"debugging=0")) vm.flags &= ~KRK_ENABLE_DEBUGGING;
+	else if (!strcmp(AS_CSTRING(argv[0]),"scantracing=0")) vm.flags &= ~KRK_ENABLE_SCAN_TRACING;
+	else if (!strcmp(AS_CSTRING(argv[0]),"stressgc=0")) vm.flags &= ~KRK_ENABLE_STRESS_GC;
+	return BOOLEAN_VAL(1);
+}
+
 static int call(KrkClosure * closure, int argCount) {
 	if (argCount != closure->function->arity) {
 		runtimeError("Wrong number of arguments (%d expected, got %d)", closure->function->arity, argCount);
@@ -391,6 +404,7 @@ void krk_initVM(int flags) {
 	/* Set some other built-ins for the system module */
 	krk_defineNative(&vm.builtins->fields, "sleep", krk_sleep);
 	krk_defineNative(&vm.builtins->fields, "uname", krk_uname);
+	krk_defineNative(&vm.builtins->fields, "set_tracing", krk_set_tracing);
 
 	/* Now read the builtins module */
 	KrkValue builtinsModule = krk_runfile(MODULE_PATH "/__builtins__.krk", 1, "__builtins__","__builtins__");
