@@ -402,7 +402,7 @@ static void declaration() {
 		varDeclaration();
 	} else if (check(TOKEN_CLASS)) {
 		classDeclaration();
-	} else if (check(TOKEN_EOL)) {
+	} else if (match(TOKEN_EOL) || match(TOKEN_EOF)) {
 		return;
 	} else {
 		statement();
@@ -509,7 +509,7 @@ static void function(FunctionType type, size_t blockWidth) {
 static void method(size_t blockWidth) {
 	/* This is actually "inside of a class definition", and that might mean
 	 * arbitrary blank lines we need to accept... Sorry. */
-	if (check(TOKEN_EOL)) return;
+	if (match(TOKEN_EOL)) return;
 
 	/* def method(...): - just like functions; unlike Python, I'm just always
 	 * going to assign `self` because Lox always assigns `this`; it should not
@@ -666,7 +666,7 @@ static void ifStatement() {
 			beginScope();
 			block(blockWidth);
 			endScope();
-		} else {
+		} else if (!check(TOKEN_EOL) && !check(TOKEN_EOF)) {
 			krk_ungetToken(parser.current);
 			parser.current = parser.previous;
 			if (blockWidth) {
@@ -786,7 +786,7 @@ static void forStatement() {
 }
 
 static void returnStatement() {
-	if (check(TOKEN_EOL) || check(TOKEN_EOF)) {
+	if (match(TOKEN_EOL) || match(TOKEN_EOF)) {
 		emitReturn();
 	} else {
 		if (current->type == TYPE_INIT) {
@@ -826,7 +826,7 @@ static void tryStatement() {
 			beginScope();
 			block(blockWidth);
 			endScope();
-		} else {
+		} else if (!check(TOKEN_EOL) && !check(TOKEN_EOF)) {
 			krk_ungetToken(parser.current);
 			parser.current = parser.previous;
 			if (blockWidth) {
@@ -861,7 +861,7 @@ static void exportStatement() {
 }
 
 static void statement() {
-	if (check(TOKEN_EOL)) {
+	if (match(TOKEN_EOL) || match(TOKEN_EOF)) {
 		return; /* Meaningless blank line */
 	}
 
