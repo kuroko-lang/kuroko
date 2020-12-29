@@ -20,6 +20,8 @@ static int callValue(KrkValue callee, int argCount);
 static int bindMethod(KrkClass * _class, KrkString * name);
 static int call(KrkClosure * closure, int argCount);
 
+extern const char _builtins_src[];
+
 static void resetStack() {
 	vm.stackTop = vm.stack;
 	vm.frameCount = 0;
@@ -463,7 +465,7 @@ void krk_initVM(int flags) {
 	krk_defineNative(&vm.builtins->fields, "set_tracing", krk_set_tracing);
 
 	/* Now read the builtins module */
-	KrkValue builtinsModule = krk_runfile(MODULE_PATH "/__builtins__.krk", 1, "__builtins__","__builtins__");
+	KrkValue builtinsModule = krk_interpret(_builtins_src,1,"__builtins__","__builtins__");
 	if (!IS_OBJECT(builtinsModule)) {
 		fprintf(stderr, "VM startup failure: Failed to load __builtins__ module.\n");
 	} else {
