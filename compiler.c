@@ -164,7 +164,9 @@ static void advance() {
 
 #ifdef ENABLE_SCAN_TRACING
 		if (vm.flags & KRK_ENABLE_SCAN_TRACING) {
-			fprintf(stderr, "Token %d '%.*s' on line %d\n", parser.current.type,
+			fprintf(stderr, "Token %d (start=%p, length=%d) '%.*s' on line %d\n", parser.current.type,
+				parser.current.start,
+				(int)parser.current.length,
 				(int)parser.current.length,
 				parser.current.start,
 				(int)parser.current.line);
@@ -456,12 +458,13 @@ static void block(size_t indentation) {
 						(int)currentIndentation);
 				}
 			}
-#endif
 		} else {
-			errorAtCurrent("Expected indentation for block");
+			fprintf(stderr, "Block is emtpy.\n");
+#endif
 		}
 	} else {
-		errorAtCurrent("Unsupported single-line block");
+		statement();
+		endOfLine();
 	}
 }
 
