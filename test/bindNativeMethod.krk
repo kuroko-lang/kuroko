@@ -11,4 +11,4 @@ class Test:
 let test = Test()
 print test.__class__
 
-print (37.45).asInteger
+print (37.45).__int__()

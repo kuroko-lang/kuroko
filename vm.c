@@ -433,6 +433,9 @@ void krk_initVM(int flags) {
 	vm.specialMethodNames[METHOD_CLASS]= OBJECT_VAL(S("__class__"));
 	vm.specialMethodNames[METHOD_NAME] = OBJECT_VAL(S("__name__"));
 	vm.specialMethodNames[METHOD_FILE] = OBJECT_VAL(S("__file__"));
+	vm.specialMethodNames[METHOD_INT]  = OBJECT_VAL(S("__int__"));
+	vm.specialMethodNames[METHOD_CHR]  = OBJECT_VAL(S("__chr__"));
+	vm.specialMethodNames[METHOD_FLOAT]= OBJECT_VAL(S("__float__"));
 
 	/* Create built-in class `object` */
 	vm.object_class = krk_newClass(S("object"));
@@ -707,6 +710,27 @@ static int handleException() {
 	return 0;
 }
 
+static KrkValue _floating_to_int(int argc, KrkValue argv[]) {
+	return INTEGER_VAL((long)AS_FLOATING(argv[0]));
+}
+
+static KrkValue _int_to_floating(int argc, KrkValue argv[]) {
+	return FLOATING_VAL((double)AS_INTEGER(argv[0]));
+}
+
+static KrkValue _int_to_char(int argc, KrkValue argv[]) {
+	char tmp[2] = {AS_INTEGER(argv[0]), 0};
+	return OBJECT_VAL(krk_copyString(tmp,1));
+}
+
+static void bindSpecialMethod(NativeFn method, int arity) {
+	KRK_PAUSE_GC();
+	KrkBoundMethod * bound = krk_newBoundMethod(krk_peek(0), boundNative(method,arity));
+	krk_pop(); /* The original object */
+	krk_push(OBJECT_VAL(bound));
+	KRK_RESUME_GC();
+}
+
 static KrkValue run() {
 	CallFrame* frame = &vm.frames[vm.frameCount - 1];
 
@@ -971,17 +995,9 @@ static KrkValue run() {
 							case OBJ_STRING: {
 								/* vm.specialMethodNames[NAME_LEN] ? */
 								if (!strcmp(name->chars,"length")) {
-									KRK_PAUSE_GC();
-									KrkBoundMethod * bound = krk_newBoundMethod(krk_peek(0), boundNative(_string_length,0));
-									krk_pop(); /* The string */
-									krk_push(OBJECT_VAL(bound));
-									KRK_RESUME_GC();
+									bindSpecialMethod(_string_length,0);
 								} else if (krk_valuesEqual(OBJECT_VAL(name), vm.specialMethodNames[METHOD_GET])) {
-									KRK_PAUSE_GC();
-									KrkBoundMethod * bound = krk_newBoundMethod(krk_peek(0), boundNative(_string_get,1));
-									krk_pop(); /* The string */
-									krk_push(OBJECT_VAL(bound));
-									KRK_RESUME_GC();
+									bindSpecialMethod(_string_get,1);
 								} else if (krk_valuesEqual(OBJECT_VAL(name), vm.specialMethodNames[METHOD_SET])) {
 									krk_runtimeError("Strings are not mutable.");
 									goto _finishException;
@@ -995,14 +1011,16 @@ static KrkValue run() {
 						}
 						break;
 					case VAL_FLOATING: {
-						if (!strcmp(name->chars, "asInteger")) {
-							krk_push(INTEGER_VAL((int)AS_FLOATING(krk_pop())));
+						if (krk_valuesEqual(OBJECT_VAL(name), vm.specialMethodNames[METHOD_INT])) {
+							bindSpecialMethod(_floating_to_int,0);
 						} else goto _undefined;
 						break;
 					}
 					case VAL_INTEGER: {
-						if (!strcmp(name->chars, "asFloating")) {
-							krk_push(FLOATING_VAL((int)AS_INTEGER(krk_pop())));
+						if (krk_valuesEqual(OBJECT_VAL(name), vm.specialMethodNames[METHOD_FLOAT])) {
+							bindSpecialMethod(_int_to_floating,0);
+						} else if (krk_valuesEqual(OBJECT_VAL(name), vm.specialMethodNames[METHOD_CHR])) {
+							bindSpecialMethod(_int_to_char,0);
 						} else goto _undefined;
 						break;
 					}
