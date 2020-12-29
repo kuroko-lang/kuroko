@@ -515,6 +515,24 @@ void paint_simple_string(struct syntax_state * state) {
 	}
 }
 
+void paint_single_string(struct syntax_state * state) {
+	/* Assumes you came in from a check of charat() == '\'' */
+	paint(1, FLAG_NUMERAL);
+	while (charat() != -1) {
+		if (charat() == '\\' && nextchar() == '\'') {
+			paint(2, FLAG_ESCAPE);
+		} else if (charat() == '\'') {
+			paint(1, FLAG_NUMERAL);
+			return;
+		} else if (charat() == '\\') {
+			paint(2, FLAG_ESCAPE);
+		} else {
+			paint(1, FLAG_NUMERAL);
+		}
+	}
+}
+
+
 char * syn_krk_keywords[] = {
 	"and","class","def","else","export","for","if","in","import",
 	"let","not","or","print","return","while","try","except","raise",
@@ -563,6 +581,9 @@ int syn_krk_calculate(struct syntax_state * state) {
 				paint_comment(state);
 			} else if (charat() == '"') {
 				paint_simple_string(state);
+				return 0;
+			} else if (charat() == '\'') {
+				paint_single_string(state);
 				return 0;
 			} else if (find_keywords(state, syn_krk_keywords, FLAG_KEYWORD, c_keyword_qualifier)) {
 				return 0;
@@ -1618,6 +1639,7 @@ static int read_line(void) {
  * Read a line of text with interactive editing.
  */
 int rline(char * buffer, int buf_size) {
+	setlocale(LC_ALL, "");
 	get_initial_termios();
 	set_unbuffered();
 	get_size();

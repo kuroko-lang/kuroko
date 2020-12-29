@@ -965,14 +965,33 @@ static void string(int canAssign) {
 	FREE_ARRAY(char,stringBytes,stringCapacity);
 }
 
-/* TODO
 static void codepoint(int canAssign) {
-  // Convert utf8 bytes to single codepoint; error on multiple codepoints.
-  // Emit as constant Integer value? Or as separate Codepoint value?
-  // The latter could add to strings as utf8 bytes, but compare to
-  // Integers as the numerical value...
+	const char * c = parser.previous.start + 1;
+	size_t width = 0;
+	int codepoint = 0;
+	while (c < parser.previous.start + parser.previous.length - 1) {
+		if (width >= 1) {
+			error("Wide character literals are not currently supported.");
+			return;
+		}
+		if (*c == '\\') {
+			switch (c[1]) {
+				case 'n': codepoint = '\n'; break;
+				case 'r': codepoint = '\r'; break;
+				case 't': codepoint = '\t'; break;
+				case '[': codepoint = '\033'; break;
+				default: codepoint = c[1]; break;
+			}
+			width++;
+			c += 2;
+		} else {
+			codepoint = *c;
+			width++;
+			c++;
+		}
+	}
+	emitConstant(INTEGER_VAL(codepoint));
 }
-*/
 
 static size_t addUpvalue(Compiler * compiler, ssize_t index, int isLocal) {
 	size_t upvalueCount = compiler->function->upvalueCount;
@@ -1083,7 +1102,7 @@ ParseRule rules[] = {
 	RULE(TOKEN_IDENTIFIER,    variable, NULL,   PREC_NONE),
 	RULE(TOKEN_STRING,        string,   NULL,   PREC_NONE),
 	RULE(TOKEN_NUMBER,        number,   NULL,   PREC_NONE),
-	RULE(TOKEN_CODEPOINT,     NULL,     NULL,   PREC_NONE), /* TODO */
+	RULE(TOKEN_CODEPOINT,     codepoint,NULL,   PREC_NONE), /* TODO */
 	RULE(TOKEN_AND,           NULL,     and_,   PREC_AND),
 	RULE(TOKEN_CLASS,         NULL,     NULL,   PREC_NONE),
 	RULE(TOKEN_ELSE,          NULL,     NULL,   PREC_NONE),
