@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdarg.h>
+#include <sys/types.h>
 #include "kuroko.h"
 #include "value.h"
 #include "table.h"
@@ -78,3 +79,8 @@ extern void krk_runtimeError(const char * fmt, ...);
 
 #define KRK_PAUSE_GC() do { vm.flags |= KRK_GC_PAUSED; } while (0)
 #define KRK_RESUME_GC() do { vm.flags &= ~(KRK_GC_PAUSED); } while (0)
+
+extern KrkValue krk_dictGet(KrkValue dictClass, KrkInstance * dict, KrkValue key);
+extern void krk_dictSet(KrkValue dictClass, KrkInstance * dict, KrkValue key, KrkValue value);
+extern KrkInstance * krk_dictCreate(KrkValue * outClass);
+extern void krk_runNext(void);

@@ -100,22 +100,6 @@ void krk_defineNative(KrkTable * table, const char * name, NativeFn function) {
 	krk_pop();
 }
 
-static KrkValue krk_sleep(int argc, KrkValue argv[]) {
-	if (argc < 1) {
-		krk_runtimeError("sleep: expect at least one argument.");
-		return BOOLEAN_VAL(0);
-	}
-
-	/* Accept an integer or a floating point. Anything else, just ignore. */
-	unsigned int usecs = (IS_INTEGER(argv[0]) ? AS_INTEGER(argv[0]) :
-	                      (IS_FLOATING(argv[0]) ? AS_FLOATING(argv[0]) : 0)) *
-	                      1000000;
-
-	usleep(usecs);
-
-	return BOOLEAN_VAL(1);
-}
-
 static KrkValue krk_expose_hash_new(int argc, KrkValue argv[]) {
 	/* This is absuing the existing object system so it can work without
 	 * having to add any new types to the garbage collector, and yes
@@ -237,36 +221,48 @@ static KrkValue krk_expose_list_length(int argc, KrkValue argv[]) {
 	return INTEGER_VAL(list->chunk.constants.count);
 }
 
-static void runNext(void) {
+void krk_runNext(void) {
 	size_t oldExit = vm.exitOnFrame;
 	vm.exitOnFrame = vm.frameCount - 1;
 	run();
 	vm.exitOnFrame = oldExit;
 }
 
-static KrkInstance * _dict_create(KrkValue * outClass) {
+KrkInstance * krk_dictCreate(KrkValue * outClass) {
 	krk_tableGet(&vm.globals,OBJECT_VAL(S("dict")), outClass);
 	KrkInstance * outDict = krk_newInstance(AS_CLASS(*outClass));
 	krk_push(OBJECT_VAL(outDict));
 	KrkValue tmp;
 	if (krk_tableGet(&AS_CLASS(*outClass)->methods, vm.specialMethodNames[METHOD_INIT], &tmp)) {
 		call(AS_CLOSURE(tmp), 0);
-		runNext();
+		krk_runNext();
 	}
 	return outDict;
 }
 
-static void _dict_set(KrkValue dictClass, KrkInstance * dict, KrkValue key, KrkValue value) {
+void krk_dictSet(KrkValue dictClass, KrkInstance * dict, KrkValue key, KrkValue value) {
 	krk_push(OBJECT_VAL(dict));
 	krk_push(key);
 	krk_push(value);
 	KrkValue tmp;
 	if (krk_tableGet(&AS_CLASS(dictClass)->methods, vm.specialMethodNames[METHOD_SET], &tmp)) {
 		call(AS_CLOSURE(tmp), 2);
-		runNext();
+		krk_runNext();
 	}
 }
 
+KrkValue krk_dictGet(KrkValue dictClass, KrkInstance * dict, KrkValue key) {
+	krk_push(OBJECT_VAL(dict));
+	krk_push(key);
+	KrkValue tmp;
+	if (krk_tableGet(&AS_CLASS(dictClass)->methods, vm.specialMethodNames[METHOD_GET], &tmp)) {
+		call(AS_CLOSURE(tmp), 2);
+		krk_runNext();
+	}
+	return krk_pop();
+}
+
+#ifndef NO_SYSTEM_BINDS
 static KrkValue krk_uname(int argc, KrkValue argv[]) {
 	struct utsname buf;
 	if (uname(&buf) < 0) return NONE_VAL();
@@ -274,12 +270,12 @@ static KrkValue krk_uname(int argc, KrkValue argv[]) {
 	KRK_PAUSE_GC();
 
 	KrkValue dictClass;
-	KrkInstance * dict = _dict_create(&dictClass);
-	_dict_set(dictClass, dict, OBJECT_VAL(S("sysname")), OBJECT_VAL(krk_copyString(buf.sysname,strlen(buf.sysname))));
-	_dict_set(dictClass, dict, OBJECT_VAL(S("nodename")), OBJECT_VAL(krk_copyString(buf.nodename,strlen(buf.nodename))));
-	_dict_set(dictClass, dict, OBJECT_VAL(S("release")), OBJECT_VAL(krk_copyString(buf.release,strlen(buf.release))));
-	_dict_set(dictClass, dict, OBJECT_VAL(S("version")), OBJECT_VAL(krk_copyString(buf.version,strlen(buf.version))));
-	_dict_set(dictClass, dict, OBJECT_VAL(S("machine")), OBJECT_VAL(krk_copyString(buf.machine,strlen(buf.machine))));
+	KrkInstance * dict = krk_dictCreate(&dictClass);
+	krk_dictSet(dictClass, dict, OBJECT_VAL(S("sysname")), OBJECT_VAL(krk_copyString(buf.sysname,strlen(buf.sysname))));
+	krk_dictSet(dictClass, dict, OBJECT_VAL(S("nodename")), OBJECT_VAL(krk_copyString(buf.nodename,strlen(buf.nodename))));
+	krk_dictSet(dictClass, dict, OBJECT_VAL(S("release")), OBJECT_VAL(krk_copyString(buf.release,strlen(buf.release))));
+	krk_dictSet(dictClass, dict, OBJECT_VAL(S("version")), OBJECT_VAL(krk_copyString(buf.version,strlen(buf.version))));
+	krk_dictSet(dictClass, dict, OBJECT_VAL(S("machine")), OBJECT_VAL(krk_copyString(buf.machine,strlen(buf.machine))));
 
 	KrkValue result = OBJECT_VAL(dict);
 
@@ -287,6 +283,23 @@ static KrkValue krk_uname(int argc, KrkValue argv[]) {
 
 	return result;
 }
+
+static KrkValue krk_sleep(int argc, KrkValue argv[]) {
+	if (argc < 1) {
+		krk_runtimeError("sleep: expect at least one argument.");
+		return BOOLEAN_VAL(0);
+	}
+
+	/* Accept an integer or a floating point. Anything else, just ignore. */
+	unsigned int usecs = (IS_INTEGER(argv[0]) ? AS_INTEGER(argv[0]) :
+	                      (IS_FLOATING(argv[0]) ? AS_FLOATING(argv[0]) : 0)) *
+	                      1000000;
+
+	usleep(usecs);
+
+	return BOOLEAN_VAL(1);
+}
+#endif
 
 static KrkValue krk_set_tracing(int argc, KrkValue argv[]) {
 	if (argc < 1) return NONE_VAL();
@@ -459,10 +472,13 @@ void krk_initVM(int flags) {
 	krk_defineNative(&vm.builtins->fields, "list_append", krk_expose_list_append);
 	krk_defineNative(&vm.builtins->fields, "list_length", krk_expose_list_length);
 
+	krk_defineNative(&vm.builtins->fields, "set_tracing", krk_set_tracing);
+
+#ifndef NO_SYSTEM_BINDS
 	/* Set some other built-ins for the system module */
 	krk_defineNative(&vm.builtins->fields, "sleep", krk_sleep);
 	krk_defineNative(&vm.builtins->fields, "uname", krk_uname);
-	krk_defineNative(&vm.builtins->fields, "set_tracing", krk_set_tracing);
+#endif
 
 	/* Now read the builtins module */
 	KrkValue builtinsModule = krk_interpret(_builtins_src,1,"__builtins__","__builtins__");
