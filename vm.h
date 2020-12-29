@@ -40,7 +40,7 @@ typedef struct {
 	size_t nextGC;
 	size_t grayCount;
 	size_t grayCapacity;
-	size_t exitOnFrame;
+	ssize_t exitOnFrame;
 	KrkObj** grayStack;
 	KrkValue specialMethodNames[METHOD__MAX];
 

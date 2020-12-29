@@ -231,6 +231,26 @@ print demomodule.foo
 # → bar
 ```
 
+When modules are imported, they run in a _function local_ context and variables they declare do not live in the global namespace.
+
+To put variables into the global namespace, use the `export` keyword:
+
+```py
+# modules/demomodule.krk
+let module = object()
+foo = "bar"
+export foo
+return module
+```
+
+```py
+# demo.krk
+import demomodule
+print foo
+# → bar
+```
+
+
 ### Loops
 
 Kuroku supports C-style for loops, while loops, and Python-style iterator for loops.

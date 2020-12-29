@@ -19,7 +19,6 @@ static KrkValue run();
 static int callValue(KrkValue callee, int argCount);
 static int bindMethod(KrkClass * _class, KrkString * name);
 static int call(KrkClosure * closure, int argCount);
-static void handleException();
 
 static void resetStack() {
 	vm.stackTop = vm.stack;
@@ -679,23 +678,29 @@ static KrkValue _string_get(int argc, KrkValue argv[]) {
 	return INTEGER_VAL(AS_CSTRING(argv[0])[asInt]);
 }
 
-static void handleException() {
+static int handleException() {
 	int stackOffset, frameOffset;
-	for (stackOffset = (int)(vm.stackTop - vm.stack - 1); stackOffset >= 0 && !IS_HANDLER(vm.stack[stackOffset]); stackOffset--);
-	if (stackOffset == -1) {
-		dumpTraceback();
-		resetStack();
-		return;
+	int exitSlot = (vm.exitOnFrame >= 0) ? vm.frames[vm.exitOnFrame].slots : 0;
+	for (stackOffset = (int)(vm.stackTop - vm.stack - 1); stackOffset >= exitSlot && !IS_HANDLER(vm.stack[stackOffset]); stackOffset--);
+	if (stackOffset < exitSlot) {
+		if (exitSlot == 0) {
+			/* Don't show the internal exception */
+			dumpTraceback();
+			resetStack();
+			vm.frameCount = 0;
+		}
+		return 1;
 	}
 	for (frameOffset = vm.frameCount - 1; frameOffset >= 0 && (int)vm.frames[frameOffset].slots > stackOffset; frameOffset--);
 	if (frameOffset == -1) {
-		dumpTraceback();
-		resetStack();
-		return;
+		fprintf(stderr, "Internal error.\n");
+		exit(1);
 	}
 	closeUpvalues(stackOffset);
 	vm.stackTop = vm.stack + stackOffset + 1;
 	vm.frameCount = frameOffset + 1;
+	vm.flags &= ~KRK_HAS_EXCEPTION;
+	return 0;
 }
 
 static KrkValue run() {
@@ -739,7 +744,7 @@ static KrkValue run() {
 					return result;
 				}
 				vm.stackTop = &vm.stack[frame->slots];
-				if (vm.frameCount == vm.exitOnFrame) {
+				if (vm.frameCount == (size_t)vm.exitOnFrame) {
 					return result;
 				}
 				krk_push(result);
@@ -818,9 +823,10 @@ static KrkValue run() {
 					/* Try to open it */
 					char tmp[256];
 					sprintf(tmp, MODULE_PATH "/%s.krk", name->chars);
+					int previousExitFrame = vm.exitOnFrame;
 					vm.exitOnFrame = vm.frameCount;
 					module = krk_runfile(tmp,1,name->chars,tmp);
-					vm.exitOnFrame = -1;
+					vm.exitOnFrame = previousExitFrame;
 					if (!IS_OBJECT(module)) {
 						runtimeError("Failed to import module - expected to receive an object, but got a %s instead.", krk_typeName(module));
 						goto _finishException;
@@ -1048,9 +1054,7 @@ _undefined:
 		}
 		if (!(vm.flags & KRK_HAS_EXCEPTION)) continue;
 _finishException:
-		vm.flags &= ~KRK_HAS_EXCEPTION;
-		handleException();
-		if (vm.frameCount) {
+		if (!handleException()) {
 			frame = &vm.frames[vm.frameCount - 1];
 			frame->ip = frame->closure->function->chunk.code + AS_HANDLER(krk_peek(0));
 			/* Replace the exception handler with the exception */
