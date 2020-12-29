@@ -83,6 +83,7 @@ static void skipWhitespace() {
 
 static KrkToken makeIndentation() {
 	while (!isAtEnd() && peek() == ' ') advance();
+	if (isAtEnd()) return makeToken(TOKEN_EOF);
 	if (peek() == '\n') {
 		/* Pretend we didn't see this line */
 		return makeToken(TOKEN_INDENTATION);
