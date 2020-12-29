@@ -47,6 +47,7 @@ typedef struct {
 	KrkClass * object_class;
 	KrkInstance * builtins;
 
+	KrkValue currentException;
 	int flags;
 } KrkVM;
 
@@ -56,6 +57,7 @@ typedef struct {
 #define KRK_ENABLE_STRESS_GC    (1 << 3)
 
 #define KRK_GC_PAUSED           (1 << 10)
+#define KRK_HAS_EXCEPTION       (1 << 11)
 
 extern KrkVM vm;
 

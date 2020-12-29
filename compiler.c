@@ -794,6 +794,53 @@ static void returnStatement() {
 	}
 }
 
+static void tryStatement() {
+	size_t blockWidth = (parser.previous.type == TOKEN_INDENTATION) ? parser.previous.length : 0;
+	advance();
+	consume(TOKEN_COLON, "Expect ':' after try.");
+
+	/* Make sure we are in a local scope so this ends up on the stack */
+	beginScope();
+	int tryJump = emitJump(OP_PUSH_TRY);
+	addLocal(syntheticToken("exception"));
+	defineVariable(0);
+
+	beginScope();
+	block(blockWidth);
+	endScope();
+
+	int successJump = emitJump(OP_JUMP);
+	patchJump(tryJump);
+
+	if (blockWidth == 0 || (check(TOKEN_INDENTATION) && (parser.current.length == blockWidth))) {
+		KrkToken previous;
+		if (blockWidth) {
+			previous = parser.previous;
+			advance();
+		}
+		if (match(TOKEN_EXCEPT)) {
+			consume(TOKEN_COLON, "Expect ':' after except.");
+			beginScope();
+			block(blockWidth);
+			endScope();
+		} else {
+			krk_ungetToken(parser.current);
+			parser.current = parser.previous;
+			if (blockWidth) {
+				parser.previous = previous;
+			}
+		}
+	}
+
+	patchJump(successJump);
+	endScope(); /* will pop the exception handler */
+}
+
+static void raiseStatement() {
+	expression();
+	emitByte(OP_RAISE);
+}
+
 static void importStatement() {
 	consume(TOKEN_IDENTIFIER, "Expected module name");
 	declareVariable();
@@ -833,6 +880,10 @@ static void statement() {
 		whileStatement();
 	} else if (check(TOKEN_FOR)) {
 		forStatement();
+	} else if (check(TOKEN_TRY)) {
+		tryStatement();
+	} else if (match(TOKEN_RAISE)) {
+		raiseStatement();
 	} else if (match(TOKEN_RETURN)) {
 		returnStatement();
 	} else if (match(TOKEN_IMPORT)) {

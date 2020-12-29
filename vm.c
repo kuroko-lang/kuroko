@@ -19,18 +19,18 @@ static KrkValue run();
 static int callValue(KrkValue callee, int argCount);
 static int bindMethod(KrkClass * _class, KrkString * name);
 static int call(KrkClosure * closure, int argCount);
+static void handleException();
 
 static void resetStack() {
 	vm.stackTop = vm.stack;
 	vm.frameCount = 0;
 	vm.openUpvalues = NULL;
+	vm.flags &= ~KRK_HAS_EXCEPTION;
+	vm.currentException = NONE_VAL();
 }
 
-static void runtimeError(const char * fmt, ...) {
-	va_list args;
-	va_start(args, fmt);
-	vfprintf(stderr, fmt, args);
-	va_end(args);
+static void dumpTraceback() {
+	krk_printObject(stderr, vm.currentException);
 	fprintf(stderr, "\nTraceback, most recent first, %d call frames:\n", (int)vm.frameCount);
 
 	for (size_t i = 0; i <= vm.frameCount - 1; i++) {
@@ -42,8 +42,17 @@ static void runtimeError(const char * fmt, ...) {
 			(int)function->chunk.lines[instruction],
 			(function->name ? function->name->chars : "(unnamed)"));
 	}
+}
 
-	resetStack();
+static void runtimeError(const char * fmt, ...) {
+	char buf[1024] = {0};
+	va_list args;
+	va_start(args, fmt);
+	size_t len = vsnprintf(buf, 1024, fmt, args);
+	va_end(args);
+	vm.flags |= KRK_HAS_EXCEPTION;
+
+	vm.currentException = OBJECT_VAL(krk_copyString(buf,len));
 }
 
 void krk_push(KrkValue value) {
@@ -111,38 +120,61 @@ static KrkValue krk_expose_hash_new(int argc, KrkValue argv[]) {
 }
 
 static KrkValue krk_expose_hash_get(int argc, KrkValue argv[]) {
-	if (argc < 2 || !IS_CLASS(argv[0])) return NONE_VAL();
+	if (argc < 2 || !IS_CLASS(argv[0])) {
+		runtimeError("wrong number of arguments");
+		return NONE_VAL();
+	}
 	KrkClass * map = AS_CLASS(argv[0]);
 	KrkValue out = NONE_VAL();
-	krk_tableGet(&map->methods, argv[1], &out);
+	if (!krk_tableGet(&map->methods, argv[1], &out)) {
+		runtimeError("key error");
+	}
 	return out;
 }
 
 static KrkValue krk_expose_hash_set(int argc, KrkValue argv[]) {
-	if (argc < 3 || !IS_CLASS(argv[0])) return NONE_VAL();
+	if (argc < 3 || !IS_CLASS(argv[0])) {
+		runtimeError("wrong number of arguments");
+		return NONE_VAL();
+	}
 	KrkClass * map = AS_CLASS(argv[0]);
 	krk_tableSet(&map->methods, argv[1], argv[2]);
 	return BOOLEAN_VAL(1);
 }
 
 static KrkValue krk_expose_hash_capacity(int argc, KrkValue argv[]) {
-	if (argc < 1 || !IS_CLASS(argv[0])) return NONE_VAL();
+	if (argc < 1 || !IS_CLASS(argv[0])) {
+		runtimeError("wrong number of arguments");
+		return NONE_VAL();
+	}
 	KrkClass * map = AS_CLASS(argv[0]);
 	return INTEGER_VAL(map->methods.capacity);
 }
 
 static KrkValue krk_expose_hash_count(int argc, KrkValue argv[]) {
-	if (argc < 1 || !IS_CLASS(argv[0])) return NONE_VAL();
+	if (argc < 1 || !IS_CLASS(argv[0])) {
+		runtimeError("wrong number of arguments");
+		return NONE_VAL();
+	}
 	KrkClass * map = AS_CLASS(argv[0]);
 	return INTEGER_VAL(map->methods.count);
 }
 
 static KrkValue krk_expose_hash_key_at_index(int argc, KrkValue argv[]) {
-	if (argc < 2 || !IS_CLASS(argv[0])) return NONE_VAL();
-	if (!IS_INTEGER(argv[1])) return NONE_VAL();
+	if (argc < 2 || !IS_CLASS(argv[0])) {
+		runtimeError("wrong number of arguments");
+		return NONE_VAL();
+	}
+	if (!IS_INTEGER(argv[1])) {
+		runtimeError("expected integer index but got %s", krk_typeName(argv[1]));
+		return NONE_VAL();
+	}
 	int i = AS_INTEGER(argv[1]);
 	KrkClass * map = AS_CLASS(argv[0]);
-	if (i < 0 || i > (int)map->methods.capacity) return NONE_VAL();
+	if (i < 0 || i > (int)map->methods.capacity) {
+		runtimeError("hash table index is out of range: %d", i);
+		return NONE_VAL();
+	}
 	KrkTableEntry entry = map->methods.entries[i];
 	return entry.key;
 }
@@ -153,31 +185,49 @@ static KrkValue krk_expose_list_new(int argc, KrkValue argv[]) {
 }
 
 static KrkValue krk_expose_list_get(int argc, KrkValue argv[]) {
-	if (argc < 2 || !IS_FUNCTION(argv[0]) || !IS_INTEGER(argv[1])) return NONE_VAL();
+	if (argc < 2 || !IS_FUNCTION(argv[0]) || !IS_INTEGER(argv[1])) {
+		runtimeError("wrong number or type of arguments");
+		return NONE_VAL();
+	}
 	KrkFunction * list = AS_FUNCTION(argv[0]);
 	int index = AS_INTEGER(argv[1]);
-	if (index < 0 || index >= (int)list->chunk.constants.count) return NONE_VAL();
+	if (index < 0 || index >= (int)list->chunk.constants.count) {
+		runtimeError("index is out of range: %d", index);
+		return NONE_VAL();
+	}
 	return list->chunk.constants.values[index];
 }
 
 static KrkValue krk_expose_list_set(int argc, KrkValue argv[]) {
-	if (argc < 3 || !IS_FUNCTION(argv[0]) || !IS_INTEGER(argv[1])) return NONE_VAL();
+	if (argc < 3 || !IS_FUNCTION(argv[0]) || !IS_INTEGER(argv[1])) {
+		runtimeError("wrong number or type of arguments");
+		return NONE_VAL();
+	}
 	KrkFunction * list = AS_FUNCTION(argv[0]);
 	int index = AS_INTEGER(argv[1]);
-	if (index < 0 || index >= (int)list->chunk.constants.count) return NONE_VAL();
+	if (index < 0 || index >= (int)list->chunk.constants.count) {
+		runtimeError("index is out of range: %d", index);
+		return NONE_VAL();
+	}
 	list->chunk.constants.values[index] = argv[2];
 	return BOOLEAN_VAL(1);
 }
 
 static KrkValue krk_expose_list_append(int argc, KrkValue argv[]) {
-	if (argc < 2 || !IS_FUNCTION(argv[0])) return NONE_VAL();
+	if (argc < 2 || !IS_FUNCTION(argv[0])) {
+		runtimeError("wrong number or type of arguments");
+		return NONE_VAL();
+	}
 	KrkFunction * list = AS_FUNCTION(argv[0]);
 	krk_writeValueArray(&list->chunk.constants, argv[1]);
 	return INTEGER_VAL(list->chunk.constants.count-1);
 }
 
 static KrkValue krk_expose_list_length(int argc, KrkValue argv[]) {
-	if (argc < 1 || !IS_FUNCTION(argv[0])) return NONE_VAL();
+	if (argc < 1 || !IS_FUNCTION(argv[0])) {
+		runtimeError("wrong number or type of arguments");
+		return NONE_VAL();
+	}
 	KrkFunction * list = AS_FUNCTION(argv[0]);
 	return INTEGER_VAL(list->chunk.constants.count);
 }
@@ -547,9 +597,6 @@ static void addObjects() {
 		concatenate(a->chars,tmp,a->length,strlen(tmp));
 	} else {
 		runtimeError("Can not concatenate types %s and %s", krk_typeName(_a), krk_typeName(_b)); \
-		krk_pop();
-		krk_pop();
-		krk_push(NONE_VAL());
 	}
 }
 
@@ -632,6 +679,25 @@ static KrkValue _string_get(int argc, KrkValue argv[]) {
 	return INTEGER_VAL(AS_CSTRING(argv[0])[asInt]);
 }
 
+static void handleException() {
+	int stackOffset, frameOffset;
+	for (stackOffset = (int)(vm.stackTop - vm.stack - 1); stackOffset >= 0 && !IS_HANDLER(vm.stack[stackOffset]); stackOffset--);
+	if (stackOffset == -1) {
+		dumpTraceback();
+		resetStack();
+		return;
+	}
+	for (frameOffset = vm.frameCount - 1; frameOffset >= 0 && (int)vm.frames[frameOffset].slots > stackOffset; frameOffset--);
+	if (frameOffset == -1) {
+		dumpTraceback();
+		resetStack();
+		return;
+	}
+	closeUpvalues(stackOffset);
+	vm.stackTop = vm.stack + stackOffset + 1;
+	vm.frameCount = frameOffset + 1;
+}
+
 static KrkValue run() {
 	CallFrame* frame = &vm.frames[vm.frameCount - 1];
 
@@ -700,7 +766,7 @@ static KrkValue run() {
 				KrkValue value = krk_pop();
 				if (IS_INTEGER(value)) krk_push(INTEGER_VAL(-AS_INTEGER(value)));
 				else if (IS_FLOATING(value)) krk_push(FLOATING_VAL(-AS_FLOATING(value)));
-				else { runtimeError("Incompatible operand type for prefix negation."); return NONE_VAL(); }
+				else { runtimeError("Incompatible operand type for prefix negation."); goto _finishException; }
 				break;
 			}
 			case OP_CONSTANT_LONG:
@@ -728,7 +794,7 @@ static KrkValue run() {
 				KrkValue value;
 				if (!krk_tableGet(&vm.globals, OBJECT_VAL(name), &value)) {
 					runtimeError("Undefined variable '%s'.", name->chars);
-					return NONE_VAL();
+					goto _finishException;
 				}
 				krk_push(value);
 				break;
@@ -740,7 +806,7 @@ static KrkValue run() {
 					krk_tableDelete(&vm.globals, OBJECT_VAL(name));
 					/* TODO: This should probably just work as an assignment? */
 					runtimeError("Undefined variable '%s'.", name->chars);
-					return NONE_VAL();
+					goto _finishException;
 				}
 				break;
 			}
@@ -757,7 +823,7 @@ static KrkValue run() {
 					vm.exitOnFrame = -1;
 					if (!IS_OBJECT(module)) {
 						runtimeError("Failed to import module - expected to receive an object, but got a %s instead.", krk_typeName(module));
-						return NONE_VAL();
+						goto _finishException;
 					}
 					krk_push(module);
 					krk_tableSet(&vm.modules, OBJECT_VAL(name), module);
@@ -797,9 +863,21 @@ static KrkValue run() {
 				frame->ip -= offset;
 				break;
 			}
+			case OP_PUSH_TRY: {
+				uint16_t tryTarget = readBytes(frame, 2) + (frame->ip - frame->closure->function->chunk.code);
+				KrkValue handler = HANDLER_VAL(tryTarget);
+				krk_push(handler);
+				break;
+			}
+			case OP_RAISE: {
+				vm.currentException = krk_pop();
+				vm.flags |= KRK_HAS_EXCEPTION;
+				goto _finishException;
+			}
 			case OP_CALL: {
 				int argCount = READ_BYTE();
 				if (!callValue(krk_peek(argCount), argCount)) {
+					if (vm.flags & KRK_HAS_EXCEPTION) goto _finishException;
 					return NONE_VAL();
 				}
 				frame = &vm.frames[vm.frameCount - 1];
@@ -897,7 +975,7 @@ static KrkValue run() {
 									KRK_RESUME_GC();
 								} else if (krk_valuesEqual(OBJECT_VAL(name), vm.specialMethodNames[METHOD_SET])) {
 									runtimeError("Strings are not mutable.");
-									return NONE_VAL();
+									goto _finishException;
 								} else {
 									goto _undefined;
 								}
@@ -921,18 +999,18 @@ static KrkValue run() {
 					}
 					default:
 						runtimeError("Don't know how to retreive properties for %s yet", krk_typeName(krk_peek(0)));
-						return NONE_VAL();
+						goto _finishException;
 				}
 				break;
 _undefined:
 				runtimeError("Field '%s' of %s is not defined.", name->chars, krk_typeName(krk_peek(0)));
-				return NONE_VAL();
+				goto _finishException;
 			}
 			case OP_SET_PROPERTY_LONG:
 			case OP_SET_PROPERTY: {
 				if (!IS_INSTANCE(krk_peek(1))) {
 					runtimeError("Don't know how to set properties for %s yet", krk_typeName(krk_peek(1)));
-					return NONE_VAL();
+					goto _finishException;
 				}
 				KrkInstance * instance = AS_INSTANCE(krk_peek(1));
 				KrkString * name = READ_STRING((opcode == OP_SET_PROPERTY ? 1 : 3));
@@ -968,7 +1046,22 @@ _undefined:
 				break;
 			}
 		}
+		if (!(vm.flags & KRK_HAS_EXCEPTION)) continue;
+_finishException:
+		vm.flags &= ~KRK_HAS_EXCEPTION;
+		handleException();
+		if (vm.frameCount) {
+			frame = &vm.frames[vm.frameCount - 1];
+			frame->ip = frame->closure->function->chunk.code + AS_HANDLER(krk_peek(0));
+			/* Replace the exception handler with the exception */
+			krk_pop();
+			krk_push(vm.currentException);
+			vm.currentException = NONE_VAL();
+		} else {
+			return NONE_VAL();
+		}
 	}
+
 
 #undef BINARY_OP
 #undef READ_BYTE

@@ -1,0 +1,8 @@
+import system
+
+try:
+    system.sleep()
+except:
+    print "oh no! " + exception
+
+print "Back from try/except"

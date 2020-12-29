@@ -64,6 +64,8 @@ typedef enum {
 	OP_INHERIT,
 	OP_GET_SUPER,
 	OP_GET_SUPER_LONG,
+	OP_PUSH_TRY,
+	OP_RAISE,
 } KrkOpCode;
 
 /**

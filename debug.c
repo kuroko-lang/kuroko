@@ -92,6 +92,8 @@ size_t krk_disassembleInstruction(KrkChunk * chunk, size_t offset) {
 		JUMP(OP_JUMP_IF_FALSE,+)
 		JUMP(OP_JUMP_IF_TRUE,+)
 		JUMP(OP_LOOP,-)
+		JUMP(OP_PUSH_TRY,+)
+		SIMPLE(OP_RAISE)
 		OPERANDB(OP_CALL)
 		SIMPLE(OP_CLOSE_UPVALUE)
 		default:

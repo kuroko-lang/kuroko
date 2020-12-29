@@ -34,6 +34,8 @@ void krk_printValue(FILE * f, KrkValue value) {
 		fprintf(f, "%s", AS_BOOLEAN(value) ? "True" : "False");
 	} else if (IS_NONE(value)) {
 		fprintf(f, "None");
+	} else if (IS_HANDLER(value)) {
+		fprintf(f, "{try->%ld}", AS_HANDLER(value));
 	} else if (IS_OBJECT(value)) {
 		krk_printObject(f, value);
 	}
@@ -47,6 +49,10 @@ int krk_valuesEqual(KrkValue a, KrkValue b) {
 		case VAL_NONE:     return 1; /* None always equals None */
 		case VAL_INTEGER:  return AS_INTEGER(a) == AS_INTEGER(b);
 		case VAL_FLOATING: return AS_FLOATING(a) == AS_FLOATING(b);
+		case VAL_HANDLER: {
+			fprintf(stderr, "Attempted to compare a value to an exception handler. VM leaked a stack value.\n");
+			exit(1);
+		}
 		case VAL_OBJECT: {
 			if (IS_STRING(a) && IS_STRING(b)) return AS_OBJECT(a) == AS_OBJECT(b);
 			/* If their pointers are equal, assume they are always equivalent */

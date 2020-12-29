@@ -1,0 +1,30 @@
+print "Hello, world!"
+try:
+    print "This is the try block"
+    let f = 123
+    print f
+    print "Blah blah blah"
+    print "Oh no let's raise an exception!"
+    raise "oh no!"
+    print "This should not print"
+    print "Instead we should jump to the except block"
+except:
+    print "This is the except block"
+    let j = 456
+    print j
+print "This is outside of the try-except"
+
+print "Let's try nesting an exception and raising it"
+
+try:
+    print "This is the top level"
+    try:
+        print "This is the inner level"
+        raise "This is the exception"
+    except:
+        print "This is the inner handler."
+        raise exception
+except:
+    print "This is the outer handler."
+    print exception
+    raise exception

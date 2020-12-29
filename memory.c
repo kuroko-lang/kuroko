@@ -206,6 +206,7 @@ static void markRoots() {
 	for (int i = 0; i < METHOD__MAX; ++i) {
 		krk_markValue(vm.specialMethodNames[i]);
 	}
+	krk_markValue(vm.currentException);
 }
 
 void krk_collectGarbage(void) {

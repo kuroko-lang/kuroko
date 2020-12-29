@@ -182,7 +182,10 @@ static KrkTokenType identifierType() {
 		case 'd': return checkKeyword(1, "ef", TOKEN_DEF);
 		case 'e': if (MORE(1)) switch(scanner.start[1]) {
 			case 'l': return checkKeyword(2, "se", TOKEN_ELSE);
-			case 'x': return checkKeyword(2, "port", TOKEN_EXPORT);
+			case 'x': if MORE(2) switch(scanner.start[2]) {
+				case 'p': return checkKeyword(3, "ort", TOKEN_EXPORT);
+				case 'c': return checkKeyword(3, "ept", TOKEN_EXCEPT);
+			} break;
 		} break;
 		case 'f': return checkKeyword(1, "or", TOKEN_FOR);
 		case 'F': return checkKeyword(1, "alse", TOKEN_FALSE);
@@ -196,11 +199,15 @@ static KrkTokenType identifierType() {
 		case 'N': return checkKeyword(1, "one", TOKEN_NONE);
 		case 'o': return checkKeyword(1, "r", TOKEN_OR);
 		case 'p': return checkKeyword(1, "rint", TOKEN_PRINT);
-		case 'r': return checkKeyword(1, "eturn", TOKEN_RETURN);
+		case 'r': if (MORE(1)) switch (scanner.start[1]) {
+			case 'e': return checkKeyword(2, "turn", TOKEN_RETURN);
+			case 'a': return checkKeyword(2, "ise", TOKEN_RAISE);
+		} break;
 		case 's': if (MORE(1)) switch(scanner.start[1]) {
 			case 'e': return checkKeyword(2, "lf", TOKEN_SELF);
 			case 'u': return checkKeyword(2, "per", TOKEN_SUPER);
 		} break;
+		case 't': return checkKeyword(1, "ry", TOKEN_TRY);
 		case 'T': return checkKeyword(1, "rue", TOKEN_TRUE);
 		case 'w': return checkKeyword(1, "hile", TOKEN_WHILE);
 	}
