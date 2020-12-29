@@ -99,7 +99,10 @@ void krk_printObject(FILE * f, KrkValue value) {
 			fprintf(f, "<instance of %s>", NAME(AS_INSTANCE(value)->_class));
 			break;
 		case OBJ_BOUND_METHOD:
-			fprintf(f, "<bound <def %s>>", NAME(AS_BOUND_METHOD(value)->method->function));
+			fprintf(f, "<bound <def %s>>", (AS_BOUND_METHOD(value)->method->type == OBJ_CLOSURE) ?
+				NAME(((KrkClosure*)AS_BOUND_METHOD(value)->method)->function) : (
+					(AS_BOUND_METHOD(value)->method->type == OBJ_NATIVE) ? "<native>" : "<unknown>"
+				));
 			break;
 	}
 }
@@ -116,6 +119,7 @@ KrkFunction * krk_newFunction() {
 KrkNative * krk_newNative(NativeFn function) {
 	KrkNative * native = ALLOCATE_OBJECT(KrkNative, OBJ_NATIVE);
 	native->function = function;
+	native->isMethod = 0;
 	return native;
 }
 
@@ -154,7 +158,7 @@ KrkInstance * krk_newInstance(KrkClass * _class) {
 	return instance;
 }
 
-KrkBoundMethod * krk_newBoundMethod(KrkValue receiver, KrkClosure * method) {
+KrkBoundMethod * krk_newBoundMethod(KrkValue receiver, KrkObj * method) {
 	KrkBoundMethod * bound = ALLOCATE_OBJECT(KrkBoundMethod, OBJ_BOUND_METHOD);
 	bound->receiver = receiver;
 	bound->method = method;

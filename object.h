@@ -86,13 +86,14 @@ typedef struct {
 typedef struct {
 	KrkObj obj;
 	KrkValue receiver;
-	KrkClosure * method;
+	KrkObj * method;
 } KrkBoundMethod;
 
 typedef KrkValue (*NativeFn)(int argCount, KrkValue* args);
 typedef struct {
 	KrkObj obj;
 	NativeFn function;
+	int isMethod;
 } KrkNative;
 
 static inline int isObjType(KrkValue value, ObjType type) {
@@ -108,4 +109,4 @@ extern KrkClosure *     krk_newClosure(KrkFunction * function);
 extern KrkUpvalue *     krk_newUpvalue(int slot);
 extern KrkClass *       krk_newClass(KrkString * name);
 extern KrkInstance *    krk_newInstance(KrkClass * _class);
-extern KrkBoundMethod * krk_newBoundMethod(KrkValue receiver, KrkClosure * method);
+extern KrkBoundMethod * krk_newBoundMethod(KrkValue receiver, KrkObj * method);

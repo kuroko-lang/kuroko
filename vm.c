@@ -221,11 +221,12 @@ static KrkValue krk_expose_list_length(int argc, KrkValue argv[]) {
 	return INTEGER_VAL(list->chunk.constants.count);
 }
 
-void krk_runNext(void) {
+KrkValue krk_runNext(void) {
 	size_t oldExit = vm.exitOnFrame;
 	vm.exitOnFrame = vm.frameCount - 1;
-	run();
+	KrkValue result = run();
 	vm.exitOnFrame = oldExit;
+	return result;
 }
 
 KrkInstance * krk_dictCreate(KrkValue * outClass) {
@@ -337,21 +338,22 @@ static int callValue(KrkValue callee, int argCount) {
 				return call(AS_CLOSURE(callee), argCount);
 			case OBJ_NATIVE: {
 				NativeFn native = AS_NATIVE(callee);
-				KrkValue result = native(argCount, vm.stackTop - argCount);
+				int extraArgs = !!((KrkNative*)AS_OBJECT(callee))->isMethod;
+				KrkValue result = native(argCount + extraArgs, vm.stackTop - argCount - extraArgs);
 				if (vm.stackTop == vm.stack) {
 					/* Runtime error returned from native method */
 					return 0;
 				}
 				vm.stackTop -= argCount + 1;
 				krk_push(result);
-				return 1;
+				return 2;
 			}
 			case OBJ_CLASS: {
 				KrkClass * _class = AS_CLASS(callee);
 				vm.stackTop[-argCount - 1] = OBJECT_VAL(krk_newInstance(_class));
 				KrkValue initializer;
 				if (krk_tableGet(&_class->methods, vm.specialMethodNames[METHOD_INIT], &initializer)) {
-					return call(AS_CLOSURE(initializer), argCount);
+					return callValue(initializer, argCount);
 				} else if (argCount != 0) {
 					krk_runtimeError("Class does not have an __init__ but arguments were passed to initializer: %d\n", argCount);
 					return 0;
@@ -361,7 +363,7 @@ static int callValue(KrkValue callee, int argCount) {
 			case OBJ_BOUND_METHOD: {
 				KrkBoundMethod * bound = AS_BOUND_METHOD(callee);
 				vm.stackTop[-argCount - 1] = bound->receiver;
-				return call(bound->method, argCount);
+				return callValue(OBJECT_VAL(bound->method), argCount);
 			}
 			default:
 				break;
@@ -374,7 +376,7 @@ static int callValue(KrkValue callee, int argCount) {
 static int bindMethod(KrkClass * _class, KrkString * name) {
 	KrkValue method;
 	if (!krk_tableGet(&_class->methods, OBJECT_VAL(name), &method)) return 0;
-	KrkBoundMethod * bound = krk_newBoundMethod(krk_peek(0), AS_CLOSURE(method));
+	KrkBoundMethod * bound = krk_newBoundMethod(krk_peek(0), AS_OBJECT(method));
 	krk_pop();
 	krk_push(OBJECT_VAL(bound));
 	return 1;
@@ -421,7 +423,7 @@ static void defineMethod(KrkString * name) {
 void krk_attachNamedObject(KrkTable * table, const char name[], KrkObj * obj) {
 	krk_push(OBJECT_VAL(krk_copyString(name,strlen(name))));
 	krk_push(OBJECT_VAL(obj));
-	krk_tableSet(&vm.globals, vm.stack[0], vm.stack[1]);
+	krk_tableSet(table, vm.stack[0], vm.stack[1]);
 	krk_pop();
 	krk_pop();
 }
@@ -604,11 +606,12 @@ static void addObjects() {
 			} else {
 				/* Push the object for self reference */
 				krk_push(_b);
-				call(AS_CLOSURE(method), 0);
-				int previousExitFrame = vm.exitOnFrame;
-				vm.exitOnFrame = vm.frameCount - 1;
-				KrkValue result = run();
-				vm.exitOnFrame = previousExitFrame;
+				KrkValue result;
+				switch (callValue(method, 0)) {
+					case 0: result = NONE_VAL(); break;
+					case 1: result = krk_runNext(); break;
+					case 2: result = krk_pop(); break;
+				}
 				if (!IS_STRING(result)) {
 					krk_runtimeError("__str__ produced something that wasn't a string: %s", krk_typeName(result));
 					return;
@@ -743,7 +746,7 @@ static KrkValue _int_to_char(int argc, KrkValue argv[]) {
 
 static void bindSpecialMethod(NativeFn method, int arity) {
 	KRK_PAUSE_GC();
-	KrkBoundMethod * bound = krk_newBoundMethod(krk_peek(0), boundNative(method,arity));
+	KrkBoundMethod * bound = krk_newBoundMethod(krk_peek(0), (KrkObj*)boundNative(method,arity));
 	krk_pop(); /* The original object */
 	krk_push(OBJECT_VAL(bound));
 	KRK_RESUME_GC();

@@ -83,4 +83,4 @@ extern void krk_runtimeError(const char * fmt, ...);
 extern KrkValue krk_dictGet(KrkValue dictClass, KrkInstance * dict, KrkValue key);
 extern void krk_dictSet(KrkValue dictClass, KrkInstance * dict, KrkValue key, KrkValue value);
 extern KrkInstance * krk_dictCreate(KrkValue * outClass);
-extern void krk_runNext(void);
+extern KrkValue  krk_runNext(void);
