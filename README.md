@@ -1,14 +1,16 @@
 # Kuroko - A bytecode-compiled scripting language
 
-This bytecode VM / compiler is substantially based on Robert Nystrom's [_Crafting Interpreters_](https://craftinginterpreters.com/).
+Kuroko is a bytecode-interpreted, dynamic, strongly-typed language with syntax similar to Python.
 
-At the moment, the intent for this project is to add a proper scripting language to Bim, to which both configuration scripts and syntax highlighting will be ported.
+The bytecode VM / compiler is substantially based on Robert Nystrom's [_Crafting Interpreters_](https://craftinginterpreters.com/).
 
-Kuroko, as its name should imply, will also be made available in ToaruOS as a general user language, and some utilities may end up being written in it.
+At the moment, the intent for this project is to add a proper scripting language to [Bim](https://github.com/klange/bim), to which both configuration scripts and syntax highlighting will be ported.
+
+Kuroko, as its name should imply, will also be made available in [ToaruOS](https://github.com/klange/toaruos) as a general-purpose user language, and some utilities may end up being written in it.
 
 ## Features
 
-Kuroko inherits some core features simply from following the text of _Crafting Interpreters_, including its basic type system, classes/methods/functions, and the design of its compiler and bytecode VM.
+Kuroko inherits some core features by virtue of following _Crafting Interpreters_, including its basic type system, classes/methods/functions, and the design of its compiler and bytecode VM.
 
 On top of this, Kuroko has:
 
