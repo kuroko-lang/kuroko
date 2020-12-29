@@ -140,8 +140,8 @@ static void errorAt(KrkToken * token, const char * message) {
 	while (token->linePtr[i] && token->linePtr[i] != '\n') i++;
 
 	fprintf(stderr, "Parse error in \"%s\" on line %d col %d (%s): %s\n"
-					"    %.*s\033[31m%.*s\033[0m%.*s\n"
-					"    %-*s\033[31m^\033[0m\n",
+					"    %.*s\033[31m%.*s\033[39m%.*s\n"
+					"    %-*s\033[31m^\033[39m\n",
 		currentChunk()->filename->chars,
 		(int)token->line,
 		(int)token->col,
@@ -1234,7 +1234,7 @@ KrkFunction * krk_compile(const char * src, int newScope, char * fileName) {
 
 	while (!match(TOKEN_EOF)) {
 		declaration();
-		if (check(TOKEN_EOL) || check(TOKEN_INDENTATION)) {
+		if (check(TOKEN_EOL) || check(TOKEN_INDENTATION) || check(TOKEN_EOF)) {
 			/* There's probably already and error... */
 			advance();
 		}

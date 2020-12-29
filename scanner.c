@@ -267,8 +267,6 @@ KrkToken krk_scanToken() {
 
 	char c = advance();
 
-	if (isAtEnd()) return makeToken(TOKEN_EOF);
-
 	if (c == '\n') {
 		KrkToken out;
 		if (scanner.startOfLine) {
