@@ -58,6 +58,7 @@ typedef struct {
 	size_t line;
 	const char * linePtr;
 	size_t col;
+	size_t literalWidth;
 } KrkToken;
 
 extern void krk_initScanner(const char * src);

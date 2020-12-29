@@ -43,6 +43,7 @@ static KrkToken makeToken(KrkTokenType type) {
 		.length = (type == TOKEN_EOL) ? 0 : (size_t)(scanner.cur - scanner.start),
 		.line = scanner.line,
 		.linePtr = scanner.linePtr,
+		.literalWidth = (type == TOKEN_EOL) ? 0 : (size_t)(scanner.cur - scanner.start),
 		.col = (scanner.start - scanner.linePtr) + 1,
 	};
 }
@@ -54,6 +55,7 @@ static KrkToken errorToken(const char * errorStr) {
 		.length = strlen(errorStr),
 		.line = scanner.line,
 		.linePtr = scanner.linePtr,
+		.literalWidth = (size_t)(scanner.cur - scanner.start),
 		.col = (scanner.start - scanner.linePtr) + 1,
 	};
 }

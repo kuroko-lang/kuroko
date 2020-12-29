@@ -149,10 +149,10 @@ static void errorAt(KrkToken * token, const char * message) {
 		message,
 		(int)(token->col - 1),
 		token->linePtr,
-		(int)(token->length),
+		(int)(token->literalWidth),
 		token->linePtr + (token->col - 1),
-		(int)(i - (token->col - 1 + token->length)),
-		token->linePtr + (token->col - 1 + token->length),
+		(int)(i - (token->col - 1 + token->literalWidth)),
+		token->linePtr + (token->col - 1 + token->literalWidth),
 		(int)token->col-1,
 		""
 		);
