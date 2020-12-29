@@ -8,6 +8,7 @@
 typedef struct {
 	const char * start;
 	const char * cur;
+	const char * linePtr;
 	size_t line;
 	int startOfLine;
 	int hasUnget;
@@ -20,6 +21,7 @@ void krk_initScanner(const char * src) {
 	scanner.start = src;
 	scanner.cur   = src;
 	scanner.line  = 1;
+	scanner.linePtr   = src;
 	scanner.startOfLine = 1;
 	scanner.hasUnget = 0;
 	/* file, etc. ? */
@@ -29,12 +31,19 @@ static int isAtEnd() {
 	return *scanner.cur == '\0';
 }
 
+static void nextLine() {
+	scanner.line++;
+	scanner.linePtr = scanner.cur;
+}
+
 static KrkToken makeToken(KrkTokenType type) {
 	return (KrkToken){
 		.type = type,
 		.start = scanner.start,
-		.length = (size_t)(scanner.cur - scanner.start),
-		.line = scanner.line
+		.length = (type == TOKEN_EOL) ? 0 : (size_t)(scanner.cur - scanner.start),
+		.line = scanner.line,
+		.linePtr = scanner.linePtr,
+		.col = (scanner.start - scanner.linePtr) + 1,
 	};
 }
 
@@ -43,7 +52,9 @@ static KrkToken errorToken(const char * errorStr) {
 		.type = TOKEN_ERROR,
 		.start = errorStr,
 		.length = strlen(errorStr),
-		.line = scanner.line
+		.line = scanner.line,
+		.linePtr = scanner.linePtr,
+		.col = (scanner.start - scanner.linePtr) + 1,
 	};
 }
 
@@ -99,7 +110,7 @@ static KrkToken makeIndentation() {
 static KrkToken string() {
 	while (peek() != '"' && !isAtEnd()) {
 		if (peek() == '\\') advance(); /* Advance twice */
-		if (peek() == '\n') scanner.line++; /* Not start of line because string */
+		if (peek() == '\n') nextLine();
 		advance();
 	}
 
@@ -259,14 +270,16 @@ KrkToken krk_scanToken() {
 	if (isAtEnd()) return makeToken(TOKEN_EOF);
 
 	if (c == '\n') {
-		scanner.line++;
+		KrkToken out;
 		if (scanner.startOfLine) {
 			/* Ignore completely blank lines */
-			return makeToken(TOKEN_RETRY);
+			out = makeToken(TOKEN_RETRY);
 		} else {
 			scanner.startOfLine = 1;
-			return makeToken(TOKEN_EOL);
+			out = makeToken(TOKEN_EOL);
 		}
+		nextLine();
+		return out;
 	}
 
 	/* Not indentation, not a linefeed on an empty line, must be not be start of line any more */

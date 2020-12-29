@@ -43,7 +43,7 @@ static void dumpTraceback() {
 	}
 }
 
-static void runtimeError(const char * fmt, ...) {
+void krk_runtimeError(const char * fmt, ...) {
 	char buf[1024] = {0};
 	va_list args;
 	va_start(args, fmt);
@@ -96,7 +96,7 @@ void krk_defineNative(KrkTable * table, const char * name, NativeFn function) {
 
 static KrkValue krk_sleep(int argc, KrkValue argv[]) {
 	if (argc < 1) {
-		runtimeError("sleep: expect at least one argument.");
+		krk_runtimeError("sleep: expect at least one argument.");
 		return BOOLEAN_VAL(0);
 	}
 
@@ -120,20 +120,20 @@ static KrkValue krk_expose_hash_new(int argc, KrkValue argv[]) {
 
 static KrkValue krk_expose_hash_get(int argc, KrkValue argv[]) {
 	if (argc < 2 || !IS_CLASS(argv[0])) {
-		runtimeError("wrong number of arguments");
+		krk_runtimeError("wrong number of arguments");
 		return NONE_VAL();
 	}
 	KrkClass * map = AS_CLASS(argv[0]);
 	KrkValue out = NONE_VAL();
 	if (!krk_tableGet(&map->methods, argv[1], &out)) {
-		runtimeError("key error");
+		krk_runtimeError("key error");
 	}
 	return out;
 }
 
 static KrkValue krk_expose_hash_set(int argc, KrkValue argv[]) {
 	if (argc < 3 || !IS_CLASS(argv[0])) {
-		runtimeError("wrong number of arguments");
+		krk_runtimeError("wrong number of arguments");
 		return NONE_VAL();
 	}
 	KrkClass * map = AS_CLASS(argv[0]);
@@ -143,7 +143,7 @@ static KrkValue krk_expose_hash_set(int argc, KrkValue argv[]) {
 
 static KrkValue krk_expose_hash_capacity(int argc, KrkValue argv[]) {
 	if (argc < 1 || !IS_CLASS(argv[0])) {
-		runtimeError("wrong number of arguments");
+		krk_runtimeError("wrong number of arguments");
 		return NONE_VAL();
 	}
 	KrkClass * map = AS_CLASS(argv[0]);
@@ -152,7 +152,7 @@ static KrkValue krk_expose_hash_capacity(int argc, KrkValue argv[]) {
 
 static KrkValue krk_expose_hash_count(int argc, KrkValue argv[]) {
 	if (argc < 1 || !IS_CLASS(argv[0])) {
-		runtimeError("wrong number of arguments");
+		krk_runtimeError("wrong number of arguments");
 		return NONE_VAL();
 	}
 	KrkClass * map = AS_CLASS(argv[0]);
@@ -161,17 +161,17 @@ static KrkValue krk_expose_hash_count(int argc, KrkValue argv[]) {
 
 static KrkValue krk_expose_hash_key_at_index(int argc, KrkValue argv[]) {
 	if (argc < 2 || !IS_CLASS(argv[0])) {
-		runtimeError("wrong number of arguments");
+		krk_runtimeError("wrong number of arguments");
 		return NONE_VAL();
 	}
 	if (!IS_INTEGER(argv[1])) {
-		runtimeError("expected integer index but got %s", krk_typeName(argv[1]));
+		krk_runtimeError("expected integer index but got %s", krk_typeName(argv[1]));
 		return NONE_VAL();
 	}
 	int i = AS_INTEGER(argv[1]);
 	KrkClass * map = AS_CLASS(argv[0]);
 	if (i < 0 || i > (int)map->methods.capacity) {
-		runtimeError("hash table index is out of range: %d", i);
+		krk_runtimeError("hash table index is out of range: %d", i);
 		return NONE_VAL();
 	}
 	KrkTableEntry entry = map->methods.entries[i];
@@ -185,13 +185,13 @@ static KrkValue krk_expose_list_new(int argc, KrkValue argv[]) {
 
 static KrkValue krk_expose_list_get(int argc, KrkValue argv[]) {
 	if (argc < 2 || !IS_FUNCTION(argv[0]) || !IS_INTEGER(argv[1])) {
-		runtimeError("wrong number or type of arguments");
+		krk_runtimeError("wrong number or type of arguments");
 		return NONE_VAL();
 	}
 	KrkFunction * list = AS_FUNCTION(argv[0]);
 	int index = AS_INTEGER(argv[1]);
 	if (index < 0 || index >= (int)list->chunk.constants.count) {
-		runtimeError("index is out of range: %d", index);
+		krk_runtimeError("index is out of range: %d", index);
 		return NONE_VAL();
 	}
 	return list->chunk.constants.values[index];
@@ -199,13 +199,13 @@ static KrkValue krk_expose_list_get(int argc, KrkValue argv[]) {
 
 static KrkValue krk_expose_list_set(int argc, KrkValue argv[]) {
 	if (argc < 3 || !IS_FUNCTION(argv[0]) || !IS_INTEGER(argv[1])) {
-		runtimeError("wrong number or type of arguments");
+		krk_runtimeError("wrong number or type of arguments");
 		return NONE_VAL();
 	}
 	KrkFunction * list = AS_FUNCTION(argv[0]);
 	int index = AS_INTEGER(argv[1]);
 	if (index < 0 || index >= (int)list->chunk.constants.count) {
-		runtimeError("index is out of range: %d", index);
+		krk_runtimeError("index is out of range: %d", index);
 		return NONE_VAL();
 	}
 	list->chunk.constants.values[index] = argv[2];
@@ -214,7 +214,7 @@ static KrkValue krk_expose_list_set(int argc, KrkValue argv[]) {
 
 static KrkValue krk_expose_list_append(int argc, KrkValue argv[]) {
 	if (argc < 2 || !IS_FUNCTION(argv[0])) {
-		runtimeError("wrong number or type of arguments");
+		krk_runtimeError("wrong number or type of arguments");
 		return NONE_VAL();
 	}
 	KrkFunction * list = AS_FUNCTION(argv[0]);
@@ -224,7 +224,7 @@ static KrkValue krk_expose_list_append(int argc, KrkValue argv[]) {
 
 static KrkValue krk_expose_list_length(int argc, KrkValue argv[]) {
 	if (argc < 1 || !IS_FUNCTION(argv[0])) {
-		runtimeError("wrong number or type of arguments");
+		krk_runtimeError("wrong number or type of arguments");
 		return NONE_VAL();
 	}
 	KrkFunction * list = AS_FUNCTION(argv[0]);
@@ -297,11 +297,11 @@ static KrkValue krk_set_tracing(int argc, KrkValue argv[]) {
 
 static int call(KrkClosure * closure, int argCount) {
 	if (argCount != closure->function->arity) {
-		runtimeError("Wrong number of arguments (%d expected, got %d)", closure->function->arity, argCount);
+		krk_runtimeError("Wrong number of arguments (%d expected, got %d)", closure->function->arity, argCount);
 		return 0;
 	}
 	if (vm.frameCount == FRAMES_MAX) {
-		runtimeError("Too many call frames.");
+		krk_runtimeError("Too many call frames.");
 		return 0;
 	}
 	CallFrame * frame = &vm.frames[vm.frameCount++];
@@ -334,7 +334,7 @@ static int callValue(KrkValue callee, int argCount) {
 				if (krk_tableGet(&_class->methods, vm.specialMethodNames[METHOD_INIT], &initializer)) {
 					return call(AS_CLOSURE(initializer), argCount);
 				} else if (argCount != 0) {
-					runtimeError("Class does not have an __init__ but arguments were passed to initializer: %d\n", argCount);
+					krk_runtimeError("Class does not have an __init__ but arguments were passed to initializer: %d\n", argCount);
 					return 0;
 				}
 				return 1;
@@ -348,7 +348,7 @@ static int callValue(KrkValue callee, int argCount) {
 				break;
 		}
 	}
-	runtimeError("Attempted to call non-callable type: %s", krk_typeName(callee));
+	krk_runtimeError("Attempted to call non-callable type: %s", krk_typeName(callee));
 	return 0;
 }
 
@@ -509,7 +509,7 @@ const char * krk_typeName(KrkValue value) {
 		} else if (IS_FLOATING(b)) { \
 			if (IS_INTEGER(a)) return FLOATING_VAL((double)AS_INTEGER(a) operator AS_FLOATING(b)); \
 		} \
-		runtimeError("Incompatible types for binary operand %s: %s and %s", #operator, krk_typeName(a), krk_typeName(b)); \
+		krk_runtimeError("Incompatible types for binary operand %s: %s and %s", #operator, krk_typeName(a), krk_typeName(b)); \
 		return NONE_VAL(); \
 	}
 
@@ -532,7 +532,7 @@ static KrkValue modulo(KrkValue a, KrkValue b) {
 		} else if (IS_FLOATING(b)) { \
 			if (IS_INTEGER(a)) return BOOLEAN_VAL(AS_INTEGER(a) operator AS_INTEGER(b)); \
 		} \
-		runtimeError("Can not compare types %s and %s", krk_typeName(a), krk_typeName(b)); \
+		krk_runtimeError("Can not compare types %s and %s", krk_typeName(a), krk_typeName(b)); \
 		return NONE_VAL(); \
 	}
 
@@ -585,7 +585,7 @@ static void addObjects() {
 				KrkValue result = run();
 				vm.exitOnFrame = previousExitFrame;
 				if (!IS_STRING(result)) {
-					runtimeError("__str__ produced something that wasn't a string: %s", krk_typeName(result));
+					krk_runtimeError("__str__ produced something that wasn't a string: %s", krk_typeName(result));
 					return;
 				}
 				sprintf(tmp, "%s", AS_CSTRING(result));
@@ -595,7 +595,7 @@ static void addObjects() {
 		}
 		concatenate(a->chars,tmp,a->length,strlen(tmp));
 	} else {
-		runtimeError("Can not concatenate types %s and %s", krk_typeName(_a), krk_typeName(_b)); \
+		krk_runtimeError("Can not concatenate types %s and %s", krk_typeName(_a), krk_typeName(_b)); \
 	}
 }
 
@@ -617,7 +617,7 @@ static size_t readBytes(CallFrame * frame, int num) {
 		return (top << 16) | (mid << 8) | (bot);
 	}
 
-	runtimeError("Invalid byte read?");
+	krk_runtimeError("Invalid byte read?");
 	return (size_t)-1;
 }
 
@@ -659,20 +659,20 @@ static KrkValue _string_length(int argc, KrkValue argv[]) {
 
 static KrkValue _string_get(int argc, KrkValue argv[]) {
 	if (argc != 2) {
-		runtimeError("Wrong number of arguments to String.__get__");
+		krk_runtimeError("Wrong number of arguments to String.__get__");
 		return NONE_VAL();
 	}
 	if (!IS_STRING(argv[0])) {
-		runtimeError("First argument to __get__ must be String");
+		krk_runtimeError("First argument to __get__ must be String");
 		return NONE_VAL();
 	}
 	if (!IS_INTEGER(argv[1])) {
-		runtimeError("Strings can not index by %s", krk_typeName(argv[1]));
+		krk_runtimeError("Strings can not index by %s", krk_typeName(argv[1]));
 		return NONE_VAL();
 	}
 	int asInt = AS_INTEGER(argv[1]);
 	if (asInt < 0 || asInt >= (int)AS_STRING(argv[0])->length) {
-		runtimeError("String index out of range: %d", asInt);
+		krk_runtimeError("String index out of range: %d", asInt);
 		return NONE_VAL();
 	}
 	return INTEGER_VAL(AS_CSTRING(argv[0])[asInt]);
@@ -771,7 +771,7 @@ static KrkValue run() {
 				KrkValue value = krk_pop();
 				if (IS_INTEGER(value)) krk_push(INTEGER_VAL(-AS_INTEGER(value)));
 				else if (IS_FLOATING(value)) krk_push(FLOATING_VAL(-AS_FLOATING(value)));
-				else { runtimeError("Incompatible operand type for prefix negation."); goto _finishException; }
+				else { krk_runtimeError("Incompatible operand type for prefix negation."); goto _finishException; }
 				break;
 			}
 			case OP_CONSTANT_LONG:
@@ -798,7 +798,7 @@ static KrkValue run() {
 				KrkString * name = READ_STRING((opcode == OP_GET_GLOBAL ? 1 : 3));
 				KrkValue value;
 				if (!krk_tableGet(&vm.globals, OBJECT_VAL(name), &value)) {
-					runtimeError("Undefined variable '%s'.", name->chars);
+					krk_runtimeError("Undefined variable '%s'.", name->chars);
 					goto _finishException;
 				}
 				krk_push(value);
@@ -810,7 +810,7 @@ static KrkValue run() {
 				if (krk_tableSet(&vm.globals, OBJECT_VAL(name), krk_peek(0))) {
 					krk_tableDelete(&vm.globals, OBJECT_VAL(name));
 					/* TODO: This should probably just work as an assignment? */
-					runtimeError("Undefined variable '%s'.", name->chars);
+					krk_runtimeError("Undefined variable '%s'.", name->chars);
 					goto _finishException;
 				}
 				break;
@@ -828,7 +828,7 @@ static KrkValue run() {
 					module = krk_runfile(tmp,1,name->chars,tmp);
 					vm.exitOnFrame = previousExitFrame;
 					if (!IS_OBJECT(module)) {
-						runtimeError("Failed to import module - expected to receive an object, but got a %s instead.", krk_typeName(module));
+						krk_runtimeError("Failed to import module - expected to receive an object, but got a %s instead.", krk_typeName(module));
 						goto _finishException;
 					}
 					krk_push(module);
@@ -980,7 +980,7 @@ static KrkValue run() {
 									krk_push(OBJECT_VAL(bound));
 									KRK_RESUME_GC();
 								} else if (krk_valuesEqual(OBJECT_VAL(name), vm.specialMethodNames[METHOD_SET])) {
-									runtimeError("Strings are not mutable.");
+									krk_runtimeError("Strings are not mutable.");
 									goto _finishException;
 								} else {
 									goto _undefined;
@@ -1004,18 +1004,18 @@ static KrkValue run() {
 						break;
 					}
 					default:
-						runtimeError("Don't know how to retreive properties for %s yet", krk_typeName(krk_peek(0)));
+						krk_runtimeError("Don't know how to retreive properties for %s yet", krk_typeName(krk_peek(0)));
 						goto _finishException;
 				}
 				break;
 _undefined:
-				runtimeError("Field '%s' of %s is not defined.", name->chars, krk_typeName(krk_peek(0)));
+				krk_runtimeError("Field '%s' of %s is not defined.", name->chars, krk_typeName(krk_peek(0)));
 				goto _finishException;
 			}
 			case OP_SET_PROPERTY_LONG:
 			case OP_SET_PROPERTY: {
 				if (!IS_INSTANCE(krk_peek(1))) {
-					runtimeError("Don't know how to set properties for %s yet", krk_typeName(krk_peek(1)));
+					krk_runtimeError("Don't know how to set properties for %s yet", krk_typeName(krk_peek(1)));
 					goto _finishException;
 				}
 				KrkInstance * instance = AS_INSTANCE(krk_peek(1));
@@ -1034,7 +1034,7 @@ _undefined:
 			case OP_INHERIT: {
 				KrkValue superclass = krk_peek(1);
 				if (!IS_CLASS(superclass)) {
-					runtimeError("Superclass must be a class.");
+					krk_runtimeError("Superclass must be a class.");
 					return NONE_VAL();
 				}
 				KrkClass * subclass = AS_CLASS(krk_peek(0));

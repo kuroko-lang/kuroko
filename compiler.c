@@ -35,6 +35,7 @@ typedef enum {
 typedef void (*ParseFn)(int);
 
 typedef struct {
+	const char * name;
 	ParseFn prefix;
 	ParseFn infix;
 	Precedence precedence;
@@ -135,14 +136,26 @@ static void errorAt(KrkToken * token, const char * message) {
 	if (parser.panicMode) return;
 	parser.panicMode = 1;
 
-	fprintf(stderr, "[line %d] Error", (int)token->line);
-	if (token->type == TOKEN_EOF) {
-		fprintf(stderr, " at end");
-	} else if (token->type != TOKEN_ERROR) {
-		fprintf(stderr, " at '%.*s'", (int)token->length, token->start);
-	}
+	size_t i = (token->col - 1);
+	while (token->linePtr[i] && token->linePtr[i] != '\n') i++;
 
-	fprintf(stderr, ": %s\n", message);
+	fprintf(stderr, "Parse error in \"%s\" on line %d col %d (%s): %s\n"
+					"    %.*s\033[31m%.*s\033[0m%.*s\n"
+					"    %-*s\033[31m^\033[0m\n",
+		currentChunk()->filename->chars,
+		(int)token->line,
+		(int)token->col,
+		getRule(token->type)->name,
+		message,
+		(int)(token->col - 1),
+		token->linePtr,
+		(int)(token->length),
+		token->linePtr + (token->col - 1),
+		(int)(i - token->col - 1 + token->length),
+		token->linePtr + (token->col - 1 + token->length),
+		(int)token->col-1,
+		""
+		);
 	parser.hadError = 1;
 }
 
@@ -151,8 +164,6 @@ static void error(const char * message) {
 }
 
 static void errorAtCurrent(const char * message) {
-	errorAt(&parser.previous, "(token before actual error)");
-	parser.panicMode = 0;
 	errorAt(&parser.current, message);
 }
 
@@ -162,8 +173,8 @@ static void advance() {
 	for (;;) {
 		parser.current = krk_scanToken();
 
-#ifdef ENABLE_SCAN_TRACING
-		if (vm.flags & KRK_ENABLE_SCAN_TRACING) {
+#ifdef ENABLE_DEBUGGING
+		if (vm.flags & KRK_ENABLE_DEBUGGING) {
 			fprintf(stderr, "Token %d (start=%p, length=%d) '%.*s' on line %d\n", parser.current.type,
 				parser.current.start,
 				(int)parser.current.length,
@@ -400,9 +411,14 @@ static void declaration() {
 		defDeclaration();
 	} else if (match(TOKEN_LET)) {
 		varDeclaration();
+		if (!match(TOKEN_EOL) && !match(TOKEN_EOF)) {
+			error("Expected EOL after variable declaration.\n");
+		}
 	} else if (check(TOKEN_CLASS)) {
 		classDeclaration();
 	} else if (match(TOKEN_EOL) || match(TOKEN_EOF)) {
+		return;
+	} else if (check(TOKEN_INDENTATION)) {
 		return;
 	} else {
 		statement();
@@ -433,33 +449,28 @@ static void endScope() {
 	}
 }
 
-static void block(size_t indentation) {
+static void block(size_t indentation, const char * blockName) {
 	if (match(TOKEN_EOL)) {
 		/* Begin actual blocks */
 		if (check(TOKEN_INDENTATION)) {
 			size_t currentIndentation = parser.current.length;
 			if (currentIndentation <= indentation) {
-				errorAtCurrent("Unexpected indentation level for new block");
+				return;
 			}
 			do {
 				if (parser.current.length < currentIndentation) break;
 				advance(); /* Pass indentation */
 				declaration();
-				if (check(TOKEN_EOL)) endOfLine();
 			} while (check(TOKEN_INDENTATION));
 #ifdef ENABLE_DEBUGGING
 			if (vm.flags & KRK_ENABLE_DEBUGGING) {
-				fprintf(stderr, "On line %d, ", (int)parser.current.line);
-				if (check(TOKEN_INDENTATION)) {
-					fprintf(stderr, "Exiting block from %d to %d\n",
-						(int)currentIndentation, (int)parser.current.length);
-				} else {
-					fprintf(stderr, "Exiting block from %d to something that isn't indentation.\n",
-						(int)currentIndentation);
-				}
+				fprintf(stderr, "finished with block %s (ind=%d) on line %d, sitting on a %s (len=%d)\n",
+					blockName,
+					(int)indentation,
+					(int)parser.current.line,
+					getRule(parser.current.type)->name,
+					(int)parser.current.length);
 			}
-		} else {
-			fprintf(stderr, "Block is emtpy.\n");
 #endif
 		}
 	} else {
@@ -493,7 +504,7 @@ static void function(FunctionType type, size_t blockWidth) {
 	consume(TOKEN_RIGHT_PAREN, "Expected end of parameter list.");
 
 	consume(TOKEN_COLON, "Expected colon after function signature.");
-	block(blockWidth);
+	block(blockWidth,"def");
 
 	KrkFunction * function = endCompiler();
 	size_t ind = krk_addConstant(currentChunk(), OBJECT_VAL(function));
@@ -509,7 +520,9 @@ static void function(FunctionType type, size_t blockWidth) {
 static void method(size_t blockWidth) {
 	/* This is actually "inside of a class definition", and that might mean
 	 * arbitrary blank lines we need to accept... Sorry. */
-	if (match(TOKEN_EOL)) return;
+	if (match(TOKEN_EOL)) {
+		return;
+	}
 
 	/* def method(...): - just like functions; unlike Python, I'm just always
 	 * going to assign `self` because Lox always assigns `this`; it should not
@@ -579,6 +592,9 @@ static void classDeclaration() {
 				method(currentIndentation);
 				if (check(TOKEN_EOL)) endOfLine();
 			} while (check(TOKEN_INDENTATION));
+#ifdef ENABLE_SCAN_TRACING
+			if (vm.flags & KRK_ENABLE_SCAN_TRACING) fprintf(stderr, "Exiting from class definition on %s\n", getRule(parser.current.type)->name);
+#endif
 			/* Exit from block */
 		}
 	} /* else empty class (and at end of file?) we'll allow it for now... */
@@ -645,7 +661,7 @@ static void ifStatement() {
 
 	/* Start a new scope and enter a block */
 	beginScope();
-	block(blockWidth);
+	block(blockWidth,"if");
 	endScope();
 
 	int elseJump = emitJump(OP_JUMP);
@@ -664,13 +680,15 @@ static void ifStatement() {
 			/* TODO ELIF or ELSE IF */
 			consume(TOKEN_COLON, "Expect ':' after else.");
 			beginScope();
-			block(blockWidth);
+			block(blockWidth,"else");
 			endScope();
-		} else if (!check(TOKEN_EOL) && !check(TOKEN_EOF)) {
-			krk_ungetToken(parser.current);
-			parser.current = parser.previous;
-			if (blockWidth) {
-				parser.previous = previous;
+		} else {
+			if (!check(TOKEN_EOF) && !check(TOKEN_EOL)) {
+				krk_ungetToken(parser.current);
+				parser.current = parser.previous;
+				if (blockWidth) {
+					parser.previous = previous;
+				}
 			}
 		}
 	}
@@ -691,7 +709,7 @@ static void whileStatement() {
 	emitByte(OP_POP);
 
 	beginScope();
-	block(blockWidth);
+	block(blockWidth,"while");
 	endScope();
 
 	emitLoop(loopStart);
@@ -776,7 +794,7 @@ static void forStatement() {
 	consume(TOKEN_COLON,"expect :");
 
 	beginScope();
-	block(blockWidth);
+	block(blockWidth,"for");
 	endScope();
 
 	emitLoop(loopStart);
@@ -809,7 +827,7 @@ static void tryStatement() {
 	defineVariable(0);
 
 	beginScope();
-	block(blockWidth);
+	block(blockWidth,"try");
 	endScope();
 
 	int successJump = emitJump(OP_JUMP);
@@ -824,7 +842,7 @@ static void tryStatement() {
 		if (match(TOKEN_EXCEPT)) {
 			consume(TOKEN_COLON, "Expect ':' after except.");
 			beginScope();
-			block(blockWidth);
+			block(blockWidth,"except");
 			endScope();
 		} else if (!check(TOKEN_EOL) && !check(TOKEN_EOF)) {
 			krk_ungetToken(parser.current);
@@ -865,19 +883,7 @@ static void statement() {
 		return; /* Meaningless blank line */
 	}
 
-	if (match(TOKEN_PRINT)) {
-		printStatement();
-	} else if (match(TOKEN_EXPORT)) {
-		exportStatement();
-	} else if (check(TOKEN_IF)) {
-		/*
-		 * We check rather than match because we need to look at the indentation
-		 * token that came before this (if it was one) to figure out what block
-		 * indentation level we're at, so that we can match our companion else
-		 * and make sure it's not the else for a higher if block.
-		 *
-		 * TODO: Are there other things where we want to do this?
-		 */
+	if (check(TOKEN_IF)) {
 		ifStatement();
 	} else if (check(TOKEN_WHILE)) {
 		whileStatement();
@@ -885,14 +891,23 @@ static void statement() {
 		forStatement();
 	} else if (check(TOKEN_TRY)) {
 		tryStatement();
-	} else if (match(TOKEN_RAISE)) {
-		raiseStatement();
-	} else if (match(TOKEN_RETURN)) {
-		returnStatement();
-	} else if (match(TOKEN_IMPORT)) {
-		importStatement();
 	} else {
-		expressionStatement();
+		if (match(TOKEN_PRINT)) {
+			printStatement();
+		} else if (match(TOKEN_EXPORT)) {
+			exportStatement();
+		} else if (match(TOKEN_RAISE)) {
+			raiseStatement();
+		} else if (match(TOKEN_RETURN)) {
+			returnStatement();
+		} else if (match(TOKEN_IMPORT)) {
+			importStatement();
+		} else {
+			expressionStatement();
+		}
+		if (!match(TOKEN_EOL) && !match(TOKEN_EOF)) {
+			errorAtCurrent("Unexpected token after statement.");
+		}
 	}
 }
 
@@ -1012,64 +1027,67 @@ static void super_(int canAssign) {
 	EMIT_CONSTANT_OP(OP_GET_SUPER, ind);
 }
 
+#define RULE(token, a, b, c) [token] = {# token, a, b, c}
+
 ParseRule rules[] = {
-	[TOKEN_LEFT_PAREN]    = {grouping, call,   PREC_CALL},
-	[TOKEN_RIGHT_PAREN]   = {NULL,     NULL,   PREC_NONE},
-	[TOKEN_LEFT_BRACE]    = {NULL,     NULL,   PREC_NONE},
-	[TOKEN_RIGHT_BRACE]   = {NULL,     NULL,   PREC_NONE},
-	[TOKEN_LEFT_SQUARE]   = {NULL,     get_,   PREC_CALL},
-	[TOKEN_RIGHT_SQUARE]  = {NULL,     NULL,   PREC_NONE},
-	[TOKEN_COLON]         = {NULL,     NULL,   PREC_NONE},
-	[TOKEN_COMMA]         = {NULL,     NULL,   PREC_NONE},
-	[TOKEN_DOT]           = {NULL,     dot,    PREC_CALL},
-	[TOKEN_MINUS]         = {unary,    binary, PREC_TERM},
-	[TOKEN_PLUS]          = {NULL,     binary, PREC_TERM},
-	[TOKEN_SEMICOLON]     = {NULL,     NULL,   PREC_NONE},
-	[TOKEN_SOLIDUS]       = {NULL,     binary, PREC_FACTOR},
-	[TOKEN_ASTERISK]      = {NULL,     binary, PREC_FACTOR},
-	[TOKEN_MODULO]        = {NULL,     binary, PREC_FACTOR},
-	[TOKEN_BANG]          = {unary,    NULL,   PREC_NONE},
-	[TOKEN_BANG_EQUAL]    = {NULL,     binary, PREC_EQUALITY},
-	[TOKEN_EQUAL]         = {NULL,     NULL,   PREC_NONE},
-	[TOKEN_EQUAL_EQUAL]   = {NULL,     binary, PREC_EQUALITY},
-	[TOKEN_GREATER]       = {NULL,     binary, PREC_COMPARISON},
-	[TOKEN_GREATER_EQUAL] = {NULL,     binary, PREC_COMPARISON},
-	[TOKEN_LESS]          = {NULL,     binary, PREC_COMPARISON},
-	[TOKEN_LESS_EQUAL]    = {NULL,     binary, PREC_COMPARISON},
-	[TOKEN_IDENTIFIER]    = {variable, NULL,   PREC_NONE},
-	[TOKEN_STRING]        = {string,   NULL,   PREC_NONE},
-	[TOKEN_NUMBER]        = {number,   NULL,   PREC_NONE},
-	[TOKEN_CODEPOINT]     = {NULL,     NULL,   PREC_NONE}, /* TODO */
-	[TOKEN_AND]           = {NULL,     and_,   PREC_AND},
-	[TOKEN_CLASS]         = {NULL,     NULL,   PREC_NONE},
-	[TOKEN_ELSE]          = {NULL,     NULL,   PREC_NONE},
-	[TOKEN_FALSE]         = {literal,  NULL,   PREC_NONE},
-	[TOKEN_FOR]           = {NULL,     NULL,   PREC_NONE},
-	[TOKEN_DEF]           = {NULL,     NULL,   PREC_NONE},
-	[TOKEN_IF]            = {NULL,     NULL,   PREC_NONE},
-	[TOKEN_IN]            = {NULL,     NULL,   PREC_NONE},
-	[TOKEN_LET]           = {NULL,     NULL,   PREC_NONE},
-	[TOKEN_NONE]          = {literal,  NULL,   PREC_NONE},
-	[TOKEN_NOT]           = {unary,    NULL,   PREC_NONE},
-	[TOKEN_OR]            = {NULL,     or_,    PREC_OR},
-	[TOKEN_PRINT]         = {NULL,     NULL,   PREC_NONE},
-	[TOKEN_RETURN]        = {NULL,     NULL,   PREC_NONE},
-	[TOKEN_SELF]          = {self,     NULL,   PREC_NONE},
-	[TOKEN_SUPER]         = {super_,   NULL,   PREC_NONE},
-	[TOKEN_TRUE]          = {literal,  NULL,   PREC_NONE},
-	[TOKEN_WHILE]         = {NULL,     NULL,   PREC_NONE},
+	RULE(TOKEN_LEFT_PAREN,    grouping, call,   PREC_CALL),
+	RULE(TOKEN_RIGHT_PAREN,   NULL,     NULL,   PREC_NONE),
+	RULE(TOKEN_LEFT_BRACE,    NULL,     NULL,   PREC_NONE),
+	RULE(TOKEN_RIGHT_BRACE,   NULL,     NULL,   PREC_NONE),
+	RULE(TOKEN_LEFT_SQUARE,   NULL,     get_,   PREC_CALL),
+	RULE(TOKEN_RIGHT_SQUARE,  NULL,     NULL,   PREC_NONE),
+	RULE(TOKEN_COLON,         NULL,     NULL,   PREC_NONE),
+	RULE(TOKEN_COMMA,         NULL,     NULL,   PREC_NONE),
+	RULE(TOKEN_DOT,           NULL,     dot,    PREC_CALL),
+	RULE(TOKEN_MINUS,         unary,    binary, PREC_TERM),
+	RULE(TOKEN_PLUS,          NULL,     binary, PREC_TERM),
+	RULE(TOKEN_SEMICOLON,     NULL,     NULL,   PREC_NONE),
+	RULE(TOKEN_SOLIDUS,       NULL,     binary, PREC_FACTOR),
+	RULE(TOKEN_ASTERISK,      NULL,     binary, PREC_FACTOR),
+	RULE(TOKEN_MODULO,        NULL,     binary, PREC_FACTOR),
+	RULE(TOKEN_BANG,          unary,    NULL,   PREC_NONE),
+	RULE(TOKEN_BANG_EQUAL,    NULL,     binary, PREC_EQUALITY),
+	RULE(TOKEN_EQUAL,         NULL,     NULL,   PREC_NONE),
+	RULE(TOKEN_EQUAL_EQUAL,   NULL,     binary, PREC_EQUALITY),
+	RULE(TOKEN_GREATER,       NULL,     binary, PREC_COMPARISON),
+	RULE(TOKEN_GREATER_EQUAL, NULL,     binary, PREC_COMPARISON),
+	RULE(TOKEN_LESS,          NULL,     binary, PREC_COMPARISON),
+	RULE(TOKEN_LESS_EQUAL,    NULL,     binary, PREC_COMPARISON),
+	RULE(TOKEN_IDENTIFIER,    variable, NULL,   PREC_NONE),
+	RULE(TOKEN_STRING,        string,   NULL,   PREC_NONE),
+	RULE(TOKEN_NUMBER,        number,   NULL,   PREC_NONE),
+	RULE(TOKEN_CODEPOINT,     NULL,     NULL,   PREC_NONE), /* TODO */
+	RULE(TOKEN_AND,           NULL,     and_,   PREC_AND),
+	RULE(TOKEN_CLASS,         NULL,     NULL,   PREC_NONE),
+	RULE(TOKEN_ELSE,          NULL,     NULL,   PREC_NONE),
+	RULE(TOKEN_FALSE,         literal,  NULL,   PREC_NONE),
+	RULE(TOKEN_FOR,           NULL,     NULL,   PREC_NONE),
+	RULE(TOKEN_DEF,           NULL,     NULL,   PREC_NONE),
+	RULE(TOKEN_IF,            NULL,     NULL,   PREC_NONE),
+	RULE(TOKEN_IN,            NULL,     NULL,   PREC_NONE),
+	RULE(TOKEN_LET,           NULL,     NULL,   PREC_NONE),
+	RULE(TOKEN_NONE,          literal,  NULL,   PREC_NONE),
+	RULE(TOKEN_NOT,           unary,    NULL,   PREC_NONE),
+	RULE(TOKEN_OR,            NULL,     or_,    PREC_OR),
+	RULE(TOKEN_PRINT,         NULL,     NULL,   PREC_NONE),
+	RULE(TOKEN_RETURN,        NULL,     NULL,   PREC_NONE),
+	RULE(TOKEN_SELF,          self,     NULL,   PREC_NONE),
+	RULE(TOKEN_SUPER,         super_,   NULL,   PREC_NONE),
+	RULE(TOKEN_TRUE,          literal,  NULL,   PREC_NONE),
+	RULE(TOKEN_WHILE,         NULL,     NULL,   PREC_NONE),
 
 	/* This is going to get interesting */
-	[TOKEN_INDENTATION]   = {NULL,     NULL,   PREC_NONE},
-	[TOKEN_ERROR]         = {NULL,     NULL,   PREC_NONE},
-	[TOKEN_EOF]           = {NULL,     NULL,   PREC_NONE},
+	RULE(TOKEN_INDENTATION,   NULL,     NULL,   PREC_NONE),
+	RULE(TOKEN_ERROR,         NULL,     NULL,   PREC_NONE),
+	RULE(TOKEN_EOL,           NULL,     NULL,   PREC_NONE),
+	RULE(TOKEN_EOF,           NULL,     NULL,   PREC_NONE),
 };
 
 static void parsePrecedence(Precedence precedence) {
 	advance();
 	ParseFn prefixRule = getRule(parser.previous.type)->prefix;
 	if (prefixRule == NULL) {
-		error("expect expression");
+		errorAtCurrent("expect expression");
 		return;
 	}
 	int canAssign = precedence <= PREC_ASSIGNMENT;
@@ -1189,7 +1207,10 @@ KrkFunction * krk_compile(const char * src, int newScope, char * fileName) {
 
 	while (!match(TOKEN_EOF)) {
 		declaration();
-		if (check(TOKEN_EOL)) advance();
+		if (check(TOKEN_EOL) || check(TOKEN_INDENTATION)) {
+			/* There's probably already and error... */
+			advance();
+		}
 	}
 
 	KrkFunction * function = endCompiler();

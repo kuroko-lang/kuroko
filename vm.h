@@ -1,5 +1,6 @@
 #pragma once
 
+#include <stdarg.h>
 #include "kuroko.h"
 #include "value.h"
 #include "table.h"
@@ -70,6 +71,7 @@ extern KrkValue krk_pop(void);
 extern const char * krk_typeName(KrkValue value);
 extern void krk_defineNative(KrkTable * table, const char * name, NativeFn function);
 extern void krk_attachNamedObject(KrkTable * table, const char name[], KrkObj * obj);
+extern void krk_runtimeError(const char * fmt, ...);
 
 #define KRK_PAUSE_GC() do { vm.flags |= KRK_GC_PAUSED; } while (0)
 #define KRK_RESUME_GC() do { vm.flags &= ~(KRK_GC_PAUSED); } while (0)
