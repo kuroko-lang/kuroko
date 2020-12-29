@@ -65,7 +65,19 @@ KrkString * krk_copyString(const char * chars, size_t length) {
 void krk_printObject(FILE * f, KrkValue value) {
 	switch (OBJECT_TYPE(value)) {
 		case OBJ_STRING:
-			fprintf(f, "%s", AS_CSTRING(value));
+			fprintf(f,"\"");
+			for (char * c = AS_CSTRING(value); *c; ++c) {
+				switch (*c) {
+					/* XXX: Other non-printables should probably be escaped as well. */
+					case '\n': fprintf(f,"\\n"); break;
+					case '\r': fprintf(f,"\\r"); break;
+					case '\t': fprintf(f,"\\t"); break;
+					case '"': fprintf(f,"\\\""); break;
+					case '\033': fprintf(f,"\\["); break;
+					default: fprintf(f,"%c",*c); break;
+				}
+			}
+			fprintf(f,"\"");
 			break;
 		case OBJ_FUNCTION:
 			if (AS_FUNCTION(value)->name == NULL) fprintf(f, "<module>");

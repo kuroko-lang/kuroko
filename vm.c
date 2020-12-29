@@ -29,7 +29,11 @@ static void resetStack() {
 }
 
 static void dumpTraceback() {
-	krk_printObject(stderr, vm.currentException);
+	if (IS_STRING(vm.currentException)) {
+		fprintf(stderr, "%s", AS_CSTRING(vm.currentException));
+	} else {
+		krk_printObject(stderr, vm.currentException);
+	}
 	fprintf(stderr, "\nTraceback, most recent first, %d call frames:\n", (int)vm.frameCount);
 
 	for (size_t i = 0; i <= vm.frameCount - 1; i++) {
@@ -731,8 +735,7 @@ static KrkValue run() {
 					krk_swap();
 					addObjects();
 				}
-				krk_printValue(stdout, krk_pop());
-				fprintf(stdout, "\n");
+				fprintf(stdout, "%s\n", AS_CSTRING(krk_pop()));
 				break;
 			}
 			case OP_RETURN: {

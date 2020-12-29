@@ -151,7 +151,7 @@ static void errorAt(KrkToken * token, const char * message) {
 		token->linePtr,
 		(int)(token->length),
 		token->linePtr + (token->col - 1),
-		(int)(i - token->col - 1 + token->length),
+		(int)(i - (token->col - 1 + token->length)),
 		token->linePtr + (token->col - 1 + token->length),
 		(int)token->col-1,
 		""
@@ -935,7 +935,34 @@ static void unary(int canAssign) {
 }
 
 static void string(int canAssign) {
-	emitConstant(OBJECT_VAL(krk_copyString(parser.previous.start + 1, parser.previous.length - 2)));
+	/* We'll just build with a flexible array like everything else. */
+	size_t stringCapacity = 0;
+	size_t stringLength   = 0;
+	char * stringBytes    = 0;
+#define PUSH_CHAR(c) do { if (stringCapacity < stringLength + 1) { \
+		size_t old = stringCapacity; stringCapacity = GROW_CAPACITY(old); \
+		stringBytes = GROW_ARRAY(char, stringBytes, old, stringCapacity); \
+	} stringBytes[stringLength++] = c; } while (0)
+
+	/* This should capture everything but the quotes. */
+	const char * c = parser.previous.start + 1;
+	while (c < parser.previous.start + parser.previous.length -1) {
+		if (*c == '\\') {
+			switch (c[1]) {
+				case 'n': PUSH_CHAR('\n'); break;
+				case 'r': PUSH_CHAR('\r'); break;
+				case 't': PUSH_CHAR('\t'); break;
+				case '[': PUSH_CHAR('\033'); break;
+				default: PUSH_CHAR(c[1]); break;
+			}
+			c += 2;
+		} else {
+			PUSH_CHAR(*c);
+			c++;
+		}
+	}
+	emitConstant(OBJECT_VAL(krk_copyString(stringBytes,stringLength)));
+	FREE_ARRAY(char,stringBytes,stringCapacity);
 }
 
 /* TODO

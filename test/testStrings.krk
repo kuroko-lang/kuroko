@@ -1,0 +1,5 @@
+# Strings should support at least some basic escape sequences.
+print "hello\nworld \"quotes\""
+# Should print:
+# hello
+# world "quotes"
