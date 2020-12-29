@@ -109,7 +109,8 @@ void krk_printObject(FILE * f, KrkValue value) {
 
 KrkFunction * krk_newFunction() {
 	KrkFunction * function = ALLOCATE_OBJECT(KrkFunction, OBJ_FUNCTION);
-	function->arity = 0;
+	function->requiredArgs = 0;
+	function->defaultArgs = 0;
 	function->upvalueCount = 0;
 	function->name = NULL;
 	krk_initChunk(&function->chunk);

@@ -62,6 +62,20 @@ greet("user")
 # → Hello, user!
 ```
 
+Optional arguments are supported, though as of writing they must default to `None`:
+
+```py
+def greet(name=None):
+    if not name:
+        print "Hello, world!"
+    else:
+        print "Hello, " + name + "!"
+greet()
+gree("user")
+# → Hello, world!
+#   Hello, user!
+```
+
 ### Variables
 
 In a departure from Python, Kuroko has explicit variable declaration and traditional scoping rules. Variables are declared with the `let` keyword and take the value `None` if not defined at declaration time:

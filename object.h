@@ -57,7 +57,8 @@ typedef struct KrkUpvalue {
 
 typedef struct {
 	KrkObj obj;
-	int arity;
+	short requiredArgs;
+	short defaultArgs;
 	size_t upvalueCount;
 	KrkChunk chunk;
 	KrkString * name;

@@ -495,10 +495,16 @@ static void function(FunctionType type, size_t blockWidth) {
 				}
 				continue;
 			}
-			current->function->arity++;
-			if (current->function->arity > 255) errorAtCurrent("too many function parameters");
 			ssize_t paramConstant = parseVariable("Expect parameter name.");
 			defineVariable(paramConstant);
+			if (match(TOKEN_EQUAL)) {
+				consume(TOKEN_NONE,"Optional arguments can only be assigned the default value of None.");
+				current->function->defaultArgs++;
+				if (current->function->defaultArgs > 255) errorAtCurrent("too many function parameters");
+			} else {
+				current->function->requiredArgs++;
+				if (current->function->requiredArgs > 255) errorAtCurrent("too many function parameters");
+			}
 		} while (match(TOKEN_COMMA));
 	}
 	consume(TOKEN_RIGHT_PAREN, "Expected end of parameter list.");

@@ -316,9 +316,13 @@ static KrkValue krk_set_tracing(int argc, KrkValue argv[]) {
 }
 
 static int call(KrkClosure * closure, int argCount) {
-	if (argCount != closure->function->arity) {
-		krk_runtimeError("Wrong number of arguments (%d expected, got %d)", closure->function->arity, argCount);
+	if (argCount < closure->function->requiredArgs || argCount > (closure->function->requiredArgs + closure->function->defaultArgs)) {
+		krk_runtimeError("Wrong number of arguments (at least %d expected, got %d)", closure->function->requiredArgs, argCount);
 		return 0;
+	}
+	while (argCount < (closure->function->requiredArgs + closure->function->defaultArgs)) {
+		krk_push(NONE_VAL());
+		argCount++;
 	}
 	if (vm.frameCount == FRAMES_MAX) {
 		krk_runtimeError("Too many call frames.");
@@ -655,7 +659,7 @@ static KrkClosure * boundNative(NativeFn method, int arity) {
 
 	/* Build a function that calls it */
 	KrkFunction * methodWrapper = krk_newFunction();
-	methodWrapper->arity = arity; /* This is WITHOUT the self reference */
+	methodWrapper->requiredArgs = arity; /* This is WITHOUT the self reference */
 	krk_writeConstant(&methodWrapper->chunk, nativeFunction, 1);
 
 	/* Stack silliness */
