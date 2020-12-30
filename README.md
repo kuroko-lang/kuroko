@@ -163,6 +163,17 @@ print d
 # → {1: 2, foo: bar}
 ```
 
+These built-in collections can also be initialized as expressions, which act as syntactic sugar for the `listOf` and `dictOf` built-in functions:
+
+```py
+let l = [1,2,"three",False] # or listOf(1,2,"three",False)
+print l
+# → [1, 2, three, False]
+let d = {"foo": "bar", 1: 2} # or dictOf("foo","bar",1,2)
+print d
+# → {1: 2, foo: bar}
+```
+
 ### Exceptions
 
 Kuroko provides a mechanism for handling errors at runtime. If an error is not caught, the interpreter will end and print a traceback.
