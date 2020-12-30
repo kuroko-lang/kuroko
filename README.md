@@ -35,14 +35,47 @@ print "Hello, world!"
 # → Hello, world!
 ```
 
-### Basic Integer Operations
+### Basic Types
+
+Kuroko's basic types are integers (which use the platform `long` type), double-precision floats, booleans (`True` and `False`), and `None`.
 
 ```py
 print 1 + 2 + 3
 # → 6
 ```
 
-### String Concatenation
+When integer values are used in arithmetic operations, such as division, the result will be an integer as well:
+
+```py
+print 1 / 2
+# → 0
+```
+
+To get floating-point results, one of the arguments should be explicitly typed or converted:
+
+```py
+print 1 / 2.0
+# → 0.5
+```
+
+Implicit type conversion occurs late in evaluation, so be careful of integer overflows:
+
+```py
+# Probably not what you want:
+print 1000000000 * 1000000000 * 1000000000 * 3.0
+# → -2.07927e+19
+# Try something like this instead:
+print 1000000000.0 * 1000000000 * 1000000000 * 3.0
+# → 3e+27
+```
+
+### Objects
+
+Objects are values which live on the heap. Basic objects include strings, functions, classes, and instances.
+
+Objects are passed by reference, though strings are immutable so this property is only relevant for other object types.
+
+### Strings
 
 Strings can be concatenated, and other values can be appended to them.
 
@@ -89,7 +122,37 @@ print foo
 # → 1
 ```
 
-### Basic Objects
+### Closures
+
+Functions are first-class values and may be returned from functions and stored in variables, producing _closures_.
+
+When a function references local values from an outter scope, such as in the example below, the referenced variables will be captured.
+
+```py
+def foo():
+    let i = 1 # Local to this call to foo()
+    def bar():
+        print i # Reference to outer variable
+        i = i + 1
+    return bar # Produces a closure
+a = foo() # Each copy of `bar` gets its own `i`
+b = foo()
+c = foo()
+a() # So these all print "1" as the first call,
+b() # but each one also increments its own copy of i
+c()
+a() # So further calls will reference that copy
+a()
+a()
+# → 1
+#   1
+#   1
+#   2
+#   3
+#   4
+```
+
+### Basic Objects and Classes
 
 Objects and classes in Kuroko work a lot like Python or similar languages in that they have an arbitrary and mutable set of fields, which may be methods or other values.
 
