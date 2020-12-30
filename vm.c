@@ -420,6 +420,7 @@ static int call(KrkClosure * closure, int argCount) {
 		return 0;
 	}
 	CallFrame * frame = &vm.frames[vm.frameCount++];
+	frame->isInlined = 0;
 	frame->closure = closure;
 	frame->ip = closure->function->chunk.code;
 	frame->slots = (vm.stackTop - argCount - 1) - vm.stack;
@@ -933,6 +934,9 @@ static KrkValue run() {
 				KrkValue result = krk_pop();
 				closeUpvalues(frame->slots);
 				vm.frameCount--;
+				if (frame->isInlined) {
+					vm.frames[vm.frameCount - 1].ip = frame->ip;
+				}
 				if (vm.frameCount == 0) {
 					krk_pop();
 					return result;
@@ -1141,6 +1145,15 @@ static KrkValue run() {
 				krk_push(OBJECT_VAL(_class));
 				_class->filename = frame->closure->function->chunk.filename;
 				krk_tableAddAll(&vm.object_class->methods, &_class->methods);
+				break;
+			}
+			case OP_INLINE_FUNCTION: {
+				CallFrame * newFrame = &vm.frames[vm.frameCount++];
+				newFrame->isInlined = 1;
+				newFrame->closure = frame->closure;
+				newFrame->ip = frame->ip;
+				newFrame->slots = vm.stackTop - vm.stack;
+				frame = newFrame;
 				break;
 			}
 			case OP_GET_PROPERTY_LONG:

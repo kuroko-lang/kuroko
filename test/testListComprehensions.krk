@@ -2,3 +2,10 @@
 for i in [x * 5 for x in [1,7,3,5,9,2,8]]:
     print i
 
+def sum(iterable):
+    let total = 0
+    for v in iterable:
+        total = total + v
+    return total
+
+print sum([x * 3 for x in [y * 7 for y in [1,2,3,4,5]]])

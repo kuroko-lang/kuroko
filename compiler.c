@@ -119,6 +119,20 @@ static void initCompiler(Compiler * compiler, FunctionType type) {
 	}
 }
 
+static void initSubcompiler(Compiler * compiler) {
+	compiler->enclosing = current;
+	current = compiler;
+	compiler->function = compiler->enclosing->function;
+	compiler->type = compiler->enclosing->type;
+	compiler->localCount = 0;
+	compiler->scopeDepth = 1;
+	compiler->localsSpace = 8;
+	compiler->localsSpace = 8;
+	compiler->locals = GROW_ARRAY(Local,NULL,0,8);
+	compiler->upvaluesSpace = 0;
+	compiler->upvalues = NULL;
+}
+
 static void parsePrecedence(Precedence precedence);
 static ssize_t parseVariable(const char * errorMessage);
 static void variable(int canAssign);
@@ -260,6 +274,10 @@ static KrkFunction * endCompiler() {
 
 	current = current->enclosing;
 	return function;
+}
+
+static void endSubcompiler() {
+	current = current->enclosing;
 }
 
 static void freeCompiler(Compiler * compiler) {
@@ -1125,6 +1143,10 @@ static void super_(int canAssign) {
 }
 
 static void list(int canAssign) {
+	Compiler subcompiler;
+	emitByte(OP_INLINE_FUNCTION);
+	initSubcompiler(&subcompiler);
+
 	KrkToken listOf = syntheticToken("listOf");
 	size_t ind = identifierConstant(&listOf);
 	EMIT_CONSTANT_OP(OP_GET_GLOBAL, ind);
@@ -1273,6 +1295,9 @@ static void list(int canAssign) {
 		advance();
 		emitBytes(OP_CALL, 0);
 	}
+	emitByte(OP_RETURN);
+	endSubcompiler();
+	freeCompiler(&subcompiler);
 }
 
 static void dict(int canAssign) {
