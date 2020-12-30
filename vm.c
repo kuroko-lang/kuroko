@@ -730,6 +730,31 @@ static KrkValue _string_length(int argc, KrkValue argv[]) {
 	return INTEGER_VAL(AS_STRING(argv[0])->length);
 }
 
+static KrkValue _string_to_int(int argc, KrkValue argv[]) {
+	if (argc != 1 || !IS_STRING(argv[0])) return NONE_VAL();
+	int base = 10;
+	char * start = AS_CSTRING(argv[0]);
+
+	/*  These special cases for hexadecimal, binary, octal values. */
+	if (start[0] == '0' && (start[1] == 'x' || start[1] == 'X')) {
+		base = 16;
+		start += 2;
+	} else if (start[0] == '0' && (start[1] == 'b' || start[1] == 'B')) {
+		base = 2;
+		start += 2;
+	} else if (start[0] == '0' && (start[1] == 'o' || start[1] == 'O')) {
+		base = 8;
+		start += 2;
+	}
+	long value = strtol(start, NULL, base);
+	return INTEGER_VAL(value);
+}
+
+static KrkValue _string_to_float(int argc, KrkValue argv[]) {
+	if (argc != 1 || !IS_STRING(argv[0])) return NONE_VAL();
+	return FLOATING_VAL(strtod(AS_CSTRING(argv[0]),NULL));
+}
+
 static KrkValue _string_get(int argc, KrkValue argv[]) {
 	if (argc != 2) {
 		krk_runtimeError("Wrong number of arguments to String.__get__");
@@ -1068,6 +1093,10 @@ static KrkValue run() {
 									bindSpecialMethod(_string_length,0);
 								} else if (krk_valuesEqual(OBJECT_VAL(name), vm.specialMethodNames[METHOD_GET])) {
 									bindSpecialMethod(_string_get,1);
+								} else if (krk_valuesEqual(OBJECT_VAL(name), vm.specialMethodNames[METHOD_INT])) {
+									bindSpecialMethod(_string_to_int,0);
+								} else if (krk_valuesEqual(OBJECT_VAL(name), vm.specialMethodNames[METHOD_FLOAT])) {
+									bindSpecialMethod(_string_to_float,0);
 								} else if (krk_valuesEqual(OBJECT_VAL(name), vm.specialMethodNames[METHOD_SET])) {
 									krk_runtimeError("Strings are not mutable.");
 									goto _finishException;

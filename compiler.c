@@ -293,7 +293,7 @@ static void number(int canAssign) {
 	}
 
 	/* If we got here, it's an integer of some sort. */
-	int value = strtol(start, NULL, base);
+	long value = strtol(start, NULL, base);
 	emitConstant(INTEGER_VAL(value));
 }
 
