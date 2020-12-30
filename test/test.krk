@@ -164,14 +164,14 @@ print hash["hello"]
 
 print "Let's make some lists:"
 let l = list()
-print "Length before: " + l.length()
+print "Length before: " + len(l)
 l.append(1)
 l.append(2)
 l.append(3)
-print "Length after: " + l.length()
-for j = 0, j < l.length(), j = j + 1:
+print "Length after: " + len(l)
+for j = 0, j < len(l), j = j + 1:
     print "j=" + j + ", list[j]=" + l[j]
 
-print "Can we call properties of strings?".length() # Of course we can.
+print "Can we call properties of strings?".__len__() # Of course we can.
 
 return 0

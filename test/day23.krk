@@ -12,7 +12,7 @@ def __main__():
     ordering.append(1) # 9 -> 1
     ordering.extend(range(11,1000001))
     ordering.append(5) # 1,000,000 -> 5
-    print "Done, ordering is " + ordering.length()
+    print "Done, ordering is", len(ordering)
 
     print "Starting loop..."
     #__builtins__.set_tracing("tracing=1")

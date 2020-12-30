@@ -548,6 +548,7 @@ void krk_initVM(int flags) {
 	vm.specialMethodNames[METHOD_INT]  = OBJECT_VAL(S("__int__"));
 	vm.specialMethodNames[METHOD_CHR]  = OBJECT_VAL(S("__chr__"));
 	vm.specialMethodNames[METHOD_FLOAT]= OBJECT_VAL(S("__float__"));
+	vm.specialMethodNames[METHOD_LEN]  = OBJECT_VAL(S("__len__"));
 
 	/* Create built-in class `object` */
 	vm.object_class = krk_newClass(S("object"));
@@ -1153,8 +1154,7 @@ static KrkValue run() {
 								break;
 							}
 							case OBJ_STRING: {
-								/* vm.specialMethodNames[NAME_LEN] ? */
-								if (!strcmp(name->chars,"length")) {
+								if (krk_valuesEqual(OBJECT_VAL(name), vm.specialMethodNames[METHOD_LEN])) {
 									bindSpecialMethod(_string_length,0);
 								} else if (krk_valuesEqual(OBJECT_VAL(name), vm.specialMethodNames[METHOD_GET])) {
 									bindSpecialMethod(_string_get,1);

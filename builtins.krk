@@ -7,15 +7,15 @@ class list():
   return __builtins__.list_set(self._list,i,v)
  def append(v):
   return __builtins__.list_append(self._list,v)
- def length():
+ def __len__():
   return __builtins__.list_length(self._list)
  def extend(i):
   for v in i:
    self.append(v)
-  return self.length()
+  return self.__len__()
  def __str__(self):
   let b = "["
-  let l = self.length()
+  let l = self.__len__()
   for i=0,i<l,i=i+1:
    if i>0:
     b=b+", "
@@ -25,7 +25,7 @@ class list():
   let m = self
   def I(i):
    let e=m
-   let l=e.length()
+   let l=e.__len__()
    let x=i
    def _():
     if x>=l:
@@ -53,7 +53,7 @@ class dict():
    out = out + v + ": " + self[v]
   out = out + "}"
   return out
- def length(self):
+ def __len__(self):
   return __builtins__.hash_count(self._map)
  def capacity(self):
   return __builtins__.hash_capacity(self._map)
@@ -98,7 +98,7 @@ class range:
    return iter
   return makeIter(self.min)
 
-def len(obj): return obj.length()
+def len(obj=None): return (obj and obj.__len__()) or 0
 def str(obj=None): return (obj and ("" + obj)) or ""
 def int(obj=None): return (obj and obj.__int__()) or 0
 def float(obj=None): return (obj and obj.__float__()) or 0.0
