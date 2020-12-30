@@ -776,6 +776,10 @@ static int handleException() {
 	return 0;
 }
 
+static KrkValue _noop(int argc, KrkValue argv[]) {
+	return argv[0];
+}
+
 static KrkValue _floating_to_int(int argc, KrkValue argv[]) {
 	return INTEGER_VAL((long)AS_FLOATING(argv[0]));
 }
@@ -1079,12 +1083,16 @@ static KrkValue run() {
 					case VAL_FLOATING: {
 						if (krk_valuesEqual(OBJECT_VAL(name), vm.specialMethodNames[METHOD_INT])) {
 							bindSpecialMethod(_floating_to_int,0);
+						} else if (krk_valuesEqual(OBJECT_VAL(name), vm.specialMethodNames[METHOD_FLOAT])) {
+							bindSpecialMethod(_noop,0);
 						} else goto _undefined;
 						break;
 					}
 					case VAL_INTEGER: {
 						if (krk_valuesEqual(OBJECT_VAL(name), vm.specialMethodNames[METHOD_FLOAT])) {
 							bindSpecialMethod(_int_to_floating,0);
+						} else if (krk_valuesEqual(OBJECT_VAL(name), vm.specialMethodNames[METHOD_INT])) {
+							bindSpecialMethod(_noop,0);
 						} else if (krk_valuesEqual(OBJECT_VAL(name), vm.specialMethodNames[METHOD_CHR])) {
 							bindSpecialMethod(_int_to_char,0);
 						} else goto _undefined;
