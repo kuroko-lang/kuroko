@@ -216,23 +216,20 @@ static void _ungetc(int c) {
 	_unget = c;
 }
 
-static int getch(int immediate) {
+static int getch(int immediate, int timeout) {
 	if (_unget != -1) {
 		int out = _unget;
 		_unget = -1;
 		return out;
 	}
-	if (immediate) {
-		return getc(stdin);
-	}
 	struct pollfd fds[1];
 	fds[0].fd = STDIN_FILENO;
 	fds[0].events = POLLIN;
-	int ret = poll(fds,1,10);
+	int ret = poll(fds,1,(timeout == 1) ? 50 : -1);
 	if (ret > 0 && fds[0].revents & POLLIN) {
 		unsigned char buf[1];
-		int r = read(STDIN_FILENO, buf, 1);
-		if (r != 1) return -1;
+		int unused = read(STDIN_FILENO, buf, 1);
+		(void)unused;
 		return buf[0];
 	} else {
 		return -1;
@@ -1512,13 +1509,8 @@ static int read_line(void) {
 	render_line();
 	place_cursor_actual();
 
-	while ((cin = getch(immediate))) {
-		if (cin == -1) {
-			immediate = 1;
-			render_line();
-			place_cursor_actual();
-			continue;
-		}
+	while ((cin = getch(immediate,timeout))) {
+		if (cin == -1) continue;
 		get_size();
 		if (!decode(&istate, &c, cin)) {
 			if (timeout == 0) {
@@ -1624,10 +1616,14 @@ static int read_line(void) {
 				}
 			} else {
 				if (handle_escape(this_buf,&timeout,c)) {
+					render_line();
+					place_cursor_actual();
 					continue;
 				}
 				immediate = 0;
 			}
+			render_line();
+			place_cursor_actual();
 		} else if (istate == UTF8_REJECT) {
 			istate = 0;
 		}
