@@ -113,6 +113,7 @@ KrkFunction * krk_newFunction() {
 	function->defaultArgs = 0;
 	function->upvalueCount = 0;
 	function->name = NULL;
+	function->docstring = NULL;
 	krk_initChunk(&function->chunk);
 	return function;
 }
@@ -148,6 +149,7 @@ KrkClass * krk_newClass(KrkString * name) {
 	KrkClass * _class = ALLOCATE_OBJECT(KrkClass, OBJ_CLASS);
 	_class->name = name;
 	_class->filename = NULL;
+	_class->docstring = NULL;
 	krk_initTable(&_class->methods);
 	return _class;
 }

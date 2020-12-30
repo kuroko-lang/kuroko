@@ -12,23 +12,6 @@
 
 #include "rline.h"
 
-static KrkValue _krk_repl_help(int argc, KrkValue argv[]) {
-	fprintf(stderr, "Kuroko REPL\n");
-	fprintf(stderr, "Statements entered in the repl will be interpreted directly\n");
-	fprintf(stderr, "in a script context and results will be automatically printed.\n");
-	fprintf(stderr, "Classes, functions, and control flow statements may also be\n");
-	fprintf(stderr, "entered. When in an indented block context, entering a blank\n");
-	fprintf(stderr, "line will mark the end of the top-level statement.\n");
-	fprintf(stderr, "\n");
-	fprintf(stderr, "Some things to try:\n");
-	fprintf(stderr, "   Basic mathematics: 1 + 2 + 3\n");
-	fprintf(stderr, "   Import modules: import system\n");
-	fprintf(stderr, "   Default a function: def method(foo):\n");
-	fprintf(stderr, "                           print foo\n");
-	fprintf(stderr, "\n");
-	return NONE_VAL();
-}
-
 int main(int argc, char * argv[]) {
 	int flags = 0;
 	int opt;
@@ -56,9 +39,6 @@ int main(int argc, char * argv[]) {
 	if (optind == argc) {
 		/* Run the repl */
 		int exit = 0;
-
-		/* Bind help() command */
-		krk_defineNative(&vm.globals, "help", _krk_repl_help);
 
 		rline_exit_string="";
 		rline_exp_set_syntax("krk");

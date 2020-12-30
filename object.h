@@ -62,6 +62,7 @@ typedef struct {
 	size_t upvalueCount;
 	KrkChunk chunk;
 	KrkString * name;
+	KrkString * docstring;
 } KrkFunction;
 
 typedef struct {
@@ -75,6 +76,7 @@ typedef struct {
 	KrkObj obj;
 	KrkString * name;
 	KrkString * filename;
+	KrkString * docstring;
 	KrkTable methods;
 } KrkClass;
 

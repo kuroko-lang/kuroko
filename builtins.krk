@@ -1,4 +1,5 @@
 class list():
+ "Resizable array with direct constant-time indexing."
  def __init__():
   self._list=__builtins__.list_new()
  def __get__(i):
@@ -6,10 +7,12 @@ class list():
  def __set__(i,v):
   return __builtins__.list_set(self._list,i,v)
  def append(v):
+  "Add an entry to the end of the list."
   return __builtins__.list_append(self._list,v)
  def __len__():
   return __builtins__.list_length(self._list)
  def extend(i):
+  "Add all entries from an iterable to the end of this list."
   for v in i:
    self.append(v)
   return self.__len__()
@@ -37,6 +40,7 @@ class list():
   return I(0)
 
 class dict():
+ "Hashmap of arbitrary keys to arbitrary values."
  def __init__(self):
   self._map = __builtins__.hash_new()
  def __get__(self, ind):
@@ -58,6 +62,7 @@ class dict():
  def capacity(self):
   return __builtins__.hash_capacity(self._map)
  def keys(self):
+  "Returns an iterable of the keys in this dictionary."
   class KeyIterator():
    def __init__(self, target):
     self.target = target
@@ -81,6 +86,7 @@ class dict():
   return KeyIterator(self)
 
 class range:
+ "Helpful iterable."
  def __init__(self, min, max):
   self.min = min
   self.max = max
@@ -104,6 +110,19 @@ def int(obj=None): return (obj and obj.__int__()) or 0
 def float(obj=None): return (obj and obj.__float__()) or 0.0
 def dir(obj): return obj.__dir__()
 
-export list,dict,range,len,str,int,float,dir
+def help(obj=None):
+ if not obj:
+  print "Kuroko - Interpreted bytecode VM."
+  print "  usage:"
+  print "    help()      - Displays this message."
+  print "    help(func)  - Displays docstring for function, if present."
+  print "    help(class) - Displays docstring for class, if present."
+ else:
+  try:
+   print obj.__doc__
+  except:
+   print "No docstring available for", obj
+
+export list,dict,range,len,str,int,float,dir,help
 
 return object()

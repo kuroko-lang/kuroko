@@ -137,6 +137,7 @@ static void classDeclaration();
 static void declareVariable();
 static void namedVariable(KrkToken name, int canAssign);
 static void addLocal(KrkToken name);
+static void string(int canAssign);
 
 static void errorAt(KrkToken * token, const char * message) {
 	if (parser.panicMode) return;
@@ -264,12 +265,6 @@ static KrkFunction * endCompiler() {
 static void freeCompiler(Compiler * compiler) {
 	FREE_ARRAY(Local,compiler->locals, compiler->localsSpace);
 	FREE_ARRAY(Upvalue,compiler->upvalues, compiler->upvaluesSpace);
-}
-
-static void endOfLine() {
-	if (!(match(TOKEN_EOL) || match(TOKEN_EOF))) {
-		errorAtCurrent("Expected end of line.");
-	}
 }
 
 static size_t emitConstant(KrkValue value) {
@@ -466,25 +461,37 @@ static void endScope() {
 
 static void block(size_t indentation, const char * blockName) {
 	if (match(TOKEN_EOL)) {
-		/* Begin actual blocks */
 		if (check(TOKEN_INDENTATION)) {
 			size_t currentIndentation = parser.current.length;
-			if (currentIndentation <= indentation) {
-				return;
+			if (currentIndentation <= indentation) return;
+			advance();
+			if (!strcmp(blockName,"def") && match(TOKEN_STRING)) {
+				size_t before = currentChunk()->count;
+				string(0);
+				/* That wrote to the chunk, rewind it; this should only ever go back two bytes
+				 * because this should only happen as the first thing in a function definition,
+				 * and thus this _should_ be the first constant and thus opcode + one-byte operand
+				 * to OP_CONSTANT, but just to be safe we'll actually use the previous offset... */
+				currentChunk()->count = before;
+				/* Retreive the docstring from the constant table */
+				current->function->docstring = AS_STRING(currentChunk()->constants.values[currentChunk()->constants.count-1]);
+				consume(TOKEN_EOL,"Garbage after docstring defintion");
+				if (!check(TOKEN_INDENTATION) || parser.current.length != currentIndentation) {
+					error("Expected at least one statement in function with docstring.");
+				}
+				advance();
 			}
-			do {
+			declaration();
+			while (check(TOKEN_INDENTATION)) {
 				if (parser.current.length < currentIndentation) break;
-				advance(); /* Pass indentation */
+				advance();
 				declaration();
-			} while (check(TOKEN_INDENTATION));
+			};
 #ifdef ENABLE_DEBUGGING
 			if (vm.flags & KRK_ENABLE_DEBUGGING) {
 				fprintf(stderr, "finished with block %s (ind=%d) on line %d, sitting on a %s (len=%d)\n",
-					blockName,
-					(int)indentation,
-					(int)parser.current.line,
-					getRule(parser.current.type)->name,
-					(int)parser.current.length);
+					blockName, (int)indentation, (int)parser.current.line,
+					getRule(parser.current.type)->name, (int)parser.current.length);
 			}
 #endif
 		}
@@ -609,18 +616,29 @@ static void classDeclaration() {
 			if (currentIndentation <= blockWidth) {
 				errorAtCurrent("Unexpected indentation level for class");
 			}
-			do {
+			advance();
+			if (match(TOKEN_STRING)) {
+				string(0);
+				emitByte(OP_DOCSTRING);
+				consume(TOKEN_EOL,"Garbage after docstring defintion");
+				if (!check(TOKEN_INDENTATION) || parser.current.length != currentIndentation) {
+					goto _pop_class;
+				}
+				advance();
+			}
+			method(currentIndentation);
+			while (check(TOKEN_INDENTATION)) {
 				if (parser.current.length < currentIndentation) break;
 				advance(); /* Pass the indentation */
 				method(currentIndentation);
-				if (check(TOKEN_EOL)) endOfLine();
-			} while (check(TOKEN_INDENTATION));
+			}
 #ifdef ENABLE_SCAN_TRACING
 			if (vm.flags & KRK_ENABLE_SCAN_TRACING) fprintf(stderr, "Exiting from class definition on %s\n", getRule(parser.current.type)->name);
 #endif
 			/* Exit from block */
 		}
 	} /* else empty class (and at end of file?) we'll allow it for now... */
+_pop_class:
 	emitByte(OP_POP);
 	if (classCompiler.hasSuperClass) {
 		endScope();
@@ -1247,7 +1265,10 @@ static void declareVariable() {
 	for (ssize_t i = current->localCount - 1; i >= 0; i--) {
 		Local * local = &current->locals[i];
 		if (local->depth != -1 && local->depth < (ssize_t)current->scopeDepth) break;
-		if (identifiersEqual(name, &local->name)) error("Duplicate definition");
+		if (identifiersEqual(name, &local->name)) {
+			error("Duplicate definition");
+			__asm__("int $3");
+		}
 	}
 	addLocal(*name);
 }

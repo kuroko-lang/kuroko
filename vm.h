@@ -27,6 +27,7 @@ typedef enum {
 	METHOD_FLOAT,
 	METHOD_CHR,
 	METHOD_LEN,
+	METHOD_DOC,
 
 	METHOD__MAX,
 } KrkSpecialMethods;

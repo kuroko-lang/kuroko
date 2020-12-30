@@ -74,6 +74,7 @@ size_t krk_disassembleInstruction(KrkChunk * chunk, size_t offset) {
 		SIMPLE(OP_INHERIT)
 		SIMPLE(OP_RAISE)
 		SIMPLE(OP_CLOSE_UPVALUE)
+		SIMPLE(OP_DOCSTRING)
 		CONSTANT(OP_DEFINE_GLOBAL,(void)0)
 		CONSTANT(OP_CONSTANT,(void)0)
 		CONSTANT(OP_GET_GLOBAL,(void)0)

@@ -549,6 +549,7 @@ void krk_initVM(int flags) {
 	vm.specialMethodNames[METHOD_CHR]  = OBJECT_VAL(S("__chr__"));
 	vm.specialMethodNames[METHOD_FLOAT]= OBJECT_VAL(S("__float__"));
 	vm.specialMethodNames[METHOD_LEN]  = OBJECT_VAL(S("__len__"));
+	vm.specialMethodNames[METHOD_DOC]  = OBJECT_VAL(S("__doc__"));
 
 	/* Create built-in class `object` */
 	vm.object_class = krk_newClass(S("object"));
@@ -1148,6 +1149,10 @@ static KrkValue run() {
 								} else if (krk_valuesEqual(OBJECT_VAL(name), vm.specialMethodNames[METHOD_FILE])) {
 									krk_pop();
 									krk_push(OBJECT_VAL(_class->filename));
+								} else if (krk_valuesEqual(OBJECT_VAL(name), vm.specialMethodNames[METHOD_DOC])) {
+									KrkValue out = _class->docstring ? OBJECT_VAL(_class->docstring) : NONE_VAL();
+									krk_pop();
+									krk_push(out);
 								} else {
 									goto _undefined;
 								}
@@ -1165,6 +1170,36 @@ static KrkValue run() {
 								} else if (krk_valuesEqual(OBJECT_VAL(name), vm.specialMethodNames[METHOD_SET])) {
 									krk_runtimeError("Strings are not mutable.");
 									goto _finishException;
+								} else {
+									goto _undefined;
+								}
+								break;
+							}
+							case OBJ_CLOSURE: {
+								if (krk_valuesEqual(OBJECT_VAL(name), vm.specialMethodNames[METHOD_DOC])) {
+									KrkClosure * closure = AS_CLOSURE(krk_peek(0));
+									KrkValue out = closure->function->docstring ? OBJECT_VAL(closure->function->docstring) : NONE_VAL();
+									krk_pop();
+									krk_push(out);
+								} else {
+									goto _undefined;
+								}
+								break;
+							}
+							case OBJ_BOUND_METHOD: {
+								if (krk_valuesEqual(OBJECT_VAL(name), vm.specialMethodNames[METHOD_DOC])) {
+									KrkBoundMethod * boundMethod = AS_BOUND_METHOD(krk_peek(0));
+									KrkObj * method = boundMethod->method;
+									KrkValue out = NONE_VAL();
+									switch (method->type) {
+										case OBJ_CLOSURE: out = ((KrkClosure*)method)->function->docstring ?
+											OBJECT_VAL(((KrkClosure*)method)->function->docstring) : NONE_VAL();
+											break;
+										default:
+											break;
+									}
+									krk_pop();
+									krk_push(out);
 								} else {
 									goto _undefined;
 								}
@@ -1229,6 +1264,11 @@ _undefined:
 				KrkClass * subclass = AS_CLASS(krk_peek(0));
 				krk_tableAddAll(&AS_CLASS(superclass)->methods, &subclass->methods);
 				krk_pop();
+				break;
+			}
+			case OP_DOCSTRING: {
+				KrkClass * me = AS_CLASS(krk_peek(1));
+				me->docstring = AS_STRING(krk_pop());
 				break;
 			}
 			case OP_GET_SUPER_LONG:
