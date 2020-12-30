@@ -263,6 +263,44 @@ KrkValue krk_dictGet(KrkValue dictClass, KrkInstance * dict, KrkValue key) {
 	return krk_pop();
 }
 
+static KrkValue krk_list_of(int argc, KrkValue argv[]) {
+	KrkValue Class;
+	krk_tableGet(&vm.globals,OBJECT_VAL(S("list")), &Class);
+	KrkInstance * outList = krk_newInstance(AS_CLASS(Class));
+	krk_push(OBJECT_VAL(outList));
+	KrkFunction * listContents = krk_newFunction(NULL);
+	krk_push(OBJECT_VAL(listContents));
+	krk_tableSet(&outList->fields, OBJECT_VAL(S("_list")), OBJECT_VAL(listContents));
+	for (int ind = 0; ind < argc; ++ind) {
+		krk_writeValueArray(&listContents->chunk.constants, argv[ind]);
+	}
+	KrkValue out = OBJECT_VAL(outList);
+	krk_pop();
+	krk_pop();
+	return out;
+}
+
+static KrkValue krk_dict_of(int argc, KrkValue argv[]) {
+	if (argc % 2 != 0) {
+		krk_runtimeError("Expected even number of arguments to dictOf");
+		return NONE_VAL();
+	}
+	KrkValue Class;
+	krk_tableGet(&vm.globals,OBJECT_VAL(S("dict")), &Class);
+	KrkInstance * outDict = krk_newInstance(AS_CLASS(Class));
+	krk_push(OBJECT_VAL(outDict));
+	KrkClass * dictContents = krk_newClass(NULL);
+	krk_push(OBJECT_VAL(dictContents));
+	krk_tableSet(&outDict->fields, OBJECT_VAL(S("_map")), OBJECT_VAL(dictContents));
+	for (int ind = 0; ind < argc; ind += 2) {
+		krk_tableSet(&dictContents->methods, argv[ind], argv[ind+1]);
+	}
+	KrkValue out = OBJECT_VAL(outDict);
+	krk_pop();
+	krk_pop();
+	return out;
+}
+
 #ifndef NO_SYSTEM_BINDS
 static KrkValue krk_uname(int argc, KrkValue argv[]) {
 	struct utsname buf;
@@ -485,6 +523,9 @@ void krk_initVM(int flags) {
 	krk_defineNative(&vm.builtins->fields, "sleep", krk_sleep);
 	krk_defineNative(&vm.builtins->fields, "uname", krk_uname);
 #endif
+
+	krk_defineNative(&vm.globals, "listOf", krk_list_of);
+	krk_defineNative(&vm.globals, "dictOf", krk_dict_of);
 
 	/* Now read the builtins module */
 	KrkValue builtinsModule = krk_interpret(_builtins_src,1,"__builtins__","__builtins__");

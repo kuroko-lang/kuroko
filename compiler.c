@@ -1079,14 +1079,49 @@ static void super_(int canAssign) {
 	EMIT_CONSTANT_OP(OP_GET_SUPER, ind);
 }
 
+static void list(int canAssign) {
+	KrkToken listOf = syntheticToken("listOf");
+	size_t ind = identifierConstant(&listOf);
+	EMIT_CONSTANT_OP(OP_GET_GLOBAL, ind);
+	size_t argCount = 0;
+	if (!check(TOKEN_RIGHT_SQUARE)) {
+		do {
+			expression();
+			/* TOKEN_FOR for comprehensions? */
+			if (argCount == 255) error("Too many values in list expression.");
+			argCount++;
+		} while (match(TOKEN_COMMA));
+	}
+	consume(TOKEN_RIGHT_SQUARE,"Expected ] at end of list expression.");
+	emitBytes(OP_CALL, argCount);
+}
+
+static void dict(int canAssign) {
+	KrkToken dictOf = syntheticToken("dictOf");
+	size_t ind = identifierConstant(&dictOf);
+	EMIT_CONSTANT_OP(OP_GET_GLOBAL, ind);
+	size_t argCount = 0;
+	if (!check(TOKEN_RIGHT_BRACE)) {
+		do {
+			expression();
+			consume(TOKEN_COLON, "Expect colon after dict key.");
+			expression();
+			argCount += 2;
+			if (argCount == 254) error("Too many pairs in dict expression.");
+		} while (match(TOKEN_COMMA));
+	}
+	consume(TOKEN_RIGHT_BRACE,"Expected } at end of dict expression.");
+	emitBytes(OP_CALL, argCount);
+}
+
 #define RULE(token, a, b, c) [token] = {# token, a, b, c}
 
 ParseRule rules[] = {
 	RULE(TOKEN_LEFT_PAREN,    grouping, call,   PREC_CALL),
 	RULE(TOKEN_RIGHT_PAREN,   NULL,     NULL,   PREC_NONE),
-	RULE(TOKEN_LEFT_BRACE,    NULL,     NULL,   PREC_NONE),
+	RULE(TOKEN_LEFT_BRACE,    dict,     NULL,   PREC_NONE),
 	RULE(TOKEN_RIGHT_BRACE,   NULL,     NULL,   PREC_NONE),
-	RULE(TOKEN_LEFT_SQUARE,   NULL,     get_,   PREC_CALL),
+	RULE(TOKEN_LEFT_SQUARE,   list,     get_,   PREC_CALL),
 	RULE(TOKEN_RIGHT_SQUARE,  NULL,     NULL,   PREC_NONE),
 	RULE(TOKEN_COLON,         NULL,     NULL,   PREC_NONE),
 	RULE(TOKEN_COMMA,         NULL,     NULL,   PREC_NONE),
