@@ -135,9 +135,9 @@ def foo():
         print i # Reference to outer variable
         i = i + 1
     return bar # Produces a closure
-a = foo() # Each copy of `bar` gets its own `i`
-b = foo()
-c = foo()
+let a = foo() # Each copy of `bar` gets its own `i`
+let b = foo()
+let c = foo()
 a() # So these all print "1" as the first call,
 b() # but each one also increments its own copy of i
 c()
