@@ -99,10 +99,11 @@ class range:
   return makeIter(self.min)
 
 def len(obj): return obj.length()
-def str(obj): return "" + obj
-def int(obj): return obj.__int__()
-def float(obj): return obj.__float__()
+def str(obj=None): return (obj and ("" + obj)) or ""
+def int(obj=None): return (obj and obj.__int__()) or 0
+def float(obj=None): return (obj and obj.__float__()) or 0.0
+def dir(obj): return obj.__dir__()
 
-export list,dict,range,len,str,int,float
+export list,dict,range,len,str,int,float,dir
 
 return object()

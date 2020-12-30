@@ -542,7 +542,7 @@ char * syn_krk_keywords[] = {
 char * syn_krk_types[] = {
 	/* built-in functions */
 	"self", "super", /* implicit in a class method */
-	"len", "str", "int", "float", /* global functions from __builtins__ */
+	"len", "str", "int", "float", "dir", /* global functions from __builtins__ */
 	"list","dict","range", /* builtin classes */
 	"object","exception",
 	NULL

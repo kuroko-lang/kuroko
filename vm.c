@@ -93,9 +93,14 @@ KrkValue krk_peek(int distance) {
 }
 
 void krk_defineNative(KrkTable * table, const char * name, NativeFn function) {
+	KrkNative * func = krk_newNative(function);
+	if (*name == '.') {
+		name++;
+		func->isMethod = 1;
+	}
+	krk_push(OBJECT_VAL(func));
 	krk_push(OBJECT_VAL(krk_copyString(name, (int)strlen(name))));
-	krk_push(OBJECT_VAL(krk_newNative(function)));
-	krk_tableSet(table, vm.stack[0], vm.stack[1]);
+	krk_tableSet(table, vm.stack[1], vm.stack[0]);
 	krk_pop();
 	krk_pop();
 }
@@ -353,9 +358,57 @@ static KrkValue krk_set_tracing(int argc, KrkValue argv[]) {
 	return BOOLEAN_VAL(1);
 }
 
+static KrkValue krk_dirObject(int argc, KrkValue argv[]) {
+	if (argc != 1 || !IS_INSTANCE(argv[0])) {
+		krk_runtimeError( "wrong number of arguments or bad type, got %d\n", argc);
+		return NONE_VAL();
+	}
+
+	/* Obtain self-reference */
+	KrkInstance * self = AS_INSTANCE(argv[0]);
+
+	/* Create a new list instance */
+	KrkValue Class;
+	krk_tableGet(&vm.globals,OBJECT_VAL(S("list")), &Class);
+	KrkInstance * outList = krk_newInstance(AS_CLASS(Class));
+	krk_push(OBJECT_VAL(outList));
+	KrkFunction * listContents = krk_newFunction(NULL);
+	krk_push(OBJECT_VAL(listContents));
+	krk_tableSet(&outList->fields, OBJECT_VAL(S("_list")), OBJECT_VAL(listContents));
+
+	/* First add each method of the class */
+	for (size_t i = 0; i < self->_class->methods.capacity; ++i) {
+		if (self->_class->methods.entries[i].key.type != VAL_NONE) {
+			krk_writeValueArray(&listContents->chunk.constants,
+				self->_class->methods.entries[i].key);
+		}
+	}
+
+	/* Then add each field of the instance */
+	for (size_t i = 0; i < self->fields.capacity; ++i) {
+		if (self->fields.entries[i].key.type != VAL_NONE) {
+			krk_writeValueArray(&listContents->chunk.constants,
+				self->fields.entries[i].key);
+		}
+	}
+
+	/* Prepare output value */
+	KrkValue out = OBJECT_VAL(outList);
+	krk_pop();
+	krk_pop();
+	return out;
+}
+
 static int call(KrkClosure * closure, int argCount) {
-	if (argCount < closure->function->requiredArgs || argCount > (closure->function->requiredArgs + closure->function->defaultArgs)) {
-		krk_runtimeError("Wrong number of arguments (at least %d expected, got %d)", closure->function->requiredArgs, argCount);
+	int minArgs = closure->function->requiredArgs;
+	int maxArgs = minArgs + closure->function->defaultArgs;
+	if (argCount < minArgs || argCount > maxArgs) {
+		krk_runtimeError("%s() takes %s %d argument%s (%d given)",
+		closure->function->name ? closure->function->name->chars : "<unnamed function>",
+		(minArgs == maxArgs) ? "exactly" : (argCount < minArgs ? "at least" : "at most"),
+		(argCount < minArgs) ? minArgs : maxArgs,
+		((argCount < minArgs) ? minArgs : maxArgs) == 1 ? "" : "s",
+		argCount);
 		return 0;
 	}
 	while (argCount < (closure->function->requiredArgs + closure->function->defaultArgs)) {
@@ -499,6 +552,7 @@ void krk_initVM(int flags) {
 	/* Create built-in class `object` */
 	vm.object_class = krk_newClass(S("object"));
 	krk_attachNamedObject(&vm.globals, "object", (KrkObj*)vm.object_class);
+	krk_defineNative(&vm.object_class->methods, ".__dir__", krk_dirObject);
 
 	vm.builtins = krk_newInstance(vm.object_class);
 	krk_attachNamedObject(&vm.globals, "__builtins__", (KrkObj*)vm.builtins);
@@ -531,11 +585,9 @@ void krk_initVM(int flags) {
 	KrkValue builtinsModule = krk_interpret(_builtins_src,1,"__builtins__","__builtins__");
 	if (!IS_OBJECT(builtinsModule)) {
 		fprintf(stderr, "VM startup failure: Failed to load __builtins__ module.\n");
-	} else {
-		krk_attachNamedObject(&vm.builtins->fields, "__builtins__", AS_OBJECT(builtinsModule));
 	}
-	resetStack();
 
+	resetStack();
 	KRK_RESUME_GC();
 }
 
@@ -1048,6 +1100,7 @@ static KrkValue run() {
 				KrkString * name = READ_STRING((opcode == OP_CLASS ? 1 : 3));
 				KrkClass * _class = krk_newClass(name);
 				_class->filename = frame->closure->function->chunk.filename;
+				krk_tableAddAll(&vm.object_class->methods, &_class->methods);
 				krk_push(OBJECT_VAL(_class));
 				break;
 			}
@@ -1106,7 +1159,7 @@ static KrkValue run() {
 								break;
 							}
 							default:
-								break;
+								goto _undefined;
 						}
 						break;
 					case VAL_FLOATING: {
