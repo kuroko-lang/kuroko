@@ -91,6 +91,7 @@ static KrkChunk * currentChunk() {
 
 static void initCompiler(Compiler * compiler, FunctionType type) {
 	compiler->enclosing = current;
+	current = compiler;
 	compiler->function = NULL;
 	compiler->type = type;
 	compiler->localCount = 0;
@@ -100,7 +101,6 @@ static void initCompiler(Compiler * compiler, FunctionType type) {
 	compiler->locals = GROW_ARRAY(Local,NULL,0,8);
 	compiler->upvaluesSpace = 0;
 	compiler->upvalues = NULL;
-	current = compiler;
 
 	if (type != TYPE_MODULE) {
 		current->function->name = krk_copyString(parser.previous.start, parser.previous.length);
@@ -776,16 +776,17 @@ static void forStatement() {
 	if (match(TOKEN_IN)) {
 		defineVariable(loopInd);
 
-		KrkToken _it = syntheticToken("__loop_iter");
-		KrkToken _iter = syntheticToken("__iter__");
-		size_t indLoopIter = current->localCount;
+		/* ITERABLE.__iter__() */
+		beginScope();
+		expression();
+		endScope();
 
-		/* __loop_iter = */
+		KrkToken _it = syntheticToken("__loop_iter");
+		size_t indLoopIter = current->localCount;
 		addLocal(_it);
 		defineVariable(indLoopIter);
 
-		/* ITERABLE.__iter__() */
-		expression();
+		KrkToken _iter = syntheticToken("__iter__");
 		ssize_t ind = identifierConstant(&_iter);
 		EMIT_CONSTANT_OP(OP_GET_PROPERTY, ind);
 		emitBytes(OP_CALL, 0);
@@ -805,8 +806,7 @@ static void forStatement() {
 
 		/* Get the loop iterator again */
 		EMIT_CONSTANT_OP(OP_GET_LOCAL, indLoopIter);
-		emitByte(OP_EQUAL);
-		emitByte(OP_NOT);
+		emitBytes(OP_EQUAL, OP_NOT);
 		exitJump = emitJump(OP_JUMP_IF_FALSE);
 		emitByte(OP_POP);
 
@@ -815,7 +815,9 @@ static void forStatement() {
 		loopStart = currentChunk()->count;
 
 
+		beginScope();
 		expression(); /* condition */
+		endScope();
 		exitJump = emitJump(OP_JUMP_IF_FALSE);
 		emitByte(OP_POP);
 
@@ -823,7 +825,9 @@ static void forStatement() {
 			advance();
 			int bodyJump = emitJump(OP_JUMP);
 			int incrementStart = currentChunk()->count;
+			beginScope();
 			expression();
+			endScope();
 			emitByte(OP_POP);
 
 			emitLoop(loopStart);
@@ -841,6 +845,7 @@ static void forStatement() {
 	emitLoop(loopStart);
 	patchJump(exitJump);
 	emitByte(OP_POP);
+
 	endScope();
 }
 
@@ -1123,16 +1128,151 @@ static void list(int canAssign) {
 	KrkToken listOf = syntheticToken("listOf");
 	size_t ind = identifierConstant(&listOf);
 	EMIT_CONSTANT_OP(OP_GET_GLOBAL, ind);
-	size_t argCount = 0;
 	if (!check(TOKEN_RIGHT_SQUARE)) {
-		do {
+		KrkScanner scannerBefore = krk_tellScanner();
+		Parser  parserBefore = parser;
+		size_t     chunkBefore = currentChunk()->count;
+		expression();
+
+		/* This is a bit complicated and the Pratt parser does not handle it
+		 * well; if we read an expression and then saw a `for`, we need to back
+		 * up and start over, as we'll need to define a variable _after_ it
+		 * gets used in this expression; so we record the parser state before
+		 * reading the first expression of a list constant. If it _is_ a real
+		 * list constant, we'll see a comma next and we can begin the normal
+		 * loop of counting arguments. */
+		if (match(TOKEN_FOR)) {
+			beginScope();
+
+			/* Mark the `listOf` method on the stack as a local so that we can
+			 * put other locals after it and assign to them in bytecode. */
+			ssize_t indListOf = current->localCount;
+			addLocal(listOf);
+			defineVariable(indListOf);
+
+			/* The parser is not the only thing we need to rewind */
+			currentChunk()->count = chunkBefore;
+
+			/* for i=0, */
+			emitConstant(INTEGER_VAL(0));
+			size_t indLoopCounter = current->localCount;
+			addLocal(syntheticToken("__loop_count"));
+			defineVariable(indLoopCounter);
+
+			/* x in... */
+			ssize_t loopInd = current->localCount;
+			varDeclaration();
+			defineVariable(loopInd);
+
+			consume(TOKEN_IN, "Only iterator loops (for ... in ...) are allowed in list comprehensions.");
+
+			/* Call the iterable expression in its own scope to avoid variable confusion,
+			 * especially if the iterable is another list comprehension... */
+			beginScope();
 			expression();
-			/* TOKEN_FOR for comprehensions? */
-			argCount++;
-		} while (match(TOKEN_COMMA));
+			endScope();
+
+			/* iterable... */
+			size_t indLoopIter = current->localCount;
+			addLocal(syntheticToken("__loop_iter"));
+			defineVariable(indLoopIter);
+
+			/* Now try to call .__iter__ on the result to produce our iterator */
+			KrkToken _iter = syntheticToken("__iter__");
+			ssize_t ind = identifierConstant(&_iter);
+			EMIT_CONSTANT_OP(OP_GET_PROPERTY, ind);
+			emitBytes(OP_CALL, 0);
+
+			/* Assign the resulting iterator to indLoopIter */
+			EMIT_CONSTANT_OP(OP_SET_LOCAL, indLoopIter);
+
+			/* Mark the start of the loop */
+			int loopStart = currentChunk()->count;
+
+			/* Call the iterator to get a value for our list */
+			EMIT_CONSTANT_OP(OP_GET_LOCAL, indLoopIter);
+			emitBytes(OP_CALL, 0);
+
+			/* Assign the result to our loop index */
+			EMIT_CONSTANT_OP(OP_SET_LOCAL, loopInd);
+
+			/* Compare the iterator to the loop index;
+			 * our iterators return themselves to say they are done;
+			 * this allows them to return None without any issue,
+			 * and there's no feasible way they can return themselves without
+			 * our intended sentinel meaning, right? Surely? */
+			EMIT_CONSTANT_OP(OP_GET_LOCAL, indLoopIter);
+			emitBytes(OP_EQUAL, OP_NOT);
+			int exitJump = emitJump(OP_JUMP_IF_FALSE);
+			emitByte(OP_POP);
+
+			/* Now we can rewind the scanner to have it parse the original
+			 * expression that uses our iterated values! */
+			KrkScanner scannerAfter = krk_tellScanner();
+			Parser  parserAfter = parser;
+			krk_rewindScanner(scannerBefore);
+			parser = parserBefore;
+			/* ... which should be evaluated in its own scope as well... */
+			beginScope();
+			expression();
+			endScope();
+
+			/* Then we can put the parser back to where it was at the end of
+			 * the iterator expression and continue. */
+			krk_rewindScanner(scannerAfter);
+			parser = parserAfter;
+
+			/* We keep a counter so we can keep track of how many arguments
+			 * are on the stack, which we need in order to find the listOf()
+			 * method above; having run the expression and generated an
+			 * item which is now on the stack, increment the counter */
+			EMIT_CONSTANT_OP(OP_INC, indLoopCounter);
+			/* ... and loop back to the iterator call. */
+			emitLoop(loopStart);
+
+			/* Finally, at this point, we've seen the iterator produce itself
+			 * and we're done receiving objects, so mark this instruction
+			 * offset as the exit target for the OP_JUMP_IF_FALSE above */
+			patchJump(exitJump);
+			/* Parse the ] that indicates the end of the list comprehension */
+			consume(TOKEN_RIGHT_SQUARE,"Expected ] at end of list expression.");
+			/* Pop the last loop expression result which was already stored */
+			emitByte(OP_POP);
+			/* Pull up the native method from the bottom of the stack */
+			EMIT_CONSTANT_OP(OP_GET_LOCAL, indListOf);
+			/* And move it into where we were storing the loop iterator */
+			EMIT_CONSTANT_OP(OP_SET_LOCAL, indLoopIter);
+			/* (And pop it from the top of the stack) */
+			emitByte(OP_POP);
+			/* Then get the counter for our arg count */
+			EMIT_CONSTANT_OP(OP_GET_LOCAL, indLoopCounter);
+			/* And then call the native method which should be ^ that many items down */
+			emitByte(OP_CALL_STACK);
+			/* And then move the result into what _was_ the native method originally */
+			EMIT_CONSTANT_OP(OP_SET_LOCAL, indListOf);
+			/* We only set the loop value as a local so we could define the others,
+			 * so we need to fix the fact that the compiler will assume it needs to
+			 * emit a pop instruction for it. We'll cheat a bit and promote it to
+			 * the upper scope, which should be fine, as it's the bottom of our
+			 * local scope anyway... */
+			current->locals[indListOf].depth--;
+			endScope();
+			/* Once our local scope ends, we can erase the evidence... */
+			current->localCount = indListOf;
+		} else {
+			size_t argCount = 1;
+			while (match(TOKEN_COMMA)) {
+				expression();
+				argCount++;
+			}
+			consume(TOKEN_RIGHT_SQUARE,"Expected ] at end of list expression.");
+			emitBytes(OP_CALL, argCount);
+		}
+	} else {
+		/* Empty list expression */
+		advance();
+		emitBytes(OP_CALL, 0);
 	}
-	consume(TOKEN_RIGHT_SQUARE,"Expected ] at end of list expression.");
-	emitBytes(OP_CALL, argCount);
 }
 
 static void dict(int canAssign) {

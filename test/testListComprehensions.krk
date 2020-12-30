@@ -1,0 +1,4 @@
+# Simple list comprehensions
+for i in [x * 5 for x in [1,7,3,5,9,2,8]]:
+    print i
+

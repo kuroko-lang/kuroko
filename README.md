@@ -237,6 +237,14 @@ print d
 # → {1: 2, foo: bar}
 ```
 
+Lists can also be generated dynamically:
+
+```py
+let fives = [x * 5 for x in [1,2,3,4,5]]
+print fives
+# → [5, 10, 15, 20, 25]
+```
+
 ### Exceptions
 
 Kuroko provides a mechanism for handling errors at runtime. If an error is not caught, the interpreter will end and print a traceback.

@@ -52,6 +52,8 @@ typedef enum {
 	OP_PUSH_TRY,
 	OP_RAISE,
 	OP_DOCSTRING,
+	OP_CALL_STACK,
+	OP_INC,
 
 	OP_CONSTANT_LONG = 128,
 	OP_PRINT_LONG,
@@ -70,6 +72,7 @@ typedef enum {
 	OP_METHOD_LONG,
 	OP_IMPORT_LONG,
 	OP_GET_SUPER_LONG,
+	OP_INC_LONG,
 } KrkOpCode;
 
 /**

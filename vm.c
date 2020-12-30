@@ -880,22 +880,26 @@ static void bindSpecialMethod(NativeFn method, int arity) {
 	KRK_RESUME_GC();
 }
 
+static void dumpStack(CallFrame * frame) {
+	fprintf(stderr, "        | ");
+	size_t i = 0;
+	for (KrkValue * slot = vm.stack; slot < vm.stackTop; slot++) {
+		fprintf(stderr, "[ ");
+		if (i == frame->slots) fprintf(stderr, "*");
+		krk_printValue(stderr, *slot);
+		fprintf(stderr, " ]");
+		i++;
+	}
+	fprintf(stderr, "\n");
+}
+
 static KrkValue run() {
 	CallFrame* frame = &vm.frames[vm.frameCount - 1];
 
 	for (;;) {
 #ifdef ENABLE_DEBUGGING
 		if (vm.flags & KRK_ENABLE_TRACING) {
-			fprintf(stderr, "        | ");
-			size_t i = 0;
-			for (KrkValue * slot = vm.stack; slot < vm.stackTop; slot++) {
-				fprintf(stderr, "[ ");
-				if (i == frame->slots) fprintf(stderr, "*");
-				krk_printValue(stderr, *slot);
-				fprintf(stderr, " ]");
-				i++;
-			}
-			fprintf(stderr, "\n");
+			dumpStack(frame);
 			krk_disassembleInstruction(&frame->closure->function->chunk,
 				(size_t)(frame->ip - frame->closure->function->chunk.code));
 		}
@@ -913,9 +917,12 @@ static KrkValue run() {
 						krk_push(OBJECT_VAL(S("")));
 						krk_push(printable);
 						addObjects();
-						printable = krk_pop();
+						printable = krk_peek(0);
+					} else {
+						krk_push(printable);
 					}
 					fprintf(stdout, "%s%s", AS_CSTRING(printable), (i == args - 1) ? "\n" : " ");
+					krk_pop();
 				}
 				for (uint32_t i = 0; i < args; ++i) {
 					krk_pop();
@@ -1067,9 +1074,27 @@ static KrkValue run() {
 				vm.flags |= KRK_HAS_EXCEPTION;
 				goto _finishException;
 			}
+			/* Sometimes you just want to increment a stack-local integer quickly. */
+			case OP_INC_LONG:
+			case OP_INC: {
+				uint32_t slot = readBytes(frame, operandWidth);
+				vm.stack[frame->slots + slot] = INTEGER_VAL(AS_INTEGER(vm.stack[frame->slots+slot])+1);
+				break;
+			}
 			case OP_CALL_LONG:
 			case OP_CALL: {
 				int argCount = readBytes(frame, operandWidth);
+				if (!callValue(krk_peek(argCount), argCount)) {
+					if (vm.flags & KRK_HAS_EXCEPTION) goto _finishException;
+					return NONE_VAL();
+				}
+				frame = &vm.frames[vm.frameCount - 1];
+				break;
+			}
+			/* This version of the call instruction takes its arity from the
+			 * top of the stack, so we don't have calculate arity at compile time. */
+			case OP_CALL_STACK: {
+				int argCount = AS_INTEGER(krk_pop());
 				if (!callValue(krk_peek(argCount), argCount)) {
 					if (vm.flags & KRK_HAS_EXCEPTION) goto _finishException;
 					return NONE_VAL();
@@ -1113,9 +1138,9 @@ static KrkValue run() {
 			case OP_CLASS: {
 				KrkString * name = READ_STRING(operandWidth);
 				KrkClass * _class = krk_newClass(name);
+				krk_push(OBJECT_VAL(_class));
 				_class->filename = frame->closure->function->chunk.filename;
 				krk_tableAddAll(&vm.object_class->methods, &_class->methods);
-				krk_push(OBJECT_VAL(_class));
 				break;
 			}
 			case OP_GET_PROPERTY_LONG:

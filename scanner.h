@@ -61,6 +61,18 @@ typedef struct {
 	size_t literalWidth;
 } KrkToken;
 
+typedef struct {
+	const char * start;
+	const char * cur;
+	const char * linePtr;
+	size_t line;
+	int startOfLine;
+	int hasUnget;
+	KrkToken unget;
+} KrkScanner;
+
 extern void krk_initScanner(const char * src);
 extern KrkToken krk_scanToken(void);
 extern void krk_ungetToken(KrkToken token);
+extern void krk_rewindScanner(KrkScanner to);
+extern KrkScanner krk_tellScanner(void);

@@ -5,16 +5,6 @@
 #include "kuroko.h"
 #include "scanner.h"
 
-typedef struct {
-	const char * start;
-	const char * cur;
-	const char * linePtr;
-	size_t line;
-	int startOfLine;
-	int hasUnget;
-	KrkToken unget;
-} KrkScanner;
-
 KrkScanner scanner;
 
 void krk_initScanner(const char * src) {
@@ -243,6 +233,13 @@ void krk_ungetToken(KrkToken token) {
 	scanner.unget = token;
 }
 
+void krk_rewindScanner(KrkScanner to) {
+	scanner = to;
+}
+
+KrkScanner krk_tellScanner(void) {
+	return scanner;
+}
 
 KrkToken krk_scanToken() {
 
