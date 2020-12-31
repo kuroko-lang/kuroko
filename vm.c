@@ -1,7 +1,9 @@
 #include <stdarg.h>
 #include <string.h>
 #include <unistd.h>
+#include <dlfcn.h>
 #include <sys/utsname.h>
+#include <sys/stat.h>
 #include "vm.h"
 #include "debug.h"
 #include "memory.h"
@@ -9,7 +11,6 @@
 #include "object.h"
 #include "table.h"
 
-#define MODULE_PATH "modules"
 #define S(c) (krk_copyString(c,sizeof(c)-1))
 
 /* Why is this static... why do we do this to ourselves... */
@@ -463,7 +464,10 @@ static int callValue(KrkValue callee, int argCount) {
 			case OBJ_NATIVE: {
 				NativeFn native = AS_NATIVE(callee);
 				int extraArgs = !!((KrkNative*)AS_OBJECT(callee))->isMethod;
-				KrkValue result = native(argCount + extraArgs, vm.stackTop - argCount - extraArgs);
+				KrkValue * stackCopy = malloc((argCount + extraArgs) * sizeof(KrkValue));
+				memcpy(stackCopy, vm.stackTop - argCount - extraArgs, (argCount + extraArgs) * sizeof(KrkValue));
+				KrkValue result = native(argCount + extraArgs, stackCopy);
+				free(stackCopy);
 				if (vm.stackTop == vm.stack) {
 					/* Runtime error returned from native method */
 					return 0;
@@ -552,6 +556,14 @@ void krk_attachNamedObject(KrkTable * table, const char name[], KrkObj * obj) {
 	krk_pop();
 }
 
+void krk_attachNamedValue(KrkTable * table, const char name[], KrkValue obj) {
+	krk_push(OBJECT_VAL(krk_copyString(name,strlen(name))));
+	krk_push(obj);
+	krk_tableSet(table, krk_peek(1), krk_peek(0));
+	krk_pop();
+	krk_pop();
+}
+
 void krk_initVM(int flags) {
 	vm.flags = flags;
 	KRK_PAUSE_GC();
@@ -629,6 +641,7 @@ void krk_initVM(int flags) {
 void krk_freeVM() {
 	krk_freeTable(&vm.globals);
 	krk_freeTable(&vm.strings);
+	krk_freeTable(&vm.modules);
 	memset(vm.specialMethodNames,0,sizeof(vm.specialMethodNames));
 	krk_freeObjects();
 	FREE_ARRAY(size_t, vm.stack, vm.stackSize);
@@ -926,6 +939,130 @@ static void dumpStack(CallFrame * frame) {
 	fprintf(stderr, "\n");
 }
 
+int krk_loadModule(KrkString * name, KrkValue * moduleOut) {
+	KrkValue modulePaths, modulePathsInternal;
+
+	/* See if the module is already loaded */
+	if (krk_tableGet(&vm.modules, OBJECT_VAL(name), moduleOut)) return 1;
+
+	/* Obtain __builtins__.module_paths */
+	if (!krk_tableGet(&vm.builtins->fields, OBJECT_VAL(S("module_paths")), &modulePaths) || !IS_INSTANCE(modulePaths)) {
+		*moduleOut = NONE_VAL();
+		krk_runtimeError("Internal error: __builtins__.module_paths not defined.");
+		return 0;
+	}
+
+	/* Obtain __builtins__.module_paths._list so we can do lookups directly */
+	if (!krk_tableGet(&(AS_INSTANCE(modulePaths)->fields), OBJECT_VAL(S("_list")), &modulePathsInternal) || !IS_FUNCTION(modulePathsInternal)) {
+		*moduleOut = NONE_VAL();
+		krk_runtimeError("Internal error: __builtins__.module_paths is corrupted or incorrectly set.");
+		return 0;
+	}
+
+	/*
+	 * So maybe storing lists magically as functions to reuse their constants
+	 * tables isn't the _best_ approach, but it works, and until I do something
+	 * else it's what we have, so let's do the most efficient thing and look
+	 * at the function object directly instead of calling _list_length/_get
+	 */
+	int moduleCount = AS_FUNCTION(modulePathsInternal)->chunk.constants.count;
+	if (!moduleCount) {
+		*moduleOut = NONE_VAL();
+		krk_runtimeError("No module search directories are specified, so no modules may be imported.");
+		return 0;
+	}
+
+	struct stat statbuf;
+
+	/* First search for {name}.krk in the module search paths */
+	for (int i = 0; i < moduleCount; ++i, krk_pop()) {
+		krk_push(AS_FUNCTION(modulePathsInternal)->chunk.constants.values[i]);
+		if (!IS_STRING(krk_peek(0))) {
+			*moduleOut = NONE_VAL();
+			krk_runtimeError("Module search paths must be strings; check the search path at index %d", i);
+			return 0;
+		}
+		krk_push(OBJECT_VAL(name));
+		addObjects(); /* Concatenate path... */
+		krk_push(OBJECT_VAL(S(".krk")));
+		addObjects(); /* and file extension */
+
+		char * fileName = AS_CSTRING(krk_peek(0));
+		if (stat(fileName,&statbuf) < 0) continue;
+
+		/* Compile and run the module in a new context and exit the VM when it
+		 * returns to the current call frame; modules should return objects. */
+		int previousExitFrame = vm.exitOnFrame;
+		vm.exitOnFrame = vm.frameCount;
+		*moduleOut = krk_runfile(fileName,1,name->chars,fileName);
+		vm.exitOnFrame = previousExitFrame;
+		if (!IS_OBJECT(*moduleOut)) {
+			krk_runtimeError("Failed to load module '%s' from '%s'", name->chars, fileName);
+			return 0;
+		}
+
+		krk_pop(); /* concatenated filename on stack */
+		krk_push(*moduleOut);
+		krk_tableSet(&vm.modules, OBJECT_VAL(name), *moduleOut);
+		return 1;
+	}
+
+	/* If we didn't find {name}.krk, try {name}.so in the same order */
+	for (int i = 0; i < moduleCount; ++i, krk_pop()) {
+		/* Assume things haven't changed and all of these are strings. */
+		krk_push(AS_FUNCTION(modulePathsInternal)->chunk.constants.values[i]);
+		krk_push(OBJECT_VAL(name));
+		addObjects(); /* this should just be basic concatenation */
+		krk_push(OBJECT_VAL(S(".so")));
+		addObjects();
+
+		char * fileName = AS_CSTRING(krk_peek(0));
+		if (stat(fileName,&statbuf) < 0) continue;
+
+		void * dlRef = dlopen(fileName, RTLD_NOW);
+		if (!dlRef) {
+			*moduleOut = NONE_VAL();
+			krk_runtimeError("Failed to load native module '%s' from shared object '%s'", name->chars, fileName);
+			return 0;
+		}
+
+		krk_push(OBJECT_VAL(S("krk_module_onload_")));
+		krk_push(OBJECT_VAL(name));
+		addObjects();
+
+		char * handlerName = AS_CSTRING(krk_peek(0));
+
+		KrkValue (*moduleOnLoad)();
+		void * out = dlsym(dlRef, handlerName);
+		memcpy(&moduleOnLoad,&out,sizeof(out));
+
+		if (!moduleOnLoad) {
+			*moduleOut = NONE_VAL();
+			krk_runtimeError("Failed to run module initialization method '%s' from shared object '%s'",
+				handlerName, fileName);
+			return 0;
+		}
+
+		krk_pop(); /* onload function */
+
+		*moduleOut = moduleOnLoad();
+		if (!IS_OBJECT(*moduleOut)) {
+			krk_runtimeError("Failed to load module '%s' from '%s'", name->chars, fileName);
+			return 0;
+		}
+
+		krk_pop(); /* filename */
+		krk_push(*moduleOut);
+		krk_tableSet(&vm.modules, OBJECT_VAL(name), *moduleOut);
+		return 1;
+	}
+
+	/* If we still haven't found anything, fail. */
+	*moduleOut = NONE_VAL();
+	krk_runtimeError("No module named '%s'", name->chars);
+	return 0;
+}
+
 static KrkValue run() {
 	CallFrame* frame = &vm.frames[vm.frameCount - 1];
 
@@ -1049,23 +1186,9 @@ static KrkValue run() {
 			case OP_IMPORT: {
 				KrkString * name = READ_STRING(operandWidth);
 				KrkValue module;
-				if (!krk_tableGet(&vm.modules, OBJECT_VAL(name), &module)) {
-					/* Try to open it */
-					char tmp[256];
-					sprintf(tmp, MODULE_PATH "/%s.krk", name->chars);
-					int previousExitFrame = vm.exitOnFrame;
-					vm.exitOnFrame = vm.frameCount;
-					module = krk_runfile(tmp,1,name->chars,tmp);
-					vm.exitOnFrame = previousExitFrame;
-					if (!IS_OBJECT(module)) {
-						krk_runtimeError("Failed to import module - expected to receive an object, but got a %s instead.", krk_typeName(module));
-						goto _finishException;
-					}
-					krk_push(module);
-					krk_tableSet(&vm.modules, OBJECT_VAL(name), module);
-					break;
+				if (!krk_loadModule(name, &module)) {
+					goto _finishException;
 				}
-				krk_push(module);
 				break;
 			}
 			case OP_GET_LOCAL_LONG:

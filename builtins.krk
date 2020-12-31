@@ -125,4 +125,6 @@ def help(obj=None):
 
 export list,dict,range,len,str,int,float,dir,help
 
+__builtins__.module_paths = ["./","./modules/","/home/klange/Projects/kuroko/modules/","/usr/share/kuroko/"]
+
 return object()
