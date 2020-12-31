@@ -895,6 +895,7 @@ static KrkValue _string_get(int argc, KrkValue argv[]) {
 		return NONE_VAL();
 	}
 	int asInt = AS_INTEGER(argv[1]);
+	if (asInt < 0) asInt += (int)AS_STRING(argv[0])->length;
 	if (asInt < 0 || asInt >= (int)AS_STRING(argv[0])->length) {
 		krk_runtimeError("String index out of range: %d", asInt);
 		return NONE_VAL();

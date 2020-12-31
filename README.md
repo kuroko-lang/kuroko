@@ -525,6 +525,21 @@ f[7] = "bar"
 #   You asked to set ind=7 to bar
 ```
 
+### String Slicing
+
+Substrings can be extracted from strings via slicing:
+
+```py
+print "Hello world!"[3:8]
+# → lo wo
+print "Hello world!"[:-1]
+# → Hello world
+print "Hello world!"[-1:]
+# → !
+```
+
+_**NOTE**: Slicing is not yet provided for other types, and step values are currently not supported._
+
 ### String Conversion
 
 If an object implements the `__str__` method, it will be called to produce string values when concatenating or printing.
