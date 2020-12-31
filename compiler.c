@@ -194,14 +194,14 @@ static void advance() {
 	for (;;) {
 		parser.current = krk_scanToken();
 
-#ifdef ENABLE_DEBUGGING
-		if (vm.flags & KRK_ENABLE_DEBUGGING) {
-			fprintf(stderr, "Token %d (start=%p, length=%d) '%.*s' on line %d\n", parser.current.type,
-				parser.current.start,
+#ifdef ENABLE_SCAN_TRACING
+		if (vm.flags & KRK_ENABLE_SCAN_TRACING) {
+			fprintf(stderr, "[%s %d:%d '%.*s'] ",
+				getRule(parser.current.type)->name,
+				(int)parser.current.line,
+				(int)parser.current.col,
 				(int)parser.current.length,
-				(int)parser.current.length,
-				parser.current.start,
-				(int)parser.current.line);
+				parser.current.start);
 		}
 #endif
 
