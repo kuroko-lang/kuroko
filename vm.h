@@ -68,7 +68,8 @@ typedef struct {
 #define KRK_GC_PAUSED           (1 << 10)
 #define KRK_HAS_EXCEPTION       (1 << 11)
 
-extern KrkVM vm;
+extern KrkVM krk_vm;
+#define vm krk_vm
 
 extern void krk_initVM(int flags);
 extern void krk_freeVM(void);

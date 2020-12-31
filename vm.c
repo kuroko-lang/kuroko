@@ -75,7 +75,8 @@ void krk_push(KrkValue value) {
 KrkValue krk_pop() {
 	vm.stackTop--;
 	if (vm.stackTop < vm.stack) {
-		fprintf(stderr, "stack underflow!\n");
+		fprintf(stderr, "Fatal error: stack underflow detected in VM, issuing breakpoint.\n");
+		__asm__ ("int $3");
 		return NONE_VAL();
 	}
 	return *vm.stackTop;
@@ -100,7 +101,7 @@ void krk_defineNative(KrkTable * table, const char * name, NativeFn function) {
 	}
 	krk_push(OBJECT_VAL(func));
 	krk_push(OBJECT_VAL(krk_copyString(name, (int)strlen(name))));
-	krk_tableSet(table, vm.stack[1], vm.stack[0]);
+	krk_tableSet(table, krk_peek(0), krk_peek(1));
 	krk_pop();
 	krk_pop();
 }
@@ -546,7 +547,7 @@ static void defineMethod(KrkString * name) {
 void krk_attachNamedObject(KrkTable * table, const char name[], KrkObj * obj) {
 	krk_push(OBJECT_VAL(krk_copyString(name,strlen(name))));
 	krk_push(OBJECT_VAL(obj));
-	krk_tableSet(table, vm.stack[0], vm.stack[1]);
+	krk_tableSet(table, krk_peek(1), krk_peek(0));
 	krk_pop();
 	krk_pop();
 }
