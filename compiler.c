@@ -70,6 +70,14 @@ typedef struct Compiler {
 	Local  * locals;
 	size_t upvaluesSpace;
 	Upvalue * upvalues;
+
+	size_t loopLocalCount;
+	size_t breakCount;
+	size_t breakSpace;
+	int * breaks;
+	size_t continueCount;
+	size_t continueSpace;
+	int * continues;
 } Compiler;
 
 typedef struct ClassCompiler {
@@ -89,18 +97,38 @@ static KrkChunk * currentChunk() {
 #define EMIT_CONSTANT_OP(opc, arg) do { if (arg < 256) { emitBytes(opc, arg); } \
 	else { emitBytes(opc ## _LONG, arg >> 16); emitBytes(arg >> 8, arg); } } while (0)
 
+static void compilerBase(Compiler * compiler) {
+	compiler->localCount = 0;
+	compiler->localsSpace = 8;
+	compiler->locals = GROW_ARRAY(Local,NULL,0,8);
+	compiler->upvaluesSpace = 0;
+	compiler->upvalues = NULL;
+	compiler->breakCount = 0;
+	compiler->breakSpace = 0;
+	compiler->breaks = NULL;
+	compiler->continueCount = 0;
+	compiler->continueSpace = 0;
+	compiler->continues = NULL;
+	compiler->loopLocalCount = 0;
+}
+
+static void initSubcompiler(Compiler * compiler) {
+	compiler->enclosing = current;
+	current = compiler;
+	compiler->function = compiler->enclosing->function;
+	compiler->type = compiler->enclosing->type;
+	compiler->scopeDepth = 1;
+	compilerBase(compiler);
+}
+
 static void initCompiler(Compiler * compiler, FunctionType type) {
 	compiler->enclosing = current;
 	current = compiler;
 	compiler->function = NULL;
 	compiler->type = type;
-	compiler->localCount = 0;
 	compiler->scopeDepth = 0;
 	compiler->function = krk_newFunction();
-	compiler->localsSpace = 8;
-	compiler->locals = GROW_ARRAY(Local,NULL,0,8);
-	compiler->upvaluesSpace = 0;
-	compiler->upvalues = NULL;
+	compilerBase(compiler);
 
 	if (type != TYPE_MODULE) {
 		current->function->name = krk_copyString(parser.previous.start, parser.previous.length);
@@ -117,20 +145,6 @@ static void initCompiler(Compiler * compiler, FunctionType type) {
 		local->name.start = "";
 		local->name.length = 0;
 	}
-}
-
-static void initSubcompiler(Compiler * compiler) {
-	compiler->enclosing = current;
-	current = compiler;
-	compiler->function = compiler->enclosing->function;
-	compiler->type = compiler->enclosing->type;
-	compiler->localCount = 0;
-	compiler->scopeDepth = 1;
-	compiler->localsSpace = 8;
-	compiler->localsSpace = 8;
-	compiler->locals = GROW_ARRAY(Local,NULL,0,8);
-	compiler->upvaluesSpace = 0;
-	compiler->upvalues = NULL;
 }
 
 static void parsePrecedence(Precedence precedence);
@@ -283,6 +297,8 @@ static void endSubcompiler() {
 static void freeCompiler(Compiler * compiler) {
 	FREE_ARRAY(Local,compiler->locals, compiler->localsSpace);
 	FREE_ARRAY(Upvalue,compiler->upvalues, compiler->upvaluesSpace);
+	FREE_ARRAY(int,compiler->breaks, compiler->breakSpace);
+	FREE_ARRAY(int,compiler->continues, compiler->continueSpace);
 }
 
 static size_t emitConstant(KrkValue value) {
@@ -696,10 +712,20 @@ static void patchJump(int offset) {
 }
 
 static void emitLoop(int loopStart) {
+
+	/* Patch continue statements to point to here, before the loop operation (yes that's silly) */
+	while (current->continueCount > 0 && current->continues[current->continueCount-1] > loopStart) {
+		patchJump(current->continues[current->continueCount-1]);
+		current->continueCount--;
+	}
+
 	emitByte(OP_LOOP);
+
 	int offset = currentChunk()->count - loopStart + 2;
 	if (offset > 0xFFFF) error("offset too big");
 	emitBytes(offset >> 8, offset);
+
+	/* Patch break statements */
 }
 
 static void ifStatement() {
@@ -755,6 +781,40 @@ static void ifStatement() {
 	patchJump(elseJump);
 }
 
+static void patchBreaks(int loopStart) {
+	/* Patch break statements to go here, after the loop operation and operand. */
+	while (current->breakCount > 0 && current->breaks[current->breakCount-1] > loopStart) {
+		patchJump(current->breaks[current->breakCount-1]);
+		current->breakCount--;
+	}
+}
+
+static void breakStatement() {
+	if (current->breakSpace < current->breakCount + 1) {
+		size_t old = current->breakSpace;
+		current->breakSpace = GROW_CAPACITY(old);
+		current->breaks = GROW_ARRAY(int,current->breaks,old,current->breakSpace);
+	}
+
+	for (size_t i = current->loopLocalCount; i < current->localCount; ++i) {
+		emitByte(OP_POP);
+	}
+	current->breaks[current->breakCount++] = emitJump(OP_JUMP);
+}
+
+static void continueStatement() {
+	if (current->continueSpace < current->continueCount + 1) {
+		size_t old = current->continueSpace;
+		current->continueSpace = GROW_CAPACITY(old);
+		current->continues = GROW_ARRAY(int,current->continues,old,current->continueSpace);
+	}
+
+	for (size_t i = current->loopLocalCount; i < current->localCount; ++i) {
+		emitByte(OP_POP);
+	}
+	current->continues[current->continueCount++] = emitJump(OP_JUMP);
+}
+
 static void whileStatement() {
 	size_t blockWidth = (parser.previous.type == TOKEN_INDENTATION) ? parser.previous.length : 0;
 	advance();
@@ -767,14 +827,17 @@ static void whileStatement() {
 	int exitJump = emitJump(OP_JUMP_IF_FALSE);
 	emitByte(OP_POP);
 
+	int oldLocalCount = current->loopLocalCount;
+	current->loopLocalCount = current->localCount;
 	beginScope();
 	block(blockWidth,"while");
 	endScope();
 
+	current->loopLocalCount = oldLocalCount;
 	emitLoop(loopStart);
-
 	patchJump(exitJump);
 	emitByte(OP_POP);
+	patchBreaks(loopStart);
 }
 
 static void forStatement() {
@@ -856,13 +919,17 @@ static void forStatement() {
 
 	consume(TOKEN_COLON,"expect :");
 
+	int oldLocalCount = current->loopLocalCount;
+	current->loopLocalCount = current->localCount;
 	beginScope();
 	block(blockWidth,"for");
 	endScope();
 
+	current->loopLocalCount = oldLocalCount;
 	emitLoop(loopStart);
 	patchJump(exitJump);
 	emitByte(OP_POP);
+	patchBreaks(loopStart);
 
 	endScope();
 }
@@ -970,6 +1037,10 @@ static void statement() {
 			returnStatement();
 		} else if (match(TOKEN_IMPORT)) {
 			importStatement();
+		} else if (match(TOKEN_BREAK)) {
+			breakStatement();
+		} else if (match(TOKEN_CONTINUE)) {
+			continueStatement();
 		} else {
 			expressionStatement();
 		}
@@ -1366,6 +1437,8 @@ ParseRule rules[] = {
 	RULE(TOKEN_SUPER,         super_,   NULL,   PREC_NONE),
 	RULE(TOKEN_TRUE,          literal,  NULL,   PREC_NONE),
 	RULE(TOKEN_WHILE,         NULL,     NULL,   PREC_NONE),
+	RULE(TOKEN_BREAK,         NULL,     NULL,   PREC_NONE),
+	RULE(TOKEN_CONTINUE,      NULL,     NULL,   PREC_NONE),
 
 	/* This is going to get interesting */
 	RULE(TOKEN_INDENTATION,   NULL,     NULL,   PREC_NONE),
