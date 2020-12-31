@@ -30,6 +30,7 @@ typedef enum {
 	METHOD_LEN,
 	METHOD_DOC,
 	METHOD_BASE,
+	METHOD_GETSLICE,
 
 	METHOD__MAX,
 } KrkSpecialMethods;

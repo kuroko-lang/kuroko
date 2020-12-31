@@ -592,6 +592,7 @@ void krk_initVM(int flags) {
 	vm.specialMethodNames[METHOD_LEN]  = OBJECT_VAL(S("__len__"));
 	vm.specialMethodNames[METHOD_DOC]  = OBJECT_VAL(S("__doc__"));
 	vm.specialMethodNames[METHOD_BASE] = OBJECT_VAL(S("__base__"));
+	vm.specialMethodNames[METHOD_GETSLICE] = OBJECT_VAL(S("__getslice__"));
 
 	/* Create built-in class `object` */
 	vm.object_class = krk_newClass(S("object"));
@@ -828,6 +829,31 @@ static KrkValue _string_length(int argc, KrkValue argv[]) {
 		return NONE_VAL();
 	}
 	return INTEGER_VAL(AS_STRING(argv[0])->length);
+}
+
+static KrkValue _string_get_slice(int argc, KrkValue argv[]) {
+	if (argc < 3) { /* 3 because first is us */
+		krk_runtimeError("slice: expected 2 arguments, got %d", argc-1);
+		return NONE_VAL();
+	}
+	if (!IS_STRING(argv[0]) ||
+		!(IS_INTEGER(argv[1]) || IS_NONE(argv[1])) ||
+		!(IS_INTEGER(argv[2]) || IS_NONE(argv[2]))) {
+		krk_runtimeError("slice: expected two integer arguments");
+		return NONE_VAL();
+	}
+	/* bounds check */
+	KrkString * me = AS_STRING(argv[0]);
+	int start = IS_NONE(argv[1]) ? 0 : AS_INTEGER(argv[1]);
+	int end   = IS_NONE(argv[2]) ? (int)me->length : AS_INTEGER(argv[2]);
+	if (start < 0) start = me->length + start;
+	if (start < 0) start = 0;
+	if (end < 0) end = me->length + end;
+	if (start > (int)me->length) start = me->length;
+	if (end > (int)me->length) end = me->length;
+	if (end < start) end = start;
+	int len = end - start;
+	return OBJECT_VAL(krk_copyString(me->chars + start, len));
 }
 
 static KrkValue _string_to_int(int argc, KrkValue argv[]) {
@@ -1365,6 +1391,8 @@ static KrkValue run() {
 									bindSpecialMethod(_string_to_int,0);
 								} else if (krk_valuesEqual(OBJECT_VAL(name), vm.specialMethodNames[METHOD_FLOAT])) {
 									bindSpecialMethod(_string_to_float,0);
+								} else if (krk_valuesEqual(OBJECT_VAL(name), vm.specialMethodNames[METHOD_GETSLICE])) {
+									bindSpecialMethod(_string_get_slice,2);
 								} else if (krk_valuesEqual(OBJECT_VAL(name), vm.specialMethodNames[METHOD_SET])) {
 									krk_runtimeError("Strings are not mutable.");
 									goto _finishException;

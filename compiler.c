@@ -365,21 +365,48 @@ static void call(int canAssign) {
 }
 
 static void get_(int canAssign) {
-	/* Synthesize get */
-	KrkToken _get = syntheticToken("__get__");
-	KrkToken _set = syntheticToken("__set__");
-	size_t indGet = identifierConstant(&_get);
-	size_t indSet = identifierConstant(&_set);
+	int sawColon = 0;
 	size_t offset = currentChunk()->count + 1;
-	emitBytes(OP_GET_PROPERTY, indGet); /* TODO what if it's > 256 */
-	expression();
-	consume(TOKEN_RIGHT_SQUARE, "Expected ending square bracket...");
-	if (canAssign && match(TOKEN_EQUAL)) {
-		expression();
-		currentChunk()->code[offset] = indSet;
-		emitBytes(OP_CALL, 2);
+	emitBytes(OP_GET_PROPERTY, 0xFF);
+	if (match(TOKEN_COLON)) {
+		emitByte(OP_NONE);
+		sawColon = 1;
 	} else {
-		emitBytes(OP_CALL, 1);
+		expression();
+	}
+	if (sawColon || match(TOKEN_COLON)) {
+		if (sawColon && match(TOKEN_COLON)) {
+			error("Step value not supported in slice.");
+			return;
+		}
+		if (match(TOKEN_RIGHT_SQUARE)) {
+			emitByte(OP_NONE);
+		} else {
+			expression();
+			consume(TOKEN_RIGHT_SQUARE, "Expected ending square bracket after slice.");
+		}
+		if (canAssign && match(TOKEN_EQUAL)) {
+			error("Can not assign to slice.");
+		} else {
+			KrkToken _getSlice = syntheticToken("__getslice__");
+			size_t indGet = identifierConstant(&_getSlice);
+			currentChunk()->code[offset] = indGet;
+			emitBytes(OP_CALL, 2);
+		}
+	} else {
+		consume(TOKEN_RIGHT_SQUARE, "Expected ending square bracket after index.");
+		if (canAssign && match(TOKEN_EQUAL)) {
+			KrkToken _set = syntheticToken("__set__");
+			size_t indSet = identifierConstant(&_set);
+			expression();
+			currentChunk()->code[offset] = indSet;
+			emitBytes(OP_CALL, 2);
+		} else {
+			KrkToken _get = syntheticToken("__get__");
+			size_t indGet = identifierConstant(&_get);
+			currentChunk()->code[offset] = indGet;
+			emitBytes(OP_CALL, 1);
+		}
 	}
 }
 
