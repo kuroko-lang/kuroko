@@ -553,6 +553,43 @@ print f
 # → (I am a Foo!)
 ```
 
+### File I/O
+
+The module `fileio` provides an interface for opening, reading, and writing files, including `stdin`/`stdout`/`stderr`.
+
+To open and read the contents of a file:
+
+```py
+import fileio
+let f = fileio.open("README.md","r")
+print f.read()
+f.close()
+```
+
+To write to `stdout` (notably, without automatic line feeds):
+
+```py
+import fileio
+fileio.stdout.write("hello, world")
+```
+
+To read lines from `stdin`:
+
+```py
+import fileio
+
+while True:
+    fileio.stdout.write("Say something: ")
+    fileio.stdout.flush()
+
+    let data = fileio.stdin.readline()
+    if data[-1] == '\n':
+        data = data[:-1]
+    if data == "exit":
+        break
+    print "You said '" + data + "'!"
+```
+
 
 ## About the REPL
 
