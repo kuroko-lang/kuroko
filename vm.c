@@ -691,10 +691,19 @@ MAKE_BIN_OP(subtract,-)
 MAKE_BIN_OP(multiply,*)
 MAKE_BIN_OP(divide,/)
 
-static KrkValue modulo(KrkValue a, KrkValue b) {
-	if (!IS_INTEGER(a) || !IS_INTEGER(b)) return NONE_VAL();
-	return INTEGER_VAL(AS_INTEGER(a) % AS_INTEGER(b));
-}
+#define MAKE_BIT_OP(name,operator) \
+	static KrkValue name (KrkValue a, KrkValue b) { \
+		if (IS_INTEGER(a) && IS_INTEGER(b)) return INTEGER_VAL(AS_INTEGER(a) operator AS_INTEGER(b)); \
+		krk_runtimeError("Incompatible types for binary operand %s: %s and %s", #operator, krk_typeName(a), krk_typeName(b)); \
+		return NONE_VAL(); \
+	}
+
+MAKE_BIT_OP(bitor,|)
+MAKE_BIT_OP(bitxor,^)
+MAKE_BIT_OP(bitand,&)
+MAKE_BIT_OP(shiftleft,<<)
+MAKE_BIT_OP(shiftright,>>)
+MAKE_BIT_OP(modulo,%) /* not a bit op, but doesn't work on floating point */
 
 #define MAKE_COMPARATOR(name, operator) \
 	static KrkValue name (KrkValue a, KrkValue b) { \
@@ -1161,6 +1170,17 @@ static KrkValue run() {
 			case OP_MULTIPLY: BINARY_OP(multiply)
 			case OP_DIVIDE: BINARY_OP(divide)
 			case OP_MODULO: BINARY_OP(modulo)
+			case OP_BITOR: BINARY_OP(bitor)
+			case OP_BITXOR: BINARY_OP(bitxor)
+			case OP_BITAND: BINARY_OP(bitand)
+			case OP_SHIFTLEFT: BINARY_OP(shiftleft)
+			case OP_SHIFTRIGHT: BINARY_OP(shiftright)
+			case OP_BITNEGATE: {
+				KrkValue value = krk_pop();
+				if (IS_INTEGER(value)) krk_push(INTEGER_VAL(~AS_INTEGER(value)));
+				else { krk_runtimeError("Incompatible operand type for bit negation."); goto _finishException; }
+				break;
+			}
 			case OP_NEGATE: {
 				KrkValue value = krk_pop();
 				if (IS_INTEGER(value)) krk_push(INTEGER_VAL(-AS_INTEGER(value)));

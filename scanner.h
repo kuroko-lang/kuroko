@@ -48,6 +48,22 @@ typedef enum {
 	TOKEN_TRY, TOKEN_EXCEPT, TOKEN_RAISE,
 	TOKEN_BREAK, TOKEN_CONTINUE,
 
+	/* Decorators */
+	TOKEN_AT,         /* @ */
+	/* Bitwise operators */
+	TOKEN_CARET,      /* ^ (xor) */
+	TOKEN_AMPERSAND,  /* & (and) */
+	TOKEN_PIPE,       /* | (or) */
+	TOKEN_TILDE,      /* ~ (negate) */
+	/* Shifts */
+	TOKEN_LEFT_SHIFT, /* << */
+	TOKEN_RIGHT_SHIFT,/* >> */
+	/* Assignment shortcuts */
+	TOKEN_PLUS_EQUAL, /* += */
+	TOKEN_MINUS_EQUAL,/* -= */
+	TOKEN_PLUS_PLUS,  /* ++ */
+	TOKEN_MINUS_MINUS,/* -- */
+
 	TOKEN_ERROR,
 	TOKEN_EOF,
 } KrkTokenType;

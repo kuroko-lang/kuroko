@@ -23,10 +23,14 @@ typedef enum {
 	PREC_ASSIGNMENT, /* = */
 	PREC_OR,         /* or */
 	PREC_AND,        /* and */
+	PREC_BITOR,      /* | */
+	PREC_BITXOR,     /* ^ */
+	PREC_BITAND,     /* & */
 	PREC_EQUALITY,   /* == != in */
 	PREC_COMPARISON, /* < > <= >= */
+	PREC_SHIFT,      /* << >> */
 	PREC_TERM,       /* + - */
-	PREC_FACTOR,     /* * */
+	PREC_FACTOR,     /* * / % */
 	PREC_UNARY,      /* ! - not */
 	PREC_CALL,       /* . () */
 	PREC_PRIMARY
@@ -349,6 +353,12 @@ static void binary(int canAssign) {
 		case TOKEN_GREATER_EQUAL: emitBytes(OP_LESS, OP_NOT); break;
 		case TOKEN_LESS:          emitByte(OP_LESS); break;
 		case TOKEN_LESS_EQUAL:    emitBytes(OP_GREATER, OP_NOT); break;
+
+		case TOKEN_PIPE:        emitByte(OP_BITOR); break;
+		case TOKEN_CARET:       emitByte(OP_BITXOR); break;
+		case TOKEN_AMPERSAND:   emitByte(OP_BITAND); break;
+		case TOKEN_LEFT_SHIFT:  emitByte(OP_SHIFTLEFT); break;
+		case TOKEN_RIGHT_SHIFT: emitByte(OP_SHIFTRIGHT); break;
 
 		case TOKEN_PLUS:     emitByte(OP_ADD); break;
 		case TOKEN_MINUS:    emitByte(OP_SUBTRACT); break;
@@ -1089,6 +1099,7 @@ static void unary(int canAssign) {
 
 	switch (operatorType) {
 		case TOKEN_MINUS: emitByte(OP_NEGATE); break;
+		case TOKEN_TILDE: emitByte(OP_BITNEGATE); break;
 
 		/* These are equivalent */
 		case TOKEN_BANG:
@@ -1466,6 +1477,20 @@ ParseRule rules[] = {
 	RULE(TOKEN_WHILE,         NULL,     NULL,   PREC_NONE),
 	RULE(TOKEN_BREAK,         NULL,     NULL,   PREC_NONE),
 	RULE(TOKEN_CONTINUE,      NULL,     NULL,   PREC_NONE),
+
+	RULE(TOKEN_AT,            NULL,     NULL,   PREC_NONE),
+
+	RULE(TOKEN_TILDE,         unary,    NULL,   PREC_NONE),
+	RULE(TOKEN_PIPE,          NULL,     binary, PREC_BITOR),
+	RULE(TOKEN_CARET,         NULL,     binary, PREC_BITXOR),
+	RULE(TOKEN_AMPERSAND,     NULL,     binary, PREC_BITAND),
+	RULE(TOKEN_LEFT_SHIFT,    NULL,     binary, PREC_SHIFT),
+	RULE(TOKEN_RIGHT_SHIFT,   NULL,     binary, PREC_SHIFT),
+
+	RULE(TOKEN_PLUS_EQUAL,    NULL,     NULL,   PREC_NONE),
+	RULE(TOKEN_MINUS_EQUAL,   NULL,     NULL,   PREC_NONE),
+	RULE(TOKEN_PLUS_PLUS,     NULL,     NULL,   PREC_NONE),
+	RULE(TOKEN_MINUS_MINUS,   NULL,     NULL,   PREC_NONE),
 
 	/* This is going to get interesting */
 	RULE(TOKEN_INDENTATION,   NULL,     NULL,   PREC_NONE),
