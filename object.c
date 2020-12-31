@@ -150,6 +150,7 @@ KrkClass * krk_newClass(KrkString * name) {
 	_class->name = name;
 	_class->filename = NULL;
 	_class->docstring = NULL;
+	_class->base = NULL;
 	krk_initTable(&_class->methods);
 	return _class;
 }

@@ -399,6 +399,33 @@ static KrkValue krk_dirObject(int argc, KrkValue argv[]) {
 	return out;
 }
 
+static KrkValue krk_isinstance(int argc, KrkValue argv[]) {
+	if (argc != 2) {
+		krk_runtimeError("isinstance expects 2 arguments, got %d", argc);
+		return NONE_VAL();
+	}
+
+	if (!IS_CLASS(argv[1])) {
+		krk_runtimeError("isinstance() arg 2 must be class");
+		return NONE_VAL();
+	}
+
+	/* Things which are not instances are not instances of anything...
+	 * (for now, there should be fake classes for them later.) */
+	if (!IS_INSTANCE(argv[0])) return BOOLEAN_VAL(0);
+
+	KrkInstance * obj = AS_INSTANCE(argv[0]);
+	KrkClass * obj_class = obj->_class;
+	KrkClass * _class = AS_CLASS(argv[1]);
+
+	while (obj_class) {
+		if (obj_class == _class) return BOOLEAN_VAL(1);
+		obj_class = obj_class->base;
+	}
+
+	return BOOLEAN_VAL(0);
+}
+
 static int call(KrkClosure * closure, int argCount) {
 	int minArgs = closure->function->requiredArgs;
 	int maxArgs = minArgs + closure->function->defaultArgs;
@@ -551,11 +578,14 @@ void krk_initVM(int flags) {
 	vm.specialMethodNames[METHOD_FLOAT]= OBJECT_VAL(S("__float__"));
 	vm.specialMethodNames[METHOD_LEN]  = OBJECT_VAL(S("__len__"));
 	vm.specialMethodNames[METHOD_DOC]  = OBJECT_VAL(S("__doc__"));
+	vm.specialMethodNames[METHOD_BASE] = OBJECT_VAL(S("__base__"));
 
 	/* Create built-in class `object` */
 	vm.object_class = krk_newClass(S("object"));
 	krk_attachNamedObject(&vm.globals, "object", (KrkObj*)vm.object_class);
 	krk_defineNative(&vm.object_class->methods, ".__dir__", krk_dirObject);
+
+	/* Build classes for basic types with __init__ methods to generate them */
 
 	vm.builtins = krk_newInstance(vm.object_class);
 	krk_attachNamedObject(&vm.globals, "__builtins__", (KrkObj*)vm.builtins);
@@ -583,6 +613,7 @@ void krk_initVM(int flags) {
 
 	krk_defineNative(&vm.globals, "listOf", krk_list_of);
 	krk_defineNative(&vm.globals, "dictOf", krk_dict_of);
+	krk_defineNative(&vm.globals, "isinstance", krk_isinstance);
 
 	/* Now read the builtins module */
 	KrkValue builtinsModule = krk_interpret(_builtins_src,1,"__builtins__","__builtins__");
@@ -1144,6 +1175,7 @@ static KrkValue run() {
 				KrkClass * _class = krk_newClass(name);
 				krk_push(OBJECT_VAL(_class));
 				_class->filename = frame->closure->function->chunk.filename;
+				_class->base = vm.object_class;
 				krk_tableAddAll(&vm.object_class->methods, &_class->methods);
 				break;
 			}
@@ -1189,6 +1221,10 @@ static KrkValue run() {
 									krk_push(OBJECT_VAL(_class->filename));
 								} else if (krk_valuesEqual(OBJECT_VAL(name), vm.specialMethodNames[METHOD_DOC])) {
 									KrkValue out = _class->docstring ? OBJECT_VAL(_class->docstring) : NONE_VAL();
+									krk_pop();
+									krk_push(out);
+								} else if (krk_valuesEqual(OBJECT_VAL(name), vm.specialMethodNames[METHOD_BASE])) {
+									KrkValue out = _class->base ? OBJECT_VAL(_class->base) : NONE_VAL();
 									krk_pop();
 									krk_push(out);
 								} else {
@@ -1300,6 +1336,7 @@ _undefined:
 					return NONE_VAL();
 				}
 				KrkClass * subclass = AS_CLASS(krk_peek(0));
+				subclass->base = AS_CLASS(superclass);
 				krk_tableAddAll(&AS_CLASS(superclass)->methods, &subclass->methods);
 				krk_pop();
 				break;

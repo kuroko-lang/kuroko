@@ -72,11 +72,12 @@ typedef struct {
 	size_t upvalueCount;
 } KrkClosure;
 
-typedef struct {
+typedef struct KrkClass {
 	KrkObj obj;
 	KrkString * name;
 	KrkString * filename;
 	KrkString * docstring;
+	struct KrkClass * base;
 	KrkTable methods;
 } KrkClass;
 

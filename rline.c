@@ -541,7 +541,7 @@ char * syn_krk_types[] = {
 	"self", "super", /* implicit in a class method */
 	"len", "str", "int", "float", "dir", /* global functions from __builtins__ */
 	"list","dict","range", /* builtin classes */
-	"object","exception",
+	"object","exception","isinstance",
 	NULL
 };
 
