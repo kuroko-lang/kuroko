@@ -14,13 +14,13 @@ Kuroko inherits some core features by virtue of following _Crafting Interpreters
 
 On top of this, Kuroko has:
 
-- Python-style indentation-driven block syntax.
-- Importable modules, which run once when first imported and return a value (which should generally be an object).
-- `[]` as an overloadable operator (calls `__get__` and `__set__` depending on usage).
-- Built-in types for lists (`list`) and hashmaps (`dict`).
+- Python-style indentation-based block syntax.
+- A syntax-highlighted repl, using ToaruOS's `rline` line editing library.
+- Collection types including `list`s and `dict`s, with `[]` indexing syntax and inline declarations.
+- List comprehensions (`[foo(x) for x in [1,2,3,4]]` and similar expressions).
+- Iterator for loops (`for i in l: ...`).
 - Exception handling with `try`/`except`/`raise`.
-- Syntax-highlighted repl based on ToaruOS's `rline` library.
-- Native support for iterators with `for VAL in ITER:` syntax.
+- A module `import` system for including additional code at runtime.
 
 ## Examples
 
@@ -28,11 +28,18 @@ _**NOTE**: Due to limitations with Github's markdown renderer, these snippets wi
 
 ### Hello World
 
-Kuroko inherits a print statement from its Lox roots, which is similar to Python's:
+Kuroko inherits a print statement from its Lox roots, which is similar to the one in Python 2:
 
 ```py
 print "Hello, world!"
 # → Hello, world!
+```
+
+Multiple expressions can be supplied to `print` and will be concatenated with spaces:
+
+```py
+print "Hello", 42, "!"
+# → Hello 42 !
 ```
 
 ### Basic Types
@@ -107,6 +114,25 @@ greet()
 gree("user")
 # → Hello, world!
 #   Hello, user!
+```
+
+Blocks, including function `def` blocks and control flow structures like `if` and `for`, must be indented with spaces to a level greater than the enclosing block.
+
+You may indent blocks to whatever level you desire, so long as ordering remains consistent, though the recommendtation indentation size is 4 spaces.
+
+Tabs are not valid as indentation and will be ignored. It is recommended that you use an editor which provides a clear visual distinction between tabs and spaces, such as [Bim](https://github.com/klange/bim).
+
+```py
+if False:
+	print "Oh no, that was a tab."
+# → Oh no, that was a tab.
+```
+
+Blocks can also accept a single inline statement:
+
+```py
+if True: print "The first rule of Tautology Club is the first rule of Tautology Club."
+# → The first rule of Tautology Club is the first rule of Tautology Club.
 ```
 
 ### Variables
@@ -203,6 +229,63 @@ o.printFoo()
 ```
 
 Some other special method names include `__get__`, `__set__`, and `__str__`, which will be explained later.
+
+_**Note**: Unlike in Python, most types are not actually instances of classes, though many of the same operations still apply to them._
+
+### Inheritence
+
+Classes may inherit from a single super class:
+
+```py
+class Foo():
+    def __init__():
+        self.type = "foo"
+    def printType():
+        print self.type
+
+class Bar(Foo):
+    def __init__():
+        self.type = "bar"
+
+let bar = Bar()
+bar.printType()
+# → bar
+```
+
+Methods can refer to the super class with the `super` keyword:
+
+```py
+class Foo():
+    def __init__():
+        self.type = "foo"
+    def printType():
+        print self.type
+
+class Bar(Foo):
+    def __init__():
+        self.type = "bar"
+    def printType():
+        super().printType()
+        print "Also, I enjoy long walks on the beach."
+
+let bar = Bar()
+bar.printType()
+# → bar
+#   Also, I enjoy long walks on the beach.
+```
+
+You can determine at runtime if an object is an instance of a class, either directly or through its inheretince chain, with the `isinstance` builtin function:
+
+```py
+class Foo:
+class Bar:
+class Baz(Bar):
+let b = Baz()
+print isinstance(b,Baz), isinstance(b,Bar), isinstance(b,Foo), isinstance(b,object)
+# → True, True, False, True
+```
+
+All classes eventually inherit from the base class `object`, which provides default implementations of some special instance methods.
 
 ### Collections
 
@@ -455,3 +538,21 @@ print f
 # → (I am a Foo!)
 ```
 
+
+## About the REPL
+
+Kuroko's repl provides an interactive environment for executing code and seeing results.
+
+When entering code at the repl, lines ending with colons (`:`) are treated specially - the repl will continue to accept input and automatically insert indentation on a new line. Please note that the repl's understanding of colons is naive: Whitespace or comments after a colon which would normally be accepted by Kuroko's parser will not be understood by the repl - if you want to place a comment after the start of a block statement, be sure that it ends in a colon so you can continue to enter statements.
+
+Pressing backspace when the cursor is preceded by whitespace will delete up to the last column divisible by 4, which should generally delete one level of indentation automatically.
+
+The tab key will also produce spaces when the cursor is at the beginning of the line or preceded entirely with white space.
+
+The repl will display indentation level indicators in preceeding whitespace as a helpful guide.
+
+When a blank line or a line consisting entirely of whitespace is entered, the repl will process the full input.
+
+Code executed in the repl runs in a global scope and reused variable names will overwrite previous definitions, allowing function and class names to be reused.
+
+The repl will display the last value popped from the stack before returning. Note that unlike with the `print` statement, objects printed in this way from the repl will not be converted to strings, so they may display differently.
