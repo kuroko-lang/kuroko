@@ -5,7 +5,7 @@
 #include "kuroko.h"
 #include "scanner.h"
 
-KrkScanner scanner;
+static KrkScanner scanner;
 
 void krk_initScanner(const char * src) {
 	scanner.start = src;

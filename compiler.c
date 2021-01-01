@@ -90,9 +90,9 @@ typedef struct ClassCompiler {
 	int hasSuperClass;
 } ClassCompiler;
 
-Parser parser;
-Compiler * current = NULL;
-ClassCompiler * currentClass = NULL;
+static Parser parser;
+static Compiler * current = NULL;
+static ClassCompiler * currentClass = NULL;
 
 static KrkChunk * currentChunk() {
 	return &current->function->chunk;
