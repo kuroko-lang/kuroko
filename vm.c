@@ -19,7 +19,6 @@ KrkVM vm;
 static KrkValue run();
 static int call(KrkClosure * closure, int argCount);
 static KrkValue krk_isinstance(int argc, KrkValue argv[]);
-static void dumpStack(CallFrame * frame);
 
 extern const char _builtins_src[];
 
@@ -1209,6 +1208,7 @@ static int handleException() {
 	return 0;
 }
 
+#ifdef ENABLE_DEBUGGING
 static void dumpStack(CallFrame * frame) {
 	fprintf(stderr, "        | ");
 	size_t i = 0;
@@ -1221,6 +1221,7 @@ static void dumpStack(CallFrame * frame) {
 	}
 	fprintf(stderr, "\n");
 }
+#endif
 
 int krk_loadModule(KrkString * name, KrkValue * moduleOut) {
 	KrkValue modulePaths, modulePathsInternal;
