@@ -379,6 +379,7 @@ static KrkValue krk_sleep(int argc, KrkValue argv[]) {
 
 static KrkValue krk_set_tracing(int argc, KrkValue argv[]) {
 	if (argc < 1) return NONE_VAL();
+#ifdef DEBUG
 	else if (!strcmp(AS_CSTRING(argv[0]),"tracing=1")) vm.flags |= KRK_ENABLE_TRACING;
 	else if (!strcmp(AS_CSTRING(argv[0]),"debugging=1")) vm.flags |= KRK_ENABLE_DEBUGGING;
 	else if (!strcmp(AS_CSTRING(argv[0]),"scantracing=1")) vm.flags |= KRK_ENABLE_SCAN_TRACING;
@@ -388,6 +389,9 @@ static KrkValue krk_set_tracing(int argc, KrkValue argv[]) {
 	else if (!strcmp(AS_CSTRING(argv[0]),"scantracing=0")) vm.flags &= ~KRK_ENABLE_SCAN_TRACING;
 	else if (!strcmp(AS_CSTRING(argv[0]),"stressgc=0")) vm.flags &= ~KRK_ENABLE_STRESS_GC;
 	return BOOLEAN_VAL(1);
+#else
+	krk_runtimeError(vm.exceptions.typeError,"Debugging is not enabled in this build.");
+#endif
 }
 
 static KrkValue krk_dirObject(int argc, KrkValue argv[]) {
@@ -1374,7 +1378,7 @@ static KrkValue run() {
 	CallFrame* frame = &vm.frames[vm.frameCount - 1];
 
 	for (;;) {
-#ifdef ENABLE_DEBUGGING
+#ifdef ENABLE_TRACING
 		if (vm.flags & KRK_ENABLE_TRACING) {
 			dumpStack(frame);
 			krk_disassembleInstruction(&frame->closure->function->chunk,
