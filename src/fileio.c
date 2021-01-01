@@ -268,6 +268,7 @@ KrkValue krk_module_onload_fileio(void) {
 	krk_defineNative(&FileClass->methods, ".write", krk_file_write);
 	krk_defineNative(&FileClass->methods, ".flush", krk_file_flush);
 	krk_defineNative(&FileClass->methods, ".__str__", krk_file_str);
+	krk_defineNative(&FileClass->methods, ".__repr__", krk_file_str);
 	krk_defineNative(&FileClass->methods, ".__init__", krk_file_reject_init);
 
 	/* Make an instance for stdout, stderr, and stdin */
