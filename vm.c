@@ -2,6 +2,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <dlfcn.h>
+#include <errno.h>
 #include <sys/utsname.h>
 #include <sys/stat.h>
 #include "vm.h"
@@ -1769,7 +1770,12 @@ KrkValue krk_interpret(const char * src, int newScope, char * fromName, char * f
 
 KrkValue krk_runfile(const char * fileName, int newScope, char * fromName, char * fromFile) {
 	FILE * f = fopen(fileName,"r");
-	if (!f) return NONE_VAL();
+	if (!f) {
+		if (!newScope) {
+			fprintf(stderr, "kuroko: could not read file '%s': %s\n", fileName, strerror(errno));
+		}
+		return INTEGER_VAL(errno);
+	}
 
 	fseek(f, 0, SEEK_END);
 	size_t size = ftell(f);
