@@ -1169,7 +1169,7 @@ static void word_right(void) {
 	}
 	while (column < the_line->actual) {
 		column++;
-		if (the_line->text[column].codepoint == ' ') break;
+		if (column < the_line->actual && the_line->text[column].codepoint == ' ') break;
 	}
 	place_cursor_actual();
 }
