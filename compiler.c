@@ -404,17 +404,15 @@ static void assignmentValue(void) {
 }
 
 static void get_(int canAssign) {
-	int sawColon = 0;
-	size_t offset = currentChunk()->count + 1;
-	emitBytes(OP_GET_PROPERTY, 0xFF);
+	int isSlice = 0;
 	if (match(TOKEN_COLON)) {
 		emitByte(OP_NONE);
-		sawColon = 1;
+		isSlice = 1;
 	} else {
 		expression();
 	}
-	if (sawColon || match(TOKEN_COLON)) {
-		if (sawColon && match(TOKEN_COLON)) {
+	if (isSlice || match(TOKEN_COLON)) {
+		if (isSlice && match(TOKEN_COLON)) {
 			error("Step value not supported in slice.");
 			return;
 		}
@@ -427,52 +425,21 @@ static void get_(int canAssign) {
 		if (canAssign && matchAssignment()) {
 			error("Can not assign to slice.");
 		} else {
-			KrkToken _getSlice = syntheticToken("__getslice__");
-			size_t indGet = identifierConstant(&_getSlice);
-			currentChunk()->code[offset] = indGet;
-			emitBytes(OP_CALL, 2);
+			emitByte(OP_INVOKE_GETSLICE);
 		}
 	} else {
 		consume(TOKEN_RIGHT_SQUARE, "Expected ending square bracket after index.");
 		if (canAssign && match(TOKEN_EQUAL)) {
-			KrkToken _set = syntheticToken("__set__");
-			size_t indSet = identifierConstant(&_set);
 			expression();
-			currentChunk()->code[offset] = indSet;
-			emitBytes(OP_CALL, 2);
+			emitByte(OP_INVOKE_SETTER);
 		} else if (canAssign && matchAssignment()) {
-			/* Replace the get with a dup */
-			currentChunk()->code[offset-1] = OP_DUP;
-			currentChunk()->code[offset] = 0;
-			/* obj obj expr */
-			emitBytes(OP_SWAP, 1);
-			/* obj expr obj */
-			KrkToken _get = syntheticToken("__get__");
-			size_t indGet = identifierConstant(&_get);
-			EMIT_CONSTANT_OP(OP_GET_PROPERTY, indGet);
-			/* obj expr obj.__get__ */
+			emitByte(OP_SWAP);
 			emitBytes(OP_DUP, 1);
-			/* obj expr obj.__get__ expr */
-			emitBytes(OP_CALL, 1);
-			/* obj expr obj[expr] */
+			emitByte(OP_INVOKE_GETTER);
 			assignmentValue();
-			/* obj expr obj[expr]+val */
-			emitBytes(OP_DUP, 2);
-			/* obj expr obj[expr]+val obj */
-			KrkToken _set = syntheticToken("__set__");
-			size_t indSet = identifierConstant(&_set);
-			EMIT_CONSTANT_OP(OP_GET_PROPERTY, indSet);
-			/* obj expr obj[expr]+val obj.__set__ */
-			emitBytes(OP_SWAP, 3);
-			/* obj.__set__ expr obj[expr]+val obj */
-			emitByte(OP_POP);
-			/* obj.__set__ expr obj[expr]+val */
-			emitBytes(OP_CALL, 2);
+			emitByte(OP_INVOKE_SETTER);
 		} else {
-			KrkToken _get = syntheticToken("__get__");
-			size_t indGet = identifierConstant(&_get);
-			currentChunk()->code[offset] = indGet;
-			emitBytes(OP_CALL, 1);
+			emitByte(OP_INVOKE_GETTER);
 		}
 	}
 }

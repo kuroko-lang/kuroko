@@ -1,16 +1,5 @@
 class list():
  "Resizable array with direct constant-time indexing."
- def __init__():
-  self._list=__builtins__.list_new()
- def __get__(i):
-  return __builtins__.list_get(self._list,i)
- def __set__(i,v):
-  return __builtins__.list_set(self._list,i,v)
- def append(v):
-  "Add an entry to the end of the list."
-  return __builtins__.list_append(self._list,v)
- def __len__():
-  return __builtins__.list_length(self._list)
  def extend(i):
   "Add all entries from an iterable to the end of this list."
   for v in i:
@@ -23,7 +12,7 @@ class list():
   for i=0,i<l,i=i+1:
    if i>0:
     b+=", "
-   b+=repr(__builtins__.list_get(self._list,i))
+   b+=repr(self[i])
   return b+"]"
  def __iter__(self):
   let m = self
@@ -42,12 +31,6 @@ class list():
 
 class dict():
  "Hashmap of arbitrary keys to arbitrary values."
- def __init__(self):
-  self._map = __builtins__.hash_new()
- def __get__(self, ind):
-  return __builtins__.hash_get(self._map, ind)
- def __set__(self, ind, val):
-  return __builtins__.hash_set(self._map, ind, val)
  def __repr__(self): return self.__str__()
  def __str__(self):
   let out = "{"
@@ -59,10 +42,6 @@ class dict():
    out += repr(v) + ": " + repr(self[v])
   out += "}"
   return out
- def __len__(self):
-  return __builtins__.hash_count(self._map)
- def capacity(self):
-  return __builtins__.hash_capacity(self._map)
  def keys(self):
   "Returns an iterable of the keys in this dictionary."
   class KeyIterator():
@@ -77,7 +56,7 @@ class dict():
      def iter():
       let out = None
       while out == None and i < c:
-       out = __builtins__.hash_key_at_index(m._map,i)
+       out = m._key_at_index(i)
        i++
       if out == None:
        return iter

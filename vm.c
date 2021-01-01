@@ -137,57 +137,62 @@ void krk_defineNative(KrkTable * table, const char * name, NativeFn function) {
 	krk_pop();
 }
 
-static KrkValue krk_expose_hash_new(int argc, KrkValue argv[]) {
-	/* This is absuing the existing object system so it can work without
-	 * having to add any new types to the garbage collector, and yes
-	 * it is absolute terrible, do not use it. */
-	KrkClass * map = krk_newClass(NULL);
-	return OBJECT_VAL(map);
+static KrkValue _dict_init(int argc, KrkValue argv[]) {
+	KrkClass * dict = krk_newClass(NULL);
+	krk_push(OBJECT_VAL(dict));
+	krk_tableSet(&AS_INSTANCE(argv[0])->fields, vm.specialMethodNames[METHOD_DICT_INT], OBJECT_VAL(dict));
+	krk_pop();
+	return argv[0];
 }
 
-static KrkValue krk_expose_hash_get(int argc, KrkValue argv[]) {
-	if (argc < 2 || !IS_CLASS(argv[0])) {
+static KrkValue _dict_get(int argc, KrkValue argv[]) {
+	if (argc < 2) {
 		krk_runtimeError(vm.exceptions.argumentError, "wrong number of arguments");
 		return NONE_VAL();
 	}
-	KrkClass * map = AS_CLASS(argv[0]);
-	KrkValue out = NONE_VAL();
-	if (!krk_tableGet(&map->methods, argv[1], &out)) {
+	KrkValue _dict_internal;
+	krk_tableGet(&AS_INSTANCE(argv[0])->fields, vm.specialMethodNames[METHOD_DICT_INT], &_dict_internal);
+	KrkValue out;
+	if (!krk_tableGet(&AS_CLASS(_dict_internal)->methods, argv[1], &out)) {
 		krk_runtimeError(vm.exceptions.keyError, "key error");
 	}
 	return out;
 }
 
-static KrkValue krk_expose_hash_set(int argc, KrkValue argv[]) {
-	if (argc < 3 || !IS_CLASS(argv[0])) {
+static KrkValue _dict_set(int argc, KrkValue argv[]) {
+	if (argc < 3) {
 		krk_runtimeError(vm.exceptions.argumentError, "wrong number of arguments");
 		return NONE_VAL();
 	}
-	KrkClass * map = AS_CLASS(argv[0]);
-	krk_tableSet(&map->methods, argv[1], argv[2]);
-	return BOOLEAN_VAL(1);
+	KrkValue _dict_internal;
+	krk_tableGet(&AS_INSTANCE(argv[0])->fields, vm.specialMethodNames[METHOD_DICT_INT], &_dict_internal);
+	krk_tableSet(&AS_CLASS(_dict_internal)->methods, argv[1], argv[2]);
+	return NONE_VAL();
 }
 
-static KrkValue krk_expose_hash_capacity(int argc, KrkValue argv[]) {
-	if (argc < 1 || !IS_CLASS(argv[0])) {
+static KrkValue _dict_len(int argc, KrkValue argv[]) {
+	if (argc < 1) {
 		krk_runtimeError(vm.exceptions.argumentError, "wrong number of arguments");
 		return NONE_VAL();
 	}
-	KrkClass * map = AS_CLASS(argv[0]);
-	return INTEGER_VAL(map->methods.capacity);
+	KrkValue _dict_internal;
+	krk_tableGet(&AS_INSTANCE(argv[0])->fields, vm.specialMethodNames[METHOD_DICT_INT], &_dict_internal);
+	return INTEGER_VAL(AS_CLASS(_dict_internal)->methods.count);
 }
 
-static KrkValue krk_expose_hash_count(int argc, KrkValue argv[]) {
-	if (argc < 1 || !IS_CLASS(argv[0])) {
+static KrkValue _dict_capacity(int argc, KrkValue argv[]) {
+	if (argc < 1) {
 		krk_runtimeError(vm.exceptions.argumentError, "wrong number of arguments");
 		return NONE_VAL();
 	}
-	KrkClass * map = AS_CLASS(argv[0]);
-	return INTEGER_VAL(map->methods.count);
+	KrkValue _dict_internal;
+	krk_tableGet(&AS_INSTANCE(argv[0])->fields, vm.specialMethodNames[METHOD_DICT_INT], &_dict_internal);
+	return INTEGER_VAL(AS_CLASS(_dict_internal)->methods.capacity);
 }
 
-static KrkValue krk_expose_hash_key_at_index(int argc, KrkValue argv[]) {
-	if (argc < 2 || !IS_CLASS(argv[0])) {
+
+static KrkValue _dict_key_at_index(int argc, KrkValue argv[]) {
+	if (argc < 2) {
 		krk_runtimeError(vm.exceptions.argumentError, "wrong number of arguments");
 		return NONE_VAL();
 	}
@@ -196,66 +201,74 @@ static KrkValue krk_expose_hash_key_at_index(int argc, KrkValue argv[]) {
 		return NONE_VAL();
 	}
 	int i = AS_INTEGER(argv[1]);
-	KrkClass * map = AS_CLASS(argv[0]);
-	if (i < 0 || i > (int)map->methods.capacity) {
+	KrkValue _dict_internal;
+	krk_tableGet(&AS_INSTANCE(argv[0])->fields, vm.specialMethodNames[METHOD_DICT_INT], &_dict_internal);
+	if (i < 0 || i > (int)AS_CLASS(_dict_internal)->methods.capacity) {
 		krk_runtimeError(vm.exceptions.indexError, "hash table index is out of range: %d", i);
 		return NONE_VAL();
 	}
-	KrkTableEntry entry = map->methods.entries[i];
+	KrkTableEntry entry = AS_CLASS(_dict_internal)->methods.entries[i];
 	return entry.key;
 }
 
-static KrkValue krk_expose_list_new(int argc, KrkValue argv[]) {
+static KrkValue _list_init(int argc, KrkValue argv[]) {
 	KrkFunction * list = krk_newFunction(NULL);
-	return OBJECT_VAL(list);
+	krk_push(OBJECT_VAL(list));
+	krk_tableSet(&AS_INSTANCE(argv[0])->fields, vm.specialMethodNames[METHOD_LIST_INT], OBJECT_VAL(list));
+	krk_pop();
+	return argv[0];
 }
 
-static KrkValue krk_expose_list_get(int argc, KrkValue argv[]) {
-	if (argc < 2 || !IS_FUNCTION(argv[0]) || !IS_INTEGER(argv[1])) {
+static KrkValue _list_get(int argc, KrkValue argv[]) {
+	if (argc < 2 || !IS_INTEGER(argv[1])) {
 		krk_runtimeError(vm.exceptions.argumentError, "wrong number or type of arguments");
 		return NONE_VAL();
 	}
-	KrkFunction * list = AS_FUNCTION(argv[0]);
+	KrkValue _list_internal;
+	krk_tableGet(&AS_INSTANCE(argv[0])->fields, vm.specialMethodNames[METHOD_LIST_INT], &_list_internal);
 	int index = AS_INTEGER(argv[1]);
-	if (index < 0 || index >= (int)list->chunk.constants.count) {
+	if (index < 0 || index >= (int)AS_FUNCTION(_list_internal)->chunk.constants.count) {
 		krk_runtimeError(vm.exceptions.indexError, "index is out of range: %d", index);
 		return NONE_VAL();
 	}
-	return list->chunk.constants.values[index];
+	return AS_FUNCTION(_list_internal)->chunk.constants.values[index];
 }
 
-static KrkValue krk_expose_list_set(int argc, KrkValue argv[]) {
-	if (argc < 3 || !IS_FUNCTION(argv[0]) || !IS_INTEGER(argv[1])) {
+static KrkValue _list_set(int argc, KrkValue argv[]) {
+	if (argc < 3 || !IS_INTEGER(argv[1])) {
 		krk_runtimeError(vm.exceptions.argumentError, "wrong number or type of arguments");
 		return NONE_VAL();
 	}
-	KrkFunction * list = AS_FUNCTION(argv[0]);
+	KrkValue _list_internal;
+	krk_tableGet(&AS_INSTANCE(argv[0])->fields, vm.specialMethodNames[METHOD_LIST_INT], &_list_internal);
 	int index = AS_INTEGER(argv[1]);
-	if (index < 0 || index >= (int)list->chunk.constants.count) {
+	if (index < 0 || index >= (int)AS_FUNCTION(_list_internal)->chunk.constants.count) {
 		krk_runtimeError(vm.exceptions.indexError, "index is out of range: %d", index);
 		return NONE_VAL();
 	}
-	list->chunk.constants.values[index] = argv[2];
-	return BOOLEAN_VAL(1);
+	AS_FUNCTION(_list_internal)->chunk.constants.values[index] = argv[2];
+	return NONE_VAL();
 }
 
-static KrkValue krk_expose_list_append(int argc, KrkValue argv[]) {
-	if (argc < 2 || !IS_FUNCTION(argv[0])) {
+static KrkValue _list_append(int argc, KrkValue argv[]) {
+	if (argc < 2) {
 		krk_runtimeError(vm.exceptions.argumentError, "wrong number or type of arguments");
 		return NONE_VAL();
 	}
-	KrkFunction * list = AS_FUNCTION(argv[0]);
-	krk_writeValueArray(&list->chunk.constants, argv[1]);
-	return INTEGER_VAL(list->chunk.constants.count-1);
+	KrkValue _list_internal;
+	krk_tableGet(&AS_INSTANCE(argv[0])->fields, vm.specialMethodNames[METHOD_LIST_INT], &_list_internal);
+	krk_writeValueArray(&AS_FUNCTION(_list_internal)->chunk.constants, argv[1]);
+	return NONE_VAL();
 }
 
-static KrkValue krk_expose_list_length(int argc, KrkValue argv[]) {
-	if (argc < 1 || !IS_FUNCTION(argv[0])) {
+static KrkValue _list_len(int argc, KrkValue argv[]) {
+	if (argc < 1) {
 		krk_runtimeError(vm.exceptions.argumentError, "wrong number or type of arguments");
 		return NONE_VAL();
 	}
-	KrkFunction * list = AS_FUNCTION(argv[0]);
-	return INTEGER_VAL(list->chunk.constants.count);
+	KrkValue _list_internal;
+	krk_tableGet(&AS_INSTANCE(argv[0])->fields, vm.specialMethodNames[METHOD_LIST_INT], &_list_internal);
+	return INTEGER_VAL(AS_FUNCTION(_list_internal)->chunk.constants.count);
 }
 
 KrkValue krk_runNext(void) {
@@ -307,7 +320,7 @@ static KrkValue krk_list_of(int argc, KrkValue argv[]) {
 	krk_push(OBJECT_VAL(outList));
 	KrkFunction * listContents = krk_newFunction(NULL);
 	krk_push(OBJECT_VAL(listContents));
-	krk_tableSet(&outList->fields, OBJECT_VAL(S("_list")), OBJECT_VAL(listContents));
+	krk_tableSet(&outList->fields, vm.specialMethodNames[METHOD_LIST_INT], OBJECT_VAL(listContents));
 	for (int ind = 0; ind < argc; ++ind) {
 		krk_writeValueArray(&listContents->chunk.constants, argv[ind]);
 	}
@@ -328,7 +341,7 @@ static KrkValue krk_dict_of(int argc, KrkValue argv[]) {
 	krk_push(OBJECT_VAL(outDict));
 	KrkClass * dictContents = krk_newClass(NULL);
 	krk_push(OBJECT_VAL(dictContents));
-	krk_tableSet(&outDict->fields, OBJECT_VAL(S("_map")), OBJECT_VAL(dictContents));
+	krk_tableSet(&outDict->fields, vm.specialMethodNames[METHOD_DICT_INT], OBJECT_VAL(dictContents));
 	for (int ind = 0; ind < argc; ind += 2) {
 		krk_tableSet(&dictContents->methods, argv[ind], argv[ind+1]);
 	}
@@ -831,7 +844,7 @@ static KrkValue _closure_str(int argc, KrkValue argv[]) {
 	size_t len = AS_STRING(s)->length + sizeof("<function >");
 	char * tmp = malloc(len);
 	sprintf(tmp, "<function %s>", AS_CSTRING(s));
-	s = OBJECT_VAL(krk_copyString(tmp,len));
+	s = OBJECT_VAL(krk_copyString(tmp,len-1));
 	free(tmp);
 	krk_pop();
 	return s;
@@ -843,8 +856,8 @@ static KrkValue _bound_str(int argc, KrkValue argv[]) {
 
 	size_t len = AS_STRING(s)->length + sizeof("<method >");
 	char * tmp = malloc(len);
-	sprintf(tmp, "<metod %s>", AS_CSTRING(s));
-	s = OBJECT_VAL(krk_copyString(tmp,len));
+	sprintf(tmp, "<method %s>", AS_CSTRING(s));
+	s = OBJECT_VAL(krk_copyString(tmp,len-1));
 	free(tmp);
 	krk_pop();
 	return s;
@@ -946,6 +959,8 @@ void krk_initVM(int flags) {
 	vm.specialMethodNames[METHOD_DOC]  = OBJECT_VAL(S("__doc__"));
 	vm.specialMethodNames[METHOD_BASE] = OBJECT_VAL(S("__base__"));
 	vm.specialMethodNames[METHOD_GETSLICE] = OBJECT_VAL(S("__getslice__"));
+	vm.specialMethodNames[METHOD_LIST_INT] = OBJECT_VAL(S("__list"));
+	vm.specialMethodNames[METHOD_DICT_INT] = OBJECT_VAL(S("__dict"));
 
 	/* Create built-in class `object` */
 	vm.objectClass = krk_newClass(S("object"));
@@ -1018,18 +1033,10 @@ void krk_initVM(int flags) {
 	krk_defineNative(&vm.baseClasses.methodClass->methods, ":__name__", _bound_get_name);
 	krk_defineNative(&vm.baseClasses.methodClass->methods, ":__file__", _bound_get_file);
 
-	krk_defineNative(&vm.builtins->fields, "hash_new", krk_expose_hash_new);
-	krk_defineNative(&vm.builtins->fields, "hash_set", krk_expose_hash_set);
-	krk_defineNative(&vm.builtins->fields, "hash_get", krk_expose_hash_get);
-	krk_defineNative(&vm.builtins->fields, "hash_key_at_index", krk_expose_hash_key_at_index);
-	krk_defineNative(&vm.builtins->fields, "hash_capacity", krk_expose_hash_capacity);
-	krk_defineNative(&vm.builtins->fields, "hash_count", krk_expose_hash_count);
-
-	krk_defineNative(&vm.builtins->fields, "list_new", krk_expose_list_new);
-	krk_defineNative(&vm.builtins->fields, "list_get", krk_expose_list_get);
-	krk_defineNative(&vm.builtins->fields, "list_set", krk_expose_list_set);
-	krk_defineNative(&vm.builtins->fields, "list_append", krk_expose_list_append);
-	krk_defineNative(&vm.builtins->fields, "list_length", krk_expose_list_length);
+	krk_defineNative(&vm.globals, "listOf", krk_list_of);
+	krk_defineNative(&vm.globals, "dictOf", krk_dict_of);
+	krk_defineNative(&vm.globals, "isinstance", krk_isinstance);
+	krk_defineNative(&vm.globals, "type", krk_typeOf);
 
 	krk_defineNative(&vm.builtins->fields, "set_tracing", krk_set_tracing);
 
@@ -1039,15 +1046,29 @@ void krk_initVM(int flags) {
 	krk_defineNative(&vm.builtins->fields, "uname", krk_uname);
 #endif
 
-	krk_defineNative(&vm.globals, "listOf", krk_list_of);
-	krk_defineNative(&vm.globals, "dictOf", krk_dict_of);
-	krk_defineNative(&vm.globals, "isinstance", krk_isinstance);
-	krk_defineNative(&vm.globals, "type", krk_typeOf);
-
 	/* Now read the builtins module */
 	KrkValue builtinsModule = krk_interpret(_builtins_src,1,"__builtins__","__builtins__");
 	if (!IS_OBJECT(builtinsModule)) {
 		fprintf(stderr, "VM startup failure: Failed to load __builtins__ module.\n");
+	} else {
+		/* Get list class */
+		KrkValue val;
+		krk_tableGet(&vm.globals,OBJECT_VAL(S("list")),&val);
+		KrkClass * _class = AS_CLASS(val);
+		krk_defineNative(&_class->methods, ".__init__", _list_init);
+		krk_defineNative(&_class->methods, ".__get__", _list_get);
+		krk_defineNative(&_class->methods, ".__set__", _list_set);
+		krk_defineNative(&_class->methods, ".__len__", _list_len);
+		krk_defineNative(&_class->methods, ".append", _list_append);
+
+		krk_tableGet(&vm.globals,OBJECT_VAL(S("dict")),&val);
+		_class = AS_CLASS(val);
+		krk_defineNative(&_class->methods, ".__init__", _dict_init);
+		krk_defineNative(&_class->methods, ".__get__", _dict_get);
+		krk_defineNative(&_class->methods, ".__set__", _dict_set);
+		krk_defineNative(&_class->methods, ".__len__", _dict_len);
+		krk_defineNative(&_class->methods, ".capacity", _dict_capacity);
+		krk_defineNative(&_class->methods, "._key_at_index", _dict_key_at_index);
 	}
 
 	resetStack();
@@ -1242,7 +1263,7 @@ int krk_loadModule(KrkString * name, KrkValue * moduleOut) {
 	}
 
 	/* Obtain __builtins__.module_paths._list so we can do lookups directly */
-	if (!krk_tableGet(&(AS_INSTANCE(modulePaths)->fields), OBJECT_VAL(S("_list")), &modulePathsInternal) || !IS_FUNCTION(modulePathsInternal)) {
+	if (!krk_tableGet(&(AS_INSTANCE(modulePaths)->fields), vm.specialMethodNames[METHOD_LIST_INT], &modulePathsInternal) || !IS_FUNCTION(modulePathsInternal)) {
 		*moduleOut = NONE_VAL();
 		krk_runtimeError(vm.exceptions.baseException, "Internal error: __builtins__.module_paths is corrupted or incorrectly set.");
 		return 0;
@@ -1637,6 +1658,41 @@ static KrkValue run() {
 				if (!valueGetProperty(name)) {
 					krk_runtimeError(vm.exceptions.attributeError, "'%s' object has no attribute '%s'", krk_typeName(krk_peek(0)), name->chars);
 					goto _finishException;
+				}
+				break;
+			}
+			case OP_INVOKE_GETTER: {
+				krk_swap(1);
+				valueGetProperty(AS_STRING(vm.specialMethodNames[METHOD_GET]));
+				krk_swap(1);
+				switch (krk_callValue(krk_peek(1),1)) {
+					case 2: break;
+					case 1: krk_push(krk_runNext()); break;
+					default: krk_runtimeError(vm.exceptions.typeError, "Invalid method call."); goto _finishException;
+				}
+				break;
+			}
+			case OP_INVOKE_SETTER: {
+				krk_push(krk_peek(2)); /* object to top */
+				valueGetProperty(AS_STRING(vm.specialMethodNames[METHOD_SET]));
+				krk_swap(3);
+				krk_pop();
+				switch (krk_callValue(krk_peek(2),2)) {
+					case 2: break;
+					case 1: krk_push(krk_runNext()); break;
+					default: krk_runtimeError(vm.exceptions.typeError, "Invalid method call."); goto _finishException;
+				}
+				break;
+			}
+			case OP_INVOKE_GETSLICE: {
+				krk_push(krk_peek(2)); /* object to top */
+				valueGetProperty(AS_STRING(vm.specialMethodNames[METHOD_GETSLICE]));
+				krk_swap(3);
+				krk_pop();
+				switch (krk_callValue(krk_peek(2),2)) {
+					case 2: break;
+					case 1: krk_push(krk_runNext()); break;
+					default: krk_runtimeError(vm.exceptions.typeError, "Invalid method call."); goto _finishException;
 				}
 				break;
 			}

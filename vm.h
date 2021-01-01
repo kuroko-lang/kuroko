@@ -32,6 +32,8 @@ typedef enum {
 	METHOD_DOC,
 	METHOD_BASE,
 	METHOD_GETSLICE,
+	METHOD_LIST_INT,
+	METHOD_DICT_INT,
 
 	METHOD__MAX,
 } KrkSpecialMethods;
@@ -79,6 +81,9 @@ typedef struct {
 		KrkClass * strClass; /* String */
 		KrkClass * functionClass; /* Functions, Closures */
 		KrkClass * methodClass; /* BoundMethod */
+
+		KrkClass * baselist;
+		KrkClass * basedict;
 	} baseClasses;
 
 	KrkValue currentException;
