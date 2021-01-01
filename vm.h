@@ -81,9 +81,6 @@ typedef struct {
 		KrkClass * strClass; /* String */
 		KrkClass * functionClass; /* Functions, Closures */
 		KrkClass * methodClass; /* BoundMethod */
-
-		KrkClass * baselist;
-		KrkClass * basedict;
 	} baseClasses;
 
 	KrkValue currentException;
@@ -117,9 +114,7 @@ extern void krk_runtimeError(KrkClass * type, const char * fmt, ...);
 #define KRK_PAUSE_GC() do { vm.flags |= KRK_GC_PAUSED; } while (0)
 #define KRK_RESUME_GC() do { vm.flags &= ~(KRK_GC_PAUSED); } while (0)
 
-extern KrkValue krk_dictGet(KrkValue dictClass, KrkInstance * dict, KrkValue key);
-extern void krk_dictSet(KrkValue dictClass, KrkInstance * dict, KrkValue key, KrkValue value);
-extern KrkInstance * krk_dictCreate(KrkValue * outClass);
+extern KrkInstance * krk_dictCreate(void);
 extern KrkValue  krk_runNext(void);
 extern KrkValue krk_typeOf(int argc, KrkValue argv[]);
 extern int krk_bindMethod(KrkClass * _class, KrkString * name);

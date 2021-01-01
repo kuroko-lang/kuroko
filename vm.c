@@ -279,38 +279,21 @@ KrkValue krk_runNext(void) {
 	return result;
 }
 
-KrkInstance * krk_dictCreate(KrkValue * outClass) {
-	krk_tableGet(&vm.globals,OBJECT_VAL(S("dict")), outClass);
-	KrkInstance * outDict = krk_newInstance(AS_CLASS(*outClass));
+KrkInstance * krk_dictCreate(void) {
+	KrkValue dictClass;
+	krk_tableGet(&vm.globals,OBJECT_VAL(S("dict")), &dictClass);
+	KrkInstance * outDict = krk_newInstance(AS_CLASS(dictClass));
 	krk_push(OBJECT_VAL(outDict));
-	KrkValue tmp;
-	if (krk_tableGet(&AS_CLASS(*outClass)->methods, vm.specialMethodNames[METHOD_INIT], &tmp)) {
-		call(AS_CLOSURE(tmp), 0);
-		krk_runNext();
+	krk_tableSet(&outDict->fields, vm.specialMethodNames[METHOD_DICT_INT], OBJECT_VAL(outDict));
+	krk_pop();
+
+	switch (krk_callValue(krk_peek(0),0)) {
+		case 1: krk_push(krk_runNext()); break;
+		case 2: break;
+		default: krk_runtimeError(vm.exceptions.typeError, "Invalid method call."); return NULL;
 	}
+
 	return outDict;
-}
-
-void krk_dictSet(KrkValue dictClass, KrkInstance * dict, KrkValue key, KrkValue value) {
-	krk_push(OBJECT_VAL(dict));
-	krk_push(key);
-	krk_push(value);
-	KrkValue tmp;
-	if (krk_tableGet(&AS_CLASS(dictClass)->methods, vm.specialMethodNames[METHOD_SET], &tmp)) {
-		call(AS_CLOSURE(tmp), 2);
-		krk_runNext();
-	}
-}
-
-KrkValue krk_dictGet(KrkValue dictClass, KrkInstance * dict, KrkValue key) {
-	krk_push(OBJECT_VAL(dict));
-	krk_push(key);
-	KrkValue tmp;
-	if (krk_tableGet(&AS_CLASS(dictClass)->methods, vm.specialMethodNames[METHOD_GET], &tmp)) {
-		call(AS_CLOSURE(tmp), 2);
-		krk_runNext();
-	}
-	return krk_pop();
 }
 
 static KrkValue krk_list_of(int argc, KrkValue argv[]) {
@@ -358,15 +341,13 @@ static KrkValue krk_uname(int argc, KrkValue argv[]) {
 
 	KRK_PAUSE_GC();
 
-	KrkValue dictClass;
-	KrkInstance * dict = krk_dictCreate(&dictClass);
-	krk_dictSet(dictClass, dict, OBJECT_VAL(S("sysname")), OBJECT_VAL(krk_copyString(buf.sysname,strlen(buf.sysname))));
-	krk_dictSet(dictClass, dict, OBJECT_VAL(S("nodename")), OBJECT_VAL(krk_copyString(buf.nodename,strlen(buf.nodename))));
-	krk_dictSet(dictClass, dict, OBJECT_VAL(S("release")), OBJECT_VAL(krk_copyString(buf.release,strlen(buf.release))));
-	krk_dictSet(dictClass, dict, OBJECT_VAL(S("version")), OBJECT_VAL(krk_copyString(buf.version,strlen(buf.version))));
-	krk_dictSet(dictClass, dict, OBJECT_VAL(S("machine")), OBJECT_VAL(krk_copyString(buf.machine,strlen(buf.machine))));
-
-	KrkValue result = OBJECT_VAL(dict);
+	KrkValue result = krk_dict_of(5 * 2, (KrkValue[]) {
+		OBJECT_VAL(S("sysname")), OBJECT_VAL(krk_copyString(buf.sysname,strlen(buf.sysname))),
+		OBJECT_VAL(S("nodename")), OBJECT_VAL(krk_copyString(buf.nodename,strlen(buf.nodename))),
+		OBJECT_VAL(S("release")), OBJECT_VAL(krk_copyString(buf.release,strlen(buf.release))),
+		OBJECT_VAL(S("version")), OBJECT_VAL(krk_copyString(buf.version,strlen(buf.version))),
+		OBJECT_VAL(S("machine")), OBJECT_VAL(krk_copyString(buf.machine,strlen(buf.machine)))
+	});
 
 	KRK_RESUME_GC();
 
