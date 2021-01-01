@@ -222,6 +222,7 @@ static int getch(int immediate, int timeout) {
 		_unget = -1;
 		return out;
 	}
+	if (timeout != 1) return fgetc(stdin);
 	struct pollfd fds[1];
 	fds[0].fd = STDIN_FILENO;
 	fds[0].events = POLLIN;
