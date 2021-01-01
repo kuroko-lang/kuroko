@@ -54,6 +54,8 @@ typedef enum {
 	OP_DOCSTRING,
 	OP_CALL_STACK,
 	OP_INC,
+	OP_DUP,
+	OP_SWAP,
 
 	OP_BITOR,
 	OP_BITXOR,

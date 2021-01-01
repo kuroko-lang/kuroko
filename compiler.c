@@ -374,6 +374,35 @@ static void call(int canAssign) {
 	emitBytes(OP_CALL, argCount);
 }
 
+static int matchAssignment(void) {
+	return match(TOKEN_EQUAL) || match(TOKEN_PLUS_EQUAL) || match(TOKEN_MINUS_EQUAL) ||
+		match(TOKEN_PLUS_PLUS) || match(TOKEN_MINUS_MINUS);
+}
+
+static void assignmentValue(void) {
+	switch (parser.previous.type) {
+		case TOKEN_PLUS_EQUAL:
+			expression();
+			emitByte(OP_ADD);
+			break;
+		case TOKEN_MINUS_EQUAL:
+			expression();
+			emitByte(OP_SUBTRACT);
+			break;
+		case TOKEN_PLUS_PLUS:
+			emitConstant(INTEGER_VAL(1));
+			emitByte(OP_ADD);
+			break;
+		case TOKEN_MINUS_MINUS:
+			emitConstant(INTEGER_VAL(1));
+			emitByte(OP_SUBTRACT);
+			break;
+		default:
+			error("Unexpected operand in assignment");
+			break;
+	}
+}
+
 static void get_(int canAssign) {
 	int sawColon = 0;
 	size_t offset = currentChunk()->count + 1;
@@ -395,7 +424,7 @@ static void get_(int canAssign) {
 			expression();
 			consume(TOKEN_RIGHT_SQUARE, "Expected ending square bracket after slice.");
 		}
-		if (canAssign && match(TOKEN_EQUAL)) {
+		if (canAssign && matchAssignment()) {
 			error("Can not assign to slice.");
 		} else {
 			KrkToken _getSlice = syntheticToken("__getslice__");
@@ -411,6 +440,34 @@ static void get_(int canAssign) {
 			expression();
 			currentChunk()->code[offset] = indSet;
 			emitBytes(OP_CALL, 2);
+		} else if (canAssign && matchAssignment()) {
+			/* Replace the get with a dup */
+			currentChunk()->code[offset-1] = OP_DUP;
+			currentChunk()->code[offset] = 0;
+			/* obj obj expr */
+			emitBytes(OP_SWAP, 1);
+			/* obj expr obj */
+			KrkToken _get = syntheticToken("__get__");
+			size_t indGet = identifierConstant(&_get);
+			EMIT_CONSTANT_OP(OP_GET_PROPERTY, indGet);
+			/* obj expr obj.__get__ */
+			emitBytes(OP_DUP, 1);
+			/* obj expr obj.__get__ expr */
+			emitBytes(OP_CALL, 1);
+			/* obj expr obj[expr] */
+			assignmentValue();
+			/* obj expr obj[expr]+val */
+			emitBytes(OP_DUP, 2);
+			/* obj expr obj[expr]+val obj */
+			KrkToken _set = syntheticToken("__set__");
+			size_t indSet = identifierConstant(&_set);
+			EMIT_CONSTANT_OP(OP_GET_PROPERTY, indSet);
+			/* obj expr obj[expr]+val obj.__set__ */
+			emitBytes(OP_SWAP, 3);
+			/* obj.__set__ expr obj[expr]+val obj */
+			emitByte(OP_POP);
+			/* obj.__set__ expr obj[expr]+val */
+			emitBytes(OP_CALL, 2);
 		} else {
 			KrkToken _get = syntheticToken("__get__");
 			size_t indGet = identifierConstant(&_get);
@@ -421,10 +478,15 @@ static void get_(int canAssign) {
 }
 
 static void dot(int canAssign) {
-	consume(TOKEN_IDENTIFIER, "Expected propert name");
+	consume(TOKEN_IDENTIFIER, "Expected property name");
 	size_t ind = identifierConstant(&parser.previous);
 	if (canAssign && match(TOKEN_EQUAL)) {
 		expression();
+		EMIT_CONSTANT_OP(OP_SET_PROPERTY, ind);
+	} else if (canAssign && matchAssignment()) {
+		emitBytes(OP_DUP, 0); /* Duplicate the object */
+		EMIT_CONSTANT_OP(OP_GET_PROPERTY, ind);
+		assignmentValue();
 		EMIT_CONSTANT_OP(OP_SET_PROPERTY, ind);
 	} else {
 		EMIT_CONSTANT_OP(OP_GET_PROPERTY, ind);
@@ -1206,6 +1268,10 @@ static ssize_t resolveUpvalue(Compiler * compiler, KrkToken * name) {
 	if (canAssign && match(TOKEN_EQUAL)) { \
 		expression(); \
 		EMIT_CONSTANT_OP(opset, arg); \
+	} else if (canAssign && matchAssignment()) { \
+		EMIT_CONSTANT_OP(opget, arg); \
+		assignmentValue(); \
+		EMIT_CONSTANT_OP(opset, arg); \
 	} else { \
 		EMIT_CONSTANT_OP(opget, arg); \
 	} } while (0)
@@ -1514,7 +1580,7 @@ static void parsePrecedence(Precedence precedence) {
 		infixRule(canAssign);
 	}
 
-	if (canAssign && match(TOKEN_EQUAL)) {
+	if (canAssign && matchAssignment()) {
 		error("invalid assignment target");
 	}
 }

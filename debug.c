@@ -81,6 +81,8 @@ size_t krk_disassembleInstruction(KrkChunk * chunk, size_t offset) {
 		SIMPLE(OP_BITAND)
 		SIMPLE(OP_SHIFTLEFT)
 		SIMPLE(OP_SHIFTRIGHT)
+		OPERANDB(OP_DUP)
+		OPERANDB(OP_SWAP)
 		CONSTANT(OP_DEFINE_GLOBAL,(void)0)
 		CONSTANT(OP_CONSTANT,(void)0)
 		CONSTANT(OP_GET_GLOBAL,(void)0)

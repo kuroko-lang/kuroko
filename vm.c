@@ -83,15 +83,14 @@ KrkValue krk_pop() {
 	return *vm.stackTop;
 }
 
-void krk_swap() {
-	KrkValue b = krk_pop();
-	KrkValue a = krk_pop();
-	krk_push(b);
-	krk_push(a);
-}
-
 KrkValue krk_peek(int distance) {
 	return vm.stackTop[-1 - distance];
+}
+
+void krk_swap(int distance) {
+	KrkValue top = vm.stackTop[-1];
+	vm.stackTop[-1] = vm.stackTop[-1 - distance];
+	vm.stackTop[-1 - distance] = top;
 }
 
 void krk_defineNative(KrkTable * table, const char * name, NativeFn function) {
@@ -1528,6 +1527,12 @@ _undefined:
 				}
 				break;
 			}
+			case OP_DUP:
+				krk_push(krk_peek(READ_BYTE()));
+				break;
+			case OP_SWAP:
+				krk_swap(READ_BYTE());
+				break;
 		}
 		if (!(vm.flags & KRK_HAS_EXCEPTION)) continue;
 _finishException:
