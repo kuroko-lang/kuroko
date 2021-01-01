@@ -57,5 +57,6 @@ extern void krk_initValueArray(KrkValueArray * array);
 extern void krk_writeValueArray(KrkValueArray * array, KrkValue value);
 extern void krk_freeValueArray(KrkValueArray * array);
 extern void krk_printValue(FILE * f, KrkValue value);
+extern void krk_printValueSafe(FILE * f, KrkValue value);
 extern int krk_valuesEqual(KrkValue a, KrkValue b);
 

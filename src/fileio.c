@@ -41,7 +41,17 @@ KrkValue krk_open(int argc, KrkValue argv[]) {
 		return NONE_VAL();
 	}
 
-	FILE * file = fopen(AS_CSTRING(argv[0]), AS_CSTRING(argv[1]));
+	KrkValue arg;
+
+	if (argc == 1) {
+		arg = OBJECT_VAL(S("r"));
+		krk_push(arg);
+	} else {
+		arg = argv[1];
+		krk_push(argv[1]);
+	}
+
+	FILE * file = fopen(AS_CSTRING(argv[0]), AS_CSTRING(arg));
 	if (!file) {
 		krk_runtimeError(vm.exceptions.ioError, "open: failed to open file; system returned: %s", strerror(errno));
 		return NONE_VAL();
@@ -53,13 +63,27 @@ KrkValue krk_open(int argc, KrkValue argv[]) {
 
 	/* Let's put the filename in there somewhere... */
 	krk_attachNamedValue(&fileObject->fields, "filename", argv[0]);
+	krk_attachNamedValue(&fileObject->fields, "modestr", arg);
 	krk_attachNamedValue(&fileObject->fields, "_fileptr", INTEGER_VAL((long)(file))); /* Need a KrkNativePrivate or something...  */
 
+	krk_pop();
 	krk_pop();
 	return OBJECT_VAL(fileObject);
 }
 
 #define BLOCK_SIZE 1024
+
+static KrkValue krk_file_str(int argc, KrkValue argv[]) {
+	KrkInstance * fileObj = AS_INSTANCE(argv[0]);
+	KrkValue filename, modestr;
+	krk_tableGet(&fileObj->fields, OBJECT_VAL(S("filename")), &filename);
+	krk_tableGet(&fileObj->fields, OBJECT_VAL(S("modestr")), &modestr);
+	char * tmp = malloc(AS_STRING(filename)->length + AS_STRING(modestr)->length + 100); /* safety */
+	sprintf(tmp, "<open file '%s', mode '%s' at %p>", AS_CSTRING(filename), AS_CSTRING(modestr), (void*)fileObj);
+	KrkString * out = krk_copyString(tmp, strlen(tmp));
+	free(tmp);
+	return OBJECT_VAL(out);
+}
 
 static FILE * getFilePtr(KrkValue obj) {
 	KrkValue strFilePtr = OBJECT_VAL(S("_fileptr"));
@@ -243,6 +267,7 @@ KrkValue krk_module_onload_fileio(void) {
 	krk_defineNative(&FileClass->methods, ".close", krk_file_close);
 	krk_defineNative(&FileClass->methods, ".write", krk_file_write);
 	krk_defineNative(&FileClass->methods, ".flush", krk_file_flush);
+	krk_defineNative(&FileClass->methods, ".__str__", krk_file_str);
 	krk_defineNative(&FileClass->methods, ".__init__", krk_file_reject_init);
 
 	/* Make an instance for stdout, stderr, and stdin */

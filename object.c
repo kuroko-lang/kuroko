@@ -61,52 +61,6 @@ KrkString * krk_copyString(const char * chars, size_t length) {
 	return allocateString(heapChars, length, hash);
 }
 
-#define NAME(obj) ((obj)->name ? obj->name->chars : "(unnamed)")
-void krk_printObject(FILE * f, KrkValue value) {
-	switch (OBJECT_TYPE(value)) {
-		case OBJ_STRING:
-			fprintf(f,"\"");
-			for (char * c = AS_CSTRING(value); *c; ++c) {
-				switch (*c) {
-					/* XXX: Other non-printables should probably be escaped as well. */
-					case '\n': fprintf(f,"\\n"); break;
-					case '\r': fprintf(f,"\\r"); break;
-					case '\t': fprintf(f,"\\t"); break;
-					case '"': fprintf(f,"\\\""); break;
-					case '\033': fprintf(f,"\\["); break;
-					default: fprintf(f,"%c",*c); break;
-				}
-			}
-			fprintf(f,"\"");
-			break;
-		case OBJ_FUNCTION:
-			if (AS_FUNCTION(value)->name == NULL) fprintf(f, "<module>");
-			else fprintf(f, "<def %s>", NAME(AS_FUNCTION(value)));
-			break;
-		case OBJ_NATIVE:
-			fprintf(f, "<native bind>");
-			break;
-		case OBJ_CLOSURE:
-			fprintf(f, "<closure <def %s>>", NAME(AS_CLOSURE(value)->function));
-			break;
-		case OBJ_UPVALUE:
-			fprintf(f, "<upvalue>");
-			break;
-		case OBJ_CLASS:
-			fprintf(f, "<class %s>", NAME(AS_CLASS(value)));
-			break;
-		case OBJ_INSTANCE:
-			fprintf(f, "<instance of %s>", NAME(AS_INSTANCE(value)->_class));
-			break;
-		case OBJ_BOUND_METHOD:
-			fprintf(f, "<bound <def %s>>", (AS_BOUND_METHOD(value)->method->type == OBJ_CLOSURE) ?
-				NAME(((KrkClosure*)AS_BOUND_METHOD(value)->method)->function) : (
-					(AS_BOUND_METHOD(value)->method->type == OBJ_NATIVE) ? "<native>" : "<unknown>"
-				));
-			break;
-	}
-}
-
 KrkFunction * krk_newFunction() {
 	KrkFunction * function = ALLOCATE_OBJECT(KrkFunction, OBJ_FUNCTION);
 	function->requiredArgs = 0;
@@ -118,10 +72,11 @@ KrkFunction * krk_newFunction() {
 	return function;
 }
 
-KrkNative * krk_newNative(NativeFn function) {
+KrkNative * krk_newNative(NativeFn function, const char * name, int type) {
 	KrkNative * native = ALLOCATE_OBJECT(KrkNative, OBJ_NATIVE);
 	native->function = function;
-	native->isMethod = 0;
+	native->isMethod = type;
+	native->name = name;
 	return native;
 }
 

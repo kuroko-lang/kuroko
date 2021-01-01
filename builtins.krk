@@ -16,13 +16,14 @@ class list():
   for v in i:
    self.append(v)
   return self.__len__()
+ def __repr__(self): return self.__str__()
  def __str__(self):
   let b="["
   let l=self.__len__()
   for i=0,i<l,i=i+1:
    if i>0:
     b+=", "
-   b=b+__builtins__.list_get(self._list,i)
+   b+=repr(__builtins__.list_get(self._list,i))
   return b+"]"
  def __iter__(self):
   let m = self
@@ -47,6 +48,7 @@ class dict():
   return __builtins__.hash_get(self._map, ind)
  def __set__(self, ind, val):
   return __builtins__.hash_set(self._map, ind, val)
+ def __repr__(self): return self.__str__()
  def __str__(self):
   let out = "{"
   let first = True
@@ -54,7 +56,7 @@ class dict():
    if not first:
     out += ", "
    first = False
-   out = out + v + ": " + self[v]
+   out += repr(v) + ": " + repr(self[v])
   out += "}"
   return out
  def __len__(self):
@@ -105,9 +107,11 @@ class range:
   return makeIter(self.min)
 
 def len(obj=None): return (obj and obj.__len__()) or 0
-def str(obj=None): return (obj and ("" + obj)) or ""
+def str(obj=None): return (obj and obj.__str__()) or ""
+def repr(obj): return obj.__repr__()
 def int(obj=None): return (obj and obj.__int__()) or 0
 def float(obj=None): return (obj and obj.__float__()) or 0.0
+def type(obj): return obj.__class__
 def dir(obj): return obj.__dir__()
 
 def help(obj=None):
@@ -123,7 +127,7 @@ def help(obj=None):
   except:
    print "No docstring available for", obj
 
-export list,dict,range,len,str,int,float,dir,help
+export list,dict,range,len,str,repr,int,float,dir,help
 
 __builtins__.module_paths = ["./","./modules/","/home/klange/Projects/kuroko/modules/","/usr/share/kuroko/"]
 

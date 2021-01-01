@@ -2,6 +2,7 @@
 #include "memory.h"
 #include "value.h"
 #include "object.h"
+#include "vm.h"
 
 void krk_initValueArray(KrkValueArray * array) {
 	array->values = NULL;
@@ -25,19 +26,48 @@ void krk_freeValueArray(KrkValueArray * array) {
 	krk_initValueArray(array);
 }
 
-void krk_printValue(FILE * f, KrkValue value) {
-	if (IS_FLOATING(value)) {
-		fprintf(f, "%g", AS_FLOATING(value));
-	} else if (IS_INTEGER(value)) {
-		fprintf(f, "%ld", (long)AS_INTEGER(value));
-	} else if (IS_BOOLEAN(value)) {
-		fprintf(f, "%s", AS_BOOLEAN(value) ? "True" : "False");
-	} else if (IS_NONE(value)) {
-		fprintf(f, "None");
-	} else if (IS_HANDLER(value)) {
-		fprintf(f, "{try->%ld}", AS_HANDLER(value));
-	} else if (IS_OBJECT(value)) {
-		krk_printObject(f, value);
+void krk_printValue(FILE * f, KrkValue printable) {
+	if (!IS_OBJECT(printable)) {
+		switch (printable.type) {
+			case VAL_INTEGER:  fprintf(f, "%ld", AS_INTEGER(printable)); break;
+			case VAL_BOOLEAN:  fprintf(f, "%s", AS_BOOLEAN(printable) ? "True" : "False"); break;
+			case VAL_FLOATING: fprintf(f, "%g", AS_FLOATING(printable)); break;
+			case VAL_NONE:     fprintf(f, "None"); break;
+			case VAL_HANDLER:  fprintf(f, "{try->%ld}", AS_HANDLER(printable)); break;
+			default: break;
+		}
+		return;
+	}
+	krk_push(printable);
+	if (krk_bindMethod(AS_CLASS(krk_typeOf(1,(KrkValue[]){printable})), AS_STRING(vm.specialMethodNames[METHOD_REPR]))) {
+		switch (krk_callValue(krk_peek(0), 0)) {
+			case 2: printable = krk_pop(); break;
+			case 1: printable = krk_runNext(); break;
+			default: fprintf(f, "[unable to print object at address %p]", (void*)AS_OBJECT(printable)); return;
+		}
+		fprintf(f, "%s", AS_CSTRING(printable));
+	} else {
+		krk_pop();
+		fprintf(f, "%s", krk_typeName(printable));
+	}
+}
+
+void krk_printValueSafe(FILE * f, KrkValue printable) {
+	if (!IS_OBJECT(printable)) {
+		krk_printValue(f,printable);
+	} else if (IS_STRING(printable)) {
+		fprintf(f, "\"%s\"", AS_CSTRING(printable));
+	} else {
+		switch (AS_OBJECT(printable)->type) {
+			case OBJ_CLASS: fprintf(f, "<class %s>", AS_CLASS(printable)->name->chars); break;
+			case OBJ_INSTANCE: fprintf(f, "<instance of %s>", AS_INSTANCE(printable)->_class->name->chars); break;
+			case OBJ_NATIVE: fprintf(f, "<nativefn %s>", ((KrkNative*)AS_OBJECT(printable))->name); break;
+			case OBJ_CLOSURE: fprintf(f, "<function %s>", AS_CLOSURE(printable)->function->name->chars); break;
+			case OBJ_BOUND_METHOD: fprintf(f, "<method %s>",
+				AS_BOUND_METHOD(printable)->method->type == OBJ_CLOSURE ? ((KrkClosure*)AS_BOUND_METHOD(printable)->method)->function->name->chars :
+					((KrkNative*)AS_BOUND_METHOD(printable)->method)->name); break;
+			default: fprintf(f, "<%s>", krk_typeName(printable)); break;
+		}
 	}
 }
 

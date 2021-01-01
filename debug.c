@@ -13,14 +13,14 @@ void krk_disassembleChunk(KrkChunk * chunk, const char * name) {
 #define SIMPLE(opc) case opc: fprintf(stderr, "%s\n", #opc); return offset + 1;
 #define CONSTANT(opc,more) case opc: { size_t constant = chunk->code[offset + 1]; \
 	fprintf(stderr, "%-16s %4d '", #opc, (int)constant); \
-	krk_printValue(stderr, chunk->constants.values[constant]); \
+	krk_printValueSafe(stderr, chunk->constants.values[constant]); \
 	fprintf(stderr,"' (type=%s)\n", krk_typeName(chunk->constants.values[constant])); \
 	more; \
 	return offset + 2; } \
 	case opc ## _LONG: { size_t constant = (chunk->code[offset + 1] << 16) | \
 	(chunk->code[offset + 2] << 8) | (chunk->code[offset + 3]); \
 	fprintf(stderr, "%-16s %4d '", #opc "_LONG", (int)constant); \
-	krk_printValue(stderr, chunk->constants.values[constant]); \
+	krk_printValueSafe(stderr, chunk->constants.values[constant]); \
 	fprintf(stderr,"' (type=%s)\n", krk_typeName(chunk->constants.values[constant])); \
 	more; \
 	return offset + 4; }
@@ -81,6 +81,7 @@ size_t krk_disassembleInstruction(KrkChunk * chunk, size_t offset) {
 		SIMPLE(OP_BITAND)
 		SIMPLE(OP_SHIFTLEFT)
 		SIMPLE(OP_SHIFTRIGHT)
+		SIMPLE(OP_BITNEGATE)
 		OPERANDB(OP_DUP)
 		OPERANDB(OP_SWAP)
 		CONSTANT(OP_DEFINE_GLOBAL,(void)0)

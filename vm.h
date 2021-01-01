@@ -19,6 +19,7 @@ typedef struct {
 typedef enum {
 	METHOD_INIT,
 	METHOD_STR,
+	METHOD_REPR,
 	METHOD_GET,
 	METHOD_SET,
 	METHOD_CLASS,
@@ -101,6 +102,7 @@ extern KrkValue krk_interpret(const char * src, int newScope, char *, char *);
 extern KrkValue krk_runfile(const char * fileName, int newScope, char *, char *);
 extern void krk_push(KrkValue value);
 extern KrkValue krk_pop(void);
+extern KrkValue krk_peek(int distance);
 extern const char * krk_typeName(KrkValue value);
 extern void krk_defineNative(KrkTable * table, const char * name, NativeFn function);
 extern void krk_attachNamedObject(KrkTable * table, const char name[], KrkObj * obj);
@@ -114,3 +116,6 @@ extern KrkValue krk_dictGet(KrkValue dictClass, KrkInstance * dict, KrkValue key
 extern void krk_dictSet(KrkValue dictClass, KrkInstance * dict, KrkValue key, KrkValue value);
 extern KrkInstance * krk_dictCreate(KrkValue * outClass);
 extern KrkValue  krk_runNext(void);
+extern KrkValue krk_typeOf(int argc, KrkValue argv[]);
+extern int krk_bindMethod(KrkClass * _class, KrkString * name);
+extern int krk_callValue(KrkValue callee, int argCount);
