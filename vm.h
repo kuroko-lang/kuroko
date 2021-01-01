@@ -54,8 +54,31 @@ typedef struct {
 	KrkObj** grayStack;
 	KrkValue specialMethodNames[METHOD__MAX];
 
-	KrkClass * object_class;
+	KrkClass * objectClass;
 	KrkInstance * builtins;
+
+	struct {
+		KrkClass * baseException;
+		KrkClass * typeError;
+		KrkClass * argumentError;
+		KrkClass * indexError;
+		KrkClass * keyError;
+		KrkClass * attributeError;
+		KrkClass * nameError;
+		KrkClass * importError;
+		KrkClass * ioError;
+	} exceptions;
+
+	struct {
+		KrkClass * typeClass; /* Class */
+		KrkClass * intClass; /* Integer */
+		KrkClass * floatClass; /* Floating */
+		KrkClass * boolClass; /* Boolean */
+		KrkClass * noneTypeClass; /* None */
+		KrkClass * strClass; /* String */
+		KrkClass * functionClass; /* Functions, Closures */
+		KrkClass * methodClass; /* BoundMethod */
+	} baseClasses;
 
 	KrkValue currentException;
 	int flags;
@@ -82,7 +105,7 @@ extern const char * krk_typeName(KrkValue value);
 extern void krk_defineNative(KrkTable * table, const char * name, NativeFn function);
 extern void krk_attachNamedObject(KrkTable * table, const char name[], KrkObj * obj);
 extern void krk_attachNamedValue(KrkTable * table, const char name[], KrkValue obj);
-extern void krk_runtimeError(const char * fmt, ...);
+extern void krk_runtimeError(KrkClass * type, const char * fmt, ...);
 
 #define KRK_PAUSE_GC() do { vm.flags |= KRK_GC_PAUSED; } while (0)
 #define KRK_RESUME_GC() do { vm.flags &= ~(KRK_GC_PAUSED); } while (0)

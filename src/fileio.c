@@ -23,27 +23,27 @@ KrkValue krk_open(int argc, KrkValue argv[]) {
 	 * figure it out for themselves.
 	 */
 	if (argc < 1) {
-		krk_runtimeError("open() takes at least 1 argument.");
+		krk_runtimeError(vm.exceptions.argumentError, "open() takes at least 1 argument.");
 		return NONE_VAL();
 	}
 	if (argc > 2) {
-		krk_runtimeError("open() takes at most 2 argument.");
+		krk_runtimeError(vm.exceptions.argumentError, "open() takes at most 2 argument.");
 		return NONE_VAL();
 	}
 
 	if (!IS_STRING(argv[0])) {
-		krk_runtimeError("open: first argument should be a filename string.");
+		krk_runtimeError(vm.exceptions.typeError, "open: first argument should be a filename string.");
 		return NONE_VAL();
 	}
 
 	if (argc == 2 && !IS_STRING(argv[1])) {
-		krk_runtimeError("open: second argument should be a mode string.");
+		krk_runtimeError(vm.exceptions.typeError, "open: second argument should be a mode string.");
 		return NONE_VAL();
 	}
 
 	FILE * file = fopen(AS_CSTRING(argv[0]), AS_CSTRING(argv[1]));
 	if (!file) {
-		krk_runtimeError("open: failed to open file; system returned: %s", strerror(errno));
+		krk_runtimeError(vm.exceptions.ioError, "open: failed to open file; system returned: %s", strerror(errno));
 		return NONE_VAL();
 	}
 
@@ -67,7 +67,7 @@ static FILE * getFilePtr(KrkValue obj) {
 	KrkInstance * me = AS_INSTANCE(obj);
 	KrkValue _fileptr;
 	if (!krk_tableGet(&me->fields, strFilePtr, &_fileptr)) {
-		krk_runtimeError("Corrupt File object?");
+		krk_runtimeError(vm.exceptions.typeError, "Corrupt File object?");
 		return NULL;
 	}
 	krk_pop(); /* str object */
@@ -76,7 +76,7 @@ static FILE * getFilePtr(KrkValue obj) {
 
 static KrkValue krk_file_readline(int argc, KrkValue argv[]) {
 	if (argc < 1 || !IS_INSTANCE(argv[0])) {
-		krk_runtimeError("Not sure how that happened.");
+		krk_runtimeError(vm.exceptions.baseException, "Not sure how that happened.");
 		return NONE_VAL();
 	}
 
@@ -115,7 +115,7 @@ _finish_line: (void)0;
 
 static KrkValue krk_file_read(int argc, KrkValue argv[]) {
 	if (argc < 1 || !IS_INSTANCE(argv[0])) {
-		krk_runtimeError("Not sure how that happened.");
+		krk_runtimeError(vm.exceptions.baseException, "Not sure how that happened.");
 		return NONE_VAL();
 	}
 
@@ -143,7 +143,7 @@ static KrkValue krk_file_read(int argc, KrkValue argv[]) {
 		if (newlyRead < BLOCK_SIZE) {
 			if (ferror(file)) {
 				free(buffer);
-				krk_runtimeError("Read error.");
+				krk_runtimeError(vm.exceptions.ioError, "Read error.");
 				return NONE_VAL();
 			}
 		}
@@ -160,7 +160,7 @@ static KrkValue krk_file_read(int argc, KrkValue argv[]) {
 static KrkValue krk_file_write(int argc, KrkValue argv[]) {
 	/* Expect just a string as arg 2 */
 	if (argc < 2 || !IS_INSTANCE(argv[0]) || !IS_STRING(argv[1])) {
-		krk_runtimeError("write: expected string");
+		krk_runtimeError(vm.exceptions.typeError, "write: expected string");
 		return NONE_VAL();
 	}
 
@@ -176,7 +176,7 @@ static KrkValue krk_file_write(int argc, KrkValue argv[]) {
 
 static KrkValue krk_file_close(int argc, KrkValue argv[]) {
 	if (argc < 1 || !IS_INSTANCE(argv[0])) {
-		krk_runtimeError("Not sure how that happened.");
+		krk_runtimeError(vm.exceptions.baseException, "Not sure how that happened.");
 		return NONE_VAL();
 	}
 
@@ -190,7 +190,7 @@ static KrkValue krk_file_close(int argc, KrkValue argv[]) {
 
 static KrkValue krk_file_flush(int argc, KrkValue argv[]) {
 	if (argc < 1 || !IS_INSTANCE(argv[0])) {
-		krk_runtimeError("Not sure how that happened.");
+		krk_runtimeError(vm.exceptions.baseException, "Not sure how that happened.");
 		return NONE_VAL();
 	}
 
@@ -203,7 +203,7 @@ static KrkValue krk_file_flush(int argc, KrkValue argv[]) {
 }
 
 static KrkValue krk_file_reject_init(int argc, KrkValue argv[]) {
-	krk_runtimeError("File objects can not be instantiated; use fileio.open() to obtain File objects.");
+	krk_runtimeError(vm.exceptions.typeError, "File objects can not be instantiated; use fileio.open() to obtain File objects.");
 	return NONE_VAL();
 }
 
@@ -219,7 +219,7 @@ static void makeFileInstance(KrkInstance * module, const char name[], FILE * fil
 }
 
 KrkValue krk_module_onload_fileio(void) {
-	KrkInstance * module = krk_newInstance(vm.object_class);
+	KrkInstance * module = krk_newInstance(vm.objectClass);
 	/* Store it on the stack for now so we can do stuff that may trip GC
 	 * and not lose it to garbage colletion... */
 	krk_push(OBJECT_VAL(module));
@@ -232,6 +232,8 @@ KrkValue krk_module_onload_fileio(void) {
 	krk_push(OBJECT_VAL(FileClass));
 	/* Bind it */
 	krk_attachNamedObject(&module->fields,chr_File,(KrkObj*)FileClass);
+	/* Inherit from object */
+	krk_tableAddAll(&vm.objectClass->methods, &FileClass->methods);
 	krk_pop();
 	krk_pop();
 
