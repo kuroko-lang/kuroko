@@ -391,6 +391,7 @@ static KrkValue krk_set_tracing(int argc, KrkValue argv[]) {
 	return BOOLEAN_VAL(1);
 #else
 	krk_runtimeError(vm.exceptions.typeError,"Debugging is not enabled in this build.");
+	return NONE_VAL();
 #endif
 }
 
