@@ -5,6 +5,7 @@
 #include "value.h"
 #include "memory.h"
 #include "table.h"
+#include "vm.h"
 
 #define TABLE_MAX_LOAD 0.75
 
@@ -25,9 +26,7 @@ static uint32_t hashValue(KrkValue value) {
 	if (IS_FLOATING(value)) return (uint32_t)(AS_FLOATING(value) * 1000); /* arbitrary; what's a good way to hash floats? */
 	if (IS_BOOLEAN(value)) return (uint32_t)(AS_BOOLEAN(value));
 	if (IS_NONE(value)) return 0;
-
-	/* Warn? */
-	return 0;
+	return (uint32_t)(intptr_t)AS_OBJECT(value);
 }
 
 static KrkTableEntry * findEntry(KrkTableEntry * entries, size_t capacity, KrkValue key) {
