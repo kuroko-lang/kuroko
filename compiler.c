@@ -127,7 +127,13 @@ static KrkChunk * currentChunk() {
 #define EMIT_CONSTANT_OP(opc, arg) do { if (arg < 256) { emitBytes(opc, arg); } \
 	else { emitBytes(opc ## _LONG, arg >> 16); emitBytes(arg >> 8, arg); } } while (0)
 
-static void compilerBase(Compiler * compiler) {
+static void initCompiler(Compiler * compiler, FunctionType type) {
+	compiler->enclosing = current;
+	current = compiler;
+	compiler->function = NULL;
+	compiler->type = type;
+	compiler->scopeDepth = 0;
+	compiler->function = krk_newFunction();
 	compiler->localCount = 0;
 	compiler->localsSpace = 8;
 	compiler->locals = GROW_ARRAY(Local,NULL,0,8);
@@ -140,25 +146,6 @@ static void compilerBase(Compiler * compiler) {
 	compiler->continueSpace = 0;
 	compiler->continues = NULL;
 	compiler->loopLocalCount = 0;
-}
-
-static void initSubcompiler(Compiler * compiler) {
-	compiler->enclosing = current;
-	current = compiler;
-	compiler->function = compiler->enclosing->function;
-	compiler->type = compiler->enclosing->type;
-	compiler->scopeDepth = 1;
-	compilerBase(compiler);
-}
-
-static void initCompiler(Compiler * compiler, FunctionType type) {
-	compiler->enclosing = current;
-	current = compiler;
-	compiler->function = NULL;
-	compiler->type = type;
-	compiler->scopeDepth = 0;
-	compiler->function = krk_newFunction();
-	compilerBase(compiler);
 
 	if (type != TYPE_MODULE) {
 		current->function->name = krk_copyString(parser.previous.start, parser.previous.length);
@@ -332,10 +319,6 @@ static KrkFunction * endCompiler() {
 	return function;
 }
 
-static void endSubcompiler() {
-	current = current->enclosing;
-}
-
 static void freeCompiler(Compiler * compiler) {
 	FREE_ARRAY(Local,compiler->locals, compiler->localsSpace);
 	FREE_ARRAY(Upvalue,compiler->upvalues, compiler->upvaluesSpace);
@@ -403,6 +386,7 @@ static void binary(int canAssign) {
 		case TOKEN_ASTERISK: emitByte(OP_MULTIPLY); break;
 		case TOKEN_SOLIDUS:  emitByte(OP_DIVIDE); break;
 		case TOKEN_MODULO:   emitByte(OP_MODULO); break;
+		case TOKEN_IN:       emitByte(OP_EQUAL); break;
 		default: return;
 	}
 }
@@ -496,6 +480,15 @@ static void dot(int canAssign) {
 	} else {
 		EMIT_CONSTANT_OP(OP_GET_PROPERTY, ind);
 	}
+}
+
+static void in_(int canAssign) {
+	parsePrecedence(PREC_COMPARISON);
+	KrkToken contains = syntheticToken("__contains__");
+	ssize_t ind = identifierConstant(&contains);
+	EMIT_CONSTANT_OP(OP_GET_PROPERTY, ind);
+	emitByte(OP_SWAP);
+	emitBytes(OP_CALL,1);
 }
 
 static void literal(int canAssign) {
@@ -1328,17 +1321,15 @@ static void super_(int canAssign) {
 }
 
 static void list(int canAssign) {
-	Compiler subcompiler;
-	emitByte(OP_INLINE_FUNCTION);
-	initSubcompiler(&subcompiler);
+	size_t     chunkBefore = currentChunk()->count;
 
 	KrkToken listOf = syntheticToken("listOf");
 	size_t ind = identifierConstant(&listOf);
 	EMIT_CONSTANT_OP(OP_GET_GLOBAL, ind);
+
 	if (!check(TOKEN_RIGHT_SQUARE)) {
 		KrkScanner scannerBefore = krk_tellScanner();
 		Parser  parserBefore = parser;
-		size_t     chunkBefore = currentChunk()->count;
 		expression();
 
 		/* This is a bit complicated and the Pratt parser does not handle it
@@ -1349,16 +1340,15 @@ static void list(int canAssign) {
 		 * list constant, we'll see a comma next and we can begin the normal
 		 * loop of counting arguments. */
 		if (match(TOKEN_FOR)) {
-			beginScope();
-
-			/* Mark the `listOf` method on the stack as a local so that we can
-			 * put other locals after it and assign to them in bytecode. */
-			ssize_t indListOf = current->localCount;
-			addLocal(listOf);
-			defineVariable(indListOf);
-
-			/* The parser is not the only thing we need to rewind */
+			/* Roll back the earlier compiler */
 			currentChunk()->count = chunkBefore;
+
+			/* Compile list comprehension as a function */
+			Compiler subcompiler;
+			initCompiler(&subcompiler, current->type == TYPE_METHOD ? TYPE_METHOD : TYPE_FUNCTION);
+			subcompiler.function->chunk.filename = subcompiler.enclosing->function->chunk.filename;
+
+			beginScope();
 
 			/* for i=0, */
 			emitConstant(INTEGER_VAL(0));
@@ -1373,8 +1363,6 @@ static void list(int canAssign) {
 
 			consume(TOKEN_IN, "Only iterator loops (for ... in ...) are allowed in list comprehensions.");
 
-			/* Call the iterable expression in its own scope to avoid variable confusion,
-			 * especially if the iterable is another list comprehension... */
 			beginScope();
 			expression();
 			endScope();
@@ -1419,7 +1407,7 @@ static void list(int canAssign) {
 			Parser  parserAfter = parser;
 			krk_rewindScanner(scannerBefore);
 			parser = parserBefore;
-			/* ... which should be evaluated in its own scope as well... */
+
 			beginScope();
 			expression();
 			endScope();
@@ -1445,8 +1433,10 @@ static void list(int canAssign) {
 			consume(TOKEN_RIGHT_SQUARE,"Expected ] at end of list expression.");
 			/* Pop the last loop expression result which was already stored */
 			emitByte(OP_POP);
-			/* Pull up the native method from the bottom of the stack */
-			EMIT_CONSTANT_OP(OP_GET_LOCAL, indListOf);
+			/* Pull in listOf from the global namespace */
+			KrkToken listOf = syntheticToken("listOf");
+			size_t indList = identifierConstant(&listOf);
+			EMIT_CONSTANT_OP(OP_GET_GLOBAL, indList);
 			/* And move it into where we were storing the loop iterator */
 			EMIT_CONSTANT_OP(OP_SET_LOCAL, indLoopIter);
 			/* (And pop it from the top of the stack) */
@@ -1455,17 +1445,25 @@ static void list(int canAssign) {
 			EMIT_CONSTANT_OP(OP_GET_LOCAL, indLoopCounter);
 			/* And then call the native method which should be ^ that many items down */
 			emitByte(OP_CALL_STACK);
-			/* And then move the result into what _was_ the native method originally */
-			EMIT_CONSTANT_OP(OP_SET_LOCAL, indListOf);
-			/* We only set the loop value as a local so we could define the others,
-			 * so we need to fix the fact that the compiler will assume it needs to
-			 * emit a pop instruction for it. We'll cheat a bit and promote it to
-			 * the upper scope, which should be fine, as it's the bottom of our
-			 * local scope anyway... */
-			current->locals[indListOf].depth--;
-			endScope();
-			/* Once our local scope ends, we can erase the evidence... */
-			current->localCount = indListOf;
+			/* And return the result back to the original scope */
+			emitByte(OP_RETURN);
+			/* Now because we made a function we need to fill out its upvalues
+			 * and write the closure call for it. */
+			KrkFunction *subfunction = endCompiler();
+			size_t indFunc = krk_addConstant(currentChunk(), OBJECT_VAL(subfunction));
+			EMIT_CONSTANT_OP(OP_CLOSURE, indFunc);
+			for (size_t i = 0; i < subfunction->upvalueCount; ++i) {
+				emitByte(subcompiler.upvalues[i].isLocal ? 1 : 0);
+				if (i > 255) {
+					emitByte((subcompiler.upvalues[i].index >> 16) & 0xFF);
+					emitByte((subcompiler.upvalues[i].index >> 8) & 0xFF);
+				}
+				emitByte((subcompiler.upvalues[i].index) & 0xFF);
+			}
+			freeCompiler(&subcompiler);
+
+			/* And finally we can call the subfunction and get the result. */
+			emitBytes(OP_CALL, 0);
 		} else {
 			size_t argCount = 1;
 			while (match(TOKEN_COMMA)) {
@@ -1480,9 +1478,6 @@ static void list(int canAssign) {
 		advance();
 		emitBytes(OP_CALL, 0);
 	}
-	emitByte(OP_RETURN);
-	endSubcompiler();
-	freeCompiler(&subcompiler);
 }
 
 static void dict(int canAssign) {
@@ -1539,7 +1534,7 @@ ParseRule rules[] = {
 	RULE(TOKEN_FOR,           NULL,     NULL,   PREC_NONE),
 	RULE(TOKEN_DEF,           NULL,     NULL,   PREC_NONE),
 	RULE(TOKEN_IF,            NULL,     NULL,   PREC_NONE),
-	RULE(TOKEN_IN,            NULL,     NULL,   PREC_NONE),
+	RULE(TOKEN_IN,            NULL,     in_,    PREC_COMPARISON),
 	RULE(TOKEN_LET,           NULL,     NULL,   PREC_NONE),
 	RULE(TOKEN_NONE,          literal,  NULL,   PREC_NONE),
 	RULE(TOKEN_NOT,           unary,    NULL,   PREC_NONE),

@@ -86,7 +86,6 @@ typedef enum {
 	OP_IMPORT_LONG,
 	OP_GET_SUPER_LONG,
 	OP_INC_LONG,
-	OP_INLINE_FUNCTION,
 } KrkOpCode;
 
 typedef struct {

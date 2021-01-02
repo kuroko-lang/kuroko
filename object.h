@@ -101,6 +101,13 @@ typedef struct {
 	int isMethod;
 } KrkNative;
 
+#define AS_LIST(value) (&AS_FUNCTION(value)->chunk.constants)
+#define AS_DICT(value) (&AS_CLASS(value)->methods)
+typedef KrkFunction KrkList;
+typedef KrkClass KrkDict;
+#define krk_newList() AS_LIST(krk_list_of(0,(KrkValue[]){}))
+#define krk_newDict() AS_DICT(krk_dict_of(0,(KrkValue[]){}))
+
 static inline int isObjType(KrkValue value, ObjType type) {
 	return IS_OBJECT(value) && AS_OBJECT(value)->type == type;
 }

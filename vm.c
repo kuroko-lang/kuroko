@@ -190,7 +190,7 @@ static KrkValue _dict_init(int argc, KrkValue argv[]) {
 	KrkClass * dict = krk_newClass(NULL);
 	krk_push(OBJECT_VAL(dict));
 	krk_tableSet(&AS_INSTANCE(argv[0])->fields, vm.specialMethodNames[METHOD_DICT_INT], OBJECT_VAL(dict));
-	krk_tableSet(&AS_INSTANCE(argv[0])->fields, OBJECT_VAL(S("__inrepr")), INTEGER_VAL(0));
+	krk_tableSet(&AS_INSTANCE(argv[0])->fields, vm.specialMethodNames[METHOD_INREPR], INTEGER_VAL(0));
 	krk_pop();
 	return argv[0];
 }
@@ -206,7 +206,7 @@ static KrkValue _dict_get(int argc, KrkValue argv[]) {
 	KrkValue _dict_internal;
 	krk_tableGet(&AS_INSTANCE(argv[0])->fields, vm.specialMethodNames[METHOD_DICT_INT], &_dict_internal);
 	KrkValue out;
-	if (!krk_tableGet(&AS_CLASS(_dict_internal)->methods, argv[1], &out)) {
+	if (!krk_tableGet(AS_DICT(_dict_internal), argv[1], &out)) {
 		krk_runtimeError(vm.exceptions.keyError, "key error");
 	}
 	return out;
@@ -222,7 +222,7 @@ static KrkValue _dict_set(int argc, KrkValue argv[]) {
 	}
 	KrkValue _dict_internal;
 	krk_tableGet(&AS_INSTANCE(argv[0])->fields, vm.specialMethodNames[METHOD_DICT_INT], &_dict_internal);
-	krk_tableSet(&AS_CLASS(_dict_internal)->methods, argv[1], argv[2]);
+	krk_tableSet(AS_DICT(_dict_internal), argv[1], argv[2]);
 	return NONE_VAL();
 }
 
@@ -236,7 +236,17 @@ static KrkValue _dict_len(int argc, KrkValue argv[]) {
 	}
 	KrkValue _dict_internal;
 	krk_tableGet(&AS_INSTANCE(argv[0])->fields, vm.specialMethodNames[METHOD_DICT_INT], &_dict_internal);
-	return INTEGER_VAL(AS_CLASS(_dict_internal)->methods.count);
+	return INTEGER_VAL(AS_DICT(_dict_internal)->count);
+}
+
+/**
+ * dict.__contains__()
+ */
+static KrkValue _dict_contains(int argc, KrkValue argv[]) {
+	KrkValue _unused;
+	KrkValue _dict_internal;
+	krk_tableGet(&AS_INSTANCE(argv[0])->fields, vm.specialMethodNames[METHOD_DICT_INT], &_dict_internal);
+	return BOOLEAN_VAL(krk_tableGet(AS_DICT(_dict_internal), argv[1], &_unused));
 }
 
 /**
@@ -249,7 +259,7 @@ static KrkValue _dict_capacity(int argc, KrkValue argv[]) {
 	}
 	KrkValue _dict_internal;
 	krk_tableGet(&AS_INSTANCE(argv[0])->fields, vm.specialMethodNames[METHOD_DICT_INT], &_dict_internal);
-	return INTEGER_VAL(AS_CLASS(_dict_internal)->methods.capacity);
+	return INTEGER_VAL(AS_DICT(_dict_internal)->capacity);
 }
 
 /**
@@ -267,11 +277,11 @@ static KrkValue _dict_key_at_index(int argc, KrkValue argv[]) {
 	int i = AS_INTEGER(argv[1]);
 	KrkValue _dict_internal;
 	krk_tableGet(&AS_INSTANCE(argv[0])->fields, vm.specialMethodNames[METHOD_DICT_INT], &_dict_internal);
-	if (i < 0 || i > (int)AS_CLASS(_dict_internal)->methods.capacity) {
+	if (i < 0 || i > (int)AS_DICT(_dict_internal)->capacity) {
 		krk_runtimeError(vm.exceptions.indexError, "hash table index is out of range: %d", i);
 		return NONE_VAL();
 	}
-	KrkTableEntry entry = AS_CLASS(_dict_internal)->methods.entries[i];
+	KrkTableEntry entry = AS_DICT(_dict_internal)->entries[i];
 	return entry.key;
 }
 
@@ -298,11 +308,11 @@ static KrkValue _list_get(int argc, KrkValue argv[]) {
 	KrkValue _list_internal;
 	krk_tableGet(&AS_INSTANCE(argv[0])->fields, vm.specialMethodNames[METHOD_LIST_INT], &_list_internal);
 	int index = AS_INTEGER(argv[1]);
-	if (index < 0 || index >= (int)AS_FUNCTION(_list_internal)->chunk.constants.count) {
+	if (index < 0 || index >= (int)AS_LIST(_list_internal)->count) {
 		krk_runtimeError(vm.exceptions.indexError, "index is out of range: %d", index);
 		return NONE_VAL();
 	}
-	return AS_FUNCTION(_list_internal)->chunk.constants.values[index];
+	return AS_LIST(_list_internal)->values[index];
 }
 
 /**
@@ -316,11 +326,11 @@ static KrkValue _list_set(int argc, KrkValue argv[]) {
 	KrkValue _list_internal;
 	krk_tableGet(&AS_INSTANCE(argv[0])->fields, vm.specialMethodNames[METHOD_LIST_INT], &_list_internal);
 	int index = AS_INTEGER(argv[1]);
-	if (index < 0 || index >= (int)AS_FUNCTION(_list_internal)->chunk.constants.count) {
+	if (index < 0 || index >= (int)AS_LIST(_list_internal)->count) {
 		krk_runtimeError(vm.exceptions.indexError, "index is out of range: %d", index);
 		return NONE_VAL();
 	}
-	AS_FUNCTION(_list_internal)->chunk.constants.values[index] = argv[2];
+	AS_LIST(_list_internal)->values[index] = argv[2];
 	return NONE_VAL();
 }
 
@@ -334,7 +344,7 @@ static KrkValue _list_append(int argc, KrkValue argv[]) {
 	}
 	KrkValue _list_internal;
 	krk_tableGet(&AS_INSTANCE(argv[0])->fields, vm.specialMethodNames[METHOD_LIST_INT], &_list_internal);
-	krk_writeValueArray(&AS_FUNCTION(_list_internal)->chunk.constants, argv[1]);
+	krk_writeValueArray(AS_LIST(_list_internal), argv[1]);
 	return NONE_VAL();
 }
 
@@ -348,7 +358,23 @@ static KrkValue _list_len(int argc, KrkValue argv[]) {
 	}
 	KrkValue _list_internal;
 	krk_tableGet(&AS_INSTANCE(argv[0])->fields, vm.specialMethodNames[METHOD_LIST_INT], &_list_internal);
-	return INTEGER_VAL(AS_FUNCTION(_list_internal)->chunk.constants.count);
+	return INTEGER_VAL(AS_LIST(_list_internal)->count);
+}
+
+/**
+ * list.__contains__
+ */
+static KrkValue _list_contains(int argc, KrkValue argv[]) {
+	if (argc < 2) {
+		krk_runtimeError(vm.exceptions.argumentError, "wrong number or type of arguments");
+		return NONE_VAL();
+	}
+	KrkValue _list_internal;
+	krk_tableGet(&AS_INSTANCE(argv[0])->fields, vm.specialMethodNames[METHOD_LIST_INT], &_list_internal);
+	for (size_t i = 0; i < AS_LIST(_list_internal)->count; ++i) {
+		if (krk_valuesEqual(argv[1], AS_LIST(_list_internal)->values[i])) return BOOLEAN_VAL(1);
+	}
+	return BOOLEAN_VAL(0);
 }
 
 /**
@@ -681,7 +707,6 @@ static int call(KrkClosure * closure, int argCount) {
 		return 0;
 	}
 	CallFrame * frame = &vm.frames[vm.frameCount++];
-	frame->isInlined = 0;
 	frame->closure = closure;
 	frame->ip = closure->function->chunk.code;
 	frame->slots = (vm.stackTop - argCount - 1) - vm.stack;
@@ -1295,6 +1320,7 @@ void krk_initVM(int flags) {
 		krk_defineNative(&_class->methods, ".__get__", _list_get);
 		krk_defineNative(&_class->methods, ".__set__", _list_set);
 		krk_defineNative(&_class->methods, ".__len__", _list_len);
+		krk_defineNative(&_class->methods, ".__contains__", _list_contains);
 		krk_defineNative(&_class->methods, ".append", _list_append);
 
 		krk_tableGet(&vm.globals,OBJECT_VAL(S("dict")),&val);
@@ -1303,6 +1329,7 @@ void krk_initVM(int flags) {
 		krk_defineNative(&_class->methods, ".__get__", _dict_get);
 		krk_defineNative(&_class->methods, ".__set__", _dict_set);
 		krk_defineNative(&_class->methods, ".__len__", _dict_len);
+		krk_defineNative(&_class->methods, ".__contains__", _dict_contains);
 
 		/* These are used to for dict.keys() to create the iterators. */
 		krk_defineNative(&_class->methods, ".capacity", _dict_capacity);
@@ -1770,9 +1797,6 @@ static KrkValue run() {
 				KrkValue result = krk_pop();
 				closeUpvalues(frame->slots);
 				vm.frameCount--;
-				if (frame->isInlined) {
-					vm.frames[vm.frameCount - 1].ip = frame->ip;
-				}
 				if (vm.frameCount == 0) {
 					krk_pop();
 					return result;
@@ -1981,15 +2005,6 @@ static KrkValue run() {
 				krk_tableAddAll(&vm.objectClass->methods, &_class->methods);
 				break;
 			}
-			case OP_INLINE_FUNCTION: {
-				CallFrame * newFrame = &vm.frames[vm.frameCount++];
-				newFrame->isInlined = 1;
-				newFrame->closure = frame->closure;
-				newFrame->ip = frame->ip;
-				newFrame->slots = vm.stackTop - vm.stack;
-				frame = newFrame;
-				break;
-			}
 			case OP_GET_PROPERTY_LONG:
 			case OP_GET_PROPERTY: {
 				KrkString * name = READ_STRING(operandWidth);
@@ -2086,7 +2101,7 @@ static KrkValue run() {
 				krk_push(krk_peek(READ_BYTE()));
 				break;
 			case OP_SWAP:
-				krk_swap(READ_BYTE());
+				krk_swap(1);
 				break;
 		}
 		if (!(vm.flags & KRK_HAS_EXCEPTION)) continue;

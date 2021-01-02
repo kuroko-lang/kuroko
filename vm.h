@@ -13,7 +13,6 @@ typedef struct {
 	KrkClosure * closure;
 	uint8_t * ip;
 	size_t slots;
-	int isInlined;
 } CallFrame;
 
 typedef enum {
