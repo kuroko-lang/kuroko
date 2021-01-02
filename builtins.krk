@@ -5,14 +5,17 @@ class list():
   for v in i:
    self.append(v)
   return self.__len__()
- def __repr__(self): return self.__str__()
- def __str__(self):
+ def __str__(self): return self.__repr__()
+ def __repr__(self):
+  if self.__inrepr: return "[...]"
+  self.__inrepr=1
   let b="["
   let l=self.__len__()
   for i=0,i<l,i=i+1:
    if i>0:
     b+=", "
    b+=repr(self[i])
+  self.__inrepr=0
   return b+"]"
  def __iter__(self):
   let m = self
@@ -31,16 +34,19 @@ class list():
 
 class dict():
  "Hashmap of arbitrary keys to arbitrary values."
- def __repr__(self): return self.__str__()
- def __str__(self):
+ def __str__(self): return self.__repr__()
+ def __repr__(self):
+  if self.__inrepr: return "{...}"
+  self.__inrepr = 1
   let out = "{"
   let first = True
   for v in self.keys():
    if not first:
     out += ", "
    first = False
-   out += repr(v) + ": " + repr(self[v])
+   out += v.__repr__() + ": " + self[v].__repr__()
   out += "}"
+  self.__inrepr = 0
   return out
  def keys(self):
   "Returns an iterable of the keys in this dictionary."

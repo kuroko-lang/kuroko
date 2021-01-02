@@ -190,6 +190,7 @@ static KrkValue _dict_init(int argc, KrkValue argv[]) {
 	KrkClass * dict = krk_newClass(NULL);
 	krk_push(OBJECT_VAL(dict));
 	krk_tableSet(&AS_INSTANCE(argv[0])->fields, vm.specialMethodNames[METHOD_DICT_INT], OBJECT_VAL(dict));
+	krk_tableSet(&AS_INSTANCE(argv[0])->fields, OBJECT_VAL(S("__inrepr")), INTEGER_VAL(0));
 	krk_pop();
 	return argv[0];
 }
@@ -281,6 +282,7 @@ static KrkValue _list_init(int argc, KrkValue argv[]) {
 	KrkFunction * list = krk_newFunction(NULL);
 	krk_push(OBJECT_VAL(list));
 	krk_tableSet(&AS_INSTANCE(argv[0])->fields, vm.specialMethodNames[METHOD_LIST_INT], OBJECT_VAL(list));
+	krk_tableSet(&AS_INSTANCE(argv[0])->fields, vm.specialMethodNames[METHOD_INREPR], INTEGER_VAL(0));
 	krk_pop();
 	return argv[0];
 }
@@ -377,6 +379,7 @@ static KrkValue krk_list_of(int argc, KrkValue argv[]) {
 	KrkFunction * listContents = krk_newFunction(NULL);
 	krk_push(OBJECT_VAL(listContents));
 	krk_tableSet(&outList->fields, vm.specialMethodNames[METHOD_LIST_INT], OBJECT_VAL(listContents));
+	krk_tableSet(&outList->fields, vm.specialMethodNames[METHOD_INREPR], INTEGER_VAL(0));
 	for (int ind = 0; ind < argc; ++ind) {
 		krk_writeValueArray(&listContents->chunk.constants, argv[ind]);
 	}
@@ -402,6 +405,7 @@ static KrkValue krk_dict_of(int argc, KrkValue argv[]) {
 	KrkClass * dictContents = krk_newClass(NULL);
 	krk_push(OBJECT_VAL(dictContents));
 	krk_tableSet(&outDict->fields, vm.specialMethodNames[METHOD_DICT_INT], OBJECT_VAL(dictContents));
+	krk_tableSet(&outDict->fields, vm.specialMethodNames[METHOD_INREPR], INTEGER_VAL(0));
 	for (int ind = 0; ind < argc; ind += 2) {
 		krk_tableSet(&dictContents->methods, argv[ind], argv[ind+1]);
 	}
@@ -1178,6 +1182,7 @@ void krk_initVM(int flags) {
 	vm.specialMethodNames[METHOD_GETSLICE] = OBJECT_VAL(S("__getslice__"));
 	vm.specialMethodNames[METHOD_LIST_INT] = OBJECT_VAL(S("__list"));
 	vm.specialMethodNames[METHOD_DICT_INT] = OBJECT_VAL(S("__dict"));
+	vm.specialMethodNames[METHOD_INREPR] = OBJECT_VAL(S("__inrepr"));
 
 	/* Create built-in class `object` */
 	vm.objectClass = krk_newClass(S("object"));
