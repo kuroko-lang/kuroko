@@ -4,7 +4,7 @@
 #include "vm.h"
 
 void krk_disassembleChunk(KrkChunk * chunk, const char * name) {
-	fprintf(stderr, "[%s]\n", name);
+	fprintf(stderr, "[%s from %s]\n", name, chunk->filename->chars);
 	for (size_t offset = 0; offset < chunk->count;) {
 		offset = krk_disassembleInstruction(chunk, offset);
 	}
@@ -12,16 +12,16 @@ void krk_disassembleChunk(KrkChunk * chunk, const char * name) {
 
 #define SIMPLE(opc) case opc: fprintf(stderr, "%s\n", #opc); return offset + 1;
 #define CONSTANT(opc,more) case opc: { size_t constant = chunk->code[offset + 1]; \
-	fprintf(stderr, "%-16s %4d '", #opc, (int)constant); \
+	fprintf(stderr, "%-16s %4d ", #opc, (int)constant); \
 	krk_printValueSafe(stderr, chunk->constants.values[constant]); \
-	fprintf(stderr,"' (type=%s)\n", krk_typeName(chunk->constants.values[constant])); \
+	fprintf(stderr," (type=%s)\n", krk_typeName(chunk->constants.values[constant])); \
 	more; \
 	return offset + 2; } \
 	case opc ## _LONG: { size_t constant = (chunk->code[offset + 1] << 16) | \
 	(chunk->code[offset + 2] << 8) | (chunk->code[offset + 3]); \
-	fprintf(stderr, "%-16s %4d '", #opc "_LONG", (int)constant); \
+	fprintf(stderr, "%-16s %4d ", #opc "_LONG", (int)constant); \
 	krk_printValueSafe(stderr, chunk->constants.values[constant]); \
-	fprintf(stderr,"' (type=%s)\n", krk_typeName(chunk->constants.values[constant])); \
+	fprintf(stderr," (type=%s)\n", krk_typeName(chunk->constants.values[constant])); \
 	more; \
 	return offset + 4; }
 #define OPERANDB(opc) case opc: { uint32_t operand = chunk->code[offset + 1]; \
@@ -46,12 +46,21 @@ void krk_disassembleChunk(KrkChunk * chunk, const char * name) {
 			(int)offset - 2, isLocal ? "local" : "upvalue", index); \
 	}
 
+size_t krk_lineNumber(KrkChunk * chunk, size_t offset) {
+	size_t line = 0;
+	for (size_t i = 0; i < chunk->linesCount; ++i) {
+		if (chunk->lines[i].startOffset > offset) break;
+		line = chunk->lines[i].line;
+	}
+	return line;
+}
+
 size_t krk_disassembleInstruction(KrkChunk * chunk, size_t offset) {
 	fprintf(stderr, "%04u ", (unsigned int)offset);
-	if (offset > 0 && chunk->lines[offset] == chunk->lines[offset - 1]) {
+	if (offset > 0 && krk_lineNumber(chunk, offset) == krk_lineNumber(chunk, offset - 1)) {
 		fprintf(stderr, "   | ");
 	} else {
-		fprintf(stderr, "%4d ", (int)chunk->lines[offset]);
+		fprintf(stderr, "%4d ", (int)krk_lineNumber(chunk, offset));
 	}
 	uint8_t opcode = chunk->code[offset];
 

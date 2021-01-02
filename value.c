@@ -59,6 +59,7 @@ void krk_printValueSafe(FILE * f, KrkValue printable) {
 		fprintf(f, "\"%s\"", AS_CSTRING(printable));
 	} else {
 		switch (AS_OBJECT(printable)->type) {
+			case OBJ_FUNCTION: fprintf(f, "<function %s>", AS_FUNCTION(printable)->name ? AS_FUNCTION(printable)->name->chars : "?"); break;
 			case OBJ_CLASS: fprintf(f, "<class %s>", AS_CLASS(printable)->name ? AS_CLASS(printable)->name->chars : "?"); break;
 			case OBJ_INSTANCE: fprintf(f, "<instance of %s>", AS_INSTANCE(printable)->_class->name->chars); break;
 			case OBJ_NATIVE: fprintf(f, "<nativefn %s>", ((KrkNative*)AS_OBJECT(printable))->name); break;

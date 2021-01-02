@@ -6,9 +6,23 @@ void krk_initChunk(KrkChunk * chunk) {
 	chunk->count = 0;
 	chunk->capacity = 0;
 	chunk->code = NULL;
+
+	chunk->linesCount = 0;
+	chunk->linesCapacity = 0;
 	chunk->lines = NULL;
 	chunk->filename = NULL;
 	krk_initValueArray(&chunk->constants);
+}
+
+static void addLine(KrkChunk * chunk, size_t line) {
+	if (chunk->linesCount && chunk->lines[chunk->linesCount-1].line == line) return;
+	if (chunk->linesCapacity < chunk->linesCount + 1) {
+		int old = chunk->linesCapacity;
+		chunk->linesCapacity = GROW_CAPACITY(old);
+		chunk->lines = GROW_ARRAY(KrkLineMap, chunk->lines, old, chunk->linesCapacity);
+	}
+	chunk->lines[chunk->linesCount] = (KrkLineMap){chunk->count, line};
+	chunk->linesCount++;
 }
 
 void krk_writeChunk(KrkChunk * chunk, uint8_t byte, size_t line) {
@@ -16,11 +30,10 @@ void krk_writeChunk(KrkChunk * chunk, uint8_t byte, size_t line) {
 		int old = chunk->capacity;
 		chunk->capacity = GROW_CAPACITY(old);
 		chunk->code = GROW_ARRAY(uint8_t, chunk->code, old, chunk->capacity);
-		chunk->lines = GROW_ARRAY(size_t, chunk->lines, old, chunk->capacity);
 	}
 
 	chunk->code[chunk->count] = byte;
-	chunk->lines[chunk->count] = line;
+	addLine(chunk, line);
 	chunk->count++;
 }
 

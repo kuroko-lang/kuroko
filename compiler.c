@@ -312,7 +312,19 @@ static KrkFunction * endCompiler() {
 	KrkFunction * function = current->function;
 #ifdef ENABLE_DISASSEMBLY
 	if ((vm.flags & KRK_ENABLE_DISASSEMBLY) && !parser.hadError) {
-		krk_disassembleChunk(currentChunk(), function->name != NULL ? function->name->chars : "<module>");
+		krk_disassembleChunk(currentChunk(), function->name ? function->name->chars : "<module>");
+		fprintf(stderr, "Function metadata: requiredArgs=%d defaultArgs=%d upvalueCount=%d\n",
+			function->requiredArgs, function->defaultArgs, (int)function->upvalueCount);
+		fprintf(stderr, "__doc__: \"%s\"\n", function->docstring ? function->docstring->chars : "");
+		fprintf(stderr, "Constants: ");
+		for (size_t i = 0; i < currentChunk()->constants.count; ++i) {
+			fprintf(stderr, "%d: ", (int)i);
+			krk_printValueSafe(stderr, currentChunk()->constants.values[i]);
+			if (i != currentChunk()->constants.count - 1) {
+				fprintf(stderr, ", ");
+			}
+		}
+		fprintf(stderr, "\n");
 	}
 #endif
 

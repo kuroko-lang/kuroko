@@ -89,6 +89,11 @@ typedef enum {
 	OP_INLINE_FUNCTION,
 } KrkOpCode;
 
+typedef struct {
+	size_t startOffset;
+	size_t line;
+} KrkLineMap;
+
 /**
  * Bytecode chunks
  */
@@ -96,7 +101,11 @@ typedef struct {
 	size_t  count;
 	size_t  capacity;
 	uint8_t * code;
-	size_t * lines;
+
+	size_t linesCount;
+	size_t linesCapacity;
+	KrkLineMap * lines;
+
 	KrkString * filename;
 	KrkValueArray constants;
 } KrkChunk;

@@ -51,7 +51,7 @@ static void dumpTraceback() {
 		size_t instruction = frame->ip - function->chunk.code - 1;
 		fprintf(stderr, "  File \"%s\", line %d, in %s\n",
 			(function->chunk.filename ? function->chunk.filename->chars : "?"),
-			(int)function->chunk.lines[instruction],
+			(int)krk_lineNumber(&function->chunk, instruction),
 			(function->name ? function->name->chars : "(unnamed)"));
 	}
 
