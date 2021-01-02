@@ -366,28 +366,6 @@ KrkValue krk_runNext(void) {
 }
 
 /**
- * Internal method for creating a dictionary object. Make sure this
- * stays in sync with the other dictionary methods or modules may
- * stop producing valid dictionaries.
- */
-KrkInstance * krk_dictCreate(void) {
-	KrkValue dictClass;
-	krk_tableGet(&vm.globals,OBJECT_VAL(S("dict")), &dictClass);
-	KrkInstance * outDict = krk_newInstance(AS_CLASS(dictClass));
-	krk_push(OBJECT_VAL(outDict));
-	krk_tableSet(&outDict->fields, vm.specialMethodNames[METHOD_DICT_INT], OBJECT_VAL(outDict));
-	krk_pop();
-
-	switch (krk_callValue(krk_peek(0),0)) {
-		case 1: krk_push(krk_runNext()); break;
-		case 2: break;
-		default: krk_runtimeError(vm.exceptions.typeError, "Invalid method call."); return NULL;
-	}
-
-	return outDict;
-}
-
-/**
  * Exposed method called to produce lists from [expr,...] sequences in managed code.
  * Presented in the global namespace as listOf(...)
  */
@@ -652,6 +630,25 @@ static KrkValue krk_isinstance(int argc, KrkValue argv[]) {
 	}
 
 	return BOOLEAN_VAL(0);
+}
+
+/**
+ * globals()
+ *
+ * Returns a dict of names -> values for all the globals.
+ */
+static KrkValue krk_globals(int argc, KrkValue argv[]) {
+	/* Make a new empty dict */
+	KrkValue dict = krk_dict_of(0, NULL);
+	krk_push(dict);
+	/* Get its internal table */
+	KrkValue _dict_internal;
+	krk_tableGet(&AS_INSTANCE(dict)->fields, vm.specialMethodNames[METHOD_DICT_INT], &_dict_internal);
+	/* Copy the globals table into it */
+	krk_tableAddAll(&vm.globals, &AS_CLASS(_dict_internal)->methods);
+	krk_pop();
+
+	return dict;
 }
 
 /**
@@ -1258,6 +1255,7 @@ void krk_initVM(int flags) {
 	krk_defineNative(&vm.globals, "listOf", krk_list_of);
 	krk_defineNative(&vm.globals, "dictOf", krk_dict_of);
 	krk_defineNative(&vm.globals, "isinstance", krk_isinstance);
+	krk_defineNative(&vm.globals, "globals", krk_globals);
 	krk_defineNative(&vm.globals, "type", krk_typeOf);
 
 	/* __builtins__.set_tracing is namespaced */
