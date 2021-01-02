@@ -181,7 +181,7 @@ static void parsePrecedence(Precedence precedence);
 static ssize_t parseVariable(const char * errorMessage);
 static void variable(int canAssign);
 static void defineVariable(size_t global);
-static uint8_t argumentList();
+static size_t argumentList();
 static ssize_t identifierConstant(KrkToken * name);
 static ssize_t resolveLocal(Compiler * compiler, KrkToken * name);
 static ParseRule * getRule(KrkTokenType type);
@@ -396,8 +396,8 @@ static void binary(int canAssign) {
 }
 
 static void call(int canAssign) {
-	uint8_t argCount = argumentList();
-	emitBytes(OP_CALL, argCount);
+	size_t argCount = argumentList();
+	EMIT_CONSTANT_OP(OP_CALL, argCount);
 }
 
 static int matchAssignment(void) {
@@ -1461,7 +1461,7 @@ static void list(int canAssign) {
 				argCount++;
 			}
 			consume(TOKEN_RIGHT_SQUARE,"Expected ] at end of list expression.");
-			emitBytes(OP_CALL, argCount);
+			EMIT_CONSTANT_OP(OP_CALL, argCount);
 		}
 	} else {
 		/* Empty list expression */
@@ -1484,11 +1484,10 @@ static void dict(int canAssign) {
 			consume(TOKEN_COLON, "Expect colon after dict key.");
 			expression();
 			argCount += 2;
-			if (argCount == 254) error("Too many pairs in dict expression.");
 		} while (match(TOKEN_COMMA));
 	}
 	consume(TOKEN_RIGHT_BRACE,"Expected } at end of dict expression.");
-	emitBytes(OP_CALL, argCount);
+	EMIT_CONSTANT_OP(OP_CALL, argCount);
 }
 
 #define RULE(token, a, b, c) [token] = {# token, a, b, c}
@@ -1645,8 +1644,8 @@ static void defineVariable(size_t global) {
 	EMIT_CONSTANT_OP(OP_DEFINE_GLOBAL, global);
 }
 
-static uint8_t argumentList() {
-	uint8_t argCount = 0;
+static size_t argumentList() {
+	size_t argCount = 0;
 	if (!check(TOKEN_RIGHT_PAREN)) {
 		do {
 			expression();
