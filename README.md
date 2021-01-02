@@ -6,7 +6,7 @@ The bytecode VM / compiler is substantially based on Robert Nystrom's [_Crafting
 
 At the moment, the intent for this project is to add a proper scripting language to [Bim](https://github.com/klange/bim), to which both configuration scripts and syntax highlighting will be ported.
 
-Kuroko, as its name should imply, will also be made available in [ToaruOS](https://github.com/klange/toaruos) as a general-purpose user language, and some utilities may end up being written in it.
+Kuroko, [as its name should imply](https://toarumajutsunoindex.fandom.com/wiki/Shirai_Kuroko), will also be made available in [ToaruOS](https://github.com/klange/toaruos) as a general-purpose user language, and some utilities may end up being written in it.
 
 ## Features
 
