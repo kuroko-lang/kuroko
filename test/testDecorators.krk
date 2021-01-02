@@ -1,0 +1,48 @@
+def decorator(func):
+    def wrapper(butts):
+        print "I am a great decorated function that now needs an argument!", butts
+        func()
+        print "And this is after the function call."
+    print "Decorating!"
+    return wrapper
+
+print "Decorator defined."
+
+@decorator
+def foo():
+    print "Bar"
+
+print "Function with decorator defined."
+
+foo("I am the argument")
+
+print "Function with decorator called."
+
+def __main__():
+    def decorator(func):
+        def wrapper(butts):
+            print "I am a great decorated function (within a function!) that now needs an argument!", butts
+            func()
+            print "And this is after the function call (in a function call!)"
+        print "Decorating!"
+        return wrapper
+
+    print "Decorator defined."
+
+    let i = 42
+    let l = [1,2,3]
+
+    @decorator
+    def foo():
+        print "Bar (the inner one)"
+
+    print "Function with decorator defined."
+
+    foo("I am in the inner wrapper.")
+
+    print "Function with decorator called."
+
+    print "I like the numbers", l
+
+print "Calling main."
+__main__()

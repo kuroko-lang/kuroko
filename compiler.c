@@ -183,6 +183,7 @@ static void declareVariable();
 static void namedVariable(KrkToken name, int canAssign);
 static void addLocal(KrkToken name);
 static void string(int canAssign);
+static KrkToken decorator(size_t level, FunctionType type);
 
 static void errorAt(KrkToken * token, const char * message) {
 	if (parser.panicMode) return;
@@ -557,6 +558,8 @@ static void declaration() {
 		}
 	} else if (check(TOKEN_CLASS)) {
 		classDeclaration();
+	} else if (check(TOKEN_AT)) {
+		decorator(0, TYPE_FUNCTION);
 	} else if (match(TOKEN_EOL) || match(TOKEN_EOF)) {
 		return;
 	} else if (check(TOKEN_INDENTATION)) {
@@ -790,6 +793,72 @@ static void defDeclaration() {
 	markInitialized();
 	function(TYPE_FUNCTION, blockWidth);
 	defineVariable(global);
+}
+
+static KrkToken decorator(size_t level, FunctionType type) {
+	size_t blockWidth = (parser.previous.type == TOKEN_INDENTATION) ? parser.previous.length : 0;
+	advance(); /* Collect the `@` */
+
+	beginScope();
+
+	/* Collect an identifier */
+	consume(TOKEN_IDENTIFIER,"Expected a decorator name.");
+	variable(0);
+	size_t outputLocal = current->localCount;
+
+	emitByte(OP_NONE); /* Space for the function */
+
+	/* See if we have an argument list */
+	size_t argCount = 0;
+	if (match(TOKEN_LEFT_PAREN)) {
+		argCount = argumentList();
+	}
+
+	consume(TOKEN_EOL, "Expected line feed after decorator.");
+	if (blockWidth) {
+		consume(TOKEN_INDENTATION, "Expected next line after decorator to have same indentation.");
+		if (parser.previous.length != blockWidth) error("Expected next line after decorator to have same indentation.");
+	}
+
+	KrkToken funcName;
+	if (check(TOKEN_DEF)) {
+		/* We already checked for block level */
+		advance();
+		consume(TOKEN_IDENTIFIER, "Expected function name.");
+		funcName = parser.previous;
+		if (type == TYPE_METHOD && funcName.length == 8 && !memcmp(funcName.start,"__init__",8)) {
+			type = TYPE_INIT;
+		}
+		function(type, blockWidth);
+	} else if (check(TOKEN_AT)) {
+		funcName = decorator(level+1, type);
+	} else {
+		error("Expected a function declaration or another decorator.");
+	}
+
+	/* As a 'declaration' syntax element, we can always guarantee by the time we
+	 * get to this point, we are at the current local level. */
+	size_t argumentDestination = (type == TYPE_FUNCTION) ? (outputLocal + 1) : (outputLocal + 2);
+	EMIT_CONSTANT_OP(OP_SET_LOCAL, argumentDestination);
+	endScope();
+
+	emitByte(OP_POP);
+
+	emitBytes(OP_CALL, 1 + argCount);
+
+	if (level == 0) {
+		if (type == TYPE_FUNCTION) {
+			parser.previous = funcName;
+			declareVariable();
+			size_t ind = (current->scopeDepth > 0) ? 0 : identifierConstant(&funcName);
+			defineVariable(ind);
+		} else {
+			size_t ind = identifierConstant(&funcName);
+			EMIT_CONSTANT_OP(OP_METHOD, ind);
+		}
+	}
+
+	return funcName;
 }
 
 static int emitJump(uint8_t opcode) {
