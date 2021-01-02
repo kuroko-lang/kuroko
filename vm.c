@@ -513,7 +513,7 @@ static KrkValue krk_dirObject(int argc, KrkValue argv[]) {
 	krk_push(OBJECT_VAL(outList));
 	KrkFunction * listContents = krk_newFunction(NULL);
 	krk_push(OBJECT_VAL(listContents));
-	krk_tableSet(&outList->fields, OBJECT_VAL(S("_list")), OBJECT_VAL(listContents));
+	krk_tableSet(&outList->fields, vm.specialMethodNames[METHOD_LIST_INT], OBJECT_VAL(listContents));
 
 
 	if (IS_INSTANCE(argv[0])) {
