@@ -20,7 +20,7 @@ kuroko: ${OBJS}
 
 .PHONY: clean
 clean:
-	@rm -f ${OBJS} ${TARGET} builtins.c ${MODULES}
+	@rm -f ${OBJS} ${TARGET} ${MODULES}
 
 tags: $(wildcard *.c) $(wildcard *.h)
 	@ctags --c-kinds=+lx *.c *.h
