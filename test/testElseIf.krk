@@ -1,0 +1,14 @@
+import fileio
+
+let x = int(fileio.stdin.readline()[:-1])
+
+if x == 1:
+    print "one"
+else if x == 2:
+    print "two"
+else if x == 3:
+    print "three"
+else:
+    print "something else"
+
+print "outside of if/else"

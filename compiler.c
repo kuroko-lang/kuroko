@@ -11,6 +11,33 @@
 #include "debug.h"
 #include "vm.h"
 
+/**
+ * There's nothing really especially different here compared to the Lox
+ * compiler from Crafting Interpreters. A handful of additional pieces
+ * of functionality are added, and some work is done to make blocks use
+ * indentation instead of braces, but the basic layout and operation
+ * of the compiler are the same top-down Pratt parser.
+ *
+ * The parser error handling has been improved over the Lox compiler with
+ * the addition of column offsets and a printed copy of the original source
+ * line and the offending token.
+ *
+ * String parsing also includes escape sequence support, so you can print
+ * quotation marks properly, as well as escape sequences for terminals.
+ *
+ * One notable part of the compiler is the handling of list comprehensions.
+ * In order to support Python-style syntax, the parser has been set up to
+ * support rolling back to a previous state, so that when the compiler sees
+ * an expression with references to a variable that has yet to be defined it
+ * will first output the expression as if that variable was a global, then it
+ * will see the 'in', rewind, parse the rest of the list comprehension, and
+ * then output the expression as a loop body, with the correct local references.
+ *
+ * if/else and try/except blocks also have to similarly handle rollback cases
+ * as they can not peek forward to see if a statement after an indentation
+ * block is an else/except.
+ */
+
 typedef struct {
 	KrkToken current;
 	KrkToken previous;
@@ -63,7 +90,6 @@ typedef enum {
 	TYPE_INIT,
 } FunctionType;
 
-#define MAX_LOCALS 256
 typedef struct Compiler {
 	struct Compiler * enclosing;
 	KrkFunction * function;
@@ -797,6 +823,7 @@ static void emitLoop(int loopStart) {
 static void ifStatement() {
 	/* Figure out what block level contains us so we can match our partner else */
 	size_t blockWidth = (parser.previous.type == TOKEN_INDENTATION) ? parser.previous.length : 0;
+	KrkToken myPrevious = parser.previous;
 
 	/* Collect the if token that started this statement */
 	advance();
@@ -828,11 +855,15 @@ static void ifStatement() {
 			advance();
 		}
 		if (match(TOKEN_ELSE)) {
-			/* TODO ELIF or ELSE IF */
-			consume(TOKEN_COLON, "Expect ':' after else.");
-			beginScope();
-			block(blockWidth,"else");
-			endScope();
+			if (check(TOKEN_IF)) {
+				parser.previous = myPrevious;
+				ifStatement(); /* Keep nesting */
+			} else {
+				consume(TOKEN_COLON, "Expect ':' after else.");
+				beginScope();
+				block(blockWidth,"else");
+				endScope();
+			}
 		} else {
 			if (!check(TOKEN_EOF) && !check(TOKEN_EOL)) {
 				krk_ungetToken(parser.current);
@@ -1489,7 +1520,7 @@ ParseRule rules[] = {
 	RULE(TOKEN_IDENTIFIER,    variable, NULL,   PREC_NONE),
 	RULE(TOKEN_STRING,        string,   NULL,   PREC_NONE),
 	RULE(TOKEN_NUMBER,        number,   NULL,   PREC_NONE),
-	RULE(TOKEN_CODEPOINT,     codepoint,NULL,   PREC_NONE), /* TODO */
+	RULE(TOKEN_CODEPOINT,     codepoint,NULL,   PREC_NONE),
 	RULE(TOKEN_AND,           NULL,     and_,   PREC_AND),
 	RULE(TOKEN_CLASS,         NULL,     NULL,   PREC_NONE),
 	RULE(TOKEN_ELSE,          NULL,     NULL,   PREC_NONE),
@@ -1536,7 +1567,7 @@ static void parsePrecedence(Precedence precedence) {
 	advance();
 	ParseFn prefixRule = getRule(parser.previous.type)->prefix;
 	if (prefixRule == NULL) {
-		errorAtCurrent("expect expression");
+		errorAtCurrent("Unexpected token.");
 		return;
 	}
 	int canAssign = precedence <= PREC_ASSIGNMENT;
@@ -1561,7 +1592,7 @@ static ssize_t resolveLocal(Compiler * compiler, KrkToken * name) {
 		Local * local = &compiler->locals[i];
 		if (identifiersEqual(name, &local->name)) {
 			if (local->depth == -1) {
-				error("can not initialize value recursively (are you shadowing something?)");
+				error("Can not initialize value recursively (are you shadowing something?)");
 			}
 			return i;
 		}
