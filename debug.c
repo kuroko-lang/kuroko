@@ -111,9 +111,8 @@ size_t krk_disassembleInstruction(KrkChunk * chunk, size_t offset) {
 		JUMP(OP_JUMP_IF_TRUE,+)
 		JUMP(OP_LOOP,-)
 		JUMP(OP_PUSH_TRY,+)
-		default:
-			fprintf(stderr, "Unknown opcode: %02x\n", opcode);
-			return offset + 1;
 	}
+	fprintf(stderr, "Unknown opcode: %02x\n", opcode);
+	return offset + 1;
 }
 

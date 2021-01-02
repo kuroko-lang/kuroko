@@ -88,7 +88,7 @@ typedef struct {
 } KrkVM;
 
 #define KRK_ENABLE_TRACING      (1 << 0)
-#define KRK_ENABLE_DEBUGGING    (1 << 1)
+#define KRK_ENABLE_DISASSEMBLY  (1 << 1)
 #define KRK_ENABLE_SCAN_TRACING (1 << 2)
 #define KRK_ENABLE_STRESS_GC    (1 << 3)
 

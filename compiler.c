@@ -310,8 +310,8 @@ static void emitReturn() {
 static KrkFunction * endCompiler() {
 	emitReturn();
 	KrkFunction * function = current->function;
-#ifdef ENABLE_DEBUGGING
-	if ((vm.flags & KRK_ENABLE_DEBUGGING) && !parser.hadError) {
+#ifdef ENABLE_DISASSEMBLY
+	if ((vm.flags & KRK_ENABLE_DISASSEMBLY) && !parser.hadError) {
 		krk_disassembleChunk(currentChunk(), function->name != NULL ? function->name->chars : "<module>");
 	}
 #endif
@@ -613,8 +613,8 @@ static void block(size_t indentation, const char * blockName) {
 				advance();
 				declaration();
 			};
-#ifdef ENABLE_DEBUGGING
-			if (vm.flags & KRK_ENABLE_DEBUGGING) {
+#ifdef ENABLE_SCAN_TRACING
+			if (vm.flags & KRK_ENABLE_SCAN_TRACING) {
 				fprintf(stderr, "finished with block %s (ind=%d) on line %d, sitting on a %s (len=%d)\n",
 					blockName, (int)indentation, (int)parser.current.line,
 					getRule(parser.current.type)->name, (int)parser.current.length);

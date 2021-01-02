@@ -14,15 +14,21 @@
 
 #define S(c) (krk_copyString(c,sizeof(c)-1))
 
-/* Why is this static... why do we do this to ourselves... */
+/* This is macro'd to krk_vm for namespacing reasons. */
 KrkVM vm;
 
 static KrkValue run();
 static int call(KrkClosure * closure, int argCount);
 static KrkValue krk_isinstance(int argc, KrkValue argv[]);
 
+/* Embedded script for extensions to builtin-ins; see builtins.c/builtins.krk */
 extern const char _builtins_src[];
 
+/**
+ * Reset the stack pointers, frame, upvalue list,
+ * clear the exception flag and current exception;
+ * happens on startup (twice) and after an exception.
+ */
 static void resetStack() {
 	vm.stackTop = vm.stack;
 	vm.frameCount = 0;
@@ -31,8 +37,14 @@ static void resetStack() {
 	vm.currentException = NONE_VAL();
 }
 
+/**
+ * Display a traceback by working through call frames.
+ * Called when no exception handler was available and
+ * an exception was thrown. If there the exception value
+ * is not None, it will also be printed using safe methods.
+ */
 static void dumpTraceback() {
-	fprintf(stderr, "Traceback, most recent first, %d call frames:\n", (int)vm.frameCount);
+	fprintf(stderr, "Traceback, most recent first, %d call frame%s:\n", (int)vm.frameCount, vm.frameCount == 1 ? "" : "s");
 	for (size_t i = 0; i <= vm.frameCount - 1; i++) {
 		CallFrame * frame = &vm.frames[i];
 		KrkFunction * function = frame->closure->function;
@@ -43,28 +55,35 @@ static void dumpTraceback() {
 			(function->name ? function->name->chars : "(unnamed)"));
 	}
 
-	if (IS_STRING(vm.currentException)) {
-		/* Make sure strings are printed without quotes */
-		fprintf(stderr, "%s", AS_CSTRING(vm.currentException));
-	} else if (AS_BOOLEAN(krk_isinstance(2, (KrkValue[]){vm.currentException, OBJECT_VAL(vm.exceptions.baseException)}))) {
-		/* ErrorClass: arg... */
-		fprintf(stderr, "%s: ", AS_INSTANCE(vm.currentException)->_class->name->chars);
-		KrkValue exceptionArg;
-		krk_tableGet(&AS_INSTANCE(vm.currentException)->fields, OBJECT_VAL(S("arg")), &exceptionArg);
-		if (IS_STRING(exceptionArg)) {
+	if (!krk_valuesEqual(vm.currentException,NONE_VAL())) {
+		if (IS_STRING(vm.currentException)) {
 			/* Make sure strings are printed without quotes */
-			fprintf(stderr, "%s", AS_CSTRING(exceptionArg));
+			fprintf(stderr, "%s", AS_CSTRING(vm.currentException));
+		} else if (AS_BOOLEAN(krk_isinstance(2, (KrkValue[]){vm.currentException, OBJECT_VAL(vm.exceptions.baseException)}))) {
+			/* ErrorClass: arg... */
+			fprintf(stderr, "%s: ", AS_INSTANCE(vm.currentException)->_class->name->chars);
+			KrkValue exceptionArg;
+			krk_tableGet(&AS_INSTANCE(vm.currentException)->fields, OBJECT_VAL(S("arg")), &exceptionArg);
+			if (IS_STRING(exceptionArg)) {
+				/* Make sure strings are printed without quotes */
+				fprintf(stderr, "%s", AS_CSTRING(exceptionArg));
+			} else {
+				krk_printValueSafe(stderr, exceptionArg);
+			}
 		} else {
-			krk_printValueSafe(stderr, exceptionArg);
+			/* Whatever, just print it. */
+			krk_printValueSafe(stderr, vm.currentException);
 		}
-	} else {
-		/* Whatever, just print it. */
-		krk_printValueSafe(stderr, vm.currentException);
-	}
 
-	fprintf(stderr, "\n");
+		fprintf(stderr, "\n");
+	}
 }
 
+/**
+ * Raise an exception. Creates an exception object of the requested type
+ * and formats a message string to attach to it. Exception classes are
+ * found in vm.exceptions and are initialized on startup.
+ */
 void krk_runtimeError(KrkClass * type, const char * fmt, ...) {
 	char buf[1024] = {0};
 	va_list args;
@@ -88,6 +107,13 @@ void krk_runtimeError(KrkClass * type, const char * fmt, ...) {
 	vm.currentException = OBJECT_VAL(exceptionObject);
 }
 
+/**
+ * Push a value onto the stack, and grow the stack if necessary.
+ * Note that growing the stack can involve the stack _moving_, so
+ * do not rely on the memory offset of a stack value if you expect
+ * the stack to grow - eg. if you are calling into managed code
+ * to do anything, or if you are pushing anything.
+ */
 inline void krk_push(KrkValue value) {
 	if ((size_t)(vm.stackTop - vm.stack) + 1 > vm.stackSize) {
 		size_t old = vm.stackSize;
@@ -100,6 +126,14 @@ inline void krk_push(KrkValue value) {
 	vm.stackTop++;
 }
 
+/**
+ * Pop the top of the stack. We never reclaim space used by the stack,
+ * so anything that is popped can be safely pushed back on without
+ * the stack moving, and you an also generally rely on a popped item
+ * still being where it was if you don't allocate anything in between;
+ * the repl relies on this it expects to be able to get the last
+ * pushed value and display it (if it's not None).
+ */
 KrkValue krk_pop() {
 	vm.stackTop--;
 	if (vm.stackTop < vm.stack) {
@@ -110,16 +144,23 @@ KrkValue krk_pop() {
 	return *vm.stackTop;
 }
 
-KrkValue krk_peek(int distance) {
+/* Read a value `distance` units from the top of the stack without poping it. */
+inline KrkValue krk_peek(int distance) {
 	return vm.stackTop[-1 - distance];
 }
 
+/* Exchange the value `distance` units down from the top of the stack with
+ * the value at the top of the stack. */
 void krk_swap(int distance) {
 	KrkValue top = vm.stackTop[-1];
 	vm.stackTop[-1] = vm.stackTop[-1 - distance];
 	vm.stackTop[-1 - distance] = top;
 }
 
+/**
+ * Bind a native function to the given table (eg. vm.globals, or _class->methods)
+ * GC safe: pushes allocated values.
+ */
 void krk_defineNative(KrkTable * table, const char * name, NativeFn function) {
 	int functionType = 0;
 	if (*name == '.') {
@@ -138,6 +179,13 @@ void krk_defineNative(KrkTable * table, const char * name, NativeFn function) {
 	krk_pop();
 }
 
+/***************
+ * Collections *
+****************/
+
+/**
+ * dict.__init__()
+ */
 static KrkValue _dict_init(int argc, KrkValue argv[]) {
 	KrkClass * dict = krk_newClass(NULL);
 	krk_push(OBJECT_VAL(dict));
@@ -146,6 +194,9 @@ static KrkValue _dict_init(int argc, KrkValue argv[]) {
 	return argv[0];
 }
 
+/**
+ * dict.__get__(key)
+ */
 static KrkValue _dict_get(int argc, KrkValue argv[]) {
 	if (argc < 2) {
 		krk_runtimeError(vm.exceptions.argumentError, "wrong number of arguments");
@@ -160,6 +211,9 @@ static KrkValue _dict_get(int argc, KrkValue argv[]) {
 	return out;
 }
 
+/**
+ * dict.__set__(key, value)
+ */
 static KrkValue _dict_set(int argc, KrkValue argv[]) {
 	if (argc < 3) {
 		krk_runtimeError(vm.exceptions.argumentError, "wrong number of arguments");
@@ -171,6 +225,9 @@ static KrkValue _dict_set(int argc, KrkValue argv[]) {
 	return NONE_VAL();
 }
 
+/**
+ * dict.__len__()
+ */
 static KrkValue _dict_len(int argc, KrkValue argv[]) {
 	if (argc < 1) {
 		krk_runtimeError(vm.exceptions.argumentError, "wrong number of arguments");
@@ -181,6 +238,9 @@ static KrkValue _dict_len(int argc, KrkValue argv[]) {
 	return INTEGER_VAL(AS_CLASS(_dict_internal)->methods.count);
 }
 
+/**
+ * dict.capacity()
+ */
 static KrkValue _dict_capacity(int argc, KrkValue argv[]) {
 	if (argc < 1) {
 		krk_runtimeError(vm.exceptions.argumentError, "wrong number of arguments");
@@ -191,7 +251,9 @@ static KrkValue _dict_capacity(int argc, KrkValue argv[]) {
 	return INTEGER_VAL(AS_CLASS(_dict_internal)->methods.capacity);
 }
 
-
+/**
+ * dict._key_at_index(internalIndex)
+ */
 static KrkValue _dict_key_at_index(int argc, KrkValue argv[]) {
 	if (argc < 2) {
 		krk_runtimeError(vm.exceptions.argumentError, "wrong number of arguments");
@@ -212,6 +274,9 @@ static KrkValue _dict_key_at_index(int argc, KrkValue argv[]) {
 	return entry.key;
 }
 
+/**
+ * list.__init__()
+ */
 static KrkValue _list_init(int argc, KrkValue argv[]) {
 	KrkFunction * list = krk_newFunction(NULL);
 	krk_push(OBJECT_VAL(list));
@@ -220,6 +285,9 @@ static KrkValue _list_init(int argc, KrkValue argv[]) {
 	return argv[0];
 }
 
+/**
+ * list.__get__(index)
+ */
 static KrkValue _list_get(int argc, KrkValue argv[]) {
 	if (argc < 2 || !IS_INTEGER(argv[1])) {
 		krk_runtimeError(vm.exceptions.argumentError, "wrong number or type of arguments");
@@ -235,6 +303,9 @@ static KrkValue _list_get(int argc, KrkValue argv[]) {
 	return AS_FUNCTION(_list_internal)->chunk.constants.values[index];
 }
 
+/**
+ * list.__set__(index, value)
+ */
 static KrkValue _list_set(int argc, KrkValue argv[]) {
 	if (argc < 3 || !IS_INTEGER(argv[1])) {
 		krk_runtimeError(vm.exceptions.argumentError, "wrong number or type of arguments");
@@ -251,6 +322,9 @@ static KrkValue _list_set(int argc, KrkValue argv[]) {
 	return NONE_VAL();
 }
 
+/**
+ * list.append(value)
+ */
 static KrkValue _list_append(int argc, KrkValue argv[]) {
 	if (argc < 2) {
 		krk_runtimeError(vm.exceptions.argumentError, "wrong number or type of arguments");
@@ -262,6 +336,9 @@ static KrkValue _list_append(int argc, KrkValue argv[]) {
 	return NONE_VAL();
 }
 
+/**
+ * list.__len__
+ */
 static KrkValue _list_len(int argc, KrkValue argv[]) {
 	if (argc < 1) {
 		krk_runtimeError(vm.exceptions.argumentError, "wrong number or type of arguments");
@@ -272,6 +349,14 @@ static KrkValue _list_len(int argc, KrkValue argv[]) {
 	return INTEGER_VAL(AS_FUNCTION(_list_internal)->chunk.constants.count);
 }
 
+/**
+ * Run the VM until it returns from the current call frame;
+ * used by native methods to call into managed methods.
+ * Returns the value returned by the RETURN instruction that
+ * exited the call frame. Should be nestable so a managed method
+ * can call a native method can call a managed can call a native
+ * and so on (hopefully).
+ */
 KrkValue krk_runNext(void) {
 	size_t oldExit = vm.exitOnFrame;
 	vm.exitOnFrame = vm.frameCount - 1;
@@ -280,6 +365,11 @@ KrkValue krk_runNext(void) {
 	return result;
 }
 
+/**
+ * Internal method for creating a dictionary object. Make sure this
+ * stays in sync with the other dictionary methods or modules may
+ * stop producing valid dictionaries.
+ */
 KrkInstance * krk_dictCreate(void) {
 	KrkValue dictClass;
 	krk_tableGet(&vm.globals,OBJECT_VAL(S("dict")), &dictClass);
@@ -297,6 +387,10 @@ KrkInstance * krk_dictCreate(void) {
 	return outDict;
 }
 
+/**
+ * Exposed method called to produce lists from [expr,...] sequences in managed code.
+ * Presented in the global namespace as listOf(...)
+ */
 static KrkValue krk_list_of(int argc, KrkValue argv[]) {
 	KrkValue Class;
 	krk_tableGet(&vm.globals,OBJECT_VAL(S("list")), &Class);
@@ -309,11 +403,15 @@ static KrkValue krk_list_of(int argc, KrkValue argv[]) {
 		krk_writeValueArray(&listContents->chunk.constants, argv[ind]);
 	}
 	KrkValue out = OBJECT_VAL(outList);
-	krk_pop();
-	krk_pop();
+	krk_pop(); /* listContents */
+	krk_pop(); /* outList */
 	return out;
 }
 
+/**
+ * Exposed method called to produce dictionaries from {expr: expr, ...} sequences in managed code.
+ * Presented in the global namespace as dictOf(...). Expects arguments as key,value,key,value...
+ */
 static KrkValue krk_dict_of(int argc, KrkValue argv[]) {
 	if (argc % 2 != 0) {
 		krk_runtimeError(vm.exceptions.argumentError, "Expected even number of arguments to dictOf");
@@ -330,12 +428,15 @@ static KrkValue krk_dict_of(int argc, KrkValue argv[]) {
 		krk_tableSet(&dictContents->methods, argv[ind], argv[ind+1]);
 	}
 	KrkValue out = OBJECT_VAL(outDict);
-	krk_pop();
-	krk_pop();
+	krk_pop(); /* dictContents */
+	krk_pop(); /* outDict */
 	return out;
 }
 
 #ifndef NO_SYSTEM_BINDS
+/**
+ * system.uname()
+ */
 static KrkValue krk_uname(int argc, KrkValue argv[]) {
 	struct utsname buf;
 	if (uname(&buf) < 0) return NONE_VAL();
@@ -355,6 +456,9 @@ static KrkValue krk_uname(int argc, KrkValue argv[]) {
 	return result;
 }
 
+/**
+ * system.sleep(seconds)
+ */
 static KrkValue krk_sleep(int argc, KrkValue argv[]) {
 	if (argc < 1) {
 		krk_runtimeError(vm.exceptions.argumentError, "sleep: expect at least one argument.");
@@ -372,15 +476,18 @@ static KrkValue krk_sleep(int argc, KrkValue argv[]) {
 }
 #endif
 
+/**
+ * __builtins__.set_tracing(mode)
+ */
 static KrkValue krk_set_tracing(int argc, KrkValue argv[]) {
 	if (argc < 1) return NONE_VAL();
 #ifdef DEBUG
 	else if (!strcmp(AS_CSTRING(argv[0]),"tracing=1")) vm.flags |= KRK_ENABLE_TRACING;
-	else if (!strcmp(AS_CSTRING(argv[0]),"debugging=1")) vm.flags |= KRK_ENABLE_DEBUGGING;
+	else if (!strcmp(AS_CSTRING(argv[0]),"disassembly=1")) vm.flags |= KRK_ENABLE_DISASSEMBLY;
 	else if (!strcmp(AS_CSTRING(argv[0]),"scantracing=1")) vm.flags |= KRK_ENABLE_SCAN_TRACING;
 	else if (!strcmp(AS_CSTRING(argv[0]),"stressgc=1")) vm.flags |= KRK_ENABLE_STRESS_GC;
 	else if (!strcmp(AS_CSTRING(argv[0]),"tracing=0")) vm.flags &= ~KRK_ENABLE_TRACING;
-	else if (!strcmp(AS_CSTRING(argv[0]),"debugging=0")) vm.flags &= ~KRK_ENABLE_DEBUGGING;
+	else if (!strcmp(AS_CSTRING(argv[0]),"disassembly=0")) vm.flags &= ~KRK_ENABLE_DISASSEMBLY;
 	else if (!strcmp(AS_CSTRING(argv[0]),"scantracing=0")) vm.flags &= ~KRK_ENABLE_SCAN_TRACING;
 	else if (!strcmp(AS_CSTRING(argv[0]),"stressgc=0")) vm.flags &= ~KRK_ENABLE_STRESS_GC;
 	return BOOLEAN_VAL(1);
@@ -390,6 +497,9 @@ static KrkValue krk_set_tracing(int argc, KrkValue argv[]) {
 #endif
 }
 
+/**
+ * object.__dir__()
+ */
 static KrkValue krk_dirObject(int argc, KrkValue argv[]) {
 	if (argc != 1) {
 		krk_runtimeError(vm.exceptions.argumentError, "wrong number of arguments or bad type, got %d\n", argc);
@@ -443,6 +553,14 @@ static KrkValue krk_dirObject(int argc, KrkValue argv[]) {
 	return out;
 }
 
+/**
+ * type(obj)
+ *
+ * For basic types (non-instances), finds the associated pseudo-class;
+ * for instances, returns the associated real class.
+ *
+ * Called often in native code as krk_typeOf(1,(KrkValue[]){value})
+ */
 KrkValue krk_typeOf(int argc, KrkValue argv[]) {
 	switch (argv[0].type) {
 		case VAL_INTEGER:
@@ -475,22 +593,27 @@ KrkValue krk_typeOf(int argc, KrkValue argv[]) {
 	}
 }
 
+/* Class.__base__ */
 static KrkValue krk_baseOfClass(int argc, KrkValue argv[]) {
 	return AS_CLASS(argv[0])->base ? OBJECT_VAL(AS_CLASS(argv[0])->base) : NONE_VAL();
 }
 
+/* Class.__name */
 static KrkValue krk_nameOfClass(int argc, KrkValue argv[]) {
 	return AS_CLASS(argv[0])->name ? OBJECT_VAL(AS_CLASS(argv[0])->name) : NONE_VAL();
 }
 
+/* Class.__file__ */
 static KrkValue krk_fileOfClass(int argc, KrkValue argv[]) {
 	return AS_CLASS(argv[0])->filename ? OBJECT_VAL(AS_CLASS(argv[0])->filename) : NONE_VAL();
 }
 
+/* Class.__doc__ */
 static KrkValue krk_docOfClass(int argc, KrkValue argv[]) {
 	return AS_CLASS(argv[0])->docstring ? OBJECT_VAL(AS_CLASS(argv[0])->docstring) : NONE_VAL();
 }
 
+/* Class.__str__() (and Class.__repr__) */
 static KrkValue _class_to_str(int argc, KrkValue argv[]) {
 	char * tmp = malloc(sizeof("<type ''>") + AS_CLASS(argv[0])->name->length);
 	size_t l = sprintf(tmp, "<type '%s'>", AS_CLASS(argv[0])->name->chars);
@@ -499,6 +622,14 @@ static KrkValue _class_to_str(int argc, KrkValue argv[]) {
 	return OBJECT_VAL(out);
 }
 
+/**
+ * isinstance(obj,Class)
+ *
+ * Searches from type(obj) up the inheritence tree to see if obj
+ * is an eventual descendant of Class. Unless someone made a new
+ * type and didn't inherit from object(), everything is eventually
+ * an object - even basic types like INTEGERs and FLOATINGs.
+ */
 static KrkValue krk_isinstance(int argc, KrkValue argv[]) {
 	if (argc != 2) {
 		krk_runtimeError(vm.exceptions.argumentError, "isinstance expects 2 arguments, got %d", argc);
@@ -523,6 +654,11 @@ static KrkValue krk_isinstance(int argc, KrkValue argv[]) {
 	return BOOLEAN_VAL(0);
 }
 
+/**
+ * Call a managed method.
+ * Takes care of argument count checking, default argument filling,
+ * sets up a new call frame, and then resumes the VM to run the function.
+ */
 static int call(KrkClosure * closure, int argCount) {
 	int minArgs = closure->function->requiredArgs;
 	int maxArgs = minArgs + closure->function->defaultArgs;
@@ -551,6 +687,27 @@ static int call(KrkClosure * closure, int argCount) {
 	return 1;
 }
 
+/**
+ * Call a callable.
+ *
+ *   For native methods, the result is available "immediately" upon return
+ *   and the return value is set to 2 to indicate this - just krk_pop()
+ *   to get the result. If an exception is thrown during a native method call,
+ *   callValue will return 0 and the VM should be allowed to handle the exception.
+ *
+ *   For managed code, the VM needs to be resumed. Returns 1 to indicate this.
+ *   If you want a result in a native method, call `krk_runNext()` and the
+ *   result will be returned directly from that function.
+ *
+ *   Works for closures, classes, natives, and bound methods.
+ *   If called with a non-callable, raises TypeError; this includes
+ *   attempts to call a Class with no __init__ while using arguments.
+ *
+ *   If callValue returns 0, the VM should already be in the exception state
+ *   and it is not necessary to raise another exception.
+ *
+ *   TODO: Instances with __call__ method.
+ */
 int krk_callValue(KrkValue callee, int argCount) {
 	if (IS_OBJECT(callee)) {
 		switch (OBJECT_TYPE(callee)) {
@@ -596,6 +753,10 @@ int krk_callValue(KrkValue callee, int argCount) {
 	return 0;
 }
 
+/**
+ * Attach a method call to its callee and return a BoundMethod.
+ * Works for managed and native method calls.
+ */
 int krk_bindMethod(KrkClass * _class, KrkString * name) {
 	KrkValue method, out;
 	if (!krk_tableGet(&_class->methods, OBJECT_VAL(name), &method)) return 0;
@@ -609,6 +770,10 @@ int krk_bindMethod(KrkClass * _class, KrkString * name) {
 	return 1;
 }
 
+/**
+ * Capture upvalues and mark them as open. Called upon closure creation to
+ * mark stack slots used by a function.
+ */
 static KrkUpvalue * captureUpvalue(int index) {
 	KrkUpvalue * prevUpvalue = NULL;
 	KrkUpvalue * upvalue = vm.openUpvalues;
@@ -631,6 +796,10 @@ static KrkUpvalue * captureUpvalue(int index) {
 
 #define UPVALUE_LOCATION(upvalue) (upvalue->location == -1 ? &upvalue->closed : &vm.stack[upvalue->location])
 
+/**
+ * Close upvalues by moving them out of the stack and into the heap.
+ * Their location attribute is set to -1 to indicate they now live on the heap.
+ */
 static void closeUpvalues(int last) {
 	while (vm.openUpvalues != NULL && vm.openUpvalues->location >= last) {
 		KrkUpvalue * upvalue = vm.openUpvalues;
@@ -640,13 +809,12 @@ static void closeUpvalues(int last) {
 	}
 }
 
-static void defineMethod(KrkString * name) {
-	KrkValue method = krk_peek(0);
-	KrkClass * _class = AS_CLASS(krk_peek(1));
-	krk_tableSet(&_class->methods, OBJECT_VAL(name), method);
-	krk_pop();
-}
-
+/**
+ * Attach an object to a table.
+ *
+ * Generally used to attach classes or objects to the globals table, or to
+ * a native module's export object.
+ */
 void krk_attachNamedObject(KrkTable * table, const char name[], KrkObj * obj) {
 	krk_push(OBJECT_VAL(krk_copyString(name,strlen(name))));
 	krk_push(OBJECT_VAL(obj));
@@ -655,6 +823,9 @@ void krk_attachNamedObject(KrkTable * table, const char name[], KrkObj * obj) {
 	krk_pop();
 }
 
+/**
+ * Same as above, but the object has already been wrapped in a value.
+ */
 void krk_attachNamedValue(KrkTable * table, const char name[], KrkValue obj) {
 	krk_push(OBJECT_VAL(krk_copyString(name,strlen(name))));
 	krk_push(obj);
@@ -663,6 +834,9 @@ void krk_attachNamedValue(KrkTable * table, const char name[], KrkValue obj) {
 	krk_pop();
 }
 
+/**
+ * Exception.__init__(arg)
+ */
 static KrkValue krk_initException(int argc, KrkValue argv[]) {
 	KrkInstance * self = AS_INSTANCE(argv[0]);
 
@@ -689,23 +863,28 @@ static KrkValue krk_initException(int argc, KrkValue argv[]) {
 	krk_tableAddAll(&baseClass->methods, &obj->methods); \
 } while (0)
 
+/** native method that returns its first arg; useful for int(INT), etc. */
 static KrkValue _noop(int argc, KrkValue argv[]) {
 	return argv[0];
 }
 
+/* float.__int__() */
 static KrkValue _floating_to_int(int argc, KrkValue argv[]) {
 	return INTEGER_VAL((long)AS_FLOATING(argv[0]));
 }
 
+/* int.__float__() */
 static KrkValue _int_to_floating(int argc, KrkValue argv[]) {
 	return FLOATING_VAL((double)AS_INTEGER(argv[0]));
 }
 
+/* int.__chr__() */
 static KrkValue _int_to_char(int argc, KrkValue argv[]) {
 	char tmp[2] = {AS_INTEGER(argv[0]), 0};
 	return OBJECT_VAL(krk_copyString(tmp,1));
 }
 
+/* str.__len__() */
 static KrkValue _string_length(int argc, KrkValue argv[]) {
 	if (argc != 1) {
 		return NONE_VAL();
@@ -716,11 +895,19 @@ static KrkValue _string_length(int argc, KrkValue argv[]) {
 	return INTEGER_VAL(AS_STRING(argv[0])->length);
 }
 
+/* str.__set__(ind,val) - this is invalid, throw a nicer error than 'field does not exist'. */
 static KrkValue _strings_are_immutable(int argc, KrkValue argv[]) {
 	krk_runtimeError(vm.exceptions.typeError, "Strings are not mutable.");
 	return NONE_VAL();
 }
 
+/**
+ * str.__getslice__(start,end)
+ *
+ * Unlike in Python, we actually handle negative values here rather than
+ * somewhere else? I'm not even sure where Python does do it, but a quick
+ * says not if you call __getslice__ directly...
+ */
 static KrkValue _string_get_slice(int argc, KrkValue argv[]) {
 	if (argc < 3) { /* 3 because first is us */
 		krk_runtimeError(vm.exceptions.argumentError, "slice: expected 2 arguments, got %d", argc-1);
@@ -746,9 +933,10 @@ static KrkValue _string_get_slice(int argc, KrkValue argv[]) {
 	return OBJECT_VAL(krk_copyString(me->chars + start, len));
 }
 
+/* str.__int__(base=10) */
 static KrkValue _string_to_int(int argc, KrkValue argv[]) {
-	if (argc != 1 || !IS_STRING(argv[0])) return NONE_VAL();
-	int base = 10;
+	if (argc < 1 || argc > 2 || !IS_STRING(argv[0])) return NONE_VAL();
+	int base = (argc == 1) ? 10 : (int)AS_INTEGER(argv[1]);
 	char * start = AS_CSTRING(argv[0]);
 
 	/*  These special cases for hexadecimal, binary, octal values. */
@@ -766,11 +954,13 @@ static KrkValue _string_to_int(int argc, KrkValue argv[]) {
 	return INTEGER_VAL(value);
 }
 
+/* str.__float__() */
 static KrkValue _string_to_float(int argc, KrkValue argv[]) {
 	if (argc != 1 || !IS_STRING(argv[0])) return NONE_VAL();
 	return FLOATING_VAL(strtod(AS_CSTRING(argv[0]),NULL));
 }
 
+/* str.__get__(index) */
 static KrkValue _string_get(int argc, KrkValue argv[]) {
 	if (argc != 2) {
 		krk_runtimeError(vm.exceptions.argumentError, "Wrong number of arguments to String.__get__");
@@ -793,32 +983,38 @@ static KrkValue _string_get(int argc, KrkValue argv[]) {
 	return INTEGER_VAL(AS_CSTRING(argv[0])[asInt]);
 }
 
+/* function.__doc__ */
 static KrkValue _closure_get_doc(int argc, KrkValue argv[]) {
 	if (!IS_CLOSURE(argv[0])) return NONE_VAL();
 	return AS_CLOSURE(argv[0])->function->docstring ? OBJECT_VAL(AS_CLOSURE(argv[0])->function->docstring) : NONE_VAL();
 }
 
+/* method.__doc__ */
 static KrkValue _bound_get_doc(int argc, KrkValue argv[]) {
 	KrkBoundMethod * boundMethod = AS_BOUND_METHOD(argv[0]);
 	return _closure_get_doc(1, (KrkValue[]){OBJECT_VAL(boundMethod->method)});
 }
 
+/* Check for and return the name of a native function as a string object */
 static KrkValue nativeFunctionName(KrkValue func) {
 	const char * string = ((KrkNative*)AS_OBJECT(func))->name;
 	size_t len = strlen(string);
 	return OBJECT_VAL(krk_copyString(string,len));
 }
 
+/* function.__name__ */
 static KrkValue _closure_get_name(int argc, KrkValue argv[]) {
 	if (!IS_CLOSURE(argv[0])) return nativeFunctionName(argv[0]);
 	return AS_CLOSURE(argv[0])->function->name ? OBJECT_VAL(AS_CLOSURE(argv[0])->function->name) : OBJECT_VAL(S(""));
 }
 
+/* method.__name__ */
 static KrkValue _bound_get_name(int argc, KrkValue argv[]) {
 	KrkBoundMethod * boundMethod = AS_BOUND_METHOD(argv[0]);
 	return _closure_get_name(1, (KrkValue[]){OBJECT_VAL(boundMethod->method)});
 }
 
+/* function.__str__ / function.__repr__ */
 static KrkValue _closure_str(int argc, KrkValue argv[]) {
 	KrkValue s = _closure_get_name(argc, argv);
 	krk_push(s);
@@ -832,6 +1028,7 @@ static KrkValue _closure_str(int argc, KrkValue argv[]) {
 	return s;
 }
 
+/* method.__str__ / method.__repr__ */
 static KrkValue _bound_str(int argc, KrkValue argv[]) {
 	KrkValue s = _bound_get_name(argc, argv);
 	krk_push(s);
@@ -845,16 +1042,31 @@ static KrkValue _bound_str(int argc, KrkValue argv[]) {
 	return s;
 }
 
+/* function.__file__ */
 static KrkValue _closure_get_file(int argc, KrkValue argv[]) {
 	if (!IS_CLOSURE(argv[0])) return OBJECT_VAL(S("<builtin>"));
 	return AS_CLOSURE(argv[0])->function->chunk.filename ? OBJECT_VAL(AS_CLOSURE(argv[0])->function->chunk.filename) : OBJECT_VAL(S(""));
 }
 
+/* method.__file__ */
 static KrkValue _bound_get_file(int argc, KrkValue argv[]) {
 	KrkBoundMethod * boundMethod = AS_BOUND_METHOD(argv[0]);
 	return _closure_get_file(1, (KrkValue[]){OBJECT_VAL(boundMethod->method)});
 }
 
+/**
+ * object.__str__() / object.__repr__()
+ *
+ * Base method for all objects to implement __str__ and __repr__.
+ * Generally converts to <instance of [TYPE]> and for actual object
+ * types (functions, classes, instances, strings...) also adds the pointer
+ * address of the object on the heap.
+ *
+ * Since all types have at least a pseudo-class that should eventually
+ * inheret from object() and this is object.__str__ / object.__repr__,
+ * all types should have a string representation available through
+ * those methods.
+ */
 static KrkValue _strBase(int argc, KrkValue argv[]) {
 	KrkClass * type = AS_CLASS(krk_typeOf(1,(KrkValue[]){argv[0]}));
 	size_t len = sizeof("<instance of . at 0x1234567812345678>") + type->name->length;
@@ -869,6 +1081,12 @@ static KrkValue _strBase(int argc, KrkValue argv[]) {
 	return out;
 }
 
+/**
+ * str.__repr__()
+ *
+ * Strings are special because __str__ should do nothing but __repr__
+ * should escape characters like quotes.
+ */
 static KrkValue _repr_str(int argc, KrkValue argv[]) {
 	char * str = malloc(3 + AS_STRING(argv[0])->length * 2);
 	char * tmp = str;
@@ -891,22 +1109,40 @@ static KrkValue _repr_str(int argc, KrkValue argv[]) {
 	return OBJECT_VAL(out);
 }
 
+/**
+ * int.__str__()
+ *
+ * Unlike Python, dot accessors are perfectly valid and work as you'd expect
+ * them to in Kuroko, so we can do 123.__str__() and get the string "123".
+ *
+ * TODO: Implement format options here so we can get different widths,
+ *       hex/octal/binary representations, etc.
+ */
 static KrkValue _int_to_str(int argc, KrkValue argv[]) {
 	char tmp[100];
 	size_t l = sprintf(tmp, "%ld", (long)AS_INTEGER(argv[0]));
 	return OBJECT_VAL(krk_copyString(tmp, l));
 }
 
+/**
+ * float.__str__()
+ */
 static KrkValue _float_to_str(int argc, KrkValue argv[]) {
 	char tmp[100];
 	size_t l = sprintf(tmp, "%g", AS_FLOATING(argv[0]));
 	return OBJECT_VAL(krk_copyString(tmp, l));
 }
 
+/**
+ * bool.__str__() -> "True" or "False"
+ */
 static KrkValue _bool_to_str(int argc, KrkValue argv[]) {
 	return OBJECT_VAL((AS_BOOLEAN(argv[0]) ? S("True") : S("False")));
 }
 
+/**
+ * None.__str__() -> "None"
+ */
 static KrkValue _none_to_str(int argc, KrkValue argv[]) {
 	return OBJECT_VAL(S("None"));
 }
@@ -926,6 +1162,8 @@ void krk_initVM(int flags) {
 	krk_initTable(&vm.strings);
 	memset(vm.specialMethodNames,0,sizeof(vm.specialMethodNames));
 
+	/* To make lookup faster, store these so we can don't have to keep boxing
+	 * and unboxing, copying/hashing etc. */
 	vm.specialMethodNames[METHOD_INIT] = OBJECT_VAL(S("__init__"));
 	vm.specialMethodNames[METHOD_STR]  = OBJECT_VAL(S("__str__"));
 	vm.specialMethodNames[METHOD_REPR] = OBJECT_VAL(S("__repr__"));
@@ -952,6 +1190,7 @@ void krk_initVM(int flags) {
 	krk_defineNative(&vm.objectClass->methods, ".__str__", _strBase);
 	krk_defineNative(&vm.objectClass->methods, ".__repr__", _strBase); /* Override if necesary */
 
+	/* Build a __builtins__ namespace for some extra functions. */
 	vm.builtins = krk_newInstance(vm.objectClass);
 	krk_attachNamedObject(&vm.globals, "__builtins__", (KrkObj*)vm.builtins);
 
@@ -1015,11 +1254,13 @@ void krk_initVM(int flags) {
 	krk_defineNative(&vm.baseClasses.methodClass->methods, ":__name__", _bound_get_name);
 	krk_defineNative(&vm.baseClasses.methodClass->methods, ":__file__", _bound_get_file);
 
+	/* Build global builtin functions. */
 	krk_defineNative(&vm.globals, "listOf", krk_list_of);
 	krk_defineNative(&vm.globals, "dictOf", krk_dict_of);
 	krk_defineNative(&vm.globals, "isinstance", krk_isinstance);
 	krk_defineNative(&vm.globals, "type", krk_typeOf);
 
+	/* __builtins__.set_tracing is namespaced */
 	krk_defineNative(&vm.builtins->fields, "set_tracing", krk_set_tracing);
 
 #ifndef NO_SYSTEM_BINDS
@@ -1028,13 +1269,23 @@ void krk_initVM(int flags) {
 	krk_defineNative(&vm.builtins->fields, "uname", krk_uname);
 #endif
 
-	/* Now read the builtins module */
+	/**
+	 * Read the managed code builtins module, which contains the base
+	 * definitions for collections so we can pull them into the global
+	 * namespace and attach their __init__/__get__/__set__, etc. methods.
+	 *
+	 * A significant subset of the VM's functionality is lost without
+	 * these classes being available, but it should still work to some degree.
+	 */
 	KrkValue builtinsModule = krk_interpret(_builtins_src,1,"__builtins__","__builtins__");
 	if (!IS_OBJECT(builtinsModule)) {
+		/* ... hence, this is a warning and not a complete failure. */
 		fprintf(stderr, "VM startup failure: Failed to load __builtins__ module.\n");
 	} else {
-		/* Get list class */
 		KrkValue val;
+		/* Now we can attach the native initializers and getters/setters to
+		 * the list and dict types by pulling them out of the global namespace,
+		 * as they were exported by builtins.krk */
 		krk_tableGet(&vm.globals,OBJECT_VAL(S("list")),&val);
 		KrkClass * _class = AS_CLASS(val);
 		krk_defineNative(&_class->methods, ".__init__", _list_init);
@@ -1049,14 +1300,20 @@ void krk_initVM(int flags) {
 		krk_defineNative(&_class->methods, ".__get__", _dict_get);
 		krk_defineNative(&_class->methods, ".__set__", _dict_set);
 		krk_defineNative(&_class->methods, ".__len__", _dict_len);
+
+		/* These are used to for dict.keys() to create the iterators. */
 		krk_defineNative(&_class->methods, ".capacity", _dict_capacity);
 		krk_defineNative(&_class->methods, "._key_at_index", _dict_key_at_index);
 	}
 
+	/* The VM is now ready to start executing code. */
 	resetStack();
 	KRK_RESUME_GC();
 }
 
+/**
+ * Reclaim resources used by the VM.
+ */
 void krk_freeVM() {
 	krk_freeTable(&vm.globals);
 	krk_freeTable(&vm.strings);
@@ -1066,6 +1323,15 @@ void krk_freeVM() {
 	FREE_ARRAY(size_t, vm.stack, vm.stackSize);
 }
 
+/**
+ * Inverse of truthiness.
+ *
+ * None, False, and 0 are all "falsey", meaning they will trip JUMP_IF_FALSE
+ * instructions / not trip JUMP_IF_TRUE instructions.
+ *
+ * Or in more managed code terms, `if None`, `if False`, and `if 0` are all
+ * going to take the else branch.
+ */
 static int isFalsey(KrkValue value) {
 	return IS_NONE(value) || (IS_BOOLEAN(value) && !AS_BOOLEAN(value)) ||
 	       (IS_INTEGER(value) && !AS_INTEGER(value));
@@ -1073,9 +1339,22 @@ static int isFalsey(KrkValue value) {
 	/* IS_STRING && length == 0; IS_ARRAY && length == 0; IS_INSTANCE && __bool__ returns 0... */
 }
 
+/**
+ * Internal type(value).__name__ call for use in debugging methods and
+ * creating exception strings.
+ */
 const char * krk_typeName(KrkValue value) {
 	return AS_CLASS(krk_typeOf(1, (KrkValue[]){value}))->name->chars;
 }
+
+/**
+ * Basic arithmetic and string functions follow.
+ *
+ * BIG TODO: All of these need corresponding __methods__ so that classes
+ *           can override / implement them.
+ * __add__, __sub__, __mult__, __div__,
+ * __or__, __and__, __xor__, __lshift__, __rshift__, __remainder__?
+ */
 
 #define MAKE_BIN_OP(name,operator) \
 	static KrkValue name (KrkValue a, KrkValue b) { \
@@ -1095,6 +1374,8 @@ MAKE_BIN_OP(subtract,-)
 MAKE_BIN_OP(multiply,*)
 MAKE_BIN_OP(divide,/)
 
+/* Bit ops are invalid on doubles in C, so we can't use the same set of macros for them;
+ * they should be invalid in Kuroko as well. */
 #define MAKE_BIT_OP(name,operator) \
 	static KrkValue name (KrkValue a, KrkValue b) { \
 		if (IS_INTEGER(a) && IS_INTEGER(b)) return INTEGER_VAL(AS_INTEGER(a) operator AS_INTEGER(b)); \
@@ -1177,46 +1458,65 @@ static void addObjects() {
 	}
 }
 
-#define READ_BYTE() (*frame->ip++)
-#define BINARY_OP(op) { KrkValue b = krk_pop(); KrkValue a = krk_pop(); krk_push(op(a,b)); break; }
-#define READ_CONSTANT(s) (frame->closure->function->chunk.constants.values[readBytes(frame,s)])
-#define READ_STRING(s) AS_STRING(READ_CONSTANT(s))
-
-static inline size_t readBytes(CallFrame * frame, int num) {
-	size_t out = READ_BYTE();
-	while (--num) {
-		out <<= 8;
-		out |= (READ_BYTE() & 0xFF);
-	}
-	return out;
-}
-
+/**
+ * At the end of each instruction cycle, we check the exception flag to see
+ * if an error was raised during execution. If there is an exception, this
+ * function is called to scan up the stack to see if there is an exception
+ * handler value. Handlers live on the stack at the point where it should be
+ * reset to and keep an offset to the except branch of a try/except statement
+ * pair (or the exit point of the try, if there is no except branch). These
+ * objects can't be built by (text) user code, but erroneous bytecode / module
+ * stack manipulation could result in a handler being in the wrong place,
+ * at which point there's no guarantees about what happens.
+ */
 static int handleException() {
 	int stackOffset, frameOffset;
 	int exitSlot = (vm.exitOnFrame >= 0) ? vm.frames[vm.exitOnFrame].slots : 0;
 	for (stackOffset = (int)(vm.stackTop - vm.stack - 1); stackOffset >= exitSlot && !IS_HANDLER(vm.stack[stackOffset]); stackOffset--);
 	if (stackOffset < exitSlot) {
 		if (exitSlot == 0) {
-			/* Don't show the internal exception */
+			/*
+			 * No exception was found and we have reached the top of the call stack.
+			 * Call dumpTraceback to present the exception to the user and reset the
+			 * VM stack state. It should still be safe to execute more code after
+			 * this reset, so the repl can throw errors and keep accepting new lines.
+			 */
 			dumpTraceback();
 			resetStack();
 			vm.frameCount = 0;
 		}
+		/* If exitSlot was not 0, there was an exception during a call to runNext();
+		 * this is likely to be raised higher up the stack as an exception in the outer
+		 * call, but we don't want to print the traceback here. */
 		return 1;
 	}
+
+	/* Find the call frame that owns this stack slot */
 	for (frameOffset = vm.frameCount - 1; frameOffset >= 0 && (int)vm.frames[frameOffset].slots > stackOffset; frameOffset--);
 	if (frameOffset == -1) {
-		fprintf(stderr, "Internal error.\n");
+		fprintf(stderr, "Internal error: Call stack is corrupted - unable to find\n");
+		fprintf(stderr, "                call frame that owns exception handler.\n");
 		exit(1);
 	}
+
+	/* We found an exception handler and can reset the VM to its call frame. */
 	closeUpvalues(stackOffset);
 	vm.stackTop = vm.stack + stackOffset + 1;
 	vm.frameCount = frameOffset + 1;
+
+	/* Clear the exception flag so we can continue executing from the handler. */
 	vm.flags &= ~KRK_HAS_EXCEPTION;
 	return 0;
 }
 
-#ifdef ENABLE_DEBUGGING
+#ifdef ENABLE_TRACING
+/**
+ * When tracing is enabled, we will present the elements on the stack with
+ * a safe printer; the format of values printed by krk_printValueSafe will
+ * look different from those printed by printValue, but they guarantee that
+ * the VM will never be called to produce a string, which would result in
+ * a nasty infinite recursion if we did it while trying to trace the VM!
+ */
 static void dumpStack(CallFrame * frame) {
 	fprintf(stderr, "        | ");
 	size_t i = 0;
@@ -1231,6 +1531,15 @@ static void dumpStack(CallFrame * frame) {
 }
 #endif
 
+/**
+ * Load a module.
+ *
+ * The module search path is stored in __builtins__.module_paths and should
+ * be a list of directories (with trailing forward-slash) to look at, in order,
+ * to resolve module names. krk source files will always take priority, so if
+ * a later search path has a krk source and an earlier search path has a shared
+ * object module, the later search path will still win.
+ */
 int krk_loadModule(KrkString * name, KrkValue * moduleOut) {
 	KrkValue modulePaths, modulePathsInternal;
 
@@ -1240,14 +1549,16 @@ int krk_loadModule(KrkString * name, KrkValue * moduleOut) {
 	/* Obtain __builtins__.module_paths */
 	if (!krk_tableGet(&vm.builtins->fields, OBJECT_VAL(S("module_paths")), &modulePaths) || !IS_INSTANCE(modulePaths)) {
 		*moduleOut = NONE_VAL();
-		krk_runtimeError(vm.exceptions.baseException, "Internal error: __builtins__.module_paths not defined.");
+		krk_runtimeError(vm.exceptions.baseException,
+			"Internal error: __builtins__.module_paths not defined.");
 		return 0;
 	}
 
-	/* Obtain __builtins__.module_paths._list so we can do lookups directly */
+	/* Obtain __builtins__.module_paths.__list so we can do lookups directly */
 	if (!krk_tableGet(&(AS_INSTANCE(modulePaths)->fields), vm.specialMethodNames[METHOD_LIST_INT], &modulePathsInternal) || !IS_FUNCTION(modulePathsInternal)) {
 		*moduleOut = NONE_VAL();
-		krk_runtimeError(vm.exceptions.baseException, "Internal error: __builtins__.module_paths is corrupted or incorrectly set.");
+		krk_runtimeError(vm.exceptions.baseException,
+			"Internal error: __builtins__.module_paths is corrupted or incorrectly set.");
 		return 0;
 	}
 
@@ -1260,7 +1571,8 @@ int krk_loadModule(KrkString * name, KrkValue * moduleOut) {
 	int moduleCount = AS_FUNCTION(modulePathsInternal)->chunk.constants.count;
 	if (!moduleCount) {
 		*moduleOut = NONE_VAL();
-		krk_runtimeError(vm.exceptions.importError, "No module search directories are specified, so no modules may be imported.");
+		krk_runtimeError(vm.exceptions.importError,
+			"No module search directories are specified, so no modules may be imported.");
 		return 0;
 	}
 
@@ -1271,7 +1583,8 @@ int krk_loadModule(KrkString * name, KrkValue * moduleOut) {
 		krk_push(AS_FUNCTION(modulePathsInternal)->chunk.constants.values[i]);
 		if (!IS_STRING(krk_peek(0))) {
 			*moduleOut = NONE_VAL();
-			krk_runtimeError(vm.exceptions.typeError, "Module search paths must be strings; check the search path at index %d", i);
+			krk_runtimeError(vm.exceptions.typeError,
+				"Module search paths must be strings; check the search path at index %d", i);
 			return 0;
 		}
 		krk_push(OBJECT_VAL(name));
@@ -1289,7 +1602,8 @@ int krk_loadModule(KrkString * name, KrkValue * moduleOut) {
 		*moduleOut = krk_runfile(fileName,1,name->chars,fileName);
 		vm.exitOnFrame = previousExitFrame;
 		if (!IS_OBJECT(*moduleOut)) {
-			krk_runtimeError(vm.exceptions.importError,"Failed to load module '%s' from '%s'", name->chars, fileName);
+			krk_runtimeError(vm.exceptions.importError,
+				"Failed to load module '%s' from '%s'", name->chars, fileName);
 			return 0;
 		}
 
@@ -1314,7 +1628,8 @@ int krk_loadModule(KrkString * name, KrkValue * moduleOut) {
 		void * dlRef = dlopen(fileName, RTLD_NOW);
 		if (!dlRef) {
 			*moduleOut = NONE_VAL();
-			krk_runtimeError(vm.exceptions.importError, "Failed to load native module '%s' from shared object '%s'", name->chars, fileName);
+			krk_runtimeError(vm.exceptions.importError,
+				"Failed to load native module '%s' from shared object '%s'", name->chars, fileName);
 			return 0;
 		}
 
@@ -1330,7 +1645,8 @@ int krk_loadModule(KrkString * name, KrkValue * moduleOut) {
 
 		if (!moduleOnLoad) {
 			*moduleOut = NONE_VAL();
-			krk_runtimeError(vm.exceptions.importError, "Failed to run module initialization method '%s' from shared object '%s'",
+			krk_runtimeError(vm.exceptions.importError,
+				"Failed to run module initialization method '%s' from shared object '%s'",
 				handlerName, fileName);
 			return 0;
 		}
@@ -1339,7 +1655,8 @@ int krk_loadModule(KrkString * name, KrkValue * moduleOut) {
 
 		*moduleOut = moduleOnLoad();
 		if (!IS_OBJECT(*moduleOut)) {
-			krk_runtimeError(vm.exceptions.importError, "Failed to load module '%s' from '%s'", name->chars, fileName);
+			krk_runtimeError(vm.exceptions.importError,
+				"Failed to load module '%s' from '%s'", name->chars, fileName);
 			return 0;
 		}
 
@@ -1355,6 +1672,13 @@ int krk_loadModule(KrkString * name, KrkValue * moduleOut) {
 	return 0;
 }
 
+/**
+ * Try to resolve and push [stack top].name.
+ * If [stack top] is an instance, scan fields first.
+ * Otherwise, scan for methods from [stack top].__class__.
+ * Returns 0 if nothing was found, 1 if something was - and that
+ * "something" will replace [stack top].
+ */
 static int valueGetProperty(KrkString * name) {
 	KrkClass * objectClass;
 	if (IS_INSTANCE(krk_peek(0))) {
@@ -1378,10 +1702,31 @@ static int valueGetProperty(KrkString * name) {
 	return 0;
 }
 
+#define READ_BYTE() (*frame->ip++)
+#define BINARY_OP(op) { KrkValue b = krk_pop(); KrkValue a = krk_pop(); krk_push(op(a,b)); break; }
+#define READ_CONSTANT(s) (frame->closure->function->chunk.constants.values[readBytes(frame,s)])
+#define READ_STRING(s) AS_STRING(READ_CONSTANT(s))
+
+/**
+ * Read bytes after an opcode. Most instructions take 1, 2, or 3 bytes as an
+ * operand referring to a local slot, constant slot, or offset.
+ */
+static inline size_t readBytes(CallFrame * frame, int num) {
+	size_t out = READ_BYTE();
+	while (--num) {
+		out <<= 8;
+		out |= (READ_BYTE() & 0xFF);
+	}
+	return out;
+}
+
+/**
+ * VM main loop.
+ */
 static KrkValue run() {
 	CallFrame* frame = &vm.frames[vm.frameCount - 1];
 
-	for (;;) {
+	while (1) {
 #ifdef ENABLE_TRACING
 		if (vm.flags & KRK_ENABLE_TRACING) {
 			dumpStack(frame);
@@ -1389,7 +1734,15 @@ static KrkValue run() {
 				(size_t)(frame->ip - frame->closure->function->chunk.code));
 		}
 #endif
+
 		uint8_t opcode = READ_BYTE();
+
+		/* We split the instruction opcode table in half and use the top bit
+		 * to mark instructions as "long" as we can quickly determine operand
+		 * widths. The standard opereand width is 1 byte. If operands need
+		 * to use more than 256 possible values, such as when the stack
+		 * is very large or there are a lot of constants in a single chunk of
+		 * bytecode, the long opcodes provide 24 bits of operand space. */
 		int operandWidth = (opcode & (1 << 7)) ? 3 : 1;
 
 		switch (opcode) {
@@ -1573,7 +1926,7 @@ static KrkValue run() {
 				break;
 			}
 			/* This version of the call instruction takes its arity from the
-			 * top of the stack, so we don't have calculate arity at compile time. */
+			 * top of the stack, so we don't have to calculate arity at compile time. */
 			case OP_CALL_STACK: {
 				int argCount = AS_INTEGER(krk_pop());
 				if (!krk_callValue(krk_peek(argCount), argCount)) {
@@ -1694,7 +2047,10 @@ static KrkValue run() {
 			}
 			case OP_METHOD_LONG:
 			case OP_METHOD: {
-				defineMethod(READ_STRING(operandWidth));
+				KrkValue method = krk_peek(0);
+				KrkClass * _class = AS_CLASS(krk_peek(1));
+				krk_tableSet(&_class->methods, OBJECT_VAL(READ_STRING(operandWidth)), method);
+				krk_pop();
 				break;
 			}
 			case OP_INHERIT: {
