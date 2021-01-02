@@ -151,16 +151,13 @@ static void initCompiler(Compiler * compiler, FunctionType type) {
 		current->function->name = krk_copyString(parser.previous.start, parser.previous.length);
 	}
 
-	Local * local = &current->locals[current->localCount++];
-	local->depth = 0;
-	local->isCaptured = 0;
 
-	if (type != TYPE_FUNCTION) {
+	if (type == TYPE_INIT || type == TYPE_METHOD) {
+		Local * local = &current->locals[current->localCount++];
+		local->depth = 0;
+		local->isCaptured = 0;
 		local->name.start = "self";
 		local->name.length = 4;
-	} else {
-		local->name.start = "";
-		local->name.length = 0;
 	}
 }
 
@@ -288,7 +285,7 @@ static void emitReturn() {
 		emitBytes(OP_GET_LOCAL, 0);
 	} else if (current->type == TYPE_MODULE) {
 		/* Un-pop the last stack value */
-		emitBytes(OP_GET_LOCAL, 1);
+		emitBytes(OP_GET_LOCAL, 0);
 	} else {
 		emitByte(OP_NONE);
 	}
@@ -641,6 +638,8 @@ static void function(FunctionType type, size_t blockWidth) {
 
 	beginScope();
 
+	if (type == TYPE_METHOD || type == TYPE_INIT) current->function->requiredArgs = 1;
+
 	consume(TOKEN_LEFT_PAREN, "Expected start of parameter list after function name.");
 	if (!check(TOKEN_RIGHT_PAREN)) {
 		do {
@@ -692,17 +691,21 @@ static void method(size_t blockWidth) {
 	 * going to assign `self` because Lox always assigns `this`; it should not
 	 * show up in the initializer list; I may add support for it being there
 	 * as a redundant thing, just to make more Python stuff work with changes. */
-	consume(TOKEN_DEF, "expected a definition, got nothing");
-	consume(TOKEN_IDENTIFIER, "expected method name");
-	size_t ind = identifierConstant(&parser.previous);
-	FunctionType type = TYPE_METHOD;
+	if (check(TOKEN_AT)) {
+		decorator(0, TYPE_METHOD);
+	} else {
+		consume(TOKEN_DEF, "expected a definition, got nothing");
+		consume(TOKEN_IDENTIFIER, "expected method name");
+		size_t ind = identifierConstant(&parser.previous);
+		FunctionType type = TYPE_METHOD;
 
-	if (parser.previous.length == 8 && memcmp(parser.previous.start, "__init__", 8) == 0) {
-		type = TYPE_INIT;
+		if (parser.previous.length == 8 && memcmp(parser.previous.start, "__init__", 8) == 0) {
+			type = TYPE_INIT;
+		}
+
+		function(type, blockWidth);
+		EMIT_CONSTANT_OP(OP_METHOD, ind);
 	}
-
-	function(type, blockWidth);
-	EMIT_CONSTANT_OP(OP_METHOD, ind);
 }
 
 static void classDeclaration() {

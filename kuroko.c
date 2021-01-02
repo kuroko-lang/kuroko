@@ -147,6 +147,10 @@ int main(int argc, char * argv[]) {
 					}
 					blockWidth = countSpaces;
 					continue;
+				} else if (lineLength > 1 && lines[i][countSpaces] == '@') {
+					inBlock = 1;
+					blockWidth = countSpaces;
+					continue;
 				}
 
 				/* Ignore blank lines. */

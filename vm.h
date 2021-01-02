@@ -13,6 +13,7 @@ typedef struct {
 	KrkClosure * closure;
 	uint8_t * ip;
 	size_t slots;
+	size_t outSlots;
 } CallFrame;
 
 typedef enum {
@@ -118,4 +119,4 @@ extern KrkInstance * krk_dictCreate(void);
 extern KrkValue  krk_runNext(void);
 extern KrkValue krk_typeOf(int argc, KrkValue argv[]);
 extern int krk_bindMethod(KrkClass * _class, KrkString * name);
-extern int krk_callValue(KrkValue callee, int argCount);
+extern int krk_callValue(KrkValue callee, int argCount, int extra);

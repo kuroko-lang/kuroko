@@ -18,7 +18,6 @@
 KrkVM vm;
 
 static KrkValue run();
-static int call(KrkClosure * closure, int argCount);
 static KrkValue krk_isinstance(int argc, KrkValue argv[]);
 
 /* Embedded script for extensions to builtin-ins; see builtins.c/builtins.krk */
@@ -36,6 +35,31 @@ static void resetStack() {
 	vm.flags &= ~KRK_HAS_EXCEPTION;
 	vm.currentException = NONE_VAL();
 }
+
+#ifdef ENABLE_TRACING
+/**
+ * When tracing is enabled, we will present the elements on the stack with
+ * a safe printer; the format of values printed by krk_printValueSafe will
+ * look different from those printed by printValue, but they guarantee that
+ * the VM will never be called to produce a string, which would result in
+ * a nasty infinite recursion if we did it while trying to trace the VM!
+ */
+static void dumpStack(CallFrame * frame) {
+	fprintf(stderr, "        | ");
+	size_t i = 0;
+	for (KrkValue * slot = vm.stack; slot < vm.stackTop; slot++) {
+		fprintf(stderr, "[ ");
+		if (i == frame->slots) fprintf(stderr, "*");
+		krk_printValueSafe(stderr, *slot);
+		fprintf(stderr, " ]");
+		i++;
+	}
+	if (i == frame->slots) {
+		fprintf(stderr, " * ");
+	}
+	fprintf(stderr, "\n");
+}
+#endif
 
 /**
  * Display a traceback by working through call frames.
@@ -685,8 +709,13 @@ static KrkValue krk_globals(int argc, KrkValue argv[]) {
  * Call a managed method.
  * Takes care of argument count checking, default argument filling,
  * sets up a new call frame, and then resumes the VM to run the function.
+ *
+ * Methods are called with their receivers on the stack as the first argument.
+ * Non-methods are called with themselves on the stack before the first argument.
+ * `extra` is passed by `callValue` to tell us which case we have, and thus
+ * where we need to restore the stack to when we return from this call.
  */
-static int call(KrkClosure * closure, int argCount) {
+static int call(KrkClosure * closure, int argCount, int extra) {
 	int minArgs = closure->function->requiredArgs;
 	int maxArgs = minArgs + closure->function->defaultArgs;
 	if (argCount < minArgs || argCount > maxArgs) {
@@ -709,7 +738,8 @@ static int call(KrkClosure * closure, int argCount) {
 	CallFrame * frame = &vm.frames[vm.frameCount++];
 	frame->closure = closure;
 	frame->ip = closure->function->chunk.code;
-	frame->slots = (vm.stackTop - argCount - 1) - vm.stack;
+	frame->slots = (vm.stackTop - argCount) - vm.stack;
+	frame->outSlots = (vm.stackTop - argCount - extra) - vm.stack;
 	return 1;
 }
 
@@ -734,23 +764,22 @@ static int call(KrkClosure * closure, int argCount) {
  *
  *   TODO: Instances with __call__ method.
  */
-int krk_callValue(KrkValue callee, int argCount) {
+int krk_callValue(KrkValue callee, int argCount, int extra) {
 	if (IS_OBJECT(callee)) {
 		switch (OBJECT_TYPE(callee)) {
 			case OBJ_CLOSURE:
-				return call(AS_CLOSURE(callee), argCount);
+				return call(AS_CLOSURE(callee), argCount, extra);
 			case OBJ_NATIVE: {
 				NativeFn native = AS_NATIVE(callee);
-				int extraArgs = (((KrkNative*)AS_OBJECT(callee))->isMethod == 1);
-				KrkValue * stackCopy = malloc((argCount + extraArgs) * sizeof(KrkValue));
-				memcpy(stackCopy, vm.stackTop - argCount - extraArgs, (argCount + extraArgs) * sizeof(KrkValue));
-				KrkValue result = native(argCount + extraArgs, stackCopy);
+				KrkValue * stackCopy = malloc(argCount * sizeof(KrkValue));
+				memcpy(stackCopy, vm.stackTop - argCount, argCount * sizeof(KrkValue));
+				KrkValue result = native(argCount, stackCopy);
 				free(stackCopy);
 				if (vm.stackTop == vm.stack) {
 					/* Runtime error returned from native method */
 					return 0;
 				}
-				vm.stackTop -= argCount + 1;
+				vm.stackTop -= argCount + extra;
 				krk_push(result);
 				return 2;
 			}
@@ -759,7 +788,7 @@ int krk_callValue(KrkValue callee, int argCount) {
 				vm.stackTop[-argCount - 1] = OBJECT_VAL(krk_newInstance(_class));
 				KrkValue initializer;
 				if (krk_tableGet(&_class->methods, vm.specialMethodNames[METHOD_INIT], &initializer)) {
-					return krk_callValue(initializer, argCount);
+					return krk_callValue(initializer, argCount + 1, 0);
 				} else if (argCount != 0) {
 					krk_runtimeError(vm.exceptions.attributeError, "Class does not have an __init__ but arguments were passed to initializer: %d\n", argCount);
 					return 0;
@@ -769,7 +798,7 @@ int krk_callValue(KrkValue callee, int argCount) {
 			case OBJ_BOUND_METHOD: {
 				KrkBoundMethod * bound = AS_BOUND_METHOD(callee);
 				vm.stackTop[-argCount - 1] = bound->receiver;
-				return krk_callValue(OBJECT_VAL(bound->method), argCount);
+				return krk_callValue(OBJECT_VAL(bound->method), argCount + 1, 0);
 			}
 			default:
 				break;
@@ -1462,7 +1491,7 @@ static void addObjects() {
 		}
 		if (krk_bindMethod(AS_CLASS(krk_typeOf(1,(KrkValue[]){_b})), AS_STRING(vm.specialMethodNames[METHOD_STR]))) {
 			KrkValue result;
-			int t = krk_callValue(krk_peek(0), 0);
+			int t = krk_callValue(krk_peek(0), 0, 1);
 			if (t == 2) {
 				result = krk_pop();
 			} else if (t == 1) {
@@ -1501,7 +1530,7 @@ static void addObjects() {
  */
 static int handleException() {
 	int stackOffset, frameOffset;
-	int exitSlot = (vm.exitOnFrame >= 0) ? vm.frames[vm.exitOnFrame].slots : 0;
+	int exitSlot = (vm.exitOnFrame >= 0) ? vm.frames[vm.exitOnFrame].outSlots : 0;
 	for (stackOffset = (int)(vm.stackTop - vm.stack - 1); stackOffset >= exitSlot && !IS_HANDLER(vm.stack[stackOffset]); stackOffset--);
 	if (stackOffset < exitSlot) {
 		if (exitSlot == 0) {
@@ -1538,28 +1567,6 @@ static int handleException() {
 	vm.flags &= ~KRK_HAS_EXCEPTION;
 	return 0;
 }
-
-#ifdef ENABLE_TRACING
-/**
- * When tracing is enabled, we will present the elements on the stack with
- * a safe printer; the format of values printed by krk_printValueSafe will
- * look different from those printed by printValue, but they guarantee that
- * the VM will never be called to produce a string, which would result in
- * a nasty infinite recursion if we did it while trying to trace the VM!
- */
-static void dumpStack(CallFrame * frame) {
-	fprintf(stderr, "        | ");
-	size_t i = 0;
-	for (KrkValue * slot = vm.stack; slot < vm.stackTop; slot++) {
-		fprintf(stderr, "[ ");
-		if (i == frame->slots) fprintf(stderr, "*");
-		krk_printValueSafe(stderr, *slot);
-		fprintf(stderr, " ]");
-		i++;
-	}
-	fprintf(stderr, "\n");
-}
-#endif
 
 /**
  * Load a module.
@@ -1801,7 +1808,7 @@ static KrkValue run() {
 					krk_pop();
 					return result;
 				}
-				vm.stackTop = &vm.stack[frame->slots];
+				vm.stackTop = &vm.stack[frame->outSlots];
 				if (vm.frameCount == (size_t)vm.exitOnFrame) {
 					return result;
 				}
@@ -1945,7 +1952,7 @@ static KrkValue run() {
 			case OP_CALL_LONG:
 			case OP_CALL: {
 				int argCount = readBytes(frame, operandWidth);
-				if (!krk_callValue(krk_peek(argCount), argCount)) {
+				if (!krk_callValue(krk_peek(argCount), argCount, 1)) {
 					if (vm.flags & KRK_HAS_EXCEPTION) goto _finishException;
 					return NONE_VAL();
 				}
@@ -1956,7 +1963,7 @@ static KrkValue run() {
 			 * top of the stack, so we don't have to calculate arity at compile time. */
 			case OP_CALL_STACK: {
 				int argCount = AS_INTEGER(krk_pop());
-				if (!krk_callValue(krk_peek(argCount), argCount)) {
+				if (!krk_callValue(krk_peek(argCount), argCount, 1)) {
 					if (vm.flags & KRK_HAS_EXCEPTION) goto _finishException;
 					return NONE_VAL();
 				}
@@ -2018,7 +2025,7 @@ static KrkValue run() {
 				krk_swap(1);
 				valueGetProperty(AS_STRING(vm.specialMethodNames[METHOD_GET]));
 				krk_swap(1);
-				switch (krk_callValue(krk_peek(1),1)) {
+				switch (krk_callValue(krk_peek(1),1,1)) {
 					case 2: break;
 					case 1: krk_push(krk_runNext()); break;
 					default: krk_runtimeError(vm.exceptions.typeError, "Invalid method call."); goto _finishException;
@@ -2030,7 +2037,7 @@ static KrkValue run() {
 				valueGetProperty(AS_STRING(vm.specialMethodNames[METHOD_SET]));
 				krk_swap(3);
 				krk_pop();
-				switch (krk_callValue(krk_peek(2),2)) {
+				switch (krk_callValue(krk_peek(2),2,1)) {
 					case 2: break;
 					case 1: krk_push(krk_runNext()); break;
 					default: krk_runtimeError(vm.exceptions.typeError, "Invalid method call."); goto _finishException;
@@ -2042,7 +2049,7 @@ static KrkValue run() {
 				valueGetProperty(AS_STRING(vm.specialMethodNames[METHOD_GETSLICE]));
 				krk_swap(3);
 				krk_pop();
-				switch (krk_callValue(krk_peek(2),2)) {
+				switch (krk_callValue(krk_peek(2),2,1)) {
 					case 2: break;
 					case 1: krk_push(krk_runNext()); break;
 					default: krk_runtimeError(vm.exceptions.typeError, "Invalid method call."); goto _finishException;
@@ -2136,7 +2143,7 @@ KrkValue krk_interpret(const char * src, int newScope, char * fromName, char * f
 	krk_pop();
 
 	krk_push(OBJECT_VAL(closure));
-	krk_callValue(OBJECT_VAL(closure), 0);
+	krk_callValue(OBJECT_VAL(closure), 0, 1);
 
 	return run();
 }

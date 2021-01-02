@@ -46,3 +46,57 @@ def __main__():
 
 print "Calling main."
 __main__()
+
+def methodDecorator(func):
+    def wrappedMethod(instance, butts):
+        print "I need an extra arg:", butts
+        func(instance)
+        print "Done."
+    return wrappedMethod
+
+class Foo():
+    def __init__(self):
+        self.foo = "bar"
+        print "I am an initializer."
+    def undecorated(self):
+        print "I am here."
+        print "self.foo =", self.foo
+    @methodDecorator
+    def decorated(self):
+        print "(decorated) self.foo = ", self.foo
+
+let f = Foo()
+print "Got an f:", f
+f.undecorated()
+print "Returned from f.undecorated()"
+f.decorated("butts")
+print "Returned from f.decorated()"
+
+def decoratorWithArgument(func, decoratorArg):
+    print "I am decorating",func,"with this argument:",decoratorArg
+    def wrapped():
+        print "This wrapper captured this decorator arg:", decoratorArg
+        func()
+    return wrapped
+
+@decoratorWithArgument("foo")
+def decoratedWithArgument():
+    print "I don't take any args of mine own, and nor does my wrapper."
+
+decoratedWithArgument()
+
+def methodDecoratorWithArguments(method, decoratorArgA, decoratorArgB):
+    print "I am decorating", method, "with these args:", decoratorArgA, decoratorArgB
+    def wrapped(instance, wrapperArg):
+        print "I captured these from the decorator:", decoratorArgA, decoratorArgB
+        print "I also take my own argument:", wrapperArg
+        method(instance,"and modify this one")
+    return wrapped
+
+class Bar():
+    @methodDecoratorWithArguments("foo","bar")
+    def superDecoratedMethod(self, arg):
+        print "I am method, so I can access", self, "and also my own argument which is now", arg
+
+let b = Bar()
+b.superDecoratedMethod("this arg goes to the wrapper")

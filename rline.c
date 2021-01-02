@@ -583,6 +583,10 @@ int syn_krk_calculate(struct syntax_state * state) {
 		case 0:
 			if (charat() == '#') {
 				paint_comment(state);
+			} else if (charat() == '@') {
+				paint(1, FLAG_TYPE);
+				while (c_keyword_qualifier(charat())) paint(1, FLAG_TYPE);
+				return 0;
 			} else if (charat() == '"') {
 				paint_simple_string(state);
 				return 0;

@@ -40,7 +40,7 @@ void krk_printValue(FILE * f, KrkValue printable) {
 	}
 	krk_push(printable);
 	if (krk_bindMethod(AS_CLASS(krk_typeOf(1,(KrkValue[]){printable})), AS_STRING(vm.specialMethodNames[METHOD_REPR]))) {
-		switch (krk_callValue(krk_peek(0), 0)) {
+		switch (krk_callValue(krk_peek(0), 0, 0)) {
 			case 2: printable = krk_pop(); break;
 			case 1: printable = krk_runNext(); break;
 			default: fprintf(f, "[unable to print object at address %p]", (void*)AS_OBJECT(printable)); return;
