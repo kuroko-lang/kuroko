@@ -211,12 +211,16 @@ int rline_exp_set_tab_complete_func(rline_callback_t func) {
 	return 0;
 }
 
+#if 0
 static int _unget = -1;
 static void _ungetc(int c) {
 	_unget = c;
 }
+#endif
 
 static int getch(int immediate, int timeout) {
+	return fgetc(stdin);
+	#if 0
 	if (_unget != -1) {
 		int out = _unget;
 		_unget = -1;
@@ -235,6 +239,7 @@ static int getch(int immediate, int timeout) {
 	} else {
 		return -1;
 	}
+	#endif
 }
 
 /**
@@ -1283,13 +1288,8 @@ static void history_next(void) {
  */
 static int handle_escape(int * this_buf, int * timeout, int c) {
 	if (*timeout >=  1 && this_buf[*timeout-1] == '\033' && c == '\033') {
-		this_buf[*timeout] = c;
-		(*timeout)++;
-		return 1;
-	}
-	if (*timeout >= 1 && this_buf[*timeout-1] == '\033' && c != '[') {
-		*timeout = 0;
-		_ungetc(c);
+		this_buf[0]= c;
+		*timeout = 1;
 		return 1;
 	}
 	if (*timeout >= 1 && this_buf[*timeout-1] == '\033' && c == '[') {
