@@ -104,3 +104,23 @@ class Bar():
 
 let b = Bar()
 b.superDecoratedMethod("this arg goes to the wrapper")
+
+def genericDecorator(func):
+    def wrapper(*args,**kwargs):
+        print "I am a generic wrapper, I will pass all of my args along."
+        func(*args,**kwargs)
+        print "And I am done."
+    return wrapper
+
+@genericDecorator
+def aMethod(with,args=None):
+    print "I got",with,"and",args
+
+try:
+    aMethod()
+except:
+    print exception
+
+aMethod("just the first")
+aMethod("the first","and the second")
+aMethod(args="hello",with="world")

@@ -1,3 +1,4 @@
+#include <limits.h>
 #include <string.h>
 #include "memory.h"
 #include "value.h"
@@ -34,7 +35,20 @@ void krk_printValue(FILE * f, KrkValue printable) {
 			case VAL_FLOATING: fprintf(f, "%g", AS_FLOATING(printable)); break;
 			case VAL_NONE:     fprintf(f, "None"); break;
 			case VAL_HANDLER:  fprintf(f, "{try->%ld}", AS_HANDLER(printable)); break;
-			case VAL_KWARGS:   fprintf(f, "{sentinel=%ld}", AS_INTEGER(printable)); break;
+			case VAL_KWARGS: {
+				if (AS_INTEGER(printable) == LONG_MAX) {
+					fprintf(f, "{unpack single}");
+				} else if (AS_INTEGER(printable) == LONG_MAX-1) {
+					fprintf(f, "{unpack list}");
+				} else if (AS_INTEGER(printable) == LONG_MAX-2) {
+					fprintf(f, "{unpack dict}");
+				} else if (AS_INTEGER(printable) == 0) {
+					fprintf(f, "{unset default}");
+				} else {
+					fprintf(f, "{sentinel=%ld}",AS_INTEGER(printable));
+				}
+				break;
+			}
 			default: break;
 		}
 		return;

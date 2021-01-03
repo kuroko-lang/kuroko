@@ -165,7 +165,6 @@ static void parsePrecedence(Precedence precedence);
 static ssize_t parseVariable(const char * errorMessage);
 static void variable(int canAssign);
 static void defineVariable(size_t global);
-static size_t argumentList();
 static ssize_t identifierConstant(KrkToken * name);
 static ssize_t resolveLocal(Compiler * compiler, KrkToken * name);
 static ParseRule * getRule(KrkTokenType type);
@@ -181,6 +180,7 @@ static void namedVariable(KrkToken name, int canAssign);
 static void addLocal(KrkToken name);
 static void string(int canAssign);
 static KrkToken decorator(size_t level, FunctionType type);
+static void call(int canAssign);
 
 static void errorAt(KrkToken * token, const char * message) {
 	if (parser.panicMode) return;
@@ -435,11 +435,6 @@ static void binary(int canAssign) {
 		case TOKEN_IN:       emitByte(OP_EQUAL); break;
 		default: return;
 	}
-}
-
-static void call(int canAssign) {
-	size_t argCount = argumentList();
-	EMIT_CONSTANT_OP(OP_CALL, argCount);
 }
 
 static int matchAssignment(void) {
@@ -1786,10 +1781,27 @@ static void defineVariable(size_t global) {
 	EMIT_CONSTANT_OP(OP_DEFINE_GLOBAL, global);
 }
 
-static size_t argumentList() {
-	size_t argCount = 0, keywordArgs = 0;
+static void call(int canAssign) {
+	size_t argCount = 0, specialArgs = 0, keywordArgs = 0, seenKeywordUnpacking = 0;
 	if (!check(TOKEN_RIGHT_PAREN)) {
 		do {
+			if (match(TOKEN_ASTERISK)) {
+				specialArgs++;
+				if (match(TOKEN_ASTERISK)) {
+					seenKeywordUnpacking = 1;
+					emitBytes(OP_EXPAND_ARGS, 2); /* Outputs something special */
+					expression(); /* Expect dict */
+					continue;
+				} else {
+					if (seenKeywordUnpacking) {
+						error("Iterable expansion follows keyword argument unpacking.");
+						return;
+					}
+					emitBytes(OP_EXPAND_ARGS, 1); /* outputs something special */
+					expression();
+					continue;
+				}
+			}
 			if (match(TOKEN_IDENTIFIER)) {
 				KrkToken argName = parser.previous;
 				if (check(TOKEN_EQUAL)) {
@@ -1800,6 +1812,7 @@ static size_t argumentList() {
 					EMIT_CONSTANT_OP(OP_CONSTANT, ind);
 					expression();
 					keywordArgs++;
+					specialArgs++;
 					continue;
 				} else {
 					/*
@@ -1809,32 +1822,40 @@ static size_t argumentList() {
 					krk_ungetToken(parser.current);
 					parser.current = argName;
 				}
+			} else if (seenKeywordUnpacking) {
+				error("positional argument follows keyword argument unpacking");
+				return;
 			} else if (keywordArgs) {
-				error("Keyword arguments must appear after positional arguments in function call.");
-				return 0;
+				error("Positional argument follows keyword argument");
+				return;
+			} else if (specialArgs) {
+				emitBytes(OP_EXPAND_ARGS, 0);
+				expression();
+				specialArgs++;
+				continue;
 			}
 			expression();
 			argCount++;
 		} while (match(TOKEN_COMMA));
 	}
 	consume(TOKEN_RIGHT_PAREN, "Expected ')' after arguments.");
-	if (keywordArgs) {
+	if (specialArgs) {
 		/*
 		 * Creates a sentinel at the top of the stack to tell the CALL instruction
 		 * how many keyword arguments are at the top of the stack. This value
 		 * triggers special handling in the CALL that processes the keyword arguments,
 		 * which is relatively slow, so only use keyword arguments if you have to!
 		 */
-		EMIT_CONSTANT_OP(OP_KWARGS, keywordArgs);
+		EMIT_CONSTANT_OP(OP_KWARGS, specialArgs);
 		/*
 		 * We added two elements - name and value - for each keyword arg,
 		 * plus the sentinel object that will show up at the end after the
 		 * OP_KWARGS instruction complets, so make sure we have the
 		 * right depth into the stack when we execute CALL
 		 */
-		argCount += 1 /* for the sentinel */ + 2 * keywordArgs;
+		argCount += 1 /* for the sentinel */ + 2 * specialArgs;
 	}
-	return argCount;
+	EMIT_CONSTANT_OP(OP_CALL, argCount);
 }
 
 static void and_(int canAssign) {

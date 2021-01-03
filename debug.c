@@ -96,6 +96,7 @@ size_t krk_disassembleInstruction(KrkChunk * chunk, size_t offset) {
 		SIMPLE(OP_INVOKE_GETSLICE)
 		SIMPLE(OP_SWAP)
 		OPERANDB(OP_DUP)
+		OPERANDB(OP_EXPAND_ARGS)
 		CONSTANT(OP_DEFINE_GLOBAL,(void)0)
 		CONSTANT(OP_CONSTANT,(void)0)
 		CONSTANT(OP_GET_GLOBAL,(void)0)

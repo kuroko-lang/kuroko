@@ -1,3 +1,4 @@
+#include <limits.h>
 #include <stdarg.h>
 #include <string.h>
 #include <unistd.h>
@@ -693,6 +694,13 @@ static int checkArgumentCount(KrkClosure * closure, int argCount) {
 	return 1;
 }
 
+static void multipleDefs(KrkClosure * closure, int destination) {
+	krk_runtimeError(vm.exceptions.typeError, "%s() got multiple values for argument '%s'",
+		closure->function->name ? closure->function->name->chars : "<unnamed function>",
+		(destination < closure->function->requiredArgs ? AS_CSTRING(closure->function->requiredArgNames.values[destination]) :
+			AS_CSTRING(closure->function->keywordArgNames.values[destination - closure->function->requiredArgs])));
+}
+
 /**
  * Call a managed method.
  * Takes care of argument count checking, default argument filling,
@@ -744,19 +752,8 @@ static int call(KrkClosure * closure, int argCount, int extra) {
 		size_t existingPositionalArgs = argCount - kwargsCount * 2;
 		int found = 0;
 		int extraKwargs = 0;
-
-		if (existingPositionalArgs > potentialPositionalArgs) {
-			if (!closure->function->collectsArguments) {
-				checkArgumentCount(closure,existingPositionalArgs);
-				return 0;
-			}
-			krk_push(NONE_VAL()); krk_push(NONE_VAL()); krk_pop(); krk_pop();
-			startOfPositionals[offsetOfExtraArgs] = krk_list_of(existingPositionalArgs - potentialPositionalArgs,
-				&startOfPositionals[potentialPositionalArgs]);
-			existingPositionalArgs = potentialPositionalArgs + 1;
-		}
-
 		KrkValue * endOfPositionals = &vm.stackTop[-kwargsCount * 2];
+
 		for (size_t availableSlots = argCount; availableSlots < (totalArguments); ++availableSlots) {
 			krk_push(KWARGS_VAL(0)); /* Make sure we definitely have enough space */
 		}
@@ -764,8 +761,14 @@ static int call(KrkClosure * closure, int argCount, int extra) {
 		for (long i = 0; i < kwargsCount; ++i) {
 			KrkValue name = endOfPositionals[i*2];
 			KrkValue value = endOfPositionals[i*2+1];
+			if (IS_KWARGS(name)) {
+				krk_push(name);
+				krk_push(value);
+				found++;
+				goto _finishArg;
+			}
 			/* First, see if it's a positional arg. */
-			for (int j = 0; j < (int)closure->function->requiredArgNames.count; ++j) {
+			for (int j = 0; j < (int)closure->function->requiredArgs; ++j) {
 				if (krk_valuesEqual(name, closure->function->requiredArgNames.values[j])) {
 					krk_push(INTEGER_VAL(j));
 					krk_push(value);
@@ -774,7 +777,7 @@ static int call(KrkClosure * closure, int argCount, int extra) {
 				}
 			}
 			/* See if it's a keyword arg. */
-			for (int j = 0; j < (int)closure->function->keywordArgNames.count; ++j) {
+			for (int j = 0; j < (int)closure->function->keywordArgs; ++j) {
 				if (krk_valuesEqual(name, closure->function->keywordArgNames.values[j])) {
 					krk_push(INTEGER_VAL(j + closure->function->requiredArgs));
 					krk_push(value);
@@ -797,23 +800,89 @@ static int call(KrkClosure * closure, int argCount, int extra) {
 _finishArg:
 			continue;
 		}
-		for (long clearSlots = existingPositionalArgs; clearSlots < argCount; ++clearSlots) {
+
+		size_t destination = existingPositionalArgs;
+		for (long i = 0; i < found; ++i) {
+			/* Check for specials */
+			KrkValue name = startOfExtras[i*2];
+			KrkValue value = startOfExtras[i*2+1];
+			if (IS_KWARGS(name)) {
+				if (AS_INTEGER(name) == LONG_MAX-1) {
+					KrkValue _list_internal;
+					krk_tableGet(&AS_INSTANCE(value)->fields, vm.specialMethodNames[METHOD_LIST_INT], &_list_internal);
+					for (size_t i = 0; i < AS_LIST(_list_internal)->count; ++i) {
+						startOfPositionals[destination] = AS_LIST(_list_internal)->values[i];
+						destination++;
+					}
+				} else if (AS_INTEGER(name) == LONG_MAX) {
+					startOfPositionals[destination] = value;
+					destination++;
+				}
+			}
+		}
+
+		if (destination > potentialPositionalArgs) {
+			if (!closure->function->collectsArguments) {
+				checkArgumentCount(closure,destination);
+				return 0;
+			}
+			krk_push(NONE_VAL()); krk_push(NONE_VAL()); krk_pop(); krk_pop();
+			startOfPositionals[offsetOfExtraArgs] = krk_list_of(destination - potentialPositionalArgs,
+				&startOfPositionals[potentialPositionalArgs]);
+			destination = potentialPositionalArgs + 1;
+		}
+
+		for (long clearSlots = destination; clearSlots < startOfExtras - startOfPositionals; ++clearSlots) {
 			startOfPositionals[clearSlots] = KWARGS_VAL(0);
 		}
+
 		for (int i = 0; i < found; ++i) {
 			if (IS_INTEGER(startOfExtras[i*2])) {
 				int destination = AS_INTEGER(startOfExtras[i*2]);
 				if (!IS_KWARGS(startOfPositionals[destination])) {
-					krk_runtimeError(vm.exceptions.typeError, "%s() got multiple values for argument '%s'",
-						closure->function->name ? closure->function->name->chars : "<unnamed function>",
-						(destination < closure->function->requiredArgs ? AS_CSTRING(closure->function->requiredArgNames.values[destination]) :
-							AS_CSTRING(closure->function->keywordArgNames.values[destination - closure->function->requiredArgs])));
+					multipleDefs(closure, destination);
 					return 0;
 				}
 				startOfPositionals[destination] = startOfExtras[i*2+1];
 			} else if (IS_STRING(startOfExtras[i*2])) {
 				krk_push(startOfExtras[i*2]);
 				krk_push(startOfExtras[i*2+1]);
+			} else if (IS_KWARGS(startOfExtras[i*2])) {
+				if (AS_INTEGER(startOfExtras[i*2]) == LONG_MAX-2) {
+					KrkValue _dict_internal;
+					krk_tableGet(&AS_INSTANCE(startOfExtras[i*2+1])->fields, vm.specialMethodNames[METHOD_DICT_INT], &_dict_internal);
+					for (size_t j = 0; j < AS_DICT(_dict_internal)->capacity; ++j) {
+						KrkTableEntry entry = AS_DICT(_dict_internal)->entries[j];
+						if (entry.key.type == VAL_NONE) continue;
+						KrkValue name = entry.key;
+						KrkValue value = entry.value;
+						for (int j = 0; j < (int)closure->function->requiredArgNames.count; ++j) {
+							if (krk_valuesEqual(name, closure->function->requiredArgNames.values[j])) {
+								int destination = j;
+								if (!IS_KWARGS(startOfPositionals[destination])) {
+									multipleDefs(closure, destination);
+								}
+								startOfPositionals[destination] = value;
+								goto _finishDictEntry;
+							}
+						}
+						/* See if it's a keyword arg. */
+						for (int j = 0; j < (int)closure->function->keywordArgNames.count; ++j) {
+							if (krk_valuesEqual(name, closure->function->keywordArgNames.values[j])) {
+								int destination = j + closure->function->requiredArgs;
+								if (!IS_KWARGS(startOfPositionals[destination])) {
+									multipleDefs(closure, destination);
+								}
+								startOfPositionals[destination] = value;
+								goto _finishDictEntry;
+							}
+						}
+						krk_push(name);
+						krk_push(value);
+						extraKwargs++;
+						_finishDictEntry: continue;
+					}
+				}
 			} else {
 				krk_runtimeError(vm.exceptions.typeError, "Internal error?");
 				return 0;
@@ -822,14 +891,9 @@ _finishArg:
 		if (extraKwargs) {
 			krk_push(NONE_VAL()); krk_push(NONE_VAL()); krk_pop(); krk_pop();
 			startOfPositionals[offsetOfExtraKeys] = krk_dict_of(extraKwargs*2,&startOfExtras[found*2]);
-			while (extraKwargs) {
-				krk_pop();
-				krk_pop();
-				extraKwargs--;
-			}
 		}
 		long clearSlots;
-		for (clearSlots = existingPositionalArgs; clearSlots < closure->function->requiredArgs; ++clearSlots) {
+		for (clearSlots = destination; clearSlots < closure->function->requiredArgs; ++clearSlots) {
 			if (IS_KWARGS(startOfPositionals[clearSlots])) {
 				krk_runtimeError(vm.exceptions.typeError, "%s() missing required positional argument: '%s'",
 					closure->function->name ? closure->function->name->chars : "<unnamed function>",
@@ -854,7 +918,7 @@ _finishArg:
 	if (!checkArgumentCount(closure, argCountX)) {
 		return 0;
 	}
-	while (argCount < (closure->function->requiredArgs + closure->function->keywordArgs)) {
+	while (argCount < (int)totalArguments) {
 		krk_push(KWARGS_VAL(0));
 		argCount++;
 	}
@@ -2118,6 +2182,11 @@ static KrkValue run() {
 					return NONE_VAL();
 				}
 				frame = &vm.frames[vm.frameCount - 1];
+				break;
+			}
+			case OP_EXPAND_ARGS: {
+				int type = READ_BYTE();
+				krk_push(KWARGS_VAL(LONG_MAX-type));
 				break;
 			}
 			case OP_CLOSURE_LONG:
