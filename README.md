@@ -76,8 +76,6 @@ print 1000000000.0 * 1000000000 * 1000000000 * 3.0
 # → 3e+27
 ```
 
-_**Note:** Unlike in Python, single quotes in Kuroko represent character literals, like in C._
-
 ### Objects
 
 Objects are values which live on the heap. Basic objects include strings, functions, classes, and instances.
