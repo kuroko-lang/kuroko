@@ -501,13 +501,13 @@ int c_keyword_qualifier(int c) {
 	return isalnum(c) || (c == '_');
 }
 
-void paint_simple_string(struct syntax_state * state) {
+void paint_krk_string(struct syntax_state * state, int type) {
 	/* Assumes you came in from a check of charat() == '"' */
 	paint(1, FLAG_STRING);
 	while (charat() != -1) {
-		if (charat() == '\\' && nextchar() == '"') {
+		if (charat() == '\\' && nextchar() == type) {
 			paint(2, FLAG_ESCAPE);
-		} else if (charat() == '"') {
+		} else if (charat() == type) {
 			paint(1, FLAG_STRING);
 			return;
 		} else if (charat() == '\\') {
@@ -517,24 +517,6 @@ void paint_simple_string(struct syntax_state * state) {
 		}
 	}
 }
-
-void paint_single_string(struct syntax_state * state) {
-	/* Assumes you came in from a check of charat() == '\'' */
-	paint(1, FLAG_NUMERAL);
-	while (charat() != -1) {
-		if (charat() == '\\' && nextchar() == '\'') {
-			paint(2, FLAG_ESCAPE);
-		} else if (charat() == '\'') {
-			paint(1, FLAG_NUMERAL);
-			return;
-		} else if (charat() == '\\') {
-			paint(2, FLAG_ESCAPE);
-		} else {
-			paint(1, FLAG_NUMERAL);
-		}
-	}
-}
-
 
 char * syn_krk_keywords[] = {
 	"and","class","def","else","export","for","if","in","import",
@@ -569,12 +551,27 @@ int paint_krk_numeral(struct syntax_state * state) {
 		while (charat() == '0' || charat() == '1') paint(1, FLAG_NUMERAL);
 	} else {
 		while (isdigit(charat())) paint(1, FLAG_NUMERAL);
-		if (charat() == '.') {
+		if (charat() == '.' && isdigit(nextchar())) {
 			paint(1, FLAG_NUMERAL);
 			while (isdigit(charat())) paint(1, FLAG_NUMERAL);
 		}
 	}
 	return 0;
+}
+
+int paint_krk_triple_string(struct syntax_state * state, int type) {
+	while (charat() != -1) {
+		if (charat() == type) {
+			paint(1, FLAG_STRING);
+			if (charat() == type && nextchar() == type) {
+				paint(2, FLAG_STRING);
+				return 0;
+			}
+		} else {
+			paint(1, FLAG_STRING);
+		}
+	}
+	return (type == '"') ? 1 : 2; /* continues */
 }
 
 int syn_krk_calculate(struct syntax_state * state) {
@@ -587,11 +584,14 @@ int syn_krk_calculate(struct syntax_state * state) {
 				paint(1, FLAG_TYPE);
 				while (c_keyword_qualifier(charat())) paint(1, FLAG_TYPE);
 				return 0;
-			} else if (charat() == '"') {
-				paint_simple_string(state);
-				return 0;
-			} else if (charat() == '\'') {
-				paint_single_string(state);
+			} else if (charat() == '"' || charat() == '\'') {
+				if (nextchar() == charat() && charrel(2) == charat()) {
+					int type = charat();
+					paint(3, FLAG_STRING);
+					return paint_krk_triple_string(state, type);
+				} else {
+					paint_krk_string(state, charat());
+				}
 				return 0;
 			} else if (find_keywords(state, syn_krk_keywords, FLAG_KEYWORD, c_keyword_qualifier)) {
 				return 0;
@@ -607,6 +607,10 @@ int syn_krk_calculate(struct syntax_state * state) {
 				return 0;
 			}
 			break;
+		case 1:
+			return paint_krk_triple_string(state, '"');
+		case 2:
+			return paint_krk_triple_string(state, '\'');
 	}
 	return -1;
 }

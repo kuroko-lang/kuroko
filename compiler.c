@@ -1277,7 +1277,7 @@ static void unary(int canAssign) {
 	}
 }
 
-static void string(int canAssign) {
+static void stringBase(int type) {
 	/* We'll just build with a flexible array like everything else. */
 	size_t stringCapacity = 0;
 	size_t stringLength   = 0;
@@ -1288,14 +1288,15 @@ static void string(int canAssign) {
 	} stringBytes[stringLength++] = c; } while (0)
 
 	/* This should capture everything but the quotes. */
-	const char * c = parser.previous.start + 1;
-	while (c < parser.previous.start + parser.previous.length -1) {
+	const char * c = parser.previous.start + type;
+	while (c < parser.previous.start + parser.previous.length - type) {
 		if (*c == '\\') {
 			switch (c[1]) {
 				case 'n': PUSH_CHAR('\n'); break;
 				case 'r': PUSH_CHAR('\r'); break;
 				case 't': PUSH_CHAR('\t'); break;
 				case '[': PUSH_CHAR('\033'); break;
+				case '\n': if (type == 1) break; /* else fallthrough */
 				default: PUSH_CHAR(c[1]); break;
 			}
 			c += 2;
@@ -1308,32 +1309,12 @@ static void string(int canAssign) {
 	FREE_ARRAY(char,stringBytes,stringCapacity);
 }
 
-static void codepoint(int canAssign) {
-	const char * c = parser.previous.start + 1;
-	size_t width = 0;
-	int codepoint = 0;
-	while (c < parser.previous.start + parser.previous.length - 1) {
-		if (width >= 1) {
-			error("Wide character literals are not currently supported.");
-			return;
-		}
-		if (*c == '\\') {
-			switch (c[1]) {
-				case 'n': codepoint = '\n'; break;
-				case 'r': codepoint = '\r'; break;
-				case 't': codepoint = '\t'; break;
-				case '[': codepoint = '\033'; break;
-				default: codepoint = c[1]; break;
-			}
-			width++;
-			c += 2;
-		} else {
-			codepoint = *c;
-			width++;
-			c++;
-		}
-	}
-	emitConstant(INTEGER_VAL(codepoint));
+static void string(int canAssign) {
+	stringBase(1);
+}
+
+static void bigstring(int canAssign) {
+	stringBase(3);
 }
 
 static size_t addUpvalue(Compiler * compiler, ssize_t index, int isLocal) {
@@ -1627,7 +1608,7 @@ ParseRule rules[] = {
 	RULE(TOKEN_IDENTIFIER,    variable, NULL,   PREC_NONE),
 	RULE(TOKEN_STRING,        string,   NULL,   PREC_NONE),
 	RULE(TOKEN_NUMBER,        number,   NULL,   PREC_NONE),
-	RULE(TOKEN_CODEPOINT,     codepoint,NULL,   PREC_NONE),
+	RULE(TOKEN_BIG_STRING,    bigstring,NULL,   PREC_NONE),
 	RULE(TOKEN_AND,           NULL,     and_,   PREC_AND),
 	RULE(TOKEN_CLASS,         NULL,     NULL,   PREC_NONE),
 	RULE(TOKEN_ELSE,          NULL,     NULL,   PREC_NONE),

@@ -1003,6 +1003,18 @@ static KrkValue _int_to_char(int argc, KrkValue argv[]) {
 	return OBJECT_VAL(krk_copyString(tmp,1));
 }
 
+/* str.__ord__() */
+static KrkValue _char_to_int(int argc, KrkValue argv[]) {
+	if (AS_STRING(argv[0])->length != 1) {
+		krk_runtimeError(vm.exceptions.typeError, "ord() expected a character, but string of length %d found",
+			AS_STRING(argv[0])->length);
+		return NONE_VAL();
+	}
+
+	/* TODO unicode strings? Interpret as UTF-8 and return codepoint? */
+	return INTEGER_VAL(AS_CSTRING(argv[0])[0]);
+}
+
 /* str.__len__() */
 static KrkValue _string_length(int argc, KrkValue argv[]) {
 	if (argc != 1) {
@@ -1093,13 +1105,14 @@ static KrkValue _string_get(int argc, KrkValue argv[]) {
 		krk_runtimeError(vm.exceptions.typeError, "String can not indexed by %s", krk_typeName(argv[1]));
 		return NONE_VAL();
 	}
+	KrkString * me = AS_STRING(argv[0]);
 	int asInt = AS_INTEGER(argv[1]);
 	if (asInt < 0) asInt += (int)AS_STRING(argv[0])->length;
 	if (asInt < 0 || asInt >= (int)AS_STRING(argv[0])->length) {
 		krk_runtimeError(vm.exceptions.indexError, "String index out of range: %d", asInt);
 		return NONE_VAL();
 	}
-	return INTEGER_VAL(AS_CSTRING(argv[0])[asInt]);
+	return OBJECT_VAL(krk_copyString((char[]){me->chars[asInt]},1));
 }
 
 /* function.__doc__ */
@@ -1209,19 +1222,19 @@ static KrkValue _strBase(int argc, KrkValue argv[]) {
 static KrkValue _repr_str(int argc, KrkValue argv[]) {
 	char * str = malloc(3 + AS_STRING(argv[0])->length * 2);
 	char * tmp = str;
-	*(tmp++) = '"';
+	*(tmp++) = '\'';
 	for (char * c = AS_CSTRING(argv[0]); *c; ++c) {
 		switch (*c) {
 			/* XXX: Other non-printables should probably be escaped as well. */
 			case '\n': *(tmp++) = '\\'; *(tmp++) = 'n'; break;
 			case '\r': *(tmp++) = '\\'; *(tmp++) = 'r'; break;
 			case '\t': *(tmp++) = '\\'; *(tmp++) = 't'; break;
-			case '"':  *(tmp++) = '\\'; *(tmp++) = '"'; break;
+			case '\'':  *(tmp++) = '\\'; *(tmp++) = '\''; break;
 			case 27:   *(tmp++) = '\\'; *(tmp++) = '['; break;
 			default:   *(tmp++) = *c; break;
 		}
 	}
-	*(tmp++) = '"';
+	*(tmp++) = '\'';
 	*(tmp++) = '\0';
 	KrkString * out = krk_copyString(str, tmp-str-1);
 	free(str);
@@ -1293,6 +1306,7 @@ void krk_initVM(int flags) {
 	vm.specialMethodNames[METHOD_FILE] = OBJECT_VAL(S("__file__"));
 	vm.specialMethodNames[METHOD_INT]  = OBJECT_VAL(S("__int__"));
 	vm.specialMethodNames[METHOD_CHR]  = OBJECT_VAL(S("__chr__"));
+	vm.specialMethodNames[METHOD_ORD]  = OBJECT_VAL(S("__ord__"));
 	vm.specialMethodNames[METHOD_FLOAT]= OBJECT_VAL(S("__float__"));
 	vm.specialMethodNames[METHOD_LEN]  = OBJECT_VAL(S("__len__"));
 	vm.specialMethodNames[METHOD_DOC]  = OBJECT_VAL(S("__doc__"));
@@ -1361,6 +1375,7 @@ void krk_initVM(int flags) {
 	krk_defineNative(&vm.baseClasses.strClass->methods, ".__int__", _string_to_int);
 	krk_defineNative(&vm.baseClasses.strClass->methods, ".__float__", _string_to_float);
 	krk_defineNative(&vm.baseClasses.strClass->methods, ".__getslice__", _string_get_slice);
+	krk_defineNative(&vm.baseClasses.strClass->methods, ".__ord__", _char_to_int);
 	ADD_BASE_CLASS(vm.baseClasses.functionClass, "function", vm.objectClass);
 	krk_defineNative(&vm.baseClasses.functionClass->methods, ".__str__", _closure_str);
 	krk_defineNative(&vm.baseClasses.functionClass->methods, ".__repr__", _closure_str);

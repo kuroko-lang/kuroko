@@ -65,9 +65,10 @@ static char peek() {
 	return *scanner.cur;
 }
 
-static char peekNext() {
+static char peekNext(int n) {
 	if (isAtEnd()) return '\0';
-	return scanner.cur[1];
+	for (int i = 0; i < n; ++i) if (scanner.cur[i] == '\0') return '\0';
+	return scanner.cur[n];
 }
 
 static void skipWhitespace() {
@@ -99,34 +100,43 @@ static KrkToken makeIndentation() {
 	return makeToken(TOKEN_INDENTATION);
 }
 
-static KrkToken string() {
-	while (peek() != '"' && !isAtEnd()) {
-		if (peek() == '\\') advance(); /* Advance twice */
-		if (peek() == '\n') nextLine();
-		advance();
+static KrkToken string(char quoteMark) {
+	if (peek() == quoteMark && peekNext(1) == quoteMark) {
+		advance(); advance();
+		/* Big string */
+		while (!isAtEnd()) {
+			if (peek() == quoteMark && peekNext(1) == quoteMark && peekNext(2) == quoteMark) {
+				advance();
+				advance();
+				advance();
+				return makeToken(TOKEN_BIG_STRING);
+			}
+
+			if (peek() == '\\') advance();
+			if (peek() == '\n') {
+				advance();
+				nextLine();
+			}
+			else advance();
+		}
+		if (isAtEnd()) return errorToken("Unterminated string?");
+	}
+	while (peek() != quoteMark && !isAtEnd()) {
+		if (peek() == '\n') return errorToken("Unterminated string.");
+		if (peek() == '\\') advance();
+		if (peek() == '\n') {
+			advance();
+			nextLine();
+		}
+		else advance();
 	}
 
 	if (isAtEnd()) return errorToken("Unterminated string.");
 
-	assert(peek() == '"');
+	assert(peek() == quoteMark);
 	advance();
 
 	return makeToken(TOKEN_STRING);
-}
-
-static KrkToken codepoint() {
-	while (peek() != '\'' && !isAtEnd()) {
-		if (peek() == '\\') advance();
-		if (peek() == '\n') return makeToken(TOKEN_RETRY);
-		advance();
-	}
-
-	if (isAtEnd()) return errorToken("Unterminated codepoint literal.");
-
-	assert(peek() == '\'');
-	advance();
-
-	return makeToken(TOKEN_CODEPOINT);
 }
 
 static int isDigit(char c) {
@@ -159,7 +169,7 @@ static KrkToken number(char c) {
 	while (isDigit(peek())) advance();
 
 	/* Floating point */
-	if (peek() == '.' && isDigit(peekNext())) {
+	if (peek() == '.' && isDigit(peekNext(1))) {
 		advance();
 		while (isDigit(peek())) advance();
 	}
@@ -316,8 +326,8 @@ KrkToken krk_scanToken() {
 		case '-': return makeToken(match('=') ? TOKEN_MINUS_EQUAL : (match('-') ? TOKEN_MINUS_MINUS : TOKEN_MINUS));
 		case '+': return makeToken(match('=') ? TOKEN_PLUS_EQUAL : (match('+') ? TOKEN_PLUS_PLUS : TOKEN_PLUS));
 
-		case '"': return string();
-		case '\'': return codepoint();
+		case '"': return string('"');
+		case '\'': return string('\'');
 	}
 
 
