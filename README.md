@@ -642,17 +642,20 @@ f.theMethod("the newly required argument")
 #   I also required this extra argument: the newly required argument
 ```
 
-Decorators may also take arguments in addition to the function to be wrapped:
+Decorators are _expressions_, just like in Python, so to make a decorator with arguments create a function that takes those arguments and returns a decorator:
 
 ```py
-def requirePassword(func, password):
-    print "I am wrapping", func, "and attaching",password
-    def wrapper(secretPassword):
-        if secretPassword != password:
-            print "You didn't say the magic word."
-            return
-        func()
-    return wrapper
+def requirePassword(password):
+    print "I am creating a decorator."
+    def decorator(func):
+        print "I am wrapping", func, "and attaching",password
+        def wrapper(secretPassword):
+            if secretPassword != password:
+                print "You didn't say the magic word."
+                return
+            func()
+        return wrapper
+    return decorator
 
 @requirePassword("hunter2")
 def superSecretFunction():
@@ -666,8 +669,6 @@ superSecretFunction("hunter2")
 #   Let's try again.
 #   Welcome!
 ```
-
-_**NOTE:** Arguments in decorators work differently from Python: In Python, decorators with arguments are functions which return a new decorator and _that_ decorator is applied to the wrapped function; in Kuroko, decorators with arguments are no different from those with out - the additional arguments are appended after the passed function._
 
 ## About the REPL
 

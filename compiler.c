@@ -802,20 +802,8 @@ static KrkToken decorator(size_t level, FunctionType type) {
 	size_t blockWidth = (parser.previous.type == TOKEN_INDENTATION) ? parser.previous.length : 0;
 	advance(); /* Collect the `@` */
 
-	beginScope();
-
 	/* Collect an identifier */
-	consume(TOKEN_IDENTIFIER,"Expected a decorator name.");
-	variable(0);
-	size_t outputLocal = current->localCount;
-
-	emitByte(OP_NONE); /* Space for the function */
-
-	/* See if we have an argument list */
-	size_t argCount = 0;
-	if (match(TOKEN_LEFT_PAREN)) {
-		argCount = argumentList();
-	}
+	expression();
 
 	consume(TOKEN_EOL, "Expected line feed after decorator.");
 	if (blockWidth) {
@@ -839,15 +827,7 @@ static KrkToken decorator(size_t level, FunctionType type) {
 		error("Expected a function declaration or another decorator.");
 	}
 
-	/* As a 'declaration' syntax element, we can always guarantee by the time we
-	 * get to this point, we are at the current local level. */
-	size_t argumentDestination = (type == TYPE_FUNCTION) ? (outputLocal + 1) : (outputLocal + 2);
-	EMIT_CONSTANT_OP(OP_SET_LOCAL, argumentDestination);
-	endScope();
-
-	emitByte(OP_POP);
-
-	emitBytes(OP_CALL, 1 + argCount);
+	emitBytes(OP_CALL, 1);
 
 	if (level == 0) {
 		if (type == TYPE_FUNCTION) {

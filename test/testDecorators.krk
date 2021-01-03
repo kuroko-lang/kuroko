@@ -72,12 +72,14 @@ print "Returned from f.undecorated()"
 f.decorated("butts")
 print "Returned from f.decorated()"
 
-def decoratorWithArgument(func, decoratorArg):
-    print "I am decorating",func,"with this argument:",decoratorArg
-    def wrapped():
-        print "This wrapper captured this decorator arg:", decoratorArg
-        func()
-    return wrapped
+def decoratorWithArgument(decoratorArg):
+    def theActualDecorator(func):
+        print "I am decorating",func,"with this argument:",decoratorArg
+        def wrapped():
+            print "This wrapper captured this decorator arg:", decoratorArg
+            func()
+        return wrapped
+    return theActualDecorator
 
 @decoratorWithArgument("foo")
 def decoratedWithArgument():
@@ -85,13 +87,15 @@ def decoratedWithArgument():
 
 decoratedWithArgument()
 
-def methodDecoratorWithArguments(method, decoratorArgA, decoratorArgB):
-    print "I am decorating", method, "with these args:", decoratorArgA, decoratorArgB
-    def wrapped(instance, wrapperArg):
-        print "I captured these from the decorator:", decoratorArgA, decoratorArgB
-        print "I also take my own argument:", wrapperArg
-        method(instance,"and modify this one")
-    return wrapped
+def methodDecoratorWithArguments(decoratorArgA, decoratorArgB):
+    def theActualDecorator(method):
+        print "I am decorating", method, "with these args:", decoratorArgA, decoratorArgB
+        def wrapped(instance, wrapperArg):
+            print "I captured these from the decorator:", decoratorArgA, decoratorArgB
+            print "I also take my own argument:", wrapperArg
+            method(instance,"and modify this one")
+        return wrapped
+    return theActualDecorator
 
 class Bar():
     @methodDecoratorWithArguments("foo","bar")
