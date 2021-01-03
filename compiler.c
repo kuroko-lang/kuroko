@@ -1277,7 +1277,7 @@ static void unary(int canAssign) {
 	}
 }
 
-static void stringBase(int type) {
+static void string(int type) {
 	/* We'll just build with a flexible array like everything else. */
 	size_t stringCapacity = 0;
 	size_t stringLength   = 0;
@@ -1288,33 +1288,28 @@ static void stringBase(int type) {
 	} stringBytes[stringLength++] = c; } while (0)
 
 	/* This should capture everything but the quotes. */
-	const char * c = parser.previous.start + type;
-	while (c < parser.previous.start + parser.previous.length - type) {
-		if (*c == '\\') {
-			switch (c[1]) {
-				case 'n': PUSH_CHAR('\n'); break;
-				case 'r': PUSH_CHAR('\r'); break;
-				case 't': PUSH_CHAR('\t'); break;
-				case '[': PUSH_CHAR('\033'); break;
-				case '\n': if (type == 1) break; /* else fallthrough */
-				default: PUSH_CHAR(c[1]); break;
+	do {
+		int type = parser.previous.type == TOKEN_BIG_STRING ? 3 : 1;
+		const char * c = parser.previous.start + type;
+		while (c < parser.previous.start + parser.previous.length - type) {
+			if (*c == '\\') {
+				switch (c[1]) {
+					case 'n': PUSH_CHAR('\n'); break;
+					case 'r': PUSH_CHAR('\r'); break;
+					case 't': PUSH_CHAR('\t'); break;
+					case '[': PUSH_CHAR('\033'); break;
+					case '\n': break;
+					default: PUSH_CHAR(c[1]); break;
+				}
+				c += 2;
+			} else {
+				PUSH_CHAR(*c);
+				c++;
 			}
-			c += 2;
-		} else {
-			PUSH_CHAR(*c);
-			c++;
 		}
-	}
+	} while (match(TOKEN_STRING) || match(TOKEN_BIG_STRING));
 	emitConstant(OBJECT_VAL(krk_copyString(stringBytes,stringLength)));
 	FREE_ARRAY(char,stringBytes,stringCapacity);
-}
-
-static void string(int canAssign) {
-	stringBase(1);
-}
-
-static void bigstring(int canAssign) {
-	stringBase(3);
 }
 
 static size_t addUpvalue(Compiler * compiler, ssize_t index, int isLocal) {
@@ -1607,8 +1602,8 @@ ParseRule rules[] = {
 	RULE(TOKEN_LESS_EQUAL,    NULL,     binary, PREC_COMPARISON),
 	RULE(TOKEN_IDENTIFIER,    variable, NULL,   PREC_NONE),
 	RULE(TOKEN_STRING,        string,   NULL,   PREC_NONE),
+	RULE(TOKEN_BIG_STRING,    string,   NULL,   PREC_NONE),
 	RULE(TOKEN_NUMBER,        number,   NULL,   PREC_NONE),
-	RULE(TOKEN_BIG_STRING,    bigstring,NULL,   PREC_NONE),
 	RULE(TOKEN_AND,           NULL,     and_,   PREC_AND),
 	RULE(TOKEN_CLASS,         NULL,     NULL,   PREC_NONE),
 	RULE(TOKEN_ELSE,          NULL,     NULL,   PREC_NONE),
