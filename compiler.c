@@ -295,11 +295,27 @@ static void emitReturn() {
 static KrkFunction * endCompiler() {
 	emitReturn();
 	KrkFunction * function = current->function;
+
+	/* Attach contants for arguments */
+	for (int i = 0; i < function->requiredArgs; ++i) {
+		KrkValue value = OBJECT_VAL(krk_copyString(current->locals[i].name.start, current->locals[i].name.length));
+		krk_push(value);
+		krk_writeValueArray(&function->requiredArgNames, value);
+		krk_pop();
+	}
+	for (int i = 0; i < function->keywordArgs; ++i) {
+		KrkValue value = OBJECT_VAL(krk_copyString(current->locals[i+function->requiredArgs].name.start,
+			current->locals[i+function->requiredArgs].name.length));
+		krk_push(value);
+		krk_writeValueArray(&function->keywordArgNames, value);
+		krk_pop();
+	}
+
 #ifdef ENABLE_DISASSEMBLY
 	if ((vm.flags & KRK_ENABLE_DISASSEMBLY) && !parser.hadError) {
 		krk_disassembleChunk(currentChunk(), function->name ? function->name->chars : "<module>");
-		fprintf(stderr, "Function metadata: requiredArgs=%d defaultArgs=%d upvalueCount=%d\n",
-			function->requiredArgs, function->defaultArgs, (int)function->upvalueCount);
+		fprintf(stderr, "Function metadata: requiredArgs=%d keywordArgs=%d upvalueCount=%d\n",
+			function->requiredArgs, function->keywordArgs, (int)function->upvalueCount);
 		fprintf(stderr, "__doc__: \"%s\"\n", function->docstring ? function->docstring->chars : "");
 		fprintf(stderr, "Constants: ");
 		for (size_t i = 0; i < currentChunk()->constants.count; ++i) {
@@ -308,6 +324,21 @@ static KrkFunction * endCompiler() {
 			if (i != currentChunk()->constants.count - 1) {
 				fprintf(stderr, ", ");
 			}
+		}
+		fprintf(stderr, "\nRequired arguments: ");
+		int i = 0;
+		for (; i < function->requiredArgs; ++i) {
+			fprintf(stderr, "%.*s%s",
+				(int)current->locals[i].name.length,
+				current->locals[i].name.start,
+				(i == function->requiredArgs - 1) ? "" : ", ");
+		}
+		fprintf(stderr, "\nKeyword arguments: ");
+		for (; i < function->requiredArgs + function->keywordArgs; ++i) {
+			fprintf(stderr, "%.*s=None%s",
+				(int)current->locals[i].name.length,
+				current->locals[i].name.start,
+				(i == function->keywordArgs - 1) ? "" : ", ");
 		}
 		fprintf(stderr, "\n");
 	}
@@ -653,7 +684,7 @@ static void function(FunctionType type, size_t blockWidth) {
 			defineVariable(paramConstant);
 			if (match(TOKEN_EQUAL)) {
 				consume(TOKEN_NONE,"Optional arguments can only be assigned the default value of None.");
-				current->function->defaultArgs++;
+				current->function->keywordArgs++;
 			} else {
 				current->function->requiredArgs++;
 			}
@@ -1704,14 +1735,53 @@ static void defineVariable(size_t global) {
 }
 
 static size_t argumentList() {
-	size_t argCount = 0;
+	size_t argCount = 0, keywordArgs = 0;
 	if (!check(TOKEN_RIGHT_PAREN)) {
 		do {
+			if (match(TOKEN_IDENTIFIER)) {
+				KrkToken argName = parser.previous;
+				if (check(TOKEN_EQUAL)) {
+					/* This is a keyword argument. */
+					advance();
+					/* Output the name */
+					size_t ind = identifierConstant(&argName);
+					EMIT_CONSTANT_OP(OP_CONSTANT, ind);
+					expression();
+					keywordArgs++;
+					continue;
+				} else {
+					/*
+					 * This is a regular argument that happened to start with an identifier,
+					 * roll it back so we can process it that way.
+					 */
+					krk_ungetToken(parser.current);
+					parser.current = argName;
+				}
+			} else if (keywordArgs) {
+				error("Keyword arguments must appear after positional arguments in function call.");
+				return 0;
+			}
 			expression();
 			argCount++;
 		} while (match(TOKEN_COMMA));
 	}
 	consume(TOKEN_RIGHT_PAREN, "Expected ')' after arguments.");
+	if (keywordArgs) {
+		/*
+		 * Creates a sentinel at the top of the stack to tell the CALL instruction
+		 * how many keyword arguments are at the top of the stack. This value
+		 * triggers special handling in the CALL that processes the keyword arguments,
+		 * which is relatively slow, so only use keyword arguments if you have to!
+		 */
+		EMIT_CONSTANT_OP(OP_KWARGS, keywordArgs);
+		/*
+		 * We added two elements - name and value - for each keyword arg,
+		 * plus the sentinel object that will show up at the end after the
+		 * OP_KWARGS instruction complets, so make sure we have the
+		 * right depth into the stack when we execute CALL
+		 */
+		argCount += 1 /* for the sentinel */ + 2 * keywordArgs;
+	}
 	return argCount;
 }
 

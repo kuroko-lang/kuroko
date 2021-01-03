@@ -64,10 +64,12 @@ KrkString * krk_copyString(const char * chars, size_t length) {
 KrkFunction * krk_newFunction() {
 	KrkFunction * function = ALLOCATE_OBJECT(KrkFunction, OBJ_FUNCTION);
 	function->requiredArgs = 0;
-	function->defaultArgs = 0;
+	function->keywordArgs = 0;
 	function->upvalueCount = 0;
 	function->name = NULL;
 	function->docstring = NULL;
+	krk_initValueArray(&function->requiredArgNames);
+	krk_initValueArray(&function->keywordArgNames);
 	krk_initChunk(&function->chunk);
 	return function;
 }

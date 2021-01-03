@@ -1,0 +1,30 @@
+def function(positional1, positional2, keyword1=None, keyword2=None):
+    print positional1, positional2
+    print keyword1, keyword2
+
+function(1,2)
+function(1,2,3,4)
+
+function(1,2,keyword2=5)
+
+try:
+    function(1,keyword2=5)
+except:
+    print exception.arg
+
+try:
+    function(1,2,positional1=4)
+except:
+    print exception.arg
+
+try:
+    function(1,2,keyword2=None,keyword2=5)
+except:
+    print exception.arg
+
+function(1,keyword2=4,positional2="abc")
+
+try:
+    function(1,keyword2=4,keyword1=5,positional1="nope")
+except:
+    print exception.arg

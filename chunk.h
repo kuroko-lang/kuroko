@@ -56,6 +56,7 @@ typedef enum {
 	OP_INC,
 	OP_DUP,
 	OP_SWAP,
+	OP_KWARGS,
 
 	OP_BITOR,
 	OP_BITXOR,
@@ -86,6 +87,7 @@ typedef enum {
 	OP_IMPORT_LONG,
 	OP_GET_SUPER_LONG,
 	OP_INC_LONG,
+	OP_KWARGS_LONG,
 } KrkOpCode;
 
 typedef struct {

@@ -666,6 +666,32 @@ superSecretFunction("hunter2")
 #   Welcome!
 ```
 
+### Keyword Arguments
+
+Arguments may be passed to a function by specifying their name instead of using their positional location.
+
+```py
+def aFunction(a,b,c):
+    print a,b,c
+
+aFunction(1,2,3)
+aFunction(1,c=3,b=2)
+aFunction(b=2,c=3,a=1)
+# → 1 2 3
+#   1 2 3
+#   1 2 3
+```
+
+This will be slower in execution than a normal function call, as the interpreter will need to figure out where to place arguments in the requested function by examining it at runtime, but it allows for functions to take many default arguments without forcing the caller to specify the values for everything leading up to one they want to specifically set.
+
+```py
+def aFunction(with=None,lots=None,of=None,default=None,args=None):
+    print with,lots,of,default,args
+
+aFunction(of="hello!")
+# → None None hello! None None
+```
+
 ## About the REPL
 
 Kuroko's repl provides an interactive environment for executing code and seeing results.

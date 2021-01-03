@@ -663,7 +663,7 @@ static KrkValue krk_globals(int argc, KrkValue argv[]) {
 
 static int checkArgumentCount(KrkClosure * closure, int argCount) {
 	int minArgs = closure->function->requiredArgs;
-	int maxArgs = minArgs + closure->function->defaultArgs;
+	int maxArgs = minArgs + closure->function->keywordArgs;
 	if (argCount < minArgs || argCount > maxArgs) {
 		krk_runtimeError(vm.exceptions.argumentError, "%s() takes %s %d argument%s (%d given)",
 		closure->function->name ? closure->function->name->chars : "<unnamed function>",
@@ -687,10 +687,111 @@ static int checkArgumentCount(KrkClosure * closure, int argCount) {
  * where we need to restore the stack to when we return from this call.
  */
 static int call(KrkClosure * closure, int argCount, int extra) {
+	if (argCount && IS_KWARGS(vm.stackTop[-1])) {
+		/**
+		 * Process keyword arguments.
+		 * First, we make sure there is enough space on the stack to fit all of
+		 * the potential arguments to this function. We need to call it with
+		 * all of its arguments - positional and keyword - ready to go, even
+		 * if they weren't specified.
+		 *
+		 * Then we go through all of the kwargs and figure out where they go,
+		 * building a table at the top of the stack of final offsets and values.
+		 *
+		 * Then we clear through all of the spaces that were previously
+		 * kwarg name/value pairs and replace them with a sentinel value.
+		 *
+		 * Then we go through our table and place values into their destination
+		 * spots. If we find that something is already there (because it's not
+		 * the expected sentinel value), we raise a TypeError indicating a
+		 * duplicate argument.
+		 *
+		 * Finally, we do one last pass to see if any of the sentinel values
+		 * indicating missing positional arguments is still there and raise
+		 * another TypeError to indicate missing required arguments, and fill
+		 * out the default values for missing keyword arguments.
+		 * (TODO: Support other default values for kwargs; need to put them
+		 *        somewhere, probably close them as upvalues?)
+		 *
+		 * At this point we can reset the stack head and continue to the actual
+		 * call with all of the arguments, including the defaults, in the right
+		 * place for the function to pull them as locals.
+		 */
+		long kwargsCount = AS_INTEGER(vm.stackTop[-1]);
+		krk_pop(); /* Pop the arg counter */
+		argCount--;
+		long existingPositionalArgs = argCount - kwargsCount * 2;
+		int found = 0;
+		KrkValue * startOfPositionals = &vm.stackTop[-argCount];
+		KrkValue * endOfPositionals = &vm.stackTop[-kwargsCount * 2];
+		for (long availableSlots = argCount; availableSlots < (closure->function->requiredArgs + closure->function->keywordArgs); ++availableSlots) {
+			krk_push(KWARGS_VAL(0)); /* Make sure we definitely have enough space */
+		}
+		KrkValue * startOfExtras = vm.stackTop;
+		for (long i = 0; i < kwargsCount; ++i) {
+			KrkValue name = endOfPositionals[i*2];
+			KrkValue value = endOfPositionals[i*2+1];
+			/* First, see if it's a positional arg. */
+			for (int j = 0; j < (int)closure->function->requiredArgNames.count; ++j) {
+				if (krk_valuesEqual(name, closure->function->requiredArgNames.values[j])) {
+					krk_push(INTEGER_VAL(j));
+					krk_push(value);
+					found++;
+					goto _finishArg;
+				}
+			}
+			/* See if it's a keyword arg. */
+			for (int j = 0; j < (int)closure->function->keywordArgNames.count; ++j) {
+				if (krk_valuesEqual(name, closure->function->keywordArgNames.values[j])) {
+					krk_push(INTEGER_VAL(j + closure->function->requiredArgs));
+					krk_push(value);
+					found++;
+					goto _finishArg;
+				}
+			}
+			/* If we got to this point, it's not a recognized argument for this function. */
+			krk_runtimeError(vm.exceptions.typeError, "%s() got an unexpected keyword argument '%s'",
+				closure->function->name ? closure->function->name->chars : "<unnamed function>",
+				AS_CSTRING(name));
+			return 0;
+_finishArg:
+			continue;
+		}
+		for (long clearSlots = existingPositionalArgs; clearSlots < argCount; ++clearSlots) {
+			startOfPositionals[clearSlots] = KWARGS_VAL(0);
+		}
+		for (int i = 0; i < found; ++i) {
+			int destination = AS_INTEGER(startOfExtras[i*2]);
+			if (!IS_KWARGS(startOfPositionals[destination])) {
+				krk_runtimeError(vm.exceptions.typeError, "%s() got multiple values for argument '%s'",
+					closure->function->name ? closure->function->name->chars : "<unnamed function>",
+					(destination < closure->function->requiredArgs ? AS_CSTRING(closure->function->requiredArgNames.values[destination]) :
+						AS_CSTRING(closure->function->keywordArgNames.values[destination - closure->function->requiredArgs])));
+				return 0;
+			}
+			startOfPositionals[destination] = startOfExtras[i*2+1];
+		}
+		long clearSlots;
+		for (clearSlots = existingPositionalArgs; clearSlots < closure->function->requiredArgs; ++clearSlots) {
+			if (IS_KWARGS(startOfPositionals[clearSlots])) {
+				krk_runtimeError(vm.exceptions.typeError, "%s() missing required positional argument: '%s'",
+					closure->function->name ? closure->function->name->chars : "<unnamed function>",
+					AS_CSTRING(closure->function->requiredArgNames.values[clearSlots]));
+				return 0;
+			}
+		}
+		for (; clearSlots < closure->function->requiredArgs + closure->function->keywordArgs; ++clearSlots) {
+			if (IS_KWARGS(startOfPositionals[clearSlots])) {
+				startOfPositionals[clearSlots] = NONE_VAL();/* TODO: Default value for kwarg */
+			}
+		}
+		argCount = closure->function->requiredArgs + closure->function->keywordArgs;
+		while (vm.stackTop > startOfPositionals + argCount) krk_pop();
+	}
 	if (!checkArgumentCount(closure, argCount)) {
 		return 0;
 	}
-	while (argCount < (closure->function->requiredArgs + closure->function->defaultArgs)) {
+	while (argCount < (closure->function->requiredArgs + closure->function->keywordArgs)) {
 		krk_push(NONE_VAL());
 		argCount++;
 	}
@@ -734,6 +835,10 @@ int krk_callValue(KrkValue callee, int argCount, int extra) {
 				return call(AS_CLOSURE(callee), argCount, extra);
 			case OBJ_NATIVE: {
 				NativeFn native = AS_NATIVE(callee);
+				if (argCount && IS_KWARGS(vm.stackTop[-1])) {
+					krk_runtimeError(vm.exceptions.attributeError, "%s does not take keyword arguments.", ((KrkNative*)AS_OBJECT(callee))->name);
+					return 0;
+				}
 				KrkValue * stackCopy = malloc(argCount * sizeof(KrkValue));
 				memcpy(stackCopy, vm.stackTop - argCount, argCount * sizeof(KrkValue));
 				KrkValue result = native(argCount, stackCopy);
@@ -753,7 +858,7 @@ int krk_callValue(KrkValue callee, int argCount, int extra) {
 				if (krk_tableGet(&_class->methods, vm.specialMethodNames[METHOD_INIT], &initializer)) {
 					return krk_callValue(initializer, argCount + 1, 0);
 				} else if (argCount != 0) {
-					krk_runtimeError(vm.exceptions.attributeError, "Class does not have an __init__ but arguments were passed to initializer: %d\n", argCount);
+					krk_runtimeError(vm.exceptions.attributeError, "Class does not have an __init__ but arguments were passed to initializer: %d", argCount);
 					return 0;
 				}
 				return 1;
@@ -2071,6 +2176,11 @@ static KrkValue run() {
 			case OP_SWAP:
 				krk_swap(1);
 				break;
+			case OP_KWARGS_LONG:
+			case OP_KWARGS: {
+				krk_push(KWARGS_VAL(readBytes(frame,operandWidth)));
+				break;
+			}
 		}
 		if (!(vm.flags & KRK_HAS_EXCEPTION)) continue;
 _finishException:
