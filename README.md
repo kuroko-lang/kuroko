@@ -596,8 +596,6 @@ while True:
 
 Decorators allow functions and methods to be wrapped.
 
-Paremeterless decorators work the same as in Python:
-
 ```py
 def decorator(func):
     print "I take the function to be decorated as an argument:", func
