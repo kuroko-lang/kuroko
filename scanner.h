@@ -65,6 +65,7 @@ typedef enum {
 	TOKEN_MINUS_MINUS,/* -- */
 
 	TOKEN_AS,
+	TOKEN_FROM,
 
 	TOKEN_ERROR,
 	TOKEN_EOF,

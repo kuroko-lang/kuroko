@@ -1263,6 +1263,22 @@ static void importStatement() {
 	defineVariable(ind);
 }
 
+static void fromImportStatement() {
+	consume(TOKEN_IDENTIFIER, "Expected module name after 'from'");
+	size_t ind = identifierConstant(&parser.previous);
+	EMIT_CONSTANT_OP(OP_IMPORT, ind);
+	consume(TOKEN_IMPORT, "Exported 'import' after module name");
+	do {
+		consume(TOKEN_IDENTIFIER, "Expected member name");
+		size_t member = identifierConstant(&parser.previous);
+		emitBytes(OP_DUP, 0); /* Duplicate the package object so we can GET_PROPERTY on it? */
+		EMIT_CONSTANT_OP(OP_GET_PROPERTY, member);
+		declareVariable();
+		defineVariable(member);
+	} while (match(TOKEN_COMMA));
+	emitByte(OP_POP); /* Pop the remaining copy of the module. */
+}
+
 static void exportStatement() {
 	do {
 		consume(TOKEN_IDENTIFIER, "only named variable may be exported to the global namespace");
@@ -1299,6 +1315,8 @@ static void statement() {
 			returnStatement();
 		} else if (match(TOKEN_IMPORT)) {
 			importStatement();
+		} else if (match(TOKEN_FROM)) {
+			fromImportStatement();
 		} else if (match(TOKEN_BREAK)) {
 			breakStatement();
 		} else if (match(TOKEN_CONTINUE)) {
