@@ -711,3 +711,14 @@ When a blank line or a line consisting entirely of whitespace is entered, the re
 Code executed in the repl runs in a global scope and reused variable names will overwrite previous definitions, allowing function and class names to be reused.
 
 The repl will display the last value popped from the stack before returning. Note that unlike with the `print` statement, objects printed in this way from the repl will not be converted to strings, so they may display differently.
+
+## What's different from Python?
+
+You may be looking at the code examples and thinking Kuroko looks a _lot_ more like Python than "syntax similar to Python" suggests. Still, there are some differences, and they come in two forms: Intentional differences and unintentional differences.
+
+Unintentional differences likely represent incomplete features. Intentional differences are design decisions specifically meant to differentiate Kuroko from Python and usually are an attempt to improve upon or "fix" perceived mistakes.
+
+Two notable intentional differences thus far are:
+
+- Kuroko's variable scoping requires explicit declarations. This was done because Python's function-level scoping, and particularly how it interacts with globals, is often a thorn in the side of beginner and seasoned programmers alike. It's not so much seen as a mistake as it is something we don't wish to replicate.
+- Default arguments to functions are evaluated at call time, not at definition time. How many times have you accidentally assigned an empty list as a default argument, only to be burned by its mutated descendent appearing in further calls? Kuroko doesn't do that - it works more like Ruby.
