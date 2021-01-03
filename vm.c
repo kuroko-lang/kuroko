@@ -687,6 +687,13 @@ static int checkArgumentCount(KrkClosure * closure, int argCount) {
  * where we need to restore the stack to when we return from this call.
  */
 static int call(KrkClosure * closure, int argCount, int extra) {
+	KrkValue * startOfPositionals = &vm.stackTop[-argCount];
+	size_t potentialPositionalArgs = closure->function->requiredArgs + closure->function->keywordArgs;
+	size_t totalArguments = closure->function->requiredArgs + closure->function->keywordArgs + closure->function->collectsArguments + closure->function->collectsKeywords;
+	size_t offsetOfExtraArgs = closure->function->requiredArgs + closure->function->keywordArgs;
+	size_t offsetOfExtraKeys = offsetOfExtraArgs + closure->function->collectsArguments;
+	size_t argCountX = argCount;
+
 	if (argCount && IS_KWARGS(vm.stackTop[-1])) {
 		/**
 		 * Process keyword arguments.
@@ -717,11 +724,23 @@ static int call(KrkClosure * closure, int argCount, int extra) {
 		long kwargsCount = AS_INTEGER(vm.stackTop[-1]);
 		krk_pop(); /* Pop the arg counter */
 		argCount--;
-		long existingPositionalArgs = argCount - kwargsCount * 2;
+		size_t existingPositionalArgs = argCount - kwargsCount * 2;
 		int found = 0;
-		KrkValue * startOfPositionals = &vm.stackTop[-argCount];
+		int extraKwargs = 0;
+
+		if (existingPositionalArgs > potentialPositionalArgs) {
+			if (!closure->function->collectsArguments) {
+				checkArgumentCount(closure,existingPositionalArgs);
+				return 0;
+			}
+			krk_push(NONE_VAL()); krk_push(NONE_VAL()); krk_pop(); krk_pop();
+			startOfPositionals[offsetOfExtraArgs] = krk_list_of(existingPositionalArgs - potentialPositionalArgs,
+				&startOfPositionals[potentialPositionalArgs]);
+			existingPositionalArgs = potentialPositionalArgs + 1;
+		}
+
 		KrkValue * endOfPositionals = &vm.stackTop[-kwargsCount * 2];
-		for (long availableSlots = argCount; availableSlots < (closure->function->requiredArgs + closure->function->keywordArgs); ++availableSlots) {
+		for (size_t availableSlots = argCount; availableSlots < (totalArguments); ++availableSlots) {
 			krk_push(KWARGS_VAL(0)); /* Make sure we definitely have enough space */
 		}
 		KrkValue * startOfExtras = vm.stackTop;
@@ -747,6 +766,13 @@ static int call(KrkClosure * closure, int argCount, int extra) {
 				}
 			}
 			/* If we got to this point, it's not a recognized argument for this function. */
+			if (closure->function->collectsKeywords) {
+				krk_push(name);
+				krk_push(value);
+				found++;
+				extraKwargs++;
+				continue;
+			}
 			krk_runtimeError(vm.exceptions.typeError, "%s() got an unexpected keyword argument '%s'",
 				closure->function->name ? closure->function->name->chars : "<unnamed function>",
 				AS_CSTRING(name));
@@ -758,15 +784,32 @@ _finishArg:
 			startOfPositionals[clearSlots] = KWARGS_VAL(0);
 		}
 		for (int i = 0; i < found; ++i) {
-			int destination = AS_INTEGER(startOfExtras[i*2]);
-			if (!IS_KWARGS(startOfPositionals[destination])) {
-				krk_runtimeError(vm.exceptions.typeError, "%s() got multiple values for argument '%s'",
-					closure->function->name ? closure->function->name->chars : "<unnamed function>",
-					(destination < closure->function->requiredArgs ? AS_CSTRING(closure->function->requiredArgNames.values[destination]) :
-						AS_CSTRING(closure->function->keywordArgNames.values[destination - closure->function->requiredArgs])));
+			if (IS_INTEGER(startOfExtras[i*2])) {
+				int destination = AS_INTEGER(startOfExtras[i*2]);
+				if (!IS_KWARGS(startOfPositionals[destination])) {
+					krk_runtimeError(vm.exceptions.typeError, "%s() got multiple values for argument '%s'",
+						closure->function->name ? closure->function->name->chars : "<unnamed function>",
+						(destination < closure->function->requiredArgs ? AS_CSTRING(closure->function->requiredArgNames.values[destination]) :
+							AS_CSTRING(closure->function->keywordArgNames.values[destination - closure->function->requiredArgs])));
+					return 0;
+				}
+				startOfPositionals[destination] = startOfExtras[i*2+1];
+			} else if (IS_STRING(startOfExtras[i*2])) {
+				krk_push(startOfExtras[i*2]);
+				krk_push(startOfExtras[i*2+1]);
+			} else {
+				krk_runtimeError(vm.exceptions.typeError, "Internal error?");
 				return 0;
 			}
-			startOfPositionals[destination] = startOfExtras[i*2+1];
+		}
+		if (extraKwargs) {
+			krk_push(NONE_VAL()); krk_push(NONE_VAL()); krk_pop(); krk_pop();
+			startOfPositionals[offsetOfExtraKeys] = krk_dict_of(extraKwargs*2,&startOfExtras[found*2]);
+			while (extraKwargs) {
+				krk_pop();
+				krk_pop();
+				extraKwargs--;
+			}
 		}
 		long clearSlots;
 		for (clearSlots = existingPositionalArgs; clearSlots < closure->function->requiredArgs; ++clearSlots) {
@@ -777,10 +820,21 @@ _finishArg:
 				return 0;
 			}
 		}
-		argCount = closure->function->requiredArgs + closure->function->keywordArgs;
+		argCount = totalArguments;
+		argCountX = argCount - (closure->function->collectsArguments + closure->function->collectsKeywords);
 		while (vm.stackTop > startOfPositionals + argCount) krk_pop();
+	} else {
+		/* We can't have had any kwargs. */
+		if ((size_t)argCount > potentialPositionalArgs && closure->function->collectsArguments) {
+			krk_push(NONE_VAL()); krk_push(NONE_VAL()); krk_pop(); krk_pop();
+			startOfPositionals[offsetOfExtraArgs] = krk_list_of(argCount - potentialPositionalArgs,
+				&startOfPositionals[potentialPositionalArgs]);
+			argCount = closure->function->requiredArgs + 1;
+			argCountX = argCount - 1;
+			while (vm.stackTop > startOfPositionals + argCount) krk_pop();
+		}
 	}
-	if (!checkArgumentCount(closure, argCount)) {
+	if (!checkArgumentCount(closure, argCountX)) {
 		return 0;
 	}
 	while (argCount < (closure->function->requiredArgs + closure->function->keywordArgs)) {

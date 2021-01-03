@@ -310,6 +310,23 @@ static KrkFunction * endCompiler() {
 		krk_writeValueArray(&function->keywordArgNames, value);
 		krk_pop();
 	}
+	size_t args = current->function->requiredArgs + current->function->keywordArgs;
+	if (current->function->collectsArguments) {
+		KrkValue value = OBJECT_VAL(krk_copyString(current->locals[args].name.start,
+			current->locals[args].name.length));
+		krk_push(value);
+		krk_writeValueArray(&function->keywordArgNames, value);
+		krk_pop();
+		args++;
+	}
+	if (current->function->collectsKeywords) {
+		KrkValue value = OBJECT_VAL(krk_copyString(current->locals[args].name.start,
+			current->locals[args].name.length));
+		krk_push(value);
+		krk_writeValueArray(&function->keywordArgNames, value);
+		krk_pop();
+		args++;
+	}
 
 #ifdef ENABLE_DISASSEMBLY
 	if ((vm.flags & KRK_ENABLE_DISASSEMBLY) && !parser.hadError) {
@@ -687,6 +704,8 @@ static void function(FunctionType type, size_t blockWidth) {
 
 	if (type == TYPE_METHOD || type == TYPE_INIT) current->function->requiredArgs = 1;
 
+	int hasCollectors = 0;
+
 	consume(TOKEN_LEFT_PAREN, "Expected start of parameter list after function name.");
 	if (!check(TOKEN_RIGHT_PAREN)) {
 		do {
@@ -694,6 +713,44 @@ static void function(FunctionType type, size_t blockWidth) {
 				if (type != TYPE_INIT && type != TYPE_METHOD) {
 					error("Invalid use of `self` as a function paramenter.");
 				}
+				continue;
+			}
+			if (match(TOKEN_ASTERISK)) {
+				if (match(TOKEN_ASTERISK)) {
+					if (hasCollectors == 2) {
+						error("Duplicate ** in parameter list.");
+						return;
+					}
+					hasCollectors = 2;
+					current->function->collectsKeywords = 1;
+				} else {
+					if (hasCollectors) {
+						error("Syntax error.");
+						return;
+					}
+					hasCollectors = 1;
+					current->function->collectsArguments = 1;
+				}
+				/* Collect a name, specifically "args" or "kwargs" are commont */
+				ssize_t paramConstant = parseVariable("Expect parameter name.");
+				defineVariable(paramConstant);
+				/* Make that a valid local for this function */
+				size_t myLocal = current->localCount - 1;
+				EMIT_CONSTANT_OP(OP_GET_LOCAL, myLocal);
+				/* Check if it's equal to the unset-kwarg-sentinel value */
+				emitConstant(KWARGS_VAL(0));
+				emitByte(OP_EQUAL);
+				int jumpIndex = emitJump(OP_JUMP_IF_FALSE);
+				/* And if it is, set it to the appropriate type */
+				beginScope();
+				KrkToken synth = syntheticToken(hasCollectors == 1 ? "listOf" : "dictOf");
+				namedVariable(synth, 0);
+				emitBytes(OP_CALL, 0);
+				EMIT_CONSTANT_OP(OP_SET_LOCAL, myLocal);
+				endScope();
+				/* Otherwise pop the comparison. */
+				patchJump(jumpIndex);
+				emitByte(OP_POP); /* comparison value */
 				continue;
 			}
 			ssize_t paramConstant = parseVariable("Expect parameter name.");
@@ -718,6 +775,7 @@ static void function(FunctionType type, size_t blockWidth) {
 				EMIT_CONSTANT_OP(OP_SET_LOCAL, myLocal);
 				endScope();
 				patchJump(jumpIndex);
+				emitByte(OP_POP);
 				current->function->keywordArgs++;
 			} else {
 				current->function->requiredArgs++;

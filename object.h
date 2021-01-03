@@ -65,6 +65,8 @@ typedef struct {
 	KrkString * docstring;
 	KrkValueArray requiredArgNames;
 	KrkValueArray keywordArgNames;
+	unsigned char collectsArguments:1;
+	unsigned char collectsKeywords:1;
 } KrkFunction;
 
 typedef struct {
