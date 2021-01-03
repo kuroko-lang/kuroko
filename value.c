@@ -65,8 +65,9 @@ void krk_printValueSafe(FILE * f, KrkValue printable) {
 			case OBJ_NATIVE: fprintf(f, "<nativefn %s>", ((KrkNative*)AS_OBJECT(printable))->name); break;
 			case OBJ_CLOSURE: fprintf(f, "<function %s>", AS_CLOSURE(printable)->function->name->chars); break;
 			case OBJ_BOUND_METHOD: fprintf(f, "<method %s>",
+				AS_BOUND_METHOD(printable)->method ? (
 				AS_BOUND_METHOD(printable)->method->type == OBJ_CLOSURE ? ((KrkClosure*)AS_BOUND_METHOD(printable)->method)->function->name->chars :
-					((KrkNative*)AS_BOUND_METHOD(printable)->method)->name); break;
+					((KrkNative*)AS_BOUND_METHOD(printable)->method)->name) : "(corrupt bound method)"); break;
 			default: fprintf(f, "<%s>", krk_typeName(printable)); break;
 		}
 	}
