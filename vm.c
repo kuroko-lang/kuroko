@@ -972,6 +972,12 @@ int krk_callValue(KrkValue callee, int argCount, int extra) {
 				int hasKw = 0;
 				if (argCount && IS_KWARGS(vm.stackTop[-1])) {
 					long count = AS_INTEGER(vm.stackTop[-1]);
+					for (long i = 0; i < count; ++i) {
+						if (IS_KWARGS(vm.stackTop[-1 - count * 2 + i * 2])) {
+							krk_runtimeError(vm.exceptions.typeError,"Unsupported use of argument expansion in native function call.");
+							return 0;
+						}
+					}
 					/* Dict it all up */
 					*(vm.stackTop - count * 2 - 1) = krk_dict_of(count * 2, (vm.stackTop - count * 2 - 1));
 					vm.stackTop = vm.stackTop - count * 2;
