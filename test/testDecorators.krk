@@ -119,8 +119,18 @@ def aMethod(with,args=None):
 try:
     aMethod()
 except:
-    print exception
+    print exception.arg
 
 aMethod("just the first")
 aMethod("the first","and the second")
 aMethod(args="hello",with="world")
+try:
+    aMethod(foo="hello",with="bar")
+except:
+    print exception.arg # unrecognized keyword arg, from inner method
+
+aMethod(*[1,2])
+try:
+    aMethod(*[1,2,3])
+except:
+    print exception.arg # too many arguments

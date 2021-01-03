@@ -814,9 +814,11 @@ _finishArg:
 						startOfPositionals[destination] = AS_LIST(_list_internal)->values[i];
 						destination++;
 					}
+					startOfExtras[i*2] = KWARGS_VAL(LONG_MAX-3);
 				} else if (AS_INTEGER(name) == LONG_MAX) {
 					startOfPositionals[destination] = value;
 					destination++;
+					startOfExtras[i*2] = KWARGS_VAL(LONG_MAX-3);
 				}
 			}
 		}
@@ -889,6 +891,11 @@ _finishArg:
 			}
 		}
 		if (extraKwargs) {
+			if (!closure->function->collectsKeywords) {
+				krk_runtimeError(vm.exceptions.typeError, "%s() got an unexpected keyword argument '%s'",
+					closure->function->name ? closure->function->name->chars : "<unnamed function>",
+					AS_CSTRING(startOfExtras[found*2]));
+			}
 			krk_push(NONE_VAL()); krk_push(NONE_VAL()); krk_pop(); krk_pop();
 			startOfPositionals[offsetOfExtraKeys] = krk_dict_of(extraKwargs*2,&startOfExtras[found*2]);
 		}
