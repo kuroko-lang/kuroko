@@ -592,6 +592,82 @@ while True:
     print "You said '" + data + "'!"
 ```
 
+### Decorators
+
+Decorators allow functions and methods to be wrapped.
+
+Paremeterless decorators work the same as in Python:
+
+```py
+def decorator(func):
+    print "I take the function to be decorated as an argument:", func
+    def wrapper():
+        print "And I am the wrapper."
+        func()
+        print "Returned from wrapped function."
+    return wrapper
+
+@decorator
+def wrappedFunction():
+    print "Hello, world"
+
+wrappedFunction()
+# → I take a function to be decorated as an argument: <function wrappedFunction>
+#   And I am the wrapper.
+#   Hello, world
+#   Returned from wrapped function
+```
+
+The resulting function will have the same signature as the original function, so wrappers may take arguments to pass to the wrapped function, or may take their own arguments (or both).
+
+Method wrappers work similarly, though be sure to explicitly provide a name (other than `self`) for the object instance:
+
+```py
+def methodDecorator(method):
+    def methodWrapper(instance, anExtraArgument):
+        method(instance)
+        print "I also required this extra argument:", anExtraArgument
+    return methodWrapper
+
+class Foo():
+    @methodDecorator
+    def theMethod():
+        print "I am a method, so I can obviously access", self
+        print "And I also didn't take any arguments, but my wrapper did:"
+
+let f = Foo()
+f.theMethod("the newly required argument")
+# → I am a method, so I can obviously access <instance of Foo at ...>
+#   And I also didn't take any arguments, but my wrapper did:
+#   I also required this extra argument: the newly required argument
+```
+
+Decorators may also take arguments in addition to the function to be wrapped:
+
+```py
+def requirePassword(func, password):
+    print "I am wrapping", func, "and attaching",password
+    def wrapper(secretPassword):
+        if secretPassword != password:
+            print "You didn't say the magic word."
+            return
+        func()
+    return wrapper
+
+@requirePassword("hunter2")
+def superSecretFunction():
+    print "Welcome!"
+
+superSecretFunction("a wrong password")
+print "Let's try again."
+superSecretFunction("hunter2")
+# → I am wrapping <function superSecretFunction> and attaching hunter2
+#   You didn't say the magic word.
+#   Let's try again.
+#   Welcome!
+```
+
+_**NOTE:** Arguments in decorators work differently from Python: In Python, decorators with arguments are functions which return a new decorator and _that_ decorator is applied to the wrapped function; in Kuroko, decorators with arguments are no different from those with out - the additional arguments are appended after the passed function._
 
 ## About the REPL
 
