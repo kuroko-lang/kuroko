@@ -338,9 +338,9 @@ Kuroko provides a mechanism for handling errors at runtime. If an error is not c
 def foo(bar):
     print "I expect an argument! " + bar
 foo() # I didn't provide one!
-# → Wrong number of arguments (1 expected, got 0)
-#   Traceback, most recent first, 1 call frames:
-#     File "<stdin>", line 3, in <module>
+# → Traceback, most recent first, 1 call frame:
+#     File "<stdin>", line 1, in <module>
+#   ArgumentError: foo() takes exactly 1 argument (0 given)
 ```
 
 To catch exceptions, use `try`/`except`:
@@ -363,8 +363,8 @@ def foo(bar):
 try:
     foo() # I didn't provide one!
 except:
-    print "oh no, there was an exception: " + exception
-# → oh no, there was an exception: Wrong number of arguments (1 expected, got 0)
+    print "oh no, there was an exception: " + exception.arg
+# → oh no, there was an exception: foo() takes exactly 1 argument (0 given)
 ```
 
 Exceptions can also be generated from code:
@@ -375,10 +375,10 @@ def login(password):
         raise "Wrong password, try again!"
     print "[Hacker voice] I'm in."
 login("foo")
-# → Wrong password, try again!
-#   Traceback, most recent first, 2 call frames:
+# → Traceback, most recent first, 2 call frames:
 #     File "<stdin>", line 5, in <module>
 #     File "<stdin>", line 3, in login
+#   Wrong password, try again!
 ```
 
 The `except` block is optional, and an exception may be caught and ignored.
@@ -390,10 +390,7 @@ def login(password):
     print "[Hacker voice] I'm in."
 try:
     login("foo")
-# → Wrong password, try again!
-#   Traceback, most recent first, 2 call frames:
-#     File "<stdin>", line 6, in <module>
-#     File "<stdin>", line 3, in login
+# (no output)
 ```
 
 ### Modules
@@ -460,10 +457,7 @@ while i > 1:
 ```
 
 ```py
-let l = list()
-l.append(1)
-l.append(2)
-l.append(3)
+let l = [1,2,3]
 for i in l:
     print i
 # → 1
@@ -479,22 +473,20 @@ An example of an iterator is the `range` built-in class, which is defined like t
 
 ```py
 class range:
+    "Helpful iterable."
     def __init__(self, min, max):
         self.min = min
         self.max = max
     def __iter__(self):
-        let me = self
-        def makeIter(ind):
-            let l = me
-            let i = ind
-            def iter():
-                if i >= l.max:
-                    return iter
-                let out = i
-                i = i + 1
-                return out
-            return iter
-        return makeIter(self.min)
+        let i=self.min
+        let l=self.max
+        def _():
+            if i>=l:
+                return _
+            let o=i
+            i++
+            return o
+        return _
 ```
 
 Objects which have an `__iter__` method can then be used with the `for ... in ...` syntax:
@@ -693,6 +685,56 @@ def aFunction(with=None,lots=None,of=None,default=None,args=None):
 aFunction(of="hello!")
 # → None None hello! None None
 ```
+
+### `*args` and `**kwargs`
+
+When used as parameters in a function signature, `*` and `**` before an identifier indicate that the function will accept arbitrary additional positional arguments and keyword arguments respectively. These options are typically applied to variables named `args` and `kwargs`, and they must appear last (and in this order) in the function signature if used.
+
+The variable marked with `*` will be provided as an ordered `list`, and `**` will be an unordered `dict` of keyword names to values.
+
+```py
+def takesArgs(*args):
+    print args
+takesArgs(1,2,3)
+# → [1, 2, 3]
+def takesKwargs(**kwargs):
+    print kwargs
+takesKwargs(a=1,b=2,c=3)
+# → {'a': 1, 'b': 2, 'c': 3}
+def takesEither(*args,**kwargs):
+    print args, kwargs
+takesEither(1,2,a=3,b=4)
+# → [1, 2] {'a': 3, 'b': 4}
+def takesARequiredAndMore(a,*args):
+    print a, args
+takesARequiredAndMore(1,2,3,4)
+# → 1 [2, 3, 4]
+```
+
+### Argument Expansion
+
+When used in a function argument list, `*` and `**` before a list and dict expression respectively, will expand those values into the argument list.
+
+```py
+let l = [1,2,3]
+def foo(a,b,c):
+    print a,b,c
+foo(*l)
+# → 1 2 3
+let d = {"foo": "a", "bar": 1}
+def func(foo,bar):
+    print foo, bar
+func(**d)
+# → a 1
+```
+
+If an expanded list provides too many, or too few, arguments, an ArgumentError will be raised.
+
+If an expanded dict provides parameters which are not requested, an ArgumentError will be raised.
+
+If an expanded dict provides an argument which has already been defined, either as a positional argument or through a named parameter, an error will be raised.
+
+_**Note:** Argument expansion is not currently supported for functions provided by C modules._
 
 ## About the REPL
 
