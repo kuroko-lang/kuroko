@@ -1,5 +1,5 @@
 #!/home/klange/Projects/kuroko/kuroko
-import system
+import time
 # You may want to look at this in an editor with the syntax highlighting
 # set to Python. Not even bim has a highlighter for Kuroko yet.
 
@@ -61,7 +61,7 @@ print "The function call returned: " + result
 # figured something with arguments would be more useful? The purpose of this
 # language is to be used for writing syntax highlighters, configs, and also
 # plugins for bim, so native bindings are going to be very important.
-result = system.sleep(0.1)
+result = time.sleep(0.1)
 
 print "Call to sleep returned: " + result
 

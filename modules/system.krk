@@ -1,7 +1,0 @@
-# This is a module
-let module = object()
-
-module.sleep = __builtins__.sleep
-module.uname = __builtins__.uname
-
-return module

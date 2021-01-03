@@ -120,3 +120,5 @@ extern KrkValue  krk_runNext(void);
 extern KrkValue krk_typeOf(int argc, KrkValue argv[]);
 extern int krk_bindMethod(KrkClass * _class, KrkString * name);
 extern int krk_callValue(KrkValue callee, int argCount, int extra);
+
+extern KrkValue krk_dict_of(int argc, KrkValue argv[]);

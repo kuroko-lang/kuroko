@@ -3,7 +3,6 @@
 #include <unistd.h>
 #include <dlfcn.h>
 #include <errno.h>
-#include <sys/utsname.h>
 #include <sys/stat.h>
 #include "vm.h"
 #include "debug.h"
@@ -443,7 +442,7 @@ static KrkValue krk_list_of(int argc, KrkValue argv[]) {
  * Exposed method called to produce dictionaries from {expr: expr, ...} sequences in managed code.
  * Presented in the global namespace as dictOf(...). Expects arguments as key,value,key,value...
  */
-static KrkValue krk_dict_of(int argc, KrkValue argv[]) {
+KrkValue krk_dict_of(int argc, KrkValue argv[]) {
 	if (argc % 2 != 0) {
 		krk_runtimeError(vm.exceptions.argumentError, "Expected even number of arguments to dictOf");
 		return NONE_VAL();
@@ -464,49 +463,6 @@ static KrkValue krk_dict_of(int argc, KrkValue argv[]) {
 	krk_pop(); /* outDict */
 	return out;
 }
-
-#ifndef NO_SYSTEM_BINDS
-/**
- * system.uname()
- */
-static KrkValue krk_uname(int argc, KrkValue argv[]) {
-	struct utsname buf;
-	if (uname(&buf) < 0) return NONE_VAL();
-
-	KRK_PAUSE_GC();
-
-	KrkValue result = krk_dict_of(5 * 2, (KrkValue[]) {
-		OBJECT_VAL(S("sysname")), OBJECT_VAL(krk_copyString(buf.sysname,strlen(buf.sysname))),
-		OBJECT_VAL(S("nodename")), OBJECT_VAL(krk_copyString(buf.nodename,strlen(buf.nodename))),
-		OBJECT_VAL(S("release")), OBJECT_VAL(krk_copyString(buf.release,strlen(buf.release))),
-		OBJECT_VAL(S("version")), OBJECT_VAL(krk_copyString(buf.version,strlen(buf.version))),
-		OBJECT_VAL(S("machine")), OBJECT_VAL(krk_copyString(buf.machine,strlen(buf.machine)))
-	});
-
-	KRK_RESUME_GC();
-
-	return result;
-}
-
-/**
- * system.sleep(seconds)
- */
-static KrkValue krk_sleep(int argc, KrkValue argv[]) {
-	if (argc < 1) {
-		krk_runtimeError(vm.exceptions.argumentError, "sleep: expect at least one argument.");
-		return BOOLEAN_VAL(0);
-	}
-
-	/* Accept an integer or a floating point. Anything else, just ignore. */
-	unsigned int usecs = (IS_INTEGER(argv[0]) ? AS_INTEGER(argv[0]) :
-	                      (IS_FLOATING(argv[0]) ? AS_FLOATING(argv[0]) : 0)) *
-	                      1000000;
-
-	usleep(usecs);
-
-	return BOOLEAN_VAL(1);
-}
-#endif
 
 /**
  * __builtins__.set_tracing(mode)
@@ -1330,12 +1286,6 @@ void krk_initVM(int flags) {
 
 	/* __builtins__.set_tracing is namespaced */
 	krk_defineNative(&vm.builtins->fields, "set_tracing", krk_set_tracing);
-
-#ifndef NO_SYSTEM_BINDS
-	/* Set some other built-ins for the system module */
-	krk_defineNative(&vm.builtins->fields, "sleep", krk_sleep);
-	krk_defineNative(&vm.builtins->fields, "uname", krk_uname);
-#endif
 
 	/**
 	 * Read the managed code builtins module, which contains the base
