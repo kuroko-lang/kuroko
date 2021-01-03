@@ -1814,7 +1814,10 @@ int krk_loadModule(KrkString * name, KrkValue * moduleOut) {
 	KrkValue modulePaths, modulePathsInternal;
 
 	/* See if the module is already loaded */
-	if (krk_tableGet(&vm.modules, OBJECT_VAL(name), moduleOut)) return 1;
+	if (krk_tableGet(&vm.modules, OBJECT_VAL(name), moduleOut)) {
+		krk_push(*moduleOut);
+		return 1;
+	}
 
 	/* Obtain __builtins__.module_paths */
 	if (!krk_tableGet(&vm.builtins->fields, OBJECT_VAL(S("module_paths")), &modulePaths) || !IS_INSTANCE(modulePaths)) {
