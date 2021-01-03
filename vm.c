@@ -466,19 +466,36 @@ KrkValue krk_dict_of(int argc, KrkValue argv[]) {
 
 /**
  * __builtins__.set_tracing(mode)
+ *
+ * Takes either one string "mode=value" or `n` keyword args mode=value.
  */
-static KrkValue krk_set_tracing(int argc, KrkValue argv[]) {
-	if (argc < 1) return NONE_VAL();
+static KrkValue krk_set_tracing(int argc, KrkValue argv[], int hasKw) {
 #ifdef DEBUG
-	else if (!strcmp(AS_CSTRING(argv[0]),"tracing=1")) vm.flags |= KRK_ENABLE_TRACING;
-	else if (!strcmp(AS_CSTRING(argv[0]),"disassembly=1")) vm.flags |= KRK_ENABLE_DISASSEMBLY;
-	else if (!strcmp(AS_CSTRING(argv[0]),"scantracing=1")) vm.flags |= KRK_ENABLE_SCAN_TRACING;
-	else if (!strcmp(AS_CSTRING(argv[0]),"stressgc=1")) vm.flags |= KRK_ENABLE_STRESS_GC;
-	else if (!strcmp(AS_CSTRING(argv[0]),"tracing=0")) vm.flags &= ~KRK_ENABLE_TRACING;
-	else if (!strcmp(AS_CSTRING(argv[0]),"disassembly=0")) vm.flags &= ~KRK_ENABLE_DISASSEMBLY;
-	else if (!strcmp(AS_CSTRING(argv[0]),"scantracing=0")) vm.flags &= ~KRK_ENABLE_SCAN_TRACING;
-	else if (!strcmp(AS_CSTRING(argv[0]),"stressgc=0")) vm.flags &= ~KRK_ENABLE_STRESS_GC;
-	return BOOLEAN_VAL(1);
+	if (argc != 1) return NONE_VAL();
+	if (hasKw) {
+		KrkValue _dict_internal;
+		krk_tableGet(&AS_INSTANCE(argv[0])->fields, vm.specialMethodNames[METHOD_DICT_INT], &_dict_internal);
+		KrkValue test;
+		if (krk_tableGet(AS_DICT(_dict_internal), OBJECT_VAL(S("tracing")), &test)) {
+			if (AS_INTEGER(test) == 1) vm.flags |= KRK_ENABLE_TRACING; else vm.flags &= ~KRK_ENABLE_TRACING; }
+		if (krk_tableGet(AS_DICT(_dict_internal), OBJECT_VAL(S("disassembly")), &test)) {
+			if (AS_INTEGER(test) == 1) vm.flags |= KRK_ENABLE_DISASSEMBLY; else vm.flags &= ~KRK_ENABLE_DISASSEMBLY; }
+		if (krk_tableGet(AS_DICT(_dict_internal), OBJECT_VAL(S("stressgc")), &test)) {
+			if (AS_INTEGER(test) == 1) vm.flags |= KRK_ENABLE_STRESS_GC; else vm.flags &= ~KRK_ENABLE_STRESS_GC; }
+		if (krk_tableGet(AS_DICT(_dict_internal), OBJECT_VAL(S("scantracing")), &test)) {
+			if (AS_INTEGER(test) == 1) vm.flags |= KRK_ENABLE_SCAN_TRACING; else vm.flags &= ~KRK_ENABLE_SCAN_TRACING; }
+		return BOOLEAN_VAL(1);
+	} else {
+		if (!strcmp(AS_CSTRING(argv[0]),"tracing=1")) vm.flags |= KRK_ENABLE_TRACING;
+		else if (!strcmp(AS_CSTRING(argv[0]),"disassembly=1")) vm.flags |= KRK_ENABLE_DISASSEMBLY;
+		else if (!strcmp(AS_CSTRING(argv[0]),"scantracing=1")) vm.flags |= KRK_ENABLE_SCAN_TRACING;
+		else if (!strcmp(AS_CSTRING(argv[0]),"stressgc=1")) vm.flags |= KRK_ENABLE_STRESS_GC;
+		else if (!strcmp(AS_CSTRING(argv[0]),"tracing=0")) vm.flags &= ~KRK_ENABLE_TRACING;
+		else if (!strcmp(AS_CSTRING(argv[0]),"disassembly=0")) vm.flags &= ~KRK_ENABLE_DISASSEMBLY;
+		else if (!strcmp(AS_CSTRING(argv[0]),"scantracing=0")) vm.flags &= ~KRK_ENABLE_SCAN_TRACING;
+		else if (!strcmp(AS_CSTRING(argv[0]),"stressgc=0")) vm.flags &= ~KRK_ENABLE_STRESS_GC;
+		return BOOLEAN_VAL(1);
+	}
 #else
 	krk_runtimeError(vm.exceptions.typeError,"Debugging is not enabled in this build.");
 	return NONE_VAL();
@@ -880,14 +897,19 @@ int krk_callValue(KrkValue callee, int argCount, int extra) {
 			case OBJ_CLOSURE:
 				return call(AS_CLOSURE(callee), argCount, extra);
 			case OBJ_NATIVE: {
-				NativeFn native = AS_NATIVE(callee);
+				NativeFnKw native = (NativeFnKw)AS_NATIVE(callee);
+				int hasKw = 0;
 				if (argCount && IS_KWARGS(vm.stackTop[-1])) {
-					krk_runtimeError(vm.exceptions.attributeError, "%s does not take keyword arguments.", ((KrkNative*)AS_OBJECT(callee))->name);
-					return 0;
+					long count = AS_INTEGER(vm.stackTop[-1]);
+					/* Dict it all up */
+					*(vm.stackTop - count * 2 - 1) = krk_dict_of(count * 2, (vm.stackTop - count * 2 - 1));
+					vm.stackTop = vm.stackTop - count * 2;
+					argCount -= count * 2;
+					hasKw = 1;
 				}
 				KrkValue * stackCopy = malloc(argCount * sizeof(KrkValue));
 				memcpy(stackCopy, vm.stackTop - argCount, argCount * sizeof(KrkValue));
-				KrkValue result = native(argCount, stackCopy);
+				KrkValue result = native(argCount, stackCopy, hasKw);
 				free(stackCopy);
 				if (vm.stackTop == vm.stack) {
 					/* Runtime error returned from native method */
@@ -1072,6 +1094,7 @@ static KrkValue _char_to_int(int argc, KrkValue argv[]) {
 /* str.__len__() */
 static KrkValue _string_length(int argc, KrkValue argv[]) {
 	if (argc != 1) {
+		krk_runtimeError(vm.exceptions.attributeError,"Unexpected arguments to str.__len__()");
 		return NONE_VAL();
 	}
 	if (!IS_STRING(argv[0])) {
