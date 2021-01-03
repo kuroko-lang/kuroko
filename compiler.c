@@ -592,7 +592,9 @@ static void declaration() {
 	if (check(TOKEN_DEF)) {
 		defDeclaration();
 	} else if (match(TOKEN_LET)) {
-		varDeclaration();
+		do {
+			varDeclaration();
+		} while (match(TOKEN_COMMA));
 		if (!match(TOKEN_EOL) && !match(TOKEN_EOF)) {
 			error("Expected EOL after variable declaration.\n");
 		}
