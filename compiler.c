@@ -1273,6 +1273,10 @@ static void fromImportStatement() {
 		size_t member = identifierConstant(&parser.previous);
 		emitBytes(OP_DUP, 0); /* Duplicate the package object so we can GET_PROPERTY on it? */
 		EMIT_CONSTANT_OP(OP_GET_PROPERTY, member);
+		if (match(TOKEN_AS)) {
+			consume(TOKEN_IDENTIFIER, "Expected identifier after `as`");
+			member = identifierConstant(&parser.previous);
+		}
 		declareVariable();
 		defineVariable(member);
 	} while (match(TOKEN_COMMA));
