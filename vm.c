@@ -705,6 +705,21 @@ static KrkValue krk_globals(int argc, KrkValue argv[]) {
 	return dict;
 }
 
+static int checkArgumentCount(KrkClosure * closure, int argCount) {
+	int minArgs = closure->function->requiredArgs;
+	int maxArgs = minArgs + closure->function->defaultArgs;
+	if (argCount < minArgs || argCount > maxArgs) {
+		krk_runtimeError(vm.exceptions.argumentError, "%s() takes %s %d argument%s (%d given)",
+		closure->function->name ? closure->function->name->chars : "<unnamed function>",
+		(minArgs == maxArgs) ? "exactly" : (argCount < minArgs ? "at least" : "at most"),
+		(argCount < minArgs) ? minArgs : maxArgs,
+		((argCount < minArgs) ? minArgs : maxArgs) == 1 ? "" : "s",
+		argCount);
+		return 0;
+	}
+	return 1;
+}
+
 /**
  * Call a managed method.
  * Takes care of argument count checking, default argument filling,
@@ -716,15 +731,7 @@ static KrkValue krk_globals(int argc, KrkValue argv[]) {
  * where we need to restore the stack to when we return from this call.
  */
 static int call(KrkClosure * closure, int argCount, int extra) {
-	int minArgs = closure->function->requiredArgs;
-	int maxArgs = minArgs + closure->function->defaultArgs;
-	if (argCount < minArgs || argCount > maxArgs) {
-		krk_runtimeError(vm.exceptions.argumentError, "%s() takes %s %d argument%s (%d given)",
-		closure->function->name ? closure->function->name->chars : "<unnamed function>",
-		(minArgs == maxArgs) ? "exactly" : (argCount < minArgs ? "at least" : "at most"),
-		(argCount < minArgs) ? minArgs : maxArgs,
-		((argCount < minArgs) ? minArgs : maxArgs) == 1 ? "" : "s",
-		argCount);
+	if (!checkArgumentCount(closure, argCount)) {
 		return 0;
 	}
 	while (argCount < (closure->function->requiredArgs + closure->function->defaultArgs)) {
@@ -798,6 +805,10 @@ int krk_callValue(KrkValue callee, int argCount, int extra) {
 			case OBJ_BOUND_METHOD: {
 				KrkBoundMethod * bound = AS_BOUND_METHOD(callee);
 				vm.stackTop[-argCount - 1] = bound->receiver;
+				if (!bound->method) {
+					krk_runtimeError(vm.exceptions.argumentError, "Attempted to call a method binding with no attached callable (did you forget to return something from a method decorator?)");
+					return 0;
+				}
 				return krk_callValue(OBJECT_VAL(bound->method), argCount + 1, 0);
 			}
 			default:
