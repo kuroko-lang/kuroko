@@ -809,7 +809,10 @@ _finishArg:
 			if (IS_KWARGS(name)) {
 				if (AS_INTEGER(name) == LONG_MAX-1) {
 					KrkValue _list_internal;
-					krk_tableGet(&AS_INSTANCE(value)->fields, vm.specialMethodNames[METHOD_LIST_INT], &_list_internal);
+					if (!IS_INSTANCE(value) || !krk_tableGet(&AS_INSTANCE(value)->fields, vm.specialMethodNames[METHOD_LIST_INT], &_list_internal)) {
+						krk_runtimeError(vm.exceptions.typeError, "*expresssion value is not a list.");
+						return 0;
+					}
 					for (size_t i = 0; i < AS_LIST(_list_internal)->count; ++i) {
 						startOfPositionals[destination] = AS_LIST(_list_internal)->values[i];
 						destination++;
@@ -852,7 +855,10 @@ _finishArg:
 			} else if (IS_KWARGS(startOfExtras[i*2])) {
 				if (AS_INTEGER(startOfExtras[i*2]) == LONG_MAX-2) {
 					KrkValue _dict_internal;
-					krk_tableGet(&AS_INSTANCE(startOfExtras[i*2+1])->fields, vm.specialMethodNames[METHOD_DICT_INT], &_dict_internal);
+					if (!IS_INSTANCE(startOfExtras[i*2+1]) || !krk_tableGet(&AS_INSTANCE(startOfExtras[i*2+1])->fields, vm.specialMethodNames[METHOD_DICT_INT], &_dict_internal)) {
+						krk_runtimeError(vm.exceptions.typeError, "**expresssion value is not a dict.");
+						return 0;
+					}
 					for (size_t j = 0; j < AS_DICT(_dict_internal)->capacity; ++j) {
 						KrkTableEntry entry = AS_DICT(_dict_internal)->entries[j];
 						if (entry.key.type == VAL_NONE) continue;
