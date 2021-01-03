@@ -102,7 +102,7 @@ greet("user")
 # → Hello, user!
 ```
 
-Optional arguments are supported, though as of writing they must default to `None`:
+Default arguments can be specified as follows:
 
 ```py
 def greet(name=None):
@@ -115,6 +115,8 @@ gree("user")
 # → Hello, world!
 #   Hello, user!
 ```
+
+If a default argument value is not provided, the expression assigned to it will be evaluated as if it were at the top of the body of the function, like in Ruby (and _not like in Python_).
 
 Blocks, including function `def` blocks and control flow structures like `if` and `for`, must be indented with spaces to a level greater than the enclosing block.
 

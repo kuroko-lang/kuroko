@@ -34,6 +34,7 @@ void krk_printValue(FILE * f, KrkValue printable) {
 			case VAL_FLOATING: fprintf(f, "%g", AS_FLOATING(printable)); break;
 			case VAL_NONE:     fprintf(f, "None"); break;
 			case VAL_HANDLER:  fprintf(f, "{try->%ld}", AS_HANDLER(printable)); break;
+			case VAL_KWARGS:   fprintf(f, "{sentinel=%ld}", AS_INTEGER(printable)); break;
 			default: break;
 		}
 		return;
@@ -79,6 +80,7 @@ int krk_valuesEqual(KrkValue a, KrkValue b) {
 	switch (a.type) {
 		case VAL_BOOLEAN:  return AS_BOOLEAN(a) == AS_BOOLEAN(b);
 		case VAL_NONE:     return 1; /* None always equals None */
+		case VAL_KWARGS:   /* Equal if same number of args; may be useful for comparing sentinels (0) to arg lists. */
 		case VAL_INTEGER:  return AS_INTEGER(a) == AS_INTEGER(b);
 		case VAL_FLOATING: return AS_FLOATING(a) == AS_FLOATING(b);
 		case VAL_HANDLER: {

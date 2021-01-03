@@ -621,6 +621,22 @@ static void endScope() {
 	}
 }
 
+static int emitJump(uint8_t opcode) {
+	emitByte(opcode);
+	emitBytes(0xFF, 0xFF);
+	return currentChunk()->count - 2;
+}
+
+static void patchJump(int offset) {
+	int jump = currentChunk()->count - offset - 2;
+	if (jump > 0xFFFF) {
+		error("Unsupported far jump (we'll get there)");
+	}
+
+	currentChunk()->code[offset] = (jump >> 8) & 0xFF;
+	currentChunk()->code[offset + 1] =  (jump) & 0xFF;
+}
+
 static void block(size_t indentation, const char * blockName) {
 	if (match(TOKEN_EOL)) {
 		if (check(TOKEN_INDENTATION)) {
@@ -683,7 +699,25 @@ static void function(FunctionType type, size_t blockWidth) {
 			ssize_t paramConstant = parseVariable("Expect parameter name.");
 			defineVariable(paramConstant);
 			if (match(TOKEN_EQUAL)) {
-				consume(TOKEN_NONE,"Optional arguments can only be assigned the default value of None.");
+				/*
+				 * We inline default arguments by checking if they are equal
+				 * to a sentinel value and replacing them with the requested
+				 * argument. This allows us to send None (useful) to override
+				 * defaults that are something else. This essentially ends
+				 * up as the following at the top of the function:
+				 * if param == KWARGS_SENTINEL:
+				 *     param = EXPRESSION
+				 */
+				size_t myLocal = current->localCount - 1;
+				EMIT_CONSTANT_OP(OP_GET_LOCAL, myLocal);
+				emitConstant(KWARGS_VAL(0));
+				emitByte(OP_EQUAL);
+				int jumpIndex = emitJump(OP_JUMP_IF_FALSE);
+				beginScope();
+				expression(); /* Read expression */
+				EMIT_CONSTANT_OP(OP_SET_LOCAL, myLocal);
+				endScope();
+				patchJump(jumpIndex);
 				current->function->keywordArgs++;
 			} else {
 				current->function->requiredArgs++;
@@ -873,22 +907,6 @@ static KrkToken decorator(size_t level, FunctionType type) {
 	}
 
 	return funcName;
-}
-
-static int emitJump(uint8_t opcode) {
-	emitByte(opcode);
-	emitBytes(0xFF, 0xFF);
-	return currentChunk()->count - 2;
-}
-
-static void patchJump(int offset) {
-	int jump = currentChunk()->count - offset - 2;
-	if (jump > 0xFFFF) {
-		error("Unsupported far jump (we'll get there)");
-	}
-
-	currentChunk()->code[offset] = (jump >> 8) & 0xFF;
-	currentChunk()->code[offset + 1] =  (jump) & 0xFF;
 }
 
 static void emitLoop(int loopStart) {

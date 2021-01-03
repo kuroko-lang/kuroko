@@ -1,0 +1,23 @@
+def foo(default="bacon"):
+    print "You like",default,"right?"
+
+foo()
+foo("sports")
+
+def fillValues(a=1,b=2,c="c",d=None,e=2.71828):
+    print a,b,c,d,e
+
+fillValues(b=True)
+fillValues(c="test",a="one",e=object)
+
+# Not like in Python! This is absolutely an anti-feature in Python.
+def alwaysAFreshList(l=[]):
+    print "l=",l
+    l.append(1)
+    print "l*=",l
+
+alwaysAFreshList()
+alwaysAFreshList()
+alwaysAFreshList([1,2,3])
+alwaysAFreshList([1,2,3])
+alwaysAFreshList()

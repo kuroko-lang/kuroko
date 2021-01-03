@@ -708,10 +708,7 @@ static int call(KrkClosure * closure, int argCount, int extra) {
 		 *
 		 * Finally, we do one last pass to see if any of the sentinel values
 		 * indicating missing positional arguments is still there and raise
-		 * another TypeError to indicate missing required arguments, and fill
-		 * out the default values for missing keyword arguments.
-		 * (TODO: Support other default values for kwargs; need to put them
-		 *        somewhere, probably close them as upvalues?)
+		 * another TypeError to indicate missing required arguments.
 		 *
 		 * At this point we can reset the stack head and continue to the actual
 		 * call with all of the arguments, including the defaults, in the right
@@ -780,11 +777,6 @@ _finishArg:
 				return 0;
 			}
 		}
-		for (; clearSlots < closure->function->requiredArgs + closure->function->keywordArgs; ++clearSlots) {
-			if (IS_KWARGS(startOfPositionals[clearSlots])) {
-				startOfPositionals[clearSlots] = NONE_VAL();/* TODO: Default value for kwarg */
-			}
-		}
 		argCount = closure->function->requiredArgs + closure->function->keywordArgs;
 		while (vm.stackTop > startOfPositionals + argCount) krk_pop();
 	}
@@ -792,7 +784,7 @@ _finishArg:
 		return 0;
 	}
 	while (argCount < (closure->function->requiredArgs + closure->function->keywordArgs)) {
-		krk_push(NONE_VAL());
+		krk_push(KWARGS_VAL(0));
 		argCount++;
 	}
 	if (vm.frameCount == FRAMES_MAX) {
