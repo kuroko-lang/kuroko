@@ -191,7 +191,10 @@ static int checkKeyword(size_t start, const char * rest, KrkTokenType type) {
 static KrkTokenType identifierType() {
 #define MORE(i) (scanner.cur - scanner.start > i)
 	switch (*scanner.start) {
-		case 'a': return checkKeyword(1, "nd", TOKEN_AND);
+		case 'a': if (MORE(1)) switch(scanner.start[1]) {
+			case 'n': return checkKeyword(2, "d", TOKEN_AND);
+			case 's': return checkKeyword(2, "", TOKEN_AS);
+		} break;
 		case 'b': return checkKeyword(1, "reak", TOKEN_BREAK);
 		case 'c': if (MORE(1)) switch(scanner.start[1]) {
 			case 'l': return checkKeyword(2, "ass", TOKEN_CLASS);

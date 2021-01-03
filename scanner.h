@@ -64,6 +64,8 @@ typedef enum {
 	TOKEN_PLUS_PLUS,  /* ++ */
 	TOKEN_MINUS_MINUS,/* -- */
 
+	TOKEN_AS,
+
 	TOKEN_ERROR,
 	TOKEN_EOF,
 } KrkTokenType;

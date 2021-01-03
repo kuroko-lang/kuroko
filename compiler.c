@@ -1251,9 +1251,13 @@ static void raiseStatement() {
 
 static void importStatement() {
 	consume(TOKEN_IDENTIFIER, "Expected module name");
-	declareVariable();
 	size_t ind = identifierConstant(&parser.previous);
 	EMIT_CONSTANT_OP(OP_IMPORT, ind);
+	if (match(TOKEN_AS)) {
+		consume(TOKEN_IDENTIFIER, "Expected identifier after `as`");
+		ind = identifierConstant(&parser.previous);
+	}
+	declareVariable();
 	defineVariable(ind);
 }
 
