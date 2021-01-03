@@ -1109,7 +1109,7 @@ static void forStatement() {
 }
 
 static void returnStatement() {
-	if (match(TOKEN_EOL) || match(TOKEN_EOF)) {
+	if (check(TOKEN_EOL) || check(TOKEN_EOF)) {
 		emitReturn();
 	} else {
 		if (current->type == TYPE_INIT) {
