@@ -18,19 +18,15 @@ class list():
   self.__inrepr=0
   return b+"]"
  def __iter__(self):
-  let m = self
-  def I(i):
-   let e=m
-   let l=e.__len__()
-   let x=i
-   def _():
-    if x>=l:
-     return _
-    let o=e[x]
-    x++
-    return o
-   return _
-  return I(0)
+  let x=0
+  let l=self.__len__()
+  def _():
+   if x>=l:
+    return _
+   let o=self[x]
+   x++
+   return o
+  return _
 
 class dict():
  "Hashmap of arbitrary keys to arbitrary values."
@@ -51,25 +47,20 @@ class dict():
  def keys(self):
   "Returns an iterable of the keys in this dictionary."
   class KeyIterator():
-   def __init__(self, target):
-    self.target = target
+   def __init__(self,t):
+    self.t=t
    def __iter__(self):
-    let me = self
-    def makeIter(ind):
-     let m = me.target
-     let c = m.capacity()
-     let i = ind
-     def iter():
-      let out = None
-      while out == None and i < c:
-       out = m._key_at_index(i)
-       i++
-      if out == None:
-       return iter
-      else:
-       return out
-     return iter
-    return makeIter(0)
+    let i=0
+    let c=self.t.capacity()
+    def _():
+     let o=None
+     while o==None and i<c:
+      o=self.t._key_at_index(i)
+      i++
+     if o==None:
+      return _
+     return o
+    return _
   return KeyIterator(self)
 
 class range:
@@ -78,18 +69,15 @@ class range:
   self.min = min
   self.max = max
  def __iter__(self):
-  let me = self
-  def makeIter(ind):
-   let l = me
-   let i = ind
-   def iter():
-    if i >= l.max:
-     return iter
-    let out = i
-    i++
-    return out
-   return iter
-  return makeIter(self.min)
+  let i=self.min
+  let l=self.max
+  def _():
+   if i>=l:
+    return _
+   let o=i
+   i++
+   return o
+  return _
 
 def len(obj=None): return (obj and obj.__len__()) or 0
 def str(obj=None): return (obj and obj.__str__()) or ""
