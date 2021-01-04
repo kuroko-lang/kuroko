@@ -72,6 +72,7 @@ typedef struct {
 		KrkClass * nameError;
 		KrkClass * importError;
 		KrkClass * ioError;
+		KrkClass * valueError;
 	} exceptions;
 
 	struct {

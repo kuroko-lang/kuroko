@@ -1500,6 +1500,7 @@ void krk_initVM(int flags) {
 	ADD_EXCEPTION_CLASS(vm.exceptions.nameError, "NameError", vm.exceptions.baseException);
 	ADD_EXCEPTION_CLASS(vm.exceptions.importError, "ImportError", vm.exceptions.baseException);
 	ADD_EXCEPTION_CLASS(vm.exceptions.ioError, "IOError", vm.exceptions.baseException);
+	ADD_EXCEPTION_CLASS(vm.exceptions.valueError, "ValueError", vm.exceptions.baseException);
 
 	/* Build classes for basic types */
 	ADD_BASE_CLASS(vm.baseClasses.typeClass, "type", vm.objectClass);

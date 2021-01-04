@@ -1411,6 +1411,7 @@ static void string(int type) {
 	} while (match(TOKEN_STRING) || match(TOKEN_BIG_STRING));
 	emitConstant(OBJECT_VAL(krk_copyString(stringBytes,stringLength)));
 	FREE_ARRAY(char,stringBytes,stringCapacity);
+#undef PUSH_CHAR
 }
 
 static size_t addUpvalue(Compiler * compiler, ssize_t index, int isLocal) {
