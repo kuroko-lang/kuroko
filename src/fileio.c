@@ -234,12 +234,16 @@ static KrkValue krk_file_reject_init(int argc, KrkValue argv[]) {
 static void makeFileInstance(KrkInstance * module, const char name[], FILE * file) {
 	KrkInstance * fileObject = krk_newInstance(FileClass);
 	krk_push(OBJECT_VAL(fileObject));
+	KrkValue filename = OBJECT_VAL(krk_copyString(name,strlen(name)));
+	krk_push(filename);
 
-	krk_attachNamedObject(&fileObject->fields, "filename", (KrkObj*)krk_copyString(name,strlen(name)));
+	krk_attachNamedValue(&fileObject->fields, "filename", filename);
 	krk_attachNamedValue(&fileObject->fields, "_fileptr", INTEGER_VAL((long)(file)));
 
 	krk_attachNamedObject(&module->fields, name, (KrkObj*)fileObject);
-	krk_pop();
+
+	krk_pop(); /* filename */
+	krk_pop(); /* fileObject */
 }
 
 KrkValue krk_module_onload_fileio(void) {
