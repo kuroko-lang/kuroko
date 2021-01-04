@@ -1437,6 +1437,65 @@ _freeAndDone:
 	return NONE_VAL();
 }
 
+/* str.join(list) */
+static KrkValue _string_join(int argc, KrkValue argv[], int hasKw) {
+	if (!IS_STRING(argv[0])) return NONE_VAL();
+	KrkString * self = AS_STRING(argv[0]);
+	if (hasKw) {
+		krk_runtimeError(vm.exceptions.argumentError, "str.join() does not take keyword arguments");
+		return NONE_VAL();
+	}
+
+	if (argc < 2) {
+		krk_runtimeError(vm.exceptions.argumentError, "str.join(): expected exactly one argument");
+		return NONE_VAL();
+	}
+
+	KrkValue _list_internal;
+	if (!IS_INSTANCE(argv[1]) || !krk_tableGet(&AS_INSTANCE(argv[1])->fields, vm.specialMethodNames[METHOD_LIST_INT], &_list_internal)) {
+		krk_runtimeError(vm.exceptions.argumentError, "str.join(): argument must be a list");
+		/* TODO: Support anything with __iter__, but keep hardcoded list support for speed. */
+		return NONE_VAL();
+	}
+
+	const char * errorStr = NULL;
+
+	size_t stringCapacity = 0;
+	size_t stringLength   = 0;
+	char * stringBytes    = 0;
+#define PUSH_CHAR(c) do { if (stringCapacity < stringLength + 1) { \
+		size_t old = stringCapacity; stringCapacity = GROW_CAPACITY(old); \
+		stringBytes = GROW_ARRAY(char, stringBytes, old, stringCapacity); \
+	} stringBytes[stringLength++] = c; } while (0)
+
+	for (size_t i = 0; i < AS_LIST(_list_internal)->count; ++i) {
+		KrkValue value = AS_LIST(_list_internal)->values[i];
+		if (!IS_STRING(AS_LIST(_list_internal)->values[i])) {
+			errorStr = krk_typeName(value);
+			goto _expectedString;
+		}
+		krk_push(value);
+		if (i > 0) {
+			for (size_t j = 0; j < self->length; ++j) {
+				PUSH_CHAR(self->chars[j]);
+			}
+		}
+		for (size_t j = 0; j < AS_STRING(value)->length; ++j) {
+			PUSH_CHAR(AS_STRING(value)->chars[j]);
+		}
+		krk_pop();
+	}
+
+	KrkValue out = OBJECT_VAL(krk_copyString(stringBytes, stringLength));
+	FREE_ARRAY(char,stringBytes,stringCapacity);
+	return out;
+
+_expectedString:
+	krk_runtimeError(vm.exceptions.typeError, "Expected string, got %s.", errorStr);
+	FREE_ARRAY(char,stringBytes,stringCapacity);
+	return NONE_VAL();
+}
+
 /* function.__doc__ */
 static KrkValue _closure_get_doc(int argc, KrkValue argv[]) {
 	if (!IS_CLOSURE(argv[0])) return NONE_VAL();
@@ -1700,6 +1759,7 @@ void krk_initVM(int flags) {
 	krk_defineNative(&vm.baseClasses.strClass->methods, ".__getslice__", _string_get_slice);
 	krk_defineNative(&vm.baseClasses.strClass->methods, ".__ord__", _char_to_int);
 	krk_defineNative(&vm.baseClasses.strClass->methods, ".format", _string_format);
+	krk_defineNative(&vm.baseClasses.strClass->methods, ".join", _string_join);
 	ADD_BASE_CLASS(vm.baseClasses.functionClass, "function", vm.objectClass);
 	krk_defineNative(&vm.baseClasses.functionClass->methods, ".__str__", _closure_str);
 	krk_defineNative(&vm.baseClasses.functionClass->methods, ".__repr__", _closure_str);
