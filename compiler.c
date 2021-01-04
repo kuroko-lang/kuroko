@@ -548,6 +548,12 @@ static void in_(int canAssign) {
 	emitBytes(OP_CALL,1);
 }
 
+static void not_(int canAssign) {
+	consume(TOKEN_IN, "infix not must be followed by in?\n");
+	in_(canAssign);
+	emitByte(OP_NOT);
+}
+
 static void literal(int canAssign) {
 	switch (parser.previous.type) {
 		case TOKEN_FALSE: emitByte(OP_FALSE); break;
@@ -1723,7 +1729,7 @@ ParseRule rules[] = {
 	RULE(TOKEN_IN,            NULL,     in_,    PREC_COMPARISON),
 	RULE(TOKEN_LET,           NULL,     NULL,   PREC_NONE),
 	RULE(TOKEN_NONE,          literal,  NULL,   PREC_NONE),
-	RULE(TOKEN_NOT,           unary,    NULL,   PREC_NONE),
+	RULE(TOKEN_NOT,           unary,    not_,   PREC_COMPARISON),
 	RULE(TOKEN_OR,            NULL,     or_,    PREC_OR),
 	RULE(TOKEN_PRINT,         NULL,     NULL,   PREC_NONE),
 	RULE(TOKEN_RETURN,        NULL,     NULL,   PREC_NONE),
