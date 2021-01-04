@@ -1,0 +1,8 @@
+import fileio as io
+
+let f = io.open("README.md")
+let lines = f.read().split("\n")
+
+print len(lines),"lines"
+
+print lines[1:5]

@@ -1,0 +1,27 @@
+from fileio import open
+let f = open('test/day1.in','r')
+let lines = [int(x) for x in f.read().split("\n")][:-1] # because that split included a blank
+f.close()
+
+# Make a bad set
+let data = {}
+for l in lines:
+    data[l] = 1
+
+for line in lines:
+    if (2020 - line) in data:
+        print line, 2020 - line, line * (2020 - line)
+
+def sums_index(lines, ind):
+    let out = []
+    for line in lines[:ind]:
+        out.append(line + lines[ind])
+    for line in lines[ind:]:
+        out.append(line + lines[ind])
+    return out
+
+for ind in range(len(lines)):
+    for s in sums_index(lines, ind):
+        if (2020 - s) in lines:
+            print ((s - lines[ind]) * lines[ind]) * (2020 -s)
+
