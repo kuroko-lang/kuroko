@@ -2845,9 +2845,13 @@ static KrkValue run() {
 			}
 			case OP_INVOKE_GETTER: {
 				if (IS_INSTANCE(krk_peek(1)) && AS_INSTANCE(krk_peek(1))->_getter) {
-					krk_push(krk_peek(0));
-					vm.stackTop[-2] = krk_peek(2);
 					krk_push(krk_callSimple(OBJECT_VAL(AS_INSTANCE(krk_peek(2))->_getter), 2));
+				} else if (IS_STRING(krk_peek(1))) {
+					KrkValue out = _string_get(2, (KrkValue[]){krk_peek(1), krk_peek(0)});
+					krk_pop(); /* index */
+					krk_pop(); /* base object */
+					krk_pop(); /* duplicate for binds */
+					krk_push(out); /* result */
 				} else {
 					krk_runtimeError(vm.exceptions.attributeError, "'%s' object is not subscriptable", krk_typeName(krk_peek(0)));
 				}
@@ -2855,25 +2859,29 @@ static KrkValue run() {
 			}
 			case OP_INVOKE_SETTER: {
 				if (IS_INSTANCE(krk_peek(2)) && AS_INSTANCE(krk_peek(2))->_setter) {
-					krk_push(krk_peek(0));
-					vm.stackTop[-2] = krk_peek(2);
-					vm.stackTop[-3] = krk_peek(3);
 					KrkValue result = krk_callSimple(OBJECT_VAL(AS_INSTANCE(krk_peek(3))->_setter), 3);
 					krk_push(result);
+				} else if (IS_STRING(krk_peek(2))) {
+					_strings_are_immutable(0,NULL);
+					goto _finishException;
 				} else {
 					krk_runtimeError(vm.exceptions.attributeError, "'%s' object is not subscriptable", krk_typeName(krk_peek(0)));
 				}
 				break;
 			}
 			case OP_INVOKE_GETSLICE: {
-				krk_push(krk_peek(2)); /* object to top */
-				valueGetProperty(AS_STRING(vm.specialMethodNames[METHOD_GETSLICE]));
-				krk_swap(3);
-				krk_pop();
-				switch (krk_callValue(krk_peek(2),2,1)) {
-					case 2: break;
-					case 1: krk_push(krk_runNext()); break;
-					default: krk_runtimeError(vm.exceptions.typeError, "Invalid method call."); goto _finishException;
+				if (IS_INSTANCE(krk_peek(2)) && AS_INSTANCE(krk_peek(2))->_slicer) {
+					KrkValue result = krk_callSimple(OBJECT_VAL(AS_INSTANCE(krk_peek(3))->_slicer), 3);
+					krk_push(result);
+				} else if (IS_STRING(krk_peek(2))) {
+					KrkValue out = _string_get_slice(3, (KrkValue[]){krk_peek(2), krk_peek(1), krk_peek(0)});
+					krk_pop(); /* max */
+					krk_pop(); /* min */
+					krk_pop(); /* base object */
+					krk_pop(); /* duplicate for binds */
+					krk_push(out); /* result */
+				} else {
+					krk_runtimeError(vm.exceptions.attributeError, "'%s' object is not sliceable", krk_typeName(krk_peek(0)));
 				}
 				break;
 			}

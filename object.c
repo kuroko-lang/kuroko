@@ -121,6 +121,7 @@ KrkInstance * krk_newInstance(KrkClass * _class) {
 
 	instance->_getter = NULL;
 	instance->_setter = NULL;
+	instance->_slicer = NULL;
 
 	KrkValue tmp;
 	if (krk_tableGet(&_class->methods, vm.specialMethodNames[METHOD_GET], &tmp)) {
@@ -128,6 +129,9 @@ KrkInstance * krk_newInstance(KrkClass * _class) {
 	}
 	if (krk_tableGet(&_class->methods, vm.specialMethodNames[METHOD_SET], &tmp)) {
 		instance->_setter = AS_OBJECT(tmp);
+	}
+	if (krk_tableGet(&_class->methods, vm.specialMethodNames[METHOD_GETSLICE], &tmp)) {
+		instance->_slicer = AS_OBJECT(tmp);
 	}
 
 	return instance;
