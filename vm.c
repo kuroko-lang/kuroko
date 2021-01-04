@@ -593,6 +593,14 @@ KrkValue krk_typeOf(int argc, KrkValue argv[]) {
 	}
 }
 
+static KrkValue _type_init(int argc, KrkValue argv[]) {
+	if (argc != 2) {
+		krk_runtimeError(vm.exceptions.argumentError, "type() takes 1 argument");
+		return NONE_VAL();
+	}
+	return krk_typeOf(1,&argv[1]);
+}
+
 /* Class.__base__ */
 static KrkValue krk_baseOfClass(int argc, KrkValue argv[]) {
 	return AS_CLASS(argv[0])->base ? OBJECT_VAL(AS_CLASS(argv[0])->base) : NONE_VAL();
@@ -1145,6 +1153,25 @@ static KrkValue krk_initException(int argc, KrkValue argv[]) {
 	return argv[0];
 }
 
+static KrkValue _string_init(int argc, KrkValue argv[]) {
+	/* Ignore argument which would have been an instance */
+	if (argc < 2) {
+		return OBJECT_VAL(S(""));
+	}
+	if (argc > 2) {
+		krk_runtimeError(vm.exceptions.argumentError, "str() takes 1 argument");
+		return NONE_VAL();
+	}
+	if (IS_STRING(argv[1])) return argv[1]; /* strings are immutable, so we can just return the arg */
+	/* Find the type of arg */
+	krk_push(argv[1]);
+	if (!krk_bindMethod(AS_CLASS(krk_typeOf(1,&argv[1])), AS_STRING(vm.specialMethodNames[METHOD_STR]))) {
+		krk_runtimeError(vm.exceptions.typeError, "Can not convert %s to str", krk_typeName(argv[1]));
+		return NONE_VAL();
+	}
+	return krk_callSimple(krk_peek(0), 0);
+}
+
 #define ADD_BASE_CLASS(obj, name, baseClass) do { \
 	obj = krk_newClass(S(name)); \
 	krk_attachNamedObject(&vm.builtins->fields, name, (KrkObj*)obj); \
@@ -1267,6 +1294,20 @@ static KrkValue _string_to_int(int argc, KrkValue argv[]) {
 static KrkValue _string_to_float(int argc, KrkValue argv[]) {
 	if (argc != 1 || !IS_STRING(argv[0])) return NONE_VAL();
 	return FLOATING_VAL(strtod(AS_CSTRING(argv[0]),NULL));
+}
+
+static KrkValue _float_init(int argc, KrkValue argv[]) {
+	if (argc < 1) return FLOATING_VAL(0.0);
+	if (argc > 2) {
+		krk_runtimeError(vm.exceptions.argumentError, "float() takes at most 1 argument");
+		return NONE_VAL();
+	}
+	if (IS_STRING(argv[1])) return _string_to_float(1,&argv[1]);
+	if (IS_FLOATING(argv[1])) return argv[1];
+	if (IS_INTEGER(argv[1])) return FLOATING_VAL(AS_INTEGER(argv[1]));
+	if (IS_BOOLEAN(argv[1])) return FLOATING_VAL(AS_BOOLEAN(argv[1]));
+	krk_runtimeError(vm.exceptions.typeError, "float() argument must be a string or a number, not '%s'", krk_typeName(argv[1]));
+	return NONE_VAL();
 }
 
 /* str.__get__(index) */
@@ -1622,6 +1663,16 @@ static KrkValue _string_split(int argc, KrkValue argv[], int hasKw) {
 }
 #undef PUSH_CHAR
 
+static KrkValue _int_init(int argc, KrkValue argv[]) {
+	if (argc < 2) return INTEGER_VAL(0);
+	if (IS_INTEGER(argv[1])) return argv[1];
+	if (IS_STRING(argv[1])) return _string_to_int(argc-1,&argv[1]);
+	if (IS_FLOATING(argv[1])) return INTEGER_VAL(AS_FLOATING(argv[1]));
+	if (IS_BOOLEAN(argv[1])) return INTEGER_VAL(AS_BOOLEAN(argv[1]));
+	krk_runtimeError(vm.exceptions.typeError, "int() argument must be a string or a number, not '%s'", krk_typeName(argv[1]));
+	return NONE_VAL();
+}
+
 /* function.__doc__ */
 static KrkValue _closure_get_doc(int argc, KrkValue argv[]) {
 	if (!IS_CLOSURE(argv[0])) return NONE_VAL();
@@ -1780,10 +1831,66 @@ static KrkValue _bool_to_str(int argc, KrkValue argv[]) {
 }
 
 /**
+ * Inverse of truthiness.
+ *
+ * None, False, and 0 are all "falsey", meaning they will trip JUMP_IF_FALSE
+ * instructions / not trip JUMP_IF_TRUE instructions.
+ *
+ * Or in more managed code terms, `if None`, `if False`, and `if 0` are all
+ * going to take the else branch.
+ */
+static int isFalsey(KrkValue value) {
+	return IS_NONE(value) || (IS_BOOLEAN(value) && !AS_BOOLEAN(value)) ||
+	       (IS_INTEGER(value) && !AS_INTEGER(value));
+	/* Objects in the future: */
+	/* IS_STRING && length == 0; IS_ARRAY && length == 0; IS_INSTANCE && __bool__ returns 0... */
+}
+
+static KrkValue _bool_init(int argc, KrkValue argv[]) {
+	if (argc < 2) return BOOLEAN_VAL(0);
+	if (argc > 2) {
+		krk_runtimeError(vm.exceptions.argumentError, "bool() takes at most 1 argument");
+		return NONE_VAL();
+	}
+	return BOOLEAN_VAL(isFalsey(argv[1]));
+}
+
+/**
  * None.__str__() -> "None"
  */
 static KrkValue _none_to_str(int argc, KrkValue argv[]) {
 	return OBJECT_VAL(S("None"));
+}
+
+static KrkValue _len(int argc, KrkValue argv[]) {
+	if (argc != 1) {
+		krk_runtimeError(vm.exceptions.argumentError, "len() takes exactly one argument");
+		return NONE_VAL();
+	}
+	if (!IS_OBJECT(argv[0])) {
+		krk_runtimeError(vm.exceptions.typeError, "object of type '%s' has no len()", krk_typeName(argv[0]));
+		return NONE_VAL();
+	}
+	if (IS_STRING(argv[0])) return INTEGER_VAL(AS_STRING(argv[0])->length);
+	krk_push(argv[0]);
+	if (!krk_bindMethod(AS_CLASS(krk_typeOf(1,&argv[0])), AS_STRING(vm.specialMethodNames[METHOD_LEN]))) {
+		krk_runtimeError(vm.exceptions.typeError, "object of type '%s' has no len()", krk_typeName(argv[0]));
+		return NONE_VAL();
+	}
+	return krk_callSimple(krk_peek(0), 0);
+}
+
+static KrkValue _repr(int argc, KrkValue argv[]) {
+	if (argc != 1) {
+		krk_runtimeError(vm.exceptions.argumentError, "repr() takes exactly one argument");
+		return NONE_VAL();
+	}
+	krk_push(argv[0]);
+	if (!krk_bindMethod(AS_CLASS(krk_typeOf(1,&argv[0])), AS_STRING(vm.specialMethodNames[METHOD_REPR]))) {
+		krk_runtimeError(vm.exceptions.typeError, "internal error");
+		return NONE_VAL();
+	}
+	return krk_callSimple(krk_peek(0), 0);
 }
 
 void krk_initVM(int flags) {
@@ -1852,30 +1959,40 @@ void krk_initVM(int flags) {
 
 	/* Build classes for basic types */
 	ADD_BASE_CLASS(vm.baseClasses.typeClass, "type", vm.objectClass);
+	krk_attachNamedObject(&vm.globals, "type", (KrkObj*)vm.baseClasses.typeClass);
 	krk_defineNative(&vm.baseClasses.typeClass->methods, ":__base__", krk_baseOfClass);
 	krk_defineNative(&vm.baseClasses.typeClass->methods, ":__file__", krk_fileOfClass);
 	krk_defineNative(&vm.baseClasses.typeClass->methods, ":__doc__", krk_docOfClass);
 	krk_defineNative(&vm.baseClasses.typeClass->methods, ":__name__", krk_nameOfClass);
+	krk_defineNative(&vm.baseClasses.typeClass->methods, ".__init__", _type_init);
 	krk_defineNative(&vm.baseClasses.typeClass->methods, ".__str__", _class_to_str);
 	krk_defineNative(&vm.baseClasses.typeClass->methods, ".__repr__", _class_to_str);
 	ADD_BASE_CLASS(vm.baseClasses.intClass, "int", vm.objectClass);
+	krk_attachNamedObject(&vm.globals, "int", (KrkObj*)vm.baseClasses.intClass);
+	krk_defineNative(&vm.baseClasses.intClass->methods, ".__init__", _int_init);
 	krk_defineNative(&vm.baseClasses.intClass->methods, ".__int__", _noop);
 	krk_defineNative(&vm.baseClasses.intClass->methods, ".__float__", _int_to_floating);
 	krk_defineNative(&vm.baseClasses.intClass->methods, ".__chr__", _int_to_char);
 	krk_defineNative(&vm.baseClasses.intClass->methods, ".__str__", _int_to_str);
 	krk_defineNative(&vm.baseClasses.intClass->methods, ".__repr__", _int_to_str);
 	ADD_BASE_CLASS(vm.baseClasses.floatClass, "float", vm.objectClass);
+	krk_attachNamedObject(&vm.globals, "float", (KrkObj*)vm.baseClasses.floatClass);
+	krk_defineNative(&vm.baseClasses.floatClass->methods, ".__init__", _float_init);
 	krk_defineNative(&vm.baseClasses.floatClass->methods, ".__int__", _floating_to_int);
 	krk_defineNative(&vm.baseClasses.floatClass->methods, ".__float__", _noop);
 	krk_defineNative(&vm.baseClasses.floatClass->methods, ".__str__", _float_to_str);
 	krk_defineNative(&vm.baseClasses.floatClass->methods, ".__repr__", _float_to_str);
 	ADD_BASE_CLASS(vm.baseClasses.boolClass, "bool", vm.objectClass);
+	krk_attachNamedObject(&vm.globals, "bool", (KrkObj*)vm.baseClasses.boolClass);
+	krk_defineNative(&vm.baseClasses.boolClass->methods, ".__init__", _bool_init);
 	krk_defineNative(&vm.baseClasses.boolClass->methods, ".__str__", _bool_to_str);
 	krk_defineNative(&vm.baseClasses.boolClass->methods, ".__repr__", _bool_to_str);
 	ADD_BASE_CLASS(vm.baseClasses.noneTypeClass, "NoneType", vm.objectClass);
 	krk_defineNative(&vm.baseClasses.noneTypeClass->methods, ".__str__", _none_to_str);
 	krk_defineNative(&vm.baseClasses.noneTypeClass->methods, ".__repr__", _none_to_str);
 	ADD_BASE_CLASS(vm.baseClasses.strClass, "str", vm.objectClass);
+	krk_attachNamedObject(&vm.globals, "str", (KrkObj*)vm.baseClasses.strClass);
+	krk_defineNative(&vm.baseClasses.strClass->methods, ".__init__", _string_init);
 	krk_defineNative(&vm.baseClasses.strClass->methods, ".__str__", _noop);
 	krk_defineNative(&vm.baseClasses.strClass->methods, ".__repr__", _repr_str);
 	krk_defineNative(&vm.baseClasses.strClass->methods, ".__len__", _string_length);
@@ -1903,11 +2020,13 @@ void krk_initVM(int flags) {
 	krk_defineNative(&vm.baseClasses.methodClass->methods, ":__file__", _bound_get_file);
 
 	/* Build global builtin functions. */
-	krk_defineNative(&vm.globals, "listOf", krk_list_of);
-	krk_defineNative(&vm.globals, "dictOf", krk_dict_of);
+	krk_defineNative(&vm.globals, "listOf", krk_list_of); /* Equivalent to list() */
+	krk_defineNative(&vm.globals, "dictOf", krk_dict_of); /* Equivalent to dict() */
 	krk_defineNative(&vm.globals, "isinstance", krk_isinstance);
 	krk_defineNative(&vm.globals, "globals", krk_globals);
-	krk_defineNative(&vm.globals, "type", krk_typeOf);
+	krk_defineNative(&vm.globals, "dir", krk_dirObject);
+	krk_defineNative(&vm.globals, "len", _len);
+	krk_defineNative(&vm.globals, "repr", _repr);
 
 	/* __builtins__.set_tracing is namespaced */
 	krk_defineNative(&vm.builtins->fields, "set_tracing", krk_set_tracing);
@@ -1966,22 +2085,6 @@ void krk_freeVM() {
 	memset(vm.specialMethodNames,0,sizeof(vm.specialMethodNames));
 	krk_freeObjects();
 	FREE_ARRAY(size_t, vm.stack, vm.stackSize);
-}
-
-/**
- * Inverse of truthiness.
- *
- * None, False, and 0 are all "falsey", meaning they will trip JUMP_IF_FALSE
- * instructions / not trip JUMP_IF_TRUE instructions.
- *
- * Or in more managed code terms, `if None`, `if False`, and `if 0` are all
- * going to take the else branch.
- */
-static int isFalsey(KrkValue value) {
-	return IS_NONE(value) || (IS_BOOLEAN(value) && !AS_BOOLEAN(value)) ||
-	       (IS_INTEGER(value) && !AS_INTEGER(value));
-	/* Objects in the future: */
-	/* IS_STRING && length == 0; IS_ARRAY && length == 0; IS_INSTANCE && __bool__ returns 0... */
 }
 
 /**

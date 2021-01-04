@@ -79,28 +79,25 @@ class range:
    return o
   return _
 
-def len(obj=None): return (obj and obj.__len__()) or 0
-def str(obj=None): return (obj and obj.__str__()) or ""
-def repr(obj): return obj.__repr__()
-def int(obj=None): return (obj and obj.__int__()) or 0
-def float(obj=None): return (obj and obj.__float__()) or 0.0
-def type(obj): return obj.__class__
-def dir(obj): return obj.__dir__()
+class Helper():
+ '''You seem to already know how to use this.'''
+ def __call__(self,obj=None):
+  if obj:
+   try:
+    print obj.__doc__
+   except:
+    try:
+     print obj.__class__.__doc__
+    except:
+     print "No docstring avaialble for", obj
+  else:
+   print "(Interactive help is not yet available)"
+ def __repr__(self):
+  return 'Type help() for more help, or help(obj) to describe an object.'
 
-def help(obj=None):
- if not obj:
-  print "Kuroko - Interpreted bytecode VM."
-  print "  usage:"
-  print "    help()      - Displays this message."
-  print "    help(func)  - Displays docstring for function, if present."
-  print "    help(class) - Displays docstring for class, if present."
- else:
-  try:
-   print obj.__doc__
-  except:
-   print "No docstring available for", obj
+let help = Helper()
 
-export list,dict,range,len,str,repr,int,float,dir,help
+export list,dict,range,help
 
 __builtins__.module_paths = ["./","./modules/","/home/klange/Projects/kuroko/modules/","/usr/share/kuroko/"]
 
