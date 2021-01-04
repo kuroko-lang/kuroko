@@ -787,11 +787,24 @@ static int call(KrkClosure * closure, int argCount, int extra) {
 		size_t existingPositionalArgs = argCount - kwargsCount * 2;
 		int found = 0;
 		int extraKwargs = 0;
-		KrkValue * endOfPositionals = &vm.stackTop[-kwargsCount * 2];
+		intptr_t positionalsOffset = &vm.stackTop[-argCount] - vm.stack;
+		intptr_t endOffset = &vm.stackTop[-kwargsCount * 2] - vm.stack;
 
 		for (size_t availableSlots = argCount; availableSlots < (totalArguments); ++availableSlots) {
 			krk_push(KWARGS_VAL(0)); /* Make sure we definitely have enough space */
 		}
+
+		/* Expand the stack a bunch to make sure we have space */
+		for (int i = 0; i < argCount; ++i) {
+			krk_push(KWARGS_VAL(0));
+		}
+		for (int i = 0; i < argCount; ++i) {
+			krk_pop();
+		}
+
+		/* We may have moved the stack, recalculate positions. */
+		startOfPositionals = vm.stack + positionalsOffset;
+		KrkValue * endOfPositionals = vm.stack + endOffset;
 		KrkValue * startOfExtras = vm.stackTop;
 		for (long i = 0; i < kwargsCount; ++i) {
 			KrkValue name = endOfPositionals[i*2];
@@ -927,7 +940,8 @@ _finishArg:
 					}
 				}
 			} else {
-				krk_runtimeError(vm.exceptions.typeError, "Internal error?");
+				dumpStack(&vm.frames[vm.frameCount-1]);
+				krk_runtimeError(vm.exceptions.typeError, "Internal error? Item at index %d from %d found is %s", i*2, found, krk_typeName(startOfExtras[i*2]));
 				return 0;
 			}
 		}
