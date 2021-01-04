@@ -332,6 +332,7 @@ static KrkValue _list_get(int argc, KrkValue argv[]) {
 	KrkValue _list_internal;
 	krk_tableGet(&AS_INSTANCE(argv[0])->fields, vm.specialMethodNames[METHOD_LIST_INT], &_list_internal);
 	int index = AS_INTEGER(argv[1]);
+	if (index < 0) index += AS_LIST(_list_internal)->count;
 	if (index < 0 || index >= (int)AS_LIST(_list_internal)->count) {
 		krk_runtimeError(vm.exceptions.indexError, "index is out of range: %d", index);
 		return NONE_VAL();
@@ -350,6 +351,7 @@ static KrkValue _list_set(int argc, KrkValue argv[]) {
 	KrkValue _list_internal;
 	krk_tableGet(&AS_INSTANCE(argv[0])->fields, vm.specialMethodNames[METHOD_LIST_INT], &_list_internal);
 	int index = AS_INTEGER(argv[1]);
+	if (index < 0) index += AS_LIST(_list_internal)->count;
 	if (index < 0 || index >= (int)AS_LIST(_list_internal)->count) {
 		krk_runtimeError(vm.exceptions.indexError, "index is out of range: %d", index);
 		return NONE_VAL();
@@ -463,6 +465,37 @@ KrkValue krk_dict_of(int argc, KrkValue argv[]) {
 	krk_pop(); /* dictContents */
 	krk_pop(); /* outDict */
 	return out;
+}
+
+/**
+ * list.__getslice__
+ */
+static KrkValue _list_slice(int argc, KrkValue argv[]) {
+	if (argc < 3) { /* 3 because first is us */
+		krk_runtimeError(vm.exceptions.argumentError, "slice: expected 2 arguments, got %d", argc-1);
+		return NONE_VAL();
+	}
+	if (!IS_INSTANCE(argv[0]) ||
+		!(IS_INTEGER(argv[1]) || IS_NONE(argv[1])) ||
+		!(IS_INTEGER(argv[2]) || IS_NONE(argv[2]))) {
+		krk_runtimeError(vm.exceptions.typeError, "slice: expected two integer arguments");
+		return NONE_VAL();
+	}
+
+	KrkValue _list_internal;
+	krk_tableGet(&AS_INSTANCE(argv[0])->fields, vm.specialMethodNames[METHOD_LIST_INT], &_list_internal);
+
+	int start = IS_NONE(argv[1]) ? 0 : AS_INTEGER(argv[1]);
+	int end   = IS_NONE(argv[2]) ? (int)AS_LIST(_list_internal)->count : AS_INTEGER(argv[2]);
+	if (start < 0) start = (int)AS_LIST(_list_internal)->count + start;
+	if (start < 0) start = 0;
+	if (end < 0) end = (int)AS_LIST(_list_internal)->count + end;
+	if (start > (int)AS_LIST(_list_internal)->count) start = (int)AS_LIST(_list_internal)->count;
+	if (end > (int)AS_LIST(_list_internal)->count) end = (int)AS_LIST(_list_internal)->count;
+	if (end < start) end = start;
+	int len = end - start;
+
+	return krk_list_of(len, &AS_LIST(_list_internal)->values[start]);
 }
 
 /**
@@ -1894,34 +1927,55 @@ static KrkValue _repr(int argc, KrkValue argv[]) {
 }
 
 static KrkValue _listiter_init(int argc, KrkValue argv[]) {
+	if (!IS_INSTANCE(argv[0]) || AS_INSTANCE(argv[0])->_class != vm.baseClasses.listiteratorClass) {
+		krk_runtimeError(vm.exceptions.typeError, "Tried to call listiterator.__init__() on something not a list iterator");
+	}
+	if (argc < 2 || !IS_INSTANCE(argv[1])) {
+		krk_runtimeError(vm.exceptions.argumentError, "Expected a list.");
+	}
 	KrkInstance * self = AS_INSTANCE(argv[0]);
 	KrkValue _list = argv[1];
 
-	krk_tableSet(&self->fields, OBJECT_VAL(S("l")), _list);
-	krk_tableSet(&self->fields, OBJECT_VAL(S("i")), INTEGER_VAL(0));
+	krk_push(argv[0]);
+	krk_attachNamedValue(&self->fields, "l", _list);
+	krk_attachNamedValue(&self->fields, "i", INTEGER_VAL(0));
+	krk_pop();
 
 	return argv[0];
 }
 
 static KrkValue _listiter_call(int argc, KrkValue argv[]) {
+	if (!IS_INSTANCE(argv[0]) || AS_INSTANCE(argv[0])->_class != vm.baseClasses.listiteratorClass) {
+		krk_runtimeError(vm.exceptions.typeError, "Tried to call listiterator.__call__() on something not a list iterator");
+	}
 	KrkInstance * self = AS_INSTANCE(argv[0]);
 	KrkValue _list;
 	KrkValue _counter;
 	KrkValue _list_internal;
+	const char * errorStr = NULL;
 
-	if (!krk_tableGet(&self->fields, OBJECT_VAL(S("l")), &_list)) goto _corrupt;
-	if (!krk_tableGet(&self->fields, OBJECT_VAL(S("i")), &_counter)) goto _corrupt;
-	if (!krk_tableGet(&AS_INSTANCE(_list)->fields, vm.specialMethodNames[METHOD_LIST_INT], &_list_internal)) goto _corrupt;
+	if (!krk_tableGet(&self->fields, OBJECT_VAL(S("l")), &_list)) {
+		errorStr = "no list pointer";
+		goto _corrupt;
+	}
+	if (!krk_tableGet(&self->fields, OBJECT_VAL(S("i")), &_counter)) {
+		errorStr = "no index";
+		goto _corrupt;
+	}
+	if (!krk_tableGet(&AS_INSTANCE(_list)->fields, vm.specialMethodNames[METHOD_LIST_INT], &_list_internal)) {
+		errorStr = "failed to obtain __list from list";
+		goto _corrupt;
+	}
 
 	if ((size_t)AS_INTEGER(_counter) >= AS_LIST(_list_internal)->count) {
 		return argv[0];
 	} else {
-		krk_tableSet(&self->fields, OBJECT_VAL(S("i")), INTEGER_VAL(AS_INTEGER(_counter)+1));
+		krk_attachNamedValue(&self->fields, "i", INTEGER_VAL(AS_INTEGER(_counter)+1));
 		return AS_LIST(_list_internal)->values[AS_INTEGER(_counter)];
 	}
 
 _corrupt:
-	krk_runtimeError(vm.exceptions.typeError, "Corrupt list iterator");
+	krk_runtimeError(vm.exceptions.typeError, "Corrupt list iterator: %s", errorStr);
 	return NONE_VAL();
 }
 
@@ -1949,8 +2003,10 @@ static KrkValue _range_init(int argc, KrkValue argv[]) {
 	}
 
 	/* Add them to ourselves */
-	krk_tableSet(&self->fields, OBJECT_VAL(S("min")), min);
-	krk_tableSet(&self->fields, OBJECT_VAL(S("max")), max);
+	krk_push(argv[0]);
+	krk_attachNamedValue(&self->fields, "min", min);
+	krk_attachNamedValue(&self->fields, "max", max);
+	krk_pop();
 
 	return argv[0];
 }
@@ -1970,8 +2026,10 @@ static KrkValue _range_repr(int argc, KrkValue argv[]) {
 
 static KrkValue _rangeiterator_init(int argc, KrkValue argv[]) {
 	KrkInstance * self = AS_INSTANCE(argv[0]);
-	krk_tableSet(&self->fields, OBJECT_VAL(S("i")), argv[1]);
-	krk_tableSet(&self->fields, OBJECT_VAL(S("m")), argv[2]);
+	krk_push(argv[0]);
+	krk_attachNamedValue(&self->fields, "i", argv[1]);
+	krk_attachNamedValue(&self->fields, "m", argv[2]);
+	krk_pop();
 	return argv[0];
 }
 
@@ -1983,7 +2041,7 @@ static KrkValue _rangeiterator_call(int argc, KrkValue argv[]) {
 	if (AS_INTEGER(i) >= AS_INTEGER(m)) {
 		return argv[0];
 	} else {
-		krk_tableSet(&self->fields, OBJECT_VAL(S("i")), INTEGER_VAL(AS_INTEGER(i)+1));
+		krk_attachNamedValue(&self->fields, "i", INTEGER_VAL(AS_INTEGER(i)+1));
 		return i;
 	}
 }
@@ -2180,6 +2238,7 @@ void krk_initVM(int flags) {
 		krk_defineNative(&_class->methods, ".__set__", _list_set);
 		krk_defineNative(&_class->methods, ".__len__", _list_len);
 		krk_defineNative(&_class->methods, ".__contains__", _list_contains);
+		krk_defineNative(&_class->methods, ".__getslice__", _list_slice);
 		krk_defineNative(&_class->methods, ".append", _list_append);
 
 		krk_tableGet(&vm.globals,OBJECT_VAL(S("dict")),&val);
@@ -2852,7 +2911,7 @@ static KrkValue run() {
 					krk_pop(); /* base object */
 					krk_push(out); /* result */
 				} else {
-					krk_runtimeError(vm.exceptions.attributeError, "'%s' object is not subscriptable", krk_typeName(krk_peek(0)));
+					krk_runtimeError(vm.exceptions.attributeError, "'%s' object is not subscriptable", krk_typeName(krk_peek(1)));
 				}
 				break;
 			}
@@ -2863,7 +2922,7 @@ static KrkValue run() {
 					_strings_are_immutable(0,NULL);
 					goto _finishException;
 				} else {
-					krk_runtimeError(vm.exceptions.attributeError, "'%s' object is not subscriptable", krk_typeName(krk_peek(0)));
+					krk_runtimeError(vm.exceptions.attributeError, "'%s' object is not subscriptable", krk_typeName(krk_peek(2)));
 				}
 				break;
 			}
@@ -2877,7 +2936,7 @@ static KrkValue run() {
 					krk_pop(); /* base object */
 					krk_push(out); /* result */
 				} else {
-					krk_runtimeError(vm.exceptions.attributeError, "'%s' object is not sliceable", krk_typeName(krk_peek(0)));
+					krk_runtimeError(vm.exceptions.attributeError, "'%s' object is not sliceable", krk_typeName(krk_peek(2)));
 				}
 				break;
 			}
