@@ -679,9 +679,9 @@ static void block(size_t indentation, const char * blockName) {
 			size_t currentIndentation = parser.current.length;
 			if (currentIndentation <= indentation) return;
 			advance();
-			if (!strcmp(blockName,"def") && match(TOKEN_STRING)) {
+			if (!strcmp(blockName,"def") && (match(TOKEN_STRING) || match(TOKEN_BIG_STRING))) {
 				size_t before = currentChunk()->count;
-				string(0);
+				string(parser.previous.type == TOKEN_BIG_STRING);
 				/* That wrote to the chunk, rewind it; this should only ever go back two bytes
 				 * because this should only happen as the first thing in a function definition,
 				 * and thus this _should_ be the first constant and thus opcode + one-byte operand
@@ -898,8 +898,8 @@ static void classDeclaration() {
 				errorAtCurrent("Unexpected indentation level for class");
 			}
 			advance();
-			if (match(TOKEN_STRING)) {
-				string(0);
+			if (match(TOKEN_STRING) || match(TOKEN_BIG_STRING)) {
+				string(parser.previous.type == TOKEN_BIG_STRING);
 				emitByte(OP_DOCSTRING);
 				consume(TOKEN_EOL,"Garbage after docstring defintion");
 				if (!check(TOKEN_INDENTATION) || parser.current.length != currentIndentation) {
