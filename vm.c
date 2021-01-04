@@ -513,14 +513,10 @@ static KrkValue krk_dirObject(int argc, KrkValue argv[]) {
 	}
 
 	/* Create a new list instance */
-	KrkValue Class;
-	krk_tableGet(&vm.globals,OBJECT_VAL(S("list")), &Class);
-	KrkInstance * outList = krk_newInstance(AS_CLASS(Class));
-	krk_push(OBJECT_VAL(outList));
-	KrkFunction * listContents = krk_newFunction(NULL);
-	krk_push(OBJECT_VAL(listContents));
-	krk_tableSet(&outList->fields, vm.specialMethodNames[METHOD_LIST_INT], OBJECT_VAL(listContents));
-
+	KrkValue myList = krk_list_of(0,NULL);
+	krk_push(myList);
+	KrkValue _list_internal;
+	krk_tableGet(&AS_INSTANCE(myList)->fields, vm.specialMethodNames[METHOD_LIST_INT], &_list_internal);
 
 	if (IS_INSTANCE(argv[0])) {
 		/* Obtain self-reference */
@@ -529,7 +525,7 @@ static KrkValue krk_dirObject(int argc, KrkValue argv[]) {
 		/* First add each method of the class */
 		for (size_t i = 0; i < self->_class->methods.capacity; ++i) {
 			if (self->_class->methods.entries[i].key.type != VAL_NONE) {
-				krk_writeValueArray(&listContents->chunk.constants,
+				krk_writeValueArray(AS_LIST(_list_internal),
 					self->_class->methods.entries[i].key);
 			}
 		}
@@ -537,7 +533,7 @@ static KrkValue krk_dirObject(int argc, KrkValue argv[]) {
 		/* Then add each field of the instance */
 		for (size_t i = 0; i < self->fields.capacity; ++i) {
 			if (self->fields.entries[i].key.type != VAL_NONE) {
-				krk_writeValueArray(&listContents->chunk.constants,
+				krk_writeValueArray(AS_LIST(_list_internal),
 					self->fields.entries[i].key);
 			}
 		}
@@ -546,17 +542,15 @@ static KrkValue krk_dirObject(int argc, KrkValue argv[]) {
 
 		for (size_t i = 0; i < type->methods.capacity; ++i) {
 			if (type->methods.entries[i].key.type != VAL_NONE) {
-				krk_writeValueArray(&listContents->chunk.constants,
+				krk_writeValueArray(AS_LIST(_list_internal),
 					type->methods.entries[i].key);
 			}
 		}
 	}
 
 	/* Prepare output value */
-	KrkValue out = OBJECT_VAL(outList);
 	krk_pop();
-	krk_pop();
-	return out;
+	return myList;
 }
 
 /**
