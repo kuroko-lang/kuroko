@@ -1,0 +1,43 @@
+from fileio import open
+let f = open('test/day6.in')
+let lines = f.read().split('\n')[:-1]
+
+let a = {}
+let b = 0
+for line in lines:
+    if not len(line):
+        b += len(a)
+        a = {}
+        continue
+    for c in line:
+        a[c] = 1
+
+b += len(a)
+print b # 6430
+
+def count(d):
+    let c = 0
+    for k in d.keys():
+        if d[k] == 1:
+            c += 1
+    return c
+
+def letters():
+    let d = {}
+    for c in 'abcdefghijklmnopqrstuvwxyz':
+        d[c] = 1
+    return d
+
+a = letters()
+b = 0
+for line in lines:
+    if not len(line):
+        b += count(a)
+        a = letters()
+        continue
+    for c in 'abcdefghijklmnopqrstuvwxyz':
+        if c not in line and c in a and a[c] == 1:
+            a[c] = 0
+
+b += count(a)
+print b # 3125
