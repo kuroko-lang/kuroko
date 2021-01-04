@@ -1504,6 +1504,21 @@ static int substringMatch(const char * haystack, size_t haystackLen, const char 
 	return 1;
 }
 
+/* str.__contains__ */
+static KrkValue _string_contains(int argc, KrkValue argv[]) {
+	if (argc < 2) {
+		krk_runtimeError(vm.exceptions.argumentError, "__contains__ expects an argument");
+		return NONE_VAL();
+	}
+	if (!IS_STRING(argv[0]) || !IS_STRING(argv[1])) return BOOLEAN_VAL(0);
+	for (size_t i = 0; i < AS_STRING(argv[0])->length; ++i) {
+		if (substringMatch(AS_CSTRING(argv[0]) + i, AS_STRING(argv[0])->length - i, AS_CSTRING(argv[1]), AS_STRING(argv[1])->length)) {
+			return BOOLEAN_VAL(1);
+		}
+	}
+	return BOOLEAN_VAL(0);
+}
+
 /* str.split() */
 static KrkValue _string_split(int argc, KrkValue argv[], int hasKw) {
 	if (!IS_STRING(argv[0])) return NONE_VAL();
@@ -1865,6 +1880,7 @@ void krk_initVM(int flags) {
 	krk_defineNative(&vm.baseClasses.strClass->methods, ".__float__", _string_to_float);
 	krk_defineNative(&vm.baseClasses.strClass->methods, ".__getslice__", _string_get_slice);
 	krk_defineNative(&vm.baseClasses.strClass->methods, ".__ord__", _char_to_int);
+	krk_defineNative(&vm.baseClasses.strClass->methods, ".__contains__", _string_contains);
 	krk_defineNative(&vm.baseClasses.strClass->methods, ".format", _string_format);
 	krk_defineNative(&vm.baseClasses.strClass->methods, ".join", _string_join);
 	krk_defineNative(&vm.baseClasses.strClass->methods, ".split", _string_split);
