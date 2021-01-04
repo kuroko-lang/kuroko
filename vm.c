@@ -28,7 +28,7 @@ extern const char _builtins_src[];
  * clear the exception flag and current exception;
  * happens on startup (twice) and after an exception.
  */
-static void resetStack() {
+void krk_resetStack() {
 	vm.stackTop = vm.stack;
 	vm.frameCount = 0;
 	vm.openUpvalues = NULL;
@@ -2008,7 +2008,7 @@ void krk_initVM(int flags) {
 	vm.flags = flags;
 	KRK_PAUSE_GC();
 
-	resetStack();
+	krk_resetStack();
 	vm.objects = NULL;
 	vm.bytesAllocated = 0;
 	vm.nextGC = 1024 * 1024;
@@ -2196,7 +2196,7 @@ void krk_initVM(int flags) {
 	}
 
 	/* The VM is now ready to start executing code. */
-	resetStack();
+	krk_resetStack();
 	KRK_RESUME_GC();
 }
 
@@ -2355,7 +2355,7 @@ static int handleException() {
 			 * this reset, so the repl can throw errors and keep accepting new lines.
 			 */
 			dumpTraceback();
-			resetStack();
+			krk_resetStack();
 			vm.frameCount = 0;
 		}
 		/* If exitSlot was not 0, there was an exception during a call to runNext();
@@ -2844,40 +2844,24 @@ static KrkValue run() {
 				break;
 			}
 			case OP_INVOKE_GETTER: {
-				if (0 && IS_INSTANCE(krk_peek(1)) && AS_INSTANCE(krk_peek(1))->_getter) {
-					krk_push(krk_peek(1));
-					krk_swap(1);
+				if (IS_INSTANCE(krk_peek(1)) && AS_INSTANCE(krk_peek(1))->_getter) {
+					krk_push(krk_peek(0));
+					vm.stackTop[-2] = krk_peek(2);
 					krk_push(krk_callSimple(OBJECT_VAL(AS_INSTANCE(krk_peek(2))->_getter), 2));
 				} else {
-					krk_swap(1);
-					valueGetProperty(AS_STRING(vm.specialMethodNames[METHOD_GET]));
-					krk_swap(1);
-					switch (krk_callValue(krk_peek(1),1,1)) {
-						case 2: break;
-						case 1: krk_push(krk_runNext()); break;
-						default: krk_runtimeError(vm.exceptions.typeError, "Invalid method call."); goto _finishException;
-					}
+					krk_runtimeError(vm.exceptions.attributeError, "'%s' object is not subscriptable", krk_typeName(krk_peek(0)));
 				}
 				break;
 			}
 			case OP_INVOKE_SETTER: {
-				if (0 && IS_INSTANCE(krk_peek(2)) && AS_INSTANCE(krk_peek(2))->_setter) {
-					krk_push(krk_peek(2));
-					krk_swap(1);
+				if (IS_INSTANCE(krk_peek(2)) && AS_INSTANCE(krk_peek(2))->_setter) {
+					krk_push(krk_peek(0));
+					vm.stackTop[-2] = krk_peek(2);
+					vm.stackTop[-3] = krk_peek(3);
 					KrkValue result = krk_callSimple(OBJECT_VAL(AS_INSTANCE(krk_peek(3))->_setter), 3);
-					dumpStack(frame);
-					fprintf(stderr, "Returning result\n");
 					krk_push(result);
 				} else {
-					krk_push(krk_peek(2)); /* object to top */
-					valueGetProperty(AS_STRING(vm.specialMethodNames[METHOD_SET]));
-					krk_swap(3);
-					krk_pop();
-					switch (krk_callValue(krk_peek(2),2,1)) {
-						case 2: break;
-						case 1: krk_push(krk_runNext()); break;
-						default: krk_runtimeError(vm.exceptions.typeError, "Invalid method call."); goto _finishException;
-					}
+					krk_runtimeError(vm.exceptions.attributeError, "'%s' object is not subscriptable", krk_typeName(krk_peek(0)));
 				}
 				break;
 			}

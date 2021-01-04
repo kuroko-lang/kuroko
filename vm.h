@@ -109,6 +109,7 @@ extern KrkVM krk_vm;
 
 extern void krk_initVM(int flags);
 extern void krk_freeVM(void);
+extern void krk_resetStack(void);
 extern KrkValue krk_interpret(const char * src, int newScope, char *, char *);
 extern KrkValue krk_runfile(const char * fileName, int newScope, char *, char *);
 extern void krk_push(KrkValue value);
