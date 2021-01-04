@@ -1,0 +1,12 @@
+# This is how you can emulate Python's semantics for default variables.
+let l = []
+def foo(x=l):
+    x.append("more")
+    print x
+
+foo() # → ['more']
+foo() # → ['more', 'more']
+foo([1,2]) # → [1, 2, 'more']
+foo() # → ['more', 'more', 'more']
+foo() # → ['more', 'more', 'more', 'more']
+foo(['a', 'b']) # → ['a', 'b', 'more']
