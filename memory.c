@@ -209,6 +209,7 @@ static void markRoots() {
 		krk_markObject((KrkObj*)upvalue);
 	}
 	krk_markTable(&vm.globals);
+	krk_markTable(&vm.modules);
 	krk_markCompilerRoots();
 	for (int i = 0; i < METHOD__MAX; ++i) {
 		krk_markValue(vm.specialMethodNames[i]);
