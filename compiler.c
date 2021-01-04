@@ -1361,8 +1361,8 @@ static void statement() {
 static void grouping(int canAssign) {
 	startEatingWhitespace();
 	expression();
-	consume(TOKEN_RIGHT_PAREN, "Expect ')' after expression.");
 	stopEatingWhitespace();
+	consume(TOKEN_RIGHT_PAREN, "Expect ')' after expression.");
 }
 
 static void unary(int canAssign) {
