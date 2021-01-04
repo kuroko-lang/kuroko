@@ -1,0 +1,34 @@
+from fileio import open
+let f = open('test/day2.in')
+let lines = f.read().split('\n')[:-1]
+
+def check_first(policy_low, policy_high, letter, password):
+    let count = 0
+    for l in password:
+        if l == letter:
+            count += 1
+    return count >= policy_low and count <= policy_high
+
+def check_second(policy_low, policy_high, letter, password):
+    let count = 0
+    if password[policy_low-1] == letter:
+        count += 1
+    if password[policy_high-1] == letter:
+        count += 1
+    return count == 1
+
+let valid = 0
+for line in lines:
+    let s = line.split(': ',1)
+    let password = s[1]
+    let policy = s[0]
+    s = policy.split('-',1)
+    let policy_low = int(s[0])
+    s = s[1].split(' ',1)
+    let policy_high = int(s[0])
+    let letter = s[1]
+    let is_valid = check_second(policy_low, policy_high, letter, password)
+    print policy_low, policy_high, letter, password, is_valid
+    if is_valid:
+        valid += 1
+print valid

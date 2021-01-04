@@ -1926,6 +1926,63 @@ static KrkValue _repr(int argc, KrkValue argv[]) {
 	return krk_callSimple(krk_peek(0), 0, 1);
 }
 
+static KrkValue _striter_init(int argc, KrkValue argv[]) {
+	if (!IS_INSTANCE(argv[0]) || AS_INSTANCE(argv[0])->_class != vm.baseClasses.striteratorClass) {
+		krk_runtimeError(vm.exceptions.typeError, "Tried to call striterator.__init__() on something not a str iterator");
+	}
+	if (argc < 2 || !IS_STRING(argv[1])) {
+		krk_runtimeError(vm.exceptions.argumentError, "Expected a str.");
+	}
+	KrkInstance * self = AS_INSTANCE(argv[0]);
+
+	krk_push(argv[0]);
+	krk_attachNamedValue(&self->fields, "s", argv[1]);
+	krk_attachNamedValue(&self->fields, "i", INTEGER_VAL(0));
+	krk_pop();
+
+	return argv[0];
+}
+
+static KrkValue _striter_call(int argc, KrkValue argv[]) {
+	if (!IS_INSTANCE(argv[0]) || AS_INSTANCE(argv[0])->_class != vm.baseClasses.striteratorClass) {
+		krk_runtimeError(vm.exceptions.typeError, "Tried to call striterator.__call__() on something not a str iterator");
+	}
+	KrkInstance * self = AS_INSTANCE(argv[0]);
+	KrkValue _str;
+	KrkValue _counter;
+	const char * errorStr = NULL;
+
+	if (!krk_tableGet(&self->fields, OBJECT_VAL(S("s")), &_str)) {
+		errorStr = "no str pointer";
+		goto _corrupt;
+	}
+	if (!krk_tableGet(&self->fields, OBJECT_VAL(S("i")), &_counter)) {
+		errorStr = "no index";
+		goto _corrupt;
+	}
+
+	if ((size_t)AS_INTEGER(_counter) >= AS_STRING(_str)->length) {
+		return argv[0];
+	} else {
+		krk_attachNamedValue(&self->fields, "i", INTEGER_VAL(AS_INTEGER(_counter)+1));
+		return OBJECT_VAL(krk_copyString(&AS_CSTRING(_str)[AS_INTEGER(_counter)],1));
+	}
+
+_corrupt:
+	krk_runtimeError(vm.exceptions.typeError, "Corrupt str iterator: %s", errorStr);
+	return NONE_VAL();
+}
+
+static KrkValue _str_iter(int argc, KrkValue argv[]) {
+	KrkInstance * output = krk_newInstance(vm.baseClasses.striteratorClass);
+
+	krk_push(OBJECT_VAL(output));
+	_striter_init(3, (KrkValue[]){krk_peek(0), argv[0]});
+	krk_pop();
+
+	return OBJECT_VAL(output);
+}
+
 static KrkValue _listiter_init(int argc, KrkValue argv[]) {
 	if (!IS_INSTANCE(argv[0]) || AS_INSTANCE(argv[0])->_class != vm.baseClasses.listiteratorClass) {
 		krk_runtimeError(vm.exceptions.typeError, "Tried to call listiterator.__init__() on something not a list iterator");
@@ -2172,6 +2229,7 @@ void krk_initVM(int flags) {
 	krk_defineNative(&vm.baseClasses.strClass->methods, ".__getslice__", _string_get_slice);
 	krk_defineNative(&vm.baseClasses.strClass->methods, ".__ord__", _char_to_int);
 	krk_defineNative(&vm.baseClasses.strClass->methods, ".__contains__", _string_contains);
+	krk_defineNative(&vm.baseClasses.strClass->methods, ".__iter__", _str_iter);
 	krk_defineNative(&vm.baseClasses.strClass->methods, ".format", _string_format);
 	krk_defineNative(&vm.baseClasses.strClass->methods, ".join", _string_join);
 	krk_defineNative(&vm.baseClasses.strClass->methods, ".split", _string_split);
@@ -2203,6 +2261,10 @@ void krk_initVM(int flags) {
 	ADD_BASE_CLASS(vm.baseClasses.listiteratorClass, "listiterator", vm.objectClass);
 	krk_defineNative(&vm.baseClasses.listiteratorClass->methods, ".__init__", _listiter_init);
 	krk_defineNative(&vm.baseClasses.listiteratorClass->methods, ".__call__", _listiter_call);
+
+	ADD_BASE_CLASS(vm.baseClasses.striteratorClass, "striterator", vm.objectClass);
+	krk_defineNative(&vm.baseClasses.striteratorClass->methods, ".__init__", _striter_init);
+	krk_defineNative(&vm.baseClasses.striteratorClass->methods, ".__call__", _striter_call);
 
 	ADD_BASE_CLASS(vm.baseClasses.rangeClass, "range", vm.objectClass);
 	krk_attachNamedObject(&vm.globals, "range", (KrkObj*)vm.baseClasses.rangeClass);

@@ -90,6 +90,7 @@ typedef struct {
 		KrkClass * listiteratorClass;
 		KrkClass * rangeClass;
 		KrkClass * rangeiteratorClass;
+		KrkClass * striteratorClass;
 	} baseClasses;
 
 	KrkValue currentException;
