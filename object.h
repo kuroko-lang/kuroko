@@ -89,6 +89,8 @@ typedef struct {
 	KrkObj obj;
 	KrkClass * _class;
 	KrkTable fields;
+	KrkObj * _getter;
+	KrkObj * _setter;
 } KrkInstance;
 
 typedef struct {

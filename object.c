@@ -118,6 +118,18 @@ KrkInstance * krk_newInstance(KrkClass * _class) {
 	KrkInstance * instance = ALLOCATE_OBJECT(KrkInstance, OBJ_INSTANCE);
 	instance->_class = _class;
 	krk_initTable(&instance->fields);
+
+	instance->_getter = NULL;
+	instance->_setter = NULL;
+
+	KrkValue tmp;
+	if (krk_tableGet(&_class->methods, vm.specialMethodNames[METHOD_GET], &tmp)) {
+		instance->_getter = AS_OBJECT(tmp);
+	}
+	if (krk_tableGet(&_class->methods, vm.specialMethodNames[METHOD_SET], &tmp)) {
+		instance->_setter = AS_OBJECT(tmp);
+	}
+
 	return instance;
 }
 

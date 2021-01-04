@@ -326,7 +326,7 @@ static KrkValue _list_init(int argc, KrkValue argv[]) {
  */
 static KrkValue _list_get(int argc, KrkValue argv[]) {
 	if (argc < 2 || !IS_INTEGER(argv[1])) {
-		krk_runtimeError(vm.exceptions.argumentError, "wrong number or type of arguments");
+		krk_runtimeError(vm.exceptions.argumentError, "wrong number or type of arguments in get %d, (%s, %s)", argc, krk_typeName(argv[0]), krk_typeName(argv[1]));
 		return NONE_VAL();
 	}
 	KrkValue _list_internal;
@@ -344,7 +344,7 @@ static KrkValue _list_get(int argc, KrkValue argv[]) {
  */
 static KrkValue _list_set(int argc, KrkValue argv[]) {
 	if (argc < 3 || !IS_INTEGER(argv[1])) {
-		krk_runtimeError(vm.exceptions.argumentError, "wrong number or type of arguments");
+		krk_runtimeError(vm.exceptions.argumentError, "wrong number or type of arguments in set %d, (%s, %s, %s)", argc, krk_typeName(argv[0]), krk_typeName(argv[1]), krk_typeName(argv[2]));
 		return NONE_VAL();
 	}
 	KrkValue _list_internal;
@@ -1893,6 +1893,117 @@ static KrkValue _repr(int argc, KrkValue argv[]) {
 	return krk_callSimple(krk_peek(0), 0);
 }
 
+static KrkValue _listiter_init(int argc, KrkValue argv[]) {
+	KrkInstance * self = AS_INSTANCE(argv[0]);
+	KrkValue _list = argv[1];
+
+	krk_tableSet(&self->fields, OBJECT_VAL(S("l")), _list);
+	krk_tableSet(&self->fields, OBJECT_VAL(S("i")), INTEGER_VAL(0));
+
+	return argv[0];
+}
+
+static KrkValue _listiter_call(int argc, KrkValue argv[]) {
+	KrkInstance * self = AS_INSTANCE(argv[0]);
+	KrkValue _list;
+	KrkValue _counter;
+	KrkValue _list_internal;
+
+	if (!krk_tableGet(&self->fields, OBJECT_VAL(S("l")), &_list)) goto _corrupt;
+	if (!krk_tableGet(&self->fields, OBJECT_VAL(S("i")), &_counter)) goto _corrupt;
+	if (!krk_tableGet(&AS_INSTANCE(_list)->fields, vm.specialMethodNames[METHOD_LIST_INT], &_list_internal)) goto _corrupt;
+
+	if ((size_t)AS_INTEGER(_counter) >= AS_LIST(_list_internal)->count) {
+		return argv[0];
+	} else {
+		krk_tableSet(&self->fields, OBJECT_VAL(S("i")), INTEGER_VAL(AS_INTEGER(_counter)+1));
+		return AS_LIST(_list_internal)->values[AS_INTEGER(_counter)];
+	}
+
+_corrupt:
+	krk_runtimeError(vm.exceptions.typeError, "Corrupt list iterator");
+	return NONE_VAL();
+}
+
+static KrkValue _range_init(int argc, KrkValue argv[]) {
+	KrkInstance * self = AS_INSTANCE(argv[0]);
+	if (argc < 2 || argc > 3) {
+		krk_runtimeError(vm.exceptions.argumentError, "range expected at least 1 and and at most 2 arguments");
+		return NONE_VAL();
+	}
+	KrkValue min = INTEGER_VAL(0);
+	KrkValue max;
+	if (argc == 2) {
+		max = argv[1];
+	} else {
+		min = argv[1];
+		max = argv[2];
+	}
+	if (!IS_INTEGER(min)) {
+		krk_runtimeError(vm.exceptions.typeError, "range: expected int, but got '%s'", krk_typeName(min));
+		return NONE_VAL();
+	}
+	if (!IS_INTEGER(max)) {
+		krk_runtimeError(vm.exceptions.typeError, "range: expected int, but got '%s'", krk_typeName(max));
+		return NONE_VAL();
+	}
+
+	/* Add them to ourselves */
+	krk_tableSet(&self->fields, OBJECT_VAL(S("min")), min);
+	krk_tableSet(&self->fields, OBJECT_VAL(S("max")), max);
+
+	return argv[0];
+}
+
+static KrkValue _range_repr(int argc, KrkValue argv[]) {
+	KrkInstance * self = AS_INSTANCE(argv[0]);
+
+	KrkValue min, max;
+	krk_tableGet(&self->fields, OBJECT_VAL(S("min")), &min);
+	krk_tableGet(&self->fields, OBJECT_VAL(S("max")), &max);
+
+	krk_push(OBJECT_VAL(S("range({},{})")));
+	KrkValue output = _string_format(3, (KrkValue[]){krk_peek(0), min, max}, 0);
+	krk_pop();
+	return output;
+}
+
+static KrkValue _rangeiterator_init(int argc, KrkValue argv[]) {
+	KrkInstance * self = AS_INSTANCE(argv[0]);
+	krk_tableSet(&self->fields, OBJECT_VAL(S("i")), argv[1]);
+	krk_tableSet(&self->fields, OBJECT_VAL(S("m")), argv[2]);
+	return argv[0];
+}
+
+static KrkValue _rangeiterator_call(int argc, KrkValue argv[]) {
+	KrkInstance * self = AS_INSTANCE(argv[0]);
+	KrkValue i, m;
+	krk_tableGet(&self->fields, OBJECT_VAL(S("i")), &i);
+	krk_tableGet(&self->fields, OBJECT_VAL(S("m")), &m);
+	if (AS_INTEGER(i) >= AS_INTEGER(m)) {
+		return argv[0];
+	} else {
+		krk_tableSet(&self->fields, OBJECT_VAL(S("i")), INTEGER_VAL(AS_INTEGER(i)+1));
+		return i;
+	}
+}
+
+static KrkValue _range_iter(int argc, KrkValue argv[]) {
+	KrkInstance * self = AS_INSTANCE(argv[0]);
+	KrkValue min, max;
+	krk_tableGet(&self->fields, OBJECT_VAL(S("min")), &min);
+	krk_tableGet(&self->fields, OBJECT_VAL(S("max")), &max);
+
+	KrkInstance * output = krk_newInstance(vm.baseClasses.rangeiteratorClass);
+
+	krk_push(OBJECT_VAL(output));
+	_rangeiterator_init(3, (KrkValue[]){krk_peek(0), min, max});
+	krk_pop();
+
+	return OBJECT_VAL(output);
+}
+
+
 void krk_initVM(int flags) {
 	vm.flags = flags;
 	KRK_PAUSE_GC();
@@ -2030,6 +2141,20 @@ void krk_initVM(int flags) {
 
 	/* __builtins__.set_tracing is namespaced */
 	krk_defineNative(&vm.builtins->fields, "set_tracing", krk_set_tracing);
+
+	ADD_BASE_CLASS(vm.baseClasses.listiteratorClass, "listiterator", vm.objectClass);
+	krk_defineNative(&vm.baseClasses.listiteratorClass->methods, ".__init__", _listiter_init);
+	krk_defineNative(&vm.baseClasses.listiteratorClass->methods, ".__call__", _listiter_call);
+
+	ADD_BASE_CLASS(vm.baseClasses.rangeClass, "range", vm.objectClass);
+	krk_attachNamedObject(&vm.globals, "range", (KrkObj*)vm.baseClasses.rangeClass);
+	krk_defineNative(&vm.baseClasses.rangeClass->methods, ".__init__", _range_init);
+	krk_defineNative(&vm.baseClasses.rangeClass->methods, ".__iter__", _range_iter);
+	krk_defineNative(&vm.baseClasses.rangeClass->methods, ".__repr__", _range_repr);
+
+	ADD_BASE_CLASS(vm.baseClasses.rangeiteratorClass, "rangeiterator", vm.objectClass);
+	krk_defineNative(&vm.baseClasses.rangeiteratorClass->methods, ".__init__", _rangeiterator_init);
+	krk_defineNative(&vm.baseClasses.rangeiteratorClass->methods, ".__call__", _rangeiterator_call);
 
 	/**
 	 * Read the managed code builtins module, which contains the base
@@ -2719,25 +2844,40 @@ static KrkValue run() {
 				break;
 			}
 			case OP_INVOKE_GETTER: {
-				krk_swap(1);
-				valueGetProperty(AS_STRING(vm.specialMethodNames[METHOD_GET]));
-				krk_swap(1);
-				switch (krk_callValue(krk_peek(1),1,1)) {
-					case 2: break;
-					case 1: krk_push(krk_runNext()); break;
-					default: krk_runtimeError(vm.exceptions.typeError, "Invalid method call."); goto _finishException;
+				if (0 && IS_INSTANCE(krk_peek(1)) && AS_INSTANCE(krk_peek(1))->_getter) {
+					krk_push(krk_peek(1));
+					krk_swap(1);
+					krk_push(krk_callSimple(OBJECT_VAL(AS_INSTANCE(krk_peek(2))->_getter), 2));
+				} else {
+					krk_swap(1);
+					valueGetProperty(AS_STRING(vm.specialMethodNames[METHOD_GET]));
+					krk_swap(1);
+					switch (krk_callValue(krk_peek(1),1,1)) {
+						case 2: break;
+						case 1: krk_push(krk_runNext()); break;
+						default: krk_runtimeError(vm.exceptions.typeError, "Invalid method call."); goto _finishException;
+					}
 				}
 				break;
 			}
 			case OP_INVOKE_SETTER: {
-				krk_push(krk_peek(2)); /* object to top */
-				valueGetProperty(AS_STRING(vm.specialMethodNames[METHOD_SET]));
-				krk_swap(3);
-				krk_pop();
-				switch (krk_callValue(krk_peek(2),2,1)) {
-					case 2: break;
-					case 1: krk_push(krk_runNext()); break;
-					default: krk_runtimeError(vm.exceptions.typeError, "Invalid method call."); goto _finishException;
+				if (0 && IS_INSTANCE(krk_peek(2)) && AS_INSTANCE(krk_peek(2))->_setter) {
+					krk_push(krk_peek(2));
+					krk_swap(1);
+					KrkValue result = krk_callSimple(OBJECT_VAL(AS_INSTANCE(krk_peek(3))->_setter), 3);
+					dumpStack(frame);
+					fprintf(stderr, "Returning result\n");
+					krk_push(result);
+				} else {
+					krk_push(krk_peek(2)); /* object to top */
+					valueGetProperty(AS_STRING(vm.specialMethodNames[METHOD_SET]));
+					krk_swap(3);
+					krk_pop();
+					switch (krk_callValue(krk_peek(2),2,1)) {
+						case 2: break;
+						case 1: krk_push(krk_runNext()); break;
+						default: krk_runtimeError(vm.exceptions.typeError, "Invalid method call."); goto _finishException;
+					}
 				}
 				break;
 			}

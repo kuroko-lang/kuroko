@@ -85,6 +85,11 @@ typedef struct {
 		KrkClass * strClass; /* String */
 		KrkClass * functionClass; /* Functions, Closures */
 		KrkClass * methodClass; /* BoundMethod */
+
+		/* Other useful stuff */
+		KrkClass * listiteratorClass;
+		KrkClass * rangeClass;
+		KrkClass * rangeiteratorClass;
 	} baseClasses;
 
 	KrkValue currentException;

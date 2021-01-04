@@ -18,15 +18,7 @@ class list():
   self.__inrepr=0
   return b+"]"
  def __iter__(self):
-  let x=0
-  let l=self.__len__()
-  def _():
-   if x>=l:
-    return _
-   let o=self[x]
-   x++
-   return o
-  return _
+  return __builtins__.listiterator(self)
 
 class dict():
  "Hashmap of arbitrary keys to arbitrary values."
@@ -63,22 +55,6 @@ class dict():
     return _
   return KeyIterator(self)
 
-class range:
- "Helpful iterable."
- def __init__(self, min, max):
-  self.min = min
-  self.max = max
- def __iter__(self):
-  let i=self.min
-  let l=self.max
-  def _():
-   if i>=l:
-    return _
-   let o=i
-   i++
-   return o
-  return _
-
 class Helper():
  '''You seem to already know how to use this.'''
  def __call__(self,obj=None):
@@ -97,7 +73,7 @@ class Helper():
 
 let help = Helper()
 
-export list,dict,range,help
+export list,dict,help
 
 __builtins__.module_paths = ["./","./modules/","/home/klange/Projects/kuroko/modules/","/usr/share/kuroko/"]
 
