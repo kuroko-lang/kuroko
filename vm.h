@@ -36,6 +36,7 @@ typedef enum {
 	METHOD_DICT_INT,
 	METHOD_INREPR,
 	METHOD_ORD,
+	METHOD_CALL,
 
 	METHOD__MAX,
 } KrkSpecialMethods;

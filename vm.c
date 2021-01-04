@@ -996,6 +996,16 @@ int krk_callValue(KrkValue callee, int argCount, int extra) {
 				krk_push(result);
 				return 2;
 			}
+			case OBJ_INSTANCE: {
+				KrkClass * _class = AS_INSTANCE(callee)->_class;
+				KrkValue callFunction;
+				if (krk_tableGet(&_class->methods, vm.specialMethodNames[METHOD_CALL], &callFunction)) {
+					return krk_callValue(callFunction, argCount + 1, 0);
+				} else {
+					krk_runtimeError(vm.exceptions.typeError, "Attempted to call non-callable type: %s", krk_typeName(callee));
+					return 0;
+				}
+			}
 			case OBJ_CLASS: {
 				KrkClass * _class = AS_CLASS(callee);
 				vm.stackTop[-argCount - 1] = OBJECT_VAL(krk_newInstance(_class));
@@ -1808,6 +1818,7 @@ void krk_initVM(int flags) {
 	vm.specialMethodNames[METHOD_LEN]  = OBJECT_VAL(S("__len__"));
 	vm.specialMethodNames[METHOD_DOC]  = OBJECT_VAL(S("__doc__"));
 	vm.specialMethodNames[METHOD_BASE] = OBJECT_VAL(S("__base__"));
+	vm.specialMethodNames[METHOD_CALL] = OBJECT_VAL(S("__call__"));
 	vm.specialMethodNames[METHOD_GETSLICE] = OBJECT_VAL(S("__getslice__"));
 	vm.specialMethodNames[METHOD_LIST_INT] = OBJECT_VAL(S("__list"));
 	vm.specialMethodNames[METHOD_DICT_INT] = OBJECT_VAL(S("__dict"));
