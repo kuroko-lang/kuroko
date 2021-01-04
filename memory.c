@@ -37,6 +37,8 @@ static void freeObject(KrkObj * object) {
 		case OBJ_FUNCTION: {
 			KrkFunction * function = (KrkFunction*)object;
 			krk_freeChunk(&function->chunk);
+			krk_freeValueArray(&function->requiredArgNames);
+			krk_freeValueArray(&function->keywordArgNames);
 			FREE(KrkFunction, object);
 			break;
 		}
@@ -120,6 +122,8 @@ static void blackenObject(KrkObj * object) {
 			krk_markObject((KrkObj*)function->name);
 			krk_markObject((KrkObj*)function->docstring);
 			krk_markObject((KrkObj*)function->chunk.filename);
+			markArray(&function->requiredArgNames);
+			markArray(&function->keywordArgNames);
 			markArray(&function->chunk.constants);
 			break;
 		}
