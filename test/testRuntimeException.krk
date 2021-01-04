@@ -1,7 +1,7 @@
-import system
+import time
 
 try:
-    system.sleep()
+    time.sleep()
 except:
     print "oh no! " + exception
 

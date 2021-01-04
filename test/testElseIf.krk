@@ -1,6 +1,4 @@
-import fileio
-
-let x = int(fileio.stdin.readline()[:-1])
+let x = 2
 
 if x == 1:
     print "one"

@@ -27,4 +27,3 @@ try:
 except:
     print "This is the outer handler."
     print exception
-    raise exception
