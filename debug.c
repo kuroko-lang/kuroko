@@ -114,7 +114,6 @@ size_t krk_disassembleInstruction(KrkChunk * chunk, size_t offset) {
 		OPERAND(OP_SET_UPVALUE)
 		OPERAND(OP_GET_UPVALUE)
 		OPERAND(OP_CALL)
-		OPERAND(OP_PRINT)
 		OPERAND(OP_INC)
 		JUMP(OP_JUMP,+)
 		JUMP(OP_JUMP_IF_FALSE,+)

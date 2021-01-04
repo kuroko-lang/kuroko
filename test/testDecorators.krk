@@ -1,97 +1,97 @@
 def decorator(func):
     def wrapper(butts):
-        print "I am a great decorated function that now needs an argument!", butts
+        print("I am a great decorated function that now needs an argument!", butts)
         func()
-        print "And this is after the function call."
-    print "Decorating!"
+        print("And this is after the function call.")
+    print("Decorating!")
     return wrapper
 
-print "Decorator defined."
+print("Decorator defined.")
 
 @decorator
 def foo():
-    print "Bar"
+    print("Bar")
 
-print "Function with decorator defined."
+print("Function with decorator defined.")
 
 foo("I am the argument")
 
-print "Function with decorator called."
+print("Function with decorator called.")
 
 def __main__():
     def decorator(func):
         def wrapper(butts):
-            print "I am a great decorated function (within a function!) that now needs an argument!", butts
+            print("I am a great decorated function (within a function!) that now needs an argument!", butts)
             func()
-            print "And this is after the function call (in a function call!)"
-        print "Decorating!"
+            print("And this is after the function call (in a function call!)")
+        print("Decorating!")
         return wrapper
 
-    print "Decorator defined."
+    print("Decorator defined.")
 
     let i = 42
     let l = [1,2,3]
 
     @decorator
     def foo():
-        print "Bar (the inner one)"
+        print("Bar (the inner one)")
 
-    print "Function with decorator defined."
+    print("Function with decorator defined.")
 
     foo("I am in the inner wrapper.")
 
-    print "Function with decorator called."
+    print("Function with decorator called.")
 
-    print "I like the numbers", l
+    print("I like the numbers", l)
 
-print "Calling main."
+print("Calling main.")
 __main__()
 
 def methodDecorator(func):
     def wrappedMethod(instance, butts):
-        print "I need an extra arg:", butts
+        print("I need an extra arg:", butts)
         func(instance)
-        print "Done."
+        print("Done.")
     return wrappedMethod
 
 class Foo():
     def __init__(self):
         self.foo = "bar"
-        print "I am an initializer."
+        print("I am an initializer.")
     def undecorated(self):
-        print "I am here."
-        print "self.foo =", self.foo
+        print("I am here.")
+        print("self.foo =", self.foo)
     @methodDecorator
     def decorated(self):
-        print "(decorated) self.foo = ", self.foo
+        print("(decorated) self.foo = ", self.foo)
 
 let f = Foo()
 f.undecorated()
-print "Returned from f.undecorated()"
+print("Returned from f.undecorated()")
 f.decorated("butts")
-print "Returned from f.decorated()"
+print("Returned from f.decorated()")
 
 def decoratorWithArgument(decoratorArg):
     def theActualDecorator(func):
-        print "I am decorating",func,"with this argument:",decoratorArg
+        print("I am decorating",func,"with this argument:",decoratorArg)
         def wrapped():
-            print "This wrapper captured this decorator arg:", decoratorArg
+            print("This wrapper captured this decorator arg:", decoratorArg)
             func()
         return wrapped
     return theActualDecorator
 
 @decoratorWithArgument("foo")
 def decoratedWithArgument():
-    print "I don't take any args of mine own, and nor does my wrapper."
+    print("I don't take any args of mine own, and nor does my wrapper.")
 
 decoratedWithArgument()
 
 def methodDecoratorWithArguments(decoratorArgA, decoratorArgB):
     def theActualDecorator(method):
-        print "I am decorating", method, "with these args:", decoratorArgA, decoratorArgB
+        print("I am decorating", method, "with these args:", decoratorArgA, decoratorArgB)
         def wrapped(instance, wrapperArg):
-            print "I captured these from the decorator:", decoratorArgA, decoratorArgB
-            print "I also take my own argument:", wrapperArg
+            print("I captured these from the decorator:", decoratorArgA, decoratorArgB)
+            print("I also take my own argument:", wrapperArg)
             method(instance,"and modify this one")
         return wrapped
     return theActualDecorator
@@ -102,26 +102,26 @@ class Bar():
 
     @methodDecoratorWithArguments("foo","bar")
     def superDecoratedMethod(self, arg):
-        print "I am method, so I can access myself", self.foo, "and also my own argument which is now", arg
+        print("I am method, so I can access myself", self.foo, "and also my own argument which is now", arg)
 
 let b = Bar()
 b.superDecoratedMethod("this arg goes to the wrapper")
 
 def genericDecorator(func):
     def wrapper(*args,**kwargs):
-        print "I am a generic wrapper, I will pass all of my args along."
+        print("I am a generic wrapper, I will pass all of my args along.")
         func(*args,**kwargs)
-        print "And I am done."
+        print("And I am done.")
     return wrapper
 
 @genericDecorator
 def aMethod(with,args=None):
-    print "I got",with,"and",args
+    print("I got",with,"and",args)
 
 try:
     aMethod()
 except:
-    print exception.arg
+    print(exception.arg)
 
 aMethod("just the first")
 aMethod("the first","and the second")
@@ -129,10 +129,10 @@ aMethod(args="hello",with="world")
 try:
     aMethod(foo="hello",with="bar")
 except:
-    print exception.arg # unrecognized keyword arg, from inner method
+    print(exception.arg) # unrecognized keyword arg, from inner method
 
 aMethod(*[1,2])
 try:
     aMethod(*[1,2,3])
 except:
-    print exception.arg # too many arguments
+    print(exception.arg) # too many arguments

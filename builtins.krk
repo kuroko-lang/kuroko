@@ -60,14 +60,14 @@ class Helper():
  def __call__(self,obj=None):
   if obj:
    try:
-    print obj.__doc__
+    print(obj.__doc__)
    except:
     try:
-     print obj.__class__.__doc__
+     print(obj.__class__.__doc__)
     except:
-     print "No docstring avaialble for", obj
+     print("No docstring avaialble for", obj)
   else:
-   print "(Interactive help is not yet available)"
+   print("(Interactive help is not yet available)")
  def __repr__(self):
   return 'Type help() for more help, or help(obj) to describe an object.'
 

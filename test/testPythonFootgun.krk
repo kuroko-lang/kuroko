@@ -2,7 +2,7 @@
 let l = []
 def foo(x=l):
     x.append("more")
-    print x
+    print(x)
 
 foo() # → ['more']
 foo() # → ['more', 'more']

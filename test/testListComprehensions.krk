@@ -1,12 +1,12 @@
-print [x * 5 for x in [1,2,3,4,5]]
+print([x * 5 for x in [1,2,3,4,5]])
 
-print "Continuing..."
+print("Continuing...")
 
 # Simple list comprehensions
 for i in [x * 5 for x in [1,7,3,5,9,2,8]]:
-    print i
+    print(i)
 
-print "Now a sum..."
+print("Now a sum...")
 
 def sum(iterable):
     let total = 0
@@ -14,6 +14,6 @@ def sum(iterable):
         total = total + v
     return total
 
-print "And now that sum applied to a complicated expression..."
+print("And now that sum applied to a complicated expression...")
 
-print sum([x * 3 for x in [y * 7 for y in [1,2,3,4,5]]])
+print(sum([x * 3 for x in [y * 7 for y in [1,2,3,4,5]]]))

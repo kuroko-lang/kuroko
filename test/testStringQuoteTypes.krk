@@ -6,9 +6,9 @@ long string that spans
 multiple lines"""
 
 let stringWithLineBreak = "This is a normal string \
-with a line break in it!" 
+with a line break in it!"
 
-print normalString
-print singleString
-print longString
-print stringWithLineBreak
+print(normalString)
+print(singleString)
+print(longString)
+print(stringWithLineBreak)

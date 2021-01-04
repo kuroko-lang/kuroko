@@ -1266,6 +1266,41 @@ static KrkValue _char_to_int(int argc, KrkValue argv[]) {
 	return INTEGER_VAL(AS_CSTRING(argv[0])[0]);
 }
 
+static KrkValue _print(int argc, KrkValue argv[], int hasKw) {
+	KrkValue sepVal, endVal;
+	char * sep = " ";
+	char * end = "\n";
+	if (hasKw) {
+		argc--;
+		KrkValue _dict_internal;
+		krk_tableGet(&AS_INSTANCE(argv[argc])->fields, vm.specialMethodNames[METHOD_DICT_INT], &_dict_internal);
+		if (krk_tableGet(AS_DICT(_dict_internal), OBJECT_VAL(S("sep")), &sepVal)) {
+			if (!IS_STRING(sepVal)) {
+				krk_runtimeError(vm.exceptions.typeError, "'sep' should be a string, not '%s'", krk_typeName(sepVal));
+				return NONE_VAL();
+			}
+			sep = AS_CSTRING(sepVal);
+		}
+		if (krk_tableGet(AS_DICT(_dict_internal), OBJECT_VAL(S("end")), &endVal)) {
+			if (!IS_STRING(endVal)) {
+				krk_runtimeError(vm.exceptions.typeError, "'end' should be a string, not '%s'", krk_typeName(endVal));
+				return NONE_VAL();
+			}
+			end = AS_CSTRING(endVal);
+		}
+	}
+	for (int i = 0; i < argc; ++i) {
+		KrkValue printable = argv[i];
+		if (IS_STRING(printable)) { /* krk_printValue runs repr */
+			fprintf(stdout, "%s", AS_CSTRING(printable));
+		} else {
+			krk_printValue(stdout, printable);
+		}
+		fprintf(stdout, "%s", (i == argc - 1) ? end : sep);
+	}
+	return NONE_VAL();
+}
+
 /* str.__len__() */
 static KrkValue _string_length(int argc, KrkValue argv[]) {
 	if (argc != 1) {
@@ -1653,7 +1688,10 @@ static KrkValue _string_split(int argc, KrkValue argv[], int hasKw) {
 					PUSH_CHAR(*c);
 					i++; c++;
 				}
-				krk_writeValueArray(AS_LIST(_list_internal), OBJECT_VAL(krk_copyString(stringBytes, stringLength)));
+				KrkValue tmp = OBJECT_VAL(krk_copyString(stringBytes, stringLength));
+				krk_push(tmp);
+				krk_writeValueArray(AS_LIST(_list_internal), tmp);
+				krk_pop();
 				FREE_ARRAY(char,stringBytes,stringCapacity);
 				#if 0
 				/* Need to parse kwargs to support this */
@@ -1681,7 +1719,10 @@ static KrkValue _string_split(int argc, KrkValue argv[], int hasKw) {
 				PUSH_CHAR(*c);
 				i++; c++;
 			}
-			krk_writeValueArray(AS_LIST(_list_internal), OBJECT_VAL(krk_copyString(stringBytes, stringLength)));
+			KrkValue tmp = OBJECT_VAL(krk_copyString(stringBytes, stringLength));
+			krk_push(tmp);
+			krk_writeValueArray(AS_LIST(_list_internal), tmp);
+			krk_pop();
 			if (substringMatch(c, self->length - i, AS_STRING(argv[1])->chars, AS_STRING(argv[1])->length)) {
 				i += AS_STRING(argv[1])->length;
 				c += AS_STRING(argv[1])->length;
@@ -1694,12 +1735,18 @@ static KrkValue _string_split(int argc, KrkValue argv[], int hasKw) {
 						PUSH_CHAR(*c);
 						i++; c++;
 					}
-					krk_writeValueArray(AS_LIST(_list_internal), OBJECT_VAL(krk_copyString(stringBytes, stringLength)));
+					KrkValue tmp = OBJECT_VAL(krk_copyString(stringBytes, stringLength));
+					krk_push(tmp);
+					krk_writeValueArray(AS_LIST(_list_internal), tmp);
+					krk_pop();
 					if (stringBytes) FREE_ARRAY(char,stringBytes,stringCapacity);
 					break;
 				}
 				if (i == self->length) {
-					krk_writeValueArray(AS_LIST(_list_internal), OBJECT_VAL(S("")));
+					KrkValue tmp = OBJECT_VAL(S(""));
+					krk_push(tmp);
+					krk_writeValueArray(AS_LIST(_list_internal), tmp);
+					krk_pop();
 				}
 			}
 		}
@@ -2268,6 +2315,7 @@ void krk_initVM(int flags) {
 	krk_defineNative(&vm.globals, "dir", krk_dirObject);
 	krk_defineNative(&vm.globals, "len", _len);
 	krk_defineNative(&vm.globals, "repr", _repr);
+	krk_defineNative(&vm.globals, "print", _print);
 
 	/* __builtins__.set_tracing is namespaced */
 	krk_defineNative(&vm.builtins->fields, "set_tracing", krk_set_tracing);
@@ -2735,23 +2783,6 @@ static KrkValue run() {
 		int operandWidth = (opcode & (1 << 7)) ? 3 : 1;
 
 		switch (opcode) {
-			case OP_PRINT_LONG:
-			case OP_PRINT: {
-				uint32_t args = readBytes(frame, operandWidth);
-				for (uint32_t i = 0; i < args; ++i) {
-					KrkValue printable = krk_peek(args-i-1);
-					if (IS_STRING(printable)) { /* krk_printValue runs repr */
-						fprintf(stdout, "%s", AS_CSTRING(printable));
-					} else {
-						krk_printValue(stdout, printable);
-					}
-					fputc((i == args - 1) ? '\n' : ' ', stdout);
-				}
-				for (uint32_t i = 0; i < args; ++i) {
-					krk_pop();
-				}
-				break;
-			}
 			case OP_RETURN: {
 				KrkValue result = krk_pop();
 				closeUpvalues(frame->slots);

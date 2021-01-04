@@ -31,7 +31,7 @@ typedef enum {
 	TOKEN_NONE,  /* 36 None */
 	TOKEN_NOT,   /* 37 not */
 	TOKEN_OR,    /* 38 or */
-	TOKEN_PRINT, /* 39 print */
+	TOKEN_ELIF, /* Provided for compatibility, recommend `else if` instead. */
 	TOKEN_RETURN,/* 40 return */
 	TOKEN_SELF,  /* 41 self */
 	TOKEN_SUPER, /* 42 super */
@@ -66,7 +66,6 @@ typedef enum {
 
 	TOKEN_AS,
 	TOKEN_FROM,
-	TOKEN_ELIF, /* Provided for compatibility, recommend `else if` instead. */
 
 	TOKEN_ERROR,
 	TOKEN_EOF,

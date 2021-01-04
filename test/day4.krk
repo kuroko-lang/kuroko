@@ -18,47 +18,47 @@ def is_digits(val, cnt):
     return not any([x not in '0123456789' for x in val])
 
 def check_passport(passport):
-    print "Checking",passport
+    print("Checking",passport)
     let expected = ['byr','iyr','eyr','hgt','hcl','ecl','pid']
     if not all([e in passport for e in expected]):
-        print 'Missing expected value'
+        print('Missing expected value')
         return 0
     #return 1
 
     if not is_digits(passport['byr'], 4) or  int(passport['byr']) < 1920 or int(passport['byr']) > 2002:
-        print 'Bad birth year'
+        print('Bad birth year')
         return 0
 
     if not is_digits(passport['iyr'], 4) or  int(passport['iyr']) < 2010 or int(passport['iyr']) > 2020:
-        print 'Bad issue year'
+        print('Bad issue year')
         return 0
 
     if not is_digits(passport['eyr'], 4) or  int(passport['eyr']) < 2020 or int(passport['eyr']) > 2030:
-        print 'Bad expire year'
+        print('Bad expire year')
         return 0
 
     if passport['hgt'][-2:] == 'cm':
         if not is_digits(passport['hgt'][:-2], 3) or int(passport['hgt'][:-2]) < 150 or int(passport['hgt'][:-2]) > 193:
-            print 'bad height in cm'
+            print('bad height in cm')
             return 0
     elif passport['hgt'][-2:] == 'in':
         if not is_digits(passport['hgt'][:-2], 2) or int(passport['hgt'][:-2]) < 59 or int(passport['hgt'][:-2]) > 76:
-            print 'bad height in inches:', int(passport['hgt'][:-2])
+            print('bad height in inches:', int(passport['hgt'][:-2]))
             return 0
     else:
-        print 'bad height generally'
+        print('bad height generally')
         return 0
 
     if len(passport['hcl']) != 7 or passport['hcl'][0] != '#' or any([x not in '0123456789abcdef' for x in passport['hcl'][1:]]):
-        print 'bad hair color'
+        print('bad hair color')
         return 0
 
     if passport['ecl'] not in ['amb','blu','brn','gry','grn','hzl','oth']:
-        print 'bad eye color'
+        print('bad eye color')
         return 0
 
     if not is_digits(passport['pid'], 9):
-        print 'bad pid'
+        print('bad pid')
         return 0
 
     return 1
@@ -76,4 +76,4 @@ for line in lines:
         passport[s[0]] = s[1]
 
 count += check_passport(passport)
-print "count =", count
+print("count =", count)

@@ -4,49 +4,43 @@ import time
 # set to Python. Not even bim has a highlighter for Kuroko yet.
 
 if False:
-    print "Kuroko has Python-style syntax"
-    print "with significant whitespace."
+    print("Kuroko has Python-style syntax")
+    print("with significant whitespace.")
 
-    print "Blank lines are ignored."
+    print("Blank lines are ignored.")
     # Comments should work, too.
-    print "None of this should print, since it's in an `if False:`"
+    print("None of this should print, since it's in an `if False:`")
 
-# Coincidentally, Lox has a print statement like Python 2 did.
-# I don't know if I'll keep it (haven't we all moved on to Python 3?)
-# but for now it's what we have. You _can_ put parens around print values,
-# including immediately after the 'print' token, and it'll work just fine.
-# Actually the way the scanner works, there's a lot of stuff that doesn't
-# need whitespace even though you might think it should have it...
-print "This is the first line that should print."
+print("This is the first line that should print.")
 
 # Concatenation currently requires the first argument be a string.
 # Other values then get converted to strings as you go.
-print "We can do simple concatenation " + 123 + "."
+print("We can do simple concatenation " + 123 + ".")
 
 # Lox only has a 'Number' type for numerical values, but we have
 # Integer and Floating to separate the two.
-print 4.2 * 9.7 # Should be 40.74
-print 1 + 2 + 3
+print(4.2 * 9.7) # Should be 40.74
+print(1 + 2 + 3)
 
 # Other bases:
-print "Hex: " + 0xFF + " Octal: " + 0o123 + " Binary: " + 0b1010
+print("Hex: " + 0xFF + " Octal: " + 0o123 + " Binary: " + 0b1010)
 
 # This `for init, cond, step:` syntax is possibly temporary? I do intend to
 # implement iterators and `for VAR in ITER:` like in Python, but C-style for
 # loops are also useful...
 for i = 0, i < 10, i = i + 1:
-    print "i = " + i
+    print("i = " + i)
 
 # Functions work like in Python, though currently no default values.
 def function(arg): # And of course the parser will handle comments here...
-    print "This is a function that does a thing!"
+    print("This is a function that does a thing!")
     if arg == "demo": # Or here...
-        print "You passed 'demo' as an argument!"
+        print("You passed 'demo' as an argument!")
     else: # And definitely here.
-        print "You passed something else."
+        print("You passed something else.")
     return 42
 
-print "This code is after the function definition"
+print("This code is after the function definition")
 
 # While I'm following the book, variable declarations are explicit with `let`.
 # I don't know if I want to implement Python's scoping rules, which are a bit
@@ -55,7 +49,7 @@ print "This code is after the function definition"
 # now we're following traditional scoping rules, and a simple `let foo` at
 # the head of the appropriate block should work okay.
 let result = function("demo")
-print "The function call returned: " + result
+print("The function call returned: " + result)
 
 # `sleep()` is a native function bind. Lox has `clock` as an example, but I
 # figured something with arguments would be more useful? The purpose of this
@@ -63,7 +57,7 @@ print "The function call returned: " + result
 # plugins for bim, so native bindings are going to be very important.
 result = time.sleep(0.1)
 
-print "Call to sleep returned: " + result
+print("Call to sleep returned: " + result)
 
 function("something else")
 
@@ -74,13 +68,13 @@ let funcs = Funcs()
 if True:
     let a = 1
     def f():
-        print a
+        print(a)
     let b = 2
     def g():
-        print b
+        print(b)
     let c = 3
     def h():
-        print c
+        print(c)
     funcs.f = f
     funcs.g = g
 
@@ -92,17 +86,17 @@ def outer(): # test
     #multiple lines
     let x = "outside"
     def inner():
-        print x
+        print(x)
     return inner
 
-print "Function is defined, creating it..."
+print("Function is defined, creating it...")
 let closure = outer()
-print "And executing the result..."
+print("And executing the result...")
 # This should correctly print "outside"
 closure()
 
 # This is surprisingly similar to Python already...
-print "Let's do some classes."
+print("Let's do some classes.")
 class Test: # This is a test class
     # `self` is actually optional - it's implictly passed.
     # If you include it in a parameter list, it's completely ignored.
@@ -111,15 +105,15 @@ class Test: # This is a test class
 
     # Look, a method!
     def doAThing():
-        print "yay: " + self.foo
+        print("yay: " + self.foo)
 
-print Test
+print(Test)
 let test = Test()
-#print test # Removed because of pointer output
+#print(test) # Removed because of pointer output
 test.doAThing()
 test.foo = "bar"
-print test.foo
-print test.doAThing
+print(test.foo)
+print(test.doAThing)
 test.doAThing()
 
 
@@ -127,13 +121,13 @@ class SuperClass():
     def __init__(self):
         self.a = "class"
     def aMethod(self):
-        print "This is a great " + self.a + "!"
+        print("This is a great " + self.a + "!")
     def __str__(self):
         return "(I am a " + self.a + ")"
     def __get__(self, ind):
         return "(get[" + ind + "])"
     def __set__(self, ind, val):
-        print "(set[" + ind + "] = " + val + ")"
+        print("(set[" + ind + "] = " + val + ")")
 
 class SubClass(SuperClass):
     def __init__(self):
@@ -143,35 +137,35 @@ let subclass = SubClass()
 subclass.aMethod()
 
 # Nope
-#print self
+#print(self)
 # Also nope
 #def notAMethod():
-#    print self
+#    print(self)
 # Definitely nope
 #def notAMethoDeither(self):
-#    print self
+#    print(self)
 
-print "Subclass says: " + subclass
+print("Subclass says: " + subclass)
 
 subclass.__get__(123)
-print subclass[123]
+print(subclass[123])
 subclass[456] = "test"
 
-print "Let's make a hashmap:"
+print("Let's make a hashmap:")
 let hash = dict()
 hash["hello"] = "world"
-print hash["hello"]
+print(hash["hello"])
 
-print "Let's make some lists:"
+print("Let's make some lists:")
 let l = list()
-print "Length before: " + len(l)
+print("Length before: " + len(l))
 l.append(1)
 l.append(2)
 l.append(3)
-print "Length after: " + len(l)
+print("Length after: " + len(l))
 for j = 0, j < len(l), j = j + 1:
-    print "j=" + j + ", list[j]=" + l[j]
+    print("j=" + j + ", list[j]=" + l[j])
 
-print "Can we call properties of strings?".__len__() # Of course we can.
+print("Can we call properties of strings?".__len__()) # Of course we can.
 
 return 0

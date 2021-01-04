@@ -1,19 +1,19 @@
 def anything(*args, **kwargs):
-    print "Positionals:", args
-    print "Keywords:", kwargs
+    print("Positionals:", args)
+    print("Keywords:", kwargs)
 
 anything(1,2,3,"a","b",foo="bar",biz=42)
 
 def func(a,b,*args,**kwargs):
-    print a, b, args
+    print(a, b, args)
     let x = 'hello'
-    print x
+    print(x)
 
 func(1,2,3,4,5,6,foo="bar")
 
 def last(a,b,c=1,d=2,**kwargs):
-    print "Main:", a, b, c, d
-    print "Keyword:", kwargs
+    print("Main:", a, b, c, d)
+    print("Keyword:", kwargs)
 
 last(1,2)
 last(1,2,7,3)
@@ -21,4 +21,4 @@ last(1,2,test="thing")
 try:
     last(1,2,'c','d',7,8,extra='foo')
 except:
-    print exception.arg
+    print(exception.arg)

@@ -28,7 +28,7 @@ for line in lines:
     let policy_high = int(s[0])
     let letter = s[1]
     let is_valid = check_second(policy_low, policy_high, letter, password)
-    print policy_low, policy_high, letter, password, is_valid
+    print(policy_low, policy_high, letter, password, is_valid)
     if is_valid:
         valid += 1
-print valid
+print(valid)

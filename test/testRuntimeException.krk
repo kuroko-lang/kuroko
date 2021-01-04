@@ -3,6 +3,6 @@ import time
 try:
     time.sleep()
 except:
-    print "oh no! " + exception.arg
+    print("oh no! " + exception.arg)
 
-print "Back from try/except"
+print("Back from try/except")

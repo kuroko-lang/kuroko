@@ -13,7 +13,7 @@ for line in lines:
         a[c] = 1
 
 b += len(a)
-print b # 6430
+print(b) # 6430
 
 def count(d):
     let c = 0
@@ -40,4 +40,4 @@ for line in lines:
             a[c] = 0
 
 b += count(a)
-print b # 3125
+print(b) # 3125

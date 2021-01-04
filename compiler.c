@@ -579,15 +579,6 @@ static void varDeclaration() {
 	defineVariable(ind);
 }
 
-static void printStatement() {
-	int argCount = 0;
-	do {
-		expression();
-		argCount++;
-	} while (match(TOKEN_COMMA));
-	EMIT_CONSTANT_OP(OP_PRINT, argCount);
-}
-
 static void synchronize() {
 	parser.panicMode = 0;
 	while (parser.current.type != TOKEN_EOF) {
@@ -600,7 +591,6 @@ static void synchronize() {
 			case TOKEN_FOR:
 			case TOKEN_IF:
 			case TOKEN_WHILE:
-			case TOKEN_PRINT:
 			case TOKEN_RETURN:
 				return;
 			default: break;
@@ -1336,9 +1326,7 @@ static void statement() {
 	} else if (check(TOKEN_TRY)) {
 		tryStatement();
 	} else {
-		if (match(TOKEN_PRINT)) {
-			printStatement();
-		} else if (match(TOKEN_EXPORT)) {
+		if (match(TOKEN_EXPORT)) {
 			exportStatement();
 		} else if (match(TOKEN_RAISE)) {
 			raiseStatement();
@@ -1734,7 +1722,6 @@ ParseRule rules[] = {
 	RULE(TOKEN_NONE,          literal,  NULL,   PREC_NONE),
 	RULE(TOKEN_NOT,           unary,    not_,   PREC_COMPARISON),
 	RULE(TOKEN_OR,            NULL,     or_,    PREC_OR),
-	RULE(TOKEN_PRINT,         NULL,     NULL,   PREC_NONE),
 	RULE(TOKEN_RETURN,        NULL,     NULL,   PREC_NONE),
 	RULE(TOKEN_SELF,          self,     NULL,   PREC_NONE),
 	RULE(TOKEN_SUPER,         super_,   NULL,   PREC_NONE),

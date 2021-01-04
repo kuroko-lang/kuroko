@@ -10,7 +10,7 @@ for l in lines:
 
 for line in lines:
     if (2020 - line) in data:
-        print line, 2020 - line, line * (2020 - line)
+        print(line, 2020 - line, line * (2020 - line))
 
 def sums_index(lines, ind):
     let out = []
@@ -23,5 +23,5 @@ def sums_index(lines, ind):
 for ind in range(len(lines)):
     for s in sums_index(lines, ind):
         if (2020 - s) in lines:
-            print ((s - lines[ind]) * lines[ind]) * (2020 -s)
+            print(((s - lines[ind]) * lines[ind]) * (2020 -s))
 

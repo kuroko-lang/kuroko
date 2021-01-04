@@ -1,12 +1,12 @@
 let x = 2
 
 if x == 1:
-    print "one"
+    print("one")
 else if x == 2:
-    print "two"
+    print("two")
 else if x == 3:
-    print "three"
+    print("three")
 else:
-    print "something else"
+    print("something else")
 
-print "outside of if/else"
+print("outside of if/else")

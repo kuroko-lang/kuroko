@@ -6,7 +6,7 @@ h[1] = 2
 h[3] = 4
 
 for v in h.keys():
-    print v
+    print(v)
 
 for v in h.keys():
-    print "" + v + ": " + h[v]
+    print("" + v + ": " + h[v])

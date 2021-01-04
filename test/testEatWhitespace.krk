@@ -1,5 +1,5 @@
 def foo(a,b,c,d):
-    print a,b,c,d
+    print(a,b,c,d)
 
 
 foo(
@@ -14,8 +14,8 @@ let l = [
 3,4
 ]
 
-print l
+print(l)
 
 for i in [1,2,
 3,4]:
-    print "lol",i
+    print("lol",i)

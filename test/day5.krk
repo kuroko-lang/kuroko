@@ -27,8 +27,8 @@ def process_seat(seat):
         size = size / 2
     return bottom
 
-print process_row("FBFBBFFRLR") # 44
-print process_seat("FBFBBFFRLR") # 5
+print(process_row("FBFBBFFRLR")) # 44
+print(process_seat("FBFBBFFRLR")) # 5
 
 def seat_id(seat):
     let row = process_row(seat)
@@ -41,7 +41,7 @@ for l in lines:
     if i > top:
         top = i
 
-print top # Answer to part 1, should be 953
+print(top) # Answer to part 1, should be 953
 
 let taken = {}
 
@@ -69,9 +69,9 @@ def max(iter):
             l = v
     return l
 
-print "---"
+print("---")
 for i in range(min(taken.keys()), max(taken.keys())):
     if (i - 1) in taken and (i + 1) in taken and i not in taken:
-        print i
+        print(i)
 
 # Should print once, 615

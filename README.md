@@ -28,18 +28,23 @@ _**NOTE**: Due to limitations with Github's markdown renderer, these snippets wi
 
 ### Hello World
 
-Kuroko inherits a print statement from its Lox roots, which is similar to the one in Python 2:
-
 ```py
-print "Hello, world!"
+print("Hello, world!")
 # → Hello, world!
 ```
 
 Multiple expressions can be supplied to `print` and will be concatenated with spaces:
 
 ```py
-print "Hello", 42, "!"
+print("Hello", 42, "!")
 # → Hello 42 !
+```
+
+The string used to combine arguments can be changed with `sep=`.
+
+```py
+print("Hello", 42, "!", sep="...")
+# → Hello...42...!
 ```
 
 ### Basic Types
@@ -47,21 +52,21 @@ print "Hello", 42, "!"
 Kuroko's basic types are integers (which use the platform `long` type), double-precision floats, booleans (`True` and `False`), and `None`.
 
 ```py
-print 1 + 2 + 3
+print(1 + 2 + 3)
 # → 6
 ```
 
 When integer values are used in arithmetic operations, such as division, the result will be an integer as well:
 
 ```py
-print 1 / 2
+print(1 / 2)
 # → 0
 ```
 
 To get floating-point results, one of the arguments should be explicitly typed or converted:
 
 ```py
-print 1 / 2.0
+print(1 / 2.0)
 # → 0.5
 ```
 
@@ -69,10 +74,10 @@ Implicit type conversion occurs late in evaluation, so be careful of integer ove
 
 ```py
 # Probably not what you want:
-print 1000000000 * 1000000000 * 1000000000 * 3.0
+print(1000000000 * 1000000000 * 1000000000 * 3.0)
 # → -2.07927e+19
 # Try something like this instead:
-print 1000000000.0 * 1000000000 * 1000000000 * 3.0
+print(1000000000.0 * 1000000000 * 1000000000 * 3.0)
 # → 3e+27
 ```
 
@@ -87,7 +92,7 @@ Objects are passed by reference, though strings are immutable so this property i
 Strings can be concatenated, and other values can be appended to them.
 
 ```py
-print "Hello, " + 42 + "!"
+print("Hello, " + 42 + "!")
 # → Hello, 42!
 ```
 
@@ -97,7 +102,7 @@ Function syntax is essentially the same as in Python:
 
 ```py
 def greet(name):
-    print "Hello, " + name + "!"
+    print("Hello, " + name + "!")
 greet("user")
 # → Hello, user!
 ```
@@ -107,9 +112,9 @@ Default arguments can be specified as follows:
 ```py
 def greet(name=None):
     if not name:
-        print "Hello, world!"
+        print("Hello, world!")
     else:
-        print "Hello, " + name + "!"
+        print("Hello, " + name + "!")
 greet()
 gree("user")
 # → Hello, world!
@@ -126,14 +131,14 @@ Tabs are not valid as indentation and will be ignored. It is recommended that yo
 
 ```py
 if False:
-	print "Oh no, that was a tab."
+	print("Oh no, that was a tab.")
 # → Oh no, that was a tab.
 ```
 
 Blocks can also accept a single inline statement:
 
 ```py
-if True: print "The first rule of Tautology Club is the first rule of Tautology Club."
+if True: print("The first rule of Tautology Club is the first rule of Tautology Club.")
 # → The first rule of Tautology Club is the first rule of Tautology Club.
 ```
 
@@ -143,10 +148,10 @@ In a departure from Python, Kuroko has explicit variable declaration and traditi
 
 ```py
 let foo
-print foo
+print(foo)
 # → None
 foo = 1
-print foo
+print(foo)
 # → 1
 ```
 
@@ -160,7 +165,7 @@ When a function references local values from an outter scope, such as in the exa
 def foo():
     let i = 1 # Local to this call to foo()
     def bar():
-        print i # Reference to outer variable
+        print(i) # Reference to outer variable
         i = i + 1
     return bar # Produces a closure
 let a = foo() # Each copy of `bar` gets its own `i`
@@ -189,7 +194,7 @@ To create a basic object without methods, the `object` class is provided:
 ```py
 let o = object()
 o.foo = "bar"
-print o.foo
+print(o.foo)
 # → bar
 ```
 
@@ -198,7 +203,7 @@ To supply methods, define a class:
 ```py
 class Foo():
     def printFoo():
-        print self.foo
+        print(self.foo)
 let o = Foo()
 o.foo = "bar"
 o.printFoo()
@@ -210,7 +215,7 @@ The `self` keyword is implicit in all methods and does not need to be supplied i
 ```py
 class Foo():
     def printFoo(self):
-        print self.foo
+        print(self.foo)
 let o = Foo()
 o.foo = "bar"
 o.printFoo()
@@ -224,7 +229,7 @@ class Foo():
     def __init__(bar):
         self.foo = bar
     def printFoo(self):
-        print self.foo
+        print(self.foo)
 let o = Foo("bar")
 o.printFoo()
 # → bar
@@ -243,7 +248,7 @@ class Foo():
     def __init__():
         self.type = "foo"
     def printType():
-        print self.type
+        print(self.type)
 
 class Bar(Foo):
     def __init__():
@@ -261,14 +266,14 @@ class Foo():
     def __init__():
         self.type = "foo"
     def printType():
-        print self.type
+        print(self.type)
 
 class Bar(Foo):
     def __init__():
         self.type = "bar"
     def printType():
         super().printType()
-        print "Also, I enjoy long walks on the beach."
+        print("Also, I enjoy long walks on the beach.")
 
 let bar = Bar()
 bar.printType()
@@ -283,7 +288,7 @@ class Foo:
 class Bar:
 class Baz(Bar):
 let b = Baz()
-print isinstance(b,Baz), isinstance(b,Bar), isinstance(b,Foo), isinstance(b,object)
+print(isinstance(b,Baz), isinstance(b,Bar), isinstance(b,Foo), isinstance(b,object))
 # → True, True, False, True
 ```
 
@@ -299,15 +304,15 @@ l.append(1)
 l.append(2)
 l.append("three")
 l.append(False)
-print l
+print(l)
 # → [1, 2, three, False]
 l[1] = 5
-print l
+print(l)
 # → [1, 5, three, False]
 let d = dict()
 d["foo"] = "bar"
 d[1] = 2
-print d
+print(d)
 # → {1: 2, foo: bar}
 ```
 
@@ -315,10 +320,10 @@ These built-in collections can also be initialized as expressions, which act as 
 
 ```py
 let l = [1,2,"three",False] # or listOf(1,2,"three",False)
-print l
+print(l)
 # → [1, 2, three, False]
 let d = {"foo": "bar", 1: 2} # or dictOf("foo","bar",1,2)
-print d
+print(d)
 # → {1: 2, foo: bar}
 ```
 
@@ -326,7 +331,7 @@ Lists can also be generated dynamically:
 
 ```py
 let fives = [x * 5 for x in [1,2,3,4,5]]
-print fives
+print(fives)
 # → [5, 10, 15, 20, 25]
 ```
 
@@ -336,7 +341,7 @@ Kuroko provides a mechanism for handling errors at runtime. If an error is not c
 
 ```py
 def foo(bar):
-    print "I expect an argument! " + bar
+    print("I expect an argument! " + bar)
 foo() # I didn't provide one!
 # → Traceback, most recent first, 1 call frame:
 #     File "<stdin>", line 1, in <module>
@@ -347,11 +352,11 @@ To catch exceptions, use `try`/`except`:
 
 ```py
 def foo(bar):
-    print "I expect an argument! " + bar
+    print("I expect an argument! " + bar)
 try:
     foo() # I didn't provide one!
 except:
-    print "oh no!"
+    print("oh no!")
 # → oh no!
 ```
 
@@ -359,11 +364,11 @@ Runtime exceptions are passed to the `except` block as a special variable `excep
 
 ```py
 def foo(bar):
-    print "I expect an argument! " + bar
+    print("I expect an argument! " + bar)
 try:
     foo() # I didn't provide one!
 except:
-    print "oh no, there was an exception: " + exception.arg
+    print("oh no, there was an exception:", exception.arg)
 # → oh no, there was an exception: foo() takes exactly 1 argument (0 given)
 ```
 
@@ -373,7 +378,7 @@ Exceptions can also be generated from code:
 def login(password):
     if password != "supersecret":
         raise "Wrong password, try again!"
-    print "[Hacker voice] I'm in."
+    print("[Hacker voice] I'm in.")
 login("foo")
 # → Traceback, most recent first, 2 call frames:
 #     File "<stdin>", line 5, in <module>
@@ -387,7 +392,7 @@ The `except` block is optional, and an exception may be caught and ignored.
 def login(password):
     if password != "supersecret":
         raise "Wrong password, try again!"
-    print "[Hacker voice] I'm in."
+    print("[Hacker voice] I'm in.")
 try:
     login("foo")
 # (no output)
@@ -407,7 +412,7 @@ return module
 ```py
 # demo.krk
 import demomodule
-print demomodule.foo
+print(demomodule.foo)
 # → bar
 ```
 
@@ -426,7 +431,7 @@ return module
 ```py
 # demo.krk
 import demomodule
-print foo
+print(foo)
 # → bar
 ```
 
@@ -437,7 +442,7 @@ Kuroku supports C-style for loops, while loops, and Python-style iterator for lo
 
 ```py
 for i = 1, i < 5, i = i + 1:
-    print i
+    print(i)
 # → 1
 #   2
 #   3
@@ -448,7 +453,7 @@ for i = 1, i < 5, i = i + 1:
 let i = 36
 while i > 1:
     i = i / 2
-    print i
+    print(i)
 # → 18
 #   9
 #   4
@@ -459,7 +464,7 @@ while i > 1:
 ```py
 let l = [1,2,3]
 for i in l:
-    print i
+    print(i)
 # → 1
 #   2
 #   3
@@ -493,7 +498,7 @@ Objects which have an `__iter__` method can then be used with the `for ... in ..
 
 ```py
 for i in range(1,5):
-    print i
+    print(i)
 # → 1
 #   2
 #   3
@@ -507,12 +512,12 @@ Objects with the methods `__get__` and `__set__` can be used with square bracket
 ```py
 class Foo:
     def __get__(ind):
-        print "You asked for ind=" + ind
+        print("You asked for ind=" + ind)
         return ind * 5
     def __set__(ind, val):
-        print "You asked to set ind=" + ind + " to " + val
+        print("You asked to set ind=" + ind + " to " + val)
 let f = Foo()
-print f[4]
+print(f[4])
 f[7] = "bar"
 # → You asked for ind=4
 #   20
@@ -524,11 +529,11 @@ f[7] = "bar"
 Substrings can be extracted from strings via slicing:
 
 ```py
-print "Hello world!"[3:8]
+print("Hello world!"[3:8])
 # → lo wo
-print "Hello world!"[:-1]
+print("Hello world!"[:-1])
 # → Hello world
-print "Hello world!"[-1:]
+print("Hello world!"[-1:])
 # → !
 ```
 
@@ -543,7 +548,7 @@ class Foo:
     def __str__():
         return "(I am a Foo!)"
 let f = Foo()
-print f
+print(f)
 # → (I am a Foo!)
 ```
 
@@ -556,7 +561,7 @@ To open and read the contents of a file:
 ```py
 import fileio
 let f = fileio.open("README.md","r")
-print f.read()
+print(f.read())
 f.close()
 ```
 
@@ -581,7 +586,7 @@ while True:
         data = data[:-1]
     if data == "exit":
         break
-    print "You said '" + data + "'!"
+    print("You said '" + data + "'!")
 ```
 
 ### Decorators
@@ -590,16 +595,16 @@ Decorators allow functions and methods to be wrapped.
 
 ```py
 def decorator(func):
-    print "I take the function to be decorated as an argument:", func
+    print("I take the function to be decorated as an argument:", func)
     def wrapper():
-        print "And I am the wrapper."
+        print("And I am the wrapper.")
         func()
-        print "Returned from wrapped function."
+        print("Returned from wrapped function.")
     return wrapper
 
 @decorator
 def wrappedFunction():
-    print "Hello, world"
+    print("Hello, world")
 
 wrappedFunction()
 # → I take a function to be decorated as an argument: <function wrappedFunction>
@@ -616,14 +621,14 @@ Method wrappers work similarly, though be sure to explicitly provide a name (oth
 def methodDecorator(method):
     def methodWrapper(instance, anExtraArgument):
         method(instance)
-        print "I also required this extra argument:", anExtraArgument
+        print("I also required this extra argument:", anExtraArgument)
     return methodWrapper
 
 class Foo():
     @methodDecorator
     def theMethod():
-        print "I am a method, so I can obviously access", self
-        print "And I also didn't take any arguments, but my wrapper did:"
+        print("I am a method, so I can obviously access", self)
+        print("And I also didn't take any arguments, but my wrapper did:")
 
 let f = Foo()
 f.theMethod("the newly required argument")
@@ -636,12 +641,12 @@ Decorators are _expressions_, just like in Python, so to make a decorator with a
 
 ```py
 def requirePassword(password):
-    print "I am creating a decorator."
+    print("I am creating a decorator.")
     def decorator(func):
-        print "I am wrapping", func, "and attaching",password
+        print("I am wrapping", func, "and attaching",password)
         def wrapper(secretPassword):
             if secretPassword != password:
-                print "You didn't say the magic word."
+                print("You didn't say the magic word.")
                 return
             func()
         return wrapper
@@ -649,10 +654,10 @@ def requirePassword(password):
 
 @requirePassword("hunter2")
 def superSecretFunction():
-    print "Welcome!"
+    print("Welcome!")
 
 superSecretFunction("a wrong password")
-print "Let's try again."
+print("Let's try again.")
 superSecretFunction("hunter2")
 # → I am wrapping <function superSecretFunction> and attaching hunter2
 #   You didn't say the magic word.
@@ -666,7 +671,7 @@ Arguments may be passed to a function by specifying their name instead of using 
 
 ```py
 def aFunction(a,b,c):
-    print a,b,c
+    print(a,b,c)
 
 aFunction(1,2,3)
 aFunction(1,c=3,b=2)
@@ -680,7 +685,7 @@ This will be slower in execution than a normal function call, as the interpreter
 
 ```py
 def aFunction(with=None,lots=None,of=None,default=None,args=None):
-    print with,lots,of,default,args
+    print(with,lots,of,default,args)
 
 aFunction(of="hello!")
 # → None None hello! None None
@@ -694,19 +699,19 @@ The variable marked with `*` will be provided as an ordered `list`, and `**` wil
 
 ```py
 def takesArgs(*args):
-    print args
+    print(args)
 takesArgs(1,2,3)
 # → [1, 2, 3]
 def takesKwargs(**kwargs):
-    print kwargs
+    print(kwargs)
 takesKwargs(a=1,b=2,c=3)
 # → {'a': 1, 'b': 2, 'c': 3}
 def takesEither(*args,**kwargs):
-    print args, kwargs
+    print(args, kwargs)
 takesEither(1,2,a=3,b=4)
 # → [1, 2] {'a': 3, 'b': 4}
 def takesARequiredAndMore(a,*args):
-    print a, args
+    print(a, args)
 takesARequiredAndMore(1,2,3,4)
 # → 1 [2, 3, 4]
 ```
@@ -718,12 +723,12 @@ When used in a function argument list, `*` and `**` before a list and dict expre
 ```py
 let l = [1,2,3]
 def foo(a,b,c):
-    print a,b,c
+    print(a,b,c)
 foo(*l)
 # → 1 2 3
 let d = {"foo": "a", "bar": 1}
 def func(foo,bar):
-    print foo, bar
+    print(foo, bar)
 func(**d)
 # → a 1
 ```

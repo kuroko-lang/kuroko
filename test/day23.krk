@@ -12,9 +12,9 @@ def __main__():
     ordering.append(1) # 9 -> 1
     ordering.extend(range(11,1000001))
     ordering.append(5) # 1,000,000 -> 5
-    print "Done, ordering is", len(ordering)
+    print("Done, ordering is", len(ordering))
 
-    print "Starting loop..."
+    print("Starting loop...")
     #__builtins__.set_tracing("tracing=1")
 
     let m0 = 5
@@ -33,6 +33,6 @@ def __main__():
         ordering[m3] = px
         m0 = ordering[m0]
 
-    print ordering[1]*ordering[ordering[1]]
+    print(ordering[1]*ordering[ordering[1]])
 
 __main__()

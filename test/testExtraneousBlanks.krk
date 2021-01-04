@@ -3,16 +3,16 @@ class AClass():
     """A docstring"""
 
     def foo(self):
-        print "class member foo"
+        print("class member foo")
 
     # What about blank lines?
 
     def bar(self):
-        print "class member bar"
+        print("class member bar")
 
     # Oh my.
 
 let a = AClass()
 a.foo()
 a.bar()
-print AClass.__doc__
+print(AClass.__doc__)

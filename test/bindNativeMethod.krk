@@ -1,7 +1,7 @@
 # Strings have a syntehesized __get__
 # which returns an integer value of the byte...
 # This will probably codepoint of a UTF-32 string later?
-print "Test"[1]
+print("Test"[1])
 
 class Test:
     def __init__(self):
@@ -9,6 +9,6 @@ class Test:
 
 # Instances have a __class__ property synthesized by the VM
 let test = Test()
-print test.__class__
+print(test.__class__)
 
-print (37.45).__int__()
+print((37.45).__int__())

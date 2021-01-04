@@ -10,5 +10,5 @@ for x in range(1,1000):
     f.write(",")
 
 f.write("\"applesauce\"]\n")
-f.write("print l\n")
+f.write("print(l)\n")
 f.close()

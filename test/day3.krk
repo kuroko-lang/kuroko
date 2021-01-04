@@ -12,5 +12,5 @@ def count_trees(lines, x_off, y_off):
         y += y_off
     return trees
 
-print "part 1:", count_trees(lines, 3, 1)
-print "part 2:", count_trees(lines, 1, 1) * count_trees(lines, 3, 1) * count_trees(lines, 5, 1) * count_trees(lines, 7, 1) * count_trees(lines, 1, 2)
+print("part 1:", count_trees(lines, 3, 1))
+print("part 2:", count_trees(lines, 1, 1) * count_trees(lines, 3, 1) * count_trees(lines, 5, 1) * count_trees(lines, 7, 1) * count_trees(lines, 1, 2))

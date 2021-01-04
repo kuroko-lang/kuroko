@@ -1,6 +1,6 @@
 def func(a,b,*args,**kwargs):
-    print "a =",a,"b =",b
-    print "args =",args,"kwargs =",kwargs
+    print("a =",a,"b =",b)
+    print("args =",args,"kwargs =",kwargs)
 
-print "\[[31mCall starts here.\[[0m"
+print("\[[31mCall starts here.\[[0m")
 func(1,*[1,2,3],**{"foo":"bar"},stuff="things")
