@@ -1,0 +1,21 @@
+def foo(a,b,c,d):
+    print a,b,c,d
+
+
+foo(
+    a=1,
+    b=2,
+    c=3,
+    d=4
+)
+
+let l = [
+1,2,
+3,4
+]
+
+print l
+
+for i in [1,2
+3,4]:
+    print "lol",i

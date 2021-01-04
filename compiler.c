@@ -43,6 +43,7 @@ typedef struct {
 	KrkToken previous;
 	int hadError;
 	int panicMode;
+	int eatingWhitespace;
 } Parser;
 
 typedef enum {
@@ -223,6 +224,9 @@ static void advance() {
 	for (;;) {
 		parser.current = krk_scanToken();
 
+		if (parser.eatingWhitespace &&
+			(parser.current.type == TOKEN_INDENTATION || parser.current.type == TOKEN_EOL)) continue;
+
 #ifdef ENABLE_SCAN_TRACING
 		if (vm.flags & KRK_ENABLE_SCAN_TRACING) {
 			fprintf(stderr, "[%s %d:%d '%.*s'] ",
@@ -239,6 +243,18 @@ static void advance() {
 
 		errorAtCurrent(parser.current.start);
 	}
+}
+
+static void startEatingWhitespace() {
+	parser.eatingWhitespace++;
+	if (parser.current.type == TOKEN_INDENTATION || parser.current.type == TOKEN_EOL) advance();
+}
+
+static void stopEatingWhitespace() {
+	if (parser.eatingWhitespace == 0) {
+		error("Internal scanner error: Invalid nesting of `startEatingWhitespace`/`stopEatingWhitespace` calls.");
+	}
+	parser.eatingWhitespace--;
 }
 
 static void consume(KrkTokenType type, const char * message) {
@@ -704,6 +720,7 @@ static void function(FunctionType type, size_t blockWidth) {
 	int hasCollectors = 0;
 
 	consume(TOKEN_LEFT_PAREN, "Expected start of parameter list after function name.");
+	startEatingWhitespace();
 	if (!check(TOKEN_RIGHT_PAREN)) {
 		do {
 			if (match(TOKEN_SELF)) {
@@ -779,6 +796,7 @@ static void function(FunctionType type, size_t blockWidth) {
 			}
 		} while (match(TOKEN_COMMA));
 	}
+	stopEatingWhitespace();
 	consume(TOKEN_RIGHT_PAREN, "Expected end of parameter list.");
 
 	consume(TOKEN_COLON, "Expected colon after function signature.");
@@ -1335,8 +1353,10 @@ static void statement() {
 }
 
 static void grouping(int canAssign) {
+	startEatingWhitespace();
 	expression();
 	consume(TOKEN_RIGHT_PAREN, "Expect ')' after expression.");
+	stopEatingWhitespace();
 }
 
 static void unary(int canAssign) {
@@ -1481,6 +1501,8 @@ static void super_(int canAssign) {
 static void list(int canAssign) {
 	size_t     chunkBefore = currentChunk()->count;
 
+	startEatingWhitespace();
+
 	KrkToken listOf = syntheticToken("listOf");
 	size_t ind = identifierConstant(&listOf);
 	EMIT_CONSTANT_OP(OP_GET_GLOBAL, ind);
@@ -1588,6 +1610,7 @@ static void list(int canAssign) {
 			 * offset as the exit target for the OP_JUMP_IF_FALSE above */
 			patchJump(exitJump);
 			/* Parse the ] that indicates the end of the list comprehension */
+			stopEatingWhitespace();
 			consume(TOKEN_RIGHT_SQUARE,"Expected ] at end of list expression.");
 			/* Pop the last loop expression result which was already stored */
 			emitByte(OP_POP);
@@ -1628,17 +1651,20 @@ static void list(int canAssign) {
 				expression();
 				argCount++;
 			}
+			stopEatingWhitespace();
 			consume(TOKEN_RIGHT_SQUARE,"Expected ] at end of list expression.");
 			EMIT_CONSTANT_OP(OP_CALL, argCount);
 		}
 	} else {
 		/* Empty list expression */
+		stopEatingWhitespace();
 		advance();
 		emitBytes(OP_CALL, 0);
 	}
 }
 
 static void dict(int canAssign) {
+	startEatingWhitespace();
 	KrkToken dictOf = syntheticToken("dictOf");
 	size_t ind = identifierConstant(&dictOf);
 	EMIT_CONSTANT_OP(OP_GET_GLOBAL, ind);
@@ -1651,6 +1677,7 @@ static void dict(int canAssign) {
 			argCount += 2;
 		} while (match(TOKEN_COMMA));
 	}
+	stopEatingWhitespace();
 	consume(TOKEN_RIGHT_BRACE,"Expected } at end of dict expression.");
 	EMIT_CONSTANT_OP(OP_CALL, argCount);
 }
@@ -1810,6 +1837,7 @@ static void defineVariable(size_t global) {
 }
 
 static void call(int canAssign) {
+	startEatingWhitespace();
 	size_t argCount = 0, specialArgs = 0, keywordArgs = 0, seenKeywordUnpacking = 0;
 	if (!check(TOKEN_RIGHT_PAREN)) {
 		do {
@@ -1866,6 +1894,7 @@ static void call(int canAssign) {
 			argCount++;
 		} while (match(TOKEN_COMMA));
 	}
+	stopEatingWhitespace();
 	consume(TOKEN_RIGHT_PAREN, "Expected ')' after arguments.");
 	if (specialArgs) {
 		/*
