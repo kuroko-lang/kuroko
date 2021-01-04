@@ -1,0 +1,14 @@
+Hello, world!
+This is the try block
+123
+Blah blah blah
+Oh no let's raise an exception!
+This is the except block
+456
+This is outside of the try-except
+Let's try nesting an exception and raising it
+This is the top level
+This is the inner level
+This is the inner handler.
+This is the outer handler.
+This is the exception

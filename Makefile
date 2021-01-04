@@ -27,3 +27,9 @@ clean:
 
 tags: $(wildcard *.c) $(wildcard *.h)
 	@ctags --c-kinds=+lx *.c *.h
+
+.PHONY: test
+
+test:
+	@for i in test/*.krk; do echo $$i; ./kuroko $$i > $$i.expect; done
+	@git diff test/*.expect

@@ -1,0 +1,11 @@
+Positionals: [1, 2, 3, 'a', 'b']
+Keywords: {'biz': 42, 'foo': 'bar'}
+1 2 [3, 4, 5, 6]
+hello
+Main: 1 2 1 2
+Keyword: {}
+Main: 1 2 7 3
+Keyword: {}
+Main: 1 2 1 2
+Keyword: {'test': 'thing'}
+last() takes at most 4 arguments (6 given)

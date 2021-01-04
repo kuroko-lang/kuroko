@@ -115,7 +115,7 @@ class Test: # This is a test class
 
 print Test
 let test = Test()
-print test
+#print test # Removed because of pointer output
 test.doAThing()
 test.foo = "bar"
 print test.foo

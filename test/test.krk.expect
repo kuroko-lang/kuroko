@@ -1,0 +1,46 @@
+This is the first line that should print.
+We can do simple concatenation 123.
+40.74
+6
+Hex: 255 Octal: 83 Binary: 10
+i = 0
+i = 1
+i = 2
+i = 3
+i = 4
+i = 5
+i = 6
+i = 7
+i = 8
+i = 9
+This code is after the function definition
+This is a function that does a thing!
+You passed 'demo' as an argument!
+The function call returned: 42
+Call to sleep returned: True
+This is a function that does a thing!
+You passed something else.
+1
+2
+Function is defined, creating it...
+And executing the result...
+outside
+Let's do some classes.
+<type 'Test'>
+yay: bax
+bar
+<method doAThing>
+yay: bar
+This is a great teapot!
+Subclass says: (I am a teapot)
+(get[123])
+(set[456] = test)
+Let's make a hashmap:
+world
+Let's make some lists:
+Length before: 0
+Length after: 3
+j=0, list[j]=1
+j=1, list[j]=2
+j=2, list[j]=3
+34

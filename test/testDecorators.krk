@@ -66,7 +66,6 @@ class Foo():
         print "(decorated) self.foo = ", self.foo
 
 let f = Foo()
-print "Got an f:", f
 f.undecorated()
 print "Returned from f.undecorated()"
 f.decorated("butts")
@@ -98,9 +97,12 @@ def methodDecoratorWithArguments(decoratorArgA, decoratorArgB):
     return theActualDecorator
 
 class Bar():
+    def __init__(self):
+        self.foo = "weee"
+
     @methodDecoratorWithArguments("foo","bar")
     def superDecoratedMethod(self, arg):
-        print "I am method, so I can access", self, "and also my own argument which is now", arg
+        print "I am method, so I can access myself", self.foo, "and also my own argument which is now", arg
 
 let b = Bar()
 b.superDecoratedMethod("this arg goes to the wrapper")

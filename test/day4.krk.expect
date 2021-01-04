@@ -1,0 +1,389 @@
+Checking {'hcl': '#602927', 'iyr': '2019', 'hgt': '186cm', 'byr': '1939', 'pid': '552194973', 'eyr': '2027', 'ecl': 'hzl'}
+Checking {'hcl': '#866857', 'iyr': '2015', 'hgt': '164cm', 'pid': '657988073', 'byr': '1996', 'eyr': '2020', 'ecl': 'brn'}
+Checking {'eyr': '2022', 'hcl': '#fffffd', 'iyr': '2017', 'hgt': '62in', 'byr': '1951', 'pid': '#6ef4e1', 'ecl': 'brn', 'cid': '321'}
+bad pid
+Checking {'ecl': 'brn', 'hcl': '#fffffd', 'iyr': '2011', 'hgt': '150cm', 'byr': '1980', 'pid': '420023864', 'eyr': '2025', 'cid': '129'}
+Checking {'hcl': '#ceb3a1', 'iyr': '2016', 'hgt': '187cm', 'byr': '1925', 'pid': '223151011', 'eyr': '2029', 'ecl': 'amb'}
+Checking {'hcl': '#cfa07d', 'iyr': '2010', 'hgt': '190cm', 'pid': '135392110', 'byr': '1959', 'ecl': 'brn', 'eyr': '2022'}
+Checking {'ecl': 'grn', 'hcl': '#a97842', 'iyr': '2018', 'pid': '522856696', 'byr': '1961', 'eyr': '2024', 'cid': '225'}
+Missing expected value
+Checking {'hcl': '#866857', 'iyr': '1976', 'hgt': '190cm', 'byr': '1964', 'pid': '562135232', 'eyr': '2024', 'ecl': 'brn'}
+Bad issue year
+Checking {'eyr': '2022', 'hcl': 'z', 'iyr': '2011', 'hgt': '193cm', 'pid': '#6e4342', 'byr': '1936', 'cid': '296', 'ecl': '#3b8ed3'}
+bad hair color
+Checking {'ecl': 'gry', 'hcl': '#efcc98', 'iyr': '2014', 'byr': '1985', 'pid': '503255860', 'eyr': '2023', 'cid': '154'}
+Missing expected value
+Checking {'hcl': '#341e13', 'iyr': '2012', 'hgt': '154cm', 'pid': '631051435', 'byr': '1986', 'eyr': '2026', 'ecl': 'amb'}
+Checking {'eyr': '2035', 'hcl': '#623a2f', 'iyr': '2019', 'hgt': '155cm', 'pid': '318048681', 'byr': '1984', 'cid': '179', 'ecl': 'brn'}
+Bad expire year
+Checking {'hcl': '#733820', 'iyr': '2013', 'hgt': '189cm', 'byr': '1969', 'pid': '185953891', 'eyr': '2024', 'ecl': 'amb'}
+Checking {'hcl': '#cfa07d', 'iyr': '2013', 'hgt': '61cm', 'byr': '2012', 'pid': '33668114', 'ecl': '#38f2a6', 'eyr': '2021'}
+Bad birth year
+Checking {'cid': '51', 'hcl': '4946ca', 'iyr': '2019', 'hgt': '189', 'pid': '47030948', 'byr': '2013', 'ecl': '#1d136d', 'eyr': '2024'}
+Bad birth year
+Checking {'eyr': '2020', 'hcl': '#c0946f', 'iyr': '2011', 'hgt': '162cm', 'byr': '1935', 'pid': '883047970', 'ecl': 'grn', 'cid': '51'}
+Checking {'cid': '221', 'hcl': '#623a2f', 'iyr': '2018', 'hgt': '155cm', 'pid': '013760919', 'byr': '1942', 'ecl': 'blu', 'eyr': '2020'}
+Checking {'hcl': '#7d3b0c', 'iyr': '1986', 'hgt': '152cm', 'pid': '29797863', 'byr': '2000', 'eyr': '2030', 'ecl': 'amb'}
+Bad issue year
+Checking {'hcl': '#fffffd', 'iyr': '2013', 'hgt': '176cm', 'byr': '1995', 'pid': '546676799', 'ecl': 'brn', 'eyr': '2023'}
+Checking {'iyr': '2015', 'byr': '1955', 'pid': '634493767', 'eyr': '2028', 'ecl': 'oth'}
+Missing expected value
+Checking {'ecl': 'oth', 'hcl': '#7d3b0c', 'iyr': '2020', 'hgt': '174cm', 'pid': '893757190', 'byr': '2002', 'cid': '150', 'eyr': '2027'}
+Checking {'cid': '256', 'hcl': '#efcc98', 'iyr': '2012', 'hgt': '66in', 'pid': '790648045', 'byr': '1978', 'eyr': '2029', 'ecl': 'blu'}
+Checking {'ecl': 'hzl', 'hcl': '#0eeb2d', 'iyr': '2020', 'hgt': '155cm', 'byr': '1945', 'pid': '048725571', 'cid': '209', 'eyr': '2027'}
+Checking {'hcl': '#cfa07d', 'iyr': '2011', 'hgt': '162cm', 'byr': '2000', 'pid': '381372526', 'ecl': 'oth', 'eyr': '2023'}
+Checking {'hcl': '#602927', 'iyr': '2018', 'hgt': '171cm', 'pid': '544462408', 'byr': '1994', 'ecl': 'blu', 'eyr': '2030'}
+Checking {'eyr': '2025', 'hcl': '#733820', 'iyr': '2011', 'hgt': '187cm', 'pid': '533405863', 'byr': '1962', 'ecl': 'hzl', 'cid': '266'}
+Checking {'hcl': '#b6652a', 'iyr': '2019', 'hgt': '155cm', 'byr': '1975', 'pid': '967013712', 'eyr': '2029', 'ecl': 'oth'}
+Checking {'hcl': '#b6652a', 'iyr': '2010', 'hgt': '190cm', 'pid': '052112145', 'byr': '1982', 'eyr': '2022', 'ecl': 'amb'}
+Checking {'hcl': '#b6652a', 'iyr': '2012', 'hgt': '183cm', 'byr': '1950', 'pid': '946714779', 'ecl': 'hzl', 'eyr': '2030'}
+Checking {'cid': '103', 'hcl': '#ceb3a1', 'iyr': '2018', 'hgt': '70in', 'pid': '686010502', 'byr': '1993', 'ecl': 'gry', 'eyr': '2027'}
+Checking {'hcl': '#733820', 'iyr': '2012', 'byr': '1976', 'hgt': '157cm', 'eyr': '2030', 'ecl': 'gry'}
+Missing expected value
+Checking {'hcl': '#6b5442', 'iyr': '2017', 'hgt': '180cm', 'byr': '1955', 'pid': '732940101', 'ecl': 'hzl', 'eyr': '2022'}
+Checking {'eyr': '2024', 'hcl': '#18171d', 'iyr': '2010', 'hgt': '188cm', 'byr': '1924', 'pid': '905274031', 'cid': '299', 'ecl': 'oth'}
+Checking {'hcl': '#7f450a', 'iyr': '2013', 'hgt': '174cm', 'byr': '1999', 'pid': '021076124', 'eyr': '2024', 'ecl': 'gry'}
+Checking {'hcl': '#866857', 'iyr': '2016', 'hgt': '176cm', 'byr': '1940', 'pid': '398320693', 'ecl': 'oth', 'eyr': '2026'}
+Checking {'hcl': '#733820', 'iyr': '1931', 'pid': '158cm', 'hgt': '172cm', 'eyr': '2020', 'ecl': '#a0c290'}
+Missing expected value
+Checking {'hcl': '#341e13', 'iyr': '2018', 'hgt': '182cm', 'byr': '1990', 'pid': '444561212', 'ecl': 'blu', 'eyr': '2025'}
+Checking {'hcl': '#602927', 'pid': '240732315', 'byr': '1976', 'hgt': '165cm', 'ecl': 'oth', 'eyr': '2023'}
+Missing expected value
+Checking {'hcl': '#733820', 'iyr': '2016', 'hgt': '153cm', 'pid': '377612846', 'byr': '1967', 'ecl': 'brn', 'eyr': '2021'}
+Checking {'cid': '114', 'hcl': '#733820', 'iyr': '2018', 'hgt': '187cm', 'byr': '1925', 'pid': '207103786', 'eyr': '2030', 'ecl': 'blu'}
+Checking {'eyr': '2025', 'iyr': '2018', 'pid': '361909532', 'hgt': '184cm', 'ecl': 'blu', 'cid': '111'}
+Missing expected value
+Checking {'hcl': '#7d3b0c', 'iyr': '2019', 'hgt': '184cm', 'byr': '1968', 'pid': '381103495', 'ecl': 'grn', 'eyr': '2026'}
+Checking {'hcl': '#01adfd', 'iyr': '2019', 'byr': '1945', 'pid': '727826617', 'hgt': '151cm', 'eyr': '2020'}
+Missing expected value
+Checking {'ecl': 'hzl', 'hcl': '#efcc98', 'iyr': '2011', 'hgt': '171cm', 'byr': '1924', 'pid': '235809608', 'eyr': '2029', 'cid': '280'}
+Checking {'cid': '97', 'hcl': '#602927', 'iyr': '2010', 'hgt': '172cm', 'byr': '1973', 'pid': '599786261', 'eyr': '2029', 'ecl': 'gry'}
+Checking {'hcl': '#866857', 'iyr': '2017', 'hgt': '163cm', 'pid': '768895320', 'byr': '1940', 'eyr': '2027', 'ecl': 'oth'}
+Checking {'hcl': '#6b5442', 'iyr': '2013', 'byr': '1959', 'pid': '823221334', 'hgt': '178cm'}
+Missing expected value
+Checking {'eyr': '2024', 'hcl': '#da8af3', 'iyr': '2014', 'hgt': '150cm', 'pid': '534201972', 'byr': '1945', 'ecl': 'hzl', 'cid': '263'}
+Checking {'cid': '341', 'hcl': '#efcc98', 'iyr': '2010', 'hgt': '189cm', 'pid': '469575516', 'byr': '1994', 'eyr': '2025', 'ecl': 'blu'}
+Checking {'hcl': '#888785', 'iyr': '2015', 'hgt': '60in', 'byr': '1999', 'pid': '797138561', 'cid': '167', 'eyr': '2024'}
+Missing expected value
+Checking {'eyr': '2023', 'hcl': '#866857', 'iyr': '2014', 'hgt': '174cm', 'pid': '909549652', 'byr': '1967', 'cid': '103', 'ecl': 'amb'}
+Checking {'eyr': '2027', 'iyr': '2016', 'hgt': '61in', 'pid': '813003671', 'byr': '1995', 'ecl': 'oth', 'cid': '95'}
+Missing expected value
+Checking {'hcl': '#fffffd', 'iyr': '2014', 'hgt': '166cm', 'pid': '000088706', 'byr': '1951', 'eyr': '2021', 'ecl': 'blu'}
+Checking {'eyr': '2022', 'hcl': '#18171d', 'iyr': '2017', 'hgt': '162cm', 'byr': '1941', 'pid': '511728076', 'cid': '287', 'ecl': 'grn'}
+Checking {'hcl': '#18171d', 'iyr': '2017', 'hgt': '191cm', 'pid': '209898040', 'byr': '1968', 'eyr': '2025', 'ecl': 'brn'}
+Checking {'eyr': '2004', 'hcl': 'z', 'iyr': '2016', 'hgt': '190cm', 'byr': '1932', 'pid': '#02dfcc', 'cid': '201', 'ecl': '#6b9341'}
+Bad expire year
+Checking {'hcl': '#ceb3a1', 'iyr': '2013', 'hgt': '191cm', 'pid': '501799813', 'byr': '1993', 'ecl': 'hzl', 'eyr': '2020'}
+Checking {'cid': '315', 'hcl': '#a97842', 'iyr': '2012', 'hgt': '179cm', 'pid': '897450687', 'byr': '1984', 'eyr': '2029', 'ecl': 'blu'}
+Checking {'hcl': '#6b5442', 'iyr': '2011', 'hgt': '190in', 'pid': '299193732', 'byr': '1945', 'ecl': 'gry', 'eyr': '2020'}
+bad height in inches: 190
+Checking {'hcl': '#fffffd', 'iyr': '2017', 'hgt': '158cm', 'pid': '090738381', 'byr': '1992', 'eyr': '2022', 'ecl': 'oth'}
+Checking {'cid': '92', 'hcl': '#573edf', 'iyr': '2016', 'hgt': '179cm', 'pid': '765588435', 'byr': '2002', 'ecl': 'amb', 'eyr': '2028'}
+Checking {'hcl': '#967d2f', 'iyr': '2015', 'pid': '128081454', 'hgt': '190cm', 'eyr': '2025', 'ecl': 'oth'}
+Missing expected value
+Checking {'cid': '239', 'hcl': '#888785', 'iyr': '2019', 'hgt': '189cm', 'byr': '1993', 'pid': '001825574', 'eyr': '2025', 'ecl': 'gry'}
+Checking {'hcl': 'z', 'iyr': '1971', 'hgt': '100', 'byr': '2013', 'pid': '0758189515', 'eyr': '2034', 'ecl': 'gry'}
+Bad birth year
+Checking {'hcl': '#3638a2', 'iyr': '2011', 'hgt': '156cm', 'byr': '1943', 'pid': '539139386', 'eyr': '2026', 'ecl': 'hzl'}
+Checking {'hcl': '#733820', 'iyr': '2017', 'hgt': '173cm', 'pid': '016597738', 'byr': '1956', 'eyr': '2030', 'ecl': 'brn'}
+Checking {'hcl': '#cfa07d', 'iyr': '2018', 'hgt': '167cm', 'pid': '822607758', 'byr': '1974', 'eyr': '2028', 'ecl': 'brn'}
+Checking {'hcl': '#efcc98', 'iyr': '2020', 'hgt': '65in', 'byr': '1980', 'pid': '397182705', 'eyr': '2020', 'ecl': 'oth'}
+Checking {'hcl': '#ceb3a1', 'iyr': '2015', 'byr': '1954', 'pid': '398087239', 'eyr': '2024'}
+Missing expected value
+Checking {'ecl': 'zzz', 'hcl': '234fc4', 'iyr': '2015', 'hgt': '177in', 'pid': '159cm', 'byr': '2022', 'eyr': '2027', 'cid': '256'}
+Bad birth year
+Checking {'eyr': '2025', 'hcl': '#a928b0', 'iyr': '2018', 'hgt': '158cm', 'byr': '1976', 'pid': '920448637', 'cid': '209', 'ecl': 'hzl'}
+Checking {'cid': '223', 'hcl': '#888785', 'iyr': '2016', 'hgt': '165cm', 'pid': '96925844', 'byr': '1984', 'eyr': '2030', 'ecl': 'gry'}
+bad pid
+Checking {'hcl': '#18171d', 'iyr': '2014', 'hgt': '153cm', 'byr': '1964', 'pid': '831479208', 'eyr': '2024', 'ecl': 'brn'}
+Checking {'hcl': '#ceb3a1', 'iyr': '2019', 'hgt': '185cm', 'byr': '1958', 'pid': '827043482', 'ecl': 'brn', 'eyr': '2026'}
+Checking {'eyr': '2026', 'hcl': '#733820', 'iyr': '2020', 'hgt': '67in', 'pid': '426593479', 'byr': '1922', 'cid': '116', 'ecl': 'blu'}
+Checking {'hcl': '#fffffd', 'iyr': '2019', 'hgt': '156cm', 'pid': '951768959', 'byr': '1969', 'eyr': '2022', 'cid': '330'}
+Missing expected value
+Checking {'ecl': 'oth', 'hcl': '#111544', 'iyr': '2019', 'hgt': '151cm', 'byr': '1929', 'pid': '083495633', 'cid': '223', 'eyr': '2030'}
+Checking {'iyr': '2016', 'byr': '1967', 'pid': '739606431', 'hgt': '166cm', 'eyr': '2025', 'ecl': 'blu'}
+Missing expected value
+Checking {'hcl': '#ceb3a1', 'iyr': '2020', 'hgt': '161cm', 'pid': '788420638', 'byr': '1922', 'eyr': '2021', 'ecl': 'gry'}
+Checking {'hcl': '#888785', 'byr': '1956', 'pid': '705051840', 'hgt': '158cm', 'eyr': '2025', 'ecl': 'oth'}
+Missing expected value
+Checking {'hcl': '#cfa07d', 'iyr': '2015', 'pid': '047851403', 'byr': '1937', 'hgt': '192cm', 'eyr': '2025'}
+Missing expected value
+Checking {'eyr': '2022', 'hcl': '#c0946f', 'iyr': '2019', 'hgt': '178cm', 'byr': '1923', 'pid': '411527076', 'cid': '194', 'ecl': 'gry'}
+Checking {'hcl': '#341e13', 'iyr': '2014', 'hgt': '186cm', 'byr': '1956', 'pid': '976268893', 'eyr': '2027', 'ecl': 'brn'}
+Checking {'eyr': '2025', 'hcl': '#18171d', 'iyr': '2011', 'hgt': '183cm', 'byr': '1958', 'pid': '389943720', 'cid': '81', 'ecl': 'brn'}
+Checking {'hcl': '#c0946f', 'byr': '1972', 'pid': '593351635', 'hgt': '165cm', 'eyr': '2028', 'ecl': 'amb'}
+Missing expected value
+Checking {'hcl': '#341e13', 'iyr': '2012', 'hgt': '169cm', 'byr': '1991', 'pid': '599766528', 'ecl': 'blu', 'cid': '156'}
+Missing expected value
+Checking {'ecl': 'zzz', 'iyr': '2001', 'hgt': '75cm', 'byr': '2029', 'pid': '319443119', 'eyr': '2020', 'cid': '306'}
+Missing expected value
+Checking {'eyr': '2021', 'hcl': '#866857', 'iyr': '2014', 'hgt': '167cm', 'byr': '1948', 'pid': '256331758', 'cid': '273', 'ecl': 'grn'}
+Checking {'cid': '241', 'hcl': '#733820', 'iyr': '2016', 'hgt': '158cm', 'byr': '1977', 'pid': '423680717', 'eyr': '2024', 'ecl': 'oth'}
+Checking {'eyr': '2024', 'hcl': '#341e13', 'iyr': '2017', 'hgt': '185cm', 'pid': '788619400', 'byr': '1954', 'ecl': 'hzl', 'cid': '153'}
+Checking {'hcl': '#cfa07d', 'iyr': '2016', 'hgt': '161cm', 'pid': '621023569', 'byr': '1928', 'ecl': 'blu', 'eyr': '2026'}
+Checking {'ecl': 'xry', 'hcl': 'aa8fc8', 'iyr': '1951', 'hgt': '168in', 'byr': '2024', 'pid': '166cm', 'eyr': '1979', 'cid': '91'}
+Bad birth year
+Checking {'cid': '155', 'hcl': '#18171d', 'iyr': '2012', 'hgt': '159cm', 'byr': '1952', 'pid': '875326712', 'ecl': 'brn', 'eyr': '2028'}
+Checking {'hcl': '#733820', 'iyr': '2015', 'hgt': '163cm', 'byr': '1990', 'pid': '162682954', 'eyr': '2026', 'ecl': 'amb'}
+Checking {'hcl': '#c0946f', 'iyr': '2020', 'hgt': '151cm', 'pid': '936952728', 'byr': '1969', 'ecl': 'brn', 'eyr': '2029'}
+Checking {'hcl': '#866857', 'iyr': '2013', 'hgt': '189cm', 'pid': '132928469', 'byr': '1928', 'ecl': 'amb', 'eyr': '2026'}
+Checking {'hcl': '#623a2f', 'iyr': '2012', 'hgt': '190cm', 'pid': '185240766', 'byr': '1952', 'ecl': 'grn', 'eyr': '2020'}
+Checking {'cid': '64', 'hcl': 'z', 'iyr': '1935', 'hgt': '67cm', 'byr': '2021', 'pid': '4900748653', 'eyr': '2026', 'ecl': '#ef67e5'}
+Bad birth year
+Checking {'ecl': 'gry', 'hcl': '#7d3b0c', 'iyr': '2016', 'hgt': '69in', 'pid': '076116194', 'byr': '1979', 'cid': '248', 'eyr': '2022'}
+Checking {'cid': '127', 'hcl': '#44e350', 'iyr': '2020', 'hgt': '180cm', 'byr': '1991', 'ecl': 'blu', 'eyr': '2021'}
+Missing expected value
+Checking {'hcl': '#733820', 'iyr': '2018', 'hgt': '150cm', 'byr': '1954', 'pid': '002868205', 'ecl': 'brn', 'eyr': '2021'}
+Checking {'ecl': 'amb', 'hcl': '#623a2f', 'iyr': '2017', 'hgt': '170cm', 'pid': '524531652', 'byr': '1927', 'eyr': '2020', 'cid': '80'}
+Checking {'ecl': 'blu', 'hcl': '#efcc98', 'iyr': '2018', 'hgt': '187cm', 'pid': '424660272', 'byr': '1970', 'eyr': '2021', 'cid': '238'}
+Checking {'eyr': '2020', 'hcl': '#602927', 'iyr': '2013', 'hgt': '175cm', 'byr': '1923', 'pid': '946014113', 'cid': '273', 'ecl': 'brn'}
+Checking {'eyr': '2022', 'hcl': '#6b5442', 'iyr': '2012', 'hgt': '71in', 'byr': '1929', 'pid': '581329373', 'cid': '88', 'ecl': 'gry'}
+Checking {'ecl': 'oth', 'hcl': '#6b5442', 'iyr': '2017', 'hgt': '184', 'pid': '022131529', 'byr': '2005', 'cid': '79', 'eyr': '1960'}
+Bad birth year
+Checking {'hcl': '#fffffd', 'iyr': '2011', 'hgt': '60in', 'pid': '422677836', 'byr': '1925', 'eyr': '2030', 'ecl': 'gry'}
+Checking {'eyr': '2026', 'hcl': '#18171d', 'iyr': '2011', 'hgt': '158cm', 'byr': '1971', 'pid': '517329528', 'cid': '325', 'ecl': 'hzl'}
+Checking {'eyr': '2030', 'iyr': '2017', 'hgt': '176cm', 'byr': '1937', 'pid': '321795494', 'ecl': 'blu', 'cid': '259'}
+Missing expected value
+Checking {'eyr': '2026', 'hcl': '#cfa07d', 'iyr': '2013', 'hgt': '74in', 'pid': '551525002', 'byr': '1954', 'cid': '230', 'ecl': 'grn'}
+Checking {'cid': '139', 'hcl': 'c39522', 'pid': '004366607', 'hgt': '66cm', 'ecl': '#21a3e9', 'eyr': '2024'}
+Missing expected value
+Checking {'eyr': '2037', 'hcl': '0ee9d4', 'iyr': '1994', 'hgt': '158cm', 'byr': '2016', 'pid': '522572315', 'cid': '98', 'ecl': 'xry'}
+Bad birth year
+Checking {'eyr': '2028', 'hcl': '#142217', 'iyr': '2018', 'hgt': '179cm', 'pid': '073189127', 'byr': '1977', 'ecl': 'grn', 'cid': '70'}
+Checking {'ecl': 'brn', 'hcl': '#733820', 'iyr': '2020', 'hgt': '64in', 'pid': '045852463', 'byr': '1948', 'eyr': '2020', 'cid': '69'}
+Checking {'ecl': 'brn', 'hcl': '#733820', 'iyr': '2011', 'hgt': '178cm', 'byr': '1970', 'pid': '512594967', 'cid': '268', 'eyr': '2025'}
+Checking {'hcl': '#18171d', 'iyr': '2014', 'byr': '1950', 'pid': '329927551', 'hgt': '161cm', 'eyr': '2025'}
+Missing expected value
+Checking {'cid': '100', 'hcl': '#a97842', 'iyr': '2010', 'hgt': '163cm', 'byr': '1956', 'pid': '965746490', 'eyr': '2024', 'ecl': 'brn'}
+Checking {'ecl': 'grn', 'hcl': '#602927', 'iyr': '2011', 'hgt': '190cm', 'pid': '864571411', 'byr': '1962', 'cid': '112', 'eyr': '2027'}
+Checking {'cid': '54', 'hcl': '#6b5442', 'iyr': '2011', 'hgt': '159cm', 'byr': '1922', 'pid': '689641249', 'eyr': '2025', 'ecl': 'gry'}
+Checking {'cid': '323', 'iyr': '2020', 'hgt': '158cm', 'pid': '876082513', 'byr': '1941', 'ecl': 'hzl', 'eyr': '2028'}
+Missing expected value
+Checking {'cid': '226', 'hcl': '#18171d', 'iyr': '2014', 'hgt': '160cm', 'pid': '910116712', 'byr': '1927', 'ecl': 'oth', 'eyr': '2023'}
+Checking {'ecl': 'grn', 'hcl': '#602927', 'iyr': '2030', 'hgt': '186cm', 'byr': '1963', 'pid': '706533329', 'cid': '183', 'eyr': '2030'}
+Bad issue year
+Checking {'ecl': 'hzl', 'hcl': '#866857', 'iyr': '2015', 'hgt': '150cm', 'byr': '1958', 'pid': '120633047', 'cid': '279', 'eyr': '2026'}
+Checking {'hcl': '#733820', 'iyr': '2019', 'hgt': '187cm', 'byr': '1989', 'pid': '470596304', 'ecl': 'hzl', 'eyr': '2022'}
+Checking {'cid': '346', 'hcl': '#888785', 'iyr': '2013', 'hgt': '167cm', 'byr': '1994', 'pid': '528844948', 'ecl': 'hzl', 'eyr': '2027'}
+Checking {'hcl': '#fffffd', 'iyr': '2014', 'hgt': '192cm', 'pid': '969181309', 'byr': '1970', 'eyr': '2025', 'ecl': 'amb'}
+Checking {'hcl': '#341e13', 'iyr': '2012', 'hgt': '167cm', 'pid': '053348609', 'byr': '1931', 'eyr': '2026', 'ecl': 'oth'}
+Checking {'hcl': '#fffffd', 'iyr': '2013', 'hgt': '182cm', 'pid': '030276279', 'byr': '1967', 'eyr': '2029', 'ecl': 'grn'}
+Checking {'cid': '224', 'hcl': '#ceb3a1', 'iyr': '2016', 'hgt': '177cm', 'byr': '1949', 'pid': '745439371', 'eyr': '2022', 'ecl': 'oth'}
+Checking {'hcl': '#341e13', 'iyr': '2016', 'hgt': '64in', 'byr': '1940', 'pid': '351021541', 'eyr': '2028', 'ecl': 'amb'}
+Checking {'eyr': '2021', 'hcl': '#866857', 'iyr': '2019', 'hgt': '74in', 'pid': '698666542', 'byr': '1953', 'cid': '309', 'ecl': 'oth'}
+Checking {'ecl': 'brn', 'hcl': '#733820', 'iyr': '2013', 'hgt': '186cm', 'byr': '1979', 'pid': '727367898', 'cid': '236', 'eyr': '2023'}
+Checking {'cid': '245', 'hcl': '#623a2f', 'iyr': '2016', 'hgt': '65cm', 'byr': '1956', 'pid': '371685442', 'eyr': '2025', 'ecl': 'oth'}
+bad height in cm
+Checking {'hcl': '#888785', 'iyr': '2010', 'hgt': '155cm', 'byr': '1927', 'pid': '916070590', 'ecl': 'grn', 'eyr': '2027'}
+Checking {'eyr': '2022', 'hcl': '#866857', 'iyr': '2019', 'hgt': '179cm', 'byr': '1993', 'pid': '354895012', 'ecl': 'blu', 'cid': '332'}
+Checking {'eyr': '2025', 'hcl': '#efcc98', 'iyr': '2029', 'hgt': '69cm', 'pid': '179cm', 'byr': '2007', 'cid': '216', 'ecl': 'oth'}
+Bad birth year
+Checking {'hcl': 'z', 'iyr': '1988', 'hgt': '187', 'byr': '2020', 'pid': '225115160', 'ecl': '#30e67c', 'eyr': '2037'}
+Bad birth year
+Checking {'iyr': '2011', 'byr': '1965', 'pid': '455044780', 'hgt': '188cm', 'eyr': '2021', 'ecl': 'hzl'}
+Missing expected value
+Checking {'hcl': '#fffffd', 'iyr': '2016', 'hgt': '61in', 'pid': '750994177', 'byr': '2002', 'ecl': 'gry', 'eyr': '2023'}
+Checking {'hcl': '#18171d', 'iyr': '2020', 'hgt': '177cm', 'pid': '304482618', 'byr': '1955', 'ecl': 'gry', 'eyr': '2027'}
+Checking {'ecl': 'oth', 'hcl': '#b6652a', 'iyr': '2017', 'hgt': '187cm', 'byr': '1981', 'pid': '795201673', 'eyr': '2020', 'cid': '154'}
+Checking {'cid': '101', 'hcl': '#cfa07d', 'iyr': '2019', 'hgt': '151cm', 'byr': '1954', 'pid': '930011749', 'eyr': '2026', 'ecl': 'gry'}
+Checking {'eyr': '1955', 'hcl': 'z', 'iyr': '2030', 'pid': '#d45ed4', 'byr': '1999', 'cid': '338', 'ecl': 'zzz'}
+Missing expected value
+Checking {'cid': '125', 'hcl': '#7d3b0c', 'iyr': '2018', 'hgt': '166cm', 'pid': '861636258', 'byr': '1958', 'eyr': '2020', 'ecl': 'brn'}
+Checking {'hcl': '#7d3b0c', 'iyr': '2014', 'hgt': '67', 'byr': '1935', 'pid': '409864761', 'eyr': '2022', 'ecl': 'brn'}
+bad height generally
+Checking {'eyr': '2022', 'hcl': '#866857', 'iyr': '2012', 'hgt': '178cm', 'pid': '483584137', 'byr': '2000', 'cid': '94', 'ecl': 'blu'}
+Checking {'hcl': '#602927', 'iyr': '2015', 'hgt': '184cm', 'byr': '1946', 'pid': '947292495', 'ecl': 'hzl', 'eyr': '2028'}
+Checking {'ecl': 'gry', 'hcl': '#6b5442', 'iyr': '2014', 'hgt': '59in', 'byr': '1974', 'pid': '358779220', 'cid': '96', 'eyr': '2028'}
+Checking {'eyr': '2022', 'hcl': '#61154f', 'byr': '1932', 'hgt': '167cm', 'ecl': 'brn', 'cid': '126'}
+Missing expected value
+Checking {'hcl': '#866857', 'iyr': '2014', 'hgt': '169cm', 'byr': '1926', 'pid': '463772660', 'ecl': 'gry', 'eyr': '2020'}
+Checking {'cid': '111', 'hcl': '#fffffd', 'iyr': '2010', 'hgt': '191cm', 'pid': '654733578', 'byr': '1943', 'eyr': '2024', 'ecl': 'hzl'}
+Checking {'hcl': '#c0946f', 'iyr': '2026', 'pid': '164776417', 'byr': '1977', 'hgt': '74cm', 'eyr': '2021'}
+Missing expected value
+Checking {'eyr': '1949', 'hcl': 'z', 'iyr': '1921', 'pid': '442332495', 'byr': '2018', 'ecl': '#6db74f', 'cid': '101'}
+Missing expected value
+Checking {'ecl': 'blu', 'hcl': '518816', 'iyr': '1939', 'hgt': '191cm', 'byr': '2022', 'pid': '10107923', 'eyr': '2038', 'cid': '332'}
+Bad birth year
+Checking {'hcl': '#733820', 'iyr': '2010', 'hgt': '183cm', 'pid': '168853141', 'byr': '1996', 'eyr': '2021', 'ecl': 'hzl'}
+Checking {'cid': '89', 'hcl': '336a3b', 'iyr': '2016', 'hgt': '62in', 'pid': '556617728', 'byr': '2029', 'eyr': '2023', 'ecl': 'xry'}
+Bad birth year
+Checking {'eyr': '2023', 'hcl': '#efcc98', 'iyr': '2020', 'hgt': '181cm', 'pid': '075811396', 'byr': '1960', 'ecl': 'hzl', 'cid': '297'}
+Checking {'hcl': '#602927', 'iyr': '2015', 'byr': '1995', 'hgt': '75in', 'eyr': '2030', 'ecl': 'brn'}
+Missing expected value
+Checking {'cid': '237', 'hcl': '#8936bb', 'iyr': '2015', 'hgt': '183cm', 'byr': '1998', 'eyr': '2028', 'ecl': 'grn'}
+Missing expected value
+Checking {'hcl': '#efcc98', 'pid': '550427102', 'byr': '1991', 'hgt': '67in', 'ecl': 'gry'}
+Missing expected value
+Checking {'ecl': 'gmt', 'hcl': '00f05b', 'iyr': '2022', 'hgt': '70cm', 'byr': '1948', 'cid': '274', 'eyr': '1961'}
+Missing expected value
+Checking {'cid': '150', 'hcl': '#18171d', 'iyr': '2018', 'hgt': '153cm', 'pid': '831302208', 'byr': '1927', 'ecl': 'blu', 'eyr': '2020'}
+Checking {'ecl': 'blu', 'hcl': '#ceb3a1', 'iyr': '2018', 'hgt': '192cm', 'byr': '1973', 'pid': '770473271', 'cid': '215', 'eyr': '2027'}
+Checking {'hcl': '#623a2f', 'iyr': '2019', 'hgt': '174cm', 'byr': '1962', 'pid': '589533254', 'eyr': '2021', 'ecl': 'hzl'}
+Checking {'hcl': '#a97842', 'iyr': '2012', 'hgt': '184cm', 'byr': '1991', 'pid': '677889195', 'ecl': 'hzl', 'cid': '292'}
+Missing expected value
+Checking {'hcl': 'z', 'iyr': '2010', 'hgt': '154in', 'pid': '#4f47c3', 'byr': '2022', 'cid': '69', 'ecl': '#e36a65'}
+Missing expected value
+Checking {'hcl': '#b6652a', 'iyr': '2016', 'hgt': '171cm', 'pid': '499582878', 'byr': '1930', 'ecl': '#5ff50c', 'eyr': '2024'}
+bad eye color
+Checking {'hcl': '#6b5442', 'iyr': '2015', 'hgt': '159cm', 'byr': '1936', 'pid': '658019126', 'eyr': '2028', 'ecl': 'amb'}
+Checking {'cid': '239', 'hcl': '#18171d', 'iyr': '2013', 'hgt': '158cm', 'byr': '1928', 'pid': '599970280', 'eyr': '2026', 'ecl': 'grn'}
+Checking {'hcl': '#c0946f', 'iyr': '2018', 'pid': '684820830', 'hgt': '182cm', 'ecl': 'oth', 'eyr': '2023'}
+Missing expected value
+Checking {'eyr': '2021', 'hcl': '#602927', 'iyr': '2019', 'hgt': '71in', 'pid': '668361647', 'byr': '1952', 'ecl': 'blu', 'cid': '348'}
+Checking {'cid': '193', 'hcl': '#7d5994', 'iyr': '2010', 'hgt': '165cm', 'pid': '256350027', 'byr': '1947', 'ecl': 'grn', 'eyr': '2030'}
+Checking {'eyr': '2029', 'hcl': '#602927', 'iyr': '2019', 'hgt': '153cm', 'byr': '1931', 'pid': '911300650', 'cid': '118', 'ecl': 'gry'}
+Checking {'hcl': '#866857', 'iyr': '2016', 'hgt': '154cm', 'pid': '515526226', 'byr': '1936', 'eyr': '2025', 'ecl': 'grn'}
+Checking {'hcl': '#623a2f', 'iyr': '2019', 'hgt': '160cm', 'pid': '932621460', 'byr': '1990', 'ecl': 'oth', 'eyr': '2030'}
+Checking {'eyr': '2027', 'hcl': '#623a2f', 'iyr': '2016', 'hgt': '176cm', 'pid': '662549708', 'byr': '1949', 'cid': '277', 'ecl': 'blu'}
+Checking {'iyr': '2010', 'byr': '1947', 'pid': '223603325', 'eyr': '2021', 'ecl': 'gry'}
+Missing expected value
+Checking {'hcl': '#733820', 'iyr': '2020', 'hgt': '183cm', 'pid': '145738978', 'byr': '1949', 'ecl': 'gry', 'eyr': '2029'}
+Checking {'hcl': '#a97842', 'iyr': '2011', 'hgt': '63in', 'byr': '1941', 'pid': '091089766', 'eyr': '2028', 'ecl': 'gry'}
+Checking {'eyr': '2021', 'hcl': '#fffffd', 'iyr': '2020', 'hgt': '157cm', 'byr': '1978', 'pid': '242258232', 'ecl': 'hzl', 'cid': '275'}
+Checking {'cid': '132', 'hcl': '#733820', 'iyr': '2011', 'hgt': '192cm', 'pid': '239061408', 'byr': '1949', 'ecl': 'oth', 'eyr': '2023'}
+Checking {'eyr': '2021', 'hcl': '#341e13', 'iyr': '2014', 'hgt': '152cm', 'byr': '1954', 'pid': '667414305', 'cid': '282', 'ecl': 'brn'}
+Checking {'hcl': '#7d3b0c', 'iyr': '2018', 'hgt': '186cm', 'pid': '745564182', 'byr': '1935', 'eyr': '2028', 'ecl': 'gry'}
+Checking {'hcl': 'd26483', 'iyr': '2014', 'hgt': '163cm', 'byr': '1972', 'pid': '611712147', 'eyr': '2026', 'ecl': '#57d27c'}
+bad hair color
+Checking {'eyr': '2025', 'hcl': '#cfa07d', 'iyr': '2020', 'hgt': '158cm', 'byr': '1937', 'pid': '150255302', 'ecl': 'blu', 'cid': '322'}
+Checking {'cid': '116', 'hcl': '#866857', 'iyr': '2011', 'hgt': '155cm', 'byr': '1974', 'pid': '755213661', 'eyr': '2030', 'ecl': 'blu'}
+Checking {'hcl': '#866857', 'iyr': '2014', 'hgt': '166cm', 'pid': '679616797', 'byr': '1999', 'ecl': 'gry', 'eyr': '2025'}
+Checking {'hcl': '#fffffd', 'iyr': '2019', 'pid': '835993614', 'byr': '1920', 'hgt': '158cm', 'eyr': '2028'}
+Missing expected value
+Checking {'eyr': '2025', 'hcl': '#200aaa', 'iyr': '2013', 'hgt': '151cm', 'pid': '742320152', 'byr': '1931', 'cid': '63', 'ecl': 'brn'}
+Checking {'ecl': 'xry', 'hcl': '#615954', 'iyr': '2014', 'hgt': '150cm', 'byr': '1950', 'pid': '596469710', 'eyr': '2027', 'cid': '155'}
+bad eye color
+Checking {'eyr': '2021', 'hcl': '#18171d', 'iyr': '2016', 'hgt': '166cm', 'byr': '1946', 'pid': '267318602', 'ecl': 'gry', 'cid': '261'}
+Checking {'hcl': '#b6652a', 'iyr': '2013', 'hgt': '185cm', 'pid': '092573029', 'byr': '1956', 'ecl': 'gry', 'eyr': '2023'}
+Checking {'hcl': '#efcc98', 'iyr': '2014', 'hgt': '172cm', 'byr': '1997', 'pid': '337403043', 'eyr': '2021', 'ecl': 'blu'}
+Checking {'iyr': '2015', 'byr': '1949', 'pid': '230935940', 'hgt': '190cm', 'eyr': '2023'}
+Missing expected value
+Checking {'hcl': '#a97842', 'iyr': '2017', 'hgt': '171cm', 'byr': '1980', 'pid': '9435249395', 'eyr': '2021', 'ecl': 'oth'}
+bad pid
+Checking {'cid': '93', 'hcl': '#b6652a', 'iyr': '1923', 'hgt': '186cm', 'byr': '2011', 'pid': '239188418', 'eyr': '2039', 'ecl': 'hzl'}
+Bad birth year
+Checking {'eyr': '2028', 'hcl': '#602927', 'iyr': '2020', 'hgt': '160cm', 'pid': '791787662', 'byr': '1975', 'cid': '51', 'ecl': 'gry'}
+Checking {'hcl': '#a97842', 'iyr': '2016', 'hgt': '183cm', 'pid': '720900081', 'byr': '1978', 'ecl': 'amb', 'eyr': '2022'}
+Checking {'cid': '345', 'hcl': '#18171d', 'iyr': '2017', 'hgt': '157cm', 'pid': '628454234', 'byr': '1988', 'eyr': '2027', 'ecl': 'gry'}
+Checking {'hcl': '#341e13', 'iyr': '2013', 'hgt': '66in', 'byr': '1985', 'pid': '996422540', 'ecl': 'grn', 'eyr': '2020'}
+Checking {'cid': '214', 'hcl': '#866857', 'iyr': '2017', 'hgt': '161cm', 'pid': '186cm', 'byr': '1988', 'ecl': 'brn', 'eyr': '2022'}
+bad pid
+Checking {'ecl': 'grn', 'hcl': '#18171d', 'iyr': '2019', 'hgt': '154cm', 'pid': '752184592', 'byr': '1966', 'eyr': '2025', 'cid': '119'}
+Checking {'eyr': '2024', 'hcl': '#b6652a', 'iyr': '2011', 'hgt': '59in', 'byr': '1974', 'pid': '477922277', 'ecl': 'grn', 'cid': '100'}
+Checking {'hcl': '#6b5442', 'iyr': '2013', 'hgt': '184cm', 'byr': '1969', 'pid': '514127885', 'ecl': 'brn', 'eyr': '2023'}
+Checking {'cid': '111', 'hcl': '#cfa07d', 'iyr': '2020', 'hgt': '64in', 'byr': '1923', 'ecl': 'gry', 'eyr': '2029'}
+Missing expected value
+Checking {'ecl': 'blu', 'hcl': '#866857', 'iyr': '2016', 'hgt': '73in', 'byr': '1921', 'pid': '971490088', 'eyr': '2025', 'cid': '271'}
+Checking {'cid': '63', 'hcl': '#602927', 'iyr': '2019', 'hgt': '179cm', 'byr': '1953', 'pid': '226869705', 'ecl': 'oth', 'eyr': '2023'}
+Checking {'hcl': '#341e13', 'iyr': '2010', 'hgt': '175cm', 'byr': '1938', 'pid': '718683561', 'ecl': 'hzl', 'eyr': '2021'}
+Checking {'hcl': 'z', 'iyr': '2023', 'hgt': '189in', 'byr': '2030', 'pid': '171cm', 'ecl': '#447c00', 'eyr': '2022'}
+Bad birth year
+Checking {'cid': '99', 'hcl': '#888785', 'iyr': '2020', 'hgt': '191cm', 'pid': '128824091', 'byr': '1982', 'ecl': 'blu', 'eyr': '2026'}
+Checking {'hcl': '#fffffd', 'iyr': '2017', 'hgt': '151cm', 'pid': '333173949', 'byr': '1928', 'eyr': '2026', 'ecl': 'oth'}
+Checking {'cid': '168', 'hcl': '#6b5442', 'iyr': '2016', 'hgt': '158cm', 'byr': '1945', 'pid': '888990994', 'eyr': '2026', 'ecl': 'grn'}
+Checking {'hcl': '#cfa07d', 'iyr': '2013', 'hgt': '168cm', 'byr': '1931', 'pid': '716975878', 'ecl': 'grn', 'eyr': '2023'}
+Checking {'hcl': '#888785', 'iyr': '2020', 'hgt': '161cm', 'pid': '815050555', 'byr': '1980', 'ecl': 'blu', 'eyr': '2025'}
+Checking {'hcl': '#7d3b0c', 'iyr': '2017', 'hgt': '171cm', 'pid': '470039281', 'byr': '1967', 'ecl': 'gry', 'eyr': '2021'}
+Checking {'hcl': '#bdf8d6', 'iyr': '2018', 'hgt': '184cm', 'byr': '1954', 'pid': '694267794', 'eyr': '2030', 'ecl': 'blu'}
+Checking {'hcl': '#cfa07d', 'iyr': '2016', 'hgt': '167cm', 'byr': '1971', 'pid': '237865320', 'ecl': 'brn', 'eyr': '2027'}
+Checking {'cid': '215', 'hcl': '#a97842', 'iyr': '2014', 'hgt': '176cm', 'byr': '1921', 'pid': '186145415', 'ecl': 'oth', 'eyr': '2028'}
+Checking {'hcl': '#7d3b0c', 'pid': '925805272', 'hgt': '65in', 'eyr': '2030', 'ecl': 'blu'}
+Missing expected value
+Checking {'eyr': '2024', 'hcl': '#c0946f', 'iyr': '2013', 'hgt': '65in', 'byr': '1992', 'pid': '092712496', 'cid': '278', 'ecl': 'oth'}
+Checking {'ecl': 'brn', 'hcl': '#18171d', 'iyr': '2018', 'hgt': '151cm', 'byr': '1971', 'pid': '599220575', 'cid': '321', 'eyr': '2030'}
+Checking {'hcl': '#b6652a', 'iyr': '2016', 'byr': '1956', 'pid': '109381754', 'ecl': 'hzl', 'cid': '233'}
+Missing expected value
+Checking {'hcl': '#866857', 'iyr': '2015', 'hgt': '152cm', 'byr': '1988', 'pid': '274656754', 'ecl': 'amb', 'eyr': '2022'}
+Checking {'ecl': 'amb', 'hcl': '#733820', 'iyr': '2013', 'hgt': '186cm', 'byr': '1947', 'pid': '165847317', 'cid': '285', 'eyr': '2028'}
+Checking {'cid': '183', 'hcl': '#866857', 'pid': '601229952', 'hgt': '191cm', 'eyr': '2023', 'ecl': 'brn'}
+Missing expected value
+Checking {'hcl': '#b50bab', 'iyr': '2018', 'hgt': '191cm', 'byr': '1936', 'pid': '422563929', 'eyr': '2025', 'ecl': 'oth'}
+Checking {'hcl': '#a97842', 'iyr': '2010', 'hgt': '181cm', 'byr': '1971', 'pid': '267796608', 'ecl': 'gry', 'eyr': '2025'}
+Checking {'cid': '301', 'hcl': '#0fd3b0', 'iyr': '2014', 'hgt': '173cm', 'pid': '606512017', 'byr': '1999', 'eyr': '2030', 'ecl': 'oth'}
+Checking {'ecl': 'grn', 'hcl': '#602927', 'iyr': '2018', 'hgt': '179cm', 'byr': '1937', 'pid': '148179917', 'cid': '277', 'eyr': '2029'}
+Checking {'hcl': '#7d3b0c', 'iyr': '2015', 'hgt': '162cm', 'byr': '1960', 'pid': '014246579', 'ecl': 'hzl', 'eyr': '2023'}
+Checking {'hcl': '#777876', 'iyr': '2011', 'hgt': '188cm', 'byr': '1955', 'pid': '988764375', 'ecl': 'blu', 'eyr': '2020'}
+Checking {'hcl': '#18171d', 'iyr': '2012', 'hgt': '173cm', 'pid': '524961020', 'byr': '1983', 'ecl': 'amb', 'eyr': '2028'}
+Checking {'hcl': '#efcc98', 'iyr': '2019', 'hgt': '153cm', 'pid': '127759635', 'byr': '1932', 'ecl': 'hzl', 'eyr': '2020'}
+Checking {'hcl': '#c0946f', 'iyr': '2013', 'pid': '421725637', 'byr': '1971', 'eyr': '2025', 'ecl': 'gry'}
+Missing expected value
+Checking {'hcl': '#866857', 'iyr': '2015', 'hgt': '163cm', 'pid': '654033544', 'byr': '1923', 'cid': '176', 'ecl': 'brn'}
+Missing expected value
+Checking {'cid': '128', 'hcl': '#623a2f', 'iyr': '2007', 'hgt': '76cm', 'byr': '2013', 'pid': '122621229', 'ecl': '#5cd4a8', 'eyr': '2035'}
+Bad birth year
+Checking {'hcl': '#927794', 'iyr': '2019', 'hgt': '158cm', 'byr': '1964', 'pid': '269737193', 'ecl': 'oth', 'eyr': '2025'}
+Checking {'ecl': 'blu', 'hcl': '#341e13', 'iyr': '2014', 'hgt': '174cm', 'byr': '1949', 'pid': '120077363', 'eyr': '2026', 'cid': '181'}
+Checking {'ecl': 'oth', 'hcl': 'z', 'iyr': '2011', 'hgt': '151cm', 'pid': '638178037', 'byr': '1920', 'cid': '161', 'eyr': '2024'}
+bad hair color
+Checking {'eyr': '2023', 'hcl': '#a97842', 'iyr': '2014', 'hgt': '161cm', 'byr': '1977', 'pid': '177001463', 'cid': '79', 'ecl': 'brn'}
+Checking {'hcl': '#888785', 'iyr': '2010', 'hgt': '183cm', 'byr': '1938', 'pid': '302413712', 'eyr': '1967', 'ecl': 'grn'}
+Bad expire year
+Checking {'hcl': '#c0946f', 'iyr': '2015', 'hgt': '164cm', 'byr': '1955', 'pid': '772380994', 'eyr': '2025', 'ecl': 'amb'}
+Checking {'cid': '161', 'hcl': '#602927', 'iyr': '2019', 'hgt': '171cm', 'byr': '1924', 'ecl': 'amb', 'eyr': '2021'}
+Missing expected value
+Checking {'hcl': '7d1404', 'iyr': '2027', 'hgt': '119', 'pid': '143311761', 'byr': '1939', 'eyr': '1957', 'ecl': '#de1d21'}
+Bad issue year
+Checking {'hcl': '#ceb3a1', 'iyr': '2015', 'hgt': '182cm', 'pid': '136552613', 'byr': '1992', 'ecl': 'blu', 'cid': '205'}
+Missing expected value
+Checking {'eyr': '2034', 'hcl': 'z', 'iyr': '2013', 'hgt': '172cm', 'byr': '1998', 'pid': '#ec3c3a', 'ecl': 'blu', 'cid': '54'}
+Bad expire year
+Checking {'hcl': '#623a2f', 'iyr': '2012', 'byr': '1975', 'pid': '358585328', 'ecl': 'blu', 'eyr': '2025'}
+Missing expected value
+Checking {'eyr': '2024', 'hcl': '#18171d', 'iyr': '2020', 'hgt': '190cm', 'pid': '282306278', 'byr': '1958', 'ecl': 'grn', 'cid': '276'}
+Checking {'hcl': '#6b5442', 'iyr': '2017', 'hgt': '177cm', 'byr': '1955', 'pid': '111002386', 'eyr': '2028', 'ecl': 'grn'}
+Checking {'cid': '109', 'hcl': '#866857', 'iyr': '2018', 'hgt': '169cm', 'pid': '694088201', 'byr': '1957', 'eyr': '2026', 'ecl': 'amb'}
+Checking {'hcl': '#6b5442', 'iyr': '2013', 'hgt': '171cm', 'byr': '1965', 'pid': '268169550', 'ecl': 'blu', 'eyr': '2021'}
+Checking {'cid': '173', 'hcl': '#a97842', 'iyr': '2010', 'hgt': '191cm', 'pid': '803092066', 'byr': '1956', 'eyr': '2023', 'ecl': 'grn'}
+Checking {'cid': '181', 'hcl': '#b6652a', 'iyr': '2012', 'hgt': '190cm', 'byr': '1991', 'pid': '946620993', 'eyr': '2024', 'ecl': 'gry'}
+Checking {'ecl': 'oth', 'hcl': '#cfa07d', 'iyr': '2019', 'hgt': '175cm', 'pid': '062548271', 'cid': '75', 'eyr': '2022'}
+Missing expected value
+Checking {'hcl': '#888785', 'iyr': '2014', 'byr': '1956', 'pid': '860561420', 'hgt': '176cm', 'cid': '262'}
+Missing expected value
+Checking {'hcl': '#efcc98', 'iyr': '2013', 'hgt': '188cm', 'pid': '828180303', 'byr': '1932', 'ecl': 'gry', 'eyr': '2028'}
+Checking {'ecl': 'brn', 'hcl': '#341e13', 'iyr': '2012', 'hgt': '150cm', 'byr': '1992', 'pid': '644391775', 'cid': '292', 'eyr': '2029'}
+Checking {'hcl': '#ceb3a1', 'iyr': '2013', 'hgt': '182cm', 'byr': '1982', 'pid': '625704144', 'ecl': 'grn', 'eyr': '2026'}
+Checking {'hcl': '#812218', 'iyr': '2013', 'hgt': '150cm', 'byr': '1926', 'pid': '610910806', 'ecl': 'brn', 'eyr': '2025'}
+Checking {'hcl': '#623a2f', 'iyr': '2017', 'hgt': '61in', 'byr': '1926', 'pid': '347974562', 'eyr': '2020', 'ecl': 'oth'}
+Checking {'hcl': '#a97842', 'iyr': '2014', 'hgt': '185cm', 'byr': '1940', 'pid': '123961293', 'eyr': '2023', 'ecl': 'blu'}
+Checking {'hcl': '#692e6c', 'iyr': '2011', 'hgt': '172cm', 'byr': '1984', 'pid': '342962046', 'eyr': '2020', 'ecl': 'grn'}
+Checking {'eyr': '2023', 'hcl': '#b08932', 'iyr': '2019', 'hgt': '193cm', 'pid': '343331979', 'byr': '1985', 'ecl': 'blu', 'cid': '269'}
+Checking {'hcl': '#fffffd', 'iyr': '2011', 'pid': '483091240', 'byr': '1988', 'ecl': 'blu', 'eyr': '2022'}
+Missing expected value
+Checking {'hcl': '#ceb3a1', 'iyr': '2019', 'hgt': '177cm', 'pid': '516533115', 'byr': '1922', 'cid': '294', 'ecl': 'amb'}
+Missing expected value
+Checking {'hcl': '#cfa07d', 'iyr': '2013', 'hgt': '193cm', 'byr': '1965', 'pid': '931305875', 'eyr': '2023', 'ecl': 'grn'}
+Checking {'cid': '209', 'hcl': '#fffffd', 'iyr': '2019', 'hgt': '164cm', 'byr': '1944', 'pid': '141532765', 'ecl': 'hzl', 'eyr': '2029'}
+Checking {'hcl': '#ceb3a1', 'iyr': '2013', 'hgt': '189cm', 'pid': '604140631', 'byr': '1935', 'ecl': 'brn', 'eyr': '2022'}
+Checking {'eyr': '2027', 'hcl': '#888785', 'iyr': '2020', 'hgt': '152cm', 'byr': '1959', 'pid': '849438430', 'ecl': 'amb', 'cid': '287'}
+Checking {'hcl': '#623a2f', 'iyr': '2018', 'hgt': '167cm', 'byr': '1988', 'pid': '470443459', 'eyr': '2029', 'ecl': 'brn'}
+Checking {'eyr': '2021', 'hcl': '#341e13', 'iyr': '2012', 'hgt': '175cm', 'byr': '2027', 'pid': '271833606', 'ecl': 'hzl', 'cid': '276'}
+Bad birth year
+Checking {'hcl': '#623a2f', 'iyr': '2010', 'hgt': '164cm', 'pid': '970527839', 'byr': '1974', 'eyr': '2027', 'ecl': 'amb'}
+Checking {'hcl': '#c0946f', 'iyr': '2013', 'byr': '1932', 'pid': '104193512', 'eyr': '2020', 'ecl': 'grn'}
+Missing expected value
+Checking {'hcl': '#623a2f', 'iyr': '2020', 'hgt': '65in', 'byr': '1982', 'pid': '570953460', 'eyr': '2030', 'ecl': 'blu'}
+Checking {'hcl': '#602927', 'iyr': '2019', 'hgt': '169cm', 'byr': '1922', 'pid': '803264417', 'eyr': '2020', 'ecl': 'grn'}
+Checking {'hcl': '#866857', 'iyr': '2017', 'hgt': '170cm', 'byr': '1963', 'pid': '762546796', 'ecl': 'amb', 'eyr': '2028'}
+Checking {'cid': '184', 'hcl': '#733820', 'iyr': '1980', 'hgt': '176cm', 'pid': '54291174', 'byr': '1974', 'ecl': 'gry', 'eyr': '2035'}
+Bad issue year
+Checking {'eyr': '2028', 'hcl': '#c0946f', 'iyr': '2013', 'hgt': '63in', 'pid': '408646971', 'byr': '1951', 'cid': '84', 'ecl': 'amb'}
+Checking {'hcl': '#6b5442', 'iyr': '2013', 'hgt': '170cm', 'byr': '1994', 'pid': '348959147', 'eyr': '2021', 'ecl': 'amb'}
+Checking {'cid': '199', 'hcl': 'e7c520', 'iyr': '2017', 'hgt': '156cm', 'byr': '1957', 'pid': '890752588', 'ecl': 'hzl', 'eyr': '2025'}
+bad hair color
+Checking {'eyr': '2024', 'hcl': '#733820', 'iyr': '2016', 'hgt': '169cm', 'pid': '661114936', 'byr': '1928', 'ecl': 'hzl', 'cid': '180'}
+Checking {'hcl': '#6b5442', 'iyr': '2015', 'hgt': '179cm', 'byr': '1941', 'pid': '148063033', 'eyr': '2020', 'ecl': 'brn'}
+Checking {'hcl': '#cfa07d', 'iyr': '1935', 'hgt': '59cm', 'pid': '14292032', 'byr': '2020', 'eyr': '1956', 'ecl': '#c9bc33'}
+Bad birth year
+Checking {'ecl': 'amb', 'hcl': '#733820', 'iyr': '2010', 'hgt': '165cm', 'pid': '312465756', 'byr': '1993', 'eyr': '2023', 'cid': '112'}
+Checking {'hcl': 'z', 'iyr': '1963', 'hgt': '111', 'byr': '1964', 'pid': '#f5628c', 'eyr': '2032', 'ecl': 'grt'}
+Bad issue year
+Checking {'eyr': '2023', 'hcl': '#623a2f', 'iyr': '2012', 'hgt': '169cm', 'pid': '809080900', 'byr': '1979', 'cid': '291', 'ecl': 'oth'}
+Checking {'iyr': '2021', 'byr': '1967', 'pid': '2498700612', 'hgt': '59cm', 'eyr': '2033', 'ecl': 'gmt'}
+Missing expected value
+Checking {'hcl': '#b6652a', 'iyr': '2013', 'byr': '1953', 'pid': '442586860', 'ecl': 'oth'}
+Missing expected value
+Checking {'hcl': '#866857', 'iyr': '2017', 'hgt': '151cm', 'pid': '095687847', 'byr': '1967', 'eyr': '2022', 'ecl': 'oth'}
+Checking {'hcl': '#866857', 'iyr': '1930', 'hgt': '61cm', 'pid': '983640144', 'byr': '1991', 'ecl': 'hzl', 'eyr': '2024'}
+Bad issue year
+Checking {'hcl': '#602927', 'iyr': '2013', 'hgt': '151cm', 'byr': '1992', 'pid': '812583062', 'ecl': 'oth', 'eyr': '2025'}
+count = 194

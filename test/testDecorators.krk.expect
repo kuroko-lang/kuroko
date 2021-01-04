@@ -1,0 +1,49 @@
+Decorator defined.
+Decorating!
+Function with decorator defined.
+I am a great decorated function that now needs an argument! I am the argument
+Bar
+And this is after the function call.
+Function with decorator called.
+Calling main.
+Decorator defined.
+Decorating!
+Function with decorator defined.
+I am a great decorated function (within a function!) that now needs an argument! I am in the inner wrapper.
+Bar (the inner one)
+And this is after the function call (in a function call!)
+Function with decorator called.
+I like the numbers [1, 2, 3]
+I am an initializer.
+I am here.
+self.foo = bar
+Returned from f.undecorated()
+I need an extra arg: butts
+(decorated) self.foo =  bar
+Done.
+Returned from f.decorated()
+I am decorating <function decoratedWithArgument> with this argument: foo
+This wrapper captured this decorator arg: foo
+I don't take any args of mine own, and nor does my wrapper.
+I am decorating <function superDecoratedMethod> with these args: foo bar
+I captured these from the decorator: foo bar
+I also take my own argument: this arg goes to the wrapper
+I am method, so I can access myself weee and also my own argument which is now and modify this one
+I am a generic wrapper, I will pass all of my args along.
+aMethod() missing required positional argument: 'with'
+I am a generic wrapper, I will pass all of my args along.
+I got just the first and None
+And I am done.
+I am a generic wrapper, I will pass all of my args along.
+I got the first and and the second
+And I am done.
+I am a generic wrapper, I will pass all of my args along.
+I got world and hello
+And I am done.
+I am a generic wrapper, I will pass all of my args along.
+aMethod() got an unexpected keyword argument 'foo'
+I am a generic wrapper, I will pass all of my args along.
+I got 1 and 2
+And I am done.
+I am a generic wrapper, I will pass all of my args along.
+aMethod() takes at most 2 arguments (3 given)

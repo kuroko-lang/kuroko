@@ -1,0 +1,12 @@
+1 2
+None None
+1 2
+3 4
+1 2
+None 5
+function() missing required positional argument: 'positional2'
+function() got multiple values for argument 'positional1'
+function() got multiple values for argument 'keyword2'
+1 abc
+None 4
+function() got multiple values for argument 'positional1'
