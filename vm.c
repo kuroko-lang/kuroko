@@ -1289,6 +1289,12 @@ static KrkValue _string_get(int argc, KrkValue argv[]) {
 	return OBJECT_VAL(krk_copyString((char[]){me->chars[asInt]},1));
 }
 
+#define PUSH_CHAR(c) do { if (stringCapacity < stringLength + 1) { \
+		size_t old = stringCapacity; stringCapacity = GROW_CAPACITY(old); \
+		stringBytes = GROW_ARRAY(char, stringBytes, old, stringCapacity); \
+	} stringBytes[stringLength++] = c; } while (0)
+#define AT_END() (self->length == 0 || i == self->length - 1)
+
 /* str.format(**kwargs) */
 static KrkValue _string_format(int argc, KrkValue argv[], int hasKw) {
 	if (!IS_STRING(argv[0])) return NONE_VAL();
@@ -1303,11 +1309,6 @@ static KrkValue _string_format(int argc, KrkValue argv[], int hasKw) {
 	size_t stringCapacity = 0;
 	size_t stringLength   = 0;
 	char * stringBytes    = 0;
-#define PUSH_CHAR(c) do { if (stringCapacity < stringLength + 1) { \
-		size_t old = stringCapacity; stringCapacity = GROW_CAPACITY(old); \
-		stringBytes = GROW_ARRAY(char, stringBytes, old, stringCapacity); \
-	} stringBytes[stringLength++] = c; } while (0)
-#define AT_END() (i == self->length - 1)
 
 	int counterOffset = 0;
 	char * erroneousField = NULL;
@@ -1413,7 +1414,6 @@ static KrkValue _string_format(int argc, KrkValue argv[], int hasKw) {
 	FREE_ARRAY(char,stringBytes,stringCapacity);
 	return out;
 
-#undef PUSH_CHAR
 _formatError:
 	krk_runtimeError(vm.exceptions.typeError, "Error parsing format string: %s", errorStr);
 	goto _freeAndDone;
@@ -1463,10 +1463,6 @@ static KrkValue _string_join(int argc, KrkValue argv[], int hasKw) {
 	size_t stringCapacity = 0;
 	size_t stringLength   = 0;
 	char * stringBytes    = 0;
-#define PUSH_CHAR(c) do { if (stringCapacity < stringLength + 1) { \
-		size_t old = stringCapacity; stringCapacity = GROW_CAPACITY(old); \
-		stringBytes = GROW_ARRAY(char, stringBytes, old, stringCapacity); \
-	} stringBytes[stringLength++] = c; } while (0)
 
 	for (size_t i = 0; i < AS_LIST(_list_internal)->count; ++i) {
 		KrkValue value = AS_LIST(_list_internal)->values[i];
@@ -1495,6 +1491,117 @@ _expectedString:
 	FREE_ARRAY(char,stringBytes,stringCapacity);
 	return NONE_VAL();
 }
+
+static int isWhitespace(char c) {
+	return (c == ' ' || c == '\t' || c == '\n' || c == '\r');
+}
+
+static int substringMatch(const char * haystack, size_t haystackLen, const char * needle, size_t needleLength) {
+	if (haystackLen < needleLength) return 0;
+	for (size_t i = 0; i < needleLength; ++i) {
+		if (haystack[i] != needle[i]) return 0;
+	}
+	return 1;
+}
+
+/* str.split() */
+static KrkValue _string_split(int argc, KrkValue argv[], int hasKw) {
+	if (!IS_STRING(argv[0])) return NONE_VAL();
+	KrkString * self = AS_STRING(argv[0]);
+	if (argc > 1) {
+		if (!IS_STRING(argv[1])) {
+			krk_runtimeError(vm.exceptions.typeError, "Expected separator to be a string");
+			return NONE_VAL();
+		} else if (AS_STRING(argv[1])->length == 0) {
+			krk_runtimeError(vm.exceptions.valueError, "Empty separator");
+			return NONE_VAL();
+		}
+		if (argc > 2 && !IS_INTEGER(argv[2])) {
+			krk_runtimeError(vm.exceptions.typeError, "Expected maxsplit to be an integer.");
+		} else if (argc > 2 && AS_INTEGER(argv[2]) == 0) {
+			return argv[0];
+		}
+	}
+
+	KrkValue myList = krk_list_of(0,NULL);
+	krk_push(myList);
+
+	KrkValue _list_internal;
+	krk_tableGet(&AS_INSTANCE(myList)->fields, vm.specialMethodNames[METHOD_LIST_INT], &_list_internal);
+
+	size_t i = 0;
+	char * c = self->chars;
+	size_t count = 0;
+
+	if (argc < 2) {
+		while (i != self->length) {
+			while (i != self->length && isWhitespace(*c)) {
+				i++; c++;
+			}
+			if (i != self->length) {
+				size_t stringCapacity = 0;
+				size_t stringLength   = 0;
+				char * stringBytes    = NULL;
+				while (i != self->length && !isWhitespace(*c)) {
+					PUSH_CHAR(*c);
+					i++; c++;
+				}
+				krk_writeValueArray(AS_LIST(_list_internal), OBJECT_VAL(krk_copyString(stringBytes, stringLength)));
+				FREE_ARRAY(char,stringBytes,stringCapacity);
+				#if 0
+				/* Need to parse kwargs to support this */
+				if (argc > 2 && i != self->length && count >= (size_t)AS_INTEGER(argv[2])) {
+					size_t stringCapacity = 0;
+					size_t stringLength   = 0;
+					char * stringBytes    = NULL;
+					while (i != self->length) {
+						PUSH_CHAR(*c);
+						i++; c++;
+					}
+					krk_writeValueArray(AS_LIST(_list_internal), OBJECT_VAL(krk_copyString(stringBytes, stringLength)));
+					if (stringBytes) FREE_ARRAY(char,stringBytes,stringCapacity);
+					break;
+				}
+				#endif
+			}
+		}
+	} else {
+		while (i != self->length) {
+			size_t stringCapacity = 0;
+			size_t stringLength   = 0;
+			char * stringBytes    = NULL;
+			while (i != self->length && !substringMatch(c, self->length - i, AS_STRING(argv[1])->chars, AS_STRING(argv[1])->length)) {
+				PUSH_CHAR(*c);
+				i++; c++;
+			}
+			krk_writeValueArray(AS_LIST(_list_internal), OBJECT_VAL(krk_copyString(stringBytes, stringLength)));
+			if (substringMatch(c, self->length - i, AS_STRING(argv[1])->chars, AS_STRING(argv[1])->length)) {
+				i += AS_STRING(argv[1])->length;
+				c += AS_STRING(argv[1])->length;
+				count++;
+				if (argc > 2 && count == (size_t)AS_INTEGER(argv[2])) {
+					size_t stringCapacity = 0;
+					size_t stringLength   = 0;
+					char * stringBytes    = NULL;
+					while (i != self->length) {
+						PUSH_CHAR(*c);
+						i++; c++;
+					}
+					krk_writeValueArray(AS_LIST(_list_internal), OBJECT_VAL(krk_copyString(stringBytes, stringLength)));
+					if (stringBytes) FREE_ARRAY(char,stringBytes,stringCapacity);
+					break;
+				}
+				if (i == self->length) {
+					krk_writeValueArray(AS_LIST(_list_internal), OBJECT_VAL(S("")));
+				}
+			}
+		}
+	}
+
+	krk_pop();
+	return myList;
+}
+#undef PUSH_CHAR
 
 /* function.__doc__ */
 static KrkValue _closure_get_doc(int argc, KrkValue argv[]) {
@@ -1760,6 +1867,7 @@ void krk_initVM(int flags) {
 	krk_defineNative(&vm.baseClasses.strClass->methods, ".__ord__", _char_to_int);
 	krk_defineNative(&vm.baseClasses.strClass->methods, ".format", _string_format);
 	krk_defineNative(&vm.baseClasses.strClass->methods, ".join", _string_join);
+	krk_defineNative(&vm.baseClasses.strClass->methods, ".split", _string_split);
 	ADD_BASE_CLASS(vm.baseClasses.functionClass, "function", vm.objectClass);
 	krk_defineNative(&vm.baseClasses.functionClass->methods, ".__str__", _closure_str);
 	krk_defineNative(&vm.baseClasses.functionClass->methods, ".__repr__", _closure_str);
