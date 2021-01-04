@@ -66,6 +66,7 @@ typedef enum {
 
 	TOKEN_AS,
 	TOKEN_FROM,
+	TOKEN_ELIF, /* Provided for compatibility, recommend `else if` instead. */
 
 	TOKEN_ERROR,
 	TOKEN_EOF,

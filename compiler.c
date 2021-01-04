@@ -1015,8 +1015,8 @@ static void ifStatement() {
 			previous = parser.previous;
 			advance();
 		}
-		if (match(TOKEN_ELSE)) {
-			if (check(TOKEN_IF)) {
+		if (match(TOKEN_ELSE) || check(TOKEN_ELIF)) {
+			if (parser.current.type == TOKEN_ELIF || check(TOKEN_IF)) {
 				parser.previous = myPrevious;
 				ifStatement(); /* Keep nesting */
 			} else {
