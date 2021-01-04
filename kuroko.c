@@ -179,6 +179,7 @@ int main(int argc, char * argv[]) {
 					fprintf(stdout, " \033[1;30m=> ");
 					krk_printValue(stdout, result);
 					fprintf(stdout, "\033[0m\n");
+					krk_resetStack();
 				}
 			}
 
