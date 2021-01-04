@@ -795,10 +795,10 @@ static int call(KrkClosure * closure, int argCount, int extra) {
 		}
 
 		/* Expand the stack a bunch to make sure we have space */
-		for (int i = 0; i < argCount; ++i) {
+		for (int i = 0; i < argCount * 2; ++i) {
 			krk_push(KWARGS_VAL(0));
 		}
-		for (int i = 0; i < argCount; ++i) {
+		for (int i = 0; i < argCount * 2; ++i) {
 			krk_pop();
 		}
 
