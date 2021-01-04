@@ -1032,6 +1032,20 @@ int krk_callValue(KrkValue callee, int argCount, int extra) {
 }
 
 /**
+ * Takes care of runnext/pop
+ */
+KrkValue krk_callSimple(KrkValue value, int argCount) {
+	int result = krk_callValue(value, argCount, 1);
+	if (result == 2) {
+		return krk_pop();
+	} else if (result == 1) {
+		return krk_runNext();
+	}
+	krk_runtimeError(vm.exceptions.typeError, "Invalid internal method call.");
+	return NONE_VAL();
+}
+
+/**
  * Attach a method call to its callee and return a BoundMethod.
  * Works for managed and native method calls.
  */
@@ -1273,6 +1287,154 @@ static KrkValue _string_get(int argc, KrkValue argv[]) {
 		return NONE_VAL();
 	}
 	return OBJECT_VAL(krk_copyString((char[]){me->chars[asInt]},1));
+}
+
+/* str.format(**kwargs) */
+static KrkValue _string_format(int argc, KrkValue argv[], int hasKw) {
+	if (!IS_STRING(argv[0])) return NONE_VAL();
+	KrkString * self = AS_STRING(argv[0]);
+	KrkValue kwargs = NONE_VAL();
+	if (hasKw) {
+		argc--; /* last arg is the keyword dictionary */
+		krk_tableGet(&AS_INSTANCE(argv[argc])->fields, vm.specialMethodNames[METHOD_DICT_INT], &kwargs);
+	}
+
+	/* Read through `self` until we find a field specifier. */
+	size_t stringCapacity = 0;
+	size_t stringLength   = 0;
+	char * stringBytes    = 0;
+#define PUSH_CHAR(c) do { if (stringCapacity < stringLength + 1) { \
+		size_t old = stringCapacity; stringCapacity = GROW_CAPACITY(old); \
+		stringBytes = GROW_ARRAY(char, stringBytes, old, stringCapacity); \
+	} stringBytes[stringLength++] = c; } while (0)
+#define AT_END() (i == self->length - 1)
+
+	int counterOffset = 0;
+	char * erroneousField = NULL;
+	int erroneousIndex = -1;
+	const char * errorStr = "";
+
+	char * workSpace = strdup(self->chars);
+	char * c = workSpace;
+	for (size_t i = 0; i < self->length; i++, c++) {
+		if (*c == '{') {
+			if (!AT_END() && c[1] == '{') {
+				PUSH_CHAR('{');
+				i++; c++; /* Skip both */
+				continue;
+			} else {
+				/* Start field specifier */
+				i++; c++; /* Skip the { */
+				char * fieldStart = c;
+				char * fieldStop = NULL;
+				for (; i < self->length; i++, c++) {
+					if (*c == '}') {
+						fieldStop = c;
+						break;
+					}
+				}
+				if (!fieldStop) {
+					errorStr = "Unclosed { found.";
+					goto _formatError;
+				}
+				size_t fieldLength = fieldStop - fieldStart;
+				*fieldStop = '\0';
+				/* fieldStart is now a nice little C string... */
+				int isDigits = 1;
+				for (char * field = fieldStart; *field; ++field) {
+					if (!(*field >= '0' && *field <= '9')) {
+						isDigits = 0;
+						break;
+					}
+				}
+				KrkValue value;
+				if (isDigits) {
+					/* Must be positional */
+					int positionalOffset;
+					if (fieldLength == 0) {
+						positionalOffset = counterOffset++;
+					} else if (counterOffset) {
+						goto _formatSwitchedNumbering;
+					} else {
+						positionalOffset = atoi(fieldStart);
+					}
+					if (positionalOffset >= argc - 1) {
+						erroneousIndex = positionalOffset;
+						goto _formatOutOfRange;
+					}
+					value = argv[1 + positionalOffset];
+				} else if (hasKw) {
+					KrkValue fieldAsString = OBJECT_VAL(krk_copyString(fieldStart, fieldLength));
+					krk_push(fieldAsString);
+					if (!krk_tableGet(AS_DICT(kwargs), fieldAsString, &value)) {
+						erroneousField = fieldStart;
+						goto _formatKeyError;
+					}
+					krk_pop(); /* fieldAsString */
+				} else {
+					erroneousField = fieldStart;
+					goto _formatKeyError;
+				}
+				KrkValue asString;
+				if (IS_STRING(value)) {
+					asString = value;
+				} else {
+					krk_push(value);
+					if (!krk_bindMethod(AS_CLASS(krk_typeOf(1,(KrkValue[]){value})),
+						AS_STRING(vm.specialMethodNames[METHOD_STR]))) {
+						errorStr = "Failed to convert field to string.";
+						goto _formatError;
+					}
+					asString = krk_callSimple(krk_peek(0), 0);
+					if (!IS_STRING(asString)) goto _freeAndDone;
+				}
+				krk_push(asString);
+				for (size_t i = 0; i < AS_STRING(asString)->length; ++i) {
+					PUSH_CHAR(AS_CSTRING(asString)[i]);
+				}
+				krk_pop();
+			}
+		} else if (*c == '}') {
+			if (!AT_END() && c[1] == '}') {
+				PUSH_CHAR('}');
+				i++; c++; /* Skip both */
+				continue;
+			} else {
+				errorStr = "Single } found.";
+				goto _formatError;
+			}
+		} else {
+			PUSH_CHAR(*c);
+		}
+	}
+
+	KrkValue out = OBJECT_VAL(krk_copyString(stringBytes, stringLength));
+	free(workSpace);
+	FREE_ARRAY(char,stringBytes,stringCapacity);
+	return out;
+
+#undef PUSH_CHAR
+_formatError:
+	krk_runtimeError(vm.exceptions.typeError, "Error parsing format string: %s", errorStr);
+	goto _freeAndDone;
+
+_formatSwitchedNumbering:
+	krk_runtimeError(vm.exceptions.valueError, "Can not switch from automatic indexing to manual indexing");
+	goto _freeAndDone;
+
+_formatOutOfRange:
+	krk_runtimeError(vm.exceptions.indexError, "Positional index out of range: %d", erroneousIndex);
+	goto _freeAndDone;
+
+_formatKeyError:
+	/* which one? */
+	krk_runtimeError(vm.exceptions.keyError, "'%s'", erroneousField);
+	goto _freeAndDone;
+
+_freeAndDone:
+	FREE_ARRAY(char,stringBytes,stringCapacity);
+	free(workSpace);
+	return NONE_VAL();
 }
 
 /* function.__doc__ */
@@ -1537,6 +1699,7 @@ void krk_initVM(int flags) {
 	krk_defineNative(&vm.baseClasses.strClass->methods, ".__float__", _string_to_float);
 	krk_defineNative(&vm.baseClasses.strClass->methods, ".__getslice__", _string_get_slice);
 	krk_defineNative(&vm.baseClasses.strClass->methods, ".__ord__", _char_to_int);
+	krk_defineNative(&vm.baseClasses.strClass->methods, ".format", _string_format);
 	ADD_BASE_CLASS(vm.baseClasses.functionClass, "function", vm.objectClass);
 	krk_defineNative(&vm.baseClasses.functionClass->methods, ".__str__", _closure_str);
 	krk_defineNative(&vm.baseClasses.functionClass->methods, ".__repr__", _closure_str);
