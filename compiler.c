@@ -700,10 +700,13 @@ static void block(size_t indentation, const char * blockName) {
 				if (parser.current.length < currentIndentation) break;
 				advance();
 				declaration();
+				if (check(TOKEN_EOL)) {
+					advance();
+				}
 			};
 #ifdef ENABLE_SCAN_TRACING
 			if (vm.flags & KRK_ENABLE_SCAN_TRACING) {
-				fprintf(stderr, "finished with block %s (ind=%d) on line %d, sitting on a %s (len=%d)\n",
+				fprintf(stderr, "\n\nfinished with block %s (ind=%d) on line %d, sitting on a %s (len=%d)\n\n",
 					blockName, (int)indentation, (int)parser.current.line,
 					getRule(parser.current.type)->name, (int)parser.current.length);
 			}
