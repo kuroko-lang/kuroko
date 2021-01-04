@@ -1046,8 +1046,8 @@ int krk_callValue(KrkValue callee, int argCount, int extra) {
 /**
  * Takes care of runnext/pop
  */
-KrkValue krk_callSimple(KrkValue value, int argCount) {
-	int result = krk_callValue(value, argCount, 1);
+KrkValue krk_callSimple(KrkValue value, int argCount, int isMethod) {
+	int result = krk_callValue(value, argCount, isMethod);
 	if (result == 2) {
 		return krk_pop();
 	} else if (result == 1) {
@@ -1169,7 +1169,7 @@ static KrkValue _string_init(int argc, KrkValue argv[]) {
 		krk_runtimeError(vm.exceptions.typeError, "Can not convert %s to str", krk_typeName(argv[1]));
 		return NONE_VAL();
 	}
-	return krk_callSimple(krk_peek(0), 0);
+	return krk_callSimple(krk_peek(0), 0, 1);
 }
 
 #define ADD_BASE_CLASS(obj, name, baseClass) do { \
@@ -1431,7 +1431,7 @@ static KrkValue _string_format(int argc, KrkValue argv[], int hasKw) {
 						errorStr = "Failed to convert field to string.";
 						goto _formatError;
 					}
-					asString = krk_callSimple(krk_peek(0), 0);
+					asString = krk_callSimple(krk_peek(0), 0, 1);
 					if (!IS_STRING(asString)) goto _freeAndDone;
 				}
 				krk_push(asString);
@@ -1877,7 +1877,7 @@ static KrkValue _len(int argc, KrkValue argv[]) {
 		krk_runtimeError(vm.exceptions.typeError, "object of type '%s' has no len()", krk_typeName(argv[0]));
 		return NONE_VAL();
 	}
-	return krk_callSimple(krk_peek(0), 0);
+	return krk_callSimple(krk_peek(0), 0, 1);
 }
 
 static KrkValue _repr(int argc, KrkValue argv[]) {
@@ -1890,7 +1890,7 @@ static KrkValue _repr(int argc, KrkValue argv[]) {
 		krk_runtimeError(vm.exceptions.typeError, "internal error");
 		return NONE_VAL();
 	}
-	return krk_callSimple(krk_peek(0), 0);
+	return krk_callSimple(krk_peek(0), 0, 1);
 }
 
 static KrkValue _listiter_init(int argc, KrkValue argv[]) {
@@ -2845,12 +2845,11 @@ static KrkValue run() {
 			}
 			case OP_INVOKE_GETTER: {
 				if (IS_INSTANCE(krk_peek(1)) && AS_INSTANCE(krk_peek(1))->_getter) {
-					krk_push(krk_callSimple(OBJECT_VAL(AS_INSTANCE(krk_peek(2))->_getter), 2));
+					krk_push(krk_callSimple(OBJECT_VAL(AS_INSTANCE(krk_peek(1))->_getter), 2, 0));
 				} else if (IS_STRING(krk_peek(1))) {
 					KrkValue out = _string_get(2, (KrkValue[]){krk_peek(1), krk_peek(0)});
 					krk_pop(); /* index */
 					krk_pop(); /* base object */
-					krk_pop(); /* duplicate for binds */
 					krk_push(out); /* result */
 				} else {
 					krk_runtimeError(vm.exceptions.attributeError, "'%s' object is not subscriptable", krk_typeName(krk_peek(0)));
@@ -2859,8 +2858,7 @@ static KrkValue run() {
 			}
 			case OP_INVOKE_SETTER: {
 				if (IS_INSTANCE(krk_peek(2)) && AS_INSTANCE(krk_peek(2))->_setter) {
-					KrkValue result = krk_callSimple(OBJECT_VAL(AS_INSTANCE(krk_peek(3))->_setter), 3);
-					krk_push(result);
+					krk_push(krk_callSimple(OBJECT_VAL(AS_INSTANCE(krk_peek(2))->_setter), 3, 0));
 				} else if (IS_STRING(krk_peek(2))) {
 					_strings_are_immutable(0,NULL);
 					goto _finishException;
@@ -2871,14 +2869,12 @@ static KrkValue run() {
 			}
 			case OP_INVOKE_GETSLICE: {
 				if (IS_INSTANCE(krk_peek(2)) && AS_INSTANCE(krk_peek(2))->_slicer) {
-					KrkValue result = krk_callSimple(OBJECT_VAL(AS_INSTANCE(krk_peek(3))->_slicer), 3);
-					krk_push(result);
+					krk_push(krk_callSimple(OBJECT_VAL(AS_INSTANCE(krk_peek(2))->_slicer), 3, 0));
 				} else if (IS_STRING(krk_peek(2))) {
 					KrkValue out = _string_get_slice(3, (KrkValue[]){krk_peek(2), krk_peek(1), krk_peek(0)});
 					krk_pop(); /* max */
 					krk_pop(); /* min */
 					krk_pop(); /* base object */
-					krk_pop(); /* duplicate for binds */
 					krk_push(out); /* result */
 				} else {
 					krk_runtimeError(vm.exceptions.attributeError, "'%s' object is not sliceable", krk_typeName(krk_peek(0)));

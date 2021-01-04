@@ -484,7 +484,6 @@ static void assignmentValue(void) {
 
 static void get_(int canAssign) {
 	int isSlice = 0;
-	emitBytes(OP_DUP, 0);
 	if (match(TOKEN_COLON)) {
 		emitByte(OP_NONE);
 		isSlice = 1;
@@ -513,11 +512,10 @@ static void get_(int canAssign) {
 			expression();
 			emitByte(OP_INVOKE_SETTER);
 		} else if (canAssign && matchAssignment()) {
-			emitBytes(OP_DUP, 1); /* o o e o */
-			emitBytes(OP_DUP, 0); /* o o e o o */
-			emitBytes(OP_DUP, 2); /* o o e o o e */
-			emitByte(OP_INVOKE_GETTER); /* o o e v */
-			assignmentValue(); /* o o e v a */
+			emitBytes(OP_DUP, 1); /* o e o */
+			emitBytes(OP_DUP, 1); /* o e o e */
+			emitByte(OP_INVOKE_GETTER); /* o e v */
+			assignmentValue(); /* o e v a */
 			emitByte(OP_INVOKE_SETTER); /* r */
 		} else {
 			emitByte(OP_INVOKE_GETTER);
