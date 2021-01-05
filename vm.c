@@ -971,8 +971,10 @@ _finishArg:
 					}
 				}
 			} else {
+#ifdef ENABLE_TRACING
 				dumpStack(&vm.frames[vm.frameCount-1]);
 				krk_runtimeError(vm.exceptions.typeError, "Internal error? Item at index %d from %d found is %s", i*2, found, krk_typeName(startOfExtras[i*2]));
+#endif
 				return 0;
 			}
 		}
@@ -2957,7 +2959,7 @@ static KrkValue run() {
 #ifdef ENABLE_TRACING
 		if (vm.flags & KRK_ENABLE_TRACING) {
 			dumpStack(frame);
-			krk_disassembleInstruction(&frame->closure->function->chunk,
+			krk_disassembleInstruction(stderr, frame->closure->function,
 				(size_t)(frame->ip - frame->closure->function->chunk.code));
 		}
 #endif

@@ -3,38 +3,45 @@
 #include "debug.h"
 #include "vm.h"
 
-void krk_disassembleChunk(KrkChunk * chunk, const char * name) {
-	fprintf(stderr, "[%s from %s]\n", name, chunk->filename->chars);
+void krk_disassembleChunk(FILE * f, KrkFunction * func, const char * name) {
+	KrkChunk * chunk = &func->chunk;
+	fprintf(f, "[%s from %s]\n", name, chunk->filename->chars);
 	for (size_t offset = 0; offset < chunk->count;) {
-		offset = krk_disassembleInstruction(chunk, offset);
+		offset = krk_disassembleInstruction(f, func, offset);
 	}
 }
 
-#define SIMPLE(opc) case opc: fprintf(stderr, "%s\n", #opc); return offset + 1;
+static inline const char * opcodeClean(const char * opc) {
+	return &opc[3];
+}
+
+#define SIMPLE(opc) case opc: fprintf(f, "%s\n", opcodeClean(#opc)); return offset + 1;
 #define CONSTANT(opc,more) case opc: { size_t constant = chunk->code[offset + 1]; \
-	fprintf(stderr, "%-16s %4d ", #opc, (int)constant); \
-	krk_printValueSafe(stderr, chunk->constants.values[constant]); \
-	fprintf(stderr," (type=%s)\n", krk_typeName(chunk->constants.values[constant])); \
+	fprintf(f, "%-16s %4d ", opcodeClean(#opc), (int)constant); \
+	krk_printValueSafe(f, chunk->constants.values[constant]); \
+	fprintf(f," (type=%s)\n", krk_typeName(chunk->constants.values[constant])); \
 	more; \
 	return offset + 2; } \
 	case opc ## _LONG: { size_t constant = (chunk->code[offset + 1] << 16) | \
 	(chunk->code[offset + 2] << 8) | (chunk->code[offset + 3]); \
-	fprintf(stderr, "%-16s %4d ", #opc "_LONG", (int)constant); \
-	krk_printValueSafe(stderr, chunk->constants.values[constant]); \
-	fprintf(stderr," (type=%s)\n", krk_typeName(chunk->constants.values[constant])); \
+	fprintf(f, "%-16s %4d ", opcodeClean(#opc "_LONG"), (int)constant); \
+	krk_printValueSafe(f, chunk->constants.values[constant]); \
+	fprintf(f," (type=%s)\n", krk_typeName(chunk->constants.values[constant])); \
 	more; \
 	return offset + 4; }
-#define OPERANDB(opc) case opc: { uint32_t operand = chunk->code[offset + 1]; \
-	fprintf(stderr, "%-16s %4d\n", #opc, (int)operand); \
+#define OPERANDB(opc,more) case opc: { uint32_t operand = chunk->code[offset + 1]; \
+	fprintf(f, "%-16s %4d", opcodeClean(#opc), (int)operand); \
+	more; fprintf(f,"\n"); \
 	return offset + 2; }
-#define OPERAND(opc) OPERANDB(opc) \
+#define OPERAND(opc,more) OPERANDB(opc,more) \
 	case opc ## _LONG: { uint32_t operand = (chunk->code[offset + 1] << 16) | \
 	(chunk->code[offset + 2] << 8) | (chunk->code[offset + 3]); \
-	fprintf(stderr, "%-16s %4d\n", #opc "_LONG", (int)operand); \
+	fprintf(f, "%-16s %4d", opcodeClean(#opc "_LONG"), (int)operand); \
+	more; fprintf(f,"\n"); \
 	return offset + 4; }
 #define JUMP(opc,sign) case opc: { uint16_t jump = (chunk->code[offset + 1] << 8) | \
 	(chunk->code[offset + 2]); \
-	fprintf(stderr, "%-16s %4d -> %d\n", #opc, (int)offset, (int)(offset + 3 sign jump)); \
+	fprintf(f, "%-16s %4d -> %d\n", opcodeClean(#opc), (int)offset, (int)(offset + 3 sign jump)); \
 	return offset + 3; }
 
 #define CLOSURE_MORE \
@@ -42,8 +49,18 @@ void krk_disassembleChunk(KrkChunk * chunk, const char * name) {
 	for (size_t j = 0; j < function->upvalueCount; ++j) { \
 		int isLocal = chunk->code[offset++ + 2]; \
 		int index = chunk->code[offset++ + 2]; \
-		fprintf(stderr, "%04d      |                     %s %d\n", \
+		fprintf(f, "%04d      |                     %s %d\n", \
 			(int)offset - 2, isLocal ? "local" : "upvalue", index); \
+	}
+
+#define EXPAND_ARGS_MORE \
+	fprintf(f, " (%s)", operand == 0 ? "singleton" : (operand == 1 ? "list" : "dict"));
+
+#define LOCAL_MORE \
+	if ((short int)operand < (func->requiredArgs)) { \
+		fprintf(f, " (%s)", AS_CSTRING(func->requiredArgNames.values[operand])); \
+	} else if ((short int)operand < (func->requiredArgs + func->keywordArgs)) { \
+		fprintf(f, " (%s)", AS_CSTRING(func->keywordArgNames.values[operand-func->requiredArgs])); \
 	}
 
 size_t krk_lineNumber(KrkChunk * chunk, size_t offset) {
@@ -55,12 +72,13 @@ size_t krk_lineNumber(KrkChunk * chunk, size_t offset) {
 	return line;
 }
 
-size_t krk_disassembleInstruction(KrkChunk * chunk, size_t offset) {
-	fprintf(stderr, "%04u ", (unsigned int)offset);
+size_t krk_disassembleInstruction(FILE * f, KrkFunction * func, size_t offset) {
+	KrkChunk * chunk = &func->chunk;
+	fprintf(f, "%04u ", (unsigned int)offset);
 	if (offset > 0 && krk_lineNumber(chunk, offset) == krk_lineNumber(chunk, offset - 1)) {
-		fprintf(stderr, "   | ");
+		fprintf(f, "   | ");
 	} else {
-		fprintf(stderr, "%4d ", (int)krk_lineNumber(chunk, offset));
+		fprintf(f, "%4d ", (int)krk_lineNumber(chunk, offset));
 	}
 	uint8_t opcode = chunk->code[offset];
 
@@ -96,8 +114,8 @@ size_t krk_disassembleInstruction(KrkChunk * chunk, size_t offset) {
 		SIMPLE(OP_INVOKE_GETSLICE)
 		SIMPLE(OP_SWAP)
 		SIMPLE(OP_FINALIZE)
-		OPERANDB(OP_DUP)
-		OPERANDB(OP_EXPAND_ARGS)
+		OPERANDB(OP_DUP,(void)0)
+		OPERANDB(OP_EXPAND_ARGS,EXPAND_ARGS_MORE)
 		CONSTANT(OP_DEFINE_GLOBAL,(void)0)
 		CONSTANT(OP_CONSTANT,(void)0)
 		CONSTANT(OP_GET_GLOBAL,(void)0)
@@ -109,21 +127,21 @@ size_t krk_disassembleInstruction(KrkChunk * chunk, size_t offset) {
 		CONSTANT(OP_CLOSURE, CLOSURE_MORE)
 		CONSTANT(OP_IMPORT, (void)0)
 		CONSTANT(OP_GET_SUPER, (void)0)
-		OPERAND(OP_KWARGS)
-		OPERAND(OP_SET_LOCAL)
-		OPERAND(OP_GET_LOCAL)
-		OPERAND(OP_SET_UPVALUE)
-		OPERAND(OP_GET_UPVALUE)
-		OPERAND(OP_CALL)
-		OPERAND(OP_INC)
-		OPERAND(OP_TUPLE)
+		OPERAND(OP_KWARGS, (void)0)
+		OPERAND(OP_SET_LOCAL, LOCAL_MORE)
+		OPERAND(OP_GET_LOCAL, LOCAL_MORE)
+		OPERAND(OP_SET_UPVALUE, (void)0)
+		OPERAND(OP_GET_UPVALUE, (void)0)
+		OPERAND(OP_CALL, (void)0)
+		OPERAND(OP_INC, (void)0)
+		OPERAND(OP_TUPLE, (void)0)
 		JUMP(OP_JUMP,+)
 		JUMP(OP_JUMP_IF_FALSE,+)
 		JUMP(OP_JUMP_IF_TRUE,+)
 		JUMP(OP_LOOP,-)
 		JUMP(OP_PUSH_TRY,+)
 	}
-	fprintf(stderr, "Unknown opcode: %02x\n", opcode);
+	fprintf(f, "Unknown opcode: %02x\n", opcode);
 	return offset + 1;
 }
 

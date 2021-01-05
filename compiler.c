@@ -347,7 +347,7 @@ static KrkFunction * endCompiler() {
 
 #ifdef ENABLE_DISASSEMBLY
 	if ((vm.flags & KRK_ENABLE_DISASSEMBLY) && !parser.hadError) {
-		krk_disassembleChunk(currentChunk(), function->name ? function->name->chars : "<module>");
+		krk_disassembleChunk(stderr, function, function->name ? function->name->chars : "<module>");
 		fprintf(stderr, "Function metadata: requiredArgs=%d keywordArgs=%d upvalueCount=%d\n",
 			function->requiredArgs, function->keywordArgs, (int)function->upvalueCount);
 		fprintf(stderr, "__doc__: \"%s\"\n", function->docstring ? function->docstring->chars : "");
