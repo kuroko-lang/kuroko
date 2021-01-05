@@ -89,6 +89,7 @@ typedef enum {
 	TYPE_MODULE,
 	TYPE_METHOD,
 	TYPE_INIT,
+	TYPE_LAMBDA,
 } FunctionType;
 
 typedef struct Compiler {
@@ -302,7 +303,7 @@ static void emitReturn() {
 	} else if (current->type == TYPE_MODULE) {
 		/* Un-pop the last stack value */
 		emitBytes(OP_GET_LOCAL, 0);
-	} else {
+	} else if (current->type != TYPE_LAMBDA) {
 		emitByte(OP_NONE);
 	}
 	emitByte(OP_RETURN);
@@ -707,6 +708,18 @@ static void block(size_t indentation, const char * blockName) {
 	}
 }
 
+static void doUpvalues(Compiler * compiler, KrkFunction * function) {
+	for (size_t i = 0; i < function->upvalueCount; ++i) {
+		/* TODO: if the maximum count changes, fix the sizes for this */
+		emitByte(compiler->upvalues[i].isLocal ? 1 : 0);
+		if (i > 255) {
+			emitByte((compiler->upvalues[i].index >> 16) & 0xFF);
+			emitByte((compiler->upvalues[i].index >> 8) & 0xFF);
+		}
+		emitByte((compiler->upvalues[i].index) & 0xFF);
+	}
+}
+
 static void function(FunctionType type, size_t blockWidth) {
 	Compiler compiler;
 	initCompiler(&compiler, type);
@@ -804,16 +817,7 @@ static void function(FunctionType type, size_t blockWidth) {
 	KrkFunction * function = endCompiler();
 	size_t ind = krk_addConstant(currentChunk(), OBJECT_VAL(function));
 	EMIT_CONSTANT_OP(OP_CLOSURE, ind);
-
-	for (size_t i = 0; i < function->upvalueCount; ++i) {
-		/* TODO: if the maximum count changes, fix the sizes for this */
-		emitByte(compiler.upvalues[i].isLocal ? 1 : 0);
-		if (i > 255) {
-			emitByte((compiler.upvalues[i].index >> 16) & 0xFF);
-			emitByte((compiler.upvalues[i].index >> 8) & 0xFF);
-		}
-		emitByte((compiler.upvalues[i].index) & 0xFF);
-	}
+	doUpvalues(&compiler, function);
 	freeCompiler(&compiler);
 }
 
@@ -923,6 +927,31 @@ _pop_class:
 static void markInitialized() {
 	if (current->scopeDepth == 0) return;
 	current->locals[current->localCount - 1].depth = current->scopeDepth;
+}
+
+static void lambda() {
+	Compiler lambdaCompiler;
+	parser.previous = syntheticToken("<lambda>");
+	initCompiler(&lambdaCompiler, TYPE_LAMBDA);
+	lambdaCompiler.function->chunk.filename = lambdaCompiler.enclosing->function->chunk.filename;
+	beginScope();
+
+	if (!check(TOKEN_COLON)) {
+		do {
+			ssize_t paramConstant = parseVariable("Expect parameter name.");
+			defineVariable(paramConstant);
+			current->function->requiredArgs++;
+		} while (match(TOKEN_COMMA));
+	}
+
+	consume(TOKEN_COLON, "expected : after lambda arguments");
+	expression();
+
+	KrkFunction * lambda = endCompiler();
+	size_t ind = krk_addConstant(currentChunk(), OBJECT_VAL(lambda));
+	EMIT_CONSTANT_OP(OP_CLOSURE, ind);
+	doUpvalues(&lambdaCompiler, lambda);
+	freeCompiler(&lambdaCompiler);
 }
 
 static void defDeclaration() {
@@ -1757,6 +1786,8 @@ ParseRule rules[] = {
 	RULE(TOKEN_MINUS_EQUAL,   NULL,     NULL,   PREC_NONE),
 	RULE(TOKEN_PLUS_PLUS,     NULL,     NULL,   PREC_NONE),
 	RULE(TOKEN_MINUS_MINUS,   NULL,     NULL,   PREC_NONE),
+
+	RULE(TOKEN_LAMBDA,        lambda,   NULL,   PREC_NONE),
 
 	/* This is going to get interesting */
 	RULE(TOKEN_INDENTATION,   NULL,     NULL,   PREC_NONE),

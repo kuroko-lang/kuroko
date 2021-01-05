@@ -66,6 +66,7 @@ typedef enum {
 
 	TOKEN_AS,
 	TOKEN_FROM,
+	TOKEN_LAMBDA,
 
 	TOKEN_ERROR,
 	TOKEN_EOF,
