@@ -29,7 +29,7 @@ Let's do some classes.
 <type 'Test'>
 yay: bax
 bar
-<method doAThing>
+<method Test.doAThing>
 yay: bar
 This is a great teapot!
 Subclass says: (I am a teapot)

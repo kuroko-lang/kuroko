@@ -1857,9 +1857,11 @@ static KrkValue _bound_str(int argc, KrkValue argv[]) {
 	KrkValue s = _bound_get_name(argc, argv);
 	krk_push(s);
 
-	size_t len = AS_STRING(s)->length + sizeof("<method >");
+	const char * typeName = krk_typeName(AS_BOUND_METHOD(argv[0])->receiver);
+
+	size_t len = AS_STRING(s)->length + sizeof("<method >") + strlen(typeName) + 1;
 	char * tmp = malloc(len);
-	sprintf(tmp, "<method %s>", AS_CSTRING(s));
+	sprintf(tmp, "<method %s.%s>", typeName, AS_CSTRING(s));
 	s = OBJECT_VAL(krk_copyString(tmp,len-1));
 	free(tmp);
 	krk_pop();
