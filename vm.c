@@ -225,6 +225,7 @@ void krk_finalizeClass(KrkClass * _class) {
 		{&_class->_tostr, METHOD_STR},
 		{&_class->_call, METHOD_CALL},
 		{&_class->_init, METHOD_INIT},
+		{&_class->_eq, METHOD_EQ},
 		{NULL, 0},
 	};
 
@@ -2385,6 +2386,7 @@ void krk_initVM(int flags) {
 	vm.specialMethodNames[METHOD_LIST_INT] = OBJECT_VAL(S("__list"));
 	vm.specialMethodNames[METHOD_DICT_INT] = OBJECT_VAL(S("__dict"));
 	vm.specialMethodNames[METHOD_INREPR] = OBJECT_VAL(S("__inrepr"));
+	vm.specialMethodNames[METHOD_EQ] = OBJECT_VAL(S("__eq__"));
 
 	/* Create built-in class `object` */
 	vm.objectClass = krk_newClass(S("object"));

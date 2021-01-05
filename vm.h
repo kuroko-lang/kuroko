@@ -37,6 +37,7 @@ typedef enum {
 	METHOD_INREPR,
 	METHOD_ORD,
 	METHOD_CALL,
+	METHOD_EQ,
 
 	METHOD__MAX,
 } KrkSpecialMethods;
@@ -133,3 +134,4 @@ extern int krk_bindMethod(KrkClass * _class, KrkString * name);
 extern int krk_callValue(KrkValue callee, int argCount, int extra);
 
 extern KrkValue krk_dict_of(int argc, KrkValue argv[]);
+extern KrkValue krk_callSimple(KrkValue value, int argCount, int isMethod);

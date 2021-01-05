@@ -96,32 +96,56 @@ void krk_printValueSafe(FILE * f, KrkValue printable) {
 }
 
 int krk_valuesEqual(KrkValue a, KrkValue b) {
-	if (a.type != b.type) return 0; /* uh, maybe not, this is complicated */
-
-	switch (a.type) {
-		case VAL_BOOLEAN:  return AS_BOOLEAN(a) == AS_BOOLEAN(b);
-		case VAL_NONE:     return 1; /* None always equals None */
-		case VAL_KWARGS:   /* Equal if same number of args; may be useful for comparing sentinels (0) to arg lists. */
-		case VAL_INTEGER:  return AS_INTEGER(a) == AS_INTEGER(b);
-		case VAL_FLOATING: return AS_FLOATING(a) == AS_FLOATING(b);
-		case VAL_HANDLER: {
-			fprintf(stderr, "Attempted to compare a value to an exception handler. VM leaked a stack value.\n");
-			exit(1);
+	if (a.type == b.type) {
+		switch (a.type) {
+			case VAL_BOOLEAN:  return AS_BOOLEAN(a) == AS_BOOLEAN(b);
+			case VAL_NONE:     return 1; /* None always equals None */
+			case VAL_KWARGS:   /* Equal if same number of args; may be useful for comparing sentinels (0) to arg lists. */
+			case VAL_INTEGER:  return AS_INTEGER(a) == AS_INTEGER(b);
+			case VAL_FLOATING: return AS_FLOATING(a) == AS_FLOATING(b);
+			case VAL_HANDLER:  krk_runtimeError(vm.exceptions.valueError,"Invalid value"); return 0;
+			case VAL_OBJECT: {
+				if (AS_OBJECT(a) == AS_OBJECT(b)) return 1;
+			} break;
+			default: break;
 		}
-		case VAL_OBJECT: {
-			if (IS_STRING(a) && IS_STRING(b)) return AS_OBJECT(a) == AS_OBJECT(b);
-			/* If their pointers are equal, assume they are always equivalent */
-			if (IS_TUPLE(a) && IS_TUPLE(b)) {
-				if (AS_TUPLE(a)->values.count != AS_TUPLE(b)->values.count) return 0;
-				for (size_t i = 0; i < AS_TUPLE(a)->values.count; ++i) {
-					if (!krk_valuesEqual(AS_TUPLE(a)->values.values[i], AS_TUPLE(b)->values.values[i])) return 0;
-				}
-				return 1;
-			}
-			if (AS_OBJECT(a) == AS_OBJECT(b)) return 1;
-			/* TODO: __eq__ */
-			return 0;
-		}
-		default: return 0;
 	}
+
+	if (!IS_OBJECT(a) && !IS_OBJECT(b)) {
+		switch (a.type) {
+			case VAL_INTEGER: {
+				switch (b.type) {
+					case VAL_BOOLEAN:  return AS_INTEGER(a) == AS_BOOLEAN(b);
+					case VAL_FLOATING: return (double)AS_INTEGER(a) == AS_FLOATING(b);
+					default: return 0;
+				}
+			} break;
+			case VAL_FLOATING: {
+				switch (b.type) {
+					case VAL_BOOLEAN: return AS_FLOATING(a) == (double)AS_BOOLEAN(b);
+					case VAL_INTEGER: return AS_FLOATING(a) == (double)AS_INTEGER(b);
+					default: return 0;
+				}
+			} break;
+			case VAL_BOOLEAN: {
+				switch (b.type) {
+					case VAL_INTEGER:  return AS_BOOLEAN(a) == AS_INTEGER(b);
+					case VAL_FLOATING: return (double)AS_BOOLEAN(a) == AS_FLOATING(b);
+					default: return 0;
+				}
+			} break;
+			default: return 0;
+		}
+	}
+
+	KrkClass * type = AS_CLASS(krk_typeOf(1,(KrkValue[]){a}));
+	if (type && type->_eq) {
+		krk_push(a);
+		krk_push(b);
+		KrkValue result = krk_callSimple(OBJECT_VAL(type->_eq),2,0);
+		if (IS_BOOLEAN(result)) return AS_BOOLEAN(result);
+		return 0;
+	}
+
+	return 0;
 }

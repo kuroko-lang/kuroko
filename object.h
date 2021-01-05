@@ -96,6 +96,7 @@ typedef struct KrkClass {
 	KrkObj * _tostr;
 	KrkObj * _call;
 	KrkObj * _init;
+	KrkObj * _eq;
 } KrkClass;
 
 typedef struct {
