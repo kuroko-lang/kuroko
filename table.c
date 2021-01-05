@@ -29,7 +29,7 @@ static uint32_t hashValue(KrkValue value) {
 	return (((uint32_t)(intptr_t)AS_OBJECT(value)) >> 4)| (((uint32_t)(intptr_t)AS_OBJECT(value)) << 28);
 }
 
-static KrkTableEntry * findEntry(KrkTableEntry * entries, size_t capacity, KrkValue key) {
+KrkTableEntry * krk_findEntry(KrkTableEntry * entries, size_t capacity, KrkValue key) {
 	uint32_t index = hashValue(key) % capacity;
 	KrkTableEntry * tombstone = NULL;
 	for (;;) {
@@ -58,7 +58,7 @@ static void adjustCapacity(KrkTable * table, size_t capacity) {
 	for (size_t i = 0; i < table->capacity; ++i) {
 		KrkTableEntry * entry = &table->entries[i];
 		if (entry->key.type == VAL_NONE) continue;
-		KrkTableEntry * dest = findEntry(entries, capacity, entry->key);
+		KrkTableEntry * dest = krk_findEntry(entries, capacity, entry->key);
 		dest->key = entry->key;
 		dest->value = entry->value;
 		table->count++;
@@ -74,7 +74,7 @@ int krk_tableSet(KrkTable * table, KrkValue key, KrkValue value) {
 		size_t capacity = GROW_CAPACITY(table->capacity);
 		adjustCapacity(table, capacity);
 	}
-	KrkTableEntry * entry = findEntry(table->entries, table->capacity, key);
+	KrkTableEntry * entry = krk_findEntry(table->entries, table->capacity, key);
 	int isNewKey = entry->key.type == VAL_NONE;
 	if (isNewKey && IS_NONE(entry->value)) table->count++;
 	entry->key = key;
@@ -93,7 +93,7 @@ void krk_tableAddAll(KrkTable * from, KrkTable * to) {
 
 int krk_tableGet(KrkTable * table, KrkValue key, KrkValue * value) {
 	if (table->count == 0) return 0;
-	KrkTableEntry * entry = findEntry(table->entries, table->capacity, key);
+	KrkTableEntry * entry = krk_findEntry(table->entries, table->capacity, key);
 	if (entry->key.type == VAL_NONE) return 0;
 	*value = entry->value;
 	return 1;
@@ -101,7 +101,7 @@ int krk_tableGet(KrkTable * table, KrkValue key, KrkValue * value) {
 
 int krk_tableDelete(KrkTable * table, KrkValue key) {
 	if (table->count == 0) return 0;
-	KrkTableEntry * entry = findEntry(table->entries, table->capacity, key);
+	KrkTableEntry * entry = krk_findEntry(table->entries, table->capacity, key);
 	if (entry->key.type == VAL_NONE) return 0;
 	entry->key = NONE_VAL();
 	entry->value = BOOLEAN_VAL(1);

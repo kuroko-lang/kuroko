@@ -102,7 +102,7 @@ typedef struct {
 	KrkObj obj;
 	KrkClass * _class;
 	KrkTable fields;
-	KrkObj * _internal;
+	void * _internal;
 } KrkInstance;
 
 typedef struct {

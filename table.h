@@ -29,3 +29,4 @@ extern KrkString * krk_tableFindString(KrkTable * table, const char * chars, siz
 extern int krk_tableSet(KrkTable * table, KrkValue key, KrkValue value);
 extern int krk_tableGet(KrkTable * table, KrkValue key, KrkValue * value);
 extern int krk_tableDelete(KrkTable * table, KrkValue key);
+extern KrkTableEntry * krk_findEntry(KrkTableEntry * entries, size_t capacity, KrkValue key);

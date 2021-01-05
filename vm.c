@@ -887,7 +887,7 @@ _finishArg:
 			KrkValue value = startOfExtras[i*2+1];
 			if (IS_KWARGS(name)) {
 				if (AS_INTEGER(name) == LONG_MAX-1) {
-					if (!IS_INSTANCE(value) || !AS_INSTANCE(value)->_internal || !AS_INSTANCE(value)->_internal->type == OBJ_FUNCTION) {
+					if (!IS_INSTANCE(value) || !AS_INSTANCE(value)->_internal || !((KrkObj*)(AS_INSTANCE(value)->_internal))->type == OBJ_FUNCTION) {
 						krk_runtimeError(vm.exceptions.typeError, "*expresssion value is not a list.");
 						return 0;
 					}
@@ -1085,7 +1085,9 @@ int krk_callValue(KrkValue callee, int argCount, int extra) {
 			case OBJ_INSTANCE: {
 				KrkClass * _class = AS_INSTANCE(callee)->_class;
 				KrkValue callFunction;
-				if (krk_tableGet(&_class->methods, vm.specialMethodNames[METHOD_CALL], &callFunction)) {
+				if (_class->_call) {
+					return krk_callValue(OBJECT_VAL(_class->_call), argCount + 1, 0);
+				} else if (krk_tableGet(&_class->methods, vm.specialMethodNames[METHOD_CALL], &callFunction)) {
 					return krk_callValue(callFunction, argCount + 1, 0);
 				} else {
 					krk_runtimeError(vm.exceptions.typeError, "Attempted to call non-callable type: %s", krk_typeName(callee));
@@ -1096,7 +1098,9 @@ int krk_callValue(KrkValue callee, int argCount, int extra) {
 				KrkClass * _class = AS_CLASS(callee);
 				vm.stackTop[-argCount - 1] = OBJECT_VAL(krk_newInstance(_class));
 				KrkValue initializer;
-				if (krk_tableGet(&_class->methods, vm.specialMethodNames[METHOD_INIT], &initializer)) {
+				if (_class->_init) {
+					return krk_callValue(OBJECT_VAL(_class->_init), argCount + 1, 0);
+				} else if (krk_tableGet(&_class->methods, vm.specialMethodNames[METHOD_INIT], &initializer)) {
 					return krk_callValue(initializer, argCount + 1, 0);
 				} else if (argCount != 0) {
 					krk_runtimeError(vm.exceptions.attributeError, "Class does not have an __init__ but arguments were passed to initializer: %d", argCount);
@@ -1539,12 +1543,16 @@ static KrkValue _string_format(int argc, KrkValue argv[], int hasKw) {
 					asString = value;
 				} else {
 					krk_push(value);
-					if (!krk_bindMethod(AS_CLASS(krk_typeOf(1,(KrkValue[]){value})),
-						AS_STRING(vm.specialMethodNames[METHOD_STR]))) {
-						errorStr = "Failed to convert field to string.";
-						goto _formatError;
+					KrkClass * type = AS_CLASS(krk_typeOf(1, (KrkValue[]){value}));
+					if (type->_tostr) {
+						asString = krk_callSimple(OBJECT_VAL(type->_tostr), 1, 0);
+					} else {
+						if (!krk_bindMethod(type, AS_STRING(vm.specialMethodNames[METHOD_STR]))) {
+							errorStr = "Failed to convert field to string.";
+							goto _formatError;
+						}
+						asString = krk_callSimple(krk_peek(0), 0, 1);
 					}
-					asString = krk_callSimple(krk_peek(0), 0, 1);
 					if (!IS_STRING(asString)) goto _freeAndDone;
 				}
 				krk_push(asString);
@@ -1610,7 +1618,7 @@ static KrkValue _string_join(int argc, KrkValue argv[], int hasKw) {
 	}
 
 	/* TODO: Support any object with an __iter__ - kinda need an internal method to do that well. */
-	if (!IS_INSTANCE(argv[1]) || !AS_INSTANCE(argv[1])->_internal || !AS_INSTANCE(argv[1])->_internal->type == OBJ_FUNCTION) {
+	if (!IS_INSTANCE(argv[1]) || !AS_INSTANCE(argv[1])->_internal || !((KrkObj*)AS_INSTANCE(argv[1])->_internal)->type == OBJ_FUNCTION) {
 		krk_runtimeError(vm.exceptions.typeError, "*expresssion value is not a list.");
 		return NONE_VAL();
 	}
@@ -2213,21 +2221,31 @@ static KrkValue _range_init(int argc, KrkValue argv[]) {
 		return NONE_VAL();
 	}
 
+	krk_push(OBJECT_VAL(self));
+
 	/* Add them to ourselves */
-	krk_push(argv[0]);
-	krk_attachNamedValue(&self->fields, "min", min);
-	krk_attachNamedValue(&self->fields, "max", max);
-	krk_pop();
+	KrkTuple * myTuple = krk_newTuple(2);
+	krk_push(OBJECT_VAL(myTuple));
+
+	myTuple->values.values[0] = min;
+	myTuple->values.values[1] = max;
+	myTuple->values.count = 2;
+
+	krk_attachNamedObject(&self->fields, "_tuple", (KrkObj*)myTuple);
+	self->_internal = myTuple;
+
+	krk_pop(); /* myTuple */
+	krk_pop(); /* self */
 
 	return argv[0];
 }
 
 static KrkValue _range_repr(int argc, KrkValue argv[]) {
 	KrkInstance * self = AS_INSTANCE(argv[0]);
+	KrkTuple * myTuple = self->_internal;
 
-	KrkValue min, max;
-	krk_tableGet(&self->fields, OBJECT_VAL(S("min")), &min);
-	krk_tableGet(&self->fields, OBJECT_VAL(S("max")), &max);
+	KrkValue min = myTuple->values.values[0];
+	KrkValue max = myTuple->values.values[1];
 
 	krk_push(OBJECT_VAL(S("range({},{})")));
 	KrkValue output = _string_format(3, (KrkValue[]){krk_peek(0), min, max}, 0);
@@ -2238,30 +2256,39 @@ static KrkValue _range_repr(int argc, KrkValue argv[]) {
 static KrkValue _rangeiterator_init(int argc, KrkValue argv[]) {
 	KrkInstance * self = AS_INSTANCE(argv[0]);
 	krk_push(argv[0]);
-	krk_attachNamedValue(&self->fields, "i", argv[1]);
-	krk_attachNamedValue(&self->fields, "m", argv[2]);
-	krk_pop();
+	KrkTuple * myTuple = krk_newTuple(2);
+
+	krk_push(OBJECT_VAL(myTuple));
+	myTuple->values.values[0] = argv[1];
+	myTuple->values.values[1] = argv[2];
+	myTuple->values.count = 2;
+
+	krk_attachNamedObject(&self->fields, "_tuple", (KrkObj*)myTuple);
+	self->_internal = myTuple;
+
+	krk_pop(); /* myTuple */
+	krk_pop(); /* self */
 	return argv[0];
 }
 
 static KrkValue _rangeiterator_call(int argc, KrkValue argv[]) {
 	KrkInstance * self = AS_INSTANCE(argv[0]);
-	KrkValue i, m;
-	krk_tableGet(&self->fields, OBJECT_VAL(S("i")), &i);
-	krk_tableGet(&self->fields, OBJECT_VAL(S("m")), &m);
-	if (AS_INTEGER(i) >= AS_INTEGER(m)) {
+	KrkTuple * myTuple = self->_internal;
+	KrkValue i = myTuple->values.values[0];
+	if (AS_INTEGER(i) >= AS_INTEGER(myTuple->values.values[1])) {
 		return argv[0];
 	} else {
-		krk_attachNamedValue(&self->fields, "i", INTEGER_VAL(AS_INTEGER(i)+1));
+		myTuple->values.values[0] = INTEGER_VAL(AS_INTEGER(i)+1);
 		return i;
 	}
 }
 
 static KrkValue _range_iter(int argc, KrkValue argv[]) {
 	KrkInstance * self = AS_INSTANCE(argv[0]);
-	KrkValue min, max;
-	krk_tableGet(&self->fields, OBJECT_VAL(S("min")), &min);
-	krk_tableGet(&self->fields, OBJECT_VAL(S("max")), &max);
+	KrkTuple * myTuple = self->_internal;
+
+	KrkValue min = myTuple->values.values[0];
+	KrkValue max = myTuple->values.values[1];
 
 	KrkInstance * output = krk_newInstance(vm.baseClasses.rangeiteratorClass);
 
