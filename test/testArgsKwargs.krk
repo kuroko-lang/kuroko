@@ -1,15 +1,21 @@
 def anything(*args, **kwargs):
+    def foo():
+        print("hi")
     print("Positionals:", args)
     print("Keywords:", kwargs)
+    return foo
 
-anything(1,2,3,"a","b",foo="bar",biz=42)
+anything(1,2,3,"a","b",foo="bar",biz=42)()
+
+anything()()
 
 def func(a,b,*args,**kwargs):
     print(a, b, args)
     let x = 'hello'
     print(x)
+    return x
 
-func(1,2,3,4,5,6,foo="bar")
+print(func(1,2,3,4,5,6,foo="bar"))
 
 def last(a,b,c=1,d=2,**kwargs):
     print("Main:", a, b, c, d)

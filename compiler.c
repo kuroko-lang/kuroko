@@ -773,6 +773,7 @@ static void function(FunctionType type, size_t blockWidth) {
 				namedVariable(synth, 0);
 				emitBytes(OP_CALL, 0);
 				EMIT_CONSTANT_OP(OP_SET_LOCAL, myLocal);
+				emitByte(OP_POP); /* local value */
 				endScope();
 				/* Otherwise pop the comparison. */
 				patchJump(jumpIndex);
@@ -799,6 +800,7 @@ static void function(FunctionType type, size_t blockWidth) {
 				beginScope();
 				expression(); /* Read expression */
 				EMIT_CONSTANT_OP(OP_SET_LOCAL, myLocal);
+				emitByte(OP_POP); /* local value */
 				endScope();
 				patchJump(jumpIndex);
 				emitByte(OP_POP);

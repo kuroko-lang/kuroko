@@ -1,6 +1,11 @@
 Positionals: [1, 2, 3, 'a', 'b']
 Keywords: {'biz': 42, 'foo': 'bar'}
+hi
+Positionals: []
+Keywords: {}
+hi
 1 2 [3, 4, 5, 6]
+hello
 hello
 Main: 1 2 1 2
 Keyword: {}

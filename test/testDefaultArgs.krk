@@ -1,7 +1,10 @@
 def foo(default="bacon"):
     print("You like",default,"right?")
+    def test():
+        print("hello")
+    return test
 
-foo()
+print(foo())
 foo("sports")
 
 def fillValues(a=1,b=2,c="c",d=None,e=2.71828):

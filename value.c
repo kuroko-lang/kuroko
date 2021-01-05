@@ -111,6 +111,8 @@ int krk_valuesEqual(KrkValue a, KrkValue b) {
 		}
 	}
 
+	if (IS_KWARGS(a) || IS_KWARGS(b)) return 0;
+
 	if (!IS_OBJECT(a) && !IS_OBJECT(b)) {
 		switch (a.type) {
 			case VAL_INTEGER: {
