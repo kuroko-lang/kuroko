@@ -68,7 +68,7 @@ static void dumpStack(CallFrame * frame) {
  * an exception was thrown. If there the exception value
  * is not None, it will also be printed using safe methods.
  */
-static void dumpTraceback() {
+void krk_dumpTraceback() {
 	fprintf(stderr, "Traceback, most recent first, %d call frame%s:\n", (int)vm.frameCount, vm.frameCount == 1 ? "" : "s");
 	for (size_t i = 0; i <= vm.frameCount - 1; i++) {
 		CallFrame * frame = &vm.frames[i];
@@ -2733,7 +2733,7 @@ static int handleException() {
 			 * VM stack state. It should still be safe to execute more code after
 			 * this reset, so the repl can throw errors and keep accepting new lines.
 			 */
-			dumpTraceback();
+			krk_dumpTraceback();
 			krk_resetStack();
 			vm.frameCount = 0;
 		}
