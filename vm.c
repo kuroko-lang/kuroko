@@ -1876,11 +1876,16 @@ static KrkValue _bound_get_file(int argc, KrkValue argv[]) {
 	return _closure_get_file(1, (KrkValue[]){OBJECT_VAL(boundMethod->method)});
 }
 
-/* tuple.__init__ */
 static KrkValue _tuple_init(int argc, KrkValue argv[]) {
-	KrkTuple * self = krk_newTuple(argc-1);
+	krk_runtimeError(vm.exceptions.typeError,"tuple() initializier unsupported");
+	return NONE_VAL();
+}
+
+/* tuple creator */
+static KrkValue _tuple_of(int argc, KrkValue argv[]) {
+	KrkTuple * self = krk_newTuple(argc);
 	krk_push(OBJECT_VAL(self));
-	for (size_t i = 1; i < (size_t)argc; ++i) {
+	for (size_t i = 0; i < (size_t)argc; ++i) {
 		self->values.values[self->values.count++] = argv[i];
 	}
 	krk_pop();
@@ -1946,6 +1951,11 @@ static KrkValue _tuple_repr(int argc, KrkValue argv[]) {
 			krk_push(OBJECT_VAL(S(", ")));
 			addObjects();
 		}
+	}
+
+	if (tuple->values.count == 1) {
+		krk_push(OBJECT_VAL(S(",")));
+		addObjects();
 	}
 
 	krk_push(OBJECT_VAL(S(")")));
@@ -3261,6 +3271,21 @@ static KrkValue run() {
 			case OP_KWARGS_LONG:
 			case OP_KWARGS: {
 				krk_push(KWARGS_VAL(readBytes(frame,operandWidth)));
+				break;
+			}
+			case OP_TUPLE_LONG:
+			case OP_TUPLE: {
+				size_t count = readBytes(frame, operandWidth);
+				KrkValue tuple = _tuple_of(count,&vm.stackTop[-count]);
+				if (count) {
+					vm.stackTop[-count] = tuple;
+					while (count > 1) {
+						krk_pop();
+						count--;
+					}
+				} else {
+					krk_push(tuple);
+				}
 				break;
 			}
 		}

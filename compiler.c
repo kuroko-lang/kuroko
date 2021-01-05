@@ -1351,7 +1351,21 @@ static void statement() {
 
 static void grouping(int canAssign) {
 	startEatingWhitespace();
-	expression();
+	if (check(TOKEN_RIGHT_PAREN)) {
+		emitBytes(OP_TUPLE,0);
+	} else {
+		expression();
+		if (match(TOKEN_COMMA)) {
+			size_t argCount = 1;
+			if (!check(TOKEN_RIGHT_PAREN)) {
+				do {
+					expression();
+					argCount++;
+				} while (match(TOKEN_COMMA) && !check(TOKEN_RIGHT_PAREN));
+			}
+			EMIT_CONSTANT_OP(OP_TUPLE, argCount);
+		}
+	}
 	stopEatingWhitespace();
 	consume(TOKEN_RIGHT_PAREN, "Expect ')' after expression.");
 }
