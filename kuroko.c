@@ -23,6 +23,12 @@
 #include "vm.h"
 #include "memory.h"
 
+static int pasteEnabled = 0;
+static KrkValue paste(int argc, KrkValue argv[]) {
+	pasteEnabled = !pasteEnabled;
+	fprintf(stderr, "Pasting is %s.\n", pasteEnabled ? "enabled" : "disabled");
+	return NONE_VAL();
+}
 
 int main(int argc, char * argv[]) {
 	int flags = 0;
@@ -56,6 +62,8 @@ int main(int argc, char * argv[]) {
 		/* Run the repl */
 		int exit = 0;
 
+		krk_defineNative(&vm.globals, "paste", paste);
+
 		/* Set ^D to send EOF */
 		rline_exit_string="";
 		/* Enable syntax highlight for Kuroko */
@@ -85,11 +93,13 @@ int main(int argc, char * argv[]) {
 					 * will show a single > (and keep the left side aligned) */
 					rline_exp_set_prompts("  > ", "", 4, 0);
 					/* Also add indentation as necessary */
-					rline_preload = malloc(blockWidth + 1);
-					for (int i = 0; i < blockWidth; ++i) {
-						rline_preload[i] = ' ';
+					if (!pasteEnabled) {
+						rline_preload = malloc(blockWidth + 1);
+						for (int i = 0; i < blockWidth; ++i) {
+							rline_preload[i] = ' ';
+						}
+						rline_preload[blockWidth] = '\0';
 					}
-					rline_preload[blockWidth] = '\0';
 				}
 
 				rline_scroll = 0;
@@ -154,7 +164,7 @@ int main(int argc, char * argv[]) {
 				}
 
 				/* Ignore blank lines. */
-				if (isSpaces) valid = 0;
+				if (isSpaces && !i) valid = 0;
 
 				/* If we're not in a block, or have entered a blank line,
 				 * we can stop reading new lines and jump to execution. */
