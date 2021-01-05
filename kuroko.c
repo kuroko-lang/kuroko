@@ -23,6 +23,12 @@
 #include "vm.h"
 #include "memory.h"
 
+static int exitRepl = 0;
+static KrkValue exitFunc(int argc, KrkValue argv[]) {
+	exitRepl = 1;
+	return NONE_VAL();
+}
+
 static int pasteEnabled = 0;
 static KrkValue paste(int argc, KrkValue argv[]) {
 	pasteEnabled = !pasteEnabled;
@@ -59,9 +65,7 @@ int main(int argc, char * argv[]) {
 	KrkValue result = INTEGER_VAL(0);
 
 	if (optind == argc) {
-		/* Run the repl */
-		int exit = 0;
-
+		krk_defineNative(&vm.globals, "exit", exitFunc);
 		krk_defineNative(&vm.globals, "paste", paste);
 
 		/* Set ^D to send EOF */
@@ -71,7 +75,7 @@ int main(int argc, char * argv[]) {
 		/* TODO: Add tab completion for globals, known fields/methods... */
 		//rline_exp_set_tab_complete_func(tab_complete_func);
 
-		while (!exit) {
+		while (!exitRepl) {
 			size_t lineCapacity = 8;
 			size_t lineCount = 0;
 			char ** lines = ALLOCATE(char *, lineCapacity);
@@ -105,7 +109,7 @@ int main(int argc, char * argv[]) {
 				rline_scroll = 0;
 				if (rline(buf, 4096) == 0) {
 					valid = 0;
-					exit = 1;
+					exitRepl = 1;
 					break;
 				}
 				if (buf[strlen(buf)-1] != '\n') {
