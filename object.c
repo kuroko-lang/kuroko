@@ -137,3 +137,14 @@ KrkBoundMethod * krk_newBoundMethod(KrkValue receiver, KrkObj * method) {
 	bound->method = method;
 	return bound;
 }
+
+KrkTuple * krk_newTuple(size_t length) {
+	KrkTuple * tuple = ALLOCATE_OBJECT(KrkTuple, OBJ_TUPLE);
+	tuple->inrepr = 0;
+	krk_initValueArray(&tuple->values);
+	krk_push(OBJECT_VAL(tuple));
+	tuple->values.capacity = length;
+	tuple->values.values = GROW_ARRAY(KrkValue,NULL,0,length);
+	krk_pop();
+	return tuple;
+}

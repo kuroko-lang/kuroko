@@ -85,6 +85,7 @@ typedef struct {
 		KrkClass * strClass; /* String */
 		KrkClass * functionClass; /* Functions, Closures */
 		KrkClass * methodClass; /* BoundMethod */
+		KrkClass * tupleClass; /* Tuple */
 
 		/* Other useful stuff */
 		KrkClass * listiteratorClass;

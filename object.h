@@ -24,6 +24,9 @@
 #define IS_BOUND_METHOD(value) isObjType(value, OBJ_BOUND_METHOD)
 #define AS_BOUND_METHOD(value) ((KrkBoundMethod*)AS_OBJECT(value))
 
+#define IS_TUPLE(value)    isObjType(value, OBJ_TUPLE)
+#define AS_TUPLE(value)    ((KrkTuple *)AS_OBJECT(value))
+
 typedef enum {
 	OBJ_FUNCTION,
 	OBJ_NATIVE,
@@ -33,6 +36,7 @@ typedef enum {
 	OBJ_CLASS,
 	OBJ_INSTANCE,
 	OBJ_BOUND_METHOD,
+	OBJ_TUPLE,
 } ObjType;
 
 struct Obj {
@@ -116,6 +120,12 @@ typedef struct {
 	int isMethod;
 } KrkNative;
 
+typedef struct {
+	KrkObj obj;
+	KrkValueArray values;
+	int inrepr;
+} KrkTuple;
+
 #define AS_LIST(value) (&AS_FUNCTION(value)->chunk.constants)
 #define AS_DICT(value) (&AS_CLASS(value)->methods)
 typedef KrkFunction KrkList;
@@ -136,3 +146,4 @@ extern KrkUpvalue *     krk_newUpvalue(int slot);
 extern KrkClass *       krk_newClass(KrkString * name);
 extern KrkInstance *    krk_newInstance(KrkClass * _class);
 extern KrkBoundMethod * krk_newBoundMethod(KrkValue receiver, KrkObj * method);
+extern KrkTuple *       krk_newTuple(size_t length);

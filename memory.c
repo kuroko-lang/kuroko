@@ -70,6 +70,12 @@ static void freeObject(KrkObj * object) {
 		case OBJ_BOUND_METHOD:
 			FREE(KrkBoundMethod, object);
 			break;
+		case OBJ_TUPLE: {
+			KrkTuple * tuple = (KrkTuple*)object;
+			krk_freeValueArray(&tuple->values);
+			FREE(KrkTuple, object);
+			break;
+		}
 	}
 }
 
@@ -148,6 +154,11 @@ static void blackenObject(KrkObj * object) {
 			KrkBoundMethod * bound = (KrkBoundMethod *)object;
 			krk_markValue(bound->receiver);
 			krk_markObject((KrkObj*)bound->method);
+			break;
+		}
+		case OBJ_TUPLE: {
+			KrkTuple * tuple = (KrkTuple *)object;
+			markArray(&tuple->values);
 			break;
 		}
 		case OBJ_NATIVE:

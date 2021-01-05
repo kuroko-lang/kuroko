@@ -19,6 +19,7 @@ KrkVM vm;
 
 static KrkValue run();
 static KrkValue krk_isinstance(int argc, KrkValue argv[]);
+static void addObjects();
 
 /* Embedded script for extensions to builtin-ins; see builtins.c/builtins.krk */
 extern const char _builtins_src[];
@@ -644,6 +645,8 @@ KrkValue krk_typeOf(int argc, KrkValue argv[]) {
 					return OBJECT_VAL(vm.baseClasses.methodClass);
 				case OBJ_STRING:
 					return OBJECT_VAL(vm.baseClasses.strClass);
+				case OBJ_TUPLE:
+					return OBJECT_VAL(vm.baseClasses.tupleClass);
 				case OBJ_INSTANCE:
 					return OBJECT_VAL(AS_INSTANCE(argv[0])->_class);
 				default:
@@ -1865,6 +1868,72 @@ static KrkValue _bound_get_file(int argc, KrkValue argv[]) {
 	return _closure_get_file(1, (KrkValue[]){OBJECT_VAL(boundMethod->method)});
 }
 
+/* tuple.__init__ */
+static KrkValue _tuple_init(int argc, KrkValue argv[]) {
+	KrkTuple * self = krk_newTuple(argc-1);
+	krk_push(OBJECT_VAL(self));
+	for (size_t i = 1; i < (size_t)argc; ++i) {
+		self->values.values[self->values.count++] = argv[i];
+	}
+	krk_pop();
+	return OBJECT_VAL(self);
+}
+
+/* tuple.__len__ */
+static KrkValue _tuple_len(int argc, KrkValue argv[]) {
+	if (argc != 1) {
+		krk_runtimeError(vm.exceptions.argumentError, "tuple.__len__ does not expect arguments");
+		return NONE_VAL();
+	}
+	KrkTuple * self = AS_TUPLE(argv[0]);
+	return INTEGER_VAL(self->values.count);
+}
+
+/* tuple.__get__ */
+static KrkValue _tuple_get(int argc, KrkValue argv[]) {
+	if (argc != 2) {
+		krk_runtimeError(vm.exceptions.argumentError, "tuple.__get__ expects one argument");
+		return NONE_VAL();
+	} else if (!IS_INTEGER(argv[1])) {
+		krk_runtimeError(vm.exceptions.typeError, "can not index by '%s', expected integer", krk_typeName(argv[1]));
+		return NONE_VAL();
+	}
+	KrkTuple * tuple = AS_TUPLE(argv[0]);
+	long index = AS_INTEGER(argv[1]);
+	if (index < 0) index += tuple->values.count;
+	if (index < 0 || index >= (long)tuple->values.count) {
+		krk_runtimeError(vm.exceptions.indexError, "tuple index out of range");
+		return NONE_VAL();
+	}
+	return tuple->values.values[index];
+}
+
+static KrkValue _tuple_repr(int argc, KrkValue argv[]) {
+	if (argc != 1) {
+		krk_runtimeError(vm.exceptions.argumentError, "tuple.__repr__ does not expect arguments");
+		return NONE_VAL();
+	}
+	KrkTuple * tuple = AS_TUPLE(argv[0]);
+	if (tuple->inrepr) return OBJECT_VAL(S("(...)"));
+	tuple->inrepr = 1;
+	/* String building time. */
+	krk_push(OBJECT_VAL(S("(")));
+
+	for (size_t i = 0; i < tuple->values.count; ++i) {
+		krk_push(tuple->values.values[i]);
+		addObjects(); /* pops both, pushes result */
+		if (i != tuple->values.count - 1) {
+			krk_push(OBJECT_VAL(S(", ")));
+			addObjects();
+		}
+	}
+
+	krk_push(OBJECT_VAL(S(")")));
+	addObjects();
+	tuple->inrepr = 0;
+	return krk_pop();
+}
+
 /**
  * object.__str__() / object.__repr__()
  *
@@ -2339,6 +2408,14 @@ void krk_initVM(int flags) {
 	krk_defineNative(&vm.baseClasses.methodClass->methods, ":__name__", _bound_get_name);
 	krk_defineNative(&vm.baseClasses.methodClass->methods, ":__file__", _bound_get_file);
 	krk_finalizeClass(vm.baseClasses.methodClass);
+	ADD_BASE_CLASS(vm.baseClasses.tupleClass, "tuple", vm.objectClass);
+	krk_attachNamedObject(&vm.globals, "tuple", (KrkObj*)vm.baseClasses.tupleClass);
+	krk_defineNative(&vm.baseClasses.tupleClass->methods, ".__init__", _tuple_init);
+	krk_defineNative(&vm.baseClasses.tupleClass->methods, ".__str__", _tuple_repr);
+	krk_defineNative(&vm.baseClasses.tupleClass->methods, ".__repr__", _tuple_repr);
+	krk_defineNative(&vm.baseClasses.tupleClass->methods, ".__get__", _tuple_get);
+	krk_defineNative(&vm.baseClasses.tupleClass->methods, ".__len__", _tuple_len);
+	krk_finalizeClass(vm.baseClasses.tupleClass);
 
 	/* Build global builtin functions. */
 	krk_defineNative(&vm.globals, "listOf", krk_list_of); /* Equivalent to list() */
@@ -3062,7 +3139,11 @@ static KrkValue run() {
 				if (type->_setter) {
 					krk_push(krk_callSimple(OBJECT_VAL(type->_setter), 3, 0));
 				} else {
-					krk_runtimeError(vm.exceptions.attributeError, "'%s' object is not subscriptable", krk_typeName(krk_peek(2)));
+					if (type->_getter) {
+						krk_runtimeError(vm.exceptions.attributeError, "'%s' object is not mutable", krk_typeName(krk_peek(2)));
+					} else {
+						krk_runtimeError(vm.exceptions.attributeError, "'%s' object is not subscriptable", krk_typeName(krk_peek(2)));
+					}
 				}
 				break;
 			}

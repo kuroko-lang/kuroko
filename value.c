@@ -79,6 +79,13 @@ void krk_printValueSafe(FILE * f, KrkValue printable) {
 			case OBJ_INSTANCE: fprintf(f, "<instance of %s>", AS_INSTANCE(printable)->_class->name->chars); break;
 			case OBJ_NATIVE: fprintf(f, "<nativefn %s>", ((KrkNative*)AS_OBJECT(printable))->name); break;
 			case OBJ_CLOSURE: fprintf(f, "<function %s>", AS_CLOSURE(printable)->function->name->chars); break;
+			case OBJ_TUPLE: {
+				fprintf(f, "<tuple (");
+				for (size_t i = 0; i < AS_TUPLE(printable)->values.count; ++i) {
+					krk_printValueSafe(f, AS_TUPLE(printable)->values.values[i]);
+				}
+				fprintf(f, ")>");
+			} break;
 			case OBJ_BOUND_METHOD: fprintf(f, "<method %s>",
 				AS_BOUND_METHOD(printable)->method ? (
 				AS_BOUND_METHOD(printable)->method->type == OBJ_CLOSURE ? ((KrkClosure*)AS_BOUND_METHOD(printable)->method)->function->name->chars :
@@ -104,6 +111,13 @@ int krk_valuesEqual(KrkValue a, KrkValue b) {
 		case VAL_OBJECT: {
 			if (IS_STRING(a) && IS_STRING(b)) return AS_OBJECT(a) == AS_OBJECT(b);
 			/* If their pointers are equal, assume they are always equivalent */
+			if (IS_TUPLE(a) && IS_TUPLE(b)) {
+				if (AS_TUPLE(a)->values.count != AS_TUPLE(b)->values.count) return 0;
+				for (size_t i = 0; i < AS_TUPLE(a)->values.count; ++i) {
+					if (!krk_valuesEqual(AS_TUPLE(a)->values.values[i], AS_TUPLE(b)->values.values[i])) return 0;
+				}
+				return 1;
+			}
 			if (AS_OBJECT(a) == AS_OBJECT(b)) return 1;
 			/* TODO: __eq__ */
 			return 0;
