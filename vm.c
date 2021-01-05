@@ -1876,6 +1876,27 @@ static KrkValue _bound_get_file(int argc, KrkValue argv[]) {
 	return _closure_get_file(1, (KrkValue[]){OBJECT_VAL(boundMethod->method)});
 }
 
+/* function.__args__ */
+static KrkValue _closure_get_argnames(int argc, KrkValue argv[]) {
+	if (!IS_CLOSURE(argv[0])) return OBJECT_VAL(krk_newTuple(0));
+	KrkFunction * self = AS_CLOSURE(argv[0])->function;
+	KrkTuple * tuple = krk_newTuple(self->requiredArgs + self->keywordArgs);
+	krk_push(OBJECT_VAL(tuple));
+	for (short i = 0; i < self->requiredArgs; ++i) {
+		tuple->values.values[tuple->values.count++] = self->requiredArgNames.values[i];
+	}
+	for (short i = 0; i < self->keywordArgs; ++i) {
+		tuple->values.values[tuple->values.count++] = self->keywordArgNames.values[i];
+	}
+	krk_pop();
+	return OBJECT_VAL(tuple);
+}
+
+static KrkValue _bound_get_argnames(int argc, KrkValue argv[]) {
+	KrkBoundMethod * boundMethod = AS_BOUND_METHOD(argv[0]);
+	return _closure_get_argnames(1, (KrkValue[]){OBJECT_VAL(boundMethod->method)});
+}
+
 static KrkValue _tuple_init(int argc, KrkValue argv[]) {
 	krk_runtimeError(vm.exceptions.typeError,"tuple() initializier unsupported");
 	return NONE_VAL();
@@ -2449,6 +2470,7 @@ void krk_initVM(int flags) {
 	krk_defineNative(&vm.baseClasses.functionClass->methods, ".__doc__", _closure_get_doc);
 	krk_defineNative(&vm.baseClasses.functionClass->methods, ":__name__", _closure_get_name);
 	krk_defineNative(&vm.baseClasses.functionClass->methods, ":__file__", _closure_get_file);
+	krk_defineNative(&vm.baseClasses.functionClass->methods, ":__args__", _closure_get_argnames);
 	krk_finalizeClass(vm.baseClasses.functionClass);
 	ADD_BASE_CLASS(vm.baseClasses.methodClass, "method", vm.objectClass);
 	krk_defineNative(&vm.baseClasses.methodClass->methods, ".__str__", _bound_str);
@@ -2456,6 +2478,7 @@ void krk_initVM(int flags) {
 	krk_defineNative(&vm.baseClasses.methodClass->methods, ".__doc__", _bound_get_doc);
 	krk_defineNative(&vm.baseClasses.methodClass->methods, ":__name__", _bound_get_name);
 	krk_defineNative(&vm.baseClasses.methodClass->methods, ":__file__", _bound_get_file);
+	krk_defineNative(&vm.baseClasses.methodClass->methods, ":__args__", _bound_get_argnames);
 	krk_finalizeClass(vm.baseClasses.methodClass);
 	ADD_BASE_CLASS(vm.baseClasses.tupleClass, "tuple", vm.objectClass);
 	krk_attachNamedObject(&vm.globals, "tuple", (KrkObj*)vm.baseClasses.tupleClass);
