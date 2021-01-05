@@ -1472,10 +1472,10 @@ static size_t addUpvalue(Compiler * compiler, ssize_t index, int isLocal) {
 			return i;
 		}
 	}
-	if (upvalueCount + 1 > current->upvaluesSpace) {
-		size_t old = current->upvaluesSpace;
-		current->upvaluesSpace = GROW_CAPACITY(old);
-		current->upvalues = GROW_ARRAY(Upvalue,current->upvalues,old,current->upvaluesSpace);
+	if (upvalueCount + 1 > compiler->upvaluesSpace) {
+		size_t old = compiler->upvaluesSpace;
+		compiler->upvaluesSpace = GROW_CAPACITY(old);
+		compiler->upvalues = GROW_ARRAY(Upvalue,compiler->upvalues,old,compiler->upvaluesSpace);
 	}
 	compiler->upvalues[upvalueCount].isLocal = isLocal;
 	compiler->upvalues[upvalueCount].index = index;
