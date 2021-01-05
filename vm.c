@@ -1887,6 +1887,18 @@ static KrkValue _tuple_init(int argc, KrkValue argv[]) {
 	return OBJECT_VAL(self);
 }
 
+static KrkValue _tuple_contains(int argc, KrkValue argv[]) {
+	if (argc != 2) {
+		krk_runtimeError(vm.exceptions.argumentError, "tuple.__contains__ expects one argument");
+		return NONE_VAL();
+	}
+	KrkTuple * self = AS_TUPLE(argv[0]);
+	for (size_t i = 0; i < self->values.count; ++i) {
+		if (krk_valuesEqual(self->values.values[i], argv[1])) return BOOLEAN_VAL(1);
+	}
+	return BOOLEAN_VAL(0);
+}
+
 /* tuple.__len__ */
 static KrkValue _tuple_len(int argc, KrkValue argv[]) {
 	if (argc != 1) {
@@ -2442,6 +2454,7 @@ void krk_initVM(int flags) {
 	krk_defineNative(&vm.baseClasses.tupleClass->methods, ".__repr__", _tuple_repr);
 	krk_defineNative(&vm.baseClasses.tupleClass->methods, ".__get__", _tuple_get);
 	krk_defineNative(&vm.baseClasses.tupleClass->methods, ".__len__", _tuple_len);
+	krk_defineNative(&vm.baseClasses.tupleClass->methods, ".__contains__", _tuple_contains);
 	krk_finalizeClass(vm.baseClasses.tupleClass);
 
 	/* Build global builtin functions. */
