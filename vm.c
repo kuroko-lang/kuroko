@@ -1967,6 +1967,7 @@ static KrkValue _tuple_repr(int argc, KrkValue argv[]) {
 
 	for (size_t i = 0; i < tuple->values.count; ++i) {
 		krk_push(tuple->values.values[i]);
+		krk_push(krk_callSimple(OBJECT_VAL(AS_CLASS(krk_typeOf(1,&tuple->values.values[i]))->_reprer), 1, 0));
 		addObjects(); /* pops both, pushes result */
 		if (i != tuple->values.count - 1) {
 			krk_push(OBJECT_VAL(S(", ")));
