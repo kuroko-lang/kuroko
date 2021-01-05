@@ -83,17 +83,22 @@ typedef struct KrkClass {
 	KrkString * docstring;
 	struct KrkClass * base;
 	KrkTable methods;
+
+	/* Quick access for common stuff */
+	KrkObj * _getter;
+	KrkObj * _setter;
+	KrkObj * _slicer;
+	KrkObj * _reprer;
+	KrkObj * _tostr;
+	KrkObj * _call;
+	KrkObj * _init;
 } KrkClass;
 
 typedef struct {
 	KrkObj obj;
 	KrkClass * _class;
 	KrkTable fields;
-
-	/* Quick access for common stuff */
-	KrkObj * _getter;
-	KrkObj * _setter;
-	KrkObj * _slicer;
+	KrkObj * _internal;
 } KrkInstance;
 
 typedef struct {

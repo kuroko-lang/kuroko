@@ -913,7 +913,7 @@ static void classDeclaration() {
 		}
 	} /* else empty class (and at end of file?) we'll allow it for now... */
 _pop_class:
-	emitByte(OP_POP);
+	emitByte(OP_FINALIZE);
 	if (classCompiler.hasSuperClass) {
 		endScope();
 	}

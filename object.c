@@ -111,6 +111,15 @@ KrkClass * krk_newClass(KrkString * name) {
 	_class->docstring = NULL;
 	_class->base = NULL;
 	krk_initTable(&_class->methods);
+
+	_class->_getter = NULL;
+	_class->_setter = NULL;
+	_class->_slicer = NULL;
+	_class->_reprer = NULL;
+	_class->_tostr = NULL;
+	_class->_call = NULL;
+	_class->_init = NULL;
+
 	return _class;
 }
 
@@ -118,22 +127,7 @@ KrkInstance * krk_newInstance(KrkClass * _class) {
 	KrkInstance * instance = ALLOCATE_OBJECT(KrkInstance, OBJ_INSTANCE);
 	instance->_class = _class;
 	krk_initTable(&instance->fields);
-
-	instance->_getter = NULL;
-	instance->_setter = NULL;
-	instance->_slicer = NULL;
-
-	KrkValue tmp;
-	if (krk_tableGet(&_class->methods, vm.specialMethodNames[METHOD_GET], &tmp)) {
-		instance->_getter = AS_OBJECT(tmp);
-	}
-	if (krk_tableGet(&_class->methods, vm.specialMethodNames[METHOD_SET], &tmp)) {
-		instance->_setter = AS_OBJECT(tmp);
-	}
-	if (krk_tableGet(&_class->methods, vm.specialMethodNames[METHOD_GETSLICE], &tmp)) {
-		instance->_slicer = AS_OBJECT(tmp);
-	}
-
+	instance->_internal = NULL; /* To be used by C-defined types to track internal objects. */
 	return instance;
 }
 
