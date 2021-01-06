@@ -2363,6 +2363,7 @@ void krk_initVM(int flags) {
 	krk_initTable(&vm.globals);
 	krk_initTable(&vm.strings);
 	memset(vm.specialMethodNames,0,sizeof(vm.specialMethodNames));
+	vm.watchdog = 0;
 
 	/* To make lookup faster, store these so we can don't have to keep boxing
 	 * and unboxing, copying/hashing etc. */
@@ -2965,6 +2966,20 @@ static KrkValue run() {
 			dumpStack(frame);
 			krk_disassembleInstruction(stderr, frame->closure->function,
 				(size_t)(frame->ip - frame->closure->function->chunk.code));
+		}
+#endif
+
+#ifdef ENABLE_WATCHDOG
+		if (vm.watchdog - 1 == 0) {
+			fprintf(stderr, "Watchdog timer tripped.\n\n");
+			krk_dumpTraceback();
+			krk_resetStack();
+			fprintf(stderr, "\n\n");
+			vm.watchdog = 0;
+			exit(0);
+			return NONE_VAL();
+		} else if (vm.watchdog > 0) {
+			vm.watchdog--;
 		}
 #endif
 

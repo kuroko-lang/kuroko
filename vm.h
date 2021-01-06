@@ -97,6 +97,7 @@ typedef struct {
 
 	KrkValue currentException;
 	int flags;
+	long watchdog;
 } KrkVM;
 
 #define KRK_ENABLE_TRACING      (1 << 0)
