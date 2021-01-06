@@ -1,7 +1,7 @@
 def __main__():
     let module = object()
     def aFunction(withArgs):
-        print("I have a module:", module)
+        print("I have a module:", str(module)[:20])
         return withArgs
     module.aFunction = aFunction
     return module
