@@ -1,0 +1,10 @@
+def __main__():
+    let module = object()
+    def aFunction(withArgs):
+        print("I have a module:", module)
+        return withArgs
+    module.aFunction = aFunction
+    return module
+
+let mod = __main__()
+mod.aFunction("foo")
