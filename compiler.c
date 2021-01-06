@@ -1714,7 +1714,7 @@ static void list(int canAssign) {
 			emitBytes(OP_CALL, 0);
 		} else {
 			size_t argCount = 1;
-			while (match(TOKEN_COMMA)) {
+			while (match(TOKEN_COMMA) && !check(TOKEN_RIGHT_SQUARE)) {
 				expression();
 				argCount++;
 			}
@@ -1742,7 +1742,7 @@ static void dict(int canAssign) {
 			consume(TOKEN_COLON, "Expect colon after dict key.");
 			expression();
 			argCount += 2;
-		} while (match(TOKEN_COMMA));
+		} while (match(TOKEN_COMMA) && !check(TOKEN_RIGHT_BRACE));
 	}
 	stopEatingWhitespace();
 	consume(TOKEN_RIGHT_BRACE,"Expected } at end of dict expression.");
