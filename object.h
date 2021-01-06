@@ -60,6 +60,13 @@ typedef struct KrkUpvalue {
 } KrkUpvalue;
 
 typedef struct {
+	size_t id;
+	size_t birthday;
+	size_t deathday;
+	KrkString * name;
+} KrkLocalEntry;
+
+typedef struct {
 	KrkObj obj;
 	short requiredArgs;
 	short keywordArgs;
@@ -69,6 +76,9 @@ typedef struct {
 	KrkString * docstring;
 	KrkValueArray requiredArgNames;
 	KrkValueArray keywordArgNames;
+	size_t localNameCapacity;
+	size_t localNameCount;
+	KrkLocalEntry * localNames;
 	unsigned char collectsArguments:1;
 	unsigned char collectsKeywords:1;
 } KrkFunction;

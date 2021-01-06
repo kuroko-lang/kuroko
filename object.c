@@ -70,6 +70,8 @@ KrkFunction * krk_newFunction() {
 	function->docstring = NULL;
 	function->collectsArguments = 0;
 	function->collectsKeywords = 0;
+	function->localNameCount = 0;
+	function->localNames = NULL;
 	krk_initValueArray(&function->requiredArgNames);
 	krk_initValueArray(&function->keywordArgNames);
 	krk_initChunk(&function->chunk);

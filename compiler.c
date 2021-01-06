@@ -110,6 +110,8 @@ typedef struct Compiler {
 	size_t continueCount;
 	size_t continueSpace;
 	int * continues;
+
+	size_t localNameCapacity;
 } Compiler;
 
 typedef struct ClassCompiler {
@@ -148,11 +150,11 @@ static void initCompiler(Compiler * compiler, FunctionType type) {
 	compiler->continueSpace = 0;
 	compiler->continues = NULL;
 	compiler->loopLocalCount = 0;
+	compiler->localNameCapacity = 0;
 
 	if (type != TYPE_MODULE) {
 		current->function->name = krk_copyString(parser.previous.start, parser.previous.length);
 	}
-
 
 	if (type == TYPE_INIT || type == TYPE_METHOD) {
 		Local * local = &current->locals[current->localCount++];
@@ -310,8 +312,17 @@ static void emitReturn() {
 }
 
 static KrkFunction * endCompiler() {
-	emitReturn();
 	KrkFunction * function = current->function;
+
+	for (size_t i = 0; i < current->function->localNameCount; i++) {
+		if (current->function->localNames[i].deathday == 0) {
+			current->function->localNames[i].deathday = currentChunk()->count;
+		}
+	}
+	current->function->localNames = GROW_ARRAY(KrkLocalEntry, current->function->localNames, \
+		current->localNameCapacity, current->function->localNameCount); /* Shorten this down for runtime */
+
+	emitReturn();
 
 	/* Attach contants for arguments */
 	for (int i = 0; i < function->requiredArgs; ++i) {
@@ -639,6 +650,11 @@ static void endScope() {
 	current->scopeDepth--;
 	while (current->localCount > 0 &&
 	       current->locals[current->localCount - 1].depth > (ssize_t)current->scopeDepth) {
+		for (size_t i = 0; i < current->function->localNameCount; i++) {
+			if (current->function->localNames[i].id == current->localCount - 1) {
+				current->function->localNames[i].deathday = (size_t)currentChunk()->count;
+			}
+		}
 		if (current->locals[current->localCount - 1].isCaptured) {
 			emitByte(OP_CLOSE_UPVALUE);
 		} else {
@@ -1853,6 +1869,17 @@ static void addLocal(KrkToken name) {
 	local->name = name;
 	local->depth = -1;
 	local->isCaptured = 0;
+
+	if (current->function->localNameCount + 1 > current->localNameCapacity) {
+		size_t old = current->localNameCapacity;
+		current->localNameCapacity = GROW_CAPACITY(old);
+		current->function->localNames = GROW_ARRAY(KrkLocalEntry, current->function->localNames, old, current->localNameCapacity);
+	}
+	current->function->localNames[current->function->localNameCount].id = current->localCount-1;
+	current->function->localNames[current->function->localNameCount].birthday = currentChunk()->count;
+	current->function->localNames[current->function->localNameCount].deathday = 0;
+	current->function->localNames[current->function->localNameCount].name = krk_copyString(name.start, name.length);
+	current->function->localNameCount++;
 }
 
 static void declareVariable() {

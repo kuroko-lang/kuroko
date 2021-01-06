@@ -15,42 +15,39 @@ static inline const char * opcodeClean(const char * opc) {
 	return &opc[3];
 }
 
-#define SIMPLE(opc) case opc: fprintf(f, "%s\n", opcodeClean(#opc)); return offset + 1;
+#define SIMPLE(opc) case opc: fprintf(f, "%-16s      ", opcodeClean(#opc)); size = 1; break;
 #define CONSTANT(opc,more) case opc: { size_t constant = chunk->code[offset + 1]; \
 	fprintf(f, "%-16s %4d ", opcodeClean(#opc), (int)constant); \
 	krk_printValueSafe(f, chunk->constants.values[constant]); \
-	fprintf(f," (type=%s)\n", krk_typeName(chunk->constants.values[constant])); \
+	fprintf(f," (type=%s)", krk_typeName(chunk->constants.values[constant])); \
 	more; \
-	return offset + 2; } \
+	size = 2; break; } \
 	case opc ## _LONG: { size_t constant = (chunk->code[offset + 1] << 16) | \
 	(chunk->code[offset + 2] << 8) | (chunk->code[offset + 3]); \
 	fprintf(f, "%-16s %4d ", opcodeClean(#opc "_LONG"), (int)constant); \
 	krk_printValueSafe(f, chunk->constants.values[constant]); \
-	fprintf(f," (type=%s)\n", krk_typeName(chunk->constants.values[constant])); \
-	more; \
-	return offset + 4; }
+	fprintf(f," (type=%s)", krk_typeName(chunk->constants.values[constant])); \
+	more; size = 4; break; }
 #define OPERANDB(opc,more) case opc: { uint32_t operand = chunk->code[offset + 1]; \
 	fprintf(f, "%-16s %4d", opcodeClean(#opc), (int)operand); \
-	more; fprintf(f,"\n"); \
-	return offset + 2; }
+	more; size = 2; break; }
 #define OPERAND(opc,more) OPERANDB(opc,more) \
 	case opc ## _LONG: { uint32_t operand = (chunk->code[offset + 1] << 16) | \
 	(chunk->code[offset + 2] << 8) | (chunk->code[offset + 3]); \
 	fprintf(f, "%-16s %4d", opcodeClean(#opc "_LONG"), (int)operand); \
 	more; fprintf(f,"\n"); \
-	return offset + 4; }
+	size = 4; break; }
 #define JUMP(opc,sign) case opc: { uint16_t jump = (chunk->code[offset + 1] << 8) | \
 	(chunk->code[offset + 2]); \
-	fprintf(f, "%-16s %4d -> %d\n", opcodeClean(#opc), (int)offset, (int)(offset + 3 sign jump)); \
-	return offset + 3; }
+	fprintf(f, "%-16s %4d -> %d", opcodeClean(#opc), (int)offset, (int)(offset + 3 sign jump)); \
+	size = 3; break; }
 
 #define CLOSURE_MORE \
 	KrkFunction * function = AS_FUNCTION(chunk->constants.values[constant]); \
 	for (size_t j = 0; j < function->upvalueCount; ++j) { \
 		int isLocal = chunk->code[offset++ + 2]; \
 		int index = chunk->code[offset++ + 2]; \
-		fprintf(f, "%04d      |                     %s %d\n", \
-			(int)offset - 2, isLocal ? "local" : "upvalue", index); \
+		fprintf(f, " (%d %s %d)", (int)offset - 2, isLocal ? "local" : "upvalue", index); \
 	}
 
 #define EXPAND_ARGS_MORE \
@@ -58,9 +55,16 @@ static inline const char * opcodeClean(const char * opc) {
 
 #define LOCAL_MORE \
 	if ((short int)operand < (func->requiredArgs)) { \
-		fprintf(f, " (%s)", AS_CSTRING(func->requiredArgNames.values[operand])); \
+		fprintf(f, " (%s, arg)", AS_CSTRING(func->requiredArgNames.values[operand])); \
 	} else if ((short int)operand < (func->requiredArgs + func->keywordArgs)) { \
-		fprintf(f, " (%s)", AS_CSTRING(func->keywordArgNames.values[operand-func->requiredArgs])); \
+		fprintf(f, " (%s, kwarg))", AS_CSTRING(func->keywordArgNames.values[operand-func->requiredArgs])); \
+	} else { \
+		for (size_t i = 0; i < func->localNameCount; ++i) { \
+			if (func->localNames[i].id == operand && func->localNames[i].birthday <= offset && func->localNames[i].deathday >= offset) { \
+				fprintf(f, " (%s)", func->localNames[i].name->chars); \
+				break; \
+			} \
+		} \
 	}
 
 size_t krk_lineNumber(KrkChunk * chunk, size_t offset) {
@@ -81,6 +85,7 @@ size_t krk_disassembleInstruction(FILE * f, KrkFunction * func, size_t offset) {
 		fprintf(f, "%4d ", (int)krk_lineNumber(chunk, offset));
 	}
 	uint8_t opcode = chunk->code[offset];
+	size_t size = 1;
 
 	switch (opcode) {
 		SIMPLE(OP_RETURN)
@@ -140,8 +145,26 @@ size_t krk_disassembleInstruction(FILE * f, KrkFunction * func, size_t offset) {
 		JUMP(OP_JUMP_IF_TRUE,+)
 		JUMP(OP_LOOP,-)
 		JUMP(OP_PUSH_TRY,+)
+		default:
+			fprintf(f, "Unknown opcode: %02x", opcode);
 	}
-	fprintf(f, "Unknown opcode: %02x\n", opcode);
-	return offset + 1;
+
+	/* Birthdays - Local names that have become valid from this instruction */
+	for (size_t i = 0; i < func->localNameCount; ++i) {
+		if (func->localNames[i].birthday >= offset && func->localNames[i].birthday < offset + size) {
+			fprintf(f, " +%s", func->localNames[i].name->chars);
+		}
+	}
+
+	/* Deathdays - Local names that are no longer valid as of this instruction */
+	for (size_t i = 0; i < func->localNameCount; ++i) {
+		if (func->localNames[i].deathday >= offset && func->localNames[i].deathday < offset + size) {
+			fprintf(f, " -%s", func->localNames[i].name->chars);
+		}
+	}
+
+	fprintf(f,"\n");
+
+	return offset + size;
 }
 

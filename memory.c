@@ -39,6 +39,8 @@ static void freeObject(KrkObj * object) {
 			krk_freeChunk(&function->chunk);
 			krk_freeValueArray(&function->requiredArgNames);
 			krk_freeValueArray(&function->keywordArgNames);
+			FREE_ARRAY(KrkLocalEntry, function->localNames, function->localNameCount);
+			function->localNameCount = 0;
 			FREE(KrkFunction, object);
 			break;
 		}
@@ -131,6 +133,9 @@ static void blackenObject(KrkObj * object) {
 			markArray(&function->requiredArgNames);
 			markArray(&function->keywordArgNames);
 			markArray(&function->chunk.constants);
+			for (size_t i = 0; i < function->localNameCount; ++i) {
+				krk_markObject((KrkObj*)function->localNames[i].name);
+			}
 			break;
 		}
 		case OBJ_UPVALUE:
