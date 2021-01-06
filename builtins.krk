@@ -17,8 +17,6 @@ class list():
    b+=repr(self[i])
   self.__inrepr=0
   return b+"]"
- def __iter__(self):
-  return __builtins__.listiterator(self)
 
 class dict():
  "Hashmap of arbitrary keys to arbitrary values."

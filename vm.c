@@ -2170,6 +2170,43 @@ static KrkValue _repr(int argc, KrkValue argv[]) {
 	return krk_callSimple(krk_peek(0), 0, 1);
 }
 
+static KrkValue _tuple_iter_init(int argc, KrkValue argv[]) {
+	KrkInstance * self = AS_INSTANCE(argv[0]);
+	krk_push(argv[0]);
+	KrkTuple * myTuple = krk_newTuple(2);
+	krk_push(OBJECT_VAL(myTuple));
+	myTuple->values.values[0] = argv[1]; /* The tuple to iterator over */
+	myTuple->values.values[1] = INTEGER_VAL(0); /* The index counter */
+	myTuple->values.count = 2;
+	krk_attachNamedObject(&self->fields, "_tuple", (KrkObj*)myTuple);
+	self->_internal = myTuple;
+	krk_pop(); /* myTuple */
+	krk_pop(); /* self */
+
+	return argv[0];
+}
+
+static KrkValue _tuple_iter_call(int argc, KrkValue argv[]) {
+	KrkInstance * self = AS_INSTANCE(argv[0]);
+	KrkTuple * myTuple = self->_internal;
+	KrkValue t = myTuple->values.values[0]; /* Tuple to iterate */
+	KrkValue i = myTuple->values.values[1]; /* Index value */
+	if (AS_INTEGER(i) >= (long int)AS_TUPLE(t)->values.count) {
+		return argv[0];
+	} else {
+		myTuple->values.values[1] = INTEGER_VAL(AS_INTEGER(i)+1);
+		return AS_TUPLE(t)->values.values[AS_INTEGER(i)];
+	}
+}
+
+static KrkValue _tuple_iter(int argc, KrkValue argv[]) {
+	KrkInstance * output = krk_newInstance(vm.baseClasses.tupleiteratorClass);
+	krk_push(OBJECT_VAL(output));
+	_tuple_iter_init(2, (KrkValue[]){krk_peek(0), argv[0]});
+	krk_pop();
+	return OBJECT_VAL(output);
+}
+
 static KrkValue _striter_init(int argc, KrkValue argv[]) {
 	if (!IS_INSTANCE(argv[0]) || AS_INSTANCE(argv[0])->_class != vm.baseClasses.striteratorClass) {
 		krk_runtimeError(vm.exceptions.typeError, "Tried to call striterator.__init__() on something not a str iterator");
@@ -2275,6 +2312,16 @@ static KrkValue _listiter_call(int argc, KrkValue argv[]) {
 _corrupt:
 	krk_runtimeError(vm.exceptions.typeError, "Corrupt list iterator: %s", errorStr);
 	return NONE_VAL();
+}
+
+static KrkValue _list_iter(int argc, KrkValue argv[]) {
+	KrkInstance * output = krk_newInstance(vm.baseClasses.listiteratorClass);
+
+	krk_push(OBJECT_VAL(output));
+	_listiter_init(2, (KrkValue[]){krk_peek(0), argv[0]});
+	krk_pop();
+
+	return OBJECT_VAL(output);
 }
 
 static KrkValue _range_init(int argc, KrkValue argv[]) {
@@ -2526,6 +2573,7 @@ void krk_initVM(int flags) {
 	krk_defineNative(&vm.baseClasses.tupleClass->methods, ".__get__", _tuple_get);
 	krk_defineNative(&vm.baseClasses.tupleClass->methods, ".__len__", _tuple_len);
 	krk_defineNative(&vm.baseClasses.tupleClass->methods, ".__contains__", _tuple_contains);
+	krk_defineNative(&vm.baseClasses.tupleClass->methods, ".__iter__", _tuple_iter);
 	krk_finalizeClass(vm.baseClasses.tupleClass);
 
 	/* Build global builtin functions. */
@@ -2563,6 +2611,11 @@ void krk_initVM(int flags) {
 	krk_defineNative(&vm.baseClasses.rangeiteratorClass->methods, ".__call__", _rangeiterator_call);
 	krk_finalizeClass(vm.baseClasses.rangeiteratorClass);
 
+	ADD_BASE_CLASS(vm.baseClasses.tupleiteratorClass, "tupleiterator", vm.objectClass);
+	krk_defineNative(&vm.baseClasses.tupleiteratorClass->methods, ".__init__", _tuple_iter_init);
+	krk_defineNative(&vm.baseClasses.tupleiteratorClass->methods, ".__call__", _tuple_iter_call);
+	krk_finalizeClass(vm.baseClasses.tupleiteratorClass);
+
 	/**
 	 * Read the managed code builtins module, which contains the base
 	 * definitions for collections so we can pull them into the global
@@ -2588,6 +2641,7 @@ void krk_initVM(int flags) {
 		krk_defineNative(&_class->methods, ".__len__", _list_len);
 		krk_defineNative(&_class->methods, ".__contains__", _list_contains);
 		krk_defineNative(&_class->methods, ".__getslice__", _list_slice);
+		krk_defineNative(&_class->methods, ".__iter__", _list_iter);
 		krk_defineNative(&_class->methods, ".append", _list_append);
 		krk_finalizeClass(_class);
 
