@@ -15,9 +15,9 @@ libkuroko.so: ${OBJS}
 	${CC} ${CLFAGS} -shared -fPIC -o $@ ${OBJS}
 
 builtins.c: builtins.krk
-	echo "const char _builtins_src[] = {\n" > builtins.c
-	hexdump -v -e '16/1 "0x%02x,"' -e '"\n"' builtins.krk | sed s'/0x  ,//g' >> builtins.c
-	echo "0x00 };" >> builtins.c
+	echo "const char _builtins_src[] = " > builtins.c
+	cat builtins.krk | sed s'/\(.*\)/\"\0\\n\"/' >> builtins.c
+	echo ";" >> builtins.c
 
 kuroko: libkuroko.so rline.o
 

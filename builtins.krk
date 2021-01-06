@@ -1,41 +1,43 @@
+# Please avoid using double quotes or escape sequences
+# in this file to allow it to be easily convereted to C.
 class list():
- "Resizable array with direct constant-time indexing."
+ 'Resizable array with direct constant-time indexing.'
  def extend(i):
-  "Add all entries from an iterable to the end of this list."
+  'Add all entries from an iterable to the end of this list.'
   for v in i:
    self.append(v)
   return self.__len__()
  def __str__(self): return self.__repr__()
  def __repr__(self):
-  if self.__inrepr: return "[...]"
+  if self.__inrepr: return '[...]'
   self.__inrepr=1
-  let b="["
+  let b='['
   let l=self.__len__()
   for i=0,i<l,i=i+1:
    if i>0:
-    b+=", "
+    b+=', '
    b+=repr(self[i])
   self.__inrepr=0
-  return b+"]"
+  return b+']'
 
 class dict():
- "Hashmap of arbitrary keys to arbitrary values."
+ 'Hashmap of arbitrary keys to arbitrary values.'
  def __str__(self): return self.__repr__()
  def __repr__(self):
-  if self.__inrepr: return "{...}"
+  if self.__inrepr: return '{...}'
   self.__inrepr = 1
-  let out = "{"
+  let out = '{'
   let first = True
   for v in self.keys():
    if not first:
-    out += ", "
+    out += ', '
    first = False
-   out += v.__repr__() + ": " + self[v].__repr__()
-  out += "}"
+   out += v.__repr__() + ': ' + self[v].__repr__()
+  out += '}'
   self.__inrepr = 0
   return out
  def keys(self):
-  "Returns an iterable of the keys in this dictionary."
+  'Returns an iterable of the keys in this dictionary.'
   class KeyIterator():
    def __init__(self,t):
     self.t=t
@@ -63,9 +65,9 @@ class Helper():
     try:
      print(obj.__class__.__doc__)
     except:
-     print("No docstring avaialble for", obj)
+     print('No docstring avaialble for', obj)
   else:
-   print("(Interactive help is not yet available)")
+   print('(Interactive help is not yet available)')
  def __repr__(self):
   return 'Type help() for more help, or help(obj) to describe an object.'
 
@@ -73,6 +75,6 @@ let help = Helper()
 
 export list,dict,help
 
-__builtins__.module_paths = ["./","./modules/","/home/klange/Projects/kuroko/modules/","/usr/share/kuroko/"]
+__builtins__.module_paths = ['./','./modules/','/home/klange/Projects/kuroko/modules/','/usr/share/kuroko/']
 
 return object()
