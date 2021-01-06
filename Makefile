@@ -1,7 +1,7 @@
 CFLAGS = -g -O3 -fPIC -Wall -Wextra -pedantic -Wno-unused-parameter -DDEBUG
 LDFLAGS = -L. -Wl,-rpath -Wl,.
 LDLIBS = -lkuroko -ldl
-OBJS = $(patsubst %.c, %.o, $(filter-out kuroko.c,$(sort $(wildcard *.c))))
+OBJS = $(patsubst %.c, %.o, $(filter-out rline.c,$(filter-out kuroko.c,$(sort $(wildcard *.c)))))
 TARGET = kuroko
 
 MODULES=$(patsubst src/%.c, modules/%.so, $(sort $(wildcard src/*.c)))
@@ -19,11 +19,11 @@ builtins.c: builtins.krk
 	hexdump -v -e '16/1 "0x%02x,"' -e '"\n"' builtins.krk | sed s'/0x  ,//g' >> builtins.c
 	echo "0x00 };" >> builtins.c
 
-kuroko: libkuroko.so
+kuroko: libkuroko.so rline.o
 
 .PHONY: clean
 clean:
-	@rm -f ${OBJS} ${TARGET} ${MODULES} libkuroko.so
+	@rm -f ${OBJS} ${TARGET} ${MODULES} libkuroko.so rline.o
 
 tags: $(wildcard *.c) $(wildcard *.h)
 	@ctags --c-kinds=+lx *.c *.h
