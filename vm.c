@@ -51,6 +51,36 @@ static void dumpStack(CallFrame * frame) {
 	for (KrkValue * slot = vm.stack; slot < vm.stackTop; slot++) {
 		fprintf(stderr, "[ ");
 		if (i == frame->slots) fprintf(stderr, "*");
+
+		for (size_t x = vm.frameCount; x > 0; x--) {
+			if (vm.frames[x-1].slots > i) continue;
+			CallFrame * f = &vm.frames[x-1];
+			size_t relative = i - f->slots;
+			//fprintf(stderr, "(%s[%d])", f->closure->function->name->chars, (int)relative);
+			/* Should resolve here? */
+			if (relative < (size_t)f->closure->function->requiredArgs) {
+				fprintf(stderr, "%s=", AS_CSTRING(f->closure->function->requiredArgNames.values[relative]));
+				break;
+			} else if (relative < (size_t)f->closure->function->requiredArgs + (size_t)f->closure->function->keywordArgs) {
+				fprintf(stderr, "%s=", AS_CSTRING(f->closure->function->keywordArgNames.values[relative - f->closure->function->requiredArgs]));
+				break;
+			} else {
+				int found = 0;
+				for (size_t j = 0; j < f->closure->function->localNameCount; ++j) {
+					if (relative == f->closure->function->localNames[j].id
+						/* Only display this name if it's currently valid */
+						&&  f->closure->function->localNames[j].birthday <= (size_t)(f->ip - f->closure->function->chunk.code)
+						) {
+						fprintf(stderr,"%s=", f->closure->function->localNames[j].name->chars);
+						found = 1;
+						break;
+					}
+				}
+				if (found) break;
+			}
+		}
+
+		
 		krk_printValueSafe(stderr, *slot);
 		fprintf(stderr, " ]");
 		i++;
