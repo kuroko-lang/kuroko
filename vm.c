@@ -2595,7 +2595,7 @@ void krk_initVM(int flags) {
 	ADD_BASE_CLASS(vm.baseClasses.functionClass, "function", vm.objectClass);
 	krk_defineNative(&vm.baseClasses.functionClass->methods, ".__str__", _closure_str);
 	krk_defineNative(&vm.baseClasses.functionClass->methods, ".__repr__", _closure_str);
-	krk_defineNative(&vm.baseClasses.functionClass->methods, ".__doc__", _closure_get_doc);
+	krk_defineNative(&vm.baseClasses.functionClass->methods, ":__doc__", _closure_get_doc);
 	krk_defineNative(&vm.baseClasses.functionClass->methods, ":__name__", _closure_get_name);
 	krk_defineNative(&vm.baseClasses.functionClass->methods, ":__file__", _closure_get_file);
 	krk_defineNative(&vm.baseClasses.functionClass->methods, ":__args__", _closure_get_argnames);
