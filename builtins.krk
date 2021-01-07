@@ -1,5 +1,5 @@
 # Please avoid using double quotes or escape sequences
-# in this file to allow it to be easily convereted to C.
+# in this file to allow it to be easily converted to C.
 class list():
  'Resizable array with direct constant-time indexing.'
  def extend(i):

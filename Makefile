@@ -9,10 +9,10 @@ MODULES=$(patsubst src/%.c, modules/%.so, $(sort $(wildcard src/*.c)))
 all: ${TARGET} ${MODULES}
 
 modules/%.so: src/%.c
-	${CC} ${CFLAGS} -shared -fPIC -o $@ $<
+	${CC} ${CFLAGS} -shared -o $@ $<
 
 libkuroko.so: ${OBJS}
-	${CC} ${CLFAGS} -shared -fPIC -o $@ ${OBJS}
+	${CC} ${CLFAGS} -shared -o $@ ${OBJS}
 
 builtins.c: builtins.krk
 	echo "const char _builtins_src[] = " > builtins.c

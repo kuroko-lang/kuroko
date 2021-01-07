@@ -1,6 +1,6 @@
 const char _builtins_src[] = 
 "# Please avoid using double quotes or escape sequences\n"
-"# in this file to allow it to be easily convereted to C.\n"
+"# in this file to allow it to be easily converted to C.\n"
 "class list():\n"
 " 'Resizable array with direct constant-time indexing.'\n"
 " def extend(i):\n"

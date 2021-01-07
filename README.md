@@ -125,7 +125,7 @@ If a default argument value is not provided, the expression assigned to it will 
 
 Blocks, including function `def` blocks and control flow structures like `if` and `for`, must be indented with spaces to a level greater than the enclosing block.
 
-You may indent blocks to whatever level you desire, so long as ordering remains consistent, though the recommendtation indentation size is 4 spaces.
+You may indent blocks to whatever level you desire, so long as ordering remains consistent, though the recommendation indentation size is 4 spaces.
 
 Tabs are not valid as indentation and will be ignored. It is recommended that you use an editor which provides a clear visual distinction between tabs and spaces, such as [Bim](https://github.com/klange/bim).
 
@@ -159,7 +159,7 @@ print(foo)
 
 Functions are first-class values and may be returned from functions and stored in variables, producing _closures_.
 
-When a function references local values from an outter scope, such as in the example below, the referenced variables will be captured.
+When a function references local values from an outer scope, such as in the example below, the referenced variables will be captured.
 
 ```py
 def foo():
@@ -239,7 +239,7 @@ Some other special method names include `__get__`, `__set__`, and `__str__`, whi
 
 _**Note**: Unlike in Python, most types are not actually instances of classes, though many of the same operations still apply to them._
 
-### Inheritence
+### Inheritance
 
 Classes may inherit from a single super class:
 
@@ -281,7 +281,7 @@ bar.printType()
 #   Also, I enjoy long walks on the beach.
 ```
 
-You can determine at runtime if an object is an instance of a class, either directly or through its inheretince chain, with the `isinstance` builtin function:
+You can determine at runtime if an object is an instance of a class, either directly or through its inheritance chain, with the `isinstance` builtin function:
 
 ```py
 class Foo:
@@ -731,7 +731,7 @@ Pressing backspace when the cursor is preceded by whitespace will delete up to t
 
 The tab key will also produce spaces when the cursor is at the beginning of the line or preceded entirely with white space.
 
-The repl will display indentation level indicators in preceeding whitespace as a helpful guide.
+The repl will display indentation level indicators in preceding whitespace as a helpful guide.
 
 When a blank line or a line consisting entirely of whitespace is entered, the repl will process the full input.
 
