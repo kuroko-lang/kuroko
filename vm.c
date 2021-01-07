@@ -1781,10 +1781,10 @@ static KrkValue _string_split(int argc, KrkValue argv[], int hasKw) {
 					i++; c++;
 				}
 				KrkValue tmp = OBJECT_VAL(krk_copyString(stringBytes, stringLength));
+				FREE_ARRAY(char,stringBytes,stringCapacity);
 				krk_push(tmp);
 				krk_writeValueArray(AS_LIST(_list_internal), tmp);
 				krk_pop();
-				FREE_ARRAY(char,stringBytes,stringCapacity);
 				#if 0
 				/* Need to parse kwargs to support this */
 				if (argc > 2 && i != self->length && count >= (size_t)AS_INTEGER(argv[2])) {
@@ -1812,6 +1812,7 @@ static KrkValue _string_split(int argc, KrkValue argv[], int hasKw) {
 				i++; c++;
 			}
 			KrkValue tmp = OBJECT_VAL(krk_copyString(stringBytes, stringLength));
+			if (stringBytes) FREE_ARRAY(char,stringBytes,stringCapacity);
 			krk_push(tmp);
 			krk_writeValueArray(AS_LIST(_list_internal), tmp);
 			krk_pop();
@@ -1828,10 +1829,10 @@ static KrkValue _string_split(int argc, KrkValue argv[], int hasKw) {
 						i++; c++;
 					}
 					KrkValue tmp = OBJECT_VAL(krk_copyString(stringBytes, stringLength));
+					if (stringBytes) FREE_ARRAY(char,stringBytes,stringCapacity);
 					krk_push(tmp);
 					krk_writeValueArray(AS_LIST(_list_internal), tmp);
 					krk_pop();
-					if (stringBytes) FREE_ARRAY(char,stringBytes,stringCapacity);
 					break;
 				}
 				if (i == self->length) {
