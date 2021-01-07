@@ -24,6 +24,7 @@
 #include "memory.h"
 #include "scanner.h"
 
+static int enableRline = 1;
 static int exitRepl = 0;
 static KrkValue exitFunc(int argc, KrkValue argv[]) {
 	exitRepl = 1;
@@ -205,27 +206,65 @@ static void tab_complete_func(rline_context_t * c) {
 	}
 }
 
+/* Runs the interpreter to get the version information. */
+static int version(void) {
+	krk_initVM(0);
+	krk_interpret("import kuroko\nprint('Kuroko',kuroko.version)\n", 1, "<stdin>","<stdin>");
+	krk_freeVM();
+	return 0;
+}
+
 int main(int argc, char * argv[]) {
 	int flags = 0;
 	int opt;
-	while ((opt = getopt(argc, argv, "tdgs")) != -1) {
+	while ((opt = getopt(argc, argv, "dgrstV-:")) != -1) {
 		switch (opt) {
-			case 't':
-				/* Disassemble instructions as they are executed. */
-				flags |= KRK_ENABLE_TRACING;
-				break;
 			case 'd':
 				/* Disassemble code blocks after compilation. */
 				flags |= KRK_ENABLE_DISASSEMBLY;
-				break;
-			case 's':
-				/* Print debug information during compilation. */
-				flags |= KRK_ENABLE_SCAN_TRACING;
 				break;
 			case 'g':
 				/* Always garbage collect during an allocation. */
 				flags |= KRK_ENABLE_STRESS_GC;
 				break;
+			case 's':
+				/* Print debug information during compilation. */
+				flags |= KRK_ENABLE_SCAN_TRACING;
+				break;
+			case 't':
+				/* Disassemble instructions as they are executed. */
+				flags |= KRK_ENABLE_TRACING;
+				break;
+			case 'r':
+				enableRline = 0;
+				break;
+			case 'V':
+				return version();
+			case '-':
+				if (!strcmp(optarg,"version")) {
+					return version();
+				} else if (!strcmp(optarg,"help")) {
+					fprintf(stderr,"usage: %s [flags] [FILE...]\n"
+						"\n"
+						"Interpreter options:\n"
+						" -d          Debug output from the bytecode compiler.\n"
+						" -g          Collect garbage on every allocation.\n"
+						" -r          Disable complex line editing in the REPL.\n"
+						" -s          Debug output from the scanner/tokenizer.\n"
+						" -t          Disassemble instructions as they are exceuted.\n"
+						" -V          Print version information.\n"
+						"\n"
+						" --version   Print version information.\n"
+						" --help      Show this help text.\n"
+						"\n"
+						"If no files are provided, the interactive REPL will run.\n",
+						argv[0]);
+					return 0;
+				} else {
+					fprintf(stderr,"%s: unrecognized option '--%s'\n",
+						argv[0], optarg);
+					return 1;
+				}
 		}
 	}
 
@@ -303,11 +342,26 @@ int main(int argc, char * argv[]) {
 					}
 				}
 
+				if (!enableRline) {
+					fprintf(stdout, "%s", inBlock ? "  > " : ">>> ");
+					fflush(stdout);
+				}
+
 				rline_scroll = 0;
-				if (rline(buf, 4096) == 0) {
-					valid = 0;
-					exitRepl = 1;
-					break;
+				if (enableRline) {
+					if (rline(buf, 4096) == 0) {
+						valid = 0;
+						exitRepl = 1;
+						break;
+					}
+				} else {
+					char * out = fgets(buf, 4096, stdin);
+					if (!out || !strlen(buf)) {
+						fprintf(stdout, "^D\n");
+						valid = 0;
+						exitRepl = 1;
+						break;
+					}
 				}
 				if (buf[strlen(buf)-1] != '\n') {
 					/* rline shouldn't allow this as it doesn't accept ^D to submit input
@@ -379,7 +433,7 @@ int main(int argc, char * argv[]) {
 
 			for (size_t i = 0; i < lineCount; ++i) {
 				if (valid) strcat(allData, lines[i]);
-				rline_history_insert(strdup(lines[i]));
+				if (enableRline) rline_history_insert(strdup(lines[i]));
 				free(lines[i]);
 			}
 			FREE_ARRAY(char *, lines, lineCapacity);
