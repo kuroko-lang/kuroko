@@ -141,13 +141,7 @@ Blocks, including function `def` blocks and control flow structures like `if` an
 
 You may indent blocks to whatever level you desire, so long as ordering remains consistent, though the recommendation indentation size is 4 spaces.
 
-Tabs are not valid as indentation and will be ignored. It is recommended that you use an editor which provides a clear visual distinction between tabs and spaces, such as [Bim](https://github.com/klange/bim).
-
-```py
-if False:
-	print("Oh no, that was a tab.")
-# → Oh no, that was a tab.
-```
+It is recommended that you use an editor which provides a clear visual distinction between tabs and spaces, such as [Bim](https://github.com/klange/bim).
 
 Blocks can also accept a single inline statement:
 

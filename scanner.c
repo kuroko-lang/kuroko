@@ -86,18 +86,19 @@ static void skipWhitespace() {
 }
 
 static KrkToken makeIndentation() {
+	char reject = (peek() == ' ') ? '\t' : ' ';
 	while (!isAtEnd() && (peek() == ' ' || peek() == '\t')) advance();
 	if (isAtEnd()) return makeToken(TOKEN_EOF);
-	if (peek() == '\n') {
-		/* Pretend we didn't see this line */
-		return makeToken(TOKEN_INDENTATION);
+	for (const char * start = scanner.start; start < scanner.cur; start++) {
+		if (*start == reject) return errorToken("Invalid mix of indentation.");
 	}
+	KrkToken out = makeToken(TOKEN_INDENTATION);
+	if (reject == ' ') out.length *= 8;
 	if (peek() == '#') {
-		KrkToken out = makeToken(TOKEN_INDENTATION);
+		/* Skip the entirety of the comment but not the line feed */
 		while (!isAtEnd() && peek() != '\n') advance();
-		return out;
 	}
-	return makeToken(TOKEN_INDENTATION);
+	return out;
 }
 
 static KrkToken string(char quoteMark) {
