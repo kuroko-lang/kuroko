@@ -86,7 +86,7 @@ static void skipWhitespace() {
 }
 
 static KrkToken makeIndentation() {
-	while (!isAtEnd() && peek() == ' ') advance();
+	while (!isAtEnd() && (peek() == ' ' || peek() == '\t')) advance();
 	if (isAtEnd()) return makeToken(TOKEN_EOF);
 	if (peek() == '\n') {
 		/* Pretend we didn't see this line */
@@ -271,7 +271,7 @@ KrkToken krk_scanToken() {
 	}
 
 	/* If at start of line, do thing */
-	if (scanner.startOfLine && peek() == ' ') {
+	if (scanner.startOfLine && (peek() == ' ' || peek() == '\t')) {
 		scanner.start = scanner.cur;
 		scanner.startOfLine = 0;
 		return makeIndentation();
