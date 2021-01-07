@@ -12,17 +12,31 @@ Kuroko, [as its name should imply](https://toarumajutsunoindex.fandom.com/wiki/S
 
 Kuroko inherits some core features by virtue of following _Crafting Interpreters_, including its basic type system, classes/methods/functions, and the design of its compiler and bytecode VM.
 
-On top of this, Kuroko has:
+On top of this, Kuroko adds a number of features inspired by Python, such as:
 
-- Python-style indentation-based block syntax.
-- A syntax-highlighted repl, using ToaruOS's `rline` line editing library.
-- Collection types including `list`s and `dict`s, with `[]` indexing syntax and inline declarations.
+- Indentation-based block syntax.
+- Collection types: `list`, `dict`, `tuple`, with compiler literal syntax (`[]`,`{}`,`(,)`).
+- Iterable types, with `for ... in ...` syntax.
 - List comprehensions (`[foo(x) for x in [1,2,3,4]]` and similar expressions).
-- Iterator for loops (`for i in l: ...`).
-- Exception handling with `try`/`except`/`raise`.
-- A module `import` system for including additional code at runtime.
+- Pseudo-classes for basic values (eg. everything has a `__repr__`, strings have `format()`, etc.)
+- Exceptions with, with `try`/`except`/`raise`.
+- Modules, both for native C code and managed Kuroko code.
 
-## Examples
+## Building Kuroko
+
+Kuroko has no external dependencies beyond the system C library and support for `dlopen` for loading C modules. If you would like to build Kuroko for a platform without shared libary support, this should be possible with some modification.
+
+The compiler/VM is built as a shared object from these source files:
+
+    builtins.c  chunk.c  compiler.c  debug.c  memory.c  object.c  scanner.c  table.c  value.c  vm.c
+
+The interpreter binary is a thin wrapper and lives in `kuroko.c`; `rline.c` provides the syntax-highlighted line editor for the REPL.
+
+C module sources are found in `src/` and provide optional added functionality.
+
+The core builtins, `builtins.krk` are embedded in `builtins.c` so they are always available to the interpreter.
+
+## Code Examples
 
 _**NOTE**: Due to limitations with Github's markdown renderer, these snippets will be highlighted as Python code._
 
@@ -517,7 +531,7 @@ print("Hello world!"[-1:])
 # → !
 ```
 
-_**NOTE**: Slicing is not yet provided for other types, and step values are currently not supported._
+_**NOTE**: Step values are not yet supported._
 
 ### String Conversion
 
@@ -719,7 +733,36 @@ If an expanded dict provides parameters which are not requested, an ArgumentErro
 
 If an expanded dict provides an argument which has already been defined, either as a positional argument or through a named parameter, an error will be raised.
 
-_**Note:** Argument expansion is not currently supported for functions provided by C modules._
+_**NOTE:** Argument expansion is not currently supported for functions provided by C modules._
+
+### Ternary Expressions
+
+Ternary expressions allow for branching conditions to be used in expression contexts:
+
+```py
+print("true branch" if True else "false branch")
+# → true branch
+```
+
+Ternary expressions perform short-circuit and will not evaluate the branch they do not take:
+
+```py
+(print if True else explode)("What does this do?")
+# → What does this do?
+```
+
+### Docstrings
+
+If the first expression in a module, function, class, or method is a string, it will be attached to the corresponding object in the field `__doc__`:
+
+```py
+def foo():
+    '''This is a function that does things.'''
+    return 42
+
+print(foo.__doc__)
+# → This is a function that does things.
+```
 
 ## About the REPL
 
@@ -737,7 +780,9 @@ When a blank line or a line consisting entirely of whitespace is entered, the re
 
 Code executed in the repl runs in a global scope and reused variable names will overwrite previous definitions, allowing function and class names to be reused.
 
-The repl will display the last value popped from the stack before returning. Note that unlike with the `print` statement, objects printed in this way from the repl will not be converted to strings, so they may display differently.
+The repl will display the last value popped from the stack before returning.
+
+Tab completion will provide the names of globals, as well as the fields and methods of objects.
 
 ## What's different from Python?
 
@@ -749,3 +794,166 @@ Two notable intentional differences thus far are:
 
 - Kuroko's variable scoping requires explicit declarations. This was done because Python's function-level scoping, and particularly how it interacts with globals, is often a thorn in the side of beginner and seasoned programmers alike. It's not so much seen as a mistake as it is something we don't wish to replicate.
 - Default arguments to functions are evaluated at call time, not at definition time. How many times have you accidentally assigned an empty list as a default argument, only to be burned by its mutated descendent appearing in further calls? Kuroko doesn't do that - it works more like Ruby.
+
+## Interfacing C with Kuroko
+
+There are two ways to connect Kuroko with C code: embedding and modules.
+
+Embedding involves including the interpreter library and initializing and managing the VM state yourself.
+
+C modules allow C code to provide functions through imported modules.
+
+If you want to provide C functionality for Kuroko, build a module. If you want to provide Kuroko as a scripting language in a C project, embed the interpreter.
+
+With either approach, the API provided by Kuroko is the same beyond initialization.
+
+### Embedding Kuroko
+
+Kuroko is built as a shared libary, `libkuroko.so`, which can be linked against. `libkuroko.so` generally depends on the system dynamic linker, which may involve an additional library (eg. `-ldl`).
+
+The simplest example of embedding Kuroko is to initialize the VM and interpret an embedded line of code:
+
+```c
+#include <stdio.h>
+#include <kuroko.h>
+
+int main(int argc, char *argv[]) {
+    krk_initVM();
+    krk_interpret("import kuroko\nprint('Kuroko',kuroko.version)\n", 1, "<stdin>","<stdin>");
+    krk_freeVM();
+    return 0;
+}
+```
+
+There is a single, shared VM state. `krk_initVM()` will initialize the compiler and create built-in objects.
+
+`krk_interpret` compiles and executes a block of code and takes the following arguments:
+
+    KrkValue krk_interpret(const char *sourceText, int newModuleScope, char *fromName, char *fromFile);
+
+If `newModuleScope` is non-zero, the interpreter will parse code in the context of a new _module_ and the `KrkValue` returned will be a `module` object.
+
+If `newModuleScope` is zero, the return value will be the last value popped from the stack during execution of `sourceText`. This can be used, as in the REPL, when provided interactive sessions.
+
+The arguments `fromName` provide the name of the module created by when `newModuleScope` is non-zero, and `fromFile` will be used when displaying tracebacks.
+
+### Building Modules
+
+Modules are shared objects with at least one exported symbol: `krk_module_onload_{NAME}` (where `{NAME}` is the name of your module, which should also be the name of your shared object file excluding the `.so` suffix).
+
+Your module's `krk_module_onload_...` function should return a `KrkValue` representing a `KrkInstance` of the `vm.moduleClass` class.
+
+```c
+KrkValue krk_module_onload_fileio(void) {
+	KrkInstance * module = krk_newInstance(vm.moduleClass);
+	/* Store it on the stack for now so we can do stuff that may trip GC
+	 * and not lose it to garbage colletion... */
+	krk_push(OBJECT_VAL(module));
+
+	/* ... */
+
+	/* Pop the module object before returning; it'll get pushed again
+	 * by the VM before the GC has a chance to run, so it's safe. */
+	assert(AS_INSTANCE(krk_pop()) == module);
+	return OBJECT_VAL(module);
+}
+```
+
+### Defining Native Functions
+
+Simple functions may be added to the interpreter by binding to them to `vm.builtins` or your own module instance.
+
+Native functions should have a call signature as follows:
+
+```c
+KrkNative my_native_function(int argc, KrkValue argv[], int hasKw);
+```
+
+If `hasKw` is non-zero, then the value in `argv[argc-1]` will represent a dictionary of keyword and value pairs. Positional arguments will provided in order in the other indexes of `argv`.
+
+Functions must return a value. If you do not need to return data to callers, return `NONE_VAL()`.
+
+To bind the function, use `krk_defineNative`:
+
+```c
+krk_defineNative(&vm.builtins->fields, "my_native_function", my_native_function);
+```
+
+Binding to `vm.builtins->fields` will make your function accessible from any scope (if its name is not shadowed by a module global or function local) and is discouraged for modules but recommended for embedded applications.
+
+### Kuroko's Object Model
+
+For both embedding and C modules, you will likely want to create and attach functions, classes, objects, and so on.
+
+It is recommended you read [_Crafting Interpreters_](https://craftinginterpreters.com/contents.html), particularly the third section describing the implementation of `clox`, as a primer on the basic mechanisms of the _value_ system that Kuroko is built upon.
+
+Essentially, everything accessible to the VM is represented as a `KrkValue`, which this documentation will refer to simply as a _value_ from here on out.
+
+Values are small, fixed-sized items and are generally considered immutable. Simple types, such as integers, booleans, and `None`, are directly represented as values and do not exist in any other form.
+
+More complex types are represented by subtypes of `KrkObj` known as _objects_, and values that represent them contain pointers to these `KrkObj`s. The `KrkObj`s themselves live on the heap and are managed by the garbage collector.
+
+Strings, functions, closures, classes, instances, and tuples are all basic objects and carry additional data in their heap representations.
+
+_Strings_ (`KrkString`) are immutable and deduplicated - any two strings with the same text have the same _object_. (See _Crafting Interpreters_, chapter 19) Strings play a heavy role in the object model, providing the basic type for indexing into attribute tables in classes and instances.
+
+_Functions_ (`KrkFunction`) represent bytecode, argument lists, default values, local names, and constants - the underlying elements of execution for a function. Generally, functions are not relevant to either embedding or C modules and are an internal implementation detail of the VM.
+
+_Closures_ (`KrkClosure`) represent the callable objects for functions defined in user code. When embedding or building a C module, you may need to deal with closures for Kuroko code passed to your C code.
+
+_Bound methods_ (`KrkBoundMethod`) connect methods with the "self" object they belong to, allowing a single value to be passed on the stack and through fields.
+
+_Classes_ (`KrkClass`) represent collections of functions. In Kuroko, all object and value types have a corresponding `KrkClass`.
+
+_Instances_ (`KrkInstance`) represent _user objects_ and store _fields_ in a hashmap and also point to the class they are an instance _of_. Instances can represent many things, including collections like lists and dictionaries, modules, and so on.
+
+_Tuples_ (`KrkTuple`) represent simple fixed-sized lists and are intended to be immutable.
+
+Finally, _native functions_ (`KrkNative`) represent callable references to C code.
+
+Most extensions to Kuroko, both in the form of embedded applications and C modules, will primarily deal with classes, instances, strings, and native functions.
+
+Two of the high-level collection types, lists and dictionaries, are instances of classes provided by the `__builtins__` module. While they are not their own type of `KrkObj`, some macros are provided to deal with them.
+
+### Creating Objects
+
+Now that we've gotten the introduction out of the way, we can get to actually creating and using these things.
+
+The C module example above demonstrates the process of creating an object in the form of an instance of the `vm.moduleClass` class. All C modules should create one of these instances to expose other data to user code that imports them.
+
+Most extensions will also want to provide their own types through classes, as well as create instances of those classes.
+
+_**NOTE:** When creating and attaching objects, pay careful attention to the order in which you allocate new objects, including strings. If two allocations happen in sequence without the first allocated object being stored in a location reachable from the interpreter roots, the second allocation may trigger the garbage collector which will immediately free the first object. If you need to deal with complex allocation patterns, place values temporarily on the stack to prevent them from being collected._
+
+```c
+    /* Create a class 'className_' and attach it to our module. */
+    KrkClass * myNewClass = krk_newClass(krk_copyString("MyNewClass", 10));
+    krk_attachNamedObject(&module->fields, "MyNewClass", (KrkObj*)myNewClass);
+```
+
+Here we have created a new class named `MyNameClass` and exposed it through the `fields` table of our module object under the same name. We're not done preparing our class, though:
+
+
+```c
+    myNewClass->base = vm.objectClass; \
+    krk_tableAddAll(&vm.objectClass->methods, &myNewClass->methods); \
+```
+
+We also want to make sure that our new class fits into the general inheritence hierarchy, which typically means inheriting from `vm.objectClass` - we do this by setting our new class's `base` pointer to `vm.objectClass` and copying `vm.objectClass`'s method table. Now we can start customizing our class with its own methods.
+
+Native functions are attached to class method tables in a similar manner to normal functions:
+
+```c
+krk_defineNative(&myNewClass->methods, ".my_native_method", my_native_method);
+```
+
+When attaching methods, notice the `.` at the start of the name. This indicates to `krk_defineNative` that this method will take a "self" value as its first argument. This affects how the VM modifies the stack when calling native code and allows native functions to integrate with user code functions and methods.
+
+In addition to methods, native functions may also provide classes with _dynamic fields_. A dynamic field works much like a method, but it is called implictly when the field is accessed. Dynamic fields are used by the native classes to provide non-instance values with field values.
+
+```c
+krk_defineNative(&myNewClass->methods, ":my_dynamic_field", my_dynamic_field);
+```
+
+If your new instances of your class will be created by user code, you can provide an `__init__` method, or any of the other special methods described in the Examples below.
+

@@ -1,2 +1,2 @@
-752 lines
+960 lines
 ['', 'Kuroko is a bytecode-interpreted, dynamic, strongly-typed language with syntax similar to Python.', '', 'The bytecode VM / compiler is substantially based on Robert Nystrom\'s [_Crafting Interpreters_](https://craftinginterpreters.com/).']
