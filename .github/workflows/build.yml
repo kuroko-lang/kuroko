@@ -1,0 +1,12 @@
+on: [push, workflow_dispatch]
+name: Build and Run Test Suite
+jobs:
+  build:
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Clone Repository
+        uses: actions/checkout@v2
+      - name: Build
+        run:  make clean && make
+      - name: Test
+        run:  make test
