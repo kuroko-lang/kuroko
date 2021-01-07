@@ -1,5 +1,5 @@
 CFLAGS = -g -O3 -fPIC -Wall -Wextra -pedantic -Wno-unused-parameter -DDEBUG
-LDFLAGS = -L. -Wl,-rpath -Wl,.
+LDFLAGS = -L. -Wl,-rpath -Wl,'$$ORIGIN' -Wl,-z,origin
 LDLIBS = -lkuroko -ldl
 OBJS = $(patsubst %.c, %.o, $(filter-out rline.c,$(filter-out kuroko.c,$(sort $(wildcard *.c)))))
 TARGET = kuroko
