@@ -130,6 +130,7 @@ static void blackenObject(KrkObj * object) {
 			krk_markObject((KrkObj*)function->name);
 			krk_markObject((KrkObj*)function->docstring);
 			krk_markObject((KrkObj*)function->chunk.filename);
+			krk_markObject((KrkObj*)function->globalsContext);
 			markArray(&function->requiredArgNames);
 			markArray(&function->keywordArgNames);
 			markArray(&function->chunk.constants);
@@ -225,6 +226,7 @@ static void markRoots() {
 		krk_markObject((KrkObj*)upvalue);
 	}
 	krk_markObject((KrkObj*)vm.builtins);
+	krk_markObject((KrkObj*)vm.objectClass);
 	if (vm.module)  krk_markObject((KrkObj*)vm.module);
 	krk_markTable(&vm.modules);
 	krk_markCompilerRoots();

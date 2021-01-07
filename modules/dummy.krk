@@ -2,7 +2,7 @@
 let __doc__ = "I am a module."
 
 def foo():
-    print("Hello, world:", __doc__)
+    print("Hello, world:", __name__, __doc__)
 
 let x = 5
 let y = 7

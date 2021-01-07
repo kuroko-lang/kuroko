@@ -66,6 +66,8 @@ typedef struct {
 	KrkString * name;
 } KrkLocalEntry;
 
+struct KrkInstance;
+
 typedef struct {
 	KrkObj obj;
 	short requiredArgs;
@@ -81,7 +83,7 @@ typedef struct {
 	KrkLocalEntry * localNames;
 	unsigned char collectsArguments:1;
 	unsigned char collectsKeywords:1;
-	KrkTable * globalsContext;
+	struct KrkInstance * globalsContext;
 } KrkFunction;
 
 typedef struct {
@@ -110,7 +112,7 @@ typedef struct KrkClass {
 	KrkObj * _eq;
 } KrkClass;
 
-typedef struct {
+typedef struct KrkInstance {
 	KrkObj obj;
 	KrkClass * _class;
 	KrkTable fields;

@@ -122,6 +122,7 @@ KrkClass * krk_newClass(KrkString * name) {
 	_class->_tostr = NULL;
 	_class->_call = NULL;
 	_class->_init = NULL;
+	_class->_eq = NULL;
 
 	return _class;
 }

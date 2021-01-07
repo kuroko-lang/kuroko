@@ -1057,7 +1057,7 @@ _finishArg:
 	frame->ip = closure->function->chunk.code;
 	frame->slots = (vm.stackTop - argCount) - vm.stack;
 	frame->outSlots = (vm.stackTop - argCount - extra) - vm.stack;
-	vm.globals = closure->function->globalsContext;
+	vm.globals = &closure->function->globalsContext->fields;
 	return 1;
 }
 
@@ -3052,6 +3052,7 @@ static inline size_t readBytes(CallFrame * frame, int num) {
  */
 static KrkValue run() {
 	CallFrame* frame = &vm.frames[vm.frameCount - 1];
+	vm.globals = &frame->closure->function->globalsContext->fields;
 
 	while (1) {
 #ifdef ENABLE_TRACING
@@ -3096,12 +3097,12 @@ static KrkValue run() {
 					return result;
 				}
 				vm.stackTop = &vm.stack[frame->outSlots];
+				vm.globals = &vm.frames[vm.frameCount - 1].closure->function->globalsContext->fields;
 				if (vm.frameCount == (size_t)vm.exitOnFrame) {
 					return result;
 				}
 				krk_push(result);
 				frame = &vm.frames[vm.frameCount - 1];
-				vm.globals = frame->closure->function->globalsContext;
 				break;
 			}
 			case OP_EQUAL: {
