@@ -224,7 +224,8 @@ static void markRoots() {
 	for (KrkUpvalue * upvalue = vm.openUpvalues; upvalue; upvalue = upvalue->next) {
 		krk_markObject((KrkObj*)upvalue);
 	}
-	krk_markTable(&vm.globals);
+	krk_markObject((KrkObj*)vm.builtins);
+	if (vm.module)  krk_markObject((KrkObj*)vm.module);
 	krk_markTable(&vm.modules);
 	krk_markCompilerRoots();
 	for (int i = 0; i < METHOD__MAX; ++i) {

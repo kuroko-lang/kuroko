@@ -65,8 +65,9 @@ int main(int argc, char * argv[]) {
 	KrkValue result = INTEGER_VAL(0);
 
 	if (optind == argc) {
-		krk_defineNative(&vm.globals, "exit", exitFunc);
-		krk_defineNative(&vm.globals, "paste", paste);
+		krk_defineNative(&vm.builtins->fields, "exit", exitFunc);
+		krk_defineNative(&vm.builtins->fields, "paste", paste);
+		krk_startModule("<module>");
 
 		/* Set ^D to send EOF */
 		rline_exit_string="";
@@ -203,7 +204,7 @@ int main(int argc, char * argv[]) {
 		 * collect the result of the last one and use it as the
 		 * exit code if it's an integer. */
 		for (int i = optind; i < argc; ++i) {
-			KrkValue out = krk_runfile(argv[i],0,"<module>",argv[i]);
+			KrkValue out = krk_runfile(argv[i],1,"<module>",argv[i]);
 			if (i + 1 == argc) result = out;
 		}
 	}

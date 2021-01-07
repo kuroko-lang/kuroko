@@ -48,7 +48,8 @@ typedef struct {
 	size_t stackSize;
 	KrkValue * stack;
 	KrkValue * stackTop;
-	KrkTable globals;
+	KrkObj   * module;
+	KrkTable * globals;
 	KrkTable strings;
 	KrkTable modules;
 	KrkUpvalue * openUpvalues;
@@ -139,3 +140,4 @@ extern KrkValue krk_dict_of(int argc, KrkValue argv[]);
 extern KrkValue krk_callSimple(KrkValue value, int argCount, int isMethod);
 extern void krk_finalizeClass(KrkClass * _class);
 extern void krk_dumpTraceback();
+extern KrkInstance * krk_startModule(const char * name);

@@ -138,6 +138,7 @@ static void initCompiler(Compiler * compiler, FunctionType type) {
 	compiler->type = type;
 	compiler->scopeDepth = 0;
 	compiler->function = krk_newFunction();
+	compiler->function->globalsContext = vm.globals;
 	compiler->localCount = 0;
 	compiler->localsSpace = 8;
 	compiler->locals = GROW_ARRAY(Local,NULL,0,8);

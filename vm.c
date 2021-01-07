@@ -485,7 +485,7 @@ KrkValue krk_runNext(void) {
  */
 static KrkValue krk_list_of(int argc, KrkValue argv[]) {
 	KrkValue Class;
-	krk_tableGet(&vm.globals,OBJECT_VAL(S("list")), &Class);
+	krk_tableGet(&vm.builtins->fields,OBJECT_VAL(S("list")), &Class);
 	KrkInstance * outList = krk_newInstance(AS_CLASS(Class));
 	krk_push(OBJECT_VAL(outList));
 	KrkFunction * listContents = krk_newFunction(NULL);
@@ -512,7 +512,7 @@ KrkValue krk_dict_of(int argc, KrkValue argv[]) {
 		return NONE_VAL();
 	}
 	KrkValue Class;
-	krk_tableGet(&vm.globals,OBJECT_VAL(S("dict")), &Class);
+	krk_tableGet(&vm.builtins->fields,OBJECT_VAL(S("dict")), &Class);
 	KrkInstance * outDict = krk_newInstance(AS_CLASS(Class));
 	krk_push(OBJECT_VAL(outDict));
 	KrkClass * dictContents = krk_newClass(NULL);
@@ -770,7 +770,7 @@ static KrkValue krk_globals(int argc, KrkValue argv[]) {
 	KrkValue _dict_internal;
 	krk_tableGet(&AS_INSTANCE(dict)->fields, vm.specialMethodNames[METHOD_DICT_INT], &_dict_internal);
 	/* Copy the globals table into it */
-	krk_tableAddAll(&vm.globals, &AS_CLASS(_dict_internal)->methods);
+	krk_tableAddAll(vm.globals, &AS_CLASS(_dict_internal)->methods);
 	krk_pop();
 
 	return dict;
@@ -1057,6 +1057,7 @@ _finishArg:
 	frame->ip = closure->function->chunk.code;
 	frame->slots = (vm.stackTop - argCount) - vm.stack;
 	frame->outSlots = (vm.stackTop - argCount - extra) - vm.stack;
+	vm.globals = closure->function->globalsContext;
 	return 1;
 }
 
@@ -1296,10 +1297,15 @@ static KrkValue _string_init(int argc, KrkValue argv[]) {
 
 #define ADD_EXCEPTION_CLASS(obj, name, baseClass) do { \
 	obj = krk_newClass(S(name)); \
-	krk_attachNamedObject(&vm.globals, name, (KrkObj*)obj); \
+	krk_attachNamedObject(&vm.builtins->fields, name, (KrkObj*)obj); \
 	obj->base = baseClass; \
 	krk_tableAddAll(&baseClass->methods, &obj->methods); \
 } while (0)
+
+#define BUILTIN_FUNCTION(name, func) do { \
+	krk_defineNative(&vm.builtins->fields, name, func); \
+} while (0)
+
 
 /** native method that returns its first arg; useful for int(INT), etc. */
 static KrkValue _noop(int argc, KrkValue argv[]) {
@@ -2430,6 +2436,10 @@ void krk_initVM(int flags) {
 	vm.flags = flags;
 	KRK_PAUSE_GC();
 
+	/* No active module or globals table */
+	vm.module = NULL;
+	vm.globals = NULL;
+
 	krk_resetStack();
 	vm.objects = NULL;
 	vm.bytesAllocated = 0;
@@ -2437,7 +2447,6 @@ void krk_initVM(int flags) {
 	vm.grayCount = 0;
 	vm.grayCapacity = 0;
 	vm.grayStack = NULL;
-	krk_initTable(&vm.globals);
 	krk_initTable(&vm.strings);
 	memset(vm.specialMethodNames,0,sizeof(vm.specialMethodNames));
 	vm.watchdog = 0;
@@ -2468,7 +2477,7 @@ void krk_initVM(int flags) {
 
 	/* Create built-in class `object` */
 	vm.objectClass = krk_newClass(S("object"));
-	krk_attachNamedObject(&vm.globals, "object", (KrkObj*)vm.objectClass);
+
 	krk_defineNative(&vm.objectClass->methods, ":__class__", krk_typeOf);
 	krk_defineNative(&vm.objectClass->methods, ".__dir__", krk_dirObject);
 	krk_defineNative(&vm.objectClass->methods, ".__str__", _strBase);
@@ -2477,7 +2486,8 @@ void krk_initVM(int flags) {
 
 	/* Build a __builtins__ namespace for some extra functions. */
 	vm.builtins = krk_newInstance(vm.objectClass);
-	krk_attachNamedObject(&vm.globals, "__builtins__", (KrkObj*)vm.builtins);
+	krk_attachNamedObject(&vm.builtins->fields, "object", (KrkObj*)vm.objectClass);
+	krk_attachNamedObject(&vm.builtins->fields, "__name__", (KrkObj*)S("__builtins__"));
 
 	/* Add exception classes */
 	ADD_EXCEPTION_CLASS(vm.exceptions.baseException, "Exception", vm.objectClass);
@@ -2495,7 +2505,6 @@ void krk_initVM(int flags) {
 
 	/* Build classes for basic types */
 	ADD_BASE_CLASS(vm.baseClasses.typeClass, "type", vm.objectClass);
-	krk_attachNamedObject(&vm.globals, "type", (KrkObj*)vm.baseClasses.typeClass);
 	krk_defineNative(&vm.baseClasses.typeClass->methods, ":__base__", krk_baseOfClass);
 	krk_defineNative(&vm.baseClasses.typeClass->methods, ":__file__", krk_fileOfClass);
 	krk_defineNative(&vm.baseClasses.typeClass->methods, ":__doc__", krk_docOfClass);
@@ -2505,7 +2514,6 @@ void krk_initVM(int flags) {
 	krk_defineNative(&vm.baseClasses.typeClass->methods, ".__repr__", _class_to_str);
 	krk_finalizeClass(vm.baseClasses.typeClass);
 	ADD_BASE_CLASS(vm.baseClasses.intClass, "int", vm.objectClass);
-	krk_attachNamedObject(&vm.globals, "int", (KrkObj*)vm.baseClasses.intClass);
 	krk_defineNative(&vm.baseClasses.intClass->methods, ".__init__", _int_init);
 	krk_defineNative(&vm.baseClasses.intClass->methods, ".__int__", _noop);
 	krk_defineNative(&vm.baseClasses.intClass->methods, ".__float__", _int_to_floating);
@@ -2514,7 +2522,6 @@ void krk_initVM(int flags) {
 	krk_defineNative(&vm.baseClasses.intClass->methods, ".__repr__", _int_to_str);
 	krk_finalizeClass(vm.baseClasses.intClass);
 	ADD_BASE_CLASS(vm.baseClasses.floatClass, "float", vm.objectClass);
-	krk_attachNamedObject(&vm.globals, "float", (KrkObj*)vm.baseClasses.floatClass);
 	krk_defineNative(&vm.baseClasses.floatClass->methods, ".__init__", _float_init);
 	krk_defineNative(&vm.baseClasses.floatClass->methods, ".__int__", _floating_to_int);
 	krk_defineNative(&vm.baseClasses.floatClass->methods, ".__float__", _noop);
@@ -2522,17 +2529,16 @@ void krk_initVM(int flags) {
 	krk_defineNative(&vm.baseClasses.floatClass->methods, ".__repr__", _float_to_str);
 	krk_finalizeClass(vm.baseClasses.floatClass);
 	ADD_BASE_CLASS(vm.baseClasses.boolClass, "bool", vm.objectClass);
-	krk_attachNamedObject(&vm.globals, "bool", (KrkObj*)vm.baseClasses.boolClass);
 	krk_defineNative(&vm.baseClasses.boolClass->methods, ".__init__", _bool_init);
 	krk_defineNative(&vm.baseClasses.boolClass->methods, ".__str__", _bool_to_str);
 	krk_defineNative(&vm.baseClasses.boolClass->methods, ".__repr__", _bool_to_str);
 	krk_finalizeClass(vm.baseClasses.boolClass);
+	/* TODO: Don't attach */
 	ADD_BASE_CLASS(vm.baseClasses.noneTypeClass, "NoneType", vm.objectClass);
 	krk_defineNative(&vm.baseClasses.noneTypeClass->methods, ".__str__", _none_to_str);
 	krk_defineNative(&vm.baseClasses.noneTypeClass->methods, ".__repr__", _none_to_str);
 	krk_finalizeClass(vm.baseClasses.noneTypeClass);
 	ADD_BASE_CLASS(vm.baseClasses.strClass, "str", vm.objectClass);
-	krk_attachNamedObject(&vm.globals, "str", (KrkObj*)vm.baseClasses.strClass);
 	krk_defineNative(&vm.baseClasses.strClass->methods, ".__init__", _string_init);
 	krk_defineNative(&vm.baseClasses.strClass->methods, ".__str__", _noop);
 	krk_defineNative(&vm.baseClasses.strClass->methods, ".__repr__", _repr_str);
@@ -2549,6 +2555,7 @@ void krk_initVM(int flags) {
 	krk_defineNative(&vm.baseClasses.strClass->methods, ".join", _string_join);
 	krk_defineNative(&vm.baseClasses.strClass->methods, ".split", _string_split);
 	krk_finalizeClass(vm.baseClasses.strClass);
+	/* TODO: Don't attach */
 	ADD_BASE_CLASS(vm.baseClasses.functionClass, "function", vm.objectClass);
 	krk_defineNative(&vm.baseClasses.functionClass->methods, ".__str__", _closure_str);
 	krk_defineNative(&vm.baseClasses.functionClass->methods, ".__repr__", _closure_str);
@@ -2557,6 +2564,7 @@ void krk_initVM(int flags) {
 	krk_defineNative(&vm.baseClasses.functionClass->methods, ":__file__", _closure_get_file);
 	krk_defineNative(&vm.baseClasses.functionClass->methods, ":__args__", _closure_get_argnames);
 	krk_finalizeClass(vm.baseClasses.functionClass);
+	/* TODO: Don't attach */
 	ADD_BASE_CLASS(vm.baseClasses.methodClass, "method", vm.objectClass);
 	krk_defineNative(&vm.baseClasses.methodClass->methods, ".__str__", _bound_str);
 	krk_defineNative(&vm.baseClasses.methodClass->methods, ".__repr__", _bound_str);
@@ -2566,7 +2574,6 @@ void krk_initVM(int flags) {
 	krk_defineNative(&vm.baseClasses.methodClass->methods, ":__args__", _bound_get_argnames);
 	krk_finalizeClass(vm.baseClasses.methodClass);
 	ADD_BASE_CLASS(vm.baseClasses.tupleClass, "tuple", vm.objectClass);
-	krk_attachNamedObject(&vm.globals, "tuple", (KrkObj*)vm.baseClasses.tupleClass);
 	krk_defineNative(&vm.baseClasses.tupleClass->methods, ".__init__", _tuple_init);
 	krk_defineNative(&vm.baseClasses.tupleClass->methods, ".__str__", _tuple_repr);
 	krk_defineNative(&vm.baseClasses.tupleClass->methods, ".__repr__", _tuple_repr);
@@ -2577,40 +2584,43 @@ void krk_initVM(int flags) {
 	krk_finalizeClass(vm.baseClasses.tupleClass);
 
 	/* Build global builtin functions. */
-	krk_defineNative(&vm.globals, "listOf", krk_list_of); /* Equivalent to list() */
-	krk_defineNative(&vm.globals, "dictOf", krk_dict_of); /* Equivalent to dict() */
-	krk_defineNative(&vm.globals, "isinstance", krk_isinstance);
-	krk_defineNative(&vm.globals, "globals", krk_globals);
-	krk_defineNative(&vm.globals, "dir", krk_dirObject);
-	krk_defineNative(&vm.globals, "len", _len);
-	krk_defineNative(&vm.globals, "repr", _repr);
-	krk_defineNative(&vm.globals, "print", _print);
+	BUILTIN_FUNCTION("listOf", krk_list_of); /* Equivalent to list() */
+	BUILTIN_FUNCTION("dictOf", krk_dict_of); /* Equivalent to dict() */
+	BUILTIN_FUNCTION("isinstance", krk_isinstance);
+	BUILTIN_FUNCTION("globals", krk_globals);
+	BUILTIN_FUNCTION("dir", krk_dirObject);
+	BUILTIN_FUNCTION("len", _len);
+	BUILTIN_FUNCTION("repr", _repr);
+	BUILTIN_FUNCTION("print", _print);
 
 	/* __builtins__.set_tracing is namespaced */
 	krk_defineNative(&vm.builtins->fields, "set_tracing", krk_set_tracing);
 
+	/* TODO: Don't attach */
 	ADD_BASE_CLASS(vm.baseClasses.listiteratorClass, "listiterator", vm.objectClass);
 	krk_defineNative(&vm.baseClasses.listiteratorClass->methods, ".__init__", _listiter_init);
 	krk_defineNative(&vm.baseClasses.listiteratorClass->methods, ".__call__", _listiter_call);
 	krk_finalizeClass(vm.baseClasses.listiteratorClass);
 
+	/* TODO: Don't attach */
 	ADD_BASE_CLASS(vm.baseClasses.striteratorClass, "striterator", vm.objectClass);
 	krk_defineNative(&vm.baseClasses.striteratorClass->methods, ".__init__", _striter_init);
 	krk_defineNative(&vm.baseClasses.striteratorClass->methods, ".__call__", _striter_call);
 	krk_finalizeClass(vm.baseClasses.striteratorClass);
 
 	ADD_BASE_CLASS(vm.baseClasses.rangeClass, "range", vm.objectClass);
-	krk_attachNamedObject(&vm.globals, "range", (KrkObj*)vm.baseClasses.rangeClass);
 	krk_defineNative(&vm.baseClasses.rangeClass->methods, ".__init__", _range_init);
 	krk_defineNative(&vm.baseClasses.rangeClass->methods, ".__iter__", _range_iter);
 	krk_defineNative(&vm.baseClasses.rangeClass->methods, ".__repr__", _range_repr);
 	krk_finalizeClass(vm.baseClasses.rangeClass);
 
+	/* TODO: Don't attach */
 	ADD_BASE_CLASS(vm.baseClasses.rangeiteratorClass, "rangeiterator", vm.objectClass);
 	krk_defineNative(&vm.baseClasses.rangeiteratorClass->methods, ".__init__", _rangeiterator_init);
 	krk_defineNative(&vm.baseClasses.rangeiteratorClass->methods, ".__call__", _rangeiterator_call);
 	krk_finalizeClass(vm.baseClasses.rangeiteratorClass);
 
+	/* TODO: Don't attach */
 	ADD_BASE_CLASS(vm.baseClasses.tupleiteratorClass, "tupleiterator", vm.objectClass);
 	krk_defineNative(&vm.baseClasses.tupleiteratorClass->methods, ".__init__", _tuple_iter_init);
 	krk_defineNative(&vm.baseClasses.tupleiteratorClass->methods, ".__call__", _tuple_iter_call);
@@ -2633,7 +2643,7 @@ void krk_initVM(int flags) {
 		/* Now we can attach the native initializers and getters/setters to
 		 * the list and dict types by pulling them out of the global namespace,
 		 * as they were exported by builtins.krk */
-		krk_tableGet(&vm.globals,OBJECT_VAL(S("list")),&val);
+		krk_tableGet(&vm.builtins->fields,OBJECT_VAL(S("list")),&val);
 		KrkClass * _class = AS_CLASS(val);
 		krk_defineNative(&_class->methods, ".__init__", _list_init);
 		krk_defineNative(&_class->methods, ".__get__", _list_get);
@@ -2645,7 +2655,7 @@ void krk_initVM(int flags) {
 		krk_defineNative(&_class->methods, ".append", _list_append);
 		krk_finalizeClass(_class);
 
-		krk_tableGet(&vm.globals,OBJECT_VAL(S("dict")),&val);
+		krk_tableGet(&vm.builtins->fields,OBJECT_VAL(S("dict")),&val);
 		_class = AS_CLASS(val);
 		krk_defineNative(&_class->methods, ".__init__", _dict_init);
 		krk_defineNative(&_class->methods, ".__get__", _dict_get);
@@ -2668,7 +2678,6 @@ void krk_initVM(int flags) {
  * Reclaim resources used by the VM.
  */
 void krk_freeVM() {
-	krk_freeTable(&vm.globals);
 	krk_freeTable(&vm.strings);
 	krk_freeTable(&vm.modules);
 	memset(vm.specialMethodNames,0,sizeof(vm.specialMethodNames));
@@ -3092,6 +3101,7 @@ static KrkValue run() {
 				}
 				krk_push(result);
 				frame = &vm.frames[vm.frameCount - 1];
+				vm.globals = frame->closure->function->globalsContext;
 				break;
 			}
 			case OP_EQUAL: {
@@ -3143,7 +3153,7 @@ static KrkValue run() {
 			case OP_DEFINE_GLOBAL_LONG:
 			case OP_DEFINE_GLOBAL: {
 				KrkString * name = READ_STRING(operandWidth);
-				krk_tableSet(&vm.globals, OBJECT_VAL(name), krk_peek(0));
+				krk_tableSet(vm.globals, OBJECT_VAL(name), krk_peek(0));
 				krk_pop();
 				break;
 			}
@@ -3151,9 +3161,11 @@ static KrkValue run() {
 			case OP_GET_GLOBAL: {
 				KrkString * name = READ_STRING(operandWidth);
 				KrkValue value;
-				if (!krk_tableGet(&vm.globals, OBJECT_VAL(name), &value)) {
-					krk_runtimeError(vm.exceptions.nameError, "Undefined variable '%s'.", name->chars);
-					goto _finishException;
+				if (!krk_tableGet(vm.globals, OBJECT_VAL(name), &value)) {
+					if (!krk_tableGet(&vm.builtins->fields, OBJECT_VAL(name), &value)) {
+						krk_runtimeError(vm.exceptions.nameError, "Undefined variable '%s'.", name->chars);
+						goto _finishException;
+					}
 				}
 				krk_push(value);
 				break;
@@ -3161,8 +3173,8 @@ static KrkValue run() {
 			case OP_SET_GLOBAL_LONG:
 			case OP_SET_GLOBAL: {
 				KrkString * name = READ_STRING(operandWidth);
-				if (krk_tableSet(&vm.globals, OBJECT_VAL(name), krk_peek(0))) {
-					krk_tableDelete(&vm.globals, OBJECT_VAL(name));
+				if (krk_tableSet(vm.globals, OBJECT_VAL(name), krk_peek(0))) {
+					krk_tableDelete(vm.globals, OBJECT_VAL(name));
 					/* TODO: This should probably just work as an assignment? */
 					krk_runtimeError(vm.exceptions.nameError, "Undefined variable '%s'.", name->chars);
 					goto _finishException;
@@ -3437,8 +3449,20 @@ _finishException:
 #undef READ_BYTE
 }
 
+KrkInstance * krk_startModule(const char * name) {
+	KrkInstance * module = krk_newInstance(vm.objectClass);
+	vm.module = (KrkObj*)module;
+	vm.globals = &module->fields;
+	krk_attachNamedObject(vm.globals, "__builtins__", (KrkObj*)vm.builtins);
+	krk_attachNamedObject(vm.globals, "__name__", (KrkObj*)krk_copyString(name,strlen(name)));
+	return module;
+}
+
 KrkValue krk_interpret(const char * src, int newScope, char * fromName, char * fromFile) {
-	KrkFunction * function = krk_compile(src, newScope, fromFile);
+	KrkObj * enclosing = vm.module;
+	if (newScope) krk_startModule(fromName);
+
+	KrkFunction * function = krk_compile(src, 0, fromFile);
 
 	if (!function) return NONE_VAL();
 
@@ -3452,7 +3476,16 @@ KrkValue krk_interpret(const char * src, int newScope, char * fromName, char * f
 	krk_push(OBJECT_VAL(closure));
 	krk_callValue(OBJECT_VAL(closure), 0, 1);
 
-	return run();
+	KrkValue result = run();
+
+	if (newScope) {
+		KrkValue out = OBJECT_VAL(vm.module);
+		vm.module = enclosing;
+		vm.globals = vm.module ? &((KrkInstance*)vm.module)->fields : NULL;
+		return out;
+	} else {
+		return result;
+	}
 }
 
 

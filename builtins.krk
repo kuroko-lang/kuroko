@@ -73,8 +73,9 @@ class Helper():
 
 let help = Helper()
 
-export list,dict,help
-
+__builtins__.list = list
+__builtins__.dict = dict
+__builtins__.help = help
 __builtins__.module_paths = ['./','./modules/','/home/klange/Projects/kuroko/modules/','/usr/share/kuroko/']
 
 return object()

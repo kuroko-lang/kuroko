@@ -81,6 +81,7 @@ typedef struct {
 	KrkLocalEntry * localNames;
 	unsigned char collectsArguments:1;
 	unsigned char collectsKeywords:1;
+	KrkTable * globalsContext;
 } KrkFunction;
 
 typedef struct {

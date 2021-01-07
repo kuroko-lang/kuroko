@@ -1,2 +1,9 @@
 # Just in case there are no modules sources available...
-return object()
+let __doc__ = "I am a module."
+
+def foo():
+    print("Hello, world:", __doc__)
+
+let x = 5
+let y = 7
+let theMeaningOfLifeTheUniverseAndEverything = 42

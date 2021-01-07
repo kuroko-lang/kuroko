@@ -404,9 +404,7 @@ Modules allow scripts to call other scripts.
 
 ```py
 # modules/demomodule.krk
-let module = object()
-module.foo = "bar"
-return module
+foo = "bar"
 ```
 
 ```py
@@ -416,25 +414,7 @@ print(demomodule.foo)
 # → bar
 ```
 
-When modules are imported, they run in a _function local_ context and variables they declare do not live in the global namespace.
-
-To put variables into the global namespace, use the `export` keyword:
-
-```py
-# modules/demomodule.krk
-let module = object()
-foo = "bar"
-export foo
-return module
-```
-
-```py
-# demo.krk
-import demomodule
-print(foo)
-# → bar
-```
-
+Modules are run once and then cached, so if they preform actions like printing or complex computation this will happen once when first imported. The globals table from the module is the fields table of an object. Further imports of the same module will return the same object.
 
 ### Loops
 
