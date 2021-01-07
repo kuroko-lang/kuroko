@@ -12,6 +12,21 @@
 #include "object.h"
 #include "table.h"
 
+#define KRK_VERSION_MAJOR  "1"
+#define KRK_VERSION_MINOR  "0"
+#define KRK_VERSION_PATCH  "0"
+#define KRK_VERSION_EXTRA  "-rc0"
+
+#define KRK_BUILD_DATE     __DATE__ " at " __TIME__
+
+#if (defined(__GNUC__) || defined(__GNUG__)) && !(defined(__clang__) || defined(__INTEL_COMPILER))
+# define KRK_BUILD_COMPILER "GCC " __VERSION__
+#elif (defined(__clang__))
+# define KRK_BUILD_COMPILER "clang " __clang_version__
+#else
+# define KRK_BUILD_COMPILER ""
+#endif
+
 #define S(c) (krk_copyString(c,sizeof(c)-1))
 
 /* This is macro'd to krk_vm for namespacing reasons. */
@@ -2521,9 +2536,24 @@ void krk_initVM(int flags) {
 
 	/* Build a __builtins__ namespace for some extra functions. */
 	vm.builtins = krk_newInstance(vm.moduleClass);
+	krk_attachNamedObject(&vm.modules, "__builtins__", (KrkObj*)vm.builtins);
 	krk_attachNamedObject(&vm.builtins->fields, "object", (KrkObj*)vm.objectClass);
 	krk_attachNamedObject(&vm.builtins->fields, "__name__", (KrkObj*)S("__builtins__"));
 	krk_attachNamedValue(&vm.builtins->fields, "__file__", NONE_VAL());
+
+	/*
+	 * Build system module; for Python compatibility we don't use the "sys" namespace
+	 * for this as we'll want to stick fake data in there, like `sys.version`.
+	 * Instead, we have `kuroko`.
+	 */
+	KrkInstance * systemModule = krk_newInstance(vm.moduleClass);
+	krk_attachNamedObject(&vm.modules, "kuroko", (KrkObj*)systemModule);
+	krk_attachNamedObject(&systemModule->fields, "__name__", (KrkObj*)S("kuroko"));
+	krk_attachNamedValue(&systemModule->fields, "__file__", NONE_VAL()); /* (built-in) */
+	krk_attachNamedObject(&systemModule->fields, "version",
+		(KrkObj*)S(KRK_VERSION_MAJOR "." KRK_VERSION_MINOR "." KRK_VERSION_PATCH KRK_VERSION_EXTRA));
+	krk_attachNamedObject(&systemModule->fields, "buildenv", (KrkObj*)S(KRK_BUILD_COMPILER));
+	krk_attachNamedObject(&systemModule->fields, "builddate", (KrkObj*)S(KRK_BUILD_DATE));
 
 	/* Add exception classes */
 	ADD_EXCEPTION_CLASS(vm.exceptions.baseException, "Exception", vm.objectClass);
