@@ -99,7 +99,7 @@ static void dumpStack(CallFrame * frame) {
  * is not None, it will also be printed using safe methods.
  */
 void krk_dumpTraceback() {
-	fprintf(stderr, "Traceback, most recent first, %d call frame%s:\n", (int)vm.frameCount, vm.frameCount == 1 ? "" : "s");
+	fprintf(stderr, "Traceback, most recent last:\n");
 	for (size_t i = 0; i <= vm.frameCount - 1; i++) {
 		CallFrame * frame = &vm.frames[i];
 		KrkFunction * function = frame->closure->function;
