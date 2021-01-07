@@ -49,6 +49,7 @@ typedef struct {
 typedef enum {
 	PREC_NONE,
 	PREC_ASSIGNMENT, /* = */
+	PREC_TERNARY,
 	PREC_OR,         /* or */
 	PREC_AND,        /* and */
 	PREC_BITOR,      /* | */
@@ -178,6 +179,7 @@ static void expression();
 static void statement();
 static void declaration();
 static void or_(int canAssign);
+static void ternary(int canAssign);
 static void and_(int canAssign);
 static void classDeclaration();
 static void declareVariable();
@@ -1772,7 +1774,7 @@ ParseRule rules[] = {
 	RULE(TOKEN_FALSE,         literal,  NULL,   PREC_NONE),
 	RULE(TOKEN_FOR,           NULL,     NULL,   PREC_NONE),
 	RULE(TOKEN_DEF,           NULL,     NULL,   PREC_NONE),
-	RULE(TOKEN_IF,            NULL,     NULL,   PREC_NONE),
+	RULE(TOKEN_IF,            NULL,     ternary,PREC_TERNARY),
 	RULE(TOKEN_IN,            NULL,     in_,    PREC_COMPARISON),
 	RULE(TOKEN_LET,           NULL,     NULL,   PREC_NONE),
 	RULE(TOKEN_NONE,          literal,  NULL,   PREC_NONE),
@@ -1809,7 +1811,38 @@ ParseRule rules[] = {
 	RULE(TOKEN_EOF,           NULL,     NULL,   PREC_NONE),
 };
 
+static void actualTernary(size_t count, KrkScanner oldScanner, Parser oldParser) {
+	currentChunk()->count = count;
+
+	parsePrecedence(PREC_OR);
+
+	int thenJump = emitJump(OP_JUMP_IF_TRUE);
+	emitByte(OP_POP); /* Pop the condition */
+	consume(TOKEN_ELSE, "Expected 'else' after ternary condition");
+
+	parsePrecedence(PREC_OR);
+
+	KrkScanner outScanner = krk_tellScanner();
+	Parser outParser = parser;
+
+	int elseJump = emitJump(OP_JUMP);
+	patchJump(thenJump);
+	emitByte(OP_POP);
+
+	krk_rewindScanner(oldScanner);
+	parser = oldParser;
+	parsePrecedence(PREC_OR);
+	patchJump(elseJump);
+
+	krk_rewindScanner(outScanner);
+	parser = outParser;
+}
+
 static void parsePrecedence(Precedence precedence) {
+	size_t count = currentChunk()->count;
+	KrkScanner oldScanner = krk_tellScanner();
+	Parser oldParser = parser;
+
 	advance();
 	ParseFn prefixRule = getRule(parser.previous.type)->prefix;
 	if (prefixRule == NULL) {
@@ -1821,7 +1854,11 @@ static void parsePrecedence(Precedence precedence) {
 	while (precedence <= getRule(parser.current.type)->precedence) {
 		advance();
 		ParseFn infixRule = getRule(parser.previous.type)->infix;
-		infixRule(canAssign);
+		if (infixRule == ternary) {
+			actualTernary(count, oldScanner, oldParser);
+		} else {
+			infixRule(canAssign);
+		}
 	}
 
 	if (canAssign && matchAssignment()) {
@@ -1986,6 +2023,10 @@ static void and_(int canAssign) {
 	emitByte(OP_POP);
 	parsePrecedence(PREC_AND);
 	patchJump(endJump);
+}
+
+static void ternary(int canAssign) {
+	error("This function should not run.");
 }
 
 static void or_(int canAssign) {

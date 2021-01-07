@@ -1,0 +1,19 @@
+def foo():
+    print("Called foo")
+    return 42
+
+def bar():
+    print("Called bar")
+    return "a string"
+
+let x = foo() if True else bar()
+print(x)
+
+let y = foo() if False else bar()
+print(y)
+
+let z = foo() if y == "a string" else bar()
+print(z)
+
+let l = (lambda x: x * 72) if x == 42 else (lambda y: y - 48)
+print(l(x))
