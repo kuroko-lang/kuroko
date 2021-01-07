@@ -250,6 +250,28 @@ int main(int argc, char * argv[]) {
 		/* Bind a callback for \t */
 		rline_exp_set_tab_complete_func(tab_complete_func);
 
+		/**
+		 * Python stores version info in a built-in module called `sys`.
+		 * We are not Python, we'll use `sys` to pretend to be Python
+		 * in emulation mode, so we use a different module to store
+		 * this sort of thing: kuroko
+		 *
+		 * This module won't be imported by default, but it's still in
+		 * the modules list, so we can look for it there.
+		 */
+		KrkValue systemModule;
+		if (krk_tableGet(&vm.modules, OBJECT_VAL(krk_copyString("kuroko",6)), &systemModule)) {
+			KrkValue version, buildenv, builddate;
+			krk_tableGet(&AS_INSTANCE(systemModule)->fields, OBJECT_VAL(krk_copyString("version",7)), &version);
+			krk_tableGet(&AS_INSTANCE(systemModule)->fields, OBJECT_VAL(krk_copyString("buildenv",8)), &buildenv);
+			krk_tableGet(&AS_INSTANCE(systemModule)->fields, OBJECT_VAL(krk_copyString("builddate",9)), &builddate);
+
+			fprintf(stdout, "Kuroko %s (%s) with %s\n",
+				AS_CSTRING(version), AS_CSTRING(builddate), AS_CSTRING(buildenv));
+		}
+
+		fprintf(stdout, "Type `help` for guidance, `paste()` to toggle automatic indentation, `license` for copyright information.\n");
+
 		while (!exitRepl) {
 			size_t lineCapacity = 8;
 			size_t lineCount = 0;

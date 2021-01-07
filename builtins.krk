@@ -67,15 +67,41 @@ class Helper():
     except:
      print('No docstring avaialble for', obj)
   else:
-   print('(Interactive help is not yet available)')
+   from help import interactive
+   interactive()
  def __repr__(self):
   return 'Type help() for more help, or help(obj) to describe an object.'
 
 let help = Helper()
 
+let _licenseText = '''
+Copyright (c) 2020-2021 K. Lange <klange@toaruos.org>
+
+Permission to use, copy, modify, and/or distribute this software for any
+purpose with or without fee is hereby granted, provided that the above
+copyright notice and this permission notice appear in all copies.
+
+THE SOFTWARE IS PROVIDED 'AS IS' AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+'''
+
+class LicenseReader():
+ def __call__(self):
+  print(_licenseText)
+ def __repr__(self):
+  return 'Copyright 2020-2021 K. Lange <klange@toaruos.org>. Type `license()` for more information.'
+
+let license = LicenseReader()
+
 __builtins__.list = list
 __builtins__.dict = dict
 __builtins__.help = help
+__builtins__.license = license
 __builtins__.module_paths = ['./','./modules/','/home/klange/Projects/kuroko/modules/','/usr/share/kuroko/']
 
 return object()
