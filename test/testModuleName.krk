@@ -1,0 +1,4 @@
+if __name__ == '__main__':
+    print("You called me directly!")
+else:
+    print("My name is",__name__,"so I must have been imported.")
