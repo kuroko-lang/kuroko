@@ -37,7 +37,7 @@ static KrkValue krk_isinstance(int argc, KrkValue argv[]);
 static void addObjects();
 
 /* Embedded script for extensions to builtin-ins; see builtins.c/builtins.krk */
-extern const char _builtins_src[];
+extern const char krk_builtinsSrc[];
 
 /**
  * Reset the stack pointers, frame, upvalue list,
@@ -2701,7 +2701,7 @@ void krk_initVM(int flags) {
 	 * A significant subset of the VM's functionality is lost without
 	 * these classes being available, but it should still work to some degree.
 	 */
-	KrkValue builtinsModule = krk_interpret(_builtins_src,1,"__builtins__","__builtins__");
+	KrkValue builtinsModule = krk_interpret(krk_builtinsSrc,1,"__builtins__","__builtins__");
 	if (!IS_OBJECT(builtinsModule)) {
 		/* ... hence, this is a warning and not a complete failure. */
 		fprintf(stderr, "VM startup failure: Failed to load __builtins__ module.\n");

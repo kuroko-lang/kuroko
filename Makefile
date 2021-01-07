@@ -15,7 +15,7 @@ libkuroko.so: ${OBJS}
 	${CC} ${CLFAGS} -shared -o $@ ${OBJS}
 
 builtins.c: builtins.krk
-	echo "const char _builtins_src[] = " > builtins.c
+	echo "const char krk_builtinsSrc[] = " > builtins.c
 	cat builtins.krk | sed s'/\(.*\)/\"\0\\n\"/' >> builtins.c
 	echo ";" >> builtins.c
 

@@ -1740,7 +1740,7 @@ static void dict(int canAssign) {
 
 #define RULE(token, a, b, c) [token] = {# token, a, b, c}
 
-ParseRule rules[] = {
+ParseRule krk_parseRules[] = {
 	RULE(TOKEN_LEFT_PAREN,    grouping, call,   PREC_CALL),
 	RULE(TOKEN_RIGHT_PAREN,   NULL,     NULL,   PREC_NONE),
 	RULE(TOKEN_LEFT_BRACE,    dict,     NULL,   PREC_NONE),
@@ -2037,7 +2037,7 @@ static void or_(int canAssign) {
 }
 
 static ParseRule * getRule(KrkTokenType type) {
-	return &rules[type];
+	return &krk_parseRules[type];
 }
 
 KrkFunction * krk_compile(const char * src, int newScope, char * fileName) {

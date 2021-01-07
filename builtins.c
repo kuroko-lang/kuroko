@@ -1,4 +1,4 @@
-const char _builtins_src[] = 
+const char krk_builtinsSrc[] = 
 "# Please avoid using double quotes or escape sequences\n"
 "# in this file to allow it to be easily converted to C.\n"
 "class list():\n"
