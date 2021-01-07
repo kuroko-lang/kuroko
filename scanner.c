@@ -206,10 +206,7 @@ static KrkTokenType identifierType() {
 				case 's': return checkKeyword(3,"e", TOKEN_ELSE);
 				case 'i': return checkKeyword(3,"f", TOKEN_ELIF);
 			} break;
-			case 'x': if MORE(2) switch(scanner.start[2]) {
-				case 'p': return checkKeyword(3, "ort", TOKEN_EXPORT);
-				case 'c': return checkKeyword(3, "ept", TOKEN_EXCEPT);
-			} break;
+			case 'x': return checkKeyword(2, "cept", TOKEN_EXCEPT);
 		} break;
 		case 'f': if (MORE(1)) switch(scanner.start[1]) {
 			case 'o': return checkKeyword(2, "r", TOKEN_FOR);

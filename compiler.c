@@ -1332,7 +1332,7 @@ static void fromImportStatement() {
 	consume(TOKEN_IDENTIFIER, "Expected module name after 'from'");
 	size_t ind = identifierConstant(&parser.previous);
 	EMIT_CONSTANT_OP(OP_IMPORT, ind);
-	consume(TOKEN_IMPORT, "Exported 'import' after module name");
+	consume(TOKEN_IMPORT, "Expected 'import' after module name");
 	do {
 		consume(TOKEN_IDENTIFIER, "Expected member name");
 		size_t member = identifierConstant(&parser.previous);
@@ -1356,18 +1356,6 @@ static void fromImportStatement() {
 	emitByte(OP_POP); /* Pop the remaining copy of the module. */
 }
 
-static void exportStatement() {
-	do {
-		consume(TOKEN_IDENTIFIER, "only named variable may be exported to the global namespace");
-		namedVariable(parser.previous, 0);
-		namedVariable(parser.previous, 0);
-		size_t ind = identifierConstant(&parser.previous);
-		EMIT_CONSTANT_OP(OP_DEFINE_GLOBAL, ind);
-		EMIT_CONSTANT_OP(OP_SET_GLOBAL, ind);
-		emitByte(OP_POP);
-	} while (match(TOKEN_COMMA));
-}
-
 static void statement() {
 	if (match(TOKEN_EOL) || match(TOKEN_EOF)) {
 		return; /* Meaningless blank line */
@@ -1382,9 +1370,7 @@ static void statement() {
 	} else if (check(TOKEN_TRY)) {
 		tryStatement();
 	} else {
-		if (match(TOKEN_EXPORT)) {
-			exportStatement();
-		} else if (match(TOKEN_RAISE)) {
+		if (match(TOKEN_RAISE)) {
 			raiseStatement();
 		} else if (match(TOKEN_RETURN)) {
 			returnStatement();
