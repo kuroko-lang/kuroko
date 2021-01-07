@@ -3502,9 +3502,9 @@ KrkValue krk_interpret(const char * src, int newScope, char * fromName, char * f
 	if (newScope) krk_startModule(fromName);
 
 	KrkFunction * function = krk_compile(src, 0, fromFile);
-	krk_attachNamedObject(&vm.module->fields, "__file__", (KrkObj*)function->chunk.filename);
-
 	if (!function) return NONE_VAL();
+
+	krk_attachNamedObject(&vm.module->fields, "__file__", (KrkObj*)function->chunk.filename);
 
 	krk_push(OBJECT_VAL(function));
 
