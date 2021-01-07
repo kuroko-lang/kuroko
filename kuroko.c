@@ -68,6 +68,7 @@ int main(int argc, char * argv[]) {
 		krk_defineNative(&vm.builtins->fields, "exit", exitFunc);
 		krk_defineNative(&vm.builtins->fields, "paste", paste);
 		krk_startModule("<module>");
+		krk_attachNamedValue(&vm.module->fields,"__doc__", NONE_VAL());
 
 		/* Set ^D to send EOF */
 		rline_exit_string="";

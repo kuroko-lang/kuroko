@@ -2012,6 +2012,20 @@ KrkFunction * krk_compile(const char * src, int newScope, char * fileName) {
 
 	advance();
 
+	if (vm.module) {
+		KrkValue doc;
+		if (!krk_tableGet(&vm.module->fields, OBJECT_VAL(krk_copyString("__doc__", 7)), &doc)) {
+			if (match(TOKEN_STRING) || match(TOKEN_BIG_STRING)) {
+				string(parser.previous.type == TOKEN_BIG_STRING);
+				krk_attachNamedObject(&vm.module->fields, "__doc__",
+					(KrkObj*)AS_STRING(currentChunk()->constants.values[currentChunk()->constants.count-1]));
+				consume(TOKEN_EOL,"Garbage after docstring");
+			} else {
+				krk_attachNamedValue(&vm.module->fields, "__doc__", NONE_VAL());
+			}
+		}
+	}
+
 	while (!match(TOKEN_EOF)) {
 		declaration();
 		if (check(TOKEN_EOL) || check(TOKEN_INDENTATION) || check(TOKEN_EOF)) {

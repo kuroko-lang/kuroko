@@ -49,7 +49,7 @@ typedef struct {
 	size_t stackSize;
 	KrkValue * stack;
 	KrkValue * stackTop;
-	KrkObj   * module;
+	KrkInstance * module;
 	KrkTable strings;
 	KrkTable modules;
 	KrkUpvalue * openUpvalues;

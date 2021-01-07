@@ -1,0 +1,4 @@
+#!/usr/bin/kuroko
+"""This is a docstring."""
+
+print("hello, here is my docstring:",__doc__)

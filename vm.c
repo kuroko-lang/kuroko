@@ -3449,14 +3449,14 @@ _finishException:
 
 KrkInstance * krk_startModule(const char * name) {
 	KrkInstance * module = krk_newInstance(vm.objectClass);
-	vm.module = (KrkObj*)module;
+	vm.module = module;
 	krk_attachNamedObject(&module->fields, "__builtins__", (KrkObj*)vm.builtins);
 	krk_attachNamedObject(&module->fields, "__name__", (KrkObj*)krk_copyString(name,strlen(name)));
 	return module;
 }
 
 KrkValue krk_interpret(const char * src, int newScope, char * fromName, char * fromFile) {
-	KrkObj * enclosing = vm.module;
+	KrkInstance * enclosing = vm.module;
 	if (newScope) krk_startModule(fromName);
 
 	KrkFunction * function = krk_compile(src, 0, fromFile);
