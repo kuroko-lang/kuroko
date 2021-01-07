@@ -63,6 +63,7 @@ typedef struct {
 	KrkValue specialMethodNames[METHOD__MAX];
 
 	KrkClass * objectClass;
+	KrkClass * moduleClass;
 	KrkInstance * builtins;
 
 	struct {

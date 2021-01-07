@@ -227,6 +227,7 @@ static void markRoots() {
 	}
 	krk_markObject((KrkObj*)vm.builtins);
 	krk_markObject((KrkObj*)vm.objectClass);
+	krk_markObject((KrkObj*)vm.moduleClass);
 	if (vm.module)  krk_markObject((KrkObj*)vm.module);
 	krk_markTable(&vm.modules);
 	krk_markCompilerRoots();

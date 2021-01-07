@@ -52,7 +52,7 @@ static KrkValue krk_dis(int argc, KrkValue argv[]) {
 }
 
 KrkValue krk_module_onload_dis(void) {
-	KrkInstance * module = krk_newInstance(vm.objectClass);
+	KrkInstance * module = krk_newInstance(vm.moduleClass);
 	krk_push(OBJECT_VAL(module));
 	krk_defineNative(&module->fields, "dis", krk_dis);
 	assert(AS_INSTANCE(krk_pop()) == module);

@@ -2054,6 +2054,31 @@ static KrkValue _strBase(int argc, KrkValue argv[]) {
 	return out;
 }
 
+static KrkValue _module_repr(int argc, KrkValue argv[]) {
+	KrkInstance * self = AS_INSTANCE(argv[0]);
+
+	KrkValue name = NONE_VAL();
+	krk_tableGet(&self->fields, vm.specialMethodNames[METHOD_NAME], &name);
+
+	if (!IS_STRING(name)) {
+		return OBJECT_VAL(S("<module>"));
+	}
+
+	KrkValue file = NONE_VAL();
+	krk_tableGet(&self->fields, vm.specialMethodNames[METHOD_FILE], &file);
+
+	char * tmp = malloc(50 + AS_STRING(name)->length + (IS_STRING(file) ? AS_STRING(file)->length : 20));
+	if (IS_STRING(file)) {
+		sprintf(tmp, "<module '%s' from '%s'>", AS_CSTRING(name), AS_CSTRING(file));
+	} else {
+		sprintf(tmp, "<module '%s' (built-in)>", AS_CSTRING(name));
+	}
+
+	KrkValue out = OBJECT_VAL(krk_copyString(tmp, strlen(tmp)));
+	free(tmp);
+	return out;
+}
+
 /**
  * str.__repr__()
  *
@@ -2446,6 +2471,8 @@ void krk_initVM(int flags) {
 	vm.grayCount = 0;
 	vm.grayCapacity = 0;
 	vm.grayStack = NULL;
+	vm.objectClass = NULL;
+	vm.moduleClass = NULL;
 	krk_initTable(&vm.strings);
 	memset(vm.specialMethodNames,0,sizeof(vm.specialMethodNames));
 	vm.watchdog = 0;
@@ -2483,10 +2510,20 @@ void krk_initVM(int flags) {
 	krk_defineNative(&vm.objectClass->methods, ".__repr__", _strBase); /* Override if necesary */
 	krk_finalizeClass(vm.objectClass);
 
+	/* Make module class as a subtype of object */
+	vm.moduleClass = krk_newClass(S("module"));
+	vm.moduleClass->base = vm.objectClass;
+	krk_tableAddAll(&vm.objectClass->methods, &vm.moduleClass->methods);
+
+	/* Attach new repr/str */
+	krk_defineNative(&vm.moduleClass->methods, ".__repr__", _module_repr);
+	krk_defineNative(&vm.moduleClass->methods, ".__str__", _module_repr);
+
 	/* Build a __builtins__ namespace for some extra functions. */
-	vm.builtins = krk_newInstance(vm.objectClass);
+	vm.builtins = krk_newInstance(vm.moduleClass);
 	krk_attachNamedObject(&vm.builtins->fields, "object", (KrkObj*)vm.objectClass);
 	krk_attachNamedObject(&vm.builtins->fields, "__name__", (KrkObj*)S("__builtins__"));
+	krk_attachNamedValue(&vm.builtins->fields, "__file__", NONE_VAL());
 
 	/* Add exception classes */
 	ADD_EXCEPTION_CLASS(vm.exceptions.baseException, "Exception", vm.objectClass);
@@ -2980,14 +3017,19 @@ int krk_loadModule(KrkString * name, KrkValue * moduleOut) {
 		krk_pop(); /* onload function */
 
 		*moduleOut = moduleOnLoad();
-		if (!IS_OBJECT(*moduleOut)) {
+		if (!IS_INSTANCE(*moduleOut)) {
 			krk_runtimeError(vm.exceptions.importError,
 				"Failed to load module '%s' from '%s'", name->chars, fileName);
 			return 0;
 		}
 
-		krk_pop(); /* filename */
 		krk_push(*moduleOut);
+		krk_swap(1);
+
+		krk_attachNamedObject(&AS_INSTANCE(*moduleOut)->fields, "__name__", (KrkObj*)name);
+		krk_attachNamedValue(&AS_INSTANCE(*moduleOut)->fields, "__file__", krk_peek(0));
+
+		krk_pop(); /* filename */
 		krk_tableSet(&vm.modules, OBJECT_VAL(name), *moduleOut);
 		return 1;
 	}
@@ -3448,7 +3490,7 @@ _finishException:
 }
 
 KrkInstance * krk_startModule(const char * name) {
-	KrkInstance * module = krk_newInstance(vm.objectClass);
+	KrkInstance * module = krk_newInstance(vm.moduleClass);
 	vm.module = module;
 	krk_attachNamedObject(&module->fields, "__builtins__", (KrkObj*)vm.builtins);
 	krk_attachNamedObject(&module->fields, "__name__", (KrkObj*)krk_copyString(name,strlen(name)));
@@ -3460,6 +3502,7 @@ KrkValue krk_interpret(const char * src, int newScope, char * fromName, char * f
 	if (newScope) krk_startModule(fromName);
 
 	KrkFunction * function = krk_compile(src, 0, fromFile);
+	krk_attachNamedObject(&vm.module->fields, "__file__", (KrkObj*)function->chunk.filename);
 
 	if (!function) return NONE_VAL();
 

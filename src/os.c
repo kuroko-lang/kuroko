@@ -37,7 +37,7 @@ static KrkValue krk_uname(int argc, KrkValue argv[]) {
 }
 
 KrkValue krk_module_onload_os(void) {
-	KrkInstance * module = krk_newInstance(vm.objectClass);
+	KrkInstance * module = krk_newInstance(vm.moduleClass);
 	/* Store it on the stack for now so we can do stuff that may trip GC
 	 * and not lose it to garbage colletion... */
 	krk_push(OBJECT_VAL(module));
