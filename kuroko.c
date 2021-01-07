@@ -22,6 +22,7 @@
 #include "debug.h"
 #include "vm.h"
 #include "memory.h"
+#include "scanner.h"
 
 static int exitRepl = 0;
 static KrkValue exitFunc(int argc, KrkValue argv[]) {
@@ -34,6 +35,174 @@ static KrkValue paste(int argc, KrkValue argv[]) {
 	pasteEnabled = !pasteEnabled;
 	fprintf(stderr, "Pasting is %s.\n", pasteEnabled ? "enabled" : "disabled");
 	return NONE_VAL();
+}
+
+/**
+ * Given an object, find a property with the same name as a scanner token.
+ * This can be either a field of an instance, or a method of the type of
+ * the of the object. If we can't find anything by that name, return None.
+ *
+ * We can probably also use valueGetProperty which does correct binding
+ * for native dynamic fields...
+ */
+static KrkValue findFromProperty(KrkValue current, KrkToken next) {
+	KrkValue value;
+	KrkValue member = OBJECT_VAL(krk_copyString(next.start, next.length));
+	krk_push(member);
+
+	if (IS_INSTANCE(current)) {
+		/* try fields */
+		if (krk_tableGet(&AS_INSTANCE(current)->fields, member, &value)) goto _found;
+		if (krk_tableGet(&AS_INSTANCE(current)->_class->methods, member, &value)) goto _found;
+	} else {
+		/* try methods */
+		KrkClass * _class = AS_CLASS(krk_typeOf(1,(KrkValue[]){current}));
+		if (krk_tableGet(&_class->methods, member, &value)) goto _found;
+	}
+
+	krk_pop();
+	return NONE_VAL();
+
+_found:
+	krk_pop();
+	return value;
+}
+
+static void tab_complete_func(rline_context_t * c) {
+	/* Figure out where the cursor is and if we should be completing anything. */
+	if (c->offset) {
+		/* Copy up to the cursor... */
+		char * tmp = malloc(c->offset + 1);
+		memcpy(tmp, c->buffer, c->offset);
+		tmp[c->offset] = '\0';
+		/* and pass it to the scanner... */
+		krk_initScanner(tmp);
+		/* Logically, there can be at most (offset) tokens, plus some wiggle room. */
+		KrkToken * space = malloc(sizeof(KrkToken) * (c->offset + 2));
+		int count = 0;
+		do {
+			space[count++] = krk_scanToken();
+		} while (space[count-1].type != TOKEN_EOF && space[count-1].type != TOKEN_ERROR);
+
+		/* If count == 1, it was EOF or an error and we have nothing to complete. */
+		if (count == 1) return;
+
+		/* Otherwise we want to see if we're on an identifier or a dot. */
+		int base = 2;
+		int n = base;
+		if (space[count-base].type == TOKEN_DOT) {
+			/* Dots we need to look back at the previous tokens for */
+			n--;
+			base--;
+		} else if (space[count-base].type == TOKEN_IDENTIFIER) {
+			/* Identifiers we will consider as partial matches. */
+		} else {
+			/* TODO: What if something the user typed as a partial token was a keyword?
+			 *       The scanner will give us the keyword's token type...
+			 *       Need to split token types between word-y and non-word-y
+			 *       so we can quietly ignore keywords and let them continue... */
+			free(tmp);
+			return;
+		}
+
+		/* Work backwards to find the start of this chain of identifiers */
+		while (n < count) {
+			if (space[count-n-1].type != TOKEN_DOT) break;
+			n++;
+			if (n == count) break;
+			if (space[count-n-1].type != TOKEN_IDENTIFIER) break;
+			n++;
+		}
+
+		if (n <= count) {
+			/* Now work forwards, starting from the current globals. */
+			KrkValue root = OBJECT_VAL(vm.module);
+			while (n > base) {
+				/* And look at the potential fields for instances/classes */
+				KrkValue next = findFromProperty(root, space[count-n]);
+				if (IS_NONE(next)) {
+					/* If we hit None, we found something invalid (or literally hit a None
+					 * object, but really the difference is minimal in this case: Nothing
+					 * useful to tab complete from here. */
+					free(tmp);
+					return;
+				}
+				root = next;
+				n -= 2; /* To skip every other dot. */
+			}
+
+			/* Now figure out what we're completing - did we already have a partial symbol name? */
+			int length = (space[count-base].type == TOKEN_DOT) ? 0 : (space[count-base].length);
+
+			/* Take the last symbol name from the chain and get its member list from dir() */
+			KrkValue dirList = krk_dirObject(1,(KrkValue[]){root});
+			if (!IS_INSTANCE(dirList)) {
+				fprintf(stderr,"\nInternal error while tab completting.\n");
+				free(tmp);
+				return;
+			}
+			krk_push(dirList);
+			KrkValue _list_internal = OBJECT_VAL(AS_INSTANCE(dirList)->_internal);
+
+			/* Collect up to 256 of those that match */
+			char * matches[256];
+			int matchCount = 0;;
+			for (size_t i = 0; i < AS_LIST(_list_internal)->count; ++i) {
+				KrkString * s = AS_STRING(AS_LIST(_list_internal)->values[i]);
+
+				/* If this symbol is shorter than the current submatch, skip it. */
+				if (length && (int)s->length < length) continue;
+
+				if (!memcmp(s->chars, space[count-base].start, length)) {
+					matches[matchCount] = s->chars;
+					matchCount++;
+					if (matchCount == 255) break;
+				}
+			}
+
+			/* Now we can do things with the matches. */
+			if (matchCount == 1) {
+				/* If there was only one, just fill it. */
+				rline_insert(c, matches[0] + length);
+				rline_place_cursor();
+			} else if (matchCount) {
+				/* Otherwise, try to find a common substring among them... */
+				int j = length;
+				while (1) {
+					char m = matches[0][j];
+					if (!m) break;
+					int diff = 0;
+					for (int i = 1; i < matchCount; ++i) {
+						if (matches[i][j] != m) {
+							diff = 1;
+							break;
+						}
+					}
+					if (diff) break;
+					j++;
+				}
+				/* If no common sub string could be filled in, we print the list. */
+				if (j == length) {
+					/* We could do something prettier, but this will work for now. */
+					fprintf(stderr, "\n");
+					for (int i = 0; i < matchCount; ++i) {
+						fprintf(stderr, "%s ", matches[i]);
+					}
+					fprintf(stderr, "\n");
+				} else {
+					/* If we do have a common sub string, fill in those characters. */
+					for (int i = length; i < j; ++i) {
+						char tmp[2] = {matches[0][i], '\0'};
+						rline_insert(c, tmp);
+					}
+				}
+			}
+
+			krk_pop(); /* dirList */
+		}
+		free(space);
+		return;
+	}
 }
 
 int main(int argc, char * argv[]) {
@@ -65,8 +234,12 @@ int main(int argc, char * argv[]) {
 	KrkValue result = INTEGER_VAL(0);
 
 	if (optind == argc) {
+		/* Add builtins for the repl, but hide them from the globals() list. */
 		krk_defineNative(&vm.builtins->fields, "exit", exitFunc);
 		krk_defineNative(&vm.builtins->fields, "paste", paste);
+
+		/* The repl runs in the context of a top-level module so each input
+		 * line can share a globals state with the others. */
 		krk_startModule("<module>");
 		krk_attachNamedValue(&vm.module->fields,"__doc__", NONE_VAL());
 
@@ -74,8 +247,8 @@ int main(int argc, char * argv[]) {
 		rline_exit_string="";
 		/* Enable syntax highlight for Kuroko */
 		rline_exp_set_syntax("krk");
-		/* TODO: Add tab completion for globals, known fields/methods... */
-		//rline_exp_set_tab_complete_func(tab_complete_func);
+		/* Bind a callback for \t */
+		rline_exp_set_tab_complete_func(tab_complete_func);
 
 		while (!exitRepl) {
 			size_t lineCapacity = 8;

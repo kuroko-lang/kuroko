@@ -142,3 +142,4 @@ extern KrkValue krk_callSimple(KrkValue value, int argCount, int isMethod);
 extern void krk_finalizeClass(KrkClass * _class);
 extern void krk_dumpTraceback();
 extern KrkInstance * krk_startModule(const char * name);
+extern KrkValue krk_dirObject(int argc, KrkValue argv[]);

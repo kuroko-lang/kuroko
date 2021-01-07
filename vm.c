@@ -600,7 +600,7 @@ static KrkValue krk_set_tracing(int argc, KrkValue argv[], int hasKw) {
 /**
  * object.__dir__()
  */
-static KrkValue krk_dirObject(int argc, KrkValue argv[]) {
+KrkValue krk_dirObject(int argc, KrkValue argv[]) {
 	if (argc != 1) {
 		krk_runtimeError(vm.exceptions.argumentError, "wrong number of arguments or bad type, got %d\n", argc);
 		return NONE_VAL();

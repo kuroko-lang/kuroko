@@ -776,6 +776,35 @@ static void set_fg_color(const char * fg) {
 	fflush(stdout);
 }
 
+void rline_set_colors(rline_style_t style) {
+	switch (style) {
+		case RLINE_STYLE_MAIN:
+			set_colors(COLOR_FG, COLOR_BG);
+			break;
+		case RLINE_STYLE_ALT:
+			set_colors(COLOR_ALT_FG, COLOR_ALT_BG);
+			break;
+		case RLINE_STYLE_KEYWORD:
+			set_fg_color(COLOR_KEYWORD);
+			break;
+		case RLINE_STYLE_STRING:
+			set_fg_color(COLOR_STRING);
+			break;
+		case RLINE_STYLE_COMMENT:
+			set_fg_color(COLOR_COMMENT);
+			break;
+		case RLINE_STYLE_TYPE:
+			set_fg_color(COLOR_TYPE);
+			break;
+		case RLINE_STYLE_PRAGMA:
+			set_fg_color(COLOR_PRAGMA);
+			break;
+		case RLINE_STYLE_NUMERAL:
+			set_fg_color(COLOR_NUMERAL);
+			break;
+	}
+}
+
 /**
  * Mostly copied from bim, but with some minor
  * alterations and removal of selection support.
@@ -1039,7 +1068,7 @@ static void get_size(void) {
 /**
  * Place the cursor within the line
  */
-static void place_cursor_actual(void) {
+void rline_place_cursor(void) {
 	int x = prompt_width_calc + 1 - offset;
 	for (int i = 0; i < column; ++i) {
 		char_t * c = &the_line->text[i];
@@ -1147,7 +1176,7 @@ static void insert_char(uint32_t c) {
  */
 static void cursor_left(void) {
 	if (column > 0) column--;
-	place_cursor_actual();
+	rline_place_cursor();
 }
 
 /**
@@ -1155,7 +1184,7 @@ static void cursor_left(void) {
  */
 static void cursor_right(void) {
 	if (column < the_line->actual) column++;
-	place_cursor_actual();
+	rline_place_cursor();
 }
 
 /**
@@ -1171,7 +1200,7 @@ static void word_left(void) {
 		if (the_line->text[column-1].codepoint == ' ') break;
 		column--;
 	}
-	place_cursor_actual();
+	rline_place_cursor();
 }
 
 /**
@@ -1185,7 +1214,7 @@ static void word_right(void) {
 		column++;
 		if (column < the_line->actual && the_line->text[column].codepoint == ' ') break;
 	}
-	place_cursor_actual();
+	rline_place_cursor();
 }
 
 /**
@@ -1193,7 +1222,7 @@ static void word_right(void) {
  */
 static void cursor_home(void) {
 	column = 0;
-	place_cursor_actual();
+	rline_place_cursor();
 }
 
 /*
@@ -1201,7 +1230,7 @@ static void cursor_home(void) {
  */
 static void cursor_end(void) {
 	column = the_line->actual;
-	place_cursor_actual();
+	rline_place_cursor();
 }
 
 /**
@@ -1245,7 +1274,7 @@ static void history_previous(void) {
 	recalculate_tabs(the_line);
 	recalculate_syntax(the_line);
 	render_line();
-	place_cursor_actual();
+	rline_place_cursor();
 }
 
 /**
@@ -1289,7 +1318,7 @@ static void history_next(void) {
 	recalculate_tabs(the_line);
 	recalculate_syntax(the_line);
 	render_line();
-	place_cursor_actual();
+	rline_place_cursor();
 }
 
 /**
@@ -1480,7 +1509,7 @@ static void call_rline_func(rline_callback_t func, rline_context_t * context) {
 	recalculate_tabs(the_line);
 	recalculate_syntax(the_line);
 	render_line();
-	place_cursor_actual();
+	rline_place_cursor();
 }
 
 char * rline_preload = NULL;
@@ -1518,7 +1547,7 @@ static int read_line(void) {
 	}
 
 	render_line();
-	place_cursor_actual();
+	rline_place_cursor();
 
 	while ((cin = getch(immediate,timeout))) {
 		if (cin == -1) continue;
@@ -1544,7 +1573,7 @@ static int read_line(void) {
 							insert_char(*_c);
 						}
 						render_line();
-						place_cursor_actual();
+						rline_place_cursor();
 						if (!*rline_exit_string) {
 							set_colors(COLOR_ALT_FG, COLOR_ALT_BG);
 							printf("^D\033[0m");
@@ -1581,7 +1610,7 @@ static int read_line(void) {
 						return 1;
 					case 22: /* ^V */
 						/* Don't bother with unicode, just take the next byte */
-						place_cursor_actual();
+						rline_place_cursor();
 						printf("^\b");
 						insert_char(getc(stdin));
 						immediate = 0;
@@ -1593,7 +1622,7 @@ static int read_line(void) {
 					case 12: /* ^L - Repaint the whole screen */
 						printf("\033[2J\033[H");
 						render_line();
-						place_cursor_actual();
+						rline_place_cursor();
 						break;
 					case 11: /* ^K - Clear to end */
 						the_line->actual = column;
@@ -1618,6 +1647,7 @@ static int read_line(void) {
 							rline_context_t context = {0};
 							call_rline_func(tab_complete_func, &context);
 							immediate = 0;
+							continue;
 						}
 						break;
 					default:
@@ -1628,13 +1658,13 @@ static int read_line(void) {
 			} else {
 				if (handle_escape(this_buf,&timeout,c)) {
 					render_line();
-					place_cursor_actual();
+					rline_place_cursor();
 					continue;
 				}
 				immediate = 0;
 			}
 			render_line();
-			place_cursor_actual();
+			rline_place_cursor();
 		} else if (istate == UTF8_REJECT) {
 			istate = 0;
 		}
@@ -1680,3 +1710,16 @@ int rline(char * buffer, int buf_size) {
 	return strlen(buffer);
 }
 
+void rline_insert(rline_context_t * context, const char * what) {
+	size_t insertion_length = strlen(what);
+
+	if (context->collected + (int)insertion_length > context->requested) {
+		insertion_length = context->requested - context->collected;
+	}
+
+	/* Move */
+	memmove(&context->buffer[context->offset + insertion_length], &context->buffer[context->offset], context->collected - context->offset);
+	memcpy(&context->buffer[context->offset], what, insertion_length);
+	context->collected += insertion_length;
+	context->offset += insertion_length;
+}
