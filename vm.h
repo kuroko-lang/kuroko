@@ -14,6 +14,7 @@ typedef struct {
 	uint8_t * ip;
 	size_t slots;
 	size_t outSlots;
+	KrkTable * globals;
 } CallFrame;
 
 typedef enum {
@@ -49,7 +50,6 @@ typedef struct {
 	KrkValue * stack;
 	KrkValue * stackTop;
 	KrkObj   * module;
-	KrkTable * globals;
 	KrkTable strings;
 	KrkTable modules;
 	KrkUpvalue * openUpvalues;

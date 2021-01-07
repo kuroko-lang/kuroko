@@ -770,7 +770,7 @@ static KrkValue krk_globals(int argc, KrkValue argv[]) {
 	KrkValue _dict_internal;
 	krk_tableGet(&AS_INSTANCE(dict)->fields, vm.specialMethodNames[METHOD_DICT_INT], &_dict_internal);
 	/* Copy the globals table into it */
-	krk_tableAddAll(vm.globals, &AS_CLASS(_dict_internal)->methods);
+	krk_tableAddAll(vm.frames[vm.frameCount-1].globals, &AS_CLASS(_dict_internal)->methods);
 	krk_pop();
 
 	return dict;
@@ -1057,7 +1057,7 @@ _finishArg:
 	frame->ip = closure->function->chunk.code;
 	frame->slots = (vm.stackTop - argCount) - vm.stack;
 	frame->outSlots = (vm.stackTop - argCount - extra) - vm.stack;
-	vm.globals = &closure->function->globalsContext->fields;
+	frame->globals = &closure->function->globalsContext->fields;
 	return 1;
 }
 
@@ -2438,7 +2438,6 @@ void krk_initVM(int flags) {
 
 	/* No active module or globals table */
 	vm.module = NULL;
-	vm.globals = NULL;
 
 	krk_resetStack();
 	vm.objects = NULL;
@@ -3052,7 +3051,6 @@ static inline size_t readBytes(CallFrame * frame, int num) {
  */
 static KrkValue run() {
 	CallFrame* frame = &vm.frames[vm.frameCount - 1];
-	vm.globals = &frame->closure->function->globalsContext->fields;
 
 	while (1) {
 #ifdef ENABLE_TRACING
@@ -3097,7 +3095,6 @@ static KrkValue run() {
 					return result;
 				}
 				vm.stackTop = &vm.stack[frame->outSlots];
-				vm.globals = &vm.frames[vm.frameCount - 1].closure->function->globalsContext->fields;
 				if (vm.frameCount == (size_t)vm.exitOnFrame) {
 					return result;
 				}
@@ -3154,7 +3151,7 @@ static KrkValue run() {
 			case OP_DEFINE_GLOBAL_LONG:
 			case OP_DEFINE_GLOBAL: {
 				KrkString * name = READ_STRING(operandWidth);
-				krk_tableSet(vm.globals, OBJECT_VAL(name), krk_peek(0));
+				krk_tableSet(frame->globals, OBJECT_VAL(name), krk_peek(0));
 				krk_pop();
 				break;
 			}
@@ -3162,7 +3159,7 @@ static KrkValue run() {
 			case OP_GET_GLOBAL: {
 				KrkString * name = READ_STRING(operandWidth);
 				KrkValue value;
-				if (!krk_tableGet(vm.globals, OBJECT_VAL(name), &value)) {
+				if (!krk_tableGet(frame->globals, OBJECT_VAL(name), &value)) {
 					if (!krk_tableGet(&vm.builtins->fields, OBJECT_VAL(name), &value)) {
 						krk_runtimeError(vm.exceptions.nameError, "Undefined variable '%s'.", name->chars);
 						goto _finishException;
@@ -3174,8 +3171,8 @@ static KrkValue run() {
 			case OP_SET_GLOBAL_LONG:
 			case OP_SET_GLOBAL: {
 				KrkString * name = READ_STRING(operandWidth);
-				if (krk_tableSet(vm.globals, OBJECT_VAL(name), krk_peek(0))) {
-					krk_tableDelete(vm.globals, OBJECT_VAL(name));
+				if (krk_tableSet(frame->globals, OBJECT_VAL(name), krk_peek(0))) {
+					krk_tableDelete(frame->globals, OBJECT_VAL(name));
 					/* TODO: This should probably just work as an assignment? */
 					krk_runtimeError(vm.exceptions.nameError, "Undefined variable '%s'.", name->chars);
 					goto _finishException;
@@ -3453,9 +3450,8 @@ _finishException:
 KrkInstance * krk_startModule(const char * name) {
 	KrkInstance * module = krk_newInstance(vm.objectClass);
 	vm.module = (KrkObj*)module;
-	vm.globals = &module->fields;
-	krk_attachNamedObject(vm.globals, "__builtins__", (KrkObj*)vm.builtins);
-	krk_attachNamedObject(vm.globals, "__name__", (KrkObj*)krk_copyString(name,strlen(name)));
+	krk_attachNamedObject(&module->fields, "__builtins__", (KrkObj*)vm.builtins);
+	krk_attachNamedObject(&module->fields, "__name__", (KrkObj*)krk_copyString(name,strlen(name)));
 	return module;
 }
 
@@ -3482,7 +3478,6 @@ KrkValue krk_interpret(const char * src, int newScope, char * fromName, char * f
 	if (newScope) {
 		KrkValue out = OBJECT_VAL(vm.module);
 		vm.module = enclosing;
-		vm.globals = vm.module ? &((KrkInstance*)vm.module)->fields : NULL;
 		return out;
 	} else {
 		return result;
