@@ -8,6 +8,8 @@ MODULES=$(patsubst src/%.c, modules/%.so, $(sort $(wildcard src/*.c)))
 
 all: ${TARGET} ${MODULES}
 
+%.o: *.h
+
 modules/%.so: src/%.c
 	${CC} ${CFLAGS} -shared -o $@ $<
 
