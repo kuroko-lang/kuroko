@@ -509,7 +509,7 @@ KrkValue krk_runNext(void) {
  * Exposed method called to produce lists from [expr,...] sequences in managed code.
  * Presented in the global namespace as listOf(...)
  */
-static KrkValue krk_list_of(int argc, KrkValue argv[]) {
+KrkValue krk_list_of(int argc, KrkValue argv[]) {
 	KrkValue Class;
 	krk_tableGet(&vm.builtins->fields,OBJECT_VAL(S("list")), &Class);
 	KrkInstance * outList = krk_newInstance(AS_CLASS(Class));

@@ -305,6 +305,15 @@ int main(int argc, char * argv[]) {
 
 	krk_initVM(flags);
 
+	/* Attach kuroko.argv - argv[0] will be set to an empty string for the repl */
+	if (argc == optind) krk_push(OBJECT_VAL(krk_copyString("",0)));
+	for (int arg = optind; arg < argc; ++arg) {
+		krk_push(OBJECT_VAL(krk_copyString(argv[arg],strlen(argv[arg]))));
+	}
+	KrkValue argList = krk_list_of(argc - optind + (optind == argc), &vm.stackTop[-(argc - optind + (optind == argc))]);
+	krk_attachNamedValue(&vm.system->fields, "argv", argList);
+	for (int arg = optind; arg < argc + (optind == argc); ++arg) krk_pop();
+
 	/* Bind interrupt signal */
 	signal(SIGINT, handleSigint);
 

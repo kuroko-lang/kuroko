@@ -1,0 +1,4 @@
+import kuroko
+
+print(kuroko.argv)
+# ['test/testArgv.krk']
