@@ -1610,13 +1610,17 @@ static void list(int canAssign) {
 
 			/* x in... */
 			ssize_t loopInd = current->localCount;
-			varDeclaration();
-			defineVariable(loopInd);
+			ssize_t varCount = 0;
+			do {
+				varDeclaration();
+				defineVariable(loopInd);
+				varCount++;
+			} while (match(TOKEN_COMMA));
 
 			consume(TOKEN_IN, "Only iterator loops (for ... in ...) are allowed in list comprehensions.");
 
 			beginScope();
-			expression();
+			parsePrecedence(PREC_OR); /* Otherwise we can get trapped on a ternary */
 			endScope();
 
 			/* iterable... */
@@ -1649,9 +1653,28 @@ static void list(int canAssign) {
 			 * and there's no feasible way they can return themselves without
 			 * our intended sentinel meaning, right? Surely? */
 			EMIT_CONSTANT_OP(OP_GET_LOCAL, indLoopIter);
-			emitBytes(OP_EQUAL, OP_NOT);
-			int exitJump = emitJump(OP_JUMP_IF_FALSE);
+			emitByte(OP_EQUAL);
+			int exitJump = emitJump(OP_JUMP_IF_TRUE);
 			emitByte(OP_POP);
+
+			/* Unpack tuple */
+			if (varCount > 1) {
+				EMIT_CONSTANT_OP(OP_GET_LOCAL, loopInd);
+				EMIT_CONSTANT_OP(OP_UNPACK_TUPLE, varCount);
+				for (ssize_t i = loopInd + varCount - 1; i >= loopInd; i--) {
+					EMIT_CONSTANT_OP(OP_SET_LOCAL, i);
+					emitByte(OP_POP);
+				}
+			}
+
+			if (match(TOKEN_IF)) {
+				parsePrecedence(PREC_OR);
+				int acceptJump = emitJump(OP_JUMP_IF_TRUE);
+				emitByte(OP_POP); /* Pop condition */
+				emitLoop(loopStart);
+				patchJump(acceptJump);
+				emitByte(OP_POP); /* Pop condition */
+			}
 
 			/* Now we can rewind the scanner to have it parse the original
 			 * expression that uses our iterated values! */
