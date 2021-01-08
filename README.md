@@ -24,7 +24,11 @@ On top of this, Kuroko adds a number of features inspired by Python, such as:
 
 ## Building Kuroko
 
-Kuroko has no external dependencies beyond the system C library and support for `dlopen` for loading C modules. If you would like to build Kuroko for a platform without shared libary support, this should be possible with some modification.
+### Building as a Shared Library
+
+Kuroko has no external dependencies beyond the system C library and support for `dlopen` for loading C modules.
+
+Generally, `make` should suffice to build from the repository.
 
 The compiler/VM is built as a shared object from these source files:
 
@@ -32,9 +36,17 @@ The compiler/VM is built as a shared object from these source files:
 
 The interpreter binary is a thin wrapper and lives in `kuroko.c`; `rline.c` provides the syntax-highlighted line editor for the REPL.
 
-C module sources are found in `src/` and provide optional added functionality.
+C module sources are found in `src/` and provide optional added functionality. Each module source file corresponds to a resulting shared object of the same name that will be built to the `modules/` directory, which itself also contains modules written in Kuroko.
 
-The core builtins, `builtins.krk` are embedded in `builtins.c` so they are always available to the interpreter.
+The core builtins, `builtins.krk` are embedded in `builtins.c` so they are always available to the interpreter; `builtins.c` is provided in the repository, but can be updated by the Makefile when changes to `builtins.krk` are made.
+
+### Building as a Single Static Binary
+
+An additional Makefile is provided to build a single static binary of the interpter and REPL with the additional C modules bundled as built-ins:
+
+    make clean; make -f Makefile.static
+
+This will produce a static binary without `dlopen` support, so it will not be able to load additional C modules at runtime.
 
 ## Code Examples
 
