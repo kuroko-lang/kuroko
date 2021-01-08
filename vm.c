@@ -1751,6 +1751,48 @@ static KrkValue _string_contains(int argc, KrkValue argv[]) {
 	return BOOLEAN_VAL(0);
 }
 
+static int charIn(char c, const char * str) {
+	for (const char * s = str; *s; s++) {
+		if (c == *s) return 1;
+	}
+	return 0;
+}
+
+static KrkValue _string_strip_shared(int argc, KrkValue argv[], int which) {
+	if (!IS_STRING(argv[0])) return NONE_VAL();
+	size_t start = 0;
+	size_t end   = AS_STRING(argv[0])->length;
+	const char * subset = " \t\n\r";
+	if (argc > 1) {
+		if (IS_STRING(argv[1])) {
+			subset = AS_CSTRING(argv[1]);
+		} else {
+			krk_runtimeError(vm.exceptions.typeError, "argument to %sstrip() should be a string",
+				(which == 0 ? "" : (which == 1 ? "l" : "r")));
+			return NONE_VAL();
+		}
+	} else if (argc > 2) {
+		krk_runtimeError(vm.exceptions.typeError, "%sstrip() takes at most one argument",
+			(which == 0 ? "" : (which == 1 ? "l" : "r")));
+		return NONE_VAL();
+	}
+	if (which < 2) while (start < end && charIn(AS_CSTRING(argv[0])[start], subset)) start++;
+	if (which != 1) while (end > start && charIn(AS_CSTRING(argv[0])[end-1], subset)) end--;
+	return OBJECT_VAL(krk_copyString(&AS_CSTRING(argv[0])[start], end-start));
+}
+
+static KrkValue _string_strip(int argc, KrkValue argv[]) {
+	return _string_strip_shared(argc,argv,0);
+}
+
+static KrkValue _string_lstrip(int argc, KrkValue argv[]) {
+	return _string_strip_shared(argc,argv,1);
+}
+
+static KrkValue _string_rstrip(int argc, KrkValue argv[]) {
+	return _string_strip_shared(argc,argv,2);
+}
+
 /* str.split() */
 static KrkValue _string_split(int argc, KrkValue argv[], int hasKw) {
 	if (!IS_STRING(argv[0])) return NONE_VAL();
@@ -2632,6 +2674,9 @@ void krk_initVM(int flags) {
 	krk_defineNative(&vm.baseClasses.strClass->methods, ".format", _string_format);
 	krk_defineNative(&vm.baseClasses.strClass->methods, ".join", _string_join);
 	krk_defineNative(&vm.baseClasses.strClass->methods, ".split", _string_split);
+	krk_defineNative(&vm.baseClasses.strClass->methods, ".strip", _string_strip);
+	krk_defineNative(&vm.baseClasses.strClass->methods, ".lstrip", _string_lstrip);
+	krk_defineNative(&vm.baseClasses.strClass->methods, ".rstrip", _string_rstrip);
 	krk_finalizeClass(vm.baseClasses.strClass);
 	/* TODO: Don't attach */
 	ADD_BASE_CLASS(vm.baseClasses.functionClass, "function", vm.objectClass);
