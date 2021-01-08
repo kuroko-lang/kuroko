@@ -189,6 +189,21 @@ void krk_runtimeError(KrkClass * type, const char * fmt, ...) {
 }
 
 /**
+ * Since the stack can potentially move when something is pushed to it
+ * if it this triggers a grow condition, it may be necessary to ensure
+ * that this has already happened before actually dealing with the stack.
+ */
+inline void krk_reserve_stack(size_t space) {
+	while ((size_t)(vm.stackTop - vm.stack) + space > vm.stackSize) {
+		size_t old = vm.stackSize;
+		size_t old_offset = vm.stackTop - vm.stack;
+		vm.stackSize = GROW_CAPACITY(old);
+		vm.stack = GROW_ARRAY(KrkValue, vm.stack, old, vm.stackSize);
+		vm.stackTop = vm.stack + old_offset;
+	}
+}
+
+/**
  * Push a value onto the stack, and grow the stack if necessary.
  * Note that growing the stack can involve the stack _moving_, so
  * do not rely on the memory offset of a stack value if you expect
@@ -1125,6 +1140,7 @@ int krk_callValue(KrkValue callee, int argCount, int extra) {
 						}
 					}
 					/* Dict it all up */
+					krk_reserve_stack(32);
 					*(vm.stackTop - count * 2 - 1) = krk_dict_of(count * 2, (vm.stackTop - count * 2 - 1));
 					vm.stackTop = vm.stackTop - count * 2;
 					argCount -= count * 2;
