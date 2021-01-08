@@ -96,7 +96,7 @@ const char krk_builtinsSrc[] =
 "\n"
 "# this works because `kuroko` is always a built-in\n"
 "import kuroko\n"
-"kuroko.module_paths = ['./','./modules/','/home/klange/Projects/kuroko/modules/','/usr/share/kuroko/']\n"
+"kuroko.module_paths = ['./','./modules/','/usr/local/lib/kuroko/']\n"
 "\n"
 "return object()\n"
 ;

@@ -95,6 +95,6 @@ __builtins__.license = license
 
 # this works because `kuroko` is always a built-in
 import kuroko
-kuroko.module_paths = ['./','./modules/','/home/klange/Projects/kuroko/modules/','/usr/share/kuroko/']
+kuroko.module_paths = ['./','./modules/','/usr/local/lib/kuroko/']
 
 return object()
