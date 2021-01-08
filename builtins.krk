@@ -11,14 +11,9 @@ class list():
  def __repr__(self):
   if self.__inrepr: return '[...]'
   self.__inrepr=1
-  let b='['
-  let l=self.__len__()
-  for i=0,i<l,i=i+1:
-   if i>0:
-    b+=', '
-   b+=repr(self[i])
+  let b='['+', '.join([repr(i) for i in self])+']'
   self.__inrepr=0
-  return b+']'
+  return b
 
 class dict():
  'Hashmap of arbitrary keys to arbitrary values.'
@@ -26,16 +21,9 @@ class dict():
  def __repr__(self):
   if self.__inrepr: return '{...}'
   self.__inrepr = 1
-  let out = '{'
-  let first = True
-  for v in self.keys():
-   if not first:
-    out += ', '
-   first = False
-   out += v.__repr__() + ': ' + self[v].__repr__()
-  out += '}'
+  let b='{'+', '.join([repr(k)+': '+repr(self[k]) for k in self.keys()])+'}'
   self.__inrepr = 0
-  return out
+  return b
  def keys(self):
   'Returns an iterable of the keys in this dictionary.'
   class KeyIterator():
@@ -54,6 +42,8 @@ class dict():
      return o
     return _
   return KeyIterator(self)
+ def items(self):
+  return [(k,self[k]) for k in self.keys()]
 
 class Helper():
  '''You seem to already know how to use this.'''
