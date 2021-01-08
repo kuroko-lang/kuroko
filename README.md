@@ -441,7 +441,7 @@ Modules are run once and then cached, so if they preform actions like printing o
 Kuroku supports C-style for loops, while loops, and Python-style iterator for loops.
 
 ```py
-for i = 1, i < 5, i = i + 1:
+for i = 1; i < 5; i = i + 1:
     print(i)
 # → 1
 #   2

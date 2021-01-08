@@ -1217,7 +1217,7 @@ static void forStatement() {
 		emitByte(OP_POP);
 
 	} else {
-		consume(TOKEN_COMMA,"expect ,");
+		consume(TOKEN_SEMICOLON,"expect ; after var declaration in for loop");
 		loopStart = currentChunk()->count;
 
 
@@ -1227,7 +1227,7 @@ static void forStatement() {
 		exitJump = emitJump(OP_JUMP_IF_FALSE);
 		emitByte(OP_POP);
 
-		if (check(TOKEN_COMMA)) {
+		if (check(TOKEN_SEMICOLON)) {
 			advance();
 			int bodyJump = emitJump(OP_JUMP);
 			int incrementStart = currentChunk()->count;

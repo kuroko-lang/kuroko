@@ -28,7 +28,7 @@ print("Hex: " + 0xFF + " Octal: " + 0o123 + " Binary: " + 0b1010)
 # This `for init, cond, step:` syntax is possibly temporary? I do intend to
 # implement iterators and `for VAR in ITER:` like in Python, but C-style for
 # loops are also useful...
-for i = 0, i < 10, i = i + 1:
+for i = 0; i < 10; i = i + 1:
     print("i = " + i)
 
 # Functions work like in Python, though currently no default values.
@@ -163,7 +163,7 @@ l.append(1)
 l.append(2)
 l.append(3)
 print("Length after: " + len(l))
-for j = 0, j < len(l), j = j + 1:
+for j = 0; j < len(l); j = j + 1:
     print("j=" + j + ", list[j]=" + l[j])
 
 print("Can we call properties of strings?".__len__()) # Of course we can.
