@@ -42,11 +42,17 @@ The core builtins, `builtins.krk` are embedded in `builtins.c` so they are alway
 
 ### Building as a Single Static Binary
 
-An additional Makefile is provided to build a single static binary of the interpter and REPL with the additional C modules bundled as built-ins:
+Configuration options are available in the Makefile to build Kuroko as a static binary.
 
-    make clean; make -f Makefile.static
+    make clean; make KRK_ENABLE_STATIC=1
 
 This will produce a static binary without `dlopen` support, so it will not be able to load additional C modules at runtime.
+
+The standard set of C modules can be bundled into the interpreter, whether building statically or normally:
+
+    make clean; make KRK_ENABLE_BUNDLE=1
+
+Additional options include `KRK_DISABLE_RLINE=1` to not link with the included rich line editing library (will lose tab completion and syntax highlighting in the repl) and `KRK_DISABLE_DEBUG=1` to disable debugging features (which has not been demonstrated to provide any meaningful performance improvement when the VM is built with optimizations enabled).
 
 ## Code Examples
 

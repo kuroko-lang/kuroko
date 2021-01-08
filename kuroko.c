@@ -44,6 +44,7 @@ static KrkValue paste(int argc, KrkValue argv[]) {
 	return NONE_VAL();
 }
 
+#ifndef NO_RLINE
 /**
  * Given an object, find a property with the same name as a scanner token.
  * This can be either a field of an instance, or a method of the type of
@@ -75,7 +76,6 @@ _found:
 	return value;
 }
 
-#ifndef NO_RLINE
 static void tab_complete_func(rline_context_t * c) {
 	/* Figure out where the cursor is and if we should be completing anything. */
 	if (c->offset) {
@@ -237,8 +237,8 @@ static int modulePaths(void) {
 	return 0;
 }
 
-#ifdef STATIC_ONLY
-#define STATIC_MODULE(name) do { \
+#ifdef BUNDLE_LIBS
+#define BUNDLED(name) do { \
 	extern KrkValue krk_module_onload_ ## name (); \
 	KrkValue moduleOut = krk_module_onload_ ## name (); \
 	krk_attachNamedValue(&vm.modules, # name, moduleOut); \
@@ -317,12 +317,12 @@ int main(int argc, char * argv[]) {
 	/* Bind interrupt signal */
 	signal(SIGINT, handleSigint);
 
-#ifdef STATIC_ONLY
+#ifdef BUNDLE_LIBS
 	/* Add any other modules you want to include that are normally built as shared objects. */
-	STATIC_MODULE(fileio);
-	STATIC_MODULE(dis);
-	STATIC_MODULE(os);
-	STATIC_MODULE(time);
+	BUNDLED(fileio);
+	BUNDLED(dis);
+	BUNDLED(os);
+	BUNDLED(time);
 #endif
 
 	KrkValue result = INTEGER_VAL(0);
@@ -519,6 +519,7 @@ int main(int argc, char * argv[]) {
 				}
 			}
 
+			(void)blockWidth;
 		}
 	} else {
 		/* Expect the rest of the arguments to be scripts to run;
