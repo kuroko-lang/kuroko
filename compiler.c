@@ -1581,7 +1581,7 @@ static void list(int canAssign) {
 
 			/* Compile list comprehension as a function */
 			Compiler subcompiler;
-			initCompiler(&subcompiler, current->type == TYPE_METHOD ? TYPE_METHOD : TYPE_FUNCTION);
+			initCompiler(&subcompiler, TYPE_FUNCTION);
 			subcompiler.function->chunk.filename = subcompiler.enclosing->function->chunk.filename;
 
 			beginScope();
@@ -1689,14 +1689,7 @@ static void list(int canAssign) {
 			KrkFunction *subfunction = endCompiler();
 			size_t indFunc = krk_addConstant(currentChunk(), OBJECT_VAL(subfunction));
 			EMIT_CONSTANT_OP(OP_CLOSURE, indFunc);
-			for (size_t i = 0; i < subfunction->upvalueCount; ++i) {
-				emitByte(subcompiler.upvalues[i].isLocal ? 1 : 0);
-				if (i > 255) {
-					emitByte((subcompiler.upvalues[i].index >> 16) & 0xFF);
-					emitByte((subcompiler.upvalues[i].index >> 8) & 0xFF);
-				}
-				emitByte((subcompiler.upvalues[i].index) & 0xFF);
-			}
+			doUpvalues(&subcompiler, subfunction);
 			freeCompiler(&subcompiler);
 
 			/* And finally we can call the subfunction and get the result. */
