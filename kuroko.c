@@ -517,6 +517,7 @@ int main(int argc, char * argv[]) {
 					fprintf(stdout, "\033[0m\n");
 					krk_resetStack();
 				}
+				free(allData);
 			}
 
 			(void)blockWidth;
