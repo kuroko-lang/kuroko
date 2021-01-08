@@ -71,6 +71,7 @@ typedef enum {
 	OP_EXPAND_ARGS,
 	OP_FINALIZE,
 	OP_TUPLE,
+	OP_UNPACK_TUPLE,
 
 	OP_CONSTANT_LONG = 128,
 	OP_DEFINE_GLOBAL_LONG,
@@ -91,6 +92,7 @@ typedef enum {
 	OP_INC_LONG,
 	OP_KWARGS_LONG,
 	OP_TUPLE_LONG,
+	OP_UNPACK_TUPLE_LONG,
 } KrkOpCode;
 
 typedef struct {

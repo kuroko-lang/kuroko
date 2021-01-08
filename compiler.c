@@ -1174,7 +1174,11 @@ static void forStatement() {
 	beginScope();
 
 	ssize_t loopInd = current->localCount;
-	varDeclaration();
+	ssize_t varCount = 0;
+	do {
+		varDeclaration();
+		varCount++;
+	} while (match(TOKEN_COMMA));
 
 	int loopStart;
 	int exitJump;
@@ -1212,17 +1216,27 @@ static void forStatement() {
 
 		/* Get the loop iterator again */
 		EMIT_CONSTANT_OP(OP_GET_LOCAL, indLoopIter);
-		emitBytes(OP_EQUAL, OP_NOT);
-		exitJump = emitJump(OP_JUMP_IF_FALSE);
+		emitByte(OP_EQUAL);
+		exitJump = emitJump(OP_JUMP_IF_TRUE);
 		emitByte(OP_POP);
+
+		if (varCount > 1) {
+			EMIT_CONSTANT_OP(OP_GET_LOCAL, loopInd);
+			EMIT_CONSTANT_OP(OP_UNPACK_TUPLE, varCount);
+			for (ssize_t i = loopInd + varCount - 1; i >= loopInd; i--) {
+				EMIT_CONSTANT_OP(OP_SET_LOCAL, i);
+				emitByte(OP_POP);
+			}
+		}
 
 	} else {
 		consume(TOKEN_SEMICOLON,"expect ; after var declaration in for loop");
 		loopStart = currentChunk()->count;
 
-
 		beginScope();
-		expression(); /* condition */
+		do {
+			expression(); /* condition */
+		} while (match(TOKEN_COMMA));
 		endScope();
 		exitJump = emitJump(OP_JUMP_IF_FALSE);
 		emitByte(OP_POP);
@@ -1232,7 +1246,9 @@ static void forStatement() {
 			int bodyJump = emitJump(OP_JUMP);
 			int incrementStart = currentChunk()->count;
 			beginScope();
-			expression();
+			do {
+				expression();
+			} while (match(TOKEN_COMMA));
 			endScope();
 			emitByte(OP_POP);
 

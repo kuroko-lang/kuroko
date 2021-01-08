@@ -1,0 +1,11 @@
+1 2
+3 4
+5 6
+1 2 7
+3 4 8
+ValueError
+TypeError
+a 1
+2 b
+('a', 1)
+(2, 'b')

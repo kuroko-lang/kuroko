@@ -3559,6 +3559,24 @@ static KrkValue run() {
 				}
 				break;
 			}
+			case OP_UNPACK_TUPLE_LONG:
+			case OP_UNPACK_TUPLE: {
+				size_t count = readBytes(frame, operandWidth);
+				KrkValue tuple = krk_peek(0);
+				if (!IS_TUPLE(tuple)) {
+					krk_runtimeError(vm.exceptions.typeError, "Can not unpack non-tuple '%s'", krk_typeName(tuple));
+					goto _finishException;
+				} else if (AS_TUPLE(tuple)->values.count != count) {
+					krk_runtimeError(vm.exceptions.valueError, "Wrong number of values to unpack (wanted %d, got %d)", (int)count, (int)AS_TUPLE(tuple)->values.count);
+					goto _finishException;
+				}
+				/* Unpack from 1 to end, then unpack 0 into bottom slot */
+				for (size_t i = 1; i < AS_TUPLE(tuple)->values.count; ++i) {
+					krk_push(AS_TUPLE(tuple)->values.values[i]);
+				}
+				vm.stackTop[-count] = AS_TUPLE(tuple)->values.values[0];
+				break;
+			}
 		}
 		if (!(vm.flags & KRK_HAS_EXCEPTION)) continue;
 _finishException:
