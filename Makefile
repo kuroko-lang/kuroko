@@ -23,7 +23,7 @@ kuroko: libkuroko.so rline.o
 
 .PHONY: clean
 clean:
-	@rm -f ${OBJS} ${TARGET} ${MODULES} libkuroko.so rline.o kuroko.o
+	@rm -f ${OBJS} ${TARGET} ${MODULES} libkuroko.so rline.o kuroko.o src/*.o
 
 tags: $(wildcard *.c) $(wildcard *.h)
 	@ctags --c-kinds=+lx *.c *.h
