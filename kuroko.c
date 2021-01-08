@@ -221,6 +221,13 @@ static int version(void) {
 	return 0;
 }
 
+static int modulePaths(void) {
+	krk_initVM(0);
+	krk_interpret("import kuroko\nprint(kuroko.module_paths)\n", 1, "<stdin>","<stdin>");
+	krk_freeVM();
+	return 0;
+}
+
 #ifdef STATIC_ONLY
 #define STATIC_MODULE(name) do { \
 	extern KrkValue krk_module_onload_ ## name (); \
@@ -234,7 +241,7 @@ static int version(void) {
 int main(int argc, char * argv[]) {
 	int flags = 0;
 	int opt;
-	while ((opt = getopt(argc, argv, "dgrstV-:")) != -1) {
+	while ((opt = getopt(argc, argv, "dgrstMV-:")) != -1) {
 		switch (opt) {
 			case 'd':
 				/* Disassemble code blocks after compilation. */
@@ -255,6 +262,8 @@ int main(int argc, char * argv[]) {
 			case 'r':
 				enableRline = 0;
 				break;
+			case 'M':
+				return modulePaths();
 			case 'V':
 				return version();
 			case '-':

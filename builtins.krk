@@ -102,6 +102,9 @@ __builtins__.list = list
 __builtins__.dict = dict
 __builtins__.help = help
 __builtins__.license = license
-__builtins__.module_paths = ['./','./modules/','/home/klange/Projects/kuroko/modules/','/usr/share/kuroko/']
+
+# this works because `kuroko` is always a built-in
+import kuroko
+kuroko.module_paths = ['./','./modules/','/home/klange/Projects/kuroko/modules/','/usr/share/kuroko/']
 
 return object()

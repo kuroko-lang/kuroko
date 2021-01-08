@@ -65,6 +65,7 @@ typedef struct {
 	KrkClass * objectClass;
 	KrkClass * moduleClass;
 	KrkInstance * builtins;
+	KrkInstance * system;
 
 	struct {
 		KrkClass * baseException;

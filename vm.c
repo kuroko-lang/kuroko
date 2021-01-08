@@ -2600,14 +2600,14 @@ void krk_initVM(int flags) {
 	 * for this as we'll want to stick fake data in there, like `sys.version`.
 	 * Instead, we have `kuroko`.
 	 */
-	KrkInstance * systemModule = krk_newInstance(vm.moduleClass);
-	krk_attachNamedObject(&vm.modules, "kuroko", (KrkObj*)systemModule);
-	krk_attachNamedObject(&systemModule->fields, "__name__", (KrkObj*)S("kuroko"));
-	krk_attachNamedValue(&systemModule->fields, "__file__", NONE_VAL()); /* (built-in) */
-	krk_attachNamedObject(&systemModule->fields, "version",
+	vm.system = krk_newInstance(vm.moduleClass);
+	krk_attachNamedObject(&vm.modules, "kuroko", (KrkObj*)vm.system);
+	krk_attachNamedObject(&vm.system->fields, "__name__", (KrkObj*)S("kuroko"));
+	krk_attachNamedValue(&vm.system->fields, "__file__", NONE_VAL()); /* (built-in) */
+	krk_attachNamedObject(&vm.system->fields, "version",
 		(KrkObj*)S(KRK_VERSION_MAJOR "." KRK_VERSION_MINOR "." KRK_VERSION_PATCH KRK_VERSION_EXTRA));
-	krk_attachNamedObject(&systemModule->fields, "buildenv", (KrkObj*)S(KRK_BUILD_COMPILER));
-	krk_attachNamedObject(&systemModule->fields, "builddate", (KrkObj*)S(KRK_BUILD_DATE));
+	krk_attachNamedObject(&vm.system->fields, "buildenv", (KrkObj*)S(KRK_BUILD_COMPILER));
+	krk_attachNamedObject(&vm.system->fields, "builddate", (KrkObj*)S(KRK_BUILD_DATE));
 
 	/* Add exception classes */
 	ADD_EXCEPTION_CLASS(vm.exceptions.baseException, "Exception", vm.objectClass);
@@ -2997,10 +2997,10 @@ int krk_loadModule(KrkString * name, KrkValue * moduleOut) {
 	}
 
 	/* Obtain __builtins__.module_paths */
-	if (!krk_tableGet(&vm.builtins->fields, OBJECT_VAL(S("module_paths")), &modulePaths) || !IS_INSTANCE(modulePaths)) {
+	if (!krk_tableGet(&vm.system->fields, OBJECT_VAL(S("module_paths")), &modulePaths) || !IS_INSTANCE(modulePaths)) {
 		*moduleOut = NONE_VAL();
 		krk_runtimeError(vm.exceptions.baseException,
-			"Internal error: __builtins__.module_paths not defined.");
+			"Internal error: kuroko.module_paths not defined.");
 		return 0;
 	}
 
@@ -3008,7 +3008,7 @@ int krk_loadModule(KrkString * name, KrkValue * moduleOut) {
 	if (!krk_tableGet(&(AS_INSTANCE(modulePaths)->fields), vm.specialMethodNames[METHOD_LIST_INT], &modulePathsInternal) || !IS_FUNCTION(modulePathsInternal)) {
 		*moduleOut = NONE_VAL();
 		krk_runtimeError(vm.exceptions.baseException,
-			"Internal error: __builtins__.module_paths is corrupted or incorrectly set.");
+			"Internal error: kuroko.module_paths is corrupted or incorrectly set.");
 		return 0;
 	}
 

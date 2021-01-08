@@ -103,7 +103,10 @@ const char krk_builtinsSrc[] =
 "__builtins__.dict = dict\n"
 "__builtins__.help = help\n"
 "__builtins__.license = license\n"
-"__builtins__.module_paths = ['./','./modules/','/home/klange/Projects/kuroko/modules/','/usr/share/kuroko/']\n"
+"\n"
+"# this works because `kuroko` is always a built-in\n"
+"import kuroko\n"
+"kuroko.module_paths = ['./','./modules/','/home/klange/Projects/kuroko/modules/','/usr/share/kuroko/']\n"
 "\n"
 "return object()\n"
 ;
