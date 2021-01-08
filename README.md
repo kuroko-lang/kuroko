@@ -1,3 +1,4 @@
+![logo](.github/kuroko.png)
 # Kuroko - A bytecode-compiled scripting language
 
 Kuroko is a bytecode-interpreted, dynamic, strongly-typed language with syntax similar to Python.
