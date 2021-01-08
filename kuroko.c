@@ -14,7 +14,9 @@
 #include <toaru/rline.h>
 #include <kuroko.h>
 #else
+#ifndef NO_RLINE
 #include "rline.h"
+#endif
 #include "kuroko.h"
 #endif
 
@@ -23,6 +25,9 @@
 #include "vm.h"
 #include "memory.h"
 #include "scanner.h"
+
+#define PROMPT_MAIN  ">>> "
+#define PROMPT_BLOCK "  > "
 
 static int enableRline = 1;
 static int exitRepl = 0;
@@ -69,6 +74,7 @@ _found:
 	return value;
 }
 
+#ifndef NO_RLINE
 static void tab_complete_func(rline_context_t * c) {
 	/* Figure out where the cursor is and if we should be completing anything. */
 	if (c->offset) {
@@ -205,6 +211,7 @@ static void tab_complete_func(rline_context_t * c) {
 		return;
 	}
 }
+#endif
 
 /* Runs the interpreter to get the version information. */
 static int version(void) {
@@ -213,6 +220,16 @@ static int version(void) {
 	krk_freeVM();
 	return 0;
 }
+
+#ifdef STATIC_ONLY
+#define STATIC_MODULE(name) do { \
+	extern KrkValue krk_module_onload_ ## name (); \
+	KrkValue moduleOut = krk_module_onload_ ## name (); \
+	krk_attachNamedValue(&vm.modules, # name, moduleOut); \
+	krk_attachNamedObject(&AS_INSTANCE(moduleOut)->fields, "__name__", (KrkObj*)krk_copyString(#name, sizeof(#name)-1)); \
+	krk_attachNamedValue(&AS_INSTANCE(moduleOut)->fields, "__file__", NONE_VAL()); \
+} while (0)
+#endif
 
 int main(int argc, char * argv[]) {
 	int flags = 0;
@@ -270,6 +287,14 @@ int main(int argc, char * argv[]) {
 
 	krk_initVM(flags);
 
+#ifdef STATIC_ONLY
+	/* Add any other modules you want to include that are normally built as shared objects. */
+	STATIC_MODULE(fileio);
+	STATIC_MODULE(dis);
+	STATIC_MODULE(os);
+	STATIC_MODULE(time);
+#endif
+
 	KrkValue result = INTEGER_VAL(0);
 
 	if (optind == argc) {
@@ -282,12 +307,14 @@ int main(int argc, char * argv[]) {
 		krk_startModule("<module>");
 		krk_attachNamedValue(&vm.module->fields,"__doc__", NONE_VAL());
 
+#ifndef NO_RLINE
 		/* Set ^D to send EOF */
 		rline_exit_string="";
 		/* Enable syntax highlight for Kuroko */
 		rline_exp_set_syntax("krk");
 		/* Bind a callback for \t */
 		rline_exp_set_tab_complete_func(tab_complete_func);
+#endif
 
 		/**
 		 * Python stores version info in a built-in module called `sys`.
@@ -321,17 +348,20 @@ int main(int argc, char * argv[]) {
 			int inBlock = 0;
 			int blockWidth = 0;
 
+#ifndef NO_RLINE
 			/* Main prompt is >>> like in Python */
-			rline_exp_set_prompts(">>> ", "", 4, 0);
+			rline_exp_set_prompts(PROMPT_MAIN, "", 4, 0);
+#endif
 
 			while (1) {
 				/* This would be a nice place for line editing */
 				char buf[4096] = {0};
 
+#ifndef NO_RLINE
 				if (inBlock) {
 					/* When entering multiple lines, the additional lines
 					 * will show a single > (and keep the left side aligned) */
-					rline_exp_set_prompts("  > ", "", 4, 0);
+					rline_exp_set_prompts(PROMPT_BLOCK, "", 4, 0);
 					/* Also add indentation as necessary */
 					if (!pasteEnabled) {
 						rline_preload = malloc(blockWidth + 1);
@@ -343,10 +373,14 @@ int main(int argc, char * argv[]) {
 				}
 
 				if (!enableRline) {
-					fprintf(stdout, "%s", inBlock ? "  > " : ">>> ");
+#else
+				if (1) {
+#endif
+					fprintf(stdout, "%s", inBlock ? PROMPT_BLOCK : PROMPT_MAIN);
 					fflush(stdout);
 				}
 
+#ifndef NO_RLINE
 				rline_scroll = 0;
 				if (enableRline) {
 					if (rline(buf, 4096) == 0) {
@@ -355,6 +389,7 @@ int main(int argc, char * argv[]) {
 						break;
 					}
 				} else {
+#else
 					char * out = fgets(buf, 4096, stdin);
 					if (!out || !strlen(buf)) {
 						fprintf(stdout, "^D\n");
@@ -362,7 +397,11 @@ int main(int argc, char * argv[]) {
 						exitRepl = 1;
 						break;
 					}
+#endif
+#ifndef NO_RLINE
 				}
+#endif
+
 				if (buf[strlen(buf)-1] != '\n') {
 					/* rline shouldn't allow this as it doesn't accept ^D to submit input
 					 * unless the line is empty, but just in case... */
@@ -433,7 +472,9 @@ int main(int argc, char * argv[]) {
 
 			for (size_t i = 0; i < lineCount; ++i) {
 				if (valid) strcat(allData, lines[i]);
+#ifndef NO_RLINE
 				if (enableRline) rline_history_insert(strdup(lines[i]));
+#endif
 				free(lines[i]);
 			}
 			FREE_ARRAY(char *, lines, lineCapacity);

@@ -2,9 +2,13 @@
 #include <stdarg.h>
 #include <string.h>
 #include <unistd.h>
-#include <dlfcn.h>
 #include <errno.h>
 #include <sys/stat.h>
+
+#ifndef STATIC_ONLY
+#include <dlfcn.h>
+#endif
+
 #include "vm.h"
 #include "debug.h"
 #include "memory.h"
@@ -15,7 +19,14 @@
 #define KRK_VERSION_MAJOR  "1"
 #define KRK_VERSION_MINOR  "0"
 #define KRK_VERSION_PATCH  "0"
-#define KRK_VERSION_EXTRA  "-rc0"
+
+#define KRK_VERSION_EXTRA_BASE  "-rc0"
+
+#ifndef STATIC_ONLY
+#define KRK_VERSION_EXTRA KRK_VERSION_EXTRA_BASE
+#else
+#define KRK_VERSION_EXTRA KRK_VERSION_EXTRA_BASE "-static"
+#endif
 
 #define KRK_BUILD_DATE     __DATE__ " at " __TIME__
 
@@ -3007,6 +3018,7 @@ int krk_loadModule(KrkString * name, KrkValue * moduleOut) {
 		return 1;
 	}
 
+#ifndef STATIC_ONLY
 	/* If we didn't find {name}.krk, try {name}.so in the same order */
 	for (int i = 0; i < moduleCount; ++i, krk_pop()) {
 		/* Assume things haven't changed and all of these are strings. */
@@ -3064,6 +3076,7 @@ int krk_loadModule(KrkString * name, KrkValue * moduleOut) {
 		krk_tableSet(&vm.modules, OBJECT_VAL(name), *moduleOut);
 		return 1;
 	}
+#endif
 
 	/* If we still haven't found anything, fail. */
 	*moduleOut = NONE_VAL();

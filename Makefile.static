@@ -1,0 +1,13 @@
+CFLAGS = -g -O3 -Wall -Wextra -pedantic -Wno-unused-parameter -DDEBUG -DSTATIC_ONLY
+LDFLAGS= -static
+OBJS = $(patsubst %.c, %.o, $(sort $(wildcard *.c)) $(sort $(wildcard src/*.c)))
+TARGET = kuroko
+
+all: ${TARGET}
+
+builtins.c: builtins.krk
+	echo "const char krk_builtinsSrc[] = " > builtins.c
+	cat builtins.krk | sed s'/\(.*\)/\"\0\\n\"/' >> builtins.c
+	echo ";" >> builtins.c
+
+kuroko: ${OBJS}
