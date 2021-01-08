@@ -1,0 +1,20 @@
+import time
+import os
+
+if 'KUROKO_TEST_ENV' in os.environ:
+    print('(This test is skipped by the test suite.)')
+    return 0
+
+print("This while loop should handle a ^C.")
+
+try:
+    while True:
+        print("Tick.")
+        time.sleep(1)
+except:
+    print("Caught an exception:", exception.__class__.__name__)
+
+print("This loop will not...")
+while True:
+    print("Tick.")
+    time.sleep(1)

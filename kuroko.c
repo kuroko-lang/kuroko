@@ -9,6 +9,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <unistd.h>
+#include <signal.h>
 
 #ifdef __toaru__
 #include <toaru/rline.h>
@@ -213,6 +214,14 @@ static void tab_complete_func(rline_context_t * c) {
 }
 #endif
 
+static void handleSigint(int sigNum) {
+	if (vm.frameCount) {
+		krk_runtimeError(vm.exceptions.keyboardInterrupt, "Keyboard interrupt.");
+	}
+
+	signal(sigNum, handleSigint);
+}
+
 /* Runs the interpreter to get the version information. */
 static int version(void) {
 	krk_initVM(0);
@@ -295,6 +304,9 @@ int main(int argc, char * argv[]) {
 	}
 
 	krk_initVM(flags);
+
+	/* Bind interrupt signal */
+	signal(SIGINT, handleSigint);
 
 #ifdef STATIC_ONLY
 	/* Add any other modules you want to include that are normally built as shared objects. */

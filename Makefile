@@ -31,5 +31,5 @@ tags: $(wildcard *.c) $(wildcard *.h)
 .PHONY: test
 
 test:
-	@for i in test/*.krk; do echo $$i; ./kuroko $$i > $$i.expect; done
+	@for i in test/*.krk; do echo $$i; KUROKO_TEST_ENV=1 ./kuroko $$i > $$i.expect; done
 	@git diff test/*.expect
