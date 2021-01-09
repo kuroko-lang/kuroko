@@ -30,7 +30,7 @@ I captured these from the decorator: foo bar
 I also take my own argument: this arg goes to the wrapper
 I am method, so I can access myself weee and also my own argument which is now and modify this one
 I am a generic wrapper, I will pass all of my args along.
-aMethod() missing required positional argument: 'with'
+aMethod() missing required positional argument: 'with_'
 I am a generic wrapper, I will pass all of my args along.
 I got just the first and None
 And I am done.

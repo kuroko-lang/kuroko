@@ -110,6 +110,7 @@ typedef struct KrkClass {
 	KrkObj * _call;
 	KrkObj * _init;
 	KrkObj * _eq;
+	KrkObj * _len;
 } KrkClass;
 
 typedef struct KrkInstance {

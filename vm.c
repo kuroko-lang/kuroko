@@ -297,6 +297,7 @@ void krk_finalizeClass(KrkClass * _class) {
 		{&_class->_call, METHOD_CALL},
 		{&_class->_init, METHOD_INIT},
 		{&_class->_eq, METHOD_EQ},
+		{&_class->_len, METHOD_LEN},
 		{NULL, 0},
 	};
 
@@ -2236,10 +2237,28 @@ static KrkValue _bool_to_str(int argc, KrkValue argv[]) {
  * going to take the else branch.
  */
 static int isFalsey(KrkValue value) {
-	return IS_NONE(value) || (IS_BOOLEAN(value) && !AS_BOOLEAN(value)) ||
-	       (IS_INTEGER(value) && !AS_INTEGER(value));
-	/* Objects in the future: */
-	/* IS_STRING && length == 0; IS_ARRAY && length == 0; IS_INSTANCE && __bool__ returns 0... */
+	switch (value.type) {
+		case VAL_NONE: return 1;
+		case VAL_BOOLEAN: return !AS_BOOLEAN(value);
+		case VAL_INTEGER: return !AS_INTEGER(value);
+		case VAL_FLOATING: return !AS_FLOATING(value);
+		case VAL_OBJECT: {
+			switch (AS_OBJECT(value)->type) {
+				case OBJ_STRING: return !AS_STRING(value)->length;
+				case OBJ_TUPLE: return !AS_TUPLE(value)->values.count;
+				default: break;
+			}
+		}
+		default: break;
+	}
+	KrkClass * type = AS_CLASS(krk_typeOf(1,&value));
+
+	/* If it has a length, and that length is 0, it's Falsey */
+	if (type->_len) {
+		krk_push(value);
+		return !AS_INTEGER(krk_callSimple(OBJECT_VAL(type->_len),1,0));
+	}
+	return 0; /* Assume anything else is truthy */
 }
 
 static KrkValue _bool_init(int argc, KrkValue argv[]) {
@@ -2248,7 +2267,7 @@ static KrkValue _bool_init(int argc, KrkValue argv[]) {
 		krk_runtimeError(vm.exceptions.argumentError, "bool() takes at most 1 argument");
 		return NONE_VAL();
 	}
-	return BOOLEAN_VAL(isFalsey(argv[1]));
+	return BOOLEAN_VAL(!isFalsey(argv[1]));
 }
 
 /**

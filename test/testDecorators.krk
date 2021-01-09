@@ -115,8 +115,8 @@ def genericDecorator(func):
     return wrapper
 
 @genericDecorator
-def aMethod(with,args=None):
-    print("I got",with,"and",args)
+def aMethod(with_,args=None):
+    print("I got",with_,"and",args)
 
 try:
     aMethod()
@@ -125,9 +125,9 @@ except:
 
 aMethod("just the first")
 aMethod("the first","and the second")
-aMethod(args="hello",with="world")
+aMethod(args="hello",with_="world")
 try:
-    aMethod(foo="hello",with="bar")
+    aMethod(foo="hello",with_="bar")
 except:
     print(exception.arg) # unrecognized keyword arg, from inner method
 

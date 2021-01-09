@@ -1,0 +1,55 @@
+from fileio import open
+let lines, descriptions, count
+
+with open('test/day7.in') as f:
+    lines = [l.strip() for l in f.readlines()]
+
+descriptions = {}
+
+for line in lines:
+    let i = line.split(" bags contain ", 1)
+    let mine = i[0].strip()
+    let contains = i[1]
+    if contains[:8] == "no other":
+        descriptions[mine] = []
+    else:
+        let contents = []
+        for bag in contains.split(", "):
+            let i = bag.split(' ',1)
+            let cnt = i[0]
+            let rest = i[1]
+            let name = rest.strip().split('bag',1)[0]
+            for i in range(int(cnt)):
+                contents.append(name.strip())
+        descriptions[mine] = contents
+
+def reaches(bag, target, seen=set()):
+    for n in descriptions[bag]:
+        if n == target:
+            return True
+        if n not in seen:
+            seen.add(n)
+            if reaches(n, target, seen):
+                return True
+    return False
+
+count = 0
+for bag in descriptions.keys():
+    if reaches(bag, 'shiny gold'):
+        count += 1
+
+print("There are", count, "bags that can contain a shiny gold bag, eventually.")
+
+def find_depth(bag):
+    if not len(descriptions[bag]):
+        return 0
+    let to_scan = descriptions[bag]
+    let count = 0
+    while len(to_scan):
+        let i = to_scan[0]
+        to_scan = to_scan[1:]
+        count += 1
+        to_scan.extend(descriptions[i])
+    return count
+
+print("A shiny gold bag contains", find_depth('shiny gold'), "bags.")

@@ -61,6 +61,8 @@ const char krk_builtinsSrc[] =
 "  return b\n"
 " def add(self,v):\n"
 "  self._dict[v] = 1\n"
+" def __len__(self):\n"
+"  return self._dict.__len__()\n"
 " def __iter__(self):\n"
 "  return self._dict.keys().__iter__()\n"
 "\n"

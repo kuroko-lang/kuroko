@@ -60,6 +60,8 @@ class set():
   return b
  def add(self,v):
   self._dict[v] = 1
+ def __len__(self):
+  return self._dict.__len__()
  def __iter__(self):
   return self._dict.keys().__iter__()
 
