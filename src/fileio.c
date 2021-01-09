@@ -131,10 +131,34 @@ static KrkValue krk_file_readline(int argc, KrkValue argv[]) {
 	} while (!feof(file));
 
 _finish_line: (void)0;
+	if (sizeRead == 0) {
+		free(buffer);
+		return NONE_VAL();
+	}
+
 	/* Make a new string to fit our output. */
 	KrkString * out = krk_copyString(buffer,sizeRead);
 	free(buffer);
 	return OBJECT_VAL(out);
+}
+
+static KrkValue krk_file_readlines(int argc, KrkValue argv[]) {
+	KrkValue myList = krk_list_of(0,NULL);
+	krk_push(myList);
+
+	KrkValue _list_internal = OBJECT_VAL(AS_INSTANCE(myList)->_internal);
+
+	for (;;) {
+		KrkValue line = krk_file_readline(1, argv);
+		if (IS_NONE(line)) break;
+
+		krk_push(line);
+		krk_writeValueArray(AS_LIST(_list_internal), line);
+		krk_pop(); /* line */
+	}
+
+	krk_pop(); /* myList */
+	return myList;
 }
 
 static KrkValue krk_file_read(int argc, KrkValue argv[]) {
@@ -268,6 +292,7 @@ KrkValue krk_module_onload_fileio(void) {
 	/* Add methods to it... */
 	krk_defineNative(&FileClass->methods, ".read", krk_file_read);
 	krk_defineNative(&FileClass->methods, ".readline", krk_file_readline);
+	krk_defineNative(&FileClass->methods, ".readlines", krk_file_readlines);
 	krk_defineNative(&FileClass->methods, ".close", krk_file_close);
 	krk_defineNative(&FileClass->methods, ".write", krk_file_write);
 	krk_defineNative(&FileClass->methods, ".flush", krk_file_flush);
