@@ -247,6 +247,16 @@ static KrkValue krk_file_reject_init(int argc, KrkValue argv[]) {
 	return NONE_VAL();
 }
 
+static KrkValue krk_file_enter(int argc, KrkValue argv[]) {
+	/* Does nothing. */
+	return NONE_VAL();
+}
+
+static KrkValue krk_file_exit(int argc, KrkValue argv[]) {
+	/* Just an alias to close that triggers when a context manager is exited */
+	return krk_file_close(argc,argv);
+}
+
 static void makeFileInstance(KrkInstance * module, const char name[], FILE * file) {
 	KrkInstance * fileObject = krk_newInstance(FileClass);
 	krk_push(OBJECT_VAL(fileObject));
@@ -290,6 +300,8 @@ KrkValue krk_module_onload_fileio(void) {
 	krk_defineNative(&FileClass->methods, ".__str__", krk_file_str);
 	krk_defineNative(&FileClass->methods, ".__repr__", krk_file_str);
 	krk_defineNative(&FileClass->methods, ".__init__", krk_file_reject_init);
+	krk_defineNative(&FileClass->methods, ".__enter__", krk_file_enter);
+	krk_defineNative(&FileClass->methods, ".__exit__", krk_file_exit);
 
 	/* Make an instance for stdout, stderr, and stdin */
 	makeFileInstance(module, "stdin",stdin);

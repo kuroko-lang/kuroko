@@ -777,6 +777,45 @@ print(foo.__doc__)
 # → This is a function that does things.
 ```
 
+
+### `with` Blocks
+
+A `with` statement introduces a context manager:
+
+```py
+with expr:
+    ...
+```
+
+The value of `expr` must be an object with an `__enter__` and `__exit__` method, such as a `fileio.File`. The `__enter__` method will be called upon entry and the `__exit__` method will be called upon exit from the block.
+
+The result of `expr` can also be assigned a name for use within the block. Note that as with other control flow structures in Kuroko, this name is only valid within the block and can not be referenced outside of it, and the same is true of any names defined within the block. If you need to output values from within the block, such as in the typical case of opening a file and loading its contents, be sure to declare any necessary variables before the `with` statement:
+
+```py
+from fileio import open
+let lines
+with open('README.md') as f:
+    lines = [l.strip() for l in f.readlines()]
+print(lines)
+# → ["![logo]...
+```
+
+Note that you can declare a variable for the object used with `__enter__` and `__exit__` before the `with` statement:
+
+```py
+from fileio import open
+let f = open('README.md')
+print(f)
+# → <open file 'README.md' ...>
+let lines
+with f:
+    lines = [l.strip() for l in f.readlines()]
+print(f)
+# → <closed file 'README.md' ...>
+```
+
+_**Note:** The implementation of `with` blocks is incomplete; exceptions raised from within a `with` that are not caught within the block will cause `__exit__` to not be called. The same is also true of `return` statements within a `with` block._
+
 ## About the REPL
 
 Kuroko's repl provides an interactive environment for executing code and seeing results.

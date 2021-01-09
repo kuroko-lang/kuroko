@@ -236,7 +236,10 @@ static KrkTokenType identifierType() {
 		} break;
 		case 't': return checkKeyword(1, "ry", TOKEN_TRY);
 		case 'T': return checkKeyword(1, "rue", TOKEN_TRUE);
-		case 'w': return checkKeyword(1, "hile", TOKEN_WHILE);
+		case 'w': if (MORE(1)) switch(scanner.start[1]) {
+			case 'h': return checkKeyword(2, "ile", TOKEN_WHILE);
+			case 'i': return checkKeyword(2, "th", TOKEN_WITH);
+		} break;
 	}
 	return TOKEN_IDENTIFIER;
 }

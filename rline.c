@@ -521,7 +521,7 @@ void paint_krk_string(struct syntax_state * state, int type) {
 char * syn_krk_keywords[] = {
 	"and","class","def","else","for","if","in","import",
 	"let","not","or","return","while","try","except","raise",
-	"continue","break","as","from","elif","lambda",
+	"continue","break","as","from","elif","lambda","with",
 	NULL
 };
 
@@ -531,7 +531,7 @@ char * syn_krk_types[] = {
 	"len", "str", "int", "float", "dir", "repr", /* global functions from __builtins__ */
 	"list","dict","range", /* builtin classes */
 	"object","exception","isinstance","type",
-	"print",
+	"print","set","any","all",
 	NULL
 };
 

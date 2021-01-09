@@ -1048,6 +1048,57 @@ static void emitLoop(int loopStart) {
 	/* Patch break statements */
 }
 
+static void withStatement() {
+	/* TODO: Multiple items, I'm feeling lazy. */
+
+	/* We only need this for block() */
+	size_t blockWidth = (parser.previous.type == TOKEN_INDENTATION) ? parser.previous.length : 0;
+
+	/* Collect the with token that started this statement */
+	advance();
+
+	beginScope();
+	expression();
+
+	if (match(TOKEN_AS)) {
+		consume(TOKEN_IDENTIFIER, "Expected variable name after 'as'");
+		size_t ind = identifierConstant(&parser.previous);
+		declareVariable();
+		defineVariable(ind);
+	} else {
+		/* Otherwise we want an unnamed local; TODO: Wait, can't we do this for iterable counts? */
+		Local * local = &current->locals[current->localCount++];
+		local->depth = current->scopeDepth;
+		local->isCaptured = 0;
+		local->name.start = "";
+		local->name.length = 0;
+	}
+
+	consume(TOKEN_COLON, "Expected ':' after with statement");
+
+	/* Call enter */
+	emitBytes(OP_DUP, 0);
+	KrkToken _enter = syntheticToken("__enter__");
+	ssize_t ind = identifierConstant(&_enter);
+	EMIT_CONSTANT_OP(OP_GET_PROPERTY, ind);
+	emitBytes(OP_CALL, 0);
+	emitByte(OP_POP); /* We don't care about the result */
+
+	beginScope();
+	block(blockWidth,"with");
+	endScope();
+
+	emitBytes(OP_DUP, 0);
+	KrkToken _exit = syntheticToken("__exit__");
+	ind = identifierConstant(&_exit);
+	EMIT_CONSTANT_OP(OP_GET_PROPERTY, ind);
+	emitBytes(OP_CALL, 0);
+	emitByte(OP_POP); /* We don't care about the result */
+
+	/* Scope exit pops context manager */
+	endScope();
+}
+
 static void ifStatement() {
 	/* Figure out what block level contains us so we can match our partner else */
 	size_t blockWidth = (parser.previous.type == TOKEN_INDENTATION) ? parser.previous.length : 0;
@@ -1387,6 +1438,8 @@ static void statement() {
 		forStatement();
 	} else if (check(TOKEN_TRY)) {
 		tryStatement();
+	} else if (check(TOKEN_WITH)) {
+		withStatement();
 	} else {
 		if (match(TOKEN_RAISE)) {
 			raiseStatement();
