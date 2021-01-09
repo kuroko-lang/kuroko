@@ -64,7 +64,8 @@ KrkValue krk_open(int argc, KrkValue argv[]) {
 	/* Let's put the filename in there somewhere... */
 	krk_attachNamedValue(&fileObject->fields, "filename", argv[0]);
 	krk_attachNamedValue(&fileObject->fields, "modestr", arg);
-	krk_attachNamedValue(&fileObject->fields, "_fileptr", INTEGER_VAL((long)(file))); /* Need a KrkNativePrivate or something...  */
+
+	fileObject->_internal = file;
 
 	krk_pop();
 	krk_pop();
@@ -79,23 +80,10 @@ static KrkValue krk_file_str(int argc, KrkValue argv[]) {
 	krk_tableGet(&fileObj->fields, OBJECT_VAL(S("filename")), &filename);
 	krk_tableGet(&fileObj->fields, OBJECT_VAL(S("modestr")), &modestr);
 	char * tmp = malloc(AS_STRING(filename)->length + AS_STRING(modestr)->length + 100); /* safety */
-	sprintf(tmp, "<open file '%s', mode '%s' at %p>", AS_CSTRING(filename), AS_CSTRING(modestr), (void*)fileObj);
+	sprintf(tmp, "<%s file '%s', mode '%s' at %p>", fileObj->_internal ? "open" : "closed", AS_CSTRING(filename), AS_CSTRING(modestr), (void*)fileObj);
 	KrkString * out = krk_copyString(tmp, strlen(tmp));
 	free(tmp);
 	return OBJECT_VAL(out);
-}
-
-static FILE * getFilePtr(KrkValue obj) {
-	KrkValue strFilePtr = OBJECT_VAL(S("_fileptr"));
-	krk_push(strFilePtr);
-	KrkInstance * me = AS_INSTANCE(obj);
-	KrkValue _fileptr;
-	if (!krk_tableGet(&me->fields, strFilePtr, &_fileptr)) {
-		krk_runtimeError(vm.exceptions.typeError, "Corrupt File object?");
-		return NULL;
-	}
-	krk_pop(); /* str object */
-	return (FILE *)AS_INTEGER(_fileptr);
 }
 
 static KrkValue krk_file_readline(int argc, KrkValue argv[]) {
@@ -104,7 +92,7 @@ static KrkValue krk_file_readline(int argc, KrkValue argv[]) {
 		return NONE_VAL();
 	}
 
-	FILE * file = getFilePtr(argv[0]);
+	FILE * file = AS_INSTANCE(argv[0])->_internal;
 
 	if (!file || feof(file)) {
 		return NONE_VAL();
@@ -168,7 +156,7 @@ static KrkValue krk_file_read(int argc, KrkValue argv[]) {
 	}
 
 	/* Get the file ptr reference */
-	FILE * file = getFilePtr(argv[0]);
+	FILE * file = AS_INSTANCE(argv[0])->_internal;
 
 	if (!file || feof(file)) {
 		return NONE_VAL();
@@ -213,7 +201,7 @@ static KrkValue krk_file_write(int argc, KrkValue argv[]) {
 	}
 
 	/* Find the file ptr reference */
-	FILE * file = getFilePtr(argv[0]);
+	FILE * file = AS_INSTANCE(argv[0])->_internal;
 
 	if (!file || feof(file)) {
 		return NONE_VAL();
@@ -228,10 +216,13 @@ static KrkValue krk_file_close(int argc, KrkValue argv[]) {
 		return NONE_VAL();
 	}
 
-	FILE * file = getFilePtr(argv[0]);
+	FILE * file = AS_INSTANCE(argv[0])->_internal;
+
 	if (!file) return NONE_VAL();
 
 	fclose(file);
+
+	AS_INSTANCE(argv[0])->_internal = NULL;
 
 	return NONE_VAL();
 }
@@ -242,7 +233,8 @@ static KrkValue krk_file_flush(int argc, KrkValue argv[]) {
 		return NONE_VAL();
 	}
 
-	FILE * file = getFilePtr(argv[0]);
+	FILE * file = AS_INSTANCE(argv[0])->_internal;
+
 	if (!file) return NONE_VAL();
 
 	fflush(file);
@@ -262,7 +254,6 @@ static void makeFileInstance(KrkInstance * module, const char name[], FILE * fil
 	krk_push(filename);
 
 	krk_attachNamedValue(&fileObject->fields, "filename", filename);
-	krk_attachNamedValue(&fileObject->fields, "_fileptr", INTEGER_VAL((long)(file)));
 
 	krk_attachNamedObject(&module->fields, name, (KrkObj*)fileObject);
 
