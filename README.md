@@ -842,7 +842,9 @@ There is a single, shared VM state. `krk_initVM()` will initialize the compiler 
 
 `krk_interpret` compiles and executes a block of code and takes the following arguments:
 
+```c
     KrkValue krk_interpret(const char *sourceText, int newModuleScope, char *fromName, char *fromFile);
+```
 
 If `newModuleScope` is non-zero, the interpreter will parse code in the context of a new _module_ and the `KrkValue` returned will be a `module` object.
 
@@ -948,8 +950,8 @@ Here we have created a new class named `MyNameClass` and exposed it through the 
 
 
 ```c
-    myNewClass->base = vm.objectClass; \
-    krk_tableAddAll(&vm.objectClass->methods, &myNewClass->methods); \
+    myNewClass->base = vm.objectClass;
+    krk_tableAddAll(&vm.objectClass->methods, &myNewClass->methods);
 ```
 
 We also want to make sure that our new class fits into the general inheritence hierarchy, which typically means inheriting from `vm.objectClass` - we do this by setting our new class's `base` pointer to `vm.objectClass` and copying `vm.objectClass`'s method table. Now we can start customizing our class with its own methods.

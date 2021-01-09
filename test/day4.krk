@@ -2,16 +2,6 @@ from fileio import open
 let f = open('test/day4.in')
 let lines = f.read().split('\n')[:-1]
 
-def any(iterator):
-    for v in iterator:
-        if v: return True
-    return False
-
-def all(iterator):
-    for v in iterator:
-        if not v: return False
-    return True
-
 def is_digits(val, cnt):
     if len(val) != cnt:
         return False

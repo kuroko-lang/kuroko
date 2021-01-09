@@ -1120,8 +1120,6 @@ _finishArg:
  *
  *   If callValue returns 0, the VM should already be in the exception state
  *   and it is not necessary to raise another exception.
- *
- *   TODO: Instances with __call__ method.
  */
 int krk_callValue(KrkValue callee, int argCount, int extra) {
 	if (IS_OBJECT(callee)) {
@@ -1700,7 +1698,7 @@ static KrkValue _string_join(int argc, KrkValue argv[], int hasKw) {
 
 	/* TODO: Support any object with an __iter__ - kinda need an internal method to do that well. */
 	if (!IS_INSTANCE(argv[1]) || !AS_INSTANCE(argv[1])->_internal || !((KrkObj*)AS_INSTANCE(argv[1])->_internal)->type == OBJ_FUNCTION) {
-		krk_runtimeError(vm.exceptions.typeError, "*expresssion value is not a list.");
+		krk_runtimeError(vm.exceptions.typeError, "str.join(): expected a list");
 		return NONE_VAL();
 	}
 
@@ -1774,6 +1772,10 @@ static int charIn(char c, const char * str) {
 	return 0;
 }
 
+/**
+ * Implements all three of strip, lstrip, rstrip.
+ * Set which = 0, 1, 2 respectively
+ */
 static KrkValue _string_strip_shared(int argc, KrkValue argv[], int which) {
 	if (!IS_STRING(argv[0])) return NONE_VAL();
 	size_t start = 0;
@@ -2180,7 +2182,8 @@ static KrkValue _repr_str(int argc, KrkValue argv[]) {
 			case '\n': *(tmp++) = '\\'; *(tmp++) = 'n'; break;
 			case '\r': *(tmp++) = '\\'; *(tmp++) = 'r'; break;
 			case '\t': *(tmp++) = '\\'; *(tmp++) = 't'; break;
-			case '\'':  *(tmp++) = '\\'; *(tmp++) = '\''; break;
+			case '\'': *(tmp++) = '\\'; *(tmp++) = '\''; break;
+			case '\\': *(tmp++) = '\\'; *(tmp++) = '\\'; break;
 			case 27:   *(tmp++) = '\\'; *(tmp++) = '['; break;
 			default:   *(tmp++) = *c; break;
 		}
