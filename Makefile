@@ -69,4 +69,4 @@ tags: $(wildcard *.c) $(wildcard *.h)
 
 test:
 	@for i in test/*.krk; do echo $$i; KUROKO_TEST_ENV=1 ./kuroko $$i > $$i.expect; done
-	@git diff test/*.expect
+	@git diff --exit-code test/*.expect
