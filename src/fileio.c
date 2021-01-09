@@ -264,6 +264,7 @@ static void makeFileInstance(KrkInstance * module, const char name[], FILE * fil
 	krk_push(filename);
 
 	krk_attachNamedValue(&fileObject->fields, "filename", filename);
+	fileObject->_internal = file;
 
 	krk_attachNamedObject(&module->fields, name, (KrkObj*)fileObject);
 
