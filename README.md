@@ -1046,5 +1046,13 @@ In addition to methods, native functions may also provide classes with _dynamic 
 krk_defineNative(&myNewClass->methods, ":my_dynamic_field", my_dynamic_field);
 ```
 
-If your new instances of your class will be created by user code, you can provide an `__init__` method, or any of the other special methods described in the Examples below.
+If your new instances of your class will be created by user code, you can provide an `__init__` method, or any of the other special methods described in the Examples above.
+
+When you've finished attaching all of the relevant methods to your class, be sure to call `krk_finalizeClass`, which creates shortcuts within your class's struct representation that allow the VM to find special functions quickly:
+
+```c
+krk_finalizeClass(myNewClass)
+```
+
+Specifically, this will search through the class's method table to find implementtations for functions like `__repr__` and `__init__`. This step is required for these functions to work as expected as the VM will not look them up by name.
 
