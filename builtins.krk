@@ -4,6 +4,8 @@ class list():
  'Resizable array with direct constant-time indexing.'
  def extend(i):
   'Add all entries from an iterable to the end of this list.'
+  if isinstance(i,list):
+   return self._extend_fast(i)
   for v in i:
    self.append(v)
   return self.__len__()

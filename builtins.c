@@ -5,6 +5,8 @@ const char krk_builtinsSrc[] =
 " 'Resizable array with direct constant-time indexing.'\n"
 " def extend(i):\n"
 "  'Add all entries from an iterable to the end of this list.'\n"
+"  if isinstance(i,list):\n"
+"   return self._extend_fast(i)\n"
 "  for v in i:\n"
 "   self.append(v)\n"
 "  return self.__len__()\n"

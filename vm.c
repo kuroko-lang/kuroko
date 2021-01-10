@@ -479,6 +479,25 @@ static KrkValue _list_append(int argc, KrkValue argv[]) {
 }
 
 /**
+ * list.extend but only for lists...
+ */
+static KrkValue _list_extend_fast(int argc, KrkValue argv[]) {
+	KrkValue _list_internal_self = OBJECT_VAL(AS_INSTANCE(argv[0])->_internal);
+	KrkValue _list_internal_them = OBJECT_VAL(AS_INSTANCE(argv[1])->_internal);
+
+	size_t totalSize = AS_LIST(_list_internal_self)->count + AS_LIST(_list_internal_them)->count;
+	if (AS_LIST(_list_internal_self)->capacity < totalSize) {
+		size_t old = AS_LIST(_list_internal_self)->capacity;
+		AS_LIST(_list_internal_self)->capacity = totalSize;
+		AS_LIST(_list_internal_self)->values = GROW_ARRAY(KrkValue, AS_LIST(_list_internal_self)->values, old, totalSize);
+	}
+	memcpy(&AS_LIST(_list_internal_self)->values[AS_LIST(_list_internal_self)->count],
+		AS_LIST(_list_internal_them)->values, sizeof(KrkValue) * AS_LIST(_list_internal_them)->count);
+	AS_LIST(_list_internal_self)->count = totalSize;
+	return INTEGER_VAL(totalSize);
+}
+
+/**
  * list.__len__
  */
 static KrkValue _list_len(int argc, KrkValue argv[]) {
@@ -535,8 +554,12 @@ KrkValue krk_list_of(int argc, KrkValue argv[]) {
 	krk_tableSet(&outList->fields, vm.specialMethodNames[METHOD_LIST_INT], OBJECT_VAL(listContents));
 	outList->_internal = (KrkObj*)listContents;
 	krk_tableSet(&outList->fields, vm.specialMethodNames[METHOD_INREPR], INTEGER_VAL(0));
-	for (int ind = 0; ind < argc; ++ind) {
-		krk_writeValueArray(&listContents->chunk.constants, argv[ind]);
+
+	if (argc) {
+		listContents->chunk.constants.capacity = argc;
+		listContents->chunk.constants.values = GROW_ARRAY(KrkValue, listContents->chunk.constants.values, 0, argc);
+		memcpy(listContents->chunk.constants.values, argv, sizeof(KrkValue) * argc);
+		listContents->chunk.constants.count = argc;
 	}
 	KrkValue out = OBJECT_VAL(outList);
 	krk_pop(); /* listContents */
@@ -599,6 +622,33 @@ static KrkValue _list_slice(int argc, KrkValue argv[]) {
 	int len = end - start;
 
 	return krk_list_of(len, &AS_LIST(_list_internal)->values[start]);
+}
+
+/**
+ * list.pop()
+ */
+static KrkValue _list_pop(int argc, KrkValue argv[]) {
+	long index = 0;
+	if (argc > 1) {
+		index = AS_INTEGER(argv[1]);
+	}
+	KrkValue _list_internal = OBJECT_VAL(AS_INSTANCE(argv[0])->_internal);
+	if (index < 0 || index >= (long)AS_LIST(_list_internal)->count) {
+		krk_runtimeError(vm.exceptions.indexError, "list index out of range: %d", (int)index);
+		return NONE_VAL();
+	}
+	KrkValue outItem = AS_LIST(_list_internal)->values[index];
+	if (index == (long)AS_LIST(_list_internal)->count-1) {
+		AS_LIST(_list_internal)->count--;
+		return outItem;
+	} else {
+		/* Need to move up */
+		size_t remaining = AS_LIST(_list_internal)->count - index - 1;
+		memmove(&AS_LIST(_list_internal)->values[index], &AS_LIST(_list_internal)->values[index+1],
+			sizeof(KrkValue) * remaining);
+		AS_LIST(_list_internal)->count--;
+		return outItem;
+	}
 }
 
 /**
@@ -2788,6 +2838,8 @@ void krk_initVM(int flags) {
 		krk_defineNative(&_class->methods, ".__getslice__", _list_slice);
 		krk_defineNative(&_class->methods, ".__iter__", _list_iter);
 		krk_defineNative(&_class->methods, ".append", _list_append);
+		krk_defineNative(&_class->methods, ".pop", _list_pop);
+		krk_defineNative(&_class->methods, "._extend_fast", _list_extend_fast);
 		krk_finalizeClass(_class);
 
 		krk_tableGet(&vm.builtins->fields,OBJECT_VAL(S("dict")),&val);

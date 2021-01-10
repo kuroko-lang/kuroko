@@ -41,15 +41,14 @@ for bag in descriptions.keys():
 print("There are", count, "bags that can contain a shiny gold bag, eventually.")
 
 def find_depth(bag):
-    if not len(descriptions[bag]):
+    if not descriptions[bag]:
         return 0
     let to_scan = descriptions[bag]
     let count = 0
-    while len(to_scan):
-        let i = to_scan[0]
-        to_scan = to_scan[1:]
+    while to_scan:
+        let i = to_scan.pop(0)
         count += 1
-        to_scan.extend(descriptions[i])
+        to_scan._extend_fast(descriptions[i])
     return count
 
 print("A shiny gold bag contains", find_depth('shiny gold'), "bags.")
