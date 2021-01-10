@@ -485,7 +485,7 @@ foo() # I didn't provide one!
 #   ArgumentError: foo() takes exactly 1 argument (0 given)
 ```
 
-When using the repl, global state will remain after an expression and the prompt will be displayed again.
+When using the repl, global state will remain after an exception and the prompt will be displayed again.
 
 To catch exceptions, use `try`/`except`:
 
