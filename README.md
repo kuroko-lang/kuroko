@@ -844,8 +844,6 @@ wrappedFunction()
 #   Returned from wrapped function
 ```
 
-The resulting function will have the same signature as the original function, so wrappers may take arguments to pass to the wrapped function, or may take their own arguments (or both).
-
 Method wrappers work similarly, though be sure to explicitly provide a name (other than `self`) for the object instance:
 
 ```py
