@@ -333,8 +333,7 @@ static KrkValue _dict_get(int argc, KrkValue argv[]) {
 		krk_runtimeError(vm.exceptions.argumentError, "wrong number of arguments");
 		return NONE_VAL();
 	}
-	KrkValue _dict_internal;
-	krk_tableGet(&AS_INSTANCE(argv[0])->fields, vm.specialMethodNames[METHOD_DICT_INT], &_dict_internal);
+	KrkValue _dict_internal = OBJECT_VAL(AS_INSTANCE(argv[0])->_internal);
 	KrkValue out;
 	if (!krk_tableGet(AS_DICT(_dict_internal), argv[1], &out)) {
 		krk_runtimeError(vm.exceptions.keyError, "key error");
@@ -350,8 +349,7 @@ static KrkValue _dict_set(int argc, KrkValue argv[]) {
 		krk_runtimeError(vm.exceptions.argumentError, "wrong number of arguments");
 		return NONE_VAL();
 	}
-	KrkValue _dict_internal;
-	krk_tableGet(&AS_INSTANCE(argv[0])->fields, vm.specialMethodNames[METHOD_DICT_INT], &_dict_internal);
+	KrkValue _dict_internal = OBJECT_VAL(AS_INSTANCE(argv[0])->_internal);
 	krk_tableSet(AS_DICT(_dict_internal), argv[1], argv[2]);
 	return NONE_VAL();
 }
@@ -364,8 +362,7 @@ static KrkValue _dict_len(int argc, KrkValue argv[]) {
 		krk_runtimeError(vm.exceptions.argumentError, "wrong number of arguments");
 		return NONE_VAL();
 	}
-	KrkValue _dict_internal;
-	krk_tableGet(&AS_INSTANCE(argv[0])->fields, vm.specialMethodNames[METHOD_DICT_INT], &_dict_internal);
+	KrkValue _dict_internal = OBJECT_VAL(AS_INSTANCE(argv[0])->_internal);
 	return INTEGER_VAL(AS_DICT(_dict_internal)->count);
 }
 
@@ -374,8 +371,7 @@ static KrkValue _dict_len(int argc, KrkValue argv[]) {
  */
 static KrkValue _dict_contains(int argc, KrkValue argv[]) {
 	KrkValue _unused;
-	KrkValue _dict_internal;
-	krk_tableGet(&AS_INSTANCE(argv[0])->fields, vm.specialMethodNames[METHOD_DICT_INT], &_dict_internal);
+	KrkValue _dict_internal = OBJECT_VAL(AS_INSTANCE(argv[0])->_internal);
 	return BOOLEAN_VAL(krk_tableGet(AS_DICT(_dict_internal), argv[1], &_unused));
 }
 
@@ -387,8 +383,7 @@ static KrkValue _dict_capacity(int argc, KrkValue argv[]) {
 		krk_runtimeError(vm.exceptions.argumentError, "wrong number of arguments");
 		return NONE_VAL();
 	}
-	KrkValue _dict_internal;
-	krk_tableGet(&AS_INSTANCE(argv[0])->fields, vm.specialMethodNames[METHOD_DICT_INT], &_dict_internal);
+	KrkValue _dict_internal = OBJECT_VAL(AS_INSTANCE(argv[0])->_internal);
 	return INTEGER_VAL(AS_DICT(_dict_internal)->capacity);
 }
 
@@ -405,8 +400,7 @@ static KrkValue _dict_key_at_index(int argc, KrkValue argv[]) {
 		return NONE_VAL();
 	}
 	int i = AS_INTEGER(argv[1]);
-	KrkValue _dict_internal;
-	krk_tableGet(&AS_INSTANCE(argv[0])->fields, vm.specialMethodNames[METHOD_DICT_INT], &_dict_internal);
+	KrkValue _dict_internal = OBJECT_VAL(AS_INSTANCE(argv[0])->_internal);
 	if (i < 0 || i > (int)AS_DICT(_dict_internal)->capacity) {
 		krk_runtimeError(vm.exceptions.indexError, "hash table index is out of range: %d", i);
 		return NONE_VAL();
@@ -616,8 +610,7 @@ static KrkValue krk_set_tracing(int argc, KrkValue argv[], int hasKw) {
 #ifdef DEBUG
 	if (argc != 1) return NONE_VAL();
 	if (hasKw) {
-		KrkValue _dict_internal;
-		krk_tableGet(&AS_INSTANCE(argv[0])->fields, vm.specialMethodNames[METHOD_DICT_INT], &_dict_internal);
+		KrkValue _dict_internal = OBJECT_VAL(AS_INSTANCE(argv[0])->_internal);
 		KrkValue test;
 		if (krk_tableGet(AS_DICT(_dict_internal), OBJECT_VAL(S("tracing")), &test)) {
 			if (AS_INTEGER(test) == 1) vm.flags |= KRK_ENABLE_TRACING; else vm.flags &= ~KRK_ENABLE_TRACING; }
@@ -815,8 +808,7 @@ static KrkValue krk_globals(int argc, KrkValue argv[]) {
 	KrkValue dict = krk_dict_of(0, NULL);
 	krk_push(dict);
 	/* Get its internal table */
-	KrkValue _dict_internal;
-	krk_tableGet(&AS_INSTANCE(dict)->fields, vm.specialMethodNames[METHOD_DICT_INT], &_dict_internal);
+	KrkValue _dict_internal = OBJECT_VAL(AS_INSTANCE(argv[0])->_internal);
 	/* Copy the globals table into it */
 	krk_tableAddAll(vm.frames[vm.frameCount-1].globals, &AS_CLASS(_dict_internal)->methods);
 	krk_pop();
@@ -1368,8 +1360,7 @@ static KrkValue _print(int argc, KrkValue argv[], int hasKw) {
 	char * end = "\n";
 	if (hasKw) {
 		argc--;
-		KrkValue _dict_internal;
-		krk_tableGet(&AS_INSTANCE(argv[argc])->fields, vm.specialMethodNames[METHOD_DICT_INT], &_dict_internal);
+		KrkValue _dict_internal = OBJECT_VAL(AS_INSTANCE(argv[argc])->_internal);
 		if (krk_tableGet(AS_DICT(_dict_internal), OBJECT_VAL(S("sep")), &sepVal)) {
 			if (!IS_STRING(sepVal)) {
 				krk_runtimeError(vm.exceptions.typeError, "'sep' should be a string, not '%s'", krk_typeName(sepVal));
@@ -1525,7 +1516,7 @@ static KrkValue _string_format(int argc, KrkValue argv[], int hasKw) {
 	KrkValue kwargs = NONE_VAL();
 	if (hasKw) {
 		argc--; /* last arg is the keyword dictionary */
-		krk_tableGet(&AS_INSTANCE(argv[argc])->fields, vm.specialMethodNames[METHOD_DICT_INT], &kwargs);
+		kwargs = OBJECT_VAL(AS_INSTANCE(argv[argc])->_internal);
 	}
 
 	/* Read through `self` until we find a field specifier. */
@@ -3018,7 +3009,8 @@ int krk_loadModule(KrkString * name, KrkValue * moduleOut) {
 	}
 
 	/* Obtain __builtins__.module_paths.__list so we can do lookups directly */
-	if (!krk_tableGet(&(AS_INSTANCE(modulePaths)->fields), vm.specialMethodNames[METHOD_LIST_INT], &modulePathsInternal) || !IS_FUNCTION(modulePathsInternal)) {
+	modulePathsInternal = OBJECT_VAL(AS_INSTANCE(modulePaths)->_internal);
+	if (!IS_FUNCTION(modulePathsInternal)) {
 		*moduleOut = NONE_VAL();
 		krk_runtimeError(vm.exceptions.baseException,
 			"Internal error: kuroko.module_paths is corrupted or incorrectly set.");
