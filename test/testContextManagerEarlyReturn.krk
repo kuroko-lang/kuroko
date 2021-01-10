@@ -1,0 +1,35 @@
+from fileio import open
+
+class ContextManager:
+    def __init__(title):
+        self.title = title
+    def __enter__():
+        print("Enter context manager", self.title)
+    def __exit__():
+        print("Exit context manager", self.title)
+
+
+def doesThing():
+    print("Creating CM")
+    let cm = ContextManager('simple')
+
+    with cm:
+        print("In context manager")
+        return 42
+
+    print("Not exiting correctly?")
+    return "oh no"
+
+print(doesThing())
+
+
+def doesANestedThing():
+    with ContextManager('outer'):
+        with ContextManager('inner'):
+            with ContextManager('triple'):
+                return 42
+            print('Should not print')
+        print('Should not print')
+    print('Should not print')
+
+print(doesANestedThing())

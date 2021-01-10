@@ -34,7 +34,7 @@ void krk_printValue(FILE * f, KrkValue printable) {
 			case VAL_BOOLEAN:  fprintf(f, "%s", AS_BOOLEAN(printable) ? "True" : "False"); break;
 			case VAL_FLOATING: fprintf(f, "%g", AS_FLOATING(printable)); break;
 			case VAL_NONE:     fprintf(f, "None"); break;
-			case VAL_HANDLER:  fprintf(f, "{try->%ld}", AS_HANDLER(printable)); break;
+			case VAL_HANDLER:  fprintf(f, "{%s->%d}", AS_HANDLER(printable).type == OP_PUSH_TRY ? "try" : "with", (int)AS_HANDLER(printable).target); break;
 			case VAL_KWARGS: {
 				if (AS_INTEGER(printable) == LONG_MAX) {
 					fprintf(f, "{unpack single}");

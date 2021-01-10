@@ -18,12 +18,17 @@ typedef enum {
 } KrkValueType;
 
 typedef struct {
+	unsigned short type;
+	unsigned short target;
+} KrkJumpTarget;
+
+typedef struct {
 	KrkValueType type;
 	union {
 		char boolean;
 		long integer;
 		double  floating;
-		long handler;
+		KrkJumpTarget handler;
 		KrkObj *   object;
 	} as;
 } KrkValue;
@@ -32,7 +37,7 @@ typedef struct {
 #define NONE_VAL(value)     ((KrkValue){VAL_NONE,    {.integer = 0}})
 #define INTEGER_VAL(value)  ((KrkValue){VAL_INTEGER, {.integer = value}})
 #define FLOATING_VAL(value) ((KrkValue){VAL_FLOATING,{.floating = value}})
-#define HANDLER_VAL(value)  ((KrkValue){VAL_HANDLER, {.handler = value}})
+#define HANDLER_VAL(ty,ta)  ((KrkValue){VAL_HANDLER, {.handler = (KrkJumpTarget){.type = ty, .target = ta}}})
 #define OBJECT_VAL(value)   ((KrkValue){VAL_OBJECT,  {.object = (KrkObj*)value}})
 #define KWARGS_VAL(value)   ((KrkValue){VAL_KWARGS,  {.integer = value}})
 
@@ -49,6 +54,9 @@ typedef struct {
 #define IS_HANDLER(value)   ((value).type == VAL_HANDLER)
 #define IS_OBJECT(value)    ((value).type == VAL_OBJECT)
 #define IS_KWARGS(value)    ((value).type == VAL_KWARGS)
+
+#define IS_TRY_HANDLER(value)  (IS_HANDLER(value) && AS_HANDLER(value).type == OP_PUSH_TRY)
+#define IS_WITH_HANDLER(value) (IS_HANDLER(value) && AS_HANDLER(value).type == OP_PUSH_WITH)
 
 typedef struct {
 	size_t capacity;

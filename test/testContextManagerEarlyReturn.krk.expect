@@ -1,0 +1,12 @@
+Creating CM
+Enter context manager simple
+In context manager
+Exit context manager simple
+42
+Enter context manager outer
+Enter context manager inner
+Enter context manager triple
+Exit context manager triple
+Exit context manager inner
+Exit context manager outer
+42

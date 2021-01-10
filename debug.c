@@ -146,6 +146,8 @@ size_t krk_disassembleInstruction(FILE * f, KrkFunction * func, size_t offset) {
 		JUMP(OP_JUMP_IF_TRUE,+)
 		JUMP(OP_LOOP,-)
 		JUMP(OP_PUSH_TRY,+)
+		JUMP(OP_PUSH_WITH,+)
+		SIMPLE(OP_CLEANUP_WITH)
 		default:
 			fprintf(f, "Unknown opcode: %02x", opcode);
 	}

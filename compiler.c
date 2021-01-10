@@ -1067,33 +1067,22 @@ static void withStatement() {
 		defineVariable(ind);
 	} else {
 		/* Otherwise we want an unnamed local; TODO: Wait, can't we do this for iterable counts? */
-		Local * local = &current->locals[current->localCount++];
-		local->depth = current->scopeDepth;
-		local->isCaptured = 0;
-		local->name.start = "";
-		local->name.length = 0;
+		addLocal(syntheticToken(""));
+		markInitialized();
 	}
 
 	consume(TOKEN_COLON, "Expected ':' after with statement");
 
-	/* Call enter */
-	emitBytes(OP_DUP, 0);
-	KrkToken _enter = syntheticToken("__enter__");
-	ssize_t ind = identifierConstant(&_enter);
-	EMIT_CONSTANT_OP(OP_GET_PROPERTY, ind);
-	emitBytes(OP_CALL, 0);
-	emitByte(OP_POP); /* We don't care about the result */
+	addLocal(syntheticToken(""));
+	int withJump = emitJump(OP_PUSH_WITH);
+	markInitialized();
 
 	beginScope();
 	block(blockWidth,"with");
 	endScope();
 
-	emitBytes(OP_DUP, 0);
-	KrkToken _exit = syntheticToken("__exit__");
-	ind = identifierConstant(&_exit);
-	EMIT_CONSTANT_OP(OP_GET_PROPERTY, ind);
-	emitBytes(OP_CALL, 0);
-	emitByte(OP_POP); /* We don't care about the result */
+	patchJump(withJump);
+	emitByte(OP_CLEANUP_WITH);
 
 	/* Scope exit pops context manager */
 	endScope();
@@ -1235,7 +1224,6 @@ static void forStatement() {
 	int exitJump;
 
 	if (match(TOKEN_IN)) {
-		defineVariable(loopInd);
 
 		/* ITERABLE.__iter__() */
 		beginScope();

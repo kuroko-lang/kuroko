@@ -298,6 +298,8 @@ void krk_finalizeClass(KrkClass * _class) {
 		{&_class->_init, METHOD_INIT},
 		{&_class->_eq, METHOD_EQ},
 		{&_class->_len, METHOD_LEN},
+		{&_class->_enter, METHOD_ENTER},
+		{&_class->_exit, METHOD_EXIT},
 		{NULL, 0},
 	};
 
@@ -2637,6 +2639,8 @@ void krk_initVM(int flags) {
 	vm.specialMethodNames[METHOD_DICT_INT] = OBJECT_VAL(S("__dict"));
 	vm.specialMethodNames[METHOD_INREPR] = OBJECT_VAL(S("__inrepr"));
 	vm.specialMethodNames[METHOD_EQ] = OBJECT_VAL(S("__eq__"));
+	vm.specialMethodNames[METHOD_ENTER] = OBJECT_VAL(S("__enter__"));
+	vm.specialMethodNames[METHOD_EXIT] = OBJECT_VAL(S("__exit__"));
 
 	/* Create built-in class `object` */
 	vm.objectClass = krk_newClass(S("object"));
@@ -3011,7 +3015,7 @@ static void addObjects() {
 static int handleException() {
 	int stackOffset, frameOffset;
 	int exitSlot = (vm.exitOnFrame >= 0) ? vm.frames[vm.exitOnFrame].outSlots : 0;
-	for (stackOffset = (int)(vm.stackTop - vm.stack - 1); stackOffset >= exitSlot && !IS_HANDLER(vm.stack[stackOffset]); stackOffset--);
+	for (stackOffset = (int)(vm.stackTop - vm.stack - 1); stackOffset >= exitSlot && !IS_TRY_HANDLER(vm.stack[stackOffset]); stackOffset--);
 	if (stackOffset < exitSlot) {
 		if (exitSlot == 0) {
 			/*
@@ -3288,9 +3292,33 @@ static KrkValue run() {
 		int operandWidth = (opcode & (1 << 7)) ? 3 : 1;
 
 		switch (opcode) {
+			case OP_CLEANUP_WITH: {
+				/* Top of stack is a HANDLER that should have had something loaded into it if it was still valid */
+				KrkValue handler = krk_peek(0);
+				KrkValue contextManager = krk_peek(1);
+				KrkClass * type = AS_CLASS(krk_typeOf(1, &contextManager));
+				krk_push(contextManager);
+				krk_callSimple(OBJECT_VAL(type->_exit), 1, 0);
+				/* Top of stack is now either someone else's problem or a return value */
+				if (AS_HANDLER(handler).type != OP_RETURN) break;
+				krk_pop(); /* handler */
+				krk_pop(); /* context manager */
+			} /* fallthrough */
 			case OP_RETURN: {
 				KrkValue result = krk_pop();
 				closeUpvalues(frame->slots);
+				/* See if this frame had a thing */
+				int stackOffset;
+				for (stackOffset = (int)(vm.stackTop - vm.stack - 1); stackOffset >= (int)frame->slots && !IS_WITH_HANDLER(vm.stack[stackOffset]); stackOffset--);
+				if (stackOffset >= (int)frame->slots) {
+					vm.stackTop = &vm.stack[stackOffset + 1];
+					krk_push(result);
+					krk_swap(2);
+					krk_swap(1);
+					frame->ip = frame->closure->function->chunk.code + AS_HANDLER(krk_peek(0)).target;
+					AS_HANDLER(vm.stackTop[-1]).type = OP_RETURN;
+					break;
+				}
 				vm.frameCount--;
 				if (vm.frameCount == 0) {
 					krk_pop();
@@ -3423,7 +3451,7 @@ static KrkValue run() {
 			}
 			case OP_PUSH_TRY: {
 				uint16_t tryTarget = readBytes(frame, 2) + (frame->ip - frame->closure->function->chunk.code);
-				KrkValue handler = HANDLER_VAL(tryTarget);
+				KrkValue handler = HANDLER_VAL(OP_PUSH_TRY, tryTarget);
 				krk_push(handler);
 				break;
 			}
@@ -3647,12 +3675,27 @@ static KrkValue run() {
 				vm.stackTop[-count] = AS_TUPLE(tuple)->values.values[0];
 				break;
 			}
+			case OP_PUSH_WITH: {
+				uint16_t cleanupTarget = readBytes(frame, 2) + (frame->ip - frame->closure->function->chunk.code);
+				KrkValue contextManager = krk_peek(0);
+				KrkClass * type = AS_CLASS(krk_typeOf(1, &contextManager));
+				if (!type->_enter || !type->_exit) {
+					krk_runtimeError(vm.exceptions.attributeError, "Can not use '%s' as context manager.", krk_typeName(contextManager));
+					goto _finishException;
+				}
+				krk_push(contextManager);
+				krk_callSimple(OBJECT_VAL(type->_enter), 1, 0);
+				/* Ignore result; don't need to pop */
+				KrkValue handler = HANDLER_VAL(OP_PUSH_WITH, cleanupTarget);
+				krk_push(handler);
+				break;
+			}
 		}
 		if (!(vm.flags & KRK_HAS_EXCEPTION)) continue;
 _finishException:
 		if (!handleException()) {
 			frame = &vm.frames[vm.frameCount - 1];
-			frame->ip = frame->closure->function->chunk.code + AS_HANDLER(krk_peek(0));
+			frame->ip = frame->closure->function->chunk.code + AS_HANDLER(krk_peek(0)).target;
 			/* Replace the exception handler with the exception */
 			krk_pop();
 			krk_push(vm.currentException);

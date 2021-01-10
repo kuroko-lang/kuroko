@@ -1026,7 +1026,35 @@ print(f)
 # → <closed file 'README.md' ...>
 ```
 
-_**Note:** The implementation of `with` blocks is incomplete; exceptions raised from within a `with` that are not caught within the block will cause `__exit__` to not be called. The same is also true of `return` statements within a `with` block._
+If an early return is encountered inside of a `with` block, the `__exit__` method for the context manager will be called before the function returns.
+
+```py
+class ContextManager:
+    def __init__(title):
+        self.title = title
+    def __enter__():
+        print("Enter context manager", self.title)
+    def __exit__():
+        print("Exit context manager", self.title)
+def doesANestedThing():
+    with ContextManager('outer'):
+        with ContextManager('inner'):
+            with ContextManager('triple'):
+                return 42
+            print('Should not print')
+        print('Should not print')
+    print('Should not print')
+print(doesANestedThing())
+# → Enter context manager outer
+#   Enter context manager inner
+#   Enter context manager triple
+#   Exit context manager triple
+#   Exit context manager inner
+#   Exit context manager outer
+#   42
+```
+
+_**Note:** The implementation of `with` blocks is incomplete; exceptions raised from within a `with` that are not caught within the block will cause `__exit__` to not be called._
 
 ## About the REPL
 
