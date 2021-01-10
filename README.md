@@ -764,7 +764,7 @@ print(f)
 # → (I am a Foo!)
 ```
 
-The `__repr__` method serves a similar purpose and is used when the REPL displays values or when they used in string representations of collections. The implementations of `__str__` and `__repr__` can be different:
+The `__repr__` method serves a similar purpose and is used when the REPL displays values or when they are used in string representations of collections. The implementations of `__str__` and `__repr__` can be different:
 
 ```py
 class Foo:
