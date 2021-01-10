@@ -277,9 +277,9 @@ Lambda functions allow for the creation of simple functions anonymously. Note th
 
 ```py
 let myLambda = lambda x: (x * 5)
-print(myLambdaa(1))
-print(myLambdaa(2))
-print(myLambdaa(3))
+print(myLambda(1))
+print(myLambda(2))
+print(myLambda(3))
 # → 5
 #   10
 #   15
@@ -458,7 +458,7 @@ s.add(2)
 print(s) # No change
 # → {1, 2, 3}
 s.add(4)
-pritn(s)
+print(s)
 # → {1, 2, 3, 4}
 ```
 
@@ -594,7 +594,7 @@ _**Note:** When individual names are imported from a module, they refer to the s
 Kuroku supports C-style for loops, while loops, and Python-style iterator for loops.
 
 ```py
-for i = 1; i < 5; i = i + 1:
+for i = 1; i < 5; i++:
     print(i)
 # → 1
 #   2
