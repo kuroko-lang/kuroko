@@ -1,6 +1,4 @@
-# Strings have a syntehesized __get__
-# which returns an integer value of the byte...
-# This will probably codepoint of a UTF-32 string later?
+# Strings have a syntehesized __get__ so they can be indexed...
 print("Test"[1])
 
 class Test:
