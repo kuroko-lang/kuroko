@@ -547,12 +547,25 @@ try:
         raise ValueError("Thrown exception")
     except:
         print("Caught in level two")
-        raise exception
 except:
     print("Not caught in level one!")
 # → Level one
 #   Level two
 #   Caught in level two
+try:
+    print("Level one")
+    try:
+        print("Level two")
+        raise ValueError("Thrown exception")
+    except:
+        print("Caught in level two")
+        raise exception
+except:
+    print("Caught in level one!")
+# → Level one
+#   Level two
+#   Caught in level two
+#   Caught in level one!
 ```
 
 ### Modules
