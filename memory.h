@@ -14,7 +14,7 @@
 
 extern void * krk_reallocate(void *, size_t, size_t);
 extern void krk_freeObjects(void);
-extern void krk_collectGarbage(void);
+extern size_t krk_collectGarbage(void);
 extern void krk_markValue(KrkValue value);
 extern void krk_markObject(KrkObj * object);
 extern void krk_markTable(KrkTable * table);

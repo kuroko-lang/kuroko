@@ -2590,6 +2590,9 @@ static KrkValue _range_iter(int argc, KrkValue argv[]) {
 	return OBJECT_VAL(output);
 }
 
+static KrkValue krk_collectGarbage_wrapper(int argc, KrkValue argv[]) {
+	return INTEGER_VAL(krk_collectGarbage());
+}
 
 void krk_initVM(int flags) {
 	vm.flags = flags;
@@ -2674,6 +2677,12 @@ void krk_initVM(int flags) {
 		(KrkObj*)S(KRK_VERSION_MAJOR "." KRK_VERSION_MINOR "." KRK_VERSION_PATCH KRK_VERSION_EXTRA));
 	krk_attachNamedObject(&vm.system->fields, "buildenv", (KrkObj*)S(KRK_BUILD_COMPILER));
 	krk_attachNamedObject(&vm.system->fields, "builddate", (KrkObj*)S(KRK_BUILD_DATE));
+
+	KrkInstance * gcModule = krk_newInstance(vm.moduleClass);
+	krk_attachNamedObject(&vm.modules, "gc", (KrkObj*)gcModule);
+	krk_attachNamedObject(&gcModule->fields, "__name__", (KrkObj*)S("gc"));
+	krk_attachNamedValue(&gcModule->fields, "__file__", NONE_VAL());
+	krk_defineNative(&gcModule->fields, "collect", krk_collectGarbage_wrapper);
 
 	/* Add exception classes */
 	ADD_EXCEPTION_CLASS(vm.exceptions.baseException, "Exception", vm.objectClass);

@@ -180,9 +180,10 @@ static void traceReferences() {
 	}
 }
 
-static void sweep() {
+static size_t sweep() {
 	KrkObj * previous = NULL;
 	KrkObj * object = vm.objects;
+	size_t count = 0;
 	while (object) {
 		if (object->isMarked) {
 			object->isMarked = 0;
@@ -197,8 +198,10 @@ static void sweep() {
 				vm.objects = object;
 			}
 			freeObject(unreached);
+			count++;
 		}
 	}
+	return count;
 }
 
 void krk_markTable(KrkTable * table) {
@@ -237,10 +240,11 @@ static void markRoots() {
 	krk_markValue(vm.currentException);
 }
 
-void krk_collectGarbage(void) {
+size_t krk_collectGarbage(void) {
 	markRoots();
 	traceReferences();
 	krk_tableRemoveWhite(&vm.strings);
-	sweep();
+	size_t out = sweep();
 	vm.nextGC = vm.bytesAllocated * 2;
+	return out;
 }
