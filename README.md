@@ -80,6 +80,16 @@ print("Hello", 42, "!", sep="...")
 # → Hello...42...!
 ```
 
+The string printed after all arguments have been printed can be changed with `end=`:
+
+```py
+print("Hello",end=" ")
+print("World")
+# → Hello World
+```
+
+_**Note:** When using the REPL with the rich line editor enabled, the line editor will automatically add a line feed when displaying the prompt if the previous output did not include one, and will display a gray left-facing triangle to indicate this._
+
 ### Basic Types
 
 Kuroko's basic types are integers (which use the platform `long` type), double-precision floats, booleans (`True` and `False`), and `None`.
@@ -122,12 +132,27 @@ Objects are passed by reference, though strings are immutable so this property i
 
 ### Strings
 
-Strings can be concatenated, and other values can be appended to them.
+Strings can be defined with single, double, or Python-style _triple quotes_, the latter of which allows for unescaped line feeds to appear in strings.
+
+The following escape sequences can be embedded in string literals:
+
+- `\n`: linefeed
+- `\r`: carriage return
+- `\t`: horizontal tab
+- `\[`: ANSI escape value (decimal value 27)
+
+A backslash followed by another character, such as the quoting character used to define the string or another backslash character, will be taking literally.
+
+Strings in Kuroko are immutable; they can not be modified in-place.
+
+Strings can be concatenated, and other values can be appended to them:
 
 ```py
 print("Hello, " + 42 + "!")
 # → Hello, 42!
 ```
+
+_**Note:** Strings in Kuroko are byte strings, as they were in Python 2. On all platforms currently supported by Kuroko, this means that strings should contain UTF-8 text. It is as-yet undecided if this will change._
 
 ### Variables
 
@@ -149,6 +174,22 @@ let a = 1, b = "test", c = object()
 print(a,b,c)
 # → 1 test <instance of object at ...>
 ```
+
+### Assignments
+
+After a variable is declared, assignments to it are valid as both expressions and statements. Kuroko provides assignment shortcuts like `+=` and `-=` as well as C-style postfix increment (`++`) and decrement (`--`).
+
+```py
+let x = 1
+print(x++)
+# → 2
+print(x -= 7)
+# → -5
+print((x = 42))
+# → 42
+```
+
+_**Note:** `var=` is used for keyword arguments, so be careful if you are trying to pass an assignment as a value to a function - wrap it in parentheses first or you may not get what you wanted._
 
 ### Functions
 
@@ -271,7 +312,7 @@ o.printFoo()
 # → bar
 ```
 
-The `self` keyword is implicit in all methods and does not need to be supplied in the argument list. You may optionally include it in the method declaration anyway:
+The `self` keyword is implicit in all methods and does not need to be supplied in the argument list. You may optionally include it in the method declaration anyway, for compatibility with Python:
 
 ```py
 class Foo():
@@ -282,6 +323,8 @@ o.foo = "bar"
 o.printFoo()
 # → bar
 ```
+
+_**Note:** As `self` is implicit, it can not be renamed; other argument names listed in a method signature will refer to additional arguments._
 
 When a class is instantiated, if it has an `__init__` method it will be called automatically. `__init__` may take arguments as well.
 
@@ -298,7 +341,7 @@ o.printFoo()
 
 Some other special method names include `__get__`, `__set__`, and `__str__`, which will be explained later.
 
-_**Note**: Unlike in Python, most types are not actually instances of classes, though many of the same operations still apply to them._
+_**Note**: As in Python, all values are objects, but internally within the Kuroko VM not all values are **instances**. The difference is not very relevant to user code, but if you are embedding Kuroko it is important to understand._
 
 ### Inheritance
 
@@ -320,7 +363,7 @@ bar.printType()
 # → bar
 ```
 
-Methods can refer to the super class with the `super` keyword:
+Methods can refer to the super class with the `super` keyword, which should be called as a function with no arguments, as in new-style Python code:
 
 ```py
 class Foo():
@@ -342,7 +385,16 @@ bar.printType()
 #   Also, I enjoy long walks on the beach.
 ```
 
-You can determine at runtime if an object is an instance of a class, either directly or through its inheritance chain, with the `isinstance` builtin function:
+You can determine the type of an object at runtime with the `type` function:
+
+```py
+class Foo():
+let foo = Foo()
+print(type(foo))
+# → <type 'Foo'>
+```
+
+You can also determine if an object is an instance of a given type, either directly or through its inheritence chain, with the `isinstance` function:
 
 ```py
 class Foo:
@@ -357,7 +409,7 @@ All classes eventually inherit from the base class `object`, which provides defa
 
 ### Collections
 
-Kuroko has built-in classes for flexible arrays (`list`) and hashmaps (`dict`):
+Kuroko has built-in classes for flexible arrays (`list`) and hashmaps (`dict`), as well as immutable lists of items (`tuple`).
 
 ```py
 let l = list()
@@ -388,13 +440,37 @@ print(d)
 # → {1: 2, foo: bar}
 ```
 
-Lists can also be generated dynamically:
+Tuples provide similar functionality to lists, but are intended to be immutable:
+
+```py
+let t = (1,2,3)
+print(t)
+# → (1, 2, 3)
+```
+
+A `set` type is also provided:
+
+```py
+let s = set([1,2,3])
+print(s)
+# → {1, 2, 3}
+s.add(2)
+print(s) # No change
+# → {1, 2, 3}
+s.add(4)
+pritn(s)
+# → {1, 2, 3, 4}
+```
+
+Lists can also be generated dynamically through _comprehensions_, just as in Python:
 
 ```py
 let fives = [x * 5 for x in [1,2,3,4,5]]
 print(fives)
 # → [5, 10, 15, 20, 25]
 ```
+
+_**Note:** Dictionary, tuple, and set comprehensions are not currently available, but are planned._
 
 ### Exceptions
 
@@ -409,6 +485,8 @@ foo() # I didn't provide one!
 #   ArgumentError: foo() takes exactly 1 argument (0 given)
 ```
 
+When using the repl, global state will remain after an expression and the prompt will be displayed again.
+
 To catch exceptions, use `try`/`except`:
 
 ```py
@@ -421,7 +499,7 @@ except:
 # → oh no!
 ```
 
-Runtime exceptions are passed to the `except` block as a special variable `exception`.
+Runtime exceptions are passed to the `except` block as a special variable `exception`. Exceptions from the VM are instances of built-in error classes with an attribute `arg`:
 
 ```py
 def foo(bar):
@@ -433,7 +511,7 @@ except:
 # → oh no, there was an exception: foo() takes exactly 1 argument (0 given)
 ```
 
-Exceptions can also be generated from code:
+Exceptions can be generated with the `raise` statement. When raising an exception, the value can be anything, but subclasses of `__builtins__.Exception` are recommended.
 
 ```py
 def login(password):
@@ -459,9 +537,27 @@ try:
 # (no output)
 ```
 
+`try`/`except` blocks can also be nested within each other. The deepest `try` block will be used to handle an exception. If its `except` block calls `raise`, the exception will filter up to the next `try` block. Either the original exception or a new exception can be raised.
+
+```py
+try:
+    print("Level one")
+    try:
+        print("Level two")
+        raise ValueError("Thrown exception")
+    except:
+        print("Caught in level two")
+        raise exception
+except:
+    print("Not caught in level one!")
+# → Level one
+#   Level two
+#   Caught in level two
+```
+
 ### Modules
 
-Modules allow scripts to call other scripts.
+Modules in Kuroko work much like in Python, allowing scripts to call other scripts and use functions defined in other files.
 
 ```py
 # modules/demomodule.krk
@@ -476,6 +572,22 @@ print(demomodule.foo)
 ```
 
 Modules are run once and then cached, so if they preform actions like printing or complex computation this will happen once when first imported. The globals table from the module is the fields table of an object. Further imports of the same module will return the same object.
+
+When importing a module, the names of members which should be imported can be specified and can be renamed:
+
+```py
+from demomodule import foo
+print(foo)
+# → bar
+```
+
+```py
+from demomodule import foo as imported
+print(imported)
+# → bar
+```
+
+_**Note:** When individual names are imported from a module, they refer to the same object, but if new assignments are made to the name it will not affect the original module. If you need to replace values defined in a module, always be sure to refer to it by its full name._
 
 ### Loops
 
@@ -522,11 +634,13 @@ for left, right in l:
 #   5 6
 ```
 
-An exception will be raised if a tuple returned by the iterator has the wrong size for unpacking, or if a value returned is not a tuple.
+An exception will be raised if a tuple returned by the iterator has the wrong size for unpacking (`ValueError`), or if a value returned is not a tuple (`TypeError`).
 
 ### Iterators
 
-The special method `__iter__` should return an iterator. An iterator should be a function which increments an internal state and returns the next value. If there are no values remaining, return the iterator itself.
+The special method `__iter__` should return an iterator. An iterator should be a function which increments an internal state and returns the next value. If there are no values remaining, return the iterator object itself.
+
+_**Note:** The implementation of iterators in Kuroko differs from Python. In Python, iterator objects have a `__next__` method while in Kuroko they are called as functions or using the `__call__` method on instances, which allows iterators to be implemented as simple closures. In Python, completed iterators raise an exception called `StopIteration` while Kuroko iterators are expected to return themselves when they are done._
 
 An example of an iterator is the `range` built-in class, which was previously defined like this:
 
@@ -559,9 +673,33 @@ for i in range(1,5):
 #   4
 ```
 
+As in the _Loops_ section above, an iterator may return a series of tuples which may be unpacked in a loop. Tuple unpacking is optional; if the loop uses a single variable, the tuple will be assigned to it with each iteration.
+
+```py
+class TupleGenerator:
+    def __iter__():
+        let up = 0, down = 0, limit = 5
+        def _():
+            if limit-- == 0: return _
+            return (up++,down--)
+        return _
+for i in TupleGenerator():
+    print(i)
+# → (1, -1)
+#   (2, -2)
+#   (3, -3)
+#   (4, -4)
+for up, down in TupleGenerator():
+    print(up,down)
+# → 1 -1
+#   2 -2
+#   3 -3
+#   4 -4
+```
+
 ### Indexing
 
-Objects with the methods `__get__` and `__set__` can be used with square brackets `[]`:
+Objects with `__get__` and `__set__` methods can be used with square brackets `[]`:
 
 ```py
 class Foo:
@@ -629,6 +767,8 @@ print([f,f,f])
 ```
 
 As in Python, `__repr__` is intended to provide a canonical string representation which, if possible, should be usable to recreate the object.
+
+_**Note:** As all classes eventually inherit from `object` and `object` implements both `__str__` and `__repr__`, these methods should always be available._
 
 ### File I/O
 
@@ -794,6 +934,8 @@ takesARequiredAndMore(1,2,3,4)
 # → 1 [2, 3, 4]
 ```
 
+_**Note:** `*args` and `**kwargs` are especially useful in combination with Argument Expension (described below) to create decorators which do not need to know about the signatures of functions they wrap._
+
 ### Argument Expansion
 
 When used in a function argument list, `*` and `**` before a list and dict expression respectively, will expand those values into the argument list.
@@ -825,7 +967,9 @@ Ternary expressions allow for branching conditions to be used in expression cont
 
 ```py
 print("true branch" if True else "false branch")
+print("true branch" if False else "false branch")
 # → true branch
+# → false branch
 ```
 
 Ternary expressions perform short-circuit and will not evaluate the branch they do not take:
@@ -847,7 +991,6 @@ def foo():
 print(foo.__doc__)
 # → This is a function that does things.
 ```
-
 
 ### `with` Blocks
 
