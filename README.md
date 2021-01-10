@@ -844,6 +844,22 @@ wrappedFunction()
 #   Returned from wrapped function
 ```
 
+The inner wrapper function is not necessary if all the work of the decorator can be done when the function is defined:
+
+```py
+def registerCallback(func):
+    print("Registering callback function",func)
+    return func
+
+@registerCallback
+def aFunction():
+    print("Hello, world!")
+
+aFunction()
+# → Registering callbacuk function <function aFunction>
+#   Hello, world!
+```
+
 Method wrappers work similarly, though be sure to explicitly provide a name (other than `self`) for the object instance:
 
 ```py
@@ -893,6 +909,8 @@ superSecretFunction("hunter2")
 #   Let's try again.
 #   Welcome!
 ```
+
+
 
 ### Keyword Arguments
 
