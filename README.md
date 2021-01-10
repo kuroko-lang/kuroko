@@ -477,11 +477,24 @@ for i in l:
 #   3
 ```
 
+If an iterator returns tuples, the values can be unpacked into multiple variables:
+
+```py
+let l = [(1,2),(3,4),(5,6)]
+for left, right in l:
+    print(left, right)
+# → 1 2
+#   3 4
+#   5 6
+```
+
+An exception will be raised if a tuple returned by the iterator has the wrong size for unpacking, or if a value returned is not a tuple.
+
 ### Iterators
 
 The special method `__iter__` should return an iterator. An iterator should be a function which increments an internal state and returns the next value. If there are no values remaining, return the iterator itself.
 
-An example of an iterator is the `range` built-in class, which is defined like this:
+An example of an iterator is the `range` built-in class, which was previously defined like this:
 
 ```py
 class range:
@@ -531,7 +544,7 @@ f[7] = "bar"
 #   You asked to set ind=7 to bar
 ```
 
-### String Slicing
+### Slicing
 
 Substrings can be extracted from strings via slicing:
 
@@ -546,9 +559,16 @@ print("Hello world!"[-1:])
 
 _**NOTE**: Step values are not yet supported._
 
+Lists can also be sliced:
+
+```py
+print([1,2,3,4,5,6][3:])
+# → [4, 5, 6]
+```
+
 ### String Conversion
 
-If an object implements the `__str__` method, it will be called to produce string values when concatenating or printing.
+If an object implements the `__str__` method, it will be called to produce string values through casting or printing.
 
 ```py
 class Foo:
@@ -558,6 +578,23 @@ let f = Foo()
 print(f)
 # → (I am a Foo!)
 ```
+
+The `__repr__` method serves a similar purpose and is used when the REPL displays values or when they used in string representations of collections. The implementations of `__str__` and `__repr__` can be different:
+
+```py
+class Foo:
+    def __str__():
+        return "What is a Foo but a miserable pile of methods?"
+    def __repr__():
+        return "[Foo instance]"
+let f = Foo()
+print(f)
+print([f,f,f])
+# → What is a Foo but a miserable pile of methods?
+#   [[Foo instance], [Foo instance], [Foo instance]]
+```
+
+As in Python, `__repr__` is intended to provide a canonical string representation which, if possible, should be usable to recreate the object.
 
 ### File I/O
 

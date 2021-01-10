@@ -53,6 +53,7 @@ class set():
    self._dict[v] = 1
  def __contains__(self, v):
   return v in self._dict
+ def __str__(self): return self.__repr__()
  def __repr__(self):
   if self.__inrepr: return '{}' # sets are supposed to be unhashable, but whatever
   let b='{'+', '.join([repr(k) for k in self._dict.keys()])+'}'

@@ -303,6 +303,7 @@ KrkValue krk_module_onload_fileio(void) {
 	krk_defineNative(&FileClass->methods, ".__init__", krk_file_reject_init);
 	krk_defineNative(&FileClass->methods, ".__enter__", krk_file_enter);
 	krk_defineNative(&FileClass->methods, ".__exit__", krk_file_exit);
+	krk_finalizeClass(FileClass);
 
 	/* Make an instance for stdout, stderr, and stdin */
 	makeFileInstance(module, "stdin",stdin);

@@ -2625,6 +2625,7 @@ void krk_initVM(int flags) {
 	/* Attach new repr/str */
 	krk_defineNative(&vm.moduleClass->methods, ".__repr__", _module_repr);
 	krk_defineNative(&vm.moduleClass->methods, ".__str__", _module_repr);
+	krk_finalizeClass(vm.moduleClass);
 
 	/* Build a __builtins__ namespace for some extra functions. */
 	vm.builtins = krk_newInstance(vm.moduleClass);

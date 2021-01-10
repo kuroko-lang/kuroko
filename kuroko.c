@@ -512,9 +512,17 @@ int main(int argc, char * argv[]) {
 			if (valid) {
 				KrkValue result = krk_interpret(allData, 0, "<module>","<stdin>");
 				if (!IS_NONE(result)) {
-					fprintf(stdout, " \033[1;30m=> ");
-					krk_printValue(stdout, result);
-					fprintf(stdout, "\033[0m\n");
+					KrkClass * type = AS_CLASS(krk_typeOf(1,&result));
+					const char * formatStr = " \033[1;30m=> %s\033[0m\n";
+					if (type->_reprer) {
+						krk_push(result);
+						result = krk_callSimple(OBJECT_VAL(type->_reprer), 1, 0);
+						fprintf(stdout, formatStr, AS_CSTRING(result));
+					} else if (type->_tostr) {
+						krk_push(result);
+						result = krk_callSimple(OBJECT_VAL(type->_reprer), 1, 0);
+						fprintf(stdout, formatStr, AS_CSTRING(result));
+					}
 					krk_resetStack();
 				}
 				free(allData);

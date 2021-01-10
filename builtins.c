@@ -54,6 +54,7 @@ const char krk_builtinsSrc[] =
 "   self._dict[v] = 1\n"
 " def __contains__(self, v):\n"
 "  return v in self._dict\n"
+" def __str__(self): return self.__repr__()\n"
 " def __repr__(self):\n"
 "  if self.__inrepr: return '{}' # sets are supposed to be unhashable, but whatever\n"
 "  let b='{'+', '.join([repr(k) for k in self._dict.keys()])+'}'\n"
