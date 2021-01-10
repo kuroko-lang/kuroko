@@ -129,6 +129,27 @@ print("Hello, " + 42 + "!")
 # → Hello, 42!
 ```
 
+### Variables
+
+In a departure from Python, Kuroko has explicit variable declaration and traditional scoping rules. Variables are declared with the `let` keyword and take the value `None` if not defined at declaration time:
+
+```py
+let foo
+print(foo)
+# → None
+foo = 1
+print(foo)
+# → 1
+```
+
+You may declare and define multiple variables on a single line:
+
+```py
+let a = 1, b = "test", c = object()
+print(a,b,c)
+# → 1 test <instance of object at ...>
+```
+
 ### Functions
 
 Function syntax is essentially the same as in Python:
@@ -143,18 +164,26 @@ greet("user")
 Default arguments can be specified as follows:
 
 ```py
-def greet(name=None):
-    if not name:
-        print("Hello, world!")
-    else:
-        print("Hello, " + name + "!")
+def greet(name="world"):
+    print("Hello, " + name + "!")
 greet()
 gree("user")
 # → Hello, world!
 #   Hello, user!
 ```
 
-If a default argument value is not provided, the expression assigned to it will be evaluated as if it were at the top of the body of the function, like in Ruby (and _not like in Python_).
+If a default argument value is not provided, the expression assigned to it will be evaluated as if it were at the top of the body of the function. Note that this behavior intentionally differs from Python, where default values are calculated once when the function is defined; assigning a mutable object, such as a list, as a default value will create a new list with each invocation of the function in Kuroko, rather than re-using the same list. If you would like to have behavior like in Python, define the value outside of the function:
+
+```py
+let l = []
+def pythonishDefaultList(arg, values=l):
+    l.append(arg)
+    print("I've seen the following:",values)
+pythonishDefaultList("hello")
+pythonishDefaultList("world")
+# → I've seen the following: ['hello']
+#   I've seen the following: ['hello', 'world']
+```
 
 Blocks, including function `def` blocks and control flow structures like `if` and `for`, must be indented with spaces to a level greater than the enclosing block.
 
@@ -167,19 +196,6 @@ Blocks can also accept a single inline statement:
 ```py
 if True: print("The first rule of Tautology Club is the first rule of Tautology Club.")
 # → The first rule of Tautology Club is the first rule of Tautology Club.
-```
-
-### Variables
-
-In a departure from Python, Kuroko has explicit variable declaration and traditional scoping rules. Variables are declared with the `let` keyword and take the value `None` if not defined at declaration time:
-
-```py
-let foo
-print(foo)
-# → None
-foo = 1
-print(foo)
-# → 1
 ```
 
 ### Closures
@@ -211,6 +227,22 @@ a()
 #   3
 #   4
 ```
+
+### Lambda Functions
+
+Lambda functions allow for the creation of simple functions anonymously. Note that the body of a lambda is an expression, not a list of statements.
+
+```py
+let myLambda = lambda x: (x * 5)
+print(myLambdaa(1))
+print(myLambdaa(2))
+print(myLambdaa(3))
+# → 5
+#   10
+#   15
+```
+
+Creating a lambda and assigning it immediately to a name is not all that useful, but lambdas can be used whereever an expression is expected.
 
 ### Basic Objects and Classes
 
