@@ -193,7 +193,7 @@ void krk_runtimeError(KrkClass * type, const char * fmt, ...) {
  * if it this triggers a grow condition, it may be necessary to ensure
  * that this has already happened before actually dealing with the stack.
  */
-inline void krk_reserve_stack(size_t space) {
+void krk_reserve_stack(size_t space) {
 	while ((size_t)(vm.stackTop - vm.stack) + space > vm.stackSize) {
 		size_t old = vm.stackSize;
 		size_t old_offset = vm.stackTop - vm.stack;
