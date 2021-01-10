@@ -311,7 +311,9 @@ int main(int argc, char * argv[]) {
 		krk_push(OBJECT_VAL(krk_copyString(argv[arg],strlen(argv[arg]))));
 	}
 	KrkValue argList = krk_list_of(argc - optind + (optind == argc), &vm.stackTop[-(argc - optind + (optind == argc))]);
+	krk_push(argList);
 	krk_attachNamedValue(&vm.system->fields, "argv", argList);
+	krk_pop();
 	for (int arg = optind; arg < argc + (optind == argc); ++arg) krk_pop();
 
 	/* Bind interrupt signal */

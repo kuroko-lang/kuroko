@@ -33,13 +33,13 @@ class dict():
     let i=0
     let c=self.t.capacity()
     def _():
-     let o=None
-     while o==None and i<c:
+     let o=(False,None)
+     while not o[0] and i<c:
       o=self.t._key_at_index(i)
       i++
-     if o==None:
+     if not o[0]:
       return _
-     return o
+     return o[1]
     return _
   return KeyIterator(self)
  def items(self):

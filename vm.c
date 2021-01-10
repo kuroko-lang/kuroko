@@ -412,7 +412,13 @@ static KrkValue _dict_key_at_index(int argc, KrkValue argv[]) {
 		return NONE_VAL();
 	}
 	KrkTableEntry entry = AS_DICT(_dict_internal)->entries[i];
-	return entry.key;
+	KrkTuple * outValue = krk_newTuple(2);
+	krk_push(OBJECT_VAL(outValue));
+	outValue->values.values[0] = IS_KWARGS(entry.key) ? BOOLEAN_VAL(0) : BOOLEAN_VAL(1);
+	outValue->values.values[1] = IS_KWARGS(entry.key) ? NONE_VAL() : entry.key;
+	outValue->values.count = 2;
+	krk_pop();
+	return OBJECT_VAL(outValue);
 }
 
 /**
@@ -659,7 +665,7 @@ KrkValue krk_dirObject(int argc, KrkValue argv[]) {
 
 		/* First add each method of the class */
 		for (size_t i = 0; i < self->_class->methods.capacity; ++i) {
-			if (self->_class->methods.entries[i].key.type != VAL_NONE) {
+			if (self->_class->methods.entries[i].key.type != VAL_KWARGS) {
 				krk_writeValueArray(AS_LIST(_list_internal),
 					self->_class->methods.entries[i].key);
 			}
@@ -667,7 +673,7 @@ KrkValue krk_dirObject(int argc, KrkValue argv[]) {
 
 		/* Then add each field of the instance */
 		for (size_t i = 0; i < self->fields.capacity; ++i) {
-			if (self->fields.entries[i].key.type != VAL_NONE) {
+			if (self->fields.entries[i].key.type != VAL_KWARGS) {
 				krk_writeValueArray(AS_LIST(_list_internal),
 					self->fields.entries[i].key);
 			}
@@ -676,7 +682,7 @@ KrkValue krk_dirObject(int argc, KrkValue argv[]) {
 		KrkClass * type = AS_CLASS(krk_typeOf(1, (KrkValue[]){argv[0]}));
 
 		for (size_t i = 0; i < type->methods.capacity; ++i) {
-			if (type->methods.entries[i].key.type != VAL_NONE) {
+			if (type->methods.entries[i].key.type != VAL_KWARGS) {
 				krk_writeValueArray(AS_LIST(_list_internal),
 					type->methods.entries[i].key);
 			}
@@ -837,7 +843,76 @@ static void multipleDefs(KrkClosure * closure, int destination) {
 	krk_runtimeError(vm.exceptions.typeError, "%s() got multiple values for argument '%s'",
 		closure->function->name ? closure->function->name->chars : "<unnamed function>",
 		(destination < closure->function->requiredArgs ? AS_CSTRING(closure->function->requiredArgNames.values[destination]) :
-			AS_CSTRING(closure->function->keywordArgNames.values[destination - closure->function->requiredArgs])));
+			(destination - closure->function->requiredArgs < closure->function->keywordArgs ? AS_CSTRING(closure->function->keywordArgNames.values[destination - closure->function->requiredArgs]) :
+				"(unnamed arg)")));
+}
+
+int krk_processComplexArguments(int argCount, KrkValueArray * positionals, KrkTable * keywords) {
+	size_t kwargsCount = AS_INTEGER(vm.stackTop[-1]);
+	krk_pop(); /* Pop the arg counter */
+	argCount--;
+
+	krk_initValueArray(positionals);
+	krk_initTable(keywords);
+
+	/* First, process all the positionals, including any from extractions. */
+	size_t existingPositionalArgs = argCount - kwargsCount * 2;
+	for (size_t i = 0; i < existingPositionalArgs; ++i) {
+		krk_writeValueArray(positionals, vm.stackTop[-argCount + i]);
+	}
+
+	KrkValue * startOfExtras = &vm.stackTop[-kwargsCount * 2];
+	/* Now unpack everything else. */
+	for (size_t i = 0; i < kwargsCount; ++i) {
+		KrkValue key = startOfExtras[i*2];
+		KrkValue value = startOfExtras[i*2 + 1];
+		if (IS_KWARGS(key)) {
+			if (AS_INTEGER(key) == LONG_MAX-1) { /* unpack list */
+				if (!IS_INSTANCE(value) || !AS_INSTANCE(value)->_internal || !(((KrkObj*)(AS_INSTANCE(value)->_internal))->type == OBJ_FUNCTION)) {
+					krk_runtimeError(vm.exceptions.typeError, "*expresssion value is not a list.");
+					return 0;
+				}
+				KrkValue _list_internal = OBJECT_VAL(AS_INSTANCE(value)->_internal);
+				/* Add all values from 'value' to 'positionals' */
+				if (positionals->count + AS_LIST(_list_internal)->count > positionals->capacity) {
+					size_t old = positionals->capacity;
+					positionals->capacity = positionals->count + AS_LIST(_list_internal)->count;
+					positionals->values = GROW_ARRAY(KrkValue,positionals->values,old,positionals->capacity);
+				}
+				KrkValue * destination = &positionals->values[positionals->count];
+				memcpy(destination, AS_LIST(_list_internal)->values, AS_LIST(_list_internal)->count * sizeof(KrkValue));
+				positionals->count = positionals->count + AS_LIST(_list_internal)->count;
+			} else if (AS_INTEGER(key) == LONG_MAX-2) { /* unpack dict */
+				if (!IS_INSTANCE(value) || !AS_INSTANCE(value)->_internal || !(((KrkObj*)(AS_INSTANCE(value)->_internal))->type == OBJ_CLASS)) {
+					krk_runtimeError(vm.exceptions.typeError, "**expresssion value is not a dict.");
+					return 0;
+				}
+				KrkValue _dict_internal = OBJECT_VAL(AS_INSTANCE(value)->_internal);
+				for (size_t i = 0; i < AS_DICT(_dict_internal)->capacity; ++i) {
+					KrkTableEntry * entry = &AS_DICT(_dict_internal)->entries[i];
+					if (entry->key.type != VAL_KWARGS) {
+						if (!IS_STRING(entry->key)) {
+							krk_runtimeError(vm.exceptions.typeError, "**expression contains non-string key");
+							return 0;
+						}
+						if (!krk_tableSet(keywords, entry->key, entry->value)) {
+							krk_runtimeError(vm.exceptions.typeError, "got multiple values for argument '%s'", AS_CSTRING(entry->key));
+							return 0;
+						}
+					}
+				}
+			} else if (AS_INTEGER(key) == LONG_MAX) { /* single value */
+				krk_writeValueArray(positionals, value);
+			}
+		} else if (IS_STRING(key)) {
+			if (!krk_tableSet(keywords, key, value)) {
+				krk_runtimeError(vm.exceptions.typeError, "got multiple values for argument '%s'", AS_CSTRING(key));
+				return 0;
+			}
+		}
+	}
+
+	return 1;
 }
 
 /**
@@ -855,223 +930,118 @@ static int call(KrkClosure * closure, int argCount, int extra) {
 	size_t potentialPositionalArgs = closure->function->requiredArgs + closure->function->keywordArgs;
 	size_t totalArguments = closure->function->requiredArgs + closure->function->keywordArgs + closure->function->collectsArguments + closure->function->collectsKeywords;
 	size_t offsetOfExtraArgs = closure->function->requiredArgs + closure->function->keywordArgs;
-	size_t offsetOfExtraKeys = offsetOfExtraArgs + closure->function->collectsArguments;
 	size_t argCountX = argCount;
+	KrkValueArray positionals;
+	KrkTable keywords;
 
 	if (argCount && IS_KWARGS(vm.stackTop[-1])) {
-		/**
-		 * Process keyword arguments.
-		 * First, we make sure there is enough space on the stack to fit all of
-		 * the potential arguments to this function. We need to call it with
-		 * all of its arguments - positional and keyword - ready to go, even
-		 * if they weren't specified.
-		 *
-		 * Then we go through all of the kwargs and figure out where they go,
-		 * building a table at the top of the stack of final offsets and values.
-		 *
-		 * Then we clear through all of the spaces that were previously
-		 * kwarg name/value pairs and replace them with a sentinel value.
-		 *
-		 * Then we go through our table and place values into their destination
-		 * spots. If we find that something is already there (because it's not
-		 * the expected sentinel value), we raise a TypeError indicating a
-		 * duplicate argument.
-		 *
-		 * Finally, we do one last pass to see if any of the sentinel values
-		 * indicating missing positional arguments is still there and raise
-		 * another TypeError to indicate missing required arguments.
-		 *
-		 * At this point we can reset the stack head and continue to the actual
-		 * call with all of the arguments, including the defaults, in the right
-		 * place for the function to pull them as locals.
-		 */
-		long kwargsCount = AS_INTEGER(vm.stackTop[-1]);
-		krk_pop(); /* Pop the arg counter */
-		argCount--;
-		size_t existingPositionalArgs = argCount - kwargsCount * 2;
-		int found = 0;
-		int extraKwargs = 0;
-		intptr_t positionalsOffset = &vm.stackTop[-argCount] - vm.stack;
-		intptr_t endOffset = &vm.stackTop[-kwargsCount * 2] - vm.stack;
+		KRK_PAUSE_GC();
 
-		for (size_t availableSlots = argCount; availableSlots < (totalArguments); ++availableSlots) {
-			krk_push(KWARGS_VAL(0)); /* Make sure we definitely have enough space */
+		/* This processes the existing argument list into a ValueArray and a Table with the args and keywords */
+		if (!krk_processComplexArguments(argCount, &positionals, &keywords)) goto _errorDuringPositionals;
+		argCount--; /* It popped the KWARGS value from the top, so we have one less argument */
+
+		/* Do we already know we have too many arguments? Let's bail before doing a bunch of work. */
+		if ((positionals.count > potentialPositionalArgs) && (!closure->function->collectsArguments)) {
+			checkArgumentCount(closure,positionals.count);
+			goto _errorDuringPositionals;
 		}
 
-		/* Expand the stack a bunch to make sure we have space */
-		for (int i = 0; i < argCount * 2; ++i) {
+		/* Prepare stack space for all potential positionals, mark them unset */
+		for (size_t i = 0; i < (size_t)argCount; ++i) {
+			vm.stackTop[-argCount + i] = KWARGS_VAL(0);
+		}
+
+		/* Do we have a bunch of unused keyword argument slots? Fill them in. */
+		while ((size_t)argCount < potentialPositionalArgs) {
 			krk_push(KWARGS_VAL(0));
-		}
-		for (int i = 0; i < argCount * 2; ++i) {
-			krk_pop();
+			argCount++;
 		}
 
-		/* We may have moved the stack, recalculate positions. */
-		startOfPositionals = vm.stack + positionalsOffset;
-		KrkValue * endOfPositionals = vm.stack + endOffset;
-		KrkValue * startOfExtras = vm.stackTop;
-		for (long i = 0; i < kwargsCount; ++i) {
-			KrkValue name = endOfPositionals[i*2];
-			KrkValue value = endOfPositionals[i*2+1];
-			if (IS_KWARGS(name)) {
-				krk_push(name);
-				krk_push(value);
-				found++;
-				goto _finishArg;
-			}
-			/* First, see if it's a positional arg. */
-			for (int j = 0; j < (int)closure->function->requiredArgs; ++j) {
-				if (krk_valuesEqual(name, closure->function->requiredArgNames.values[j])) {
-					krk_push(INTEGER_VAL(j));
-					krk_push(value);
-					found++;
-					goto _finishArg;
+		/* Did we have way more arguments than we needed? Put the stack where it should be. */
+		while ((size_t)argCount > potentialPositionalArgs) {
+			krk_pop();
+			argCount--;
+		}
+
+		/* Place positional arguments */
+		for (size_t i = 0; i < potentialPositionalArgs && i < positionals.count; ++i) {
+			vm.stackTop[-argCount + i] = positionals.values[i];
+		}
+
+		if (closure->function->collectsArguments) {
+			size_t count  = (positionals.count > potentialPositionalArgs) ? (positionals.count - potentialPositionalArgs) : 0;
+			KrkValue * offset = (count == 0) ? NULL : &positionals.values[potentialPositionalArgs];
+			krk_push(krk_list_of(count, offset));
+			argCount++;
+		}
+
+		krk_freeValueArray(&positionals);
+
+		/* Now place keyword arguments */
+		for (size_t i = 0; i < keywords.capacity; ++i) {
+			KrkTableEntry * entry = &keywords.entries[i];
+			if (entry->key.type != VAL_KWARGS) {
+				KrkValue name = entry->key;
+				KrkValue value = entry->value;
+				/* See if we can place it */
+				for (int j = 0; j < (int)closure->function->requiredArgs; ++j) {
+					if (krk_valuesEqual(name, closure->function->requiredArgNames.values[j])) {
+						if (!IS_KWARGS(vm.stackTop[-argCount + j])) {
+							multipleDefs(closure,j);
+							goto _errorAfterPositionals;
+						}
+						vm.stackTop[-argCount + j] = value;
+						goto _finishKwarg;
+					}
 				}
-			}
-			/* See if it's a keyword arg. */
-			for (int j = 0; j < (int)closure->function->keywordArgs; ++j) {
-				if (krk_valuesEqual(name, closure->function->keywordArgNames.values[j])) {
-					krk_push(INTEGER_VAL(j + closure->function->requiredArgs));
-					krk_push(value);
-					found++;
-					goto _finishArg;
+				/* See if it's a keyword arg. */
+				for (int j = 0; j < (int)closure->function->keywordArgs; ++j) {
+					if (krk_valuesEqual(name, closure->function->keywordArgNames.values[j])) {
+						if (!IS_KWARGS(vm.stackTop[-argCount + j + closure->function->requiredArgs])) {
+							multipleDefs(closure, j + closure->function->requiredArgs);
+							goto _errorAfterPositionals;
+						}
+						vm.stackTop[-argCount + j + closure->function->requiredArgs] = value;
+						goto _finishKwarg;
+					}
 				}
-			}
-			/* If we got to this point, it's not a recognized argument for this function. */
-			if (closure->function->collectsKeywords) {
-				krk_push(name);
-				krk_push(value);
-				found++;
-				extraKwargs++;
+				if (!closure->function->collectsKeywords) {
+					krk_runtimeError(vm.exceptions.typeError, "%s() got an unexpected keyword argument '%s'",
+						closure->function->name ? closure->function->name->chars : "<unnamed function>",
+						AS_CSTRING(name));
+					goto _errorAfterPositionals;
+				}
+				continue;
+_finishKwarg:
+				entry->key = KWARGS_VAL(0);
+				entry->value = BOOLEAN_VAL(1);
 				continue;
 			}
-			krk_runtimeError(vm.exceptions.typeError, "%s() got an unexpected keyword argument '%s'",
-				closure->function->name ? closure->function->name->chars : "<unnamed function>",
-				AS_CSTRING(name));
-			return 0;
-_finishArg:
-			continue;
 		}
 
-		size_t destination = existingPositionalArgs;
-		for (long i = 0; i < found; ++i) {
-			/* Check for specials */
-			KrkValue name = startOfExtras[i*2];
-			KrkValue value = startOfExtras[i*2+1];
-			if (IS_KWARGS(name)) {
-				if (AS_INTEGER(name) == LONG_MAX-1) {
-					if (!IS_INSTANCE(value) || !AS_INSTANCE(value)->_internal || !((KrkObj*)(AS_INSTANCE(value)->_internal))->type == OBJ_FUNCTION) {
-						krk_runtimeError(vm.exceptions.typeError, "*expresssion value is not a list.");
-						return 0;
-					}
-					KrkValue _list_internal = OBJECT_VAL(AS_INSTANCE(value)->_internal);
-					for (size_t i = 0; i < AS_LIST(_list_internal)->count; ++i) {
-						startOfPositionals[destination] = AS_LIST(_list_internal)->values[i];
-						destination++;
-					}
-					startOfExtras[i*2] = KWARGS_VAL(LONG_MAX-3);
-				} else if (AS_INTEGER(name) == LONG_MAX) {
-					startOfPositionals[destination] = value;
-					destination++;
-					startOfExtras[i*2] = KWARGS_VAL(LONG_MAX-3);
-				}
-			}
+		/* If this function takes a **kwargs, we need to provide it as a dict */
+		if (closure->function->collectsKeywords) {
+			krk_push(krk_dict_of(0,NULL));
+			argCount++;
+			KrkValue _dict_internal;
+			krk_tableGet(&AS_INSTANCE(krk_peek(0))->fields, vm.specialMethodNames[METHOD_DICT_INT], &_dict_internal);
+			krk_tableAddAll(&keywords, AS_DICT(_dict_internal));
 		}
 
-		if (destination > potentialPositionalArgs) {
-			if (!closure->function->collectsArguments) {
-				checkArgumentCount(closure,destination);
-				return 0;
-			}
-			krk_push(NONE_VAL()); krk_push(NONE_VAL()); krk_pop(); krk_pop();
-			startOfPositionals[offsetOfExtraArgs] = krk_list_of(destination - potentialPositionalArgs,
-				&startOfPositionals[potentialPositionalArgs]);
-			destination = potentialPositionalArgs + 1;
-		}
+		krk_freeTable(&keywords);
 
-		for (long clearSlots = destination; clearSlots < startOfExtras - startOfPositionals; ++clearSlots) {
-			startOfPositionals[clearSlots] = KWARGS_VAL(0);
-		}
-
-		for (int i = 0; i < found; ++i) {
-			if (IS_INTEGER(startOfExtras[i*2])) {
-				int destination = AS_INTEGER(startOfExtras[i*2]);
-				if (!IS_KWARGS(startOfPositionals[destination])) {
-					multipleDefs(closure, destination);
-					return 0;
-				}
-				startOfPositionals[destination] = startOfExtras[i*2+1];
-			} else if (IS_STRING(startOfExtras[i*2])) {
-				krk_push(startOfExtras[i*2]);
-				krk_push(startOfExtras[i*2+1]);
-			} else if (IS_KWARGS(startOfExtras[i*2])) {
-				if (AS_INTEGER(startOfExtras[i*2]) == LONG_MAX-2) {
-					KrkValue _dict_internal;
-					if (!IS_INSTANCE(startOfExtras[i*2+1]) || !krk_tableGet(&AS_INSTANCE(startOfExtras[i*2+1])->fields, vm.specialMethodNames[METHOD_DICT_INT], &_dict_internal)) {
-						krk_runtimeError(vm.exceptions.typeError, "**expresssion value is not a dict.");
-						return 0;
-					}
-					for (size_t j = 0; j < AS_DICT(_dict_internal)->capacity; ++j) {
-						KrkTableEntry entry = AS_DICT(_dict_internal)->entries[j];
-						if (entry.key.type == VAL_NONE) continue;
-						KrkValue name = entry.key;
-						KrkValue value = entry.value;
-						for (int j = 0; j < (int)closure->function->requiredArgNames.count; ++j) {
-							if (krk_valuesEqual(name, closure->function->requiredArgNames.values[j])) {
-								int destination = j;
-								if (!IS_KWARGS(startOfPositionals[destination])) {
-									multipleDefs(closure, destination);
-								}
-								startOfPositionals[destination] = value;
-								goto _finishDictEntry;
-							}
-						}
-						/* See if it's a keyword arg. */
-						for (int j = 0; j < (int)closure->function->keywordArgNames.count; ++j) {
-							if (krk_valuesEqual(name, closure->function->keywordArgNames.values[j])) {
-								int destination = j + closure->function->requiredArgs;
-								if (!IS_KWARGS(startOfPositionals[destination])) {
-									multipleDefs(closure, destination);
-								}
-								startOfPositionals[destination] = value;
-								goto _finishDictEntry;
-							}
-						}
-						krk_push(name);
-						krk_push(value);
-						extraKwargs++;
-						_finishDictEntry: continue;
-					}
-				}
-			} else {
-#ifdef ENABLE_TRACING
-				dumpStack(&vm.frames[vm.frameCount-1]);
-				krk_runtimeError(vm.exceptions.typeError, "Internal error? Item at index %d from %d found is %s", i*2, found, krk_typeName(startOfExtras[i*2]));
-#endif
-				return 0;
-			}
-		}
-		if (extraKwargs) {
-			if (!closure->function->collectsKeywords) {
-				krk_runtimeError(vm.exceptions.typeError, "%s() got an unexpected keyword argument '%s'",
-					closure->function->name ? closure->function->name->chars : "<unnamed function>",
-					AS_CSTRING(startOfExtras[found*2]));
-			}
-			krk_push(NONE_VAL()); krk_push(NONE_VAL()); krk_pop(); krk_pop();
-			startOfPositionals[offsetOfExtraKeys] = krk_dict_of(extraKwargs*2,&startOfExtras[found*2]);
-		}
-		long clearSlots;
-		for (clearSlots = destination; clearSlots < closure->function->requiredArgs; ++clearSlots) {
-			if (IS_KWARGS(startOfPositionals[clearSlots])) {
+		for (size_t i = 0; i < (size_t)closure->function->requiredArgs; ++i) {
+			if (IS_KWARGS(vm.stackTop[-argCount + i])) {
 				krk_runtimeError(vm.exceptions.typeError, "%s() missing required positional argument: '%s'",
 					closure->function->name ? closure->function->name->chars : "<unnamed function>",
-					AS_CSTRING(closure->function->requiredArgNames.values[clearSlots]));
-				return 0;
+					AS_CSTRING(closure->function->requiredArgNames.values[i]));
+				goto _errorAfterKeywords;
 			}
 		}
-		argCount = totalArguments;
+
+		KRK_RESUME_GC();
 		argCountX = argCount - (closure->function->collectsArguments + closure->function->collectsKeywords);
-		while (vm.stackTop > startOfPositionals + argCount) krk_pop();
 	} else {
 		/* We can't have had any kwargs. */
 		if ((size_t)argCount > potentialPositionalArgs && closure->function->collectsArguments) {
@@ -1101,6 +1071,14 @@ _finishArg:
 	frame->outSlots = (vm.stackTop - argCount - extra) - vm.stack;
 	frame->globals = &closure->function->globalsContext->fields;
 	return 1;
+
+_errorDuringPositionals:
+	krk_freeValueArray(&positionals);
+_errorAfterPositionals:
+	krk_freeTable(&keywords);
+_errorAfterKeywords:
+	KRK_RESUME_GC();
+	return 0;
 }
 
 /**

@@ -42,6 +42,8 @@ void krk_printValue(FILE * f, KrkValue printable) {
 					fprintf(f, "{unpack list}");
 				} else if (AS_INTEGER(printable) == LONG_MAX-2) {
 					fprintf(f, "{unpack dict}");
+				} else if (AS_INTEGER(printable) == LONG_MAX-3) {
+					fprintf(f, "{unpack nil}");
 				} else if (AS_INTEGER(printable) == 0) {
 					fprintf(f, "{unset default}");
 				} else {

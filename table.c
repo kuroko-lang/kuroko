@@ -34,7 +34,7 @@ KrkTableEntry * krk_findEntry(KrkTableEntry * entries, size_t capacity, KrkValue
 	KrkTableEntry * tombstone = NULL;
 	for (;;) {
 		KrkTableEntry * entry = &entries[index];
-		if (entry->key.type == VAL_NONE) {
+		if (entry->key.type == VAL_KWARGS) {
 			if (IS_NONE(entry->value)) {
 				return tombstone != NULL ? tombstone : entry;
 			} else {
@@ -50,14 +50,14 @@ KrkTableEntry * krk_findEntry(KrkTableEntry * entries, size_t capacity, KrkValue
 static void adjustCapacity(KrkTable * table, size_t capacity) {
 	KrkTableEntry * entries = ALLOCATE(KrkTableEntry, capacity);
 	for (size_t i = 0; i < capacity; ++i) {
-		entries[i].key = NONE_VAL();
+		entries[i].key = KWARGS_VAL(0);
 		entries[i].value = NONE_VAL();
 	}
 
 	table->count = 0;
 	for (size_t i = 0; i < table->capacity; ++i) {
 		KrkTableEntry * entry = &table->entries[i];
-		if (entry->key.type == VAL_NONE) continue;
+		if (entry->key.type == VAL_KWARGS) continue;
 		KrkTableEntry * dest = krk_findEntry(entries, capacity, entry->key);
 		dest->key = entry->key;
 		dest->value = entry->value;
@@ -75,7 +75,7 @@ int krk_tableSet(KrkTable * table, KrkValue key, KrkValue value) {
 		adjustCapacity(table, capacity);
 	}
 	KrkTableEntry * entry = krk_findEntry(table->entries, table->capacity, key);
-	int isNewKey = entry->key.type == VAL_NONE;
+	int isNewKey = entry->key.type == VAL_KWARGS;
 	if (isNewKey && IS_NONE(entry->value)) table->count++;
 	entry->key = key;
 	entry->value = value;
@@ -85,7 +85,7 @@ int krk_tableSet(KrkTable * table, KrkValue key, KrkValue value) {
 void krk_tableAddAll(KrkTable * from, KrkTable * to) {
 	for (size_t i = 0; i < from->capacity; ++i) {
 		KrkTableEntry * entry = &from->entries[i];
-		if (entry->key.type != VAL_NONE) {
+		if (entry->key.type != VAL_KWARGS) {
 			krk_tableSet(to, entry->key, entry->value);
 		}
 	}
@@ -94,7 +94,7 @@ void krk_tableAddAll(KrkTable * from, KrkTable * to) {
 int krk_tableGet(KrkTable * table, KrkValue key, KrkValue * value) {
 	if (table->count == 0) return 0;
 	KrkTableEntry * entry = krk_findEntry(table->entries, table->capacity, key);
-	if (entry->key.type == VAL_NONE) return 0;
+	if (entry->key.type == VAL_KWARGS) return 0;
 	*value = entry->value;
 	return 1;
 }
@@ -102,8 +102,8 @@ int krk_tableGet(KrkTable * table, KrkValue key, KrkValue * value) {
 int krk_tableDelete(KrkTable * table, KrkValue key) {
 	if (table->count == 0) return 0;
 	KrkTableEntry * entry = krk_findEntry(table->entries, table->capacity, key);
-	if (entry->key.type == VAL_NONE) return 0;
-	entry->key = NONE_VAL();
+	if (entry->key.type == VAL_KWARGS) return 0;
+	entry->key = KWARGS_VAL(0);
 	entry->value = BOOLEAN_VAL(1);
 	return 1;
 }
@@ -114,7 +114,7 @@ KrkString * krk_tableFindString(KrkTable * table, const char * chars, size_t len
 	uint32_t index = hash % table->capacity;
 	for (;;) {
 		KrkTableEntry * entry = &table->entries[index];
-		if (entry->key.type == VAL_NONE) {
+		if (entry->key.type == VAL_KWARGS) {
 			if (IS_NONE(entry->value)) return NULL;
 		} else if (AS_STRING(entry->key)->length == length &&
 		           AS_STRING(entry->key)->hash == hash &&
