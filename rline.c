@@ -28,6 +28,7 @@ int rline_history_count  = 0;
 int rline_history_offset = 0;
 int rline_scroll = 0;
 char * rline_exit_string = "exit\n";
+int rline_terminal_width = 0;
 
 void rline_history_insert(char * str) {
 	if (str[strlen(str)-1] == '\n') {
@@ -161,7 +162,6 @@ static int loading = 0;
 static int column = 0;
 static int offset = 0;
 static int width =  0;
-static int full_width = 0;
 static int show_right_side = 0;
 static int show_left_side = 0;
 static int prompt_width_calc = 0;
@@ -1046,22 +1046,22 @@ static line_t * line_insert(line_t * line, char_t c, int offset) {
 static void get_size(void) {
 	struct winsize w;
 	ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
-	full_width = w.ws_col;
-	if (full_width - prompt_right_width - prompt_width > MINIMUM_SIZE) {
+	rline_terminal_width = w.ws_col;
+	if (rline_terminal_width - prompt_right_width - prompt_width > MINIMUM_SIZE) {
 		show_right_side = 1;
 		show_left_side = 1;
 		prompt_width_calc = prompt_width;
-		width = full_width - prompt_right_width;
+		width = rline_terminal_width - prompt_right_width;
 	} else {
 		show_right_side = 0;
-		if (full_width - prompt_width > MINIMUM_SIZE) {
+		if (rline_terminal_width - prompt_width > MINIMUM_SIZE) {
 			show_left_side = 1;
 			prompt_width_calc = prompt_width;
 		} else {
 			show_left_side = 0;
 			prompt_width_calc = 1;
 		}
-		width = full_width;
+		width = rline_terminal_width;
 	}
 }
 
@@ -1532,7 +1532,7 @@ static int read_line(void) {
 
 	set_colors(COLOR_ALT_FG, COLOR_ALT_BG);
 	fprintf(stdout, "◄\033[0m"); /* TODO: This could be retrieved from an envvar */
-	for (int i = 0; i < full_width - 1; ++i) {
+	for (int i = 0; i < rline_terminal_width - 1; ++i) {
 		fprintf(stdout, " ");
 	}
 

@@ -55,7 +55,7 @@ static KrkValue paste(int argc, KrkValue argv[]) {
  */
 static KrkValue findFromProperty(KrkValue current, KrkToken next) {
 	KrkValue value;
-	KrkValue member = OBJECT_VAL(krk_copyString(next.start, next.length));
+	KrkValue member = OBJECT_VAL(krk_copyString(next.start, next.literalWidth));
 	krk_push(member);
 
 	if (IS_INSTANCE(current)) {
@@ -93,7 +93,9 @@ static void tab_complete_func(rline_context_t * c) {
 		} while (space[count-1].type != TOKEN_EOF && space[count-1].type != TOKEN_ERROR);
 
 		/* If count == 1, it was EOF or an error and we have nothing to complete. */
-		if (count == 1) return;
+		if (count == 1) {
+			goto _cleanup;
+		}
 
 		/* Otherwise we want to see if we're on an identifier or a dot. */
 		int base = 2;
@@ -102,15 +104,11 @@ static void tab_complete_func(rline_context_t * c) {
 			/* Dots we need to look back at the previous tokens for */
 			n--;
 			base--;
-		} else if (space[count-base].type == TOKEN_IDENTIFIER) {
-			/* Identifiers we will consider as partial matches. */
+		} else if (space[count-base].type >= TOKEN_IDENTIFIER && space[count-base].type <= TOKEN_WITH) {
+			/* Something alphanumeric; only for the last element */
 		} else {
-			/* TODO: What if something the user typed as a partial token was a keyword?
-			 *       The scanner will give us the keyword's token type...
-			 *       Need to split token types between word-y and non-word-y
-			 *       so we can quietly ignore keywords and let them continue... */
-			free(tmp);
-			return;
+			/* Some other symbol */
+			goto _cleanup;
 		}
 
 		/* Work backwards to find the start of this chain of identifiers */
@@ -125,6 +123,7 @@ static void tab_complete_func(rline_context_t * c) {
 		if (n <= count) {
 			/* Now work forwards, starting from the current globals. */
 			KrkValue root = OBJECT_VAL(vm.module);
+			int isGlobal = 1;
 			while (n > base) {
 				/* And look at the potential fields for instances/classes */
 				KrkValue next = findFromProperty(root, space[count-n]);
@@ -132,41 +131,83 @@ static void tab_complete_func(rline_context_t * c) {
 					/* If we hit None, we found something invalid (or literally hit a None
 					 * object, but really the difference is minimal in this case: Nothing
 					 * useful to tab complete from here. */
-					free(tmp);
-					return;
+					goto _cleanup;
 				}
+				isGlobal = 0;
 				root = next;
 				n -= 2; /* To skip every other dot. */
 			}
 
 			/* Now figure out what we're completing - did we already have a partial symbol name? */
 			int length = (space[count-base].type == TOKEN_DOT) ? 0 : (space[count-base].length);
-
-			/* Take the last symbol name from the chain and get its member list from dir() */
-			KrkValue dirList = krk_dirObject(1,(KrkValue[]){root});
-			if (!IS_INSTANCE(dirList)) {
-				fprintf(stderr,"\nInternal error while tab completting.\n");
-				free(tmp);
-				return;
-			}
-			krk_push(dirList);
-			KrkValue _list_internal = OBJECT_VAL(AS_INSTANCE(dirList)->_internal);
+			isGlobal = isGlobal && (length != 0);
 
 			/* Collect up to 256 of those that match */
 			char * matches[256];
-			int matchCount = 0;;
-			for (size_t i = 0; i < AS_LIST(_list_internal)->count; ++i) {
-				KrkString * s = AS_STRING(AS_LIST(_list_internal)->values[i]);
+			int matchCount = 0;
 
-				/* If this symbol is shorter than the current submatch, skip it. */
-				if (length && (int)s->length < length) continue;
+			/* Take the last symbol name from the chain and get its member list from dir() */
+			KRK_PAUSE_GC();
 
-				if (!memcmp(s->chars, space[count-base].start, length)) {
-					matches[matchCount] = s->chars;
-					matchCount++;
-					if (matchCount == 255) break;
+			for (;;) {
+				KrkValue dirList = krk_dirObject(1,(KrkValue[]){root});
+				if (!IS_INSTANCE(dirList)) {
+					fprintf(stderr,"\nInternal error while tab completting.\n");
+					goto _cleanup;
+				}
+				KrkValue _list_internal = OBJECT_VAL(AS_INSTANCE(dirList)->_internal);
+
+				for (size_t i = 0; i < AS_LIST(_list_internal)->count; ++i) {
+					KrkString * s = AS_STRING(AS_LIST(_list_internal)->values[i]);
+					KrkToken asToken = {.start = s->chars, .literalWidth = s->length};
+					KrkValue thisValue = findFromProperty(root, asToken);
+					if (IS_CLOSURE(thisValue) || IS_BOUND_METHOD(thisValue) ||
+						(IS_NATIVE(thisValue) && ((KrkNative*)AS_OBJECT(thisValue))->isMethod != 2)) {
+						char * tmp = malloc(s->length + 2);
+						sprintf(tmp, "%s(", s->chars);
+						s = krk_takeString(tmp, strlen(tmp));
+					}
+
+					/* If this symbol is shorter than the current submatch, skip it. */
+					if (length && (int)s->length < length) continue;
+
+					/* See if it's already in the matches */
+					int found = 0;
+					for (int i = 0; i < matchCount; ++i) {
+						if (!strcmp(matches[i], s->chars)) {
+							found = 1;
+							break;
+						}
+					}
+					if (found) continue;
+
+					if (!memcmp(s->chars, space[count-base].start, length)) {
+						matches[matchCount] = s->chars;
+						matchCount++;
+						if (matchCount == 255) goto _toomany;
+					}
+				}
+
+				/*
+				 * If the object we were scanning was the current module,
+				 * then we should also throw the builtins into the ring.
+				 */
+				if (isGlobal && AS_OBJECT(root) == (KrkObj*)vm.module) {
+					root = OBJECT_VAL(vm.builtins);
+					continue;
+				} else if (isGlobal && AS_OBJECT(root) == (KrkObj*)vm.builtins) {
+					extern char * syn_krk_keywords[];
+					KrkInstance * fakeKeywordsObject = krk_newInstance(vm.objectClass);
+					for (char ** keyword = syn_krk_keywords; *keyword; keyword++) {
+						krk_attachNamedValue(&fakeKeywordsObject->fields, *keyword, NONE_VAL());
+					}
+					root = OBJECT_VAL(fakeKeywordsObject);
+					continue;
+				} else {
+					break;
 				}
 			}
+_toomany:
 
 			/* Now we can do things with the matches. */
 			if (matchCount == 1) {
@@ -191,12 +232,24 @@ static void tab_complete_func(rline_context_t * c) {
 				}
 				/* If no common sub string could be filled in, we print the list. */
 				if (j == length) {
-					/* We could do something prettier, but this will work for now. */
-					fprintf(stderr, "\n");
+					/* First find the maximum width of an entry */
+					int maxWidth = 0;
 					for (int i = 0; i < matchCount; ++i) {
-						fprintf(stderr, "%s ", matches[i]);
+						if ((int)strlen(matches[i]) > maxWidth) maxWidth = strlen(matches[i]);
 					}
+					/* Now how many can we fit in a screen */
+					int colsPerLine = rline_terminal_width / (maxWidth + 2); /* +2 for the spaces */
 					fprintf(stderr, "\n");
+					int column = 0;
+					for (int i = 0; i < matchCount; ++i) {
+						fprintf(stderr, "%-*s  ", maxWidth, matches[i]);
+						column += 1;
+						if (column >= colsPerLine) {
+							fprintf(stderr, "\n");
+							column = 0;
+						}
+					}
+					if (column != 0) fprintf(stderr, "\n");
 				} else {
 					/* If we do have a common sub string, fill in those characters. */
 					for (int i = length; i < j; ++i) {
@@ -205,10 +258,11 @@ static void tab_complete_func(rline_context_t * c) {
 					}
 				}
 			}
-
-			krk_pop(); /* dirList */
 		}
+_cleanup:
+		free(tmp);
 		free(space);
+		KRK_RESUME_GC();
 		return;
 	}
 }
