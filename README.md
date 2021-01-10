@@ -158,7 +158,7 @@ If a default argument value is not provided, the expression assigned to it will 
 
 Blocks, including function `def` blocks and control flow structures like `if` and `for`, must be indented with spaces to a level greater than the enclosing block.
 
-You may indent blocks to whatever level you desire, so long as ordering remains consistent, though the recommendation indentation size is 4 spaces.
+You may indent blocks to whatever level you desire, so long as ordering remains consistent, though the recommended indentation size is 4 spaces.
 
 It is recommended that you use an editor which provides a clear visual distinction between tabs and spaces, such as [Bim](https://github.com/klange/bim).
 
@@ -387,7 +387,7 @@ except:
 # → oh no!
 ```
 
-Runtime exceptions are passed to the `except` block as a special variable `exception`. As of this writing, runtime exceptions from the VM are strings.
+Runtime exceptions are passed to the `except` block as a special variable `exception`.
 
 ```py
 def foo(bar):
@@ -404,13 +404,13 @@ Exceptions can also be generated from code:
 ```py
 def login(password):
     if password != "supersecret":
-        raise "Wrong password, try again!"
+        raise ValueError("Wrong password, try again!")
     print("[Hacker voice] I'm in.")
 login("foo")
 # → Traceback, most recent first, 2 call frames:
 #     File "<stdin>", line 5, in <module>
 #     File "<stdin>", line 3, in login
-#   Wrong password, try again!
+#   ValueError: Wrong password, try again!
 ```
 
 The `except` block is optional, and an exception may be caught and ignored.
@@ -418,7 +418,7 @@ The `except` block is optional, and an exception may be caught and ignored.
 ```py
 def login(password):
     if password != "supersecret":
-        raise "Wrong password, try again!"
+        raise ValueError("Wrong password, try again!")
     print("[Hacker voice] I'm in.")
 try:
     login("foo")
