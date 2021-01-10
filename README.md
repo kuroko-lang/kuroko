@@ -200,9 +200,11 @@ if True: print("The first rule of Tautology Club is the first rule of Tautology 
 
 ### Closures
 
-Functions are first-class values and may be returned from functions and stored in variables, producing _closures_.
+Functions in Kuroko are inherently closures and _capture_ local variables from their enclosing scopes.
 
-When a function references local values from an outer scope, such as in the example below, the referenced variables will be captured.
+When a function references a local from another function in which its definition is nested (or variables declared within a block), the referenced variables will continue to "live" in the heap beyond the execution of their original scope context.
+
+If we define a function which declares a local variable and then define an inner function which references that variable, such as in the example below, each call to the other function will create a new instance of the variable and a new instance of the inner function. When the inner function is returned, it will take with it the variable it captured from the outer function and further calls to this instance of the inner function will use that variable.
 
 ```py
 def foo():
