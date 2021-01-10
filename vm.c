@@ -2282,17 +2282,18 @@ static KrkValue _len(int argc, KrkValue argv[]) {
 		krk_runtimeError(vm.exceptions.argumentError, "len() takes exactly one argument");
 		return NONE_VAL();
 	}
-	if (!IS_OBJECT(argv[0])) {
-		krk_runtimeError(vm.exceptions.typeError, "object of type '%s' has no len()", krk_typeName(argv[0]));
-		return NONE_VAL();
-	}
+	/* Shortcuts */
 	if (IS_STRING(argv[0])) return INTEGER_VAL(AS_STRING(argv[0])->length);
-	krk_push(argv[0]);
-	if (!krk_bindMethod(AS_CLASS(krk_typeOf(1,&argv[0])), AS_STRING(vm.specialMethodNames[METHOD_LEN]))) {
+	if (IS_TUPLE(argv[0])) return INTEGER_VAL(AS_TUPLE(argv[0])->values.count);
+
+	KrkClass * type = AS_CLASS(krk_typeOf(1,&argv[0]));
+	if (!type->_len) {
 		krk_runtimeError(vm.exceptions.typeError, "object of type '%s' has no len()", krk_typeName(argv[0]));
 		return NONE_VAL();
 	}
-	return krk_callSimple(krk_peek(0), 0, 1);
+	krk_push(argv[0]);
+
+	return krk_callSimple(OBJECT_VAL(type->_len), 1, 0);
 }
 
 static KrkValue _repr(int argc, KrkValue argv[]) {
@@ -2300,12 +2301,11 @@ static KrkValue _repr(int argc, KrkValue argv[]) {
 		krk_runtimeError(vm.exceptions.argumentError, "repr() takes exactly one argument");
 		return NONE_VAL();
 	}
+
+	/* Everything should have a __repr__ */
+	KrkClass * type = AS_CLASS(krk_typeOf(1,&argv[0]));
 	krk_push(argv[0]);
-	if (!krk_bindMethod(AS_CLASS(krk_typeOf(1,&argv[0])), AS_STRING(vm.specialMethodNames[METHOD_REPR]))) {
-		krk_runtimeError(vm.exceptions.typeError, "internal error");
-		return NONE_VAL();
-	}
-	return krk_callSimple(krk_peek(0), 0, 1);
+	return krk_callSimple(OBJECT_VAL(type->_reprer), 1, 0);
 }
 
 static KrkValue _tuple_iter_init(int argc, KrkValue argv[]) {
@@ -2939,17 +2939,9 @@ static void addObjects() {
 			concatenate(a->chars,b->chars,a->length,b->length);
 			return;
 		}
-		if (krk_bindMethod(AS_CLASS(krk_typeOf(1,(KrkValue[]){_b})), AS_STRING(vm.specialMethodNames[METHOD_STR]))) {
-			KrkValue result;
-			int t = krk_callValue(krk_peek(0), 0, 1);
-			if (t == 2) {
-				result = krk_pop();
-			} else if (t == 1) {
-				result = krk_runNext();
-			} else {
-				krk_runtimeError(vm.exceptions.typeError, "__str__ failed to call str on %s", krk_typeName(_b));
-				return;
-			}
+		KrkClass * type = AS_CLASS(krk_typeOf(1, &_b));
+		if (type->_tostr) {
+			KrkValue result = krk_callSimple(OBJECT_VAL(type->_tostr), 1, 0);
 			if (!IS_STRING(result)) {
 				krk_runtimeError(vm.exceptions.typeError, "__str__ produced something that wasn't a string: %s", krk_typeName(result));
 				return;
