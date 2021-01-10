@@ -1024,8 +1024,7 @@ _finishKwarg:
 		if (closure->function->collectsKeywords) {
 			krk_push(krk_dict_of(0,NULL));
 			argCount++;
-			KrkValue _dict_internal;
-			krk_tableGet(&AS_INSTANCE(krk_peek(0))->fields, vm.specialMethodNames[METHOD_DICT_INT], &_dict_internal);
+			KrkValue _dict_internal = OBJECT_VAL(AS_INSTANCE(krk_peek(0))->_internal);
 			krk_tableAddAll(&keywords, AS_DICT(_dict_internal));
 		}
 
@@ -1107,32 +1106,36 @@ int krk_callValue(KrkValue callee, int argCount, int extra) {
 				return call(AS_CLOSURE(callee), argCount, extra);
 			case OBJ_NATIVE: {
 				NativeFnKw native = (NativeFnKw)AS_NATIVE(callee);
-				int hasKw = 0;
 				if (argCount && IS_KWARGS(vm.stackTop[-1])) {
-					long count = AS_INTEGER(vm.stackTop[-1]);
-					for (long i = 0; i < count; ++i) {
-						if (IS_KWARGS(vm.stackTop[-1 - count * 2 + i * 2])) {
-							krk_runtimeError(vm.exceptions.typeError,"Unsupported use of argument expansion in native function call.");
-							return 0;
-						}
+					KRK_PAUSE_GC();
+					KrkValue myList = krk_list_of(0,NULL);
+					KrkValue myDict = krk_dict_of(0,NULL);
+					KrkValue _list_internal = OBJECT_VAL(AS_INSTANCE(myList)->_internal);
+					KrkValue _dict_internal = OBJECT_VAL(AS_INSTANCE(myDict)->_internal);
+					if (!krk_processComplexArguments(argCount, AS_LIST(_list_internal), AS_DICT(_dict_internal))) {
+						KRK_RESUME_GC();
+						return 0;
 					}
-					/* Dict it all up */
-					krk_reserve_stack(32);
-					*(vm.stackTop - count * 2 - 1) = krk_dict_of(count * 2, (vm.stackTop - count * 2 - 1));
-					vm.stackTop = vm.stackTop - count * 2;
-					argCount -= count * 2;
-					hasKw = 1;
+					KRK_RESUME_GC();
+					argCount--; /* Because that popped the kwargs value */
+					vm.stackTop -= argCount + extra; /* We can just put the stack back to normal */
+					krk_push(myList);
+					krk_push(myDict);
+					krk_writeValueArray(AS_LIST(_list_internal), myDict);
+					KrkValue result = native(AS_LIST(_list_internal)->count, AS_LIST(_list_internal)->values, 1);
+					if (vm.stackTop == vm.stack) return 0;
+					krk_pop();
+					krk_pop();
+					krk_push(result);
+				} else {
+					KrkValue * stackCopy = malloc(argCount * sizeof(KrkValue));
+					memcpy(stackCopy, vm.stackTop - argCount, argCount * sizeof(KrkValue));
+					KrkValue result = native(argCount, stackCopy, 0);
+					free(stackCopy);
+					if (vm.stackTop == vm.stack) return 0;
+					vm.stackTop -= argCount + extra;
+					krk_push(result);
 				}
-				KrkValue * stackCopy = malloc(argCount * sizeof(KrkValue));
-				memcpy(stackCopy, vm.stackTop - argCount, argCount * sizeof(KrkValue));
-				KrkValue result = native(argCount, stackCopy, hasKw);
-				free(stackCopy);
-				if (vm.stackTop == vm.stack) {
-					/* Runtime error returned from native method */
-					return 0;
-				}
-				vm.stackTop -= argCount + extra;
-				krk_push(result);
 				return 2;
 			}
 			case OBJ_INSTANCE: {

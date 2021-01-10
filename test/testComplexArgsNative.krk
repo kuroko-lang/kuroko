@@ -1,0 +1,13 @@
+print(*[1,2,3],*['test',object,lambda x: x * 5],7,9,10,end=';\n',**{'sep':', '})
+
+let l = [1,2,3]
+let d = {'sep': ', '}
+
+print("a","b",*l,7,*l,end='test\n',**d)
+
+print("{a} {b} {c}".format(**{'a': 1, 'b': "apples", 'c': object}))
+
+try:
+    print("{a} {b} {c}".format(a=True,**{'a': 1, 'b': "apples", 'c': object}))
+except:
+    print(exception.arg)
