@@ -628,11 +628,16 @@ static KrkValue _list_slice(int argc, KrkValue argv[]) {
  * list.pop()
  */
 static KrkValue _list_pop(int argc, KrkValue argv[]) {
-	long index = 0;
+	KrkValue _list_internal = OBJECT_VAL(AS_INSTANCE(argv[0])->_internal);
+	if (!AS_LIST(_list_internal)->count) {
+		krk_runtimeError(vm.exceptions.indexError, "pop from empty list");
+		return NONE_VAL();
+	}
+	long index = AS_LIST(_list_internal)->count - 1;
 	if (argc > 1) {
 		index = AS_INTEGER(argv[1]);
 	}
-	KrkValue _list_internal = OBJECT_VAL(AS_INSTANCE(argv[0])->_internal);
+	if (index < 0) index += AS_LIST(_list_internal)->count;
 	if (index < 0 || index >= (long)AS_LIST(_list_internal)->count) {
 		krk_runtimeError(vm.exceptions.indexError, "list index out of range: %d", (int)index);
 		return NONE_VAL();
