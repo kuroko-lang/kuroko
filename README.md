@@ -19,8 +19,8 @@ On top of this, Kuroko adds a number of features inspired by Python, such as:
 - Collection types: `list`, `dict`, `tuple`, with compiler literal syntax (`[]`,`{}`,`(,)`).
 - Iterable types, with `for ... in ...` syntax.
 - List comprehensions (`[foo(x) for x in [1,2,3,4]]` and similar expressions).
-- Pseudo-classes for basic values (eg. everything has a `__repr__`, strings have `format()`, etc.)
-- Exceptions with, with `try`/`except`/`raise`.
+- Pseudo-classes for basic values (eg. strings are pseudo-instances of a `str` class providing methods like `.format()`)
+- Exception handling, with `try`/`except`/`raise`.
 - Modules, both for native C code and managed Kuroko code.
 
 ## Building Kuroko
