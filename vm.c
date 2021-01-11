@@ -1378,6 +1378,43 @@ static KrkValue _string_init(int argc, KrkValue argv[]) {
 	return krk_callSimple(OBJECT_VAL(AS_CLASS(krk_typeOf(1,&argv[1]))->_tostr), 1, 0);
 }
 
+static KrkValue _string_add(int argc, KrkValue argv[]) {
+	const char * a, * b;
+	size_t al, bl;
+
+	a = AS_CSTRING(argv[0]);
+	al = AS_STRING(argv[0])->length;
+
+	if (!IS_STRING(argv[1])) {
+		KrkClass * type = AS_CLASS(krk_typeOf(1, &argv[1]));
+		if (type->_tostr) {
+			krk_push(argv[1]);
+			KrkValue result = krk_callSimple(OBJECT_VAL(type->_tostr), 1, 0);
+			if (!IS_STRING(result)) {
+				krk_runtimeError(vm.exceptions.typeError, "__str__ produced something that was not a string: '%s'", krk_typeName(result));
+				return NONE_VAL();
+			}
+			b = AS_CSTRING(result);
+			bl = AS_STRING(result)->length;
+		} else {
+			b = krk_typeName(argv[1]);
+			bl = strlen(b);
+		}
+	} else {
+		b = AS_CSTRING(argv[1]);
+		bl = AS_STRING(argv[1])->length;
+	}
+
+	size_t length = al + bl;
+	char * chars = ALLOCATE(char, length + 1);
+	memcpy(chars, a, al);
+	memcpy(chars + al, b, bl);
+	chars[length] = '\0';
+
+	KrkString * result = krk_takeString(chars, length);
+	return OBJECT_VAL(result);
+}
+
 #define ADD_BASE_CLASS(obj, name, baseClass) do { \
 	obj = krk_newClass(S(name)); \
 	krk_attachNamedObject(&vm.builtins->fields, name, (KrkObj*)obj); \
@@ -2847,6 +2884,7 @@ void krk_initVM(int flags) {
 	krk_defineNative(&vm.baseClasses.strClass->methods, ".__lt__", _string_lt);
 	krk_defineNative(&vm.baseClasses.strClass->methods, ".__gt__", _string_gt);
 	krk_defineNative(&vm.baseClasses.strClass->methods, ".__mod__", _string_mod);
+	krk_defineNative(&vm.baseClasses.strClass->methods, ".__add__", _string_add);
 	krk_finalizeClass(vm.baseClasses.strClass);
 	/* TODO: Don't attach */
 	ADD_BASE_CLASS(vm.baseClasses.functionClass, "function", vm.objectClass);
@@ -3064,48 +3102,10 @@ MAKE_BIT_OP(mod,%) /* not a bit op, but doesn't work on floating point */
 MAKE_COMPARATOR(lt, <)
 MAKE_COMPARATOR(gt, >)
 
-static void concatenate(const char * a, const char * b, size_t al, size_t bl) {
-	size_t length = al + bl;
-	char * chars = ALLOCATE(char, length + 1);
-	memcpy(chars, a, al);
-	memcpy(chars + al, b, bl);
-	chars[length] = '\0';
-
-	KrkString * result = krk_takeString(chars, length);
-	krk_pop();
-	krk_pop();
-	krk_push(OBJECT_VAL(result));
-}
-
 static void addObjects() {
-	KrkValue _b = krk_peek(0);
-	KrkValue _a = krk_peek(1);
-
-	if (IS_STRING(_a)) {
-		KrkString * a = AS_STRING(_a);
-		if (IS_STRING(_b)) {
-			KrkString * b = AS_STRING(_b);
-			concatenate(a->chars,b->chars,a->length,b->length);
-			return;
-		}
-		KrkClass * type = AS_CLASS(krk_typeOf(1, &_b));
-		if (type->_tostr) {
-			KrkValue result = krk_callSimple(OBJECT_VAL(type->_tostr), 1, 0);
-			if (!IS_STRING(result)) {
-				krk_runtimeError(vm.exceptions.typeError, "__str__ produced something that wasn't a string: %s", krk_typeName(result));
-				return;
-			}
-			krk_push(result);
-			concatenate(a->chars,AS_STRING(result)->chars,a->length,AS_STRING(result)->length);
-			return;
-		} else {
-			char tmp[256] = {0};
-			sprintf(tmp, "<%s>", krk_typeName(_b));
-			concatenate(a->chars,tmp,a->length,strlen(tmp));
-		}
-	} else {
-		krk_push(tryBind("__add__", _a, _b, "unsupported operand types for +: '%s' and '%s'"));
-	}
+	KrkValue tmp = _string_add(2, (KrkValue[]){krk_peek(1), krk_peek(0)});
+	krk_pop(); krk_pop();
+	krk_push(tmp);
 }
 
 /**
@@ -3467,7 +3467,7 @@ static KrkValue run() {
 			case OP_LESS: BINARY_OP(lt);
 			case OP_GREATER: BINARY_OP(gt)
 			case OP_ADD:
-				if (IS_OBJECT(krk_peek(0)) || IS_OBJECT(krk_peek(1))) addObjects();
+				if (IS_STRING(krk_peek(1))) addObjects(); /* Shortcut for strings */
 				else BINARY_OP(add)
 				break;
 			case OP_SUBTRACT: BINARY_OP(sub)

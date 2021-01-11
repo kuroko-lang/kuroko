@@ -1,2 +1,3 @@
 Hello world.
 The meaning of life is 42
+['hi', 'operator ordering', 'means that this', 'will append these', 'individually', 1, 2, 3]

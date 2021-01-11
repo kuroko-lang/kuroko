@@ -8,3 +8,14 @@ let cout = CPPPrinter()
 
 cout << 'Hello' << ' world.' << '\n'
 cout << 'The meaning of life is ' << 42 << '\n'
+
+class ChainedValueEater(object):
+    def __init__(self):
+        self.values = []
+    def __add__(self, other):
+        self.values.append(other)
+        return self
+
+let f = ChainedValueEater()
+f + "hi" + "operator ordering" + "means that this" + "will append these" + "individually" + 1 + 2 + 3
+print(f.values)
