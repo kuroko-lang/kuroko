@@ -872,7 +872,7 @@ def aFunction():
     print("Hello, world!")
 
 aFunction()
-# → Registering callbacuk function <function aFunction>
+# → Registering callback function <function aFunction>
 #   Hello, world!
 ```
 
