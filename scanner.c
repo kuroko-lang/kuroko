@@ -218,6 +218,7 @@ static KrkTokenType identifierType() {
 			case 'f': return checkKeyword(2, "", TOKEN_IF);
 			case 'n': return checkKeyword(2, "", TOKEN_IN);
 			case 'm': return checkKeyword(2, "port", TOKEN_IMPORT);
+			case 's': return checkKeyword(2, "", TOKEN_IS);
 		} break;
 		case 'l': if (MORE(1)) switch (scanner.start[1]) {
 			case 'a': return checkKeyword(2, "mbda", TOKEN_LAMBDA);

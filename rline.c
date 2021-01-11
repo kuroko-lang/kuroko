@@ -528,7 +528,7 @@ void paint_krk_string(struct syntax_state * state, int type) {
 char * syn_krk_keywords[] = {
 	"and","class","def","else","for","if","in","import",
 	"let","not","or","return","while","try","except","raise",
-	"continue","break","as","from","elif","lambda","with",
+	"continue","break","as","from","elif","lambda","with","is",
 	NULL
 };
 

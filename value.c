@@ -97,6 +97,12 @@ void krk_printValueSafe(FILE * f, KrkValue printable) {
 	}
 }
 
+int krk_valuesSame(KrkValue a, KrkValue b) {
+	if (a.type != b.type) return 0;
+	if (IS_OBJECT(a)) return AS_OBJECT(a) == AS_OBJECT(b);
+	return krk_valuesEqual(a,b);
+}
+
 int krk_valuesEqual(KrkValue a, KrkValue b) {
 	if (a.type == b.type) {
 		switch (a.type) {

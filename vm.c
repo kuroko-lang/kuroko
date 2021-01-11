@@ -3369,6 +3369,12 @@ static KrkValue run() {
 				krk_push(BOOLEAN_VAL(krk_valuesEqual(a,b)));
 				break;
 			}
+			case OP_IS: {
+				KrkValue b = krk_pop();
+				KrkValue a = krk_pop();
+				krk_push(BOOLEAN_VAL(krk_valuesSame(a,b)));
+				break;
+			}
 			case OP_LESS: BINARY_OP(less);
 			case OP_GREATER: BINARY_OP(greater)
 			case OP_ADD:

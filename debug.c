@@ -119,6 +119,7 @@ size_t krk_disassembleInstruction(FILE * f, KrkFunction * func, size_t offset) {
 		SIMPLE(OP_INVOKE_GETSLICE)
 		SIMPLE(OP_SWAP)
 		SIMPLE(OP_FINALIZE)
+		SIMPLE(OP_IS)
 		OPERANDB(OP_DUP,(void)0)
 		OPERANDB(OP_EXPAND_ARGS,EXPAND_ARGS_MORE)
 		CONSTANT(OP_DEFINE_GLOBAL,(void)0)
