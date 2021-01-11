@@ -1276,9 +1276,10 @@ Here we have created a new class named `MyNameClass` and exposed it through the 
 ```c
     myNewClass->base = vm.objectClass;
     krk_tableAddAll(&vm.objectClass->methods, &myNewClass->methods);
+    krk_tableAddAll(&vm.objectClass->fields, &myNewClass->fields);
 ```
 
-We also want to make sure that our new class fits into the general inheritence hierarchy, which typically means inheriting from `vm.objectClass` - we do this by setting our new class's `base` pointer to `vm.objectClass` and copying `vm.objectClass`'s method table. Now we can start customizing our class with its own methods.
+We also want to make sure that our new class fits into the general inheritence hierarchy, which typically means inheriting from `vm.objectClass` - we do this by setting our new class's `base` pointer to `vm.objectClass` and copying `vm.objectClass`'s method and field tables. Now we can start customizing our class with its own methods.
 
 Native functions are attached to class method tables in a similar manner to normal functions:
 
