@@ -573,10 +573,13 @@ int main(int argc, char * argv[]) {
 					if (type->_reprer) {
 						krk_push(result);
 						result = krk_callSimple(OBJECT_VAL(type->_reprer), 1, 0);
-						fprintf(stdout, formatStr, AS_CSTRING(result));
 					} else if (type->_tostr) {
 						krk_push(result);
-						result = krk_callSimple(OBJECT_VAL(type->_reprer), 1, 0);
+						result = krk_callSimple(OBJECT_VAL(type->_tostr), 1, 0);
+					}
+					if (!IS_STRING(result)) {
+						fprintf(stdout, " \033[1;31m=> Unable to produce representation for value.\033[0m\n");
+					} else {
 						fprintf(stdout, formatStr, AS_CSTRING(result));
 					}
 					krk_resetStack();

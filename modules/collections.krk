@@ -1,0 +1,200 @@
+class defaultdict(dict):
+    def __init__(self, default_factory=None, *args, **kwargs):
+        super().__init__(*args,**kwargs)
+        self.default_factory = default_factory
+    def __missing__(self, key):
+        if not self.default_factory: raise KeyError(key)
+        let result = self.default_factory()
+        self.__set__(key, result)
+        return result
+    def __get__(self, key):
+        if key not in self:
+            return self.__missing__(key)
+        return super().__get__(key)
+
+class deque():
+    def __init__(self, iterable=None, maxlen=None):
+        self._head = None
+        self._tail = None
+        self._size = 0
+        self.__inrepr = False
+        self.maxlen = maxlen
+        if iterable:
+            for i in iterable:
+                self.append(i)
+    def __len__(self):
+        return self._size
+    def append(self, item):
+        if not self._head:
+            let ref = [None, item, None]
+            self._head = ref
+            self._tail = ref
+        else:
+            let ref = [self._tail, item, None]
+            self._tail[2] = ref
+            self._tail = ref
+        if self._size == self.maxlen:
+            self.popleft()
+            return
+        self._size += 1
+    def appendleft(self, item):
+        if not self._head:
+            let ref = [None, item, None]
+            self._head = ref
+            self._tail = ref
+        else:
+            let ref = [None, item, self._head]
+            self._head[0] = ref
+            self._head = ref
+        if self._size == self.maxlen:
+            self.pop()
+            return
+        self._size += 1
+    def count(self, x):
+        let counter = 0
+        let ptr = self._head
+        while ptr != None:
+            if ptr[1] == x: counter++
+            ptr = ptr[2]
+        return counter
+    def extend(self, iterable):
+        for i in iterable:
+            self.append(i)
+    def extendleft(self, iterable):
+        for i in iterable:
+            self.appendleft(i)
+    def index(self, x, start=None, stop=None):
+        let i = 0
+        let ptr = self._head
+        while ptr != None:
+            if ptr[1] == x and (start == None or i >= start) and (stop == None or i < stop):
+                return i
+            i++
+            ptr = ptr[2]
+        raise ValueError("value not found")
+    def insert(self, i, x):
+        if self._size == self.maxlen:
+            raise IndexError('attempt to grow bounded deque beyond bound')
+        let c = 0
+        let ptr = self._head
+        while ptr != None:
+            if c == i:
+                let l = ptr[0]
+                let r = ptr[2]
+                if l == None:
+                    return self.extendleft(x)
+                else if r == None:
+                    return self.extend(x)
+                let ref = [l, x, r]
+                l[2] = ref
+                r[0] = ref
+                self._size += 1
+                return
+            i++
+        raise IndexError("invalid insertion index")
+    def pop(self):
+        if not self._tail:
+            raise IndexError("pop from empty deque")
+        let item = self._tail[1]
+        self._tail = self._tail[0]
+        self._size--
+        if self._tail:
+            self._tail[2] = None
+        return item
+    def popleft(self):
+        if not self._head:
+            raise IndexError("pop from empty deque")
+        let item = self._head[1]
+        self._head = self._head[2]
+        self._size--
+        if self._head:
+            self._head[0] = None
+        return item
+    def remove(self, value):
+        let ptr = self._head
+        while ptr:
+            if ptr[1] == value:
+                if ptr == self._head:
+                    self._head = self._head[2]
+                    if self._head:
+                        self._head[0] = None
+                else if ptr == self._tail:
+                    self._tail = self._tail[0]
+                    if self._tail:
+                        self._tail[2] = None
+                else:
+                    let l = ptr[0]
+                    let r = ptr[2]
+                    if l: l[2] = r
+                    if r: r[0] = l
+                return
+        raise ValueError("value not found")
+    def rotate(self, n=1):
+        if n == 0 or self._size == 0: return
+        if n > 0:
+            while n > 0:
+                self.appendleft(self.pop())
+                n--
+        while n < 0:
+            self.append(self.popleft())
+            n++
+    def reverse(self):
+        if not self._head: return None
+        let ptr = self._head
+        self._head = self._tail
+        self._tail = ptr
+        while ptr:
+            let l = ptr[0]
+            let r = ptr[2]
+            ptr[2] = l
+            ptr[0] = r
+            ptr = r
+        return None
+    def __repr__(self):
+        if self.__inrepr: return 'deque(...)'
+        self.__inrepr = True
+        let out = 'deque(['
+        let ptr = self._head
+        while ptr:
+            out += repr(ptr[1])
+            ptr = ptr[2]
+            if ptr:
+                out += ', '
+        out += '])'
+        self.__inrepr = False
+        return out
+    def __str__(self):
+        return repr(self)
+    def __iter__(self):
+        let s = self._head
+        def _():
+            if not s: return _
+            let out = s[1]
+            s = s[2]
+            return out
+        return _
+    def __get__(self, index):
+        if index >= self._size or index < -self._size: raise IndexError("Invalid index")
+        if index == 0: return self._head[1]
+        if index > 0:
+            let ptr = self._head
+            while ptr:
+                if index == 0: return ptr[1]
+                index--
+                ptr = ptr[2]
+        else:
+            index = -(index + 1)
+            let ptr = self._tail
+            while ptr:
+                if index == 0: return ptr[1]
+                index--
+                ptr = ptr[0]
+        raise IndexError("This probably shouldn't happen?")
+    def __contains__(self, value):
+        if not self._head: return False
+        let ptr = self._head
+        while ptr:
+            if ptr[1] == value: return True
+            ptr = ptr[2]
+        return False
+

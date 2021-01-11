@@ -421,6 +421,10 @@ static KrkValue _dict_key_at_index(int argc, KrkValue argv[]) {
  * list.__init__()
  */
 static KrkValue _list_init(int argc, KrkValue argv[]) {
+	if (argc > 1) {
+		krk_runtimeError(vm.exceptions.argumentError, "Can not initialize list from iterable (unsupported, try again later)");
+		return NONE_VAL();
+	}
 	KrkFunction * list = krk_newFunction(NULL);
 	krk_push(OBJECT_VAL(list));
 	krk_tableSet(&AS_INSTANCE(argv[0])->fields, vm.specialMethodNames[METHOD_LIST_INT], OBJECT_VAL(list));

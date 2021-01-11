@@ -1,0 +1,11 @@
+deque(['f', 'g', 'h', 'i', 'j'])
+j
+f
+['g', 'h', 'i']
+g
+i
+True
+deque(['g', 'h', 'i', 'j', 'k', 'l'])
+deque(['l', 'g', 'h', 'i', 'j', 'k'])
+deque(['g', 'h', 'i', 'j', 'k', 'l'])
+deque(['l', 'k', 'j', 'i', 'h', 'g'])
