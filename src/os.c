@@ -65,12 +65,14 @@ static void _loadEnviron(KrkInstance * module) {
 
 	/* Start with an empty dictionary */
 	KrkInstance * environObj = AS_INSTANCE(krk_dict_of(0,NULL));
+	krk_push(OBJECT_VAL(environObj));
 
 	/* Transform it into an _Environ */
 	environObj->_class = environClass;
 
 	/* And attach it to the module */
 	krk_attachNamedObject(&module->fields, "environ", (KrkObj*)environObj);
+	krk_pop();
 
 	/* Now load the environment into it */
 	if (!environ) return; /* Empty environment */
