@@ -1,0 +1,174 @@
+"""
+JSON parser
+"""
+
+def loads(s):
+    let i = 0
+    let value # okay dumb scoping thing, but we'll assign this to _value later...
+    def peek():
+        return s[i] if i < len(s) else None
+    def advance():
+        i++
+    def whitespace():
+        while peek() in ' \r\n\t': advance()
+    def string():
+        if peek() != '"': raise ValueError("String should start with \" but got " + peek())
+        advance()
+        let out = ""
+        let c = peek()
+        while c != '"':
+            if c is None: raise ValueError("Unterminated string")
+            if c == '\\':
+                advance()
+                c = peek()
+                if c == '"': out += '"'
+                elif c == '\\': out += '\\'
+                elif c == '/': out += '/'
+                elif c == 'b': out += '\x08' # Backspace
+                elif c == 'f': out += '\x0c' # Formfeed
+                elif c == 'n': out += '\n'
+                elif c == 'r': out += '\r'
+                elif c == 't': out += '\t'
+                elif c == 'u':
+                    advance()
+                    let sub = [0,0,0,0]
+                    sub[0] = peek()
+                    advance()
+                    sub[1] = peek()
+                    advance()
+                    sub[2] = peek()
+                    advance()
+                    sub[3] = peek()
+                    if not all([x in '0123456789abcdefABCDEF' for x in sub]):
+                        raise ValueError('Invalid codepoint in JSON string')
+                    raise NotImplementedError('TODO: unicode escapes')
+                else:
+                    raise ValueError('Invalid escape sequence in JSON string')
+            else:
+                out += c
+            advance()
+            c = peek()
+        if peek() != '"':
+            raise ValueError("That was not expected.")
+        advance()
+        return out
+    def obj():
+        if peek() != '{': raise ValueError("Object should start with {?")
+        advance()
+        let out = {}
+        whitespace()
+        if peek() == '}': return out
+        while True:
+            whitespace()
+            let k = string()
+            whitespace()
+            if peek() != ':': raise ValueError("Expected : after key, got " + peek())
+            advance()
+            let v = value()
+            out[k] = v
+            if peek() == '}':
+                advance()
+                return out
+            if peek() != ',':
+                raise ValueError('Expected , after value, or } for end of object.')
+            advance()
+    def array():
+        if peek() != '[': raise ValueError("Array should start with [?")
+        advance()
+        let out = []
+        whitespace()
+        if peek() == ']': return out
+        while True:
+            whitespace()
+            out.append(value())
+            if peek() == ']':
+                advance()
+                return out
+            if peek() != ',':
+                raise ValueError("Expected , after value, or ] for end of array.")
+            advance()
+    def number():
+        let value = 0
+        let sign = 1
+        if peek() == '-':
+            sign = -1
+            advance()
+        if peek() == '0':
+            advance()
+        elif peek() in '0123456789':
+            value = int(peek())
+            advance()
+            while peek() in '0123456789':
+                value = value * 10
+                value = value + int(peek())
+                advance()
+        else:
+            raise ValueError("Expected digit")
+        if peek() == '.':
+            advance()
+            let mult = 0.1
+            if peek() not in '0123456789':
+                raise ValueError("Expected digit")
+            while peek() in '0123456789':
+                value = value + multiplier * int(peek())
+                multiplier = multiplier * 0.1
+                advance()
+        if peek() in 'eE':
+            raise NotImplementedError("Exponent values are not implemented.")
+        return value
+    def boolean():
+        let inv = ValueError("Invalid literal while parsing bool")
+        if peek() == 't':
+            advance()
+            if peek() != 'r': raise inv
+            advance()
+            if peek() != 'u': raise inv
+            advance()
+            if peek() != 'e': raise inv
+            advance()
+            return True
+        elif peek() == 'f':
+            advance()
+            if peek() != 'a': raise inv
+            advance()
+            if peek() != 'l': raise inv
+            advance()
+            if peek() != 's': raise inv
+            advance()
+            if peek() != 'e': raise inv
+            advance()
+            return False
+        raise inv
+    def null():
+        let inv = ValueError("Invalid literal while parsing null")
+        if peek() != 'n': raise inv
+        advance()
+        if peek() != 'u': raise inv
+        advance()
+        if peek() != 'l': raise inv
+        advance()
+        if peek() != 'l': raise inv
+        advance()
+        return None
+    def _value():
+        whitespace()
+        let c = peek()
+        let out = None
+        if c== '"':
+            out = string()
+        elif c == '{':
+            out = obj()
+        elif c == '[':
+            out = array()
+        elif c == '-' or c in '0123456789':
+            out = number()
+        elif c == 't' or c == 'f':
+            out = boolean()
+        elif c == 'n':
+            out = null()
+        else:
+            raise ValueError("Unexpected character")
+        whitespace()
+        return out
+    value = _value
+    return value()
