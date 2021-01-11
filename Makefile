@@ -70,3 +70,7 @@ tags: $(wildcard *.c) $(wildcard *.h)
 test:
 	@for i in test/*.krk; do echo $$i; KUROKO_TEST_ENV=1 ./kuroko $$i > $$i.expect; done
 	@git diff --exit-code test/*.expect
+
+stress-test:
+	@for i in test/*.krk; do echo $$i; KUROKO_TEST_ENV=1 valgrind ./kuroko -g $$i > $$i.expect; done
+	@git diff --exit-code test/*.expect
