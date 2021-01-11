@@ -620,7 +620,7 @@ _**Note:** When individual names are imported from a module, they refer to the s
 
 ### Loops
 
-Kuroku supports C-style for loops, while loops, and Python-style iterator for loops.
+Kuroko supports C-style for loops, while loops, and Python-style iterator for loops.
 
 ```py
 for i = 1; i < 5; i++:
