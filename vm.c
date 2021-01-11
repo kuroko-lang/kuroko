@@ -1413,8 +1413,8 @@ static KrkValue _char_to_int(int argc, KrkValue argv[]) {
 
 static KrkValue _print(int argc, KrkValue argv[], int hasKw) {
 	KrkValue sepVal, endVal;
-	char * sep = " ";
-	char * end = "\n";
+	char * sep = " "; size_t sepLen = 1;
+	char * end = "\n"; size_t endLen = 1;
 	if (hasKw) {
 		argc--;
 		KrkValue _dict_internal = OBJECT_VAL(AS_INSTANCE(argv[argc])->_internal);
@@ -1424,6 +1424,7 @@ static KrkValue _print(int argc, KrkValue argv[], int hasKw) {
 				return NONE_VAL();
 			}
 			sep = AS_CSTRING(sepVal);
+			sepLen = AS_STRING(sepVal)->length;
 		}
 		if (krk_tableGet(AS_DICT(_dict_internal), OBJECT_VAL(S("end")), &endVal)) {
 			if (!IS_STRING(endVal)) {
@@ -1431,16 +1432,23 @@ static KrkValue _print(int argc, KrkValue argv[], int hasKw) {
 				return NONE_VAL();
 			}
 			end = AS_CSTRING(endVal);
+			endLen = AS_STRING(endVal)->length;
 		}
 	}
 	for (int i = 0; i < argc; ++i) {
 		KrkValue printable = argv[i];
 		if (IS_STRING(printable)) { /* krk_printValue runs repr */
-			fprintf(stdout, "%s", AS_CSTRING(printable));
+			/* Make sure we handle nil bits correctly. */
+			for (size_t j = 0; j < AS_STRING(printable)->length; ++j) {
+				fputc(AS_CSTRING(printable)[j], stdout);
+			}
 		} else {
 			krk_printValue(stdout, printable);
 		}
-		fprintf(stdout, "%s", (i == argc - 1) ? end : sep);
+		char * thingToPrint = (i == argc - 1) ? end : sep;
+		for (size_t j = 0; j < ((i == argc - 1) ? endLen : sepLen); ++j) {
+			fputc(thingToPrint[j], stdout);
+		}
 	}
 	return NONE_VAL();
 }
@@ -2203,10 +2211,11 @@ static KrkValue _module_repr(int argc, KrkValue argv[]) {
  * should escape characters like quotes.
  */
 static KrkValue _repr_str(int argc, KrkValue argv[]) {
-	char * str = malloc(3 + AS_STRING(argv[0])->length * 2);
+	char * str = malloc(3 + AS_STRING(argv[0])->length * 4); /* x 4 because a string of all < 32s would be a lot of \xXX */
 	char * tmp = str;
 	*(tmp++) = '\'';
-	for (char * c = AS_CSTRING(argv[0]); *c; ++c) {
+	char * end = AS_CSTRING(argv[0]) + AS_STRING(argv[0])->length;
+	for (char * c = AS_CSTRING(argv[0]); c < end; ++c) {
 		switch (*c) {
 			/* XXX: Other non-printables should probably be escaped as well. */
 			case '\n': *(tmp++) = '\\'; *(tmp++) = 'n'; break;
@@ -2215,7 +2224,19 @@ static KrkValue _repr_str(int argc, KrkValue argv[]) {
 			case '\'': *(tmp++) = '\\'; *(tmp++) = '\''; break;
 			case '\\': *(tmp++) = '\\'; *(tmp++) = '\\'; break;
 			case 27:   *(tmp++) = '\\'; *(tmp++) = '['; break;
-			default:   *(tmp++) = *c; break;
+			default: {
+				if ((unsigned char)*c < ' ') {
+					*(tmp++) = '\\';
+					*(tmp++) = 'x';
+					char hex[3];
+					sprintf(hex,"%02x", (unsigned char)*c);
+					*(tmp++) = hex[0];
+					*(tmp++) = hex[1];
+				} else {
+					*(tmp++) = *c;
+				}
+				break;
+			}
 		}
 	}
 	*(tmp++) = '\'';

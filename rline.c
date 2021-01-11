@@ -511,7 +511,14 @@ void paint_krk_string(struct syntax_state * state, int type) {
 			paint(1, FLAG_STRING);
 			return;
 		} else if (charat() == '\\') {
-			paint(2, FLAG_ESCAPE);
+			if (nextchar() == 'x') {
+				paint(2, FLAG_ESCAPE);
+				/* Why is my FLAG_ERROR not valid in rline? */
+				paint(1, isxdigit(charat()) ? FLAG_ESCAPE : FLAG_DIFFMINUS);
+				paint(1, isxdigit(charat()) ? FLAG_ESCAPE : FLAG_DIFFMINUS);
+			} else {
+				paint(2, FLAG_ESCAPE);
+			}
 		} else {
 			paint(1, FLAG_STRING);
 		}

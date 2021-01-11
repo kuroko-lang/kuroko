@@ -1,0 +1,15 @@
+'''
+Helpful string constants.
+'''
+
+let ascii_lowercase = 'abcdefghijklmnopqrstuvwxyz'
+let ascii_uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+let ascii_letters = ascii_lowercase + ascii_uppercase
+
+let digits = '0123456789'
+let hexdigits = digits + 'abcdefABCDEF'
+let octdigits = '01234567'
+
+let punctuation = '!"#$%&\'()*+,-./:;<=>?@[\\]^_`{|}~'
+let whitespace = '\t\n\x0b\x0c\r '
+let printable = digits + ascii_letters + punctuation + whitespace

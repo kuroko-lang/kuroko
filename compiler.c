@@ -1490,6 +1490,10 @@ static void unary(int canAssign) {
 	}
 }
 
+static int isHex(int c) {
+	return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
+}
+
 static void string(int type) {
 	/* We'll just build with a flexible array like everything else. */
 	size_t stringCapacity = 0;
@@ -1504,13 +1508,22 @@ static void string(int type) {
 	do {
 		int type = parser.previous.type == TOKEN_BIG_STRING ? 3 : 1;
 		const char * c = parser.previous.start + type;
-		while (c < parser.previous.start + parser.previous.length - type) {
+		const char * end = parser.previous.start + parser.previous.length - type;
+		while (c < end) {
 			if (*c == '\\') {
 				switch (c[1]) {
 					case 'n': PUSH_CHAR('\n'); break;
 					case 'r': PUSH_CHAR('\r'); break;
 					case 't': PUSH_CHAR('\t'); break;
 					case '[': PUSH_CHAR('\033'); break;
+					case 'x':
+						if (c+2 == end || c+3 == end || !isHex(c[2]) || !isHex(c[3])) {
+							error("invalid \\x escape");
+							return;
+						}
+						PUSH_CHAR(strtoul((char[]){c[2],c[3],'\0'}, NULL, 16));
+						c += 2;
+						break;
 					case '\n': break;
 					default: PUSH_CHAR(c[1]); break;
 				}
