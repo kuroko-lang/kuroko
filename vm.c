@@ -1381,6 +1381,7 @@ static KrkValue _string_init(int argc, KrkValue argv[]) {
 static KrkValue _string_add(int argc, KrkValue argv[]) {
 	const char * a, * b;
 	size_t al, bl;
+	int needsPop = 0;
 
 	a = AS_CSTRING(argv[0]);
 	al = AS_STRING(argv[0])->length;
@@ -1390,6 +1391,8 @@ static KrkValue _string_add(int argc, KrkValue argv[]) {
 		if (type->_tostr) {
 			krk_push(argv[1]);
 			KrkValue result = krk_callSimple(OBJECT_VAL(type->_tostr), 1, 0);
+			krk_push(result);
+			needsPop = 1;
 			if (!IS_STRING(result)) {
 				krk_runtimeError(vm.exceptions.typeError, "__str__ produced something that was not a string: '%s'", krk_typeName(result));
 				return NONE_VAL();
@@ -1412,6 +1415,7 @@ static KrkValue _string_add(int argc, KrkValue argv[]) {
 	chars[length] = '\0';
 
 	KrkString * result = krk_takeString(chars, length);
+	if (needsPop) krk_pop();
 	return OBJECT_VAL(result);
 }
 
@@ -3778,6 +3782,7 @@ static KrkValue run() {
 			case OP_TUPLE_LONG:
 			case OP_TUPLE: {
 				size_t count = readBytes(frame, operandWidth);
+				krk_reserve_stack(4);
 				KrkValue tuple = _tuple_of(count,&vm.stackTop[-count]);
 				if (count) {
 					vm.stackTop[-count] = tuple;
