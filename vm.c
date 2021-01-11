@@ -1870,6 +1870,48 @@ static KrkValue _string_rstrip(int argc, KrkValue argv[]) {
 	return _string_strip_shared(argc,argv,2);
 }
 
+static KrkValue _string_lt(int argc, KrkValue argv[]) {
+	if (!IS_STRING(argv[1])) {
+		return KWARGS_VAL(0); /* represents 'not implemented' */
+	}
+
+	size_t aLen = AS_STRING(argv[0])->length;
+	size_t bLen = AS_STRING(argv[1])->length;
+	const char * a = AS_CSTRING(argv[0]);
+	const char * b = AS_CSTRING(argv[1]);
+
+	for (size_t i = 0; i < (aLen < bLen) ? aLen : bLen; i++) {
+		if (a[i] < b[i]) return BOOLEAN_VAL(1);
+		if (a[i] > b[i]) return BOOLEAN_VAL(0);
+	}
+
+	return BOOLEAN_VAL((aLen < bLen));
+}
+
+static KrkValue _string_gt(int argc, KrkValue argv[]) {
+	if (!IS_STRING(argv[1])) {
+		return KWARGS_VAL(0); /* represents 'not implemented' */
+	}
+
+	size_t aLen = AS_STRING(argv[0])->length;
+	size_t bLen = AS_STRING(argv[1])->length;
+	const char * a = AS_CSTRING(argv[0]);
+	const char * b = AS_CSTRING(argv[1]);
+
+	for (size_t i = 0; i < (aLen < bLen) ? aLen : bLen; i++) {
+		if (a[i] < b[i]) return BOOLEAN_VAL(0);
+		if (a[i] > b[i]) return BOOLEAN_VAL(1);
+	}
+
+	return BOOLEAN_VAL((aLen > bLen));
+}
+
+/** TODO but throw a more descriptive error for now */
+static KrkValue _string_mod(int argc, KrkValue argv[]) {
+	krk_runtimeError(vm.exceptions.notImplementedError, "%%-formatting for strings is not yet available");
+	return NONE_VAL();
+}
+
 /* str.split() */
 static KrkValue _string_split(int argc, KrkValue argv[], int hasKw) {
 	if (!IS_STRING(argv[0])) return NONE_VAL();
@@ -2802,6 +2844,9 @@ void krk_initVM(int flags) {
 	krk_defineNative(&vm.baseClasses.strClass->methods, ".strip", _string_strip);
 	krk_defineNative(&vm.baseClasses.strClass->methods, ".lstrip", _string_lstrip);
 	krk_defineNative(&vm.baseClasses.strClass->methods, ".rstrip", _string_rstrip);
+	krk_defineNative(&vm.baseClasses.strClass->methods, ".__lt__", _string_lt);
+	krk_defineNative(&vm.baseClasses.strClass->methods, ".__gt__", _string_gt);
+	krk_defineNative(&vm.baseClasses.strClass->methods, ".__mod__", _string_mod);
 	krk_finalizeClass(vm.baseClasses.strClass);
 	/* TODO: Don't attach */
 	ADD_BASE_CLASS(vm.baseClasses.functionClass, "function", vm.objectClass);
@@ -2943,6 +2988,26 @@ const char * krk_typeName(KrkValue value) {
 	return AS_CLASS(krk_typeOf(1, (KrkValue[]){value}))->name->chars;
 }
 
+static KrkValue tryBind(const char * name, KrkValue a, KrkValue b, const char * msg) {
+	KrkClass * type = AS_CLASS(krk_typeOf(1,&a));
+	KrkString * methodName = krk_copyString(name, strlen(name));
+	krk_push(OBJECT_VAL(methodName));
+	krk_push(a);
+	KrkValue value = KWARGS_VAL(0);
+	if (krk_bindMethod(type, methodName)) {
+		krk_swap(1);
+		krk_pop();
+		krk_push(b);
+		value = krk_callSimple(krk_peek(1), 1, 1);
+	}
+	if (IS_KWARGS(value)) {
+		krk_runtimeError(vm.exceptions.typeError, msg, krk_typeName(a), krk_typeName(b));
+		return NONE_VAL();
+	} else {
+		return value;
+	}
+}
+
 /**
  * Basic arithmetic and string functions follow.
  *
@@ -2953,7 +3018,7 @@ const char * krk_typeName(KrkValue value) {
  */
 
 #define MAKE_BIN_OP(name,operator) \
-	static KrkValue name (KrkValue a, KrkValue b) { \
+	static KrkValue operator_ ## name (KrkValue a, KrkValue b) { \
 		if (IS_INTEGER(a) && IS_INTEGER(b)) return INTEGER_VAL(AS_INTEGER(a) operator AS_INTEGER(b)); \
 		if (IS_FLOATING(a)) { \
 			if (IS_INTEGER(b)) return FLOATING_VAL(AS_FLOATING(a) operator (double)AS_INTEGER(b)); \
@@ -2961,33 +3026,31 @@ const char * krk_typeName(KrkValue value) {
 		} else if (IS_FLOATING(b)) { \
 			if (IS_INTEGER(a)) return FLOATING_VAL((double)AS_INTEGER(a) operator AS_FLOATING(b)); \
 		} \
-		krk_runtimeError(vm.exceptions.typeError, "Incompatible types for binary operand %s: %s and %s", #operator, krk_typeName(a), krk_typeName(b)); \
-		return NONE_VAL(); \
+		return tryBind("__" #name "__", a, b, "unsupported operand types for " #operator ": '%s' and '%s'"); \
 	}
 
 MAKE_BIN_OP(add,+)
-MAKE_BIN_OP(subtract,-)
-MAKE_BIN_OP(multiply,*)
-MAKE_BIN_OP(divide,/)
+MAKE_BIN_OP(sub,-)
+MAKE_BIN_OP(mul,*)
+MAKE_BIN_OP(div,/)
 
 /* Bit ops are invalid on doubles in C, so we can't use the same set of macros for them;
  * they should be invalid in Kuroko as well. */
 #define MAKE_BIT_OP(name,operator) \
-	static KrkValue name (KrkValue a, KrkValue b) { \
+	static KrkValue operator_ ## name (KrkValue a, KrkValue b) { \
 		if (IS_INTEGER(a) && IS_INTEGER(b)) return INTEGER_VAL(AS_INTEGER(a) operator AS_INTEGER(b)); \
-		krk_runtimeError(vm.exceptions.typeError, "Incompatible types for binary operand %s: %s and %s", #operator, krk_typeName(a), krk_typeName(b)); \
-		return NONE_VAL(); \
+		return tryBind("__" #name "__", a, b, "unsupported operand types for " #operator ": '%s' and '%s'"); \
 	}
 
-MAKE_BIT_OP(bitor,|)
-MAKE_BIT_OP(bitxor,^)
-MAKE_BIT_OP(bitand,&)
-MAKE_BIT_OP(shiftleft,<<)
-MAKE_BIT_OP(shiftright,>>)
-MAKE_BIT_OP(modulo,%) /* not a bit op, but doesn't work on floating point */
+MAKE_BIT_OP(or,|)
+MAKE_BIT_OP(xor,^)
+MAKE_BIT_OP(and,&)
+MAKE_BIT_OP(lshift,<<)
+MAKE_BIT_OP(rshift,>>)
+MAKE_BIT_OP(mod,%) /* not a bit op, but doesn't work on floating point */
 
 #define MAKE_COMPARATOR(name, operator) \
-	static KrkValue name (KrkValue a, KrkValue b) { \
+	static KrkValue operator_ ## name (KrkValue a, KrkValue b) { \
 		if (IS_INTEGER(a) && IS_INTEGER(b)) return BOOLEAN_VAL(AS_INTEGER(a) operator AS_INTEGER(b)); \
 		if (IS_FLOATING(a)) { \
 			if (IS_INTEGER(b)) return BOOLEAN_VAL(AS_FLOATING(a) operator AS_INTEGER(b)); \
@@ -2995,12 +3058,11 @@ MAKE_BIT_OP(modulo,%) /* not a bit op, but doesn't work on floating point */
 		} else if (IS_FLOATING(b)) { \
 			if (IS_INTEGER(a)) return BOOLEAN_VAL(AS_INTEGER(a) operator AS_INTEGER(b)); \
 		} \
-		krk_runtimeError(vm.exceptions.typeError, "Can not compare types %s and %s", krk_typeName(a), krk_typeName(b)); \
-		return NONE_VAL(); \
+		return tryBind("__" #name "__", a, b, "'" #operator "' not supported between instances of '%s' and '%s'"); \
 	}
 
-MAKE_COMPARATOR(less, <)
-MAKE_COMPARATOR(greater, >)
+MAKE_COMPARATOR(lt, <)
+MAKE_COMPARATOR(gt, >)
 
 static void concatenate(const char * a, const char * b, size_t al, size_t bl) {
 	size_t length = al + bl;
@@ -3042,7 +3104,7 @@ static void addObjects() {
 			concatenate(a->chars,tmp,a->length,strlen(tmp));
 		}
 	} else {
-		krk_runtimeError(vm.exceptions.typeError, "Can not concatenate types %s and %s", krk_typeName(_a), krk_typeName(_b)); \
+		krk_push(tryBind("__add__", _a, _b, "unsupported operand types for +: '%s' and '%s'"));
 	}
 }
 
@@ -3289,11 +3351,11 @@ static int valueGetProperty(KrkString * name) {
 }
 
 #define READ_BYTE() (*frame->ip++)
-#define BINARY_OP(op) { KrkValue b = krk_pop(); KrkValue a = krk_pop(); krk_push(op(a,b)); break; }
+#define BINARY_OP(op) { KrkValue b = krk_pop(); KrkValue a = krk_pop(); krk_push(operator_ ## op (a,b)); break; }
 #define BINARY_OP_CHECK_ZERO(op) { KrkValue b = krk_pop(); KrkValue a = krk_pop(); \
 	if ((IS_INTEGER(b) && AS_INTEGER(b) == 0)) { krk_runtimeError(vm.exceptions.zeroDivisionError, "integer division or modulo by zero"); goto _finishException; } \
 	else if ((IS_FLOATING(b) && AS_FLOATING(b) == 0.0)) { krk_runtimeError(vm.exceptions.zeroDivisionError, "float division by zero"); goto _finishException; } \
-	krk_push(op(a,b)); break; }
+	krk_push(operator_ ## op (a,b)); break; }
 #define READ_CONSTANT(s) (frame->closure->function->chunk.constants.values[readBytes(frame,s)])
 #define READ_STRING(s) AS_STRING(READ_CONSTANT(s))
 
@@ -3402,21 +3464,21 @@ static KrkValue run() {
 				krk_push(BOOLEAN_VAL(krk_valuesSame(a,b)));
 				break;
 			}
-			case OP_LESS: BINARY_OP(less);
-			case OP_GREATER: BINARY_OP(greater)
+			case OP_LESS: BINARY_OP(lt);
+			case OP_GREATER: BINARY_OP(gt)
 			case OP_ADD:
 				if (IS_OBJECT(krk_peek(0)) || IS_OBJECT(krk_peek(1))) addObjects();
 				else BINARY_OP(add)
 				break;
-			case OP_SUBTRACT: BINARY_OP(subtract)
-			case OP_MULTIPLY: BINARY_OP(multiply)
-			case OP_DIVIDE: BINARY_OP_CHECK_ZERO(divide)
-			case OP_MODULO: BINARY_OP_CHECK_ZERO(modulo)
-			case OP_BITOR: BINARY_OP(bitor)
-			case OP_BITXOR: BINARY_OP(bitxor)
-			case OP_BITAND: BINARY_OP(bitand)
-			case OP_SHIFTLEFT: BINARY_OP(shiftleft)
-			case OP_SHIFTRIGHT: BINARY_OP(shiftright)
+			case OP_SUBTRACT: BINARY_OP(sub)
+			case OP_MULTIPLY: BINARY_OP(mul)
+			case OP_DIVIDE: BINARY_OP_CHECK_ZERO(div)
+			case OP_MODULO: BINARY_OP_CHECK_ZERO(mod)
+			case OP_BITOR: BINARY_OP(or)
+			case OP_BITXOR: BINARY_OP(xor)
+			case OP_BITAND: BINARY_OP(and)
+			case OP_SHIFTLEFT: BINARY_OP(lshift)
+			case OP_SHIFTRIGHT: BINARY_OP(rshift)
 			case OP_BITNEGATE: {
 				KrkValue value = krk_pop();
 				if (IS_INTEGER(value)) krk_push(INTEGER_VAL(~AS_INTEGER(value)));

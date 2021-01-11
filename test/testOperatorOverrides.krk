@@ -1,0 +1,10 @@
+# This makes a little C++-style printer.
+class CPPPrinter(object):
+    def __lshift__(self, output):
+        print(output,end='')
+        return self
+
+let cout = CPPPrinter()
+
+cout << 'Hello' << ' world.' << '\n'
+cout << 'The meaning of life is ' << 42 << '\n'
