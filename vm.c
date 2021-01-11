@@ -2727,6 +2727,8 @@ void krk_initVM(int flags) {
 	ADD_EXCEPTION_CLASS(vm.exceptions.ioError, "IOError", vm.exceptions.baseException);
 	ADD_EXCEPTION_CLASS(vm.exceptions.valueError, "ValueError", vm.exceptions.baseException);
 	ADD_EXCEPTION_CLASS(vm.exceptions.keyboardInterrupt, "KeyboardInterrupt", vm.exceptions.baseException);
+	ADD_EXCEPTION_CLASS(vm.exceptions.zeroDivisionError, "ZeroDivisionError", vm.exceptions.baseException);
+	ADD_EXCEPTION_CLASS(vm.exceptions.notImplementedError, "NotImplementedError", vm.exceptions.baseException);
 
 	/* Build classes for basic types */
 	ADD_BASE_CLASS(vm.baseClasses.typeClass, "type", vm.objectClass);
@@ -3261,6 +3263,10 @@ static int valueGetProperty(KrkString * name) {
 
 #define READ_BYTE() (*frame->ip++)
 #define BINARY_OP(op) { KrkValue b = krk_pop(); KrkValue a = krk_pop(); krk_push(op(a,b)); break; }
+#define BINARY_OP_CHECK_ZERO(op) { KrkValue b = krk_pop(); KrkValue a = krk_pop(); \
+	if ((IS_INTEGER(b) && AS_INTEGER(b) == 0)) { krk_runtimeError(vm.exceptions.zeroDivisionError, "integer division or modulo by zero"); goto _finishException; } \
+	else if ((IS_FLOATING(b) && AS_FLOATING(b) == 0.0)) { krk_runtimeError(vm.exceptions.zeroDivisionError, "float division by zero"); goto _finishException; } \
+	krk_push(op(a,b)); break; }
 #define READ_CONSTANT(s) (frame->closure->function->chunk.constants.values[readBytes(frame,s)])
 #define READ_STRING(s) AS_STRING(READ_CONSTANT(s))
 
@@ -3371,8 +3377,8 @@ static KrkValue run() {
 				break;
 			case OP_SUBTRACT: BINARY_OP(subtract)
 			case OP_MULTIPLY: BINARY_OP(multiply)
-			case OP_DIVIDE: BINARY_OP(divide)
-			case OP_MODULO: BINARY_OP(modulo)
+			case OP_DIVIDE: BINARY_OP_CHECK_ZERO(divide)
+			case OP_MODULO: BINARY_OP_CHECK_ZERO(modulo)
 			case OP_BITOR: BINARY_OP(bitor)
 			case OP_BITXOR: BINARY_OP(bitxor)
 			case OP_BITAND: BINARY_OP(bitand)

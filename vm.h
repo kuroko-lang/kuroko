@@ -81,6 +81,8 @@ typedef struct {
 		KrkClass * ioError;
 		KrkClass * valueError;
 		KrkClass * keyboardInterrupt;
+		KrkClass * zeroDivisionError;
+		KrkClass * notImplementedError;
 	} exceptions;
 
 	struct {
