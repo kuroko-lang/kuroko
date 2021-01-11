@@ -100,6 +100,7 @@ typedef struct KrkClass {
 	KrkString * docstring;
 	struct KrkClass * base;
 	KrkTable methods;
+	KrkTable fields;
 
 	/* Quick access for common stuff */
 	KrkObj * _getter;

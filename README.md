@@ -326,6 +326,22 @@ o.printFoo()
 
 _**Note:** As `self` is implicit, it can not be renamed; other argument names listed in a method signature will refer to additional arguments._
 
+Classes can also define fields, which can be accessed from the class or through an instance.
+
+```py
+class Foo():
+    bar = "baz"
+    def printBar(self):
+        print(self.bar)
+let o = Foo()
+o.printBar()
+# → baz
+print(Foo.bar)
+# → baz
+```
+
+_**Note:** Instances receive a copy of their class's fields upon creation. If a class field is mutable, the instance's copy will refer to the same underlying object. Assignments to the instance's copy of a field will refer to a new object. If a new field is added to a class after instances have been created, the existing instances will not be able to reference the new field._
+
 When a class is instantiated, if it has an `__init__` method it will be called automatically. `__init__` may take arguments as well.
 
 ```py

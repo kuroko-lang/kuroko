@@ -862,6 +862,16 @@ static void method(size_t blockWidth) {
 	 * as a redundant thing, just to make more Python stuff work with changes. */
 	if (check(TOKEN_AT)) {
 		decorator(0, TYPE_METHOD);
+	} else if (match(TOKEN_IDENTIFIER)) {
+		emitBytes(OP_DUP, 0); /* SET_PROPERTY will pop class */
+		size_t ind = identifierConstant(&parser.previous);
+		consume(TOKEN_EQUAL, "Class field must have value.");
+		expression();
+		EMIT_CONSTANT_OP(OP_SET_PROPERTY, ind);
+		emitByte(OP_POP); /* Value of expression replaces dup of class*/
+		if (!match(TOKEN_EOL) && !match(TOKEN_EOF)) {
+			errorAtCurrent("Expected end of line after class attribut declaration");
+		}
 	} else {
 		consume(TOKEN_DEF, "expected a definition, got nothing");
 		consume(TOKEN_IDENTIFIER, "expected method name");

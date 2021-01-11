@@ -288,6 +288,7 @@ KrkValue krk_module_onload_fileio(void) {
 	krk_attachNamedObject(&module->fields,chr_File,(KrkObj*)FileClass);
 	/* Inherit from object */
 	krk_tableAddAll(&vm.objectClass->methods, &FileClass->methods);
+	krk_tableAddAll(&vm.objectClass->fields, &FileClass->fields);
 	krk_pop();
 	krk_pop();
 

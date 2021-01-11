@@ -1,0 +1,27 @@
+class Foo():
+    a = None
+    b = 42
+    c = "string"
+    l = []
+    def test(self):
+        return (self.a,self.b,self.c,self.l)
+
+class Bar(Foo):
+    c = 96
+
+let f = Foo()
+let b = Foo()
+def testAll():
+    print(Foo.test(Foo), f.test(), b.test(), Bar.test(Bar))
+
+testAll()
+f.a = 42
+testAll()
+f.l.append("hi")
+testAll()
+f.l = []
+testAll()
+f.l.append("bacon")
+testAll()
+b.b = "derp"
+testAll()

@@ -733,6 +733,21 @@ KrkValue krk_dirObject(int argc, KrkValue argv[]) {
 			}
 		}
 	} else {
+		if (IS_CLASS(argv[0])) {
+			KrkClass * _class = AS_CLASS(argv[0]);
+			for (size_t i = 0; i < _class->methods.capacity; ++i) {
+				if (_class->methods.entries[i].key.type != VAL_KWARGS) {
+					krk_writeValueArray(AS_LIST(_list_internal),
+						_class->methods.entries[i].key);
+				}
+			}
+			for (size_t i = 0; i < _class->fields.capacity; ++i) {
+				if (_class->fields.entries[i].key.type != VAL_KWARGS) {
+					krk_writeValueArray(AS_LIST(_list_internal),
+						_class->fields.entries[i].key);
+				}
+			}
+		}
 		KrkClass * type = AS_CLASS(krk_typeOf(1, (KrkValue[]){argv[0]}));
 
 		for (size_t i = 0; i < type->methods.capacity; ++i) {
@@ -1368,6 +1383,7 @@ static KrkValue _string_init(int argc, KrkValue argv[]) {
 	krk_attachNamedObject(&vm.builtins->fields, name, (KrkObj*)obj); \
 	obj->base = baseClass; \
 	krk_tableAddAll(&baseClass->methods, &obj->methods); \
+	krk_tableAddAll(&baseClass->fields, &obj->fields); \
 } while (0)
 
 #define ADD_EXCEPTION_CLASS(obj, name, baseClass) do { \
@@ -1375,6 +1391,7 @@ static KrkValue _string_init(int argc, KrkValue argv[]) {
 	krk_attachNamedObject(&vm.builtins->fields, name, (KrkObj*)obj); \
 	obj->base = baseClass; \
 	krk_tableAddAll(&baseClass->methods, &obj->methods); \
+	krk_tableAddAll(&baseClass->fields, &obj->fields); \
 } while (0)
 
 #define BUILTIN_FUNCTION(name, func) do { \
@@ -2680,6 +2697,7 @@ void krk_initVM(int flags) {
 	vm.moduleClass = krk_newClass(S("module"));
 	vm.moduleClass->base = vm.objectClass;
 	krk_tableAddAll(&vm.objectClass->methods, &vm.moduleClass->methods);
+	krk_tableAddAll(&vm.objectClass->fields, &vm.moduleClass->fields);
 
 	/* Attach new repr/str */
 	krk_defineNative(&vm.moduleClass->methods, ".__repr__", _module_repr);
@@ -3240,15 +3258,24 @@ int krk_loadModule(KrkString * name, KrkValue * moduleOut) {
  */
 static int valueGetProperty(KrkString * name) {
 	KrkClass * objectClass;
+	KrkValue value;
 	if (IS_INSTANCE(krk_peek(0))) {
 		KrkInstance * instance = AS_INSTANCE(krk_peek(0));
-		KrkValue value;
 		if (krk_tableGet(&instance->fields, OBJECT_VAL(name), &value)) {
 			krk_pop();
 			krk_push(value);
 			return 1;
 		}
 		objectClass = instance->_class;
+	} else if (IS_CLASS(krk_peek(0))) {
+		KrkClass * _class = AS_CLASS(krk_peek(0));
+		if (krk_tableGet(&_class->fields, OBJECT_VAL(name), &value) ||
+			krk_tableGet(&_class->methods, OBJECT_VAL(name), &value)) {
+			krk_pop();
+			krk_push(value);
+			return 1;
+		}
+		objectClass = AS_CLASS(krk_typeOf(1, (KrkValue[]){krk_peek(0)}));
 	} else {
 		objectClass = AS_CLASS(krk_typeOf(1, (KrkValue[]){krk_peek(0)}));
 	}
@@ -3570,6 +3597,7 @@ static KrkValue run() {
 				_class->filename = frame->closure->function->chunk.filename;
 				_class->base = vm.objectClass;
 				krk_tableAddAll(&vm.objectClass->methods, &_class->methods);
+				krk_tableAddAll(&vm.objectClass->fields, &_class->fields);
 				break;
 			}
 			case OP_GET_PROPERTY_LONG:
@@ -3615,15 +3643,18 @@ static KrkValue run() {
 			case OP_SET_PROPERTY_LONG:
 			case OP_SET_PROPERTY: {
 				KrkString * name = READ_STRING(operandWidth);
-				if (!IS_INSTANCE(krk_peek(1))) {
+				if (IS_INSTANCE(krk_peek(1))) {
+					KrkInstance * instance = AS_INSTANCE(krk_peek(1));
+					krk_tableSet(&instance->fields, OBJECT_VAL(name), krk_peek(0));
+				} else if (IS_CLASS(krk_peek(1))) {
+					KrkClass * _class = AS_CLASS(krk_peek(1));
+					krk_tableSet(&_class->fields, OBJECT_VAL(name), krk_peek(0));
+				} else {
 					krk_runtimeError(vm.exceptions.attributeError, "'%s' object has no attribute '%s'", krk_typeName(krk_peek(0)), name->chars);
 					goto _finishException;
 				}
-				KrkInstance * instance = AS_INSTANCE(krk_peek(1));
-				krk_tableSet(&instance->fields, OBJECT_VAL(name), krk_peek(0));
-				KrkValue value = krk_pop();
-				krk_pop(); /* instance */
-				krk_push(value); /* Moves value in */
+				krk_swap(1);
+				krk_pop();
 				break;
 			}
 			case OP_METHOD_LONG:
@@ -3651,6 +3682,7 @@ static KrkValue run() {
 				KrkClass * subclass = AS_CLASS(krk_peek(0));
 				subclass->base = AS_CLASS(superclass);
 				krk_tableAddAll(&AS_CLASS(superclass)->methods, &subclass->methods);
+				krk_tableAddAll(&AS_CLASS(superclass)->fields, &subclass->fields);
 				krk_pop();
 				break;
 			}

@@ -1,0 +1,23 @@
+def staticmethod(func):
+    def _wrapper(*args,**kwargs):
+        return func(None,*args,**kwargs)
+    return _wrapper
+
+class Foo():
+    def amethod():
+        print("If this were Python, I'd be impossible to call.")
+    @staticmethod
+    def astatic():
+        print("Since `None` is always implicit, it's been set by @staticmethod here to None:", self)
+
+# This doesn't work because amethod is unbound and needs an instance.
+try:
+    Foo.amethod()
+except:
+    print(exception.arg)
+# This works
+Foo.amethod(Foo())
+# This should too?
+Foo.astatic()
+
+

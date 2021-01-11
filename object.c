@@ -114,6 +114,7 @@ KrkClass * krk_newClass(KrkString * name) {
 	_class->docstring = NULL;
 	_class->base = NULL;
 	krk_initTable(&_class->methods);
+	krk_initTable(&_class->fields);
 
 	_class->_getter = NULL;
 	_class->_setter = NULL;
@@ -131,6 +132,7 @@ KrkInstance * krk_newInstance(KrkClass * _class) {
 	KrkInstance * instance = ALLOCATE_OBJECT(KrkInstance, OBJ_INSTANCE);
 	instance->_class = _class;
 	krk_initTable(&instance->fields);
+	krk_tableAddAll(&_class->fields, &instance->fields);
 	instance->_internal = NULL; /* To be used by C-defined types to track internal objects. */
 	return instance;
 }

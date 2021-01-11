@@ -56,6 +56,7 @@ static void _loadEnviron(KrkInstance * module) {
 	KrkValue dictClass;
 	krk_tableGet(&vm.builtins->fields,OBJECT_VAL(S("dict")), &dictClass);
 	krk_tableAddAll(&AS_CLASS(dictClass)->methods, &environClass->methods);
+	krk_tableAddAll(&AS_CLASS(dictClass)->fields, &environClass->fields);
 	environClass->base = AS_CLASS(dictClass);
 
 	/* Add our set method that should also call dict's set method */

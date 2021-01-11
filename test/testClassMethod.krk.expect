@@ -1,0 +1,3 @@
+amethod() takes exactly 1 argument (0 given)
+If this were Python, I'd be impossible to call.
+Since `None` is always implicit, it's been set by @staticmethod here to None: None

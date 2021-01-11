@@ -1,0 +1,6 @@
+(None, 42, 'string', []) (None, 42, 'string', []) (None, 42, 'string', []) (None, 42, 96, [])
+(None, 42, 'string', []) (42, 42, 'string', []) (None, 42, 'string', []) (None, 42, 96, [])
+(None, 42, 'string', ['hi']) (42, 42, 'string', ['hi']) (None, 42, 'string', ['hi']) (None, 42, 96, ['hi'])
+(None, 42, 'string', ['hi']) (42, 42, 'string', []) (None, 42, 'string', ['hi']) (None, 42, 96, ['hi'])
+(None, 42, 'string', ['hi']) (42, 42, 'string', ['bacon']) (None, 42, 'string', ['hi']) (None, 42, 96, ['hi'])
+(None, 42, 'string', ['hi']) (42, 42, 'string', ['bacon']) (None, 'derp', 'string', ['hi']) (None, 42, 96, ['hi'])
