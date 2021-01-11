@@ -285,7 +285,7 @@ print(myLambda(3))
 #   15
 ```
 
-Creating a lambda and assigning it immediately to a name is not all that useful, but lambdas can be used whereever an expression is expected.
+Creating a lambda and assigning it immediately to a name is not all that useful, but lambdas can be used where-ever an expression is expected.
 
 ### Basic Objects and Classes
 
@@ -410,7 +410,7 @@ print(type(foo))
 # → <type 'Foo'>
 ```
 
-You can also determine if an object is an instance of a given type, either directly or through its inheritence chain, with the `isinstance` function:
+You can also determine if an object is an instance of a given type, either directly or through its inheritance chain, with the `isinstance` function:
 
 ```py
 class Foo:
@@ -1146,7 +1146,7 @@ With either approach, the API provided by Kuroko is the same beyond initializati
 
 ### Embedding Kuroko
 
-Kuroko is built as a shared libary, `libkuroko.so`, which can be linked against. `libkuroko.so` generally depends on the system dynamic linker, which may involve an additional library (eg. `-ldl`).
+Kuroko is built as a shared library, `libkuroko.so`, which can be linked against. `libkuroko.so` generally depends on the system dynamic linker, which may involve an additional library (eg. `-ldl`).
 
 The simplest example of embedding Kuroko is to initialize the VM and interpret an embedded line of code:
 
@@ -1234,7 +1234,7 @@ More complex types are represented by subtypes of `KrkObj` known as _objects_, a
 
 Strings, functions, closures, classes, instances, and tuples are all basic objects and carry additional data in their heap representations.
 
-_Strings_ (`KrkString`) are immutable and deduplicated - any two strings with the same text have the same _object_. (See _Crafting Interpreters_, chapter 19) Strings play a heavy role in the object model, providing the basic type for indexing into attribute tables in classes and instances.
+_Strings_ (`KrkString`) are immutable and de-duplicated - any two strings with the same text have the same _object_. (See _Crafting Interpreters_, chapter 19) Strings play a heavy role in the object model, providing the basic type for indexing into attribute tables in classes and instances.
 
 _Functions_ (`KrkFunction`) represent bytecode, argument lists, default values, local names, and constants - the underlying elements of execution for a function. Generally, functions are not relevant to either embedding or C modules and are an internal implementation detail of the VM.
 
@@ -1279,7 +1279,7 @@ Here we have created a new class named `MyNameClass` and exposed it through the 
     krk_tableAddAll(&vm.objectClass->fields, &myNewClass->fields);
 ```
 
-We also want to make sure that our new class fits into the general inheritence hierarchy, which typically means inheriting from `vm.objectClass` - we do this by setting our new class's `base` pointer to `vm.objectClass` and copying `vm.objectClass`'s method and field tables. Now we can start customizing our class with its own methods.
+We also want to make sure that our new class fits into the general inheritance hierarchy, which typically means inheriting from `vm.objectClass` - we do this by setting our new class's `base` pointer to `vm.objectClass` and copying `vm.objectClass`'s method and field tables. Now we can start customizing our class with its own methods.
 
 Native functions are attached to class method tables in a similar manner to normal functions:
 
@@ -1289,7 +1289,7 @@ krk_defineNative(&myNewClass->methods, ".my_native_method", my_native_method);
 
 When attaching methods, notice the `.` at the start of the name. This indicates to `krk_defineNative` that this method will take a "self" value as its first argument. This affects how the VM modifies the stack when calling native code and allows native functions to integrate with user code functions and methods.
 
-In addition to methods, native functions may also provide classes with _dynamic fields_. A dynamic field works much like a method, but it is called implictly when the field is accessed. Dynamic fields are used by the native classes to provide non-instance values with field values.
+In addition to methods, native functions may also provide classes with _dynamic fields_. A dynamic field works much like a method, but it is called implicitly when the field is accessed. Dynamic fields are used by the native classes to provide non-instance values with field values.
 
 ```c
 krk_defineNative(&myNewClass->methods, ":my_dynamic_field", my_dynamic_field);
@@ -1297,11 +1297,11 @@ krk_defineNative(&myNewClass->methods, ":my_dynamic_field", my_dynamic_field);
 
 If your new instances of your class will be created by user code, you can provide an `__init__` method, or any of the other special methods described in the Examples above.
 
-When you've finished attaching all of the relevant methods to your class, be sure to call `krk_finalizeClass`, which creates shortcuts within your class's struct representation that allow the VM to find special functions quickly:
+When you've finished attaching all of the relevant methods to your class, be sure to call `krk_finalizeClass`, which creates shortcuts within your class's `struct` representation that allow the VM to find special functions quickly:
 
 ```c
 krk_finalizeClass(myNewClass)
 ```
 
-Specifically, this will search through the class's method table to find implementtations for functions like `__repr__` and `__init__`. This step is required for these functions to work as expected as the VM will not look them up by name.
+Specifically, this will search through the class's method table to find implementations for functions like `__repr__` and `__init__`. This step is required for these functions to work as expected as the VM will not look them up by name.
 
