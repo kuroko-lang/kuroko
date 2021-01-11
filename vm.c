@@ -3027,15 +3027,17 @@ const char * krk_typeName(KrkValue value) {
 }
 
 static KrkValue tryBind(const char * name, KrkValue a, KrkValue b, const char * msg) {
+	krk_push(b);
+	krk_push(a);
 	KrkClass * type = AS_CLASS(krk_typeOf(1,&a));
 	KrkString * methodName = krk_copyString(name, strlen(name));
 	krk_push(OBJECT_VAL(methodName));
-	krk_push(a);
 	KrkValue value = KWARGS_VAL(0);
+	krk_swap(1);
 	if (krk_bindMethod(type, methodName)) {
 		krk_swap(1);
 		krk_pop();
-		krk_push(b);
+		krk_swap(1);
 		value = krk_callSimple(krk_peek(1), 1, 1);
 	}
 	if (IS_KWARGS(value)) {
