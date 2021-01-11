@@ -57,7 +57,7 @@ class set():
   return v in self._dict
  def __str__(self): return self.__repr__()
  def __repr__(self):
-  if self.__inrepr: return '{}' # sets are supposed to be unhashable, but whatever
+  if self.__inrepr: return '{}'
   let b='{'+', '.join([repr(k) for k in self._dict.keys()])+'}'
   self.__inrepr = 0
   return b
@@ -67,6 +67,23 @@ class set():
   return self._dict.__len__()
  def __iter__(self):
   return self._dict.keys().__iter__()
+ def __or__(self, o):
+  if not isinstance(o, set):
+   raise TypeError()
+  let b = set()
+  for k in self:
+   b.add(k)
+  for k in o:
+   b.add(k)
+  return b
+ def __and__(self, o):
+  if not isinstance(o, set):
+   raise TypeError()
+  let b = set()
+  for k in self:
+   if k in o:
+    b.add(k)
+  return b
 
 __builtins__.set = set
 
