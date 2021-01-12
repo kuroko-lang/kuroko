@@ -13,6 +13,7 @@
 #define S(c) (krk_copyString(c,sizeof(c)-1))
 
 static KrkClass * FileClass = NULL;
+static KrkClass * BinaryFileClass = NULL;
 
 KrkValue krk_open(int argc, KrkValue argv[]) {
 	/* How are we going to store files if we need to delete them at runtime
@@ -32,33 +33,51 @@ KrkValue krk_open(int argc, KrkValue argv[]) {
 	}
 
 	if (!IS_STRING(argv[0])) {
-		krk_runtimeError(vm.exceptions.typeError, "open: first argument should be a filename string.");
+		krk_runtimeError(vm.exceptions.typeError, "open: first argument should be a filename string, not '%s'", krk_typeName(argv[0]));
 		return NONE_VAL();
 	}
 
 	if (argc == 2 && !IS_STRING(argv[1])) {
-		krk_runtimeError(vm.exceptions.typeError, "open: second argument should be a mode string.");
+		krk_runtimeError(vm.exceptions.typeError, "open: second argument should be a mode string, not '%s'", krk_typeName(argv[1]));
 		return NONE_VAL();
 	}
 
 	KrkValue arg;
+	int isBinary = 0;
 
 	if (argc == 1) {
 		arg = OBJECT_VAL(S("r"));
-		krk_push(arg);
+		krk_push(arg); /* Will be peeked to find arg string for fopen */
 	} else {
+		/* Check mode against allowable modes */
+		if (AS_STRING(argv[1])->length == 0) {
+			krk_runtimeError(vm.exceptions.typeError, "open: mode string must not be empty");
+			return NONE_VAL();
+		}
+		for (size_t i = 0; i < AS_STRING(argv[1])->length-1; ++i) {
+			if (AS_CSTRING(argv[1])[i] == 'b') {
+				krk_runtimeError(vm.exceptions.typeError, "open: 'b' mode indicator must appear at end of mode string");
+				return NONE_VAL();
+			}
+		}
 		arg = argv[1];
-		krk_push(argv[1]);
+		if (AS_CSTRING(argv[1])[AS_STRING(argv[1])->length-1] == 'b') {
+			KrkValue tmp = OBJECT_VAL(krk_copyString(AS_CSTRING(argv[1]), AS_STRING(argv[1])->length-1));
+			krk_push(tmp);
+			isBinary = 1;
+		} else {
+			krk_push(arg);
+		}
 	}
 
-	FILE * file = fopen(AS_CSTRING(argv[0]), AS_CSTRING(arg));
+	FILE * file = fopen(AS_CSTRING(argv[0]), AS_CSTRING(krk_peek(0)));
 	if (!file) {
 		krk_runtimeError(vm.exceptions.ioError, "open: failed to open file; system returned: %s", strerror(errno));
 		return NONE_VAL();
 	}
 
 	/* Now let's build an object to hold it */
-	KrkInstance * fileObject = krk_newInstance(FileClass);
+	KrkInstance * fileObject = krk_newInstance(isBinary ? BinaryFileClass : FileClass);
 	krk_push(OBJECT_VAL(fileObject));
 
 	/* Let's put the filename in there somewhere... */
@@ -272,6 +291,144 @@ static void makeFileInstance(KrkInstance * module, const char name[], FILE * fil
 	krk_pop(); /* fileObject */
 }
 
+static KrkValue krk_file_readline_b(int argc, KrkValue argv[]) {
+	if (argc < 1 || !IS_INSTANCE(argv[0])) {
+		krk_runtimeError(vm.exceptions.baseException, "Not sure how that happened.");
+		return NONE_VAL();
+	}
+
+	FILE * file = AS_INSTANCE(argv[0])->_internal;
+
+	if (!file || feof(file)) {
+		return NONE_VAL();
+	}
+
+	size_t sizeRead = 0;
+	size_t spaceAvailable = 0;
+	char * buffer = NULL;
+
+	do {
+		if (spaceAvailable < sizeRead + BLOCK_SIZE) {
+			spaceAvailable = (spaceAvailable ? spaceAvailable * 2 : (2 * BLOCK_SIZE));
+			buffer = realloc(buffer, spaceAvailable);
+		}
+
+		char * target = &buffer[sizeRead];
+		while (sizeRead < spaceAvailable) {
+			int c = fgetc(file);
+			if (c < 0) break;
+			sizeRead++;
+			*target++ = c;
+			if (c == '\n') goto _finish_line;
+		}
+	} while (!feof(file));
+
+_finish_line: (void)0;
+	if (sizeRead == 0) {
+		free(buffer);
+		return NONE_VAL();
+	}
+
+	/* Make a new string to fit our output. */
+	KrkBytes * out = krk_newBytes(sizeRead, (unsigned char*)buffer);
+	free(buffer);
+	return OBJECT_VAL(out);
+}
+
+static KrkValue krk_file_readlines_b(int argc, KrkValue argv[]) {
+	KrkValue myList = krk_list_of(0,NULL);
+	krk_push(myList);
+
+	KrkValue _list_internal = OBJECT_VAL(AS_INSTANCE(myList)->_internal);
+
+	for (;;) {
+		KrkValue line = krk_file_readline_b(1, argv);
+		if (IS_NONE(line)) break;
+
+		krk_push(line);
+		krk_writeValueArray(AS_LIST(_list_internal), line);
+		krk_pop(); /* line */
+	}
+
+	krk_pop(); /* myList */
+	return myList;
+}
+
+static KrkValue krk_file_read_b(int argc, KrkValue argv[]) {
+	if (argc < 1 || !IS_INSTANCE(argv[0])) {
+		krk_runtimeError(vm.exceptions.baseException, "Not sure how that happened.");
+		return NONE_VAL();
+	}
+
+	/* Get the file ptr reference */
+	FILE * file = AS_INSTANCE(argv[0])->_internal;
+
+	if (!file || feof(file)) {
+		return NONE_VAL();
+	}
+
+	/* We'll do our read entirely with some native buffers and manage them here. */
+	size_t sizeRead = 0;
+	size_t spaceAvailable = 0;
+	char * buffer = NULL;
+
+	do {
+		if (spaceAvailable < sizeRead + BLOCK_SIZE) {
+			spaceAvailable = (spaceAvailable ? spaceAvailable * 2 : (2 * BLOCK_SIZE));
+			buffer = realloc(buffer, spaceAvailable);
+		}
+
+		char * target = &buffer[sizeRead];
+		size_t newlyRead = fread(target, 1, BLOCK_SIZE, file);
+
+		if (newlyRead < BLOCK_SIZE) {
+			if (ferror(file)) {
+				free(buffer);
+				krk_runtimeError(vm.exceptions.ioError, "Read error.");
+				return NONE_VAL();
+			}
+		}
+
+		sizeRead += newlyRead;
+	} while (!feof(file));
+
+	/* Make a new string to fit our output. */
+	KrkBytes * out = krk_newBytes(sizeRead, (unsigned char*)buffer);
+	free(buffer);
+	return OBJECT_VAL(out);
+}
+
+static KrkValue krk_file_write_b(int argc, KrkValue argv[]) {
+	/* Expect just a string as arg 2 */
+	if (argc < 2 || !IS_INSTANCE(argv[0]) || !IS_BYTES(argv[1])) {
+		krk_runtimeError(vm.exceptions.typeError, "write: expected bytes");
+		return NONE_VAL();
+	}
+
+	/* Find the file ptr reference */
+	FILE * file = AS_INSTANCE(argv[0])->_internal;
+
+	if (!file || feof(file)) {
+		return NONE_VAL();
+	}
+
+	return INTEGER_VAL(fwrite(AS_BYTES(argv[1])->bytes, 1, AS_BYTES(argv[1])->length, file));
+}
+
+static void makeClass(KrkInstance * module, KrkClass ** _class, const char * name, KrkClass * base) {
+	KrkString * str_Name = krk_copyString(name,strlen(name));
+	krk_push(OBJECT_VAL(str_Name));
+	*_class = krk_newClass(str_Name);
+	krk_push(OBJECT_VAL(*_class));
+	/* Bind it */
+	krk_attachNamedObject(&module->fields,name,(KrkObj*)*_class);
+	/* Inherit from object */
+	krk_tableAddAll(&base->methods, &(*_class)->methods);
+	krk_tableAddAll(&base->fields, &(*_class)->fields);
+	krk_pop();
+	krk_pop();
+}
+
 KrkValue krk_module_onload_fileio(void) {
 	KrkInstance * module = krk_newInstance(vm.moduleClass);
 	/* Store it on the stack for now so we can do stuff that may trip GC
@@ -279,25 +436,14 @@ KrkValue krk_module_onload_fileio(void) {
 	krk_push(OBJECT_VAL(module));
 
 	/* Define a class to represent files. (Should this be a helper method?) */
-	const char chr_File[] = "File";
-	KrkString * str_File = S(chr_File);
-	krk_push(OBJECT_VAL(str_File));
-	FileClass = krk_newClass(str_File);
-	krk_push(OBJECT_VAL(FileClass));
-	/* Bind it */
-	krk_attachNamedObject(&module->fields,chr_File,(KrkObj*)FileClass);
-	/* Inherit from object */
-	krk_tableAddAll(&vm.objectClass->methods, &FileClass->methods);
-	krk_tableAddAll(&vm.objectClass->fields, &FileClass->fields);
-	krk_pop();
-	krk_pop();
+	makeClass(module, &FileClass, "File", vm.objectClass);
 
 	/* Add methods to it... */
 	krk_defineNative(&FileClass->methods, ".read", krk_file_read);
 	krk_defineNative(&FileClass->methods, ".readline", krk_file_readline);
 	krk_defineNative(&FileClass->methods, ".readlines", krk_file_readlines);
-	krk_defineNative(&FileClass->methods, ".close", krk_file_close);
 	krk_defineNative(&FileClass->methods, ".write", krk_file_write);
+	krk_defineNative(&FileClass->methods, ".close", krk_file_close);
 	krk_defineNative(&FileClass->methods, ".flush", krk_file_flush);
 	krk_defineNative(&FileClass->methods, ".__str__", krk_file_str);
 	krk_defineNative(&FileClass->methods, ".__repr__", krk_file_str);
@@ -306,10 +452,17 @@ KrkValue krk_module_onload_fileio(void) {
 	krk_defineNative(&FileClass->methods, ".__exit__", krk_file_exit);
 	krk_finalizeClass(FileClass);
 
+	makeClass(module, &BinaryFileClass, "BinaryFile", FileClass);
+	krk_defineNative(&BinaryFileClass->methods, ".read", krk_file_read_b);
+	krk_defineNative(&BinaryFileClass->methods, ".readline", krk_file_readline_b);
+	krk_defineNative(&BinaryFileClass->methods, ".readlines", krk_file_readlines_b);
+	krk_defineNative(&BinaryFileClass->methods, ".write", krk_file_write_b);
+	krk_finalizeClass(BinaryFileClass);
+
 	/* Make an instance for stdout, stderr, and stdin */
-	makeFileInstance(module, "stdin",stdin);
-	makeFileInstance(module, "stdout",stdout);
-	makeFileInstance(module, "stderr",stderr);
+	makeFileInstance(module, "stdin", stdin);
+	makeFileInstance(module, "stdout", stdout);
+	makeFileInstance(module, "stderr", stderr);
 
 	/* Our base will be the open method */
 	krk_defineNative(&module->fields, "open", krk_open);
