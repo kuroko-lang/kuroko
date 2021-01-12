@@ -22,6 +22,7 @@ On top of this, Kuroko adds a number of features inspired by Python, such as:
 - Pseudo-classes for basic values (eg. strings are pseudo-instances of a `str` class providing methods like `.format()`)
 - Exception handling, with `try`/`except`/`raise`.
 - Modules, both for native C code and managed Kuroko code.
+- Unicode strings and identifiers.
 
 ## Building Kuroko
 
@@ -182,6 +183,8 @@ print("本".__ord__())
 print("t".__ord__())
 # → 116
 ```
+
+Invalid UTF-8 sequences will most likely result in a `ValueError` during decoding or parsing.
 
 _**Implementation Note:** Generally, the internal representation of strings is their UTF-8 encoded form. When an indexing or slicing operation happens in which a codepoint index needs to be converted to an offset in the string, the most appropriate 'canonical' format will be generated and remain with the interned string until is garbage collected. For strings containing only ASCII characters, no conversion is done and no additional copy is created. For all other strings, the smallest possible size for representing the largest codepoint is used, among the options of 1, 2, or 4. This approach is similar to CPython post-3.9._
 
