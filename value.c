@@ -59,10 +59,12 @@ void krk_printValue(FILE * f, KrkValue printable) {
 	if (type->_tostr) {
 		krk_push(printable);
 		printable = krk_callSimple(OBJECT_VAL(type->_tostr), 1, 0);
+		if (!IS_STRING(printable)) return;
 		fprintf(f, "%s", AS_CSTRING(printable));
 	} else if (type->_reprer) {
 		krk_push(printable);
 		printable = krk_callSimple(OBJECT_VAL(type->_reprer), 1, 0);
+		if (!IS_STRING(printable)) return;
 		fprintf(f, "%s", AS_CSTRING(printable));
 	} else {
 		fprintf(f, "%s", krk_typeName(printable));

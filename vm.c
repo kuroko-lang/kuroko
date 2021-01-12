@@ -1470,7 +1470,7 @@ static KrkValue _char_to_int(int argc, KrkValue argv[]) {
 	}
 
 	/* TODO unicode strings? Interpret as UTF-8 and return codepoint? */
-	return INTEGER_VAL(AS_CSTRING(argv[0])[0]);
+	return INTEGER_VAL(((unsigned char)AS_CSTRING(argv[0])[0]));
 }
 
 static KrkValue _print(int argc, KrkValue argv[], int hasKw) {
