@@ -225,7 +225,7 @@ Additionally, it means that the latter is _two_ codepoints and thus also a strin
 ```py
 print(len('é'))
 # → 1
-print(len('é')
+print(len('é'))
 # → 2
 ```
 
