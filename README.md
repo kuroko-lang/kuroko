@@ -209,6 +209,30 @@ print(b'test'[0])
 # → 116
 ```
 
+#### A Note on Unicode
+
+Kuroko strings are sequences of Unicode codepoints without normalization applied. This means that while é and é may look the same in your terminal or text editor, they are different strings in Kuroko - the latter of the two is constructed from the codepoint for the letter "e" and the combining character for the acute accent.
+
+```py
+print('é'.encode())
+# → b'\xc3/\xa9'
+print('é'.encode())
+# → b'e\xcc\x81'
+```
+
+Additionally, it means that the latter is _two_ codepoints and thus also a string of length 2.
+
+```py
+print(len('é'))
+# → 1
+print(len('é')
+# → 2
+```
+
+Unicode normalization and combining characters are complicated topics requiring library support and Kuroko does not bake them into the language semantics.
+
+_**Note:** A module to provide access to information from ICU, including string normalization and character types, is planned._
+
 ### Variables
 
 In a departure from Python, Kuroko has explicit variable declaration and traditional scoping rules. Variables are declared with the `let` keyword and take the value `None` if not defined at declaration time:
