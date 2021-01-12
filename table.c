@@ -20,6 +20,8 @@ void krk_freeTable(KrkTable * table) {
 	krk_initTable(table);
 }
 
+static uint32_t hashTupleValues(KrkTuple *tuple);
+
 static uint32_t hashValue(KrkValue value) {
 	if (IS_STRING(value)) return (AS_STRING(value))->hash;
 	if (IS_INTEGER(value)) return (uint32_t)(AS_INTEGER(value));
@@ -27,7 +29,16 @@ static uint32_t hashValue(KrkValue value) {
 	if (IS_BOOLEAN(value)) return (uint32_t)(AS_BOOLEAN(value));
 	if (IS_NONE(value)) return 0;
 	if (IS_BYTES(value)) return (AS_BYTES(value))->hash; /* Same as strings, but we don't have an interning table */
+	if (IS_TUPLE(value)) return hashTupleValues(AS_TUPLE(value));
 	return (((uint32_t)(intptr_t)AS_OBJECT(value)) >> 4)| (((uint32_t)(intptr_t)AS_OBJECT(value)) << 28);
+}
+
+static uint32_t hashTupleValues(KrkTuple *tuple) {
+	uint32_t hash = 0;
+	for (size_t i = 0; i < tuple->values.count; ++i) {
+		hash += hashValue(tuple->values.values[i]);
+	}
+	return hash;
 }
 
 KrkTableEntry * krk_findEntry(KrkTableEntry * entries, size_t capacity, KrkValue key) {

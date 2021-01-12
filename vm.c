@@ -2450,6 +2450,17 @@ static KrkValue _tuple_get(int argc, KrkValue argv[]) {
 	return tuple->values.values[index];
 }
 
+static KrkValue _tuple_eq(int argc, KrkValue argv[]) {
+	if (!IS_TUPLE(argv[1])) return BOOLEAN_VAL(0);
+	KrkTuple * self = AS_TUPLE(argv[0]);
+	KrkTuple * them = AS_TUPLE(argv[1]);
+	if (self->values.count != them->values.count) return BOOLEAN_VAL(0);
+	for (size_t i = 0; i < self->values.count; ++i) {
+		if (!krk_valuesEqual(self->values.values[i], them->values.values[i])) return BOOLEAN_VAL(0);
+	}
+	return BOOLEAN_VAL(1);
+}
+
 static KrkValue _tuple_repr(int argc, KrkValue argv[]) {
 	if (argc != 1) {
 		krk_runtimeError(vm.exceptions.argumentError, "tuple.__repr__ does not expect arguments");
@@ -3187,6 +3198,7 @@ void krk_initVM(int flags) {
 	krk_defineNative(&vm.baseClasses.tupleClass->methods, ".__len__", _tuple_len);
 	krk_defineNative(&vm.baseClasses.tupleClass->methods, ".__contains__", _tuple_contains);
 	krk_defineNative(&vm.baseClasses.tupleClass->methods, ".__iter__", _tuple_iter);
+	krk_defineNative(&vm.baseClasses.tupleClass->methods, ".__eq__", _tuple_eq);
 	krk_finalizeClass(vm.baseClasses.tupleClass);
 	ADD_BASE_CLASS(vm.baseClasses.bytesClass, "bytes", vm.objectClass);
 	krk_defineNative(&vm.baseClasses.bytesClass->methods, ".__init__",  _bytes_init);
