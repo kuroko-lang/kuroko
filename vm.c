@@ -2718,11 +2718,11 @@ static KrkValue _striter_call(int argc, KrkValue argv[]) {
 		goto _corrupt;
 	}
 
-	if ((size_t)AS_INTEGER(_counter) >= AS_STRING(_str)->length) {
+	if ((size_t)AS_INTEGER(_counter) >= AS_STRING(_str)->codesLength) {
 		return argv[0];
 	} else {
 		krk_attachNamedValue(&self->fields, "i", INTEGER_VAL(AS_INTEGER(_counter)+1));
-		return OBJECT_VAL(krk_copyString(&AS_CSTRING(_str)[AS_INTEGER(_counter)],1));
+		return _string_get(2,(KrkValue[]){_str,_counter});
 	}
 
 _corrupt:

@@ -19,3 +19,6 @@ print(len(bytes.decode()))
 print(len(bytes))
 
 print("テスト、テスト、日本語、おはよう".split("、"))
+
+for c in hello:
+    print(c)
