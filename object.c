@@ -52,12 +52,17 @@ static inline uint32_t decode(uint32_t* state, uint32_t* codep, uint32_t byte) {
 	};
 
 	if (*state == UTF8_ACCEPT) {
+		if (byte >= 0x80 && byte <= 0xC1) goto _reject;
 		*codep = byte & mask_bytes[byte >> 3];
 		*state = state_table[byte >> 3];
 	} else if (*state > 0) {
+		if (byte < 0x80 || byte >= 0xC0) goto _reject;
 		*codep = (byte & 0x3F) | (*codep << 6);
 		*state = next[*state];
 	}
+	return *state;
+_reject:
+	*state = UTF8_REJECT;
 	return *state;
 }
 
@@ -71,8 +76,10 @@ static int checkString(const char * chars, size_t length, size_t *codepointCount
 			if (codepoint > maxCodepoint) maxCodepoint = codepoint;
 			(*codepointCount)++;
 		} else if (state == UTF8_REJECT) {
-			state = 0;
-			continue;
+			krk_runtimeError(vm.exceptions.valueError, "Invalid UTF-8 sequence in string.");
+			fprintf(stderr, "Invalid sequence detected.\n");
+			*codepointCount = 0;
+			return KRK_STRING_ASCII;
 		}
 	}
 	if (maxCodepoint > 0xFFFF) {
