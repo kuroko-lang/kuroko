@@ -41,7 +41,7 @@ def loads(s):
                     sub[3] = peek()
                     if not all([x in '0123456789abcdefABCDEF' for x in sub]):
                         raise ValueError('Invalid codepoint in JSON string')
-                    raise NotImplementedError('TODO: unicode escapes')
+                    out += chr(int(sub,16))
                 else:
                     raise ValueError('Invalid escape sequence in JSON string')
             else:
