@@ -196,7 +196,9 @@ static KrkTokenType identifierType() {
 			case 'n': return checkKeyword(2, "d", TOKEN_AND);
 			case 's': return checkKeyword(2, "", TOKEN_AS);
 		} break;
-		case 'b': return checkKeyword(1, "reak", TOKEN_BREAK);
+		case 'b': if (MORE(1)) return checkKeyword(1, "reak", TOKEN_BREAK);
+			else if (scanner.start[1] == '\'' || scanner.start[1] == '"') return TOKEN_PREFIX_B;
+			break;
 		case 'c': if (MORE(1)) switch(scanner.start[1]) {
 			case 'l': return checkKeyword(2, "ass", TOKEN_CLASS);
 			case 'o': return checkKeyword(2, "ntinue", TOKEN_CONTINUE);
@@ -246,7 +248,7 @@ static KrkTokenType identifierType() {
 }
 
 static KrkToken identifier() {
-	while (isAlpha(peek()) || isDigit(peek())) advance();
+	while (isAlpha(peek()) || isDigit(peek()) || (unsigned char)peek() > 0x7F) advance();
 
 	return makeToken(identifierType());
 }
@@ -309,7 +311,7 @@ KrkToken krk_scanToken() {
 	/* Not indentation, not a linefeed on an empty line, must be not be start of line any more */
 	scanner.startOfLine = 0;
 
-	if (isAlpha(c)) return identifier();
+	if (isAlpha(c) || (unsigned char)c > 0x7F) return identifier();
 	if (isDigit(c)) return number(c);
 
 	switch (c) {
@@ -342,7 +344,6 @@ KrkToken krk_scanToken() {
 		case '"': return string('"');
 		case '\'': return string('\'');
 	}
-
 
 	return errorToken("Unexpected character.");
 }

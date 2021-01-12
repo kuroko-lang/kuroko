@@ -1521,6 +1521,11 @@ static void string(int type) {
 		stringBytes = GROW_ARRAY(char, stringBytes, old, stringCapacity); \
 	} stringBytes[stringLength++] = c; } while (0)
 
+	int isBytes = (parser.previous.type == TOKEN_PREFIX_B);
+	if (isBytes && !(match(TOKEN_STRING) || match(TOKEN_BIG_STRING))) {
+		error("Expected string after 'b' prefix?");
+	}
+
 	/* This should capture everything but the quotes. */
 	do {
 		int type = parser.previous.type == TOKEN_BIG_STRING ? 3 : 1;
@@ -1529,28 +1534,94 @@ static void string(int type) {
 		while (c < end) {
 			if (*c == '\\') {
 				switch (c[1]) {
+					case '\\': PUSH_CHAR('\\'); break;
+					case '\'': PUSH_CHAR('\''); break;
+					case '\"': PUSH_CHAR('\"'); break;
+					case 'a': PUSH_CHAR('\a'); break;
+					case 'b': PUSH_CHAR('\b'); break;
+					case 'f': PUSH_CHAR('\f'); break;
 					case 'n': PUSH_CHAR('\n'); break;
 					case 'r': PUSH_CHAR('\r'); break;
 					case 't': PUSH_CHAR('\t'); break;
+					case 'v': PUSH_CHAR('\v'); break;
 					case '[': PUSH_CHAR('\033'); break;
-					case 'x':
+					case 'x': {
 						if (c+2 == end || c+3 == end || !isHex(c[2]) || !isHex(c[3])) {
 							error("invalid \\x escape");
 							return;
 						}
-						PUSH_CHAR(strtoul((char[]){c[2],c[3],'\0'}, NULL, 16));
+						unsigned long value = strtoul((char[]){c[2],c[3],'\0'}, NULL, 16);
+						if (isBytes) {
+							PUSH_CHAR(value);
+						} else if (value > 127) {
+							PUSH_CHAR((0xC0 | (value >> 6)));
+							PUSH_CHAR((0x80 | (value & 0x3F)));
+						} else {
+							PUSH_CHAR(value);
+						}
 						c += 2;
-						break;
+					} break;
+					case 'u': {
+						if (isBytes) {
+							PUSH_CHAR(c[0]);
+							PUSH_CHAR(c[1]);
+						} else {
+							if (c+2 == end || c+3 == end || !isHex(c[2]) || !isHex(c[3]) ||
+								c+4 == end || c+5 == end || !isHex(c[4]) || !isHex(c[5])) {
+								error("truncated \\u escape");
+								return;
+							}
+							unsigned long value = strtoul((char[]){c[2],c[3],c[4],c[5],'\0'}, NULL, 16);
+							if (value > 0xFFFF) {
+								PUSH_CHAR((0xF0 | (value >> 18)));
+								PUSH_CHAR((0x80 | ((value >> 12) & 0x3F)));
+								PUSH_CHAR((0x80 | ((value >> 6) & 0x3F)));
+								PUSH_CHAR((0x80 | ((value) & 0x3F)));
+							} else if (value > 0x7FF) {
+								PUSH_CHAR((0xE0 | (value >> 12)));
+								PUSH_CHAR((0x80 | ((value >> 6) & 0x3F)));
+								PUSH_CHAR((0x80 | (value & 0x3F)));
+							} else if (value > 0x7F) {
+								PUSH_CHAR((0xC0 | (value >> 6)));
+								PUSH_CHAR((0x80 | (value & 0x3F)));
+							} else {
+								PUSH_CHAR(value);
+							}
+							c += 4;
+						}
+					} break;
 					case '\n': break;
-					default: PUSH_CHAR(c[1]); break;
+					default:
+						/* TODO octal */
+						PUSH_CHAR(c[0]);
+						PUSH_CHAR(c[1]);
+						break;
 				}
 				c += 2;
 			} else {
+				if (*(unsigned char*)c > 127 && isBytes) {
+					FREE_ARRAY(char,stringBytes,stringCapacity);
+					error("bytes literal can only contain ASCII characters");
+					return;
+				}
 				PUSH_CHAR(*c);
 				c++;
 			}
 		}
-	} while (match(TOKEN_STRING) || match(TOKEN_BIG_STRING));
+	} while ((!isBytes || match(TOKEN_PREFIX_B)) && (match(TOKEN_STRING) || match(TOKEN_BIG_STRING)));
+	if (isBytes && (match(TOKEN_STRING) || match(TOKEN_BIG_STRING))) {
+		FREE_ARRAY(char,stringBytes,stringCapacity);
+		error("can not mix bytes and string literals");
+		return;
+	}
+	if (isBytes) {
+		KrkBytes * bytes = krk_newBytes(0,NULL);
+		bytes->bytes = (uint8_t*)stringBytes;
+		bytes->length = stringLength;
+		krk_bytesUpdateHash(bytes);
+		emitConstant(OBJECT_VAL(bytes));
+		return;
+	}
 	emitConstant(OBJECT_VAL(krk_copyString(stringBytes,stringLength)));
 	FREE_ARRAY(char,stringBytes,stringCapacity);
 #undef PUSH_CHAR
@@ -1870,6 +1941,7 @@ ParseRule krk_parseRules[] = {
 	RULE(TOKEN_IDENTIFIER,    variable, NULL,   PREC_NONE),
 	RULE(TOKEN_STRING,        string,   NULL,   PREC_NONE),
 	RULE(TOKEN_BIG_STRING,    string,   NULL,   PREC_NONE),
+	RULE(TOKEN_PREFIX_B,      string,   NULL,   PREC_NONE),
 	RULE(TOKEN_NUMBER,        number,   NULL,   PREC_NONE),
 	RULE(TOKEN_AND,           NULL,     and_,   PREC_AND),
 	RULE(TOKEN_CLASS,         NULL,     NULL,   PREC_NONE),

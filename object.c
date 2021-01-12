@@ -20,11 +20,122 @@ static KrkObj * allocateObject(size_t size, ObjType type) {
 	return object;
 }
 
+#define UTF8_ACCEPT 0
+#define UTF8_REJECT 1
+
+static inline uint32_t decode(uint32_t* state, uint32_t* codep, uint32_t byte) {
+	static int state_table[32] = {
+		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, /* 0xxxxxxx */
+		1,1,1,1,1,1,1,1,                 /* 10xxxxxx */
+		2,2,2,2,                         /* 110xxxxx */
+		3,3,                             /* 1110xxxx */
+		4,                               /* 11110xxx */
+		1                                /* 11111xxx */
+	};
+
+	static int mask_bytes[32] = {
+		0x7F,0x7F,0x7F,0x7F,0x7F,0x7F,0x7F,0x7F,
+		0x7F,0x7F,0x7F,0x7F,0x7F,0x7F,0x7F,0x7F,
+		0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+		0x1F,0x1F,0x1F,0x1F,
+		0x0F,0x0F,
+		0x07,
+		0x00
+	};
+
+	static int next[5] = {
+		0,
+		1,
+		0,
+		2,
+		3
+	};
+
+	if (*state == UTF8_ACCEPT) {
+		*codep = byte & mask_bytes[byte >> 3];
+		*state = state_table[byte >> 3];
+	} else if (*state > 0) {
+		*codep = (byte & 0x3F) | (*codep << 6);
+		*state = next[*state];
+	}
+	return *state;
+}
+
+static int checkString(const char * chars, size_t length, size_t *codepointCount) {
+	uint32_t state = 0;
+	uint32_t codepoint = 0;
+	unsigned char * end = (unsigned char *)chars + length;
+	uint32_t maxCodepoint = 0;
+	for (unsigned char * c = (unsigned char *)chars; c < end; ++c) {
+		if (!decode(&state, &codepoint, *c)) {
+			if (codepoint > maxCodepoint) maxCodepoint = codepoint;
+			(*codepointCount)++;
+		} else if (state == UTF8_REJECT) {
+			state = 0;
+			continue;
+		}
+	}
+	if (maxCodepoint > 0xFFFF) {
+		return KRK_STRING_UCS4;
+	} else if (maxCodepoint > 0xFF) {
+		return KRK_STRING_UCS2;
+	} else if (maxCodepoint > 0x7F) {
+		return KRK_STRING_UCS1;
+	} else {
+		return KRK_STRING_ASCII;
+	}
+}
+
+#define GENREADY(size,type) \
+	static void _readyUCS ## size (KrkString * string) { \
+		uint32_t state = 0; \
+		uint32_t codepoint = 0; \
+		unsigned char * end = (unsigned char *)string->chars + string->length; \
+		string->codes = malloc(sizeof(type) * string->codesLength); \
+		type *outPtr = (type *)string->codes; \
+		for (unsigned char * c = (unsigned char *)string->chars; c < end; ++c) { \
+			if (!decode(&state, &codepoint, *c)) { \
+				*(outPtr++) = (type)codepoint; \
+			} else if (state == UTF8_REJECT) { \
+				state = 0; \
+			} \
+		} \
+	}
+GENREADY(1,uint8_t)
+GENREADY(2,uint16_t)
+GENREADY(4,uint32_t)
+#undef GENREADY
+
+void * krk_unicodeString(KrkString * string) {
+	if (string->codes) return string->codes;
+	if (string->type == KRK_STRING_UCS1) _readyUCS1(string);
+	else if (string->type == KRK_STRING_UCS2) _readyUCS2(string);
+	else if (string->type == KRK_STRING_UCS4) _readyUCS4(string);
+	else krk_runtimeError(vm.exceptions.valueError, "Internal string error.");
+	return string->codes;
+}
+
+uint32_t krk_unicodeCodepoint(KrkString * string, size_t index) {
+	krk_unicodeString(string);
+	switch (string->type) {
+		case KRK_STRING_ASCII: return string->chars[index];
+		case KRK_STRING_UCS1: return ((uint8_t*)string->codes)[index];
+		case KRK_STRING_UCS2: return ((uint16_t*)string->codes)[index];
+		case KRK_STRING_UCS4: return ((uint32_t*)string->codes)[index];
+	}
+	krk_runtimeError(vm.exceptions.valueError, "Invalid string.");
+	return 0;
+}
+
 static KrkString * allocateString(char * chars, size_t length, uint32_t hash) {
 	KrkString * string = ALLOCATE_OBJECT(KrkString, OBJ_STRING);
 	string->length = length;
 	string->chars = chars;
 	string->hash = hash;
+	string->codesLength = 0;
+	string->type = checkString(chars,length,&string->codesLength);
+	string->codes = NULL;
+	if (string->type == KRK_STRING_ASCII) string->codes = string->chars;
 	krk_push(OBJECT_VAL(string));
 	krk_tableSet(&vm.strings, OBJECT_VAL(string), NONE_VAL());
 	krk_pop();
@@ -156,3 +267,23 @@ KrkTuple * krk_newTuple(size_t length) {
 	krk_pop();
 	return tuple;
 }
+
+void krk_bytesUpdateHash(KrkBytes * bytes) {
+	bytes->hash = hashString((char*)bytes->bytes, bytes->length);
+}
+
+KrkBytes * krk_newBytes(size_t length, uint8_t * source) {
+	KrkBytes * bytes = ALLOCATE_OBJECT(KrkBytes, OBJ_BYTES);
+	bytes->length = length;
+	bytes->bytes  = NULL;
+	krk_push(OBJECT_VAL(bytes));
+	bytes->bytes  = ALLOCATE(uint8_t, length);
+	bytes->hash = -1;
+	if (source) {
+		memcpy(bytes->bytes, source, length);
+		krk_bytesUpdateHash(bytes);
+	}
+	krk_pop();
+	return bytes;
+}
+

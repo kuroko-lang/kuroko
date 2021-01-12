@@ -795,6 +795,8 @@ KrkValue krk_typeOf(int argc, KrkValue argv[]) {
 					return OBJECT_VAL(vm.baseClasses.strClass);
 				case OBJ_TUPLE:
 					return OBJECT_VAL(vm.baseClasses.tupleClass);
+				case OBJ_BYTES:
+					return OBJECT_VAL(vm.baseClasses.bytesClass);
 				case OBJ_INSTANCE:
 					return OBJECT_VAL(AS_INSTANCE(argv[0])->_class);
 				default:
@@ -884,7 +886,7 @@ static KrkValue krk_globals(int argc, KrkValue argv[]) {
 	KrkValue dict = krk_dict_of(0, NULL);
 	krk_push(dict);
 	/* Get its internal table */
-	KrkValue _dict_internal = OBJECT_VAL(AS_INSTANCE(argv[0])->_internal);
+	KrkValue _dict_internal = OBJECT_VAL(AS_INSTANCE(krk_peek(0))->_internal);
 	/* Copy the globals table into it */
 	krk_tableAddAll(vm.frames[vm.frameCount-1].globals, &AS_CLASS(_dict_internal)->methods);
 	krk_pop();
@@ -1457,20 +1459,38 @@ static KrkValue _int_to_floating(int argc, KrkValue argv[]) {
 
 /* int.__chr__() */
 static KrkValue _int_to_char(int argc, KrkValue argv[]) {
-	char tmp[2] = {AS_INTEGER(argv[0]), 0};
-	return OBJECT_VAL(krk_copyString(tmp,1));
+	long value = AS_INTEGER(argv[0]);
+	unsigned char out[5] = {0};
+	if (value > 0xFFFF) {
+		out[0] = (0xF0 | (value >> 18));
+		out[1] = (0x80 | ((value >> 12) & 0x3F));
+		out[2] = (0x80 | ((value >> 6) & 0x3F));
+		out[3] = (0x80 | ((value) & 0x3F));
+		return OBJECT_VAL(krk_copyString((char*)out,4));
+	} else if (value > 0x7FF) {
+		out[0] = (0xE0 | (value >> 12));
+		out[1] = (0x80 | ((value >> 6) & 0x3F));
+		out[2] = (0x80 | (value & 0x3F));
+		return OBJECT_VAL(krk_copyString((char*)out,3));
+	} else if (value > 0x7F) {
+		out[0] = (0xC0 | (value >> 6));
+		out[1] = (0x80 | (value & 0x3F));
+		return OBJECT_VAL(krk_copyString((char*)out,2));
+	} else {
+		out[0] = (unsigned char)value;
+		return OBJECT_VAL(krk_copyString((char*)out,1));
+	}
 }
 
 /* str.__ord__() */
-static KrkValue _char_to_int(int argc, KrkValue argv[]) {
-	if (AS_STRING(argv[0])->length != 1) {
+static KrkValue _string_ord(int argc, KrkValue argv[]) {
+	if (AS_STRING(argv[0])->codesLength != 1) {
 		krk_runtimeError(vm.exceptions.typeError, "ord() expected a character, but string of length %d found",
-			AS_STRING(argv[0])->length);
+			AS_STRING(argv[0])->codesLength);
 		return NONE_VAL();
 	}
 
-	/* TODO unicode strings? Interpret as UTF-8 and return codepoint? */
-	return INTEGER_VAL(((unsigned char)AS_CSTRING(argv[0])[0]));
+	return INTEGER_VAL(krk_unicodeCodepoint(AS_STRING(argv[0]),0));
 }
 
 static KrkValue _print(int argc, KrkValue argv[], int hasKw) {
@@ -1516,7 +1536,7 @@ static KrkValue _print(int argc, KrkValue argv[], int hasKw) {
 }
 
 /* str.__len__() */
-static KrkValue _string_length(int argc, KrkValue argv[]) {
+static KrkValue _string_len(int argc, KrkValue argv[]) {
 	if (argc != 1) {
 		krk_runtimeError(vm.exceptions.attributeError,"Unexpected arguments to str.__len__()");
 		return NONE_VAL();
@@ -1524,7 +1544,7 @@ static KrkValue _string_length(int argc, KrkValue argv[]) {
 	if (!IS_STRING(argv[0])) {
 		return NONE_VAL();
 	}
-	return INTEGER_VAL(AS_STRING(argv[0])->length);
+	return INTEGER_VAL(AS_STRING(argv[0])->codesLength);
 }
 
 /* str.__set__(ind,val) - this is invalid, throw a nicer error than 'field does not exist'. */
@@ -1540,7 +1560,7 @@ static KrkValue _strings_are_immutable(int argc, KrkValue argv[]) {
  * somewhere else? I'm not even sure where Python does do it, but a quick
  * says not if you call __getslice__ directly...
  */
-static KrkValue _string_get_slice(int argc, KrkValue argv[]) {
+static KrkValue _string_getslice(int argc, KrkValue argv[]) {
 	if (argc < 3) { /* 3 because first is us */
 		krk_runtimeError(vm.exceptions.argumentError, "slice: expected 2 arguments, got %d", argc-1);
 		return NONE_VAL();
@@ -1553,20 +1573,36 @@ static KrkValue _string_get_slice(int argc, KrkValue argv[]) {
 	}
 	/* bounds check */
 	KrkString * me = AS_STRING(argv[0]);
-	int start = IS_NONE(argv[1]) ? 0 : AS_INTEGER(argv[1]);
-	int end   = IS_NONE(argv[2]) ? (int)me->length : AS_INTEGER(argv[2]);
-	if (start < 0) start = me->length + start;
+	long start = IS_NONE(argv[1]) ? 0 : AS_INTEGER(argv[1]);
+	long end   = IS_NONE(argv[2]) ? (long)me->codesLength : AS_INTEGER(argv[2]);
+	if (start < 0) start = me->codesLength + start;
 	if (start < 0) start = 0;
-	if (end < 0) end = me->length + end;
-	if (start > (int)me->length) start = me->length;
-	if (end > (int)me->length) end = me->length;
+	if (end < 0) end = me->codesLength + end;
+	if (start > (long)me->codesLength) start = me->codesLength;
+	if (end > (long)me->codesLength) end = me->codesLength;
 	if (end < start) end = start;
-	int len = end - start;
-	return OBJECT_VAL(krk_copyString(me->chars + start, len));
+	long len = end - start;
+	if (me->type == KRK_STRING_ASCII) {
+		return OBJECT_VAL(krk_copyString(me->chars + start, len));
+	} else {
+		size_t offset = 0;
+		size_t length = 0;
+		/* Figure out where the UTF8 for this string starts. */
+		krk_unicodeString(me);
+		for (long i = 0; i < start; ++i) {
+			uint32_t cp = KRK_STRING_FAST(me,i);
+			offset += CODEPOINT_BYTES(cp);
+		}
+		for (long i = start; i < end; ++i) {
+			uint32_t cp = KRK_STRING_FAST(me,i);
+			length += CODEPOINT_BYTES(cp);
+		}
+		return OBJECT_VAL(krk_copyString(me->chars + offset, length));
+	}
 }
 
 /* str.__int__(base=10) */
-static KrkValue _string_to_int(int argc, KrkValue argv[]) {
+static KrkValue _string_int(int argc, KrkValue argv[]) {
 	if (argc < 1 || argc > 2 || !IS_STRING(argv[0])) return NONE_VAL();
 	int base = (argc == 1) ? 10 : (int)AS_INTEGER(argv[1]);
 	char * start = AS_CSTRING(argv[0]);
@@ -1587,7 +1623,7 @@ static KrkValue _string_to_int(int argc, KrkValue argv[]) {
 }
 
 /* str.__float__() */
-static KrkValue _string_to_float(int argc, KrkValue argv[]) {
+static KrkValue _string_float(int argc, KrkValue argv[]) {
 	if (argc != 1 || !IS_STRING(argv[0])) return NONE_VAL();
 	return FLOATING_VAL(strtod(AS_CSTRING(argv[0]),NULL));
 }
@@ -1598,7 +1634,7 @@ static KrkValue _float_init(int argc, KrkValue argv[]) {
 		krk_runtimeError(vm.exceptions.argumentError, "float() takes at most 1 argument");
 		return NONE_VAL();
 	}
-	if (IS_STRING(argv[1])) return _string_to_float(1,&argv[1]);
+	if (IS_STRING(argv[1])) return _string_float(1,&argv[1]);
 	if (IS_FLOATING(argv[1])) return argv[1];
 	if (IS_INTEGER(argv[1])) return FLOATING_VAL(AS_INTEGER(argv[1]));
 	if (IS_BOOLEAN(argv[1])) return FLOATING_VAL(AS_BOOLEAN(argv[1]));
@@ -1622,12 +1658,26 @@ static KrkValue _string_get(int argc, KrkValue argv[]) {
 	}
 	KrkString * me = AS_STRING(argv[0]);
 	int asInt = AS_INTEGER(argv[1]);
-	if (asInt < 0) asInt += (int)AS_STRING(argv[0])->length;
-	if (asInt < 0 || asInt >= (int)AS_STRING(argv[0])->length) {
+	if (asInt < 0) asInt += (int)AS_STRING(argv[0])->codesLength;
+	if (asInt < 0 || asInt >= (int)AS_STRING(argv[0])->codesLength) {
 		krk_runtimeError(vm.exceptions.indexError, "String index out of range: %d", asInt);
 		return NONE_VAL();
 	}
-	return OBJECT_VAL(krk_copyString((char[]){me->chars[asInt]},1));
+	if (me->type == KRK_STRING_ASCII) {
+		return OBJECT_VAL(krk_copyString(me->chars + asInt, 1));
+	} else {
+		size_t offset = 0;
+		size_t length = 0;
+		/* Figure out where the UTF8 for this string starts. */
+		krk_unicodeString(me);
+		for (long i = 0; i < asInt; ++i) {
+			uint32_t cp = KRK_STRING_FAST(me,i);
+			offset += CODEPOINT_BYTES(cp);
+		}
+		uint32_t cp = KRK_STRING_FAST(me,asInt);
+		length = CODEPOINT_BYTES(cp);
+		return OBJECT_VAL(krk_copyString(me->chars + offset, length));
+	}
 }
 
 #define PUSH_CHAR(c) do { if (stringCapacity < stringLength + 1) { \
@@ -1639,6 +1689,10 @@ static KrkValue _string_get(int argc, KrkValue argv[]) {
 /* str.format(**kwargs) */
 static KrkValue _string_format(int argc, KrkValue argv[], int hasKw) {
 	if (!IS_STRING(argv[0])) return NONE_VAL();
+	if (AS_STRING(argv[0])->type != KRK_STRING_ASCII) {
+		krk_runtimeError(vm.exceptions.notImplementedError, "Unable to call .format() on non-ASCII string.");
+		return NONE_VAL();
+	}
 	KrkString * self = AS_STRING(argv[0]);
 	KrkValue kwargs = NONE_VAL();
 	if (hasKw) {
@@ -1878,6 +1932,10 @@ static int charIn(char c, const char * str) {
  */
 static KrkValue _string_strip_shared(int argc, KrkValue argv[], int which) {
 	if (!IS_STRING(argv[0])) return NONE_VAL();
+	if (AS_STRING(argv[0])->type != KRK_STRING_ASCII) {
+		krk_runtimeError(vm.exceptions.notImplementedError, "str.strip() not implemented for Unicode strings");
+		return NONE_VAL();
+	}
 	size_t start = 0;
 	size_t end   = AS_STRING(argv[0])->length;
 	const char * subset = " \t\n\r";
@@ -2061,12 +2119,180 @@ static KrkValue _string_split(int argc, KrkValue argv[], int hasKw) {
 	krk_pop();
 	return myList;
 }
+
+/**
+ * str.__repr__()
+ *
+ * Strings are special because __str__ should do nothing but __repr__
+ * should escape characters like quotes.
+ */
+static KrkValue _string_repr(int argc, KrkValue argv[]) {
+	size_t stringCapacity = 0;
+	size_t stringLength   = 0;
+	char * stringBytes    = NULL;
+
+	PUSH_CHAR('\'');
+
+	char * end = AS_CSTRING(argv[0]) + AS_STRING(argv[0])->length;
+	for (char * c = AS_CSTRING(argv[0]); c < end; ++c) {
+		switch (*c) {
+			/* XXX: Other non-printables should probably be escaped as well. */
+			case '\\': PUSH_CHAR('\\'); PUSH_CHAR('\\'); break;
+			case '\'': PUSH_CHAR('\\'); PUSH_CHAR('\''); break;
+			case '\a': PUSH_CHAR('\\'); PUSH_CHAR('a'); break;
+			case '\b': PUSH_CHAR('\\'); PUSH_CHAR('b'); break;
+			case '\f': PUSH_CHAR('\\'); PUSH_CHAR('f'); break;
+			case '\n': PUSH_CHAR('\\'); PUSH_CHAR('n'); break;
+			case '\r': PUSH_CHAR('\\'); PUSH_CHAR('r'); break;
+			case '\t': PUSH_CHAR('\\'); PUSH_CHAR('t'); break;
+			case '\v': PUSH_CHAR('\\'); PUSH_CHAR('v'); break;
+			case 27:   PUSH_CHAR('\\'); PUSH_CHAR('['); break;
+			default: {
+				if ((unsigned char)*c < ' ' || (unsigned char)*c == 0x7F) {
+					PUSH_CHAR('\\');
+					PUSH_CHAR('x');
+					char hex[3];
+					sprintf(hex,"%02x", (unsigned char)*c);
+					PUSH_CHAR(hex[0]);
+					PUSH_CHAR(hex[1]);
+				} else {
+					PUSH_CHAR(*c);
+				}
+				break;
+			}
+		}
+	}
+
+	PUSH_CHAR('\'');
+	KrkValue tmp = OBJECT_VAL(krk_copyString(stringBytes, stringLength));
+	if (stringBytes) FREE_ARRAY(char,stringBytes,stringCapacity);
+	return tmp;
+}
+
+static KrkValue _string_encode(int argc, KrkValue argv[]) {
+	return OBJECT_VAL(krk_newBytes(AS_STRING(argv[0])->length, (uint8_t*)AS_CSTRING(argv[0])));
+}
+
+static KrkValue _bytes_init(int argc, KrkValue argv[]) {
+	if (argc == 1) {
+		return OBJECT_VAL(krk_newBytes(0,NULL));
+	}
+
+	if (IS_TUPLE(argv[1])) {
+		KrkBytes * out = krk_newBytes(AS_TUPLE(argv[1])->values.count, NULL);
+		krk_push(OBJECT_VAL(out));
+		for (size_t i = 0; i < AS_TUPLE(argv[1])->values.count; ++i) {
+			if (!IS_INTEGER(AS_TUPLE(argv[1])->values.values[i])) {
+				krk_runtimeError(vm.exceptions.typeError, "bytes(): expected tuple of ints, not of '%s'", krk_typeName(AS_TUPLE(argv[1])->values.values[i]));
+				return NONE_VAL();
+			}
+			out->bytes[i] = AS_INTEGER(AS_TUPLE(argv[1])->values.values[i]);
+		}
+		krk_bytesUpdateHash(out);
+		return krk_pop();
+	}
+
+	krk_runtimeError(vm.exceptions.typeError, "Can not convert '%s' to bytes", krk_typeName(argv[1]));
+	return NONE_VAL();
+}
+
+/* bytes objects are not interned; need to do this the old-fashioned way. */
+static KrkValue _bytes_eq(int argc, KrkValue argv[]) {
+	if (!IS_BYTES(argv[1])) return BOOLEAN_VAL(0);
+	KrkBytes * self = AS_BYTES(argv[0]);
+	KrkBytes * them = AS_BYTES(argv[1]);
+	if (self->length != them->length) return BOOLEAN_VAL(0);
+	if (self->hash != them->hash) return BOOLEAN_VAL(0);
+	for (size_t i = 0; i < self->length; ++i) {
+		if (self->bytes[i] != them->bytes[i]) return BOOLEAN_VAL(0);
+	}
+	return BOOLEAN_VAL(1);
+}
+
+static KrkValue _bytes_repr(int argc, KrkValue argv[]) {
+	size_t stringCapacity = 0;
+	size_t stringLength   = 0;
+	char * stringBytes    = NULL;
+
+	PUSH_CHAR('b');
+	PUSH_CHAR('\'');
+
+	for (size_t i = 0; i < AS_BYTES(argv[0])->length; ++i) {
+		uint8_t ch = AS_BYTES(argv[0])->bytes[i];
+		switch (ch) {
+			case '\\': PUSH_CHAR('\\'); PUSH_CHAR('\\'); break;
+			case '\'': PUSH_CHAR('\\'); PUSH_CHAR('\''); break;
+			case '\a': PUSH_CHAR('\\'); PUSH_CHAR('a'); break;
+			case '\b': PUSH_CHAR('\\'); PUSH_CHAR('b'); break;
+			case '\f': PUSH_CHAR('\\'); PUSH_CHAR('f'); break;
+			case '\n': PUSH_CHAR('\\'); PUSH_CHAR('n'); break;
+			case '\r': PUSH_CHAR('\\'); PUSH_CHAR('r'); break;
+			case '\t': PUSH_CHAR('\\'); PUSH_CHAR('t'); break;
+			case '\v': PUSH_CHAR('\\'); PUSH_CHAR('v'); break;
+			default: {
+				if (ch < ' ' || ch >= 0x7F) {
+					PUSH_CHAR('\\');
+					PUSH_CHAR('x');
+					char hex[3];
+					sprintf(hex,"%02x", ch);
+					PUSH_CHAR(hex[0]);
+					PUSH_CHAR(hex[1]);
+				} else {
+					PUSH_CHAR(ch);
+				}
+				break;
+			}
+		}
+	}
+
+	PUSH_CHAR('\'');
+
+	KrkValue tmp = OBJECT_VAL(krk_copyString(stringBytes, stringLength));
+	if (stringBytes) FREE_ARRAY(char,stringBytes,stringCapacity);
+	return tmp;
+}
+
+static KrkValue _bytes_get(int argc, KrkValue argv[]) {
+	if (argc < 2) {
+		krk_runtimeError(vm.exceptions.argumentError, "bytes.__get__(): expected one argument");
+		return NONE_VAL();
+	}
+	KrkBytes * self = AS_BYTES(argv[0]);
+	long asInt = AS_INTEGER(argv[1]);
+
+	if (asInt < 0) asInt += (long)self->length;
+	if (asInt < 0 || asInt >= (long)self->length) {
+		krk_runtimeError(vm.exceptions.indexError, "bytes index out of range: %ld", asInt);
+		return NONE_VAL();
+	}
+
+	return INTEGER_VAL(self->bytes[asInt]);
+}
+
+static KrkValue _bytes_len(int argc, KrkValue argv[]) {
+	return INTEGER_VAL(AS_BYTES(argv[0])->length);
+}
+
+static KrkValue _bytes_contains(int argc, KrkValue argv[]) {
+	if (argc < 2) {
+		krk_runtimeError(vm.exceptions.argumentError, "bytes.__contains__(): expected one argument");
+		return NONE_VAL();
+	}
+	krk_runtimeError(vm.exceptions.notImplementedError, "not implemented");
+	return NONE_VAL();
+}
+
+static KrkValue _bytes_decode(int argc, KrkValue argv[]) {
+	/* TODO: Actually bother checking if this explodes, or support other encodings... */
+	return OBJECT_VAL(krk_copyString((char*)AS_BYTES(argv[0])->bytes, AS_BYTES(argv[0])->length));
+}
+
 #undef PUSH_CHAR
 
 static KrkValue _int_init(int argc, KrkValue argv[]) {
 	if (argc < 2) return INTEGER_VAL(0);
 	if (IS_INTEGER(argv[1])) return argv[1];
-	if (IS_STRING(argv[1])) return _string_to_int(argc-1,&argv[1]);
+	if (IS_STRING(argv[1])) return _string_int(argc-1,&argv[1]);
 	if (IS_FLOATING(argv[1])) return INTEGER_VAL(AS_FLOATING(argv[1]));
 	if (IS_BOOLEAN(argv[1])) return INTEGER_VAL(AS_BOOLEAN(argv[1]));
 	krk_runtimeError(vm.exceptions.typeError, "int() argument must be a string or a number, not '%s'", krk_typeName(argv[1]));
@@ -2309,48 +2535,6 @@ static KrkValue _module_repr(int argc, KrkValue argv[]) {
 }
 
 /**
- * str.__repr__()
- *
- * Strings are special because __str__ should do nothing but __repr__
- * should escape characters like quotes.
- */
-static KrkValue _repr_str(int argc, KrkValue argv[]) {
-	char * str = malloc(3 + AS_STRING(argv[0])->length * 4); /* x 4 because a string of all < 32s would be a lot of \xXX */
-	char * tmp = str;
-	*(tmp++) = '\'';
-	char * end = AS_CSTRING(argv[0]) + AS_STRING(argv[0])->length;
-	for (char * c = AS_CSTRING(argv[0]); c < end; ++c) {
-		switch (*c) {
-			/* XXX: Other non-printables should probably be escaped as well. */
-			case '\n': *(tmp++) = '\\'; *(tmp++) = 'n'; break;
-			case '\r': *(tmp++) = '\\'; *(tmp++) = 'r'; break;
-			case '\t': *(tmp++) = '\\'; *(tmp++) = 't'; break;
-			case '\'': *(tmp++) = '\\'; *(tmp++) = '\''; break;
-			case '\\': *(tmp++) = '\\'; *(tmp++) = '\\'; break;
-			case 27:   *(tmp++) = '\\'; *(tmp++) = '['; break;
-			default: {
-				if ((unsigned char)*c < ' ') {
-					*(tmp++) = '\\';
-					*(tmp++) = 'x';
-					char hex[3];
-					sprintf(hex,"%02x", (unsigned char)*c);
-					*(tmp++) = hex[0];
-					*(tmp++) = hex[1];
-				} else {
-					*(tmp++) = *c;
-				}
-				break;
-			}
-		}
-	}
-	*(tmp++) = '\'';
-	*(tmp++) = '\0';
-	KrkString * out = krk_copyString(str, tmp-str-1);
-	free(str);
-	return OBJECT_VAL(out);
-}
-
-/**
  * int.__str__()
  *
  * Unlike Python, dot accessors are perfectly valid and work as you'd expect
@@ -2398,7 +2582,7 @@ static int isFalsey(KrkValue value) {
 		case VAL_FLOATING: return !AS_FLOATING(value);
 		case VAL_OBJECT: {
 			switch (AS_OBJECT(value)->type) {
-				case OBJ_STRING: return !AS_STRING(value)->length;
+				case OBJ_STRING: return !AS_STRING(value)->codesLength;
 				case OBJ_TUPLE: return !AS_TUPLE(value)->values.count;
 				default: break;
 			}
@@ -2437,7 +2621,7 @@ static KrkValue _len(int argc, KrkValue argv[]) {
 		return NONE_VAL();
 	}
 	/* Shortcuts */
-	if (IS_STRING(argv[0])) return INTEGER_VAL(AS_STRING(argv[0])->length);
+	if (IS_STRING(argv[0])) return INTEGER_VAL(AS_STRING(argv[0])->codesLength);
 	if (IS_TUPLE(argv[0])) return INTEGER_VAL(AS_TUPLE(argv[0])->values.count);
 
 	KrkClass * type = AS_CLASS(krk_typeOf(1,&argv[0]));
@@ -2546,7 +2730,7 @@ _corrupt:
 	return NONE_VAL();
 }
 
-static KrkValue _str_iter(int argc, KrkValue argv[]) {
+static KrkValue _string_iter(int argc, KrkValue argv[]) {
 	KrkInstance * output = krk_newInstance(vm.baseClasses.striteratorClass);
 
 	krk_push(OBJECT_VAL(output));
@@ -2721,6 +2905,57 @@ static KrkValue krk_collectGarbage_wrapper(int argc, KrkValue argv[]) {
 	return INTEGER_VAL(krk_collectGarbage());
 }
 
+static KrkValue krk_getsize(int argc, KrkValue argv[]) {
+	if (argc < 1) return INTEGER_VAL(0);
+	if (!IS_OBJECT(argv[0])) return INTEGER_VAL(sizeof(KrkValue));
+	size_t mySize = sizeof(KrkValue);
+	switch (AS_OBJECT(argv[0])->type) {
+		case OBJ_STRING: {
+			KrkString * self = AS_STRING(argv[0]);
+			mySize += sizeof(KrkString) + self->length /* For the UTF8 */
+			+ ((self->codes && (self->chars != self->codes)) ? (self->type * self->codesLength) : 0);
+			break;
+		}
+		case OBJ_BYTES: {
+			KrkBytes * self = AS_BYTES(argv[0]);
+			mySize += sizeof(KrkBytes) + self->length;
+			break;
+		}
+		case OBJ_INSTANCE: {
+			KrkInstance * self = AS_INSTANCE(argv[0]);
+			mySize += sizeof(KrkInstance) + sizeof(KrkTableEntry) * self->fields.capacity;
+			break;
+		}
+		case OBJ_CLASS: {
+			KrkClass * self = AS_CLASS(argv[0]);
+			mySize += sizeof(KrkClass) + sizeof(KrkTableEntry) * self->fields.capacity
+			+ sizeof(KrkTableEntry) * self->methods.capacity;
+			break;
+		}
+		case OBJ_NATIVE: {
+			KrkNative * self = (KrkNative*)AS_OBJECT(argv[0]);
+			mySize += sizeof(KrkNative) + strlen(self->name) + 1;
+			break;
+		}
+		case OBJ_TUPLE: {
+			KrkTuple * self = AS_TUPLE(argv[0]);
+			mySize += sizeof(KrkTuple) + sizeof(KrkValue) * self->values.capacity;
+			break;
+		}
+		case OBJ_BOUND_METHOD: {
+			mySize += sizeof(KrkBoundMethod);
+			break;
+		}
+		case OBJ_CLOSURE: {
+			KrkClosure * self = AS_CLOSURE(argv[0]);
+			mySize += sizeof(KrkClosure) + sizeof(KrkUpvalue*) * self->function->upvalueCount;
+			break;
+		}
+		default: break;
+	}
+	return INTEGER_VAL(mySize);
+}
+
 void krk_initVM(int flags) {
 	vm.flags = flags;
 	KRK_PAUSE_GC();
@@ -2807,6 +3042,7 @@ void krk_initVM(int flags) {
 		(KrkObj*)S(KRK_VERSION_MAJOR "." KRK_VERSION_MINOR "." KRK_VERSION_PATCH KRK_VERSION_EXTRA));
 	krk_attachNamedObject(&vm.system->fields, "buildenv", (KrkObj*)S(KRK_BUILD_COMPILER));
 	krk_attachNamedObject(&vm.system->fields, "builddate", (KrkObj*)S(KRK_BUILD_DATE));
+	krk_defineNative(&vm.system->fields, "getsizeof", krk_getsize);
 
 	KrkInstance * gcModule = krk_newInstance(vm.moduleClass);
 	krk_attachNamedObject(&vm.modules, "gc", (KrkObj*)gcModule);
@@ -2869,16 +3105,16 @@ void krk_initVM(int flags) {
 	ADD_BASE_CLASS(vm.baseClasses.strClass, "str", vm.objectClass);
 	krk_defineNative(&vm.baseClasses.strClass->methods, ".__init__", _string_init);
 	krk_defineNative(&vm.baseClasses.strClass->methods, ".__str__", _noop);
-	krk_defineNative(&vm.baseClasses.strClass->methods, ".__repr__", _repr_str);
-	krk_defineNative(&vm.baseClasses.strClass->methods, ".__len__", _string_length);
+	krk_defineNative(&vm.baseClasses.strClass->methods, ".__repr__", _string_repr);
+	krk_defineNative(&vm.baseClasses.strClass->methods, ".__len__", _string_len);
 	krk_defineNative(&vm.baseClasses.strClass->methods, ".__get__", _string_get);
 	krk_defineNative(&vm.baseClasses.strClass->methods, ".__set__", _strings_are_immutable);
-	krk_defineNative(&vm.baseClasses.strClass->methods, ".__int__", _string_to_int);
-	krk_defineNative(&vm.baseClasses.strClass->methods, ".__float__", _string_to_float);
-	krk_defineNative(&vm.baseClasses.strClass->methods, ".__getslice__", _string_get_slice);
-	krk_defineNative(&vm.baseClasses.strClass->methods, ".__ord__", _char_to_int);
+	krk_defineNative(&vm.baseClasses.strClass->methods, ".__int__", _string_int);
+	krk_defineNative(&vm.baseClasses.strClass->methods, ".__float__", _string_float);
+	krk_defineNative(&vm.baseClasses.strClass->methods, ".__getslice__", _string_getslice);
+	krk_defineNative(&vm.baseClasses.strClass->methods, ".__ord__", _string_ord);
 	krk_defineNative(&vm.baseClasses.strClass->methods, ".__contains__", _string_contains);
-	krk_defineNative(&vm.baseClasses.strClass->methods, ".__iter__", _str_iter);
+	krk_defineNative(&vm.baseClasses.strClass->methods, ".__iter__", _string_iter);
 	krk_defineNative(&vm.baseClasses.strClass->methods, ".format", _string_format);
 	krk_defineNative(&vm.baseClasses.strClass->methods, ".join", _string_join);
 	krk_defineNative(&vm.baseClasses.strClass->methods, ".split", _string_split);
@@ -2889,6 +3125,7 @@ void krk_initVM(int flags) {
 	krk_defineNative(&vm.baseClasses.strClass->methods, ".__gt__", _string_gt);
 	krk_defineNative(&vm.baseClasses.strClass->methods, ".__mod__", _string_mod);
 	krk_defineNative(&vm.baseClasses.strClass->methods, ".__add__", _string_add);
+	krk_defineNative(&vm.baseClasses.strClass->methods, ".encode", _string_encode);
 	krk_finalizeClass(vm.baseClasses.strClass);
 	/* TODO: Don't attach */
 	ADD_BASE_CLASS(vm.baseClasses.functionClass, "function", vm.objectClass);
@@ -2917,6 +3154,16 @@ void krk_initVM(int flags) {
 	krk_defineNative(&vm.baseClasses.tupleClass->methods, ".__contains__", _tuple_contains);
 	krk_defineNative(&vm.baseClasses.tupleClass->methods, ".__iter__", _tuple_iter);
 	krk_finalizeClass(vm.baseClasses.tupleClass);
+	ADD_BASE_CLASS(vm.baseClasses.bytesClass, "bytes", vm.objectClass);
+	krk_defineNative(&vm.baseClasses.bytesClass->methods, ".__init__",  _bytes_init);
+	krk_defineNative(&vm.baseClasses.bytesClass->methods, ".__str__",  _bytes_repr);
+	krk_defineNative(&vm.baseClasses.bytesClass->methods, ".__repr__", _bytes_repr);
+	krk_defineNative(&vm.baseClasses.bytesClass->methods, ".decode", _bytes_decode);
+	krk_defineNative(&vm.baseClasses.bytesClass->methods, ".__len__", _bytes_len);
+	krk_defineNative(&vm.baseClasses.bytesClass->methods, ".__contains__", _bytes_contains);
+	krk_defineNative(&vm.baseClasses.bytesClass->methods, ".__get__", _bytes_get);
+	krk_defineNative(&vm.baseClasses.bytesClass->methods, ".__eq__", _bytes_eq);
+	krk_finalizeClass(vm.baseClasses.bytesClass);
 
 	/* Build global builtin functions. */
 	BUILTIN_FUNCTION("listOf", krk_list_of); /* Equivalent to list() */

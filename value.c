@@ -83,6 +83,7 @@ void krk_printValueSafe(FILE * f, KrkValue printable) {
 			case OBJ_INSTANCE: fprintf(f, "<instance of %s>", AS_INSTANCE(printable)->_class->name->chars); break;
 			case OBJ_NATIVE: fprintf(f, "<nativefn %s>", ((KrkNative*)AS_OBJECT(printable))->name); break;
 			case OBJ_CLOSURE: fprintf(f, "<function %s>", AS_CLOSURE(printable)->function->name->chars); break;
+			case OBJ_BYTES: fprintf(f, "<bytes of len %ld>", AS_BYTES(printable)->length); break;
 			case OBJ_TUPLE: {
 				fprintf(f, "<tuple (");
 				for (size_t i = 0; i < AS_TUPLE(printable)->values.count; ++i) {

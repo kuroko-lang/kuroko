@@ -11,6 +11,8 @@
 #define IS_STRING(value)   isObjType(value, OBJ_STRING)
 #define AS_STRING(value)   ((KrkString *)AS_OBJECT(value))
 #define AS_CSTRING(value)  (((KrkString *)AS_OBJECT(value))->chars)
+#define IS_BYTES(value)    isObjType(value, OBJ_BYTES)
+#define AS_BYTES(value)    ((KrkBytes*)AS_OBJECT(value))
 #define IS_FUNCTION(value) isObjType(value, OBJ_FUNCTION)
 #define AS_FUNCTION(value) ((KrkFunction *)AS_OBJECT(value))
 #define IS_NATIVE(value)   isObjType(value, OBJ_NATIVE)
@@ -37,6 +39,7 @@ typedef enum {
 	OBJ_INSTANCE,
 	OBJ_BOUND_METHOD,
 	OBJ_TUPLE,
+	OBJ_BYTES,
 } ObjType;
 
 struct Obj {
@@ -45,12 +48,29 @@ struct Obj {
 	struct Obj * next;
 };
 
+typedef enum {
+	KRK_STRING_ASCII = 0,
+	KRK_STRING_UCS1  = 1,
+	KRK_STRING_UCS2  = 2,
+	KRK_STRING_UCS4  = 4,
+} KrkStringType;
+
 struct ObjString {
 	KrkObj obj;
-	size_t length;
-	char * chars;
+	KrkStringType type;
 	uint32_t hash;
+	size_t length;
+	size_t codesLength;
+	char * chars;
+	void * codes;
 };
+
+typedef struct {
+	KrkObj obj;
+	uint32_t hash;
+	size_t length;
+	uint8_t * bytes;
+} KrkBytes;
 
 typedef struct KrkUpvalue {
 	KrkObj obj;
@@ -165,3 +185,16 @@ extern KrkClass *       krk_newClass(KrkString * name);
 extern KrkInstance *    krk_newInstance(KrkClass * _class);
 extern KrkBoundMethod * krk_newBoundMethod(KrkValue receiver, KrkObj * method);
 extern KrkTuple *       krk_newTuple(size_t length);
+
+extern void * krk_unicodeString(KrkString * string);
+extern uint32_t krk_unicodeCodepoint(KrkString * string, size_t index);
+
+#define KRK_STRING_FAST(string,offset)  (uint32_t)\
+	(string->type == 1 ? ((uint8_t*)string->codes)[offset] : \
+	(string->type == 2 ? ((uint16_t*)string->codes)[offset] : \
+	((uint32_t*)string->codes)[offset]))
+
+#define CODEPOINT_BYTES(cp) (cp < 0x80 ? 1 : (cp < 0x800 ? 2 : (cp < 0x10000 ? 3 : 4)))
+
+extern KrkBytes * krk_newBytes(size_t length, uint8_t * source);
+extern void krk_bytesUpdateHash(KrkBytes * bytes);

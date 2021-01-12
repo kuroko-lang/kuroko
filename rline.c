@@ -23,6 +23,14 @@
 #include <sys/ioctl.h>
 #include "rline.h"
 
+static __attribute__((used)) int _isdigit(int c) { if (c > 128) return 0; return isdigit(c); }
+static __attribute__((used)) int _isxdigit(int c) { if (c > 128) return 0; return isxdigit(c); }
+
+#undef isdigit
+#undef isxdigit
+#define isdigit(c) _isdigit(c)
+#define isxdigit(c) _isxdigit(c)
+
 char * rline_history[RLINE_HISTORY_ENTRIES];
 int rline_history_count  = 0;
 int rline_history_offset = 0;

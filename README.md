@@ -136,12 +136,16 @@ Strings can be defined with single, double, or Python-style _triple quotes_, the
 
 The following escape sequences can be embedded in string literals:
 
+- `\a`: bell
+- `\b`: backspace
+- `\f`: formfeed
 - `\n`: linefeed
 - `\r`: carriage return
 - `\t`: horizontal tab
+- `\v`: vertical tab
 - `\[`: ANSI escape value (decimal value 27)
-
-A backslash followed by another character, such as the quoting character used to define the string or another backslash character, will be taking literally.
+- `\x`: A two-character hexadecimal sequence
+- `\u`: A four-character hexadecimal sequence
 
 Strings in Kuroko are immutable; they can not be modified in-place.
 
@@ -152,7 +156,55 @@ print("Hello, " + 42 + "!")
 # → Hello, 42!
 ```
 
-_**Note:** Strings in Kuroko are byte strings, as they were in Python 2. On all platforms currently supported by Kuroko, this means that strings should contain UTF-8 text. It is as-yet undecided if this will change._
+Much like in Python 3, strings in Kuroko represent sequences of non-normalized Unicode codepoints. Both source files and the terminal in which Kuroko is running are expected to be UTF-8.
+
+This means that when indexing into a Unicode string, individual codepoints should be expected:
+
+```py
+print("日本語"[1])
+# → 本
+print("日本語"[2])
+# → 語
+```
+
+The length of a Unicode string is also represented in codepoints:
+
+```py
+print(len("日本語"))
+# → 3
+```
+
+The `__ord__` method on a string representing a single codepoint will return the integer representation of that codepoint:
+
+```py
+print("本".__ord__())
+# → 26412
+print("t".__ord__())
+# → 116
+```
+
+_**Implementation Note:** Generally, the internal representation of strings is their UTF-8 encoded form. When an indexing or slicing operation happens in which a codepoint index needs to be converted to an offset in the string, the most appropriate 'canonical' format will be generated and remain with the interned string until is garbage collected. For strings containing only ASCII characters, no conversion is done and no additional copy is created. For all other strings, the smallest possible size for representing the largest codepoint is used, among the options of 1, 2, or 4. This approach is similar to CPython post-3.9._
+
+Strings can be encoded to _bytes_ objects to get their UTF-8 representation:
+
+```py
+print('テスト'.encode())
+# → b'\xe3\x83\x86\xe3\x82\xb9\xe3\x83\x88'
+```
+
+Bytes objects can also be written as literals in the same format. Note that strings and bytes are not generally compatible with each other.
+
+```py
+print(b'test')
+# → b'test'
+```
+
+When indexing into a bytes object, values are returned as positive integers.
+
+```py
+print(b'test'[0])
+# → 116
+```
 
 ### Variables
 
@@ -174,6 +226,8 @@ let a = 1, b = "test", c = object()
 print(a,b,c)
 # → 1 test <instance of object at ...>
 ```
+
+_**Note:** Identifier names, including for variables, functions, and classes, can be Unicode sequences. All non-ASCII codepoints are accepted as identifier characters._
 
 ### Assignments
 

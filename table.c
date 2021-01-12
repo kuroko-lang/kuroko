@@ -26,6 +26,7 @@ static uint32_t hashValue(KrkValue value) {
 	if (IS_FLOATING(value)) return (uint32_t)(AS_FLOATING(value) * 1000); /* arbitrary; what's a good way to hash floats? */
 	if (IS_BOOLEAN(value)) return (uint32_t)(AS_BOOLEAN(value));
 	if (IS_NONE(value)) return 0;
+	if (IS_BYTES(value)) return (AS_BYTES(value))->hash; /* Same as strings, but we don't have an interning table */
 	return (((uint32_t)(intptr_t)AS_OBJECT(value)) >> 4)| (((uint32_t)(intptr_t)AS_OBJECT(value)) << 28);
 }
 

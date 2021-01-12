@@ -31,6 +31,7 @@ static void freeObject(KrkObj * object) {
 		case OBJ_STRING: {
 			KrkString * string = (KrkString*)object;
 			FREE_ARRAY(char, string->chars, string->length + 1);
+			if (string->codes && string->codes != string->chars) free(string->codes);
 			FREE(KrkString, object);
 			break;
 		}
@@ -77,6 +78,12 @@ static void freeObject(KrkObj * object) {
 			KrkTuple * tuple = (KrkTuple*)object;
 			krk_freeValueArray(&tuple->values);
 			FREE(KrkTuple, object);
+			break;
+		}
+		case OBJ_BYTES: {
+			KrkBytes * bytes = (KrkBytes*)object;
+			FREE_ARRAY(uint8_t, bytes->bytes, bytes->length);
+			FREE(KrkBytes, bytes);
 			break;
 		}
 	}
@@ -171,6 +178,7 @@ static void blackenObject(KrkObj * object) {
 		}
 		case OBJ_NATIVE:
 		case OBJ_STRING:
+		case OBJ_BYTES:
 			break;
 	}
 }
