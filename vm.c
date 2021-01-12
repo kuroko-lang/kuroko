@@ -2691,6 +2691,17 @@ static KrkValue _chr(int argc, KrkValue argv[]) {
 	}
 }
 
+static KrkValue _hex(int argc, KrkValue argv[]) {
+	if (argc != 1 || !IS_INTEGER(argv[0])) {
+		krk_runtimeError(vm.exceptions.argumentError, "hex() expects one int argument");
+		return NONE_VAL();
+	}
+	char tmp[20];
+	long x = AS_INTEGER(argv[0]);
+	size_t len = sprintf(tmp, "%s0x%lx", x < 0 ? "-" : "", x < 0 ? -x : x);
+	return OBJECT_VAL(krk_copyString(tmp,len));
+}
+
 static KrkValue _tuple_iter_init(int argc, KrkValue argv[]) {
 	KrkInstance * self = AS_INSTANCE(argv[0]);
 	krk_push(argv[0]);
@@ -3222,6 +3233,7 @@ void krk_initVM(int flags) {
 	BUILTIN_FUNCTION("print", _print);
 	BUILTIN_FUNCTION("ord", _ord);
 	BUILTIN_FUNCTION("chr", _chr);
+	BUILTIN_FUNCTION("hex", _hex);
 
 	/* __builtins__.set_tracing is namespaced */
 	krk_defineNative(&vm.builtins->fields, "set_tracing", krk_set_tracing);

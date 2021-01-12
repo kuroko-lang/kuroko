@@ -553,7 +553,7 @@ char * syn_krk_types[] = {
 	"len", "str", "int", "float", "dir", "repr", /* global functions from __builtins__ */
 	"list","dict","range", /* builtin classes */
 	"object","exception","isinstance","type",
-	"print","set","any","all","bool","ord","chr",
+	"print","set","any","all","bool","ord","chr","hex",
 	NULL
 };
 
