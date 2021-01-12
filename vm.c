@@ -2646,6 +2646,40 @@ static KrkValue _repr(int argc, KrkValue argv[]) {
 	return krk_callSimple(OBJECT_VAL(type->_reprer), 1, 0);
 }
 
+static KrkValue _ord(int argc, KrkValue argv[]) {
+	if (argc != 1) {
+		krk_runtimeError(vm.exceptions.argumentError, "ord() takes exactly one argument");
+		return NONE_VAL();
+	}
+
+	KrkClass * type = AS_CLASS(krk_typeOf(1, &argv[0]));
+	KrkValue method;
+	if (krk_tableGet(&type->methods, vm.specialMethodNames[METHOD_ORD], &method)) {
+		krk_push(argv[0]);
+		return krk_callSimple(method, 1, 0);
+	} else {
+		krk_runtimeError(vm.exceptions.argumentError, "ord() expected string of length 1, but got %s", krk_typeName(argv[0]));
+		return NONE_VAL();
+	}
+}
+
+static KrkValue _chr(int argc, KrkValue argv[]) {
+	if (argc != 1) {
+		krk_runtimeError(vm.exceptions.argumentError, "chr() takes exactly one argument");
+		return NONE_VAL();
+	}
+
+	KrkClass * type = AS_CLASS(krk_typeOf(1, &argv[0]));
+	KrkValue method;
+	if (krk_tableGet(&type->methods, vm.specialMethodNames[METHOD_CHR], &method)) {
+		krk_push(argv[0]);
+		return krk_callSimple(method, 1, 0);
+	} else {
+		krk_runtimeError(vm.exceptions.argumentError, "chr() expected an integer, but got %s", krk_typeName(argv[0]));
+		return NONE_VAL();
+	}
+}
+
 static KrkValue _tuple_iter_init(int argc, KrkValue argv[]) {
 	KrkInstance * self = AS_INSTANCE(argv[0]);
 	krk_push(argv[0]);
@@ -3174,6 +3208,8 @@ void krk_initVM(int flags) {
 	BUILTIN_FUNCTION("len", _len);
 	BUILTIN_FUNCTION("repr", _repr);
 	BUILTIN_FUNCTION("print", _print);
+	BUILTIN_FUNCTION("ord", _ord);
+	BUILTIN_FUNCTION("chr", _chr);
 
 	/* __builtins__.set_tracing is namespaced */
 	krk_defineNative(&vm.builtins->fields, "set_tracing", krk_set_tracing);

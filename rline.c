@@ -524,6 +524,13 @@ void paint_krk_string(struct syntax_state * state, int type) {
 				/* Why is my FLAG_ERROR not valid in rline? */
 				paint(1, isxdigit(charat()) ? FLAG_ESCAPE : FLAG_DIFFMINUS);
 				paint(1, isxdigit(charat()) ? FLAG_ESCAPE : FLAG_DIFFMINUS);
+			} else if (nextchar() == 'u') {
+				paint(2, FLAG_ESCAPE);
+				/* Why is my FLAG_ERROR not valid in rline? */
+				paint(1, isxdigit(charat()) ? FLAG_ESCAPE : FLAG_DIFFMINUS);
+				paint(1, isxdigit(charat()) ? FLAG_ESCAPE : FLAG_DIFFMINUS);
+				paint(1, isxdigit(charat()) ? FLAG_ESCAPE : FLAG_DIFFMINUS);
+				paint(1, isxdigit(charat()) ? FLAG_ESCAPE : FLAG_DIFFMINUS);
 			} else {
 				paint(2, FLAG_ESCAPE);
 			}
@@ -546,7 +553,7 @@ char * syn_krk_types[] = {
 	"len", "str", "int", "float", "dir", "repr", /* global functions from __builtins__ */
 	"list","dict","range", /* builtin classes */
 	"object","exception","isinstance","type",
-	"print","set","any","all","bool",
+	"print","set","any","all","bool","ord","chr",
 	NULL
 };
 
