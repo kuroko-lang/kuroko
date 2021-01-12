@@ -150,16 +150,23 @@ The following escape sequences can be embedded in string literals:
 
 Strings in Kuroko are immutable; they can not be modified in-place.
 
-Strings can be concatenated, and other values can be appended to them:
+String concatenate uses the `+` operator and produces a new string. Other values are converted to strings when added to a string:
 
 ```py
 print("Hello, " + 42 + "!")
 # → Hello, 42!
 ```
 
+Strings can also be _subscripted_ to extra individual units:
+
+```py
+print("Hello"[1])
+# → e
+```
+
 Much like in Python 3, strings in Kuroko represent sequences of non-normalized Unicode codepoints. Both source files and the terminal in which Kuroko is running are expected to be UTF-8.
 
-This means that when indexing into a Unicode string, individual codepoints should be expected:
+This means that when subscrpting into a Unicode string, individual codepoints should be expected:
 
 ```py
 print("日本語"[1])
@@ -188,14 +195,14 @@ Invalid UTF-8 sequences will most likely result in a `ValueError` during decodin
 
 _**Implementation Note:** Generally, the internal representation of strings is their UTF-8 encoded form. When a subscript or slicing operation happens in which a codepoint index needs to be converted to an offset in the string, the most appropriate 'canonical' format will be generated and remain with the interned string until it is garbage collected. For strings containing only ASCII characters, no conversion is done and no additional copy is created. For all other strings, the smallest possible size for representing the largest codepoint is used, among the options of 1, 2, or 4. This approach is similar to CPython post-3.9._
 
-Strings can be encoded to _bytes_ objects to get their UTF-8 representation:
+Strings can also be encoded to _bytes_ objects to get their UTF-8 representation:
 
 ```py
 print('テスト'.encode())
 # → b'\xe3\x83\x86\xe3\x82\xb9\xe3\x83\x88'
 ```
 
-Bytes objects can also be written as literals in the same format. Note that strings and bytes are not generally compatible with each other.
+Bytes objects can also be written as literals in the same format. Note that strings and bytes are not generally compatible with each other, so comparisons, concatenation, and so on will typically fail or raise exceptions.
 
 ```py
 print(b'test')
