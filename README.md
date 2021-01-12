@@ -145,8 +145,8 @@ The following escape sequences can be embedded in string literals:
 - `\t`: horizontal tab
 - `\v`: vertical tab
 - `\[`: ANSI escape value (decimal value 27)
-- `\x`: A two-character hexadecimal sequence
-- `\u`: A four-character hexadecimal sequence
+- `\x`: A two-character hexadecimal sequence; represents a byte value in a `bytes` object and a codepoint below U+0100 in strings.
+- `\u`: A four-character hexadecimal sequence; represents a codepoint below U+10000 in strings.
 
 Strings in Kuroko are immutable; they can not be modified in-place.
 
@@ -175,18 +175,18 @@ print(len("日本語"))
 # → 3
 ```
 
-The `__ord__` method on a string representing a single codepoint will return the integer representation of that codepoint:
+The `ord()` function on a string representing a single codepoint will return the integer representation of that codepoint:
 
 ```py
-print("本".__ord__())
+print(ord("本"))
 # → 26412
-print("t".__ord__())
+print(ord("t"))
 # → 116
 ```
 
 Invalid UTF-8 sequences will most likely result in a `ValueError` during decoding or parsing.
 
-_**Implementation Note:** Generally, the internal representation of strings is their UTF-8 encoded form. When an indexing or slicing operation happens in which a codepoint index needs to be converted to an offset in the string, the most appropriate 'canonical' format will be generated and remain with the interned string until is garbage collected. For strings containing only ASCII characters, no conversion is done and no additional copy is created. For all other strings, the smallest possible size for representing the largest codepoint is used, among the options of 1, 2, or 4. This approach is similar to CPython post-3.9._
+_**Implementation Note:** Generally, the internal representation of strings is their UTF-8 encoded form. When a subscript or slicing operation happens in which a codepoint index needs to be converted to an offset in the string, the most appropriate 'canonical' format will be generated and remain with the interned string until it is garbage collected. For strings containing only ASCII characters, no conversion is done and no additional copy is created. For all other strings, the smallest possible size for representing the largest codepoint is used, among the options of 1, 2, or 4. This approach is similar to CPython post-3.9._
 
 Strings can be encoded to _bytes_ objects to get their UTF-8 representation:
 
