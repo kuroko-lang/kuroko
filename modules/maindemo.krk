@@ -1,0 +1,5 @@
+import kuroko
+if __name__ == '__main__':
+    print("Run as main with args:", kuroko.argv)
+else:
+    print("__name__ =", __name__)

@@ -303,8 +303,9 @@ static int modulePaths(void) {
 
 int main(int argc, char * argv[]) {
 	int flags = 0;
+	int moduleAsMain = 0;
 	int opt;
-	while ((opt = getopt(argc, argv, "dgrstMV-:")) != -1) {
+	while ((opt = getopt(argc, argv, "dgm:rstMV-:")) != -1) {
 		switch (opt) {
 			case 'd':
 				/* Disassemble code blocks after compilation. */
@@ -322,6 +323,10 @@ int main(int argc, char * argv[]) {
 				/* Disassemble instructions as they are executed. */
 				flags |= KRK_ENABLE_TRACING;
 				break;
+			case 'm':
+				moduleAsMain = 1;
+				optind--; /* to get us back to optarg */
+				goto _finishArgs;
 			case 'r':
 				enableRline = 0;
 				break;
@@ -338,6 +343,7 @@ int main(int argc, char * argv[]) {
 						"Interpreter options:\n"
 						" -d          Debug output from the bytecode compiler.\n"
 						" -g          Collect garbage on every allocation.\n"
+						" -m mod      Run a module as a script.\n"
 						" -r          Disable complex line editing in the REPL.\n"
 						" -s          Debug output from the scanner/tokenizer.\n"
 						" -t          Disassemble instructions as they are exceuted.\n"
@@ -357,6 +363,7 @@ int main(int argc, char * argv[]) {
 		}
 	}
 
+_finishArgs:
 	krk_initVM(flags);
 
 	/* Attach kuroko.argv - argv[0] will be set to an empty string for the repl */
@@ -383,7 +390,23 @@ int main(int argc, char * argv[]) {
 
 	KrkValue result = INTEGER_VAL(0);
 
-	if (optind == argc) {
+	if (moduleAsMain) {
+		/* This isn't going to do what we want for built-in modules, but I'm not sure
+		 * what we _should_ do for them anyway... let's just leave that as a TODO;
+		 * we do let C modules know they are the __main__ now, so non-built-in
+		 * C modules can still act as scripts if they want... */
+		KrkValue module;
+		krk_push(OBJECT_VAL(krk_copyString("__main__",8)));
+		int out = !krk_loadModule(
+			AS_STRING(AS_LIST(OBJECT_VAL(AS_INSTANCE(argList)->_internal))->values[0]),
+			&module,
+			AS_STRING(krk_peek(0)));
+		if (vm.flags & KRK_HAS_EXCEPTION) {
+			krk_dumpTraceback();
+			krk_resetStack();
+		}
+		return out;
+	} else if (optind == argc) {
 		/* Add builtins for the repl, but hide them from the globals() list. */
 		krk_defineNative(&vm.builtins->fields, "exit", exitFunc);
 		krk_defineNative(&vm.builtins->fields, "paste", paste);

@@ -125,15 +125,17 @@ static void dumpStack(CallFrame * frame) {
  * is not None, it will also be printed using safe methods.
  */
 void krk_dumpTraceback() {
-	fprintf(stderr, "Traceback, most recent last:\n");
-	for (size_t i = 0; i <= vm.frameCount - 1; i++) {
-		CallFrame * frame = &vm.frames[i];
-		KrkFunction * function = frame->closure->function;
-		size_t instruction = frame->ip - function->chunk.code - 1;
-		fprintf(stderr, "  File \"%s\", line %d, in %s\n",
-			(function->chunk.filename ? function->chunk.filename->chars : "?"),
-			(int)krk_lineNumber(&function->chunk, instruction),
-			(function->name ? function->name->chars : "(unnamed)"));
+	if (vm.frameCount) {
+		fprintf(stderr, "Traceback, most recent last:\n");
+		for (size_t i = 0; i <= vm.frameCount - 1; i++) {
+			CallFrame * frame = &vm.frames[i];
+			KrkFunction * function = frame->closure->function;
+			size_t instruction = frame->ip - function->chunk.code - 1;
+			fprintf(stderr, "  File \"%s\", line %d, in %s\n",
+				(function->chunk.filename ? function->chunk.filename->chars : "?"),
+				(int)krk_lineNumber(&function->chunk, instruction),
+				(function->name ? function->name->chars : "(unnamed)"));
+		}
 	}
 
 	if (!krk_valuesEqual(vm.currentException,NONE_VAL())) {
@@ -3481,7 +3483,7 @@ static int handleException() {
  * a later search path has a krk source and an earlier search path has a shared
  * object module, the later search path will still win.
  */
-int krk_loadModule(KrkString * name, KrkValue * moduleOut) {
+int krk_loadModule(KrkString * name, KrkValue * moduleOut, KrkString * runAs) {
 	KrkValue modulePaths, modulePathsInternal;
 
 	/* See if the module is already loaded */
@@ -3544,7 +3546,7 @@ int krk_loadModule(KrkString * name, KrkValue * moduleOut) {
 		 * returns to the current call frame; modules should return objects. */
 		int previousExitFrame = vm.exitOnFrame;
 		vm.exitOnFrame = vm.frameCount;
-		*moduleOut = krk_runfile(fileName,1,name->chars,fileName);
+		*moduleOut = krk_runfile(fileName,1,runAs->chars,fileName);
 		vm.exitOnFrame = previousExitFrame;
 		if (!IS_OBJECT(*moduleOut)) {
 			krk_runtimeError(vm.exceptions.importError,
@@ -3585,7 +3587,7 @@ int krk_loadModule(KrkString * name, KrkValue * moduleOut) {
 
 		char * handlerName = AS_CSTRING(krk_peek(0));
 
-		KrkValue (*moduleOnLoad)();
+		KrkValue (*moduleOnLoad)(KrkString * name);
 		void * out = dlsym(dlRef, handlerName);
 		memcpy(&moduleOnLoad,&out,sizeof(out));
 
@@ -3599,7 +3601,7 @@ int krk_loadModule(KrkString * name, KrkValue * moduleOut) {
 
 		krk_pop(); /* onload function */
 
-		*moduleOut = moduleOnLoad();
+		*moduleOut = moduleOnLoad(runAs);
 		if (!IS_INSTANCE(*moduleOut)) {
 			krk_runtimeError(vm.exceptions.importError,
 				"Failed to load module '%s' from '%s'", name->chars, fileName);
@@ -3852,7 +3854,7 @@ static KrkValue run() {
 			case OP_IMPORT: {
 				KrkString * name = READ_STRING(operandWidth);
 				KrkValue module;
-				if (!krk_loadModule(name, &module)) {
+				if (!krk_loadModule(name, &module, name)) {
 					goto _finishException;
 				}
 				break;
