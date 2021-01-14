@@ -443,6 +443,16 @@ static KrkValue _dict_key_at_index(int argc, KrkValue argv[]) {
 	return OBJECT_VAL(outValue);
 }
 
+static KrkValue _dict_nth_key_fast(size_t capacity, KrkTableEntry * entries, size_t index) {
+	size_t found = 0;
+	for (size_t i = 0; i < capacity; ++i) {
+		if (IS_KWARGS(entries[i].key)) continue;
+		if (found == index) return entries[i].key;
+		found++;
+	}
+	return NONE_VAL();
+}
+
 /**
  * list.__init__()
  */
@@ -3323,33 +3333,31 @@ void krk_initVM(int flags) {
 		 * the list and dict types by pulling them out of the global namespace,
 		 * as they were exported by builtins.krk */
 		krk_tableGet(&vm.builtins->fields,OBJECT_VAL(S("list")),&val);
-		KrkClass * _class = AS_CLASS(val);
-		krk_defineNative(&_class->methods, ".__init__", _list_init);
-		krk_defineNative(&_class->methods, ".__get__", _list_get);
-		krk_defineNative(&_class->methods, ".__set__", _list_set);
-		krk_defineNative(&_class->methods, ".__delitem__", _list_pop);
-		krk_defineNative(&_class->methods, ".__len__", _list_len);
-		krk_defineNative(&_class->methods, ".__contains__", _list_contains);
-		krk_defineNative(&_class->methods, ".__getslice__", _list_slice);
-		krk_defineNative(&_class->methods, ".__iter__", _list_iter);
-		krk_defineNative(&_class->methods, ".append", _list_append);
-		krk_defineNative(&_class->methods, ".pop", _list_pop);
-		krk_defineNative(&_class->methods, "._extend_fast", _list_extend_fast);
-		krk_finalizeClass(_class);
+		vm.baseClasses.listClass = AS_CLASS(val);
+		krk_defineNative(&vm.baseClasses.listClass->methods, ".__init__", _list_init);
+		krk_defineNative(&vm.baseClasses.listClass->methods, ".__get__", _list_get);
+		krk_defineNative(&vm.baseClasses.listClass->methods, ".__set__", _list_set);
+		krk_defineNative(&vm.baseClasses.listClass->methods, ".__delitem__", _list_pop);
+		krk_defineNative(&vm.baseClasses.listClass->methods, ".__len__", _list_len);
+		krk_defineNative(&vm.baseClasses.listClass->methods, ".__contains__", _list_contains);
+		krk_defineNative(&vm.baseClasses.listClass->methods, ".__getslice__", _list_slice);
+		krk_defineNative(&vm.baseClasses.listClass->methods, ".__iter__", _list_iter);
+		krk_defineNative(&vm.baseClasses.listClass->methods, ".append", _list_append);
+		krk_defineNative(&vm.baseClasses.listClass->methods, ".pop", _list_pop);
+		krk_defineNative(&vm.baseClasses.listClass->methods, "._extend_fast", _list_extend_fast);
+		krk_finalizeClass(vm.baseClasses.listClass);
 
 		krk_tableGet(&vm.builtins->fields,OBJECT_VAL(S("dict")),&val);
-		_class = AS_CLASS(val);
-		krk_defineNative(&_class->methods, ".__init__", _dict_init);
-		krk_defineNative(&_class->methods, ".__get__", _dict_get);
-		krk_defineNative(&_class->methods, ".__set__", _dict_set);
-		krk_defineNative(&_class->methods, ".__delitem__", _dict_delitem);
-		krk_defineNative(&_class->methods, ".__len__", _dict_len);
-		krk_defineNative(&_class->methods, ".__contains__", _dict_contains);
-		krk_finalizeClass(_class);
-
-		/* These are used to for dict.keys() to create the iterators. */
-		krk_defineNative(&_class->methods, ".capacity", _dict_capacity);
-		krk_defineNative(&_class->methods, "._key_at_index", _dict_key_at_index);
+		vm.baseClasses.dictClass = AS_CLASS(val);
+		krk_defineNative(&vm.baseClasses.dictClass->methods, ".__init__", _dict_init);
+		krk_defineNative(&vm.baseClasses.dictClass->methods, ".__get__", _dict_get);
+		krk_defineNative(&vm.baseClasses.dictClass->methods, ".__set__", _dict_set);
+		krk_defineNative(&vm.baseClasses.dictClass->methods, ".__delitem__", _dict_delitem);
+		krk_defineNative(&vm.baseClasses.dictClass->methods, ".__len__", _dict_len);
+		krk_defineNative(&vm.baseClasses.dictClass->methods, ".__contains__", _dict_contains);
+		krk_defineNative(&vm.baseClasses.dictClass->methods, ".capacity", _dict_capacity);
+		krk_defineNative(&vm.baseClasses.dictClass->methods, "._key_at_index", _dict_key_at_index);
+		krk_finalizeClass(vm.baseClasses.dictClass);
 	}
 
 	/* The VM is now ready to start executing code. */
@@ -4192,22 +4200,35 @@ static KrkValue run() {
 				}
 				break;
 			}
-			case OP_UNPACK_TUPLE_LONG:
-			case OP_UNPACK_TUPLE: {
+			case OP_UNPACK_LONG:
+			case OP_UNPACK: {
 				size_t count = readBytes(frame, operandWidth);
-				KrkValue tuple = krk_peek(0);
-				if (!IS_TUPLE(tuple)) {
-					krk_runtimeError(vm.exceptions.typeError, "Can not unpack non-tuple '%s'", krk_typeName(tuple));
-					goto _finishException;
-				} else if (AS_TUPLE(tuple)->values.count != count) {
-					krk_runtimeError(vm.exceptions.valueError, "Wrong number of values to unpack (wanted %d, got %d)", (int)count, (int)AS_TUPLE(tuple)->values.count);
+				KrkValue sequence = krk_peek(0);
+				/* First figure out what it is and if we can unpack it. */
+#define unpackArray(counter, indexer) do { \
+					if (counter != count) { \
+						krk_runtimeError(vm.exceptions.valueError, "Wrong number of values to unpack (wanted %d, got %d)", (int)count, (int)counter); \
+					} \
+					for (size_t i = 1; i < counter; ++i) { \
+						krk_push(indexer); \
+					} \
+					size_t i = 0; \
+					vm.stackTop[-count] = indexer; \
+				} while (0)
+				if (IS_TUPLE(sequence)) {
+					unpackArray(AS_TUPLE(sequence)->values.count, AS_TUPLE(sequence)->values.values[i]);
+				} else if (IS_INSTANCE(sequence) && AS_INSTANCE(sequence)->_class == vm.baseClasses.listClass) {
+					KrkValue _list_internal = OBJECT_VAL(AS_INSTANCE(sequence)->_internal);
+					unpackArray(AS_LIST(_list_internal)->count, AS_LIST(_list_internal)->values[i]);
+				} else if (IS_INSTANCE(sequence) && AS_INSTANCE(sequence)->_class == vm.baseClasses.dictClass) {
+					KrkValue _dict_internal = OBJECT_VAL(AS_INSTANCE(sequence)->_internal);
+					unpackArray(AS_DICT(_dict_internal)->count, _dict_nth_key_fast(AS_DICT(_dict_internal)->capacity, AS_DICT(_dict_internal)->entries, i));
+				} else if (IS_STRING(sequence)) {
+					unpackArray(AS_STRING(sequence)->codesLength, _string_get(2,(KrkValue[]){sequence,INTEGER_VAL(i)}));
+				} else {
+					krk_runtimeError(vm.exceptions.notImplementedError, "Can not iterate '%s' in unpack.", krk_typeName(sequence));
 					goto _finishException;
 				}
-				/* Unpack from 1 to end, then unpack 0 into bottom slot */
-				for (size_t i = 1; i < AS_TUPLE(tuple)->values.count; ++i) {
-					krk_push(AS_TUPLE(tuple)->values.values[i]);
-				}
-				vm.stackTop[-count] = AS_TUPLE(tuple)->values.values[0];
 				break;
 			}
 			case OP_PUSH_WITH: {

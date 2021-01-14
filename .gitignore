@@ -1,3 +1,4 @@
 *.o
 *.so
 kuroko
+wasm/

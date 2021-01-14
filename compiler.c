@@ -614,16 +614,69 @@ static void expression() {
 	parsePrecedence(PREC_ASSIGNMENT);
 }
 
-static void varDeclaration() {
-	ssize_t ind = parseVariable("Expected variable name.");
+static void letDeclaration(void) {
+	size_t argCount = 0;
+	size_t argSpace = 1;
+	ssize_t * args  = GROW_ARRAY(ssize_t,NULL,0,1);
+
+	do {
+		if (argSpace < argCount + 1) {
+			size_t old = argSpace;
+			argSpace = GROW_CAPACITY(old);
+			args = GROW_ARRAY(ssize_t,args,old,argSpace);
+		}
+		ssize_t ind = parseVariable("Expected variable name.");
+		if (current->scopeDepth > 0) {
+			/* Need locals space */
+			args[argCount++] = current->localCount - 1;
+			emitByte(OP_NONE);
+			defineVariable(ind);
+		} else {
+			args[argCount++] = ind;
+		}
+	} while (match(TOKEN_COMMA));
 
 	if (match(TOKEN_EQUAL)) {
-		expression();
-	} else {
-		emitByte(OP_NONE);
+		size_t expressionCount = 0;
+		do {
+			expressionCount++;
+			expression();
+		} while (match(TOKEN_COMMA));
+		if (expressionCount == 1 && argCount > 1) {
+			EMIT_CONSTANT_OP(OP_UNPACK, argCount);
+		} else if (expressionCount == 1 && argCount == 1) {
+			/* Do nothing */
+		} else if (expressionCount == argCount) {
+			/* This is stupid but it flips the stuff around */
+			EMIT_CONSTANT_OP(OP_TUPLE, argCount);
+			EMIT_CONSTANT_OP(OP_UNPACK, argCount);
+		} else if (expressionCount > 1 && argCount == 1) {
+			EMIT_CONSTANT_OP(OP_TUPLE, expressionCount);
+		} else {
+			error("Invalid sequence unpack in 'let' statement");
+		}
+		if (current->scopeDepth > 0) {
+			for (size_t i = argCount; i > 0; i--) {
+				EMIT_CONSTANT_OP(OP_SET_LOCAL, args[i-1]);
+				emitByte(OP_POP);
+			}
+		}
+	} else if (current->scopeDepth == 0) {
+		/* Need to nil it */
+		for (size_t i = 0; i < argCount; ++i) {
+			emitByte(OP_NONE);
+		}
 	}
 
-	defineVariable(ind);
+	if (current->scopeDepth == 0) {
+		for (size_t i = argCount; i > 0; i--) {
+			defineVariable(args[i-1]);
+		}
+	}
+
+	if (!match(TOKEN_EOL) && !match(TOKEN_EOF)) {
+		error("Expected end of line after 'let' statement.");
+	}
 }
 
 static void synchronize() {
@@ -651,12 +704,7 @@ static void declaration() {
 	if (check(TOKEN_DEF)) {
 		defDeclaration();
 	} else if (match(TOKEN_LET)) {
-		do {
-			varDeclaration();
-		} while (match(TOKEN_COMMA));
-		if (!match(TOKEN_EOL) && !match(TOKEN_EOF)) {
-			error("Expected EOL after variable declaration.\n");
-		}
+		letDeclaration();
 	} else if (check(TOKEN_CLASS)) {
 		classDeclaration();
 	} else if (check(TOKEN_AT)) {
@@ -1257,15 +1305,23 @@ static void forStatement() {
 
 	ssize_t loopInd = current->localCount;
 	ssize_t varCount = 0;
+	int matchedEquals = 0;
 	do {
-		varDeclaration();
+		ssize_t ind = parseVariable("Expected name for loop iterator.");
+		if (match(TOKEN_EQUAL)) {
+			matchedEquals = 1;
+			expression();
+		} else {
+			emitByte(OP_NONE);
+		}
+		defineVariable(ind);
 		varCount++;
 	} while (match(TOKEN_COMMA));
 
 	int loopStart;
 	int exitJump;
 
-	if (match(TOKEN_IN)) {
+	if (!matchedEquals && match(TOKEN_IN)) {
 
 		/* ITERABLE.__iter__() */
 		beginScope();
@@ -1303,7 +1359,7 @@ static void forStatement() {
 
 		if (varCount > 1) {
 			EMIT_CONSTANT_OP(OP_GET_LOCAL, loopInd);
-			EMIT_CONSTANT_OP(OP_UNPACK_TUPLE, varCount);
+			EMIT_CONSTANT_OP(OP_UNPACK, varCount);
 			for (ssize_t i = loopInd + varCount - 1; i >= loopInd; i--) {
 				EMIT_CONSTANT_OP(OP_SET_LOCAL, i);
 				emitByte(OP_POP);
@@ -1790,7 +1846,8 @@ static void list(int canAssign) {
 			ssize_t loopInd = current->localCount;
 			ssize_t varCount = 0;
 			do {
-				varDeclaration();
+				defineVariable(parseVariable("Expected name for iteration variable."));
+				emitByte(OP_NONE);
 				defineVariable(loopInd);
 				varCount++;
 			} while (match(TOKEN_COMMA));
@@ -1838,7 +1895,7 @@ static void list(int canAssign) {
 			/* Unpack tuple */
 			if (varCount > 1) {
 				EMIT_CONSTANT_OP(OP_GET_LOCAL, loopInd);
-				EMIT_CONSTANT_OP(OP_UNPACK_TUPLE, varCount);
+				EMIT_CONSTANT_OP(OP_UNPACK, varCount);
 				for (ssize_t i = loopInd + varCount - 1; i >= loopInd; i--) {
 					EMIT_CONSTANT_OP(OP_SET_LOCAL, i);
 					emitByte(OP_POP);

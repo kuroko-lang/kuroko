@@ -4,7 +4,7 @@ let lines = f.read().split('\n')[:-1]
 
 def count_trees(lines, x_off, y_off):
     let modulo = len(lines[0])
-    let x = 0, y = 0, trees = 0
+    let x, y, trees = 0, 0, 0
     while y < len(lines):
         if lines[y][x % modulo] == '#':
             trees += 1

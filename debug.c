@@ -144,7 +144,7 @@ size_t krk_disassembleInstruction(FILE * f, KrkFunction * func, size_t offset) {
 		OPERAND(OP_CALL, (void)0)
 		OPERAND(OP_INC, (void)0)
 		OPERAND(OP_TUPLE, (void)0)
-		OPERAND(OP_UNPACK_TUPLE, (void)0)
+		OPERAND(OP_UNPACK, (void)0)
 		JUMP(OP_JUMP,+)
 		JUMP(OP_JUMP_IF_FALSE,+)
 		JUMP(OP_JUMP_IF_TRUE,+)

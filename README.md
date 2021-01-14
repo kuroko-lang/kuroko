@@ -253,12 +253,21 @@ print(foo)
 # → 1
 ```
 
-You may declare and define multiple variables on a single line:
+You may declare and define multiple variables on a single line as follows:
 
 ```py
-let a = 1, b = "test", c = object()
+let a, b, c = 1, "test", object()
 print(a,b,c)
 # → 1 test <instance of object at ...>
+```
+
+The `let` statement can also be used to unpack some sequence types:
+
+```py
+let t = (1, 2, 3)
+let a, b, c = t
+print(a,b,c)
+# → 1 2 3
 ```
 
 _**Note:** Identifier names, including for variables, functions, and classes, can be Unicode sequences. All non-ASCII codepoints are accepted as identifier characters._
