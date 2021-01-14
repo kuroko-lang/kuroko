@@ -8,7 +8,6 @@ class Foo():
         self._dict = {'foo': 1, 'bar': 42}
 
 let f = Foo()
-print(f)
 print(dir(f))
 print(f.foo)
 
