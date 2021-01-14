@@ -26,7 +26,7 @@ typedef struct {
 	KrkValueType type;
 	union {
 		char boolean;
-		long integer;
+		krk_integer_type integer;
 		double  floating;
 		KrkJumpTarget handler;
 		KrkObj *   object;

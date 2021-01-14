@@ -439,7 +439,7 @@ static void number(int canAssign) {
 	}
 
 	/* If we got here, it's an integer of some sort. */
-	long value = strtol(start, NULL, base);
+	krk_integer_type value = parseStrInt(start, NULL, base);
 	emitConstant(INTEGER_VAL(value));
 }
 

@@ -1262,7 +1262,7 @@ KrkValue krk_callSimple(KrkValue value, int argCount, int isMethod) {
 	} else if (result == 1) {
 		return krk_runNext();
 	}
-	krk_runtimeError(vm.exceptions.typeError, "Invalid internal method call.");
+	krk_runtimeError(vm.exceptions.typeError, "Invalid internal method call: %d ('%s')", result, krk_typeName(value));
 	return NONE_VAL();
 }
 
@@ -1460,7 +1460,7 @@ static KrkValue _int_to_floating(int argc, KrkValue argv[]) {
 
 /* int.__chr__() */
 static KrkValue _int_to_char(int argc, KrkValue argv[]) {
-	long value = AS_INTEGER(argv[0]);
+	krk_integer_type value = AS_INTEGER(argv[0]);
 	unsigned char out[5] = {0};
 	if (value > 0xFFFF) {
 		out[0] = (0xF0 | (value >> 18));
@@ -1619,7 +1619,7 @@ static KrkValue _string_int(int argc, KrkValue argv[]) {
 		base = 8;
 		start += 2;
 	}
-	long value = strtol(start, NULL, base);
+	krk_integer_type value = parseStrInt(start, NULL, base);
 	return INTEGER_VAL(value);
 }
 
@@ -2557,7 +2557,7 @@ static KrkValue _module_repr(int argc, KrkValue argv[]) {
  */
 static KrkValue _int_to_str(int argc, KrkValue argv[]) {
 	char tmp[100];
-	size_t l = sprintf(tmp, "%ld", (long)AS_INTEGER(argv[0]));
+	size_t l = sprintf(tmp, PRIkrk_int, (krk_integer_type)AS_INTEGER(argv[0]));
 	return OBJECT_VAL(krk_copyString(tmp, l));
 }
 
@@ -2698,8 +2698,8 @@ static KrkValue _hex(int argc, KrkValue argv[]) {
 		return NONE_VAL();
 	}
 	char tmp[20];
-	long x = AS_INTEGER(argv[0]);
-	size_t len = sprintf(tmp, "%s0x%lx", x < 0 ? "-" : "", x < 0 ? -x : x);
+	krk_integer_type x = AS_INTEGER(argv[0]);
+	size_t len = sprintf(tmp, "%s0x" PRIkrk_hex, x < 0 ? "-" : "", x < 0 ? -x : x);
 	return OBJECT_VAL(krk_copyString(tmp,len));
 }
 
@@ -2724,7 +2724,7 @@ static KrkValue _tuple_iter_call(int argc, KrkValue argv[]) {
 	KrkTuple * myTuple = self->_internal;
 	KrkValue t = myTuple->values.values[0]; /* Tuple to iterate */
 	KrkValue i = myTuple->values.values[1]; /* Index value */
-	if (AS_INTEGER(i) >= (long int)AS_TUPLE(t)->values.count) {
+	if (AS_INTEGER(i) >= (krk_integer_type)AS_TUPLE(t)->values.count) {
 		return argv[0];
 	} else {
 		myTuple->values.values[1] = INTEGER_VAL(AS_INTEGER(i)+1);

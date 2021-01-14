@@ -30,7 +30,7 @@ void krk_freeValueArray(KrkValueArray * array) {
 void krk_printValue(FILE * f, KrkValue printable) {
 	if (!IS_OBJECT(printable)) {
 		switch (printable.type) {
-			case VAL_INTEGER:  fprintf(f, "%ld", AS_INTEGER(printable)); break;
+			case VAL_INTEGER:  fprintf(f, PRIkrk_int, AS_INTEGER(printable)); break;
 			case VAL_BOOLEAN:  fprintf(f, "%s", AS_BOOLEAN(printable) ? "True" : "False"); break;
 			case VAL_FLOATING: fprintf(f, "%g", AS_FLOATING(printable)); break;
 			case VAL_NONE:     fprintf(f, "None"); break;
@@ -47,7 +47,7 @@ void krk_printValue(FILE * f, KrkValue printable) {
 				} else if (AS_INTEGER(printable) == 0) {
 					fprintf(f, "{unset default}");
 				} else {
-					fprintf(f, "{sentinel=%ld}",AS_INTEGER(printable));
+					fprintf(f, "{sentinel=" PRIkrk_int "}",AS_INTEGER(printable));
 				}
 				break;
 			}
