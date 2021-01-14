@@ -1,0 +1,24 @@
+class Foo():
+    def __getattr__(name):
+        if name in self._dict:
+            return self._dict[name]
+        else:
+            raise AttributeError(name)
+    def __init__():
+        self._dict = {'foo': 1, 'bar': 42}
+
+let f = Foo()
+print(f)
+print(dir(f))
+print(f.foo)
+
+class Bar(object):
+    def __dir__(self):
+        let out = super().__dir__()
+        out.append("butts")
+        return out
+
+let b = Bar()
+print(dir(b))
+try:
+    b.butts

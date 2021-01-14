@@ -303,6 +303,8 @@ void krk_finalizeClass(KrkClass * _class) {
 		{&_class->_exit, METHOD_EXIT},
 		{&_class->_delitem, METHOD_DELITEM},
 		{&_class->_iter, METHOD_ITER},
+		{&_class->_getattr, METHOD_GETATTR},
+		{&_class->_dir, METHOD_DIR},
 		{NULL, 0},
 	};
 
@@ -2682,6 +2684,19 @@ static KrkValue _len(int argc, KrkValue argv[]) {
 	return krk_callSimple(OBJECT_VAL(type->_len), 1, 0);
 }
 
+static KrkValue _dir(int argc, KrkValue argv[]) {
+	if (argc != 1) {
+		krk_runtimeError(vm.exceptions.argumentError, "dir() takes exactly one argument");
+		return NONE_VAL();
+	}
+	KrkClass * type = AS_CLASS(krk_typeOf(1,&argv[0]));
+	if (!type->_dir) {
+		return krk_dirObject(argc,argv); /* Fallback */
+	}
+	krk_push(argv[0]);
+	return krk_callSimple(OBJECT_VAL(type->_dir), 1, 0);
+}
+
 static KrkValue _repr(int argc, KrkValue argv[]) {
 	if (argc != 1) {
 		krk_runtimeError(vm.exceptions.argumentError, "repr() takes exactly one argument");
@@ -3105,6 +3120,8 @@ void krk_initVM(int flags) {
 	vm.specialMethodNames[METHOD_EXIT] = OBJECT_VAL(S("__exit__"));
 	vm.specialMethodNames[METHOD_DELITEM] = OBJECT_VAL(S("__delitem__")); /* delitem */
 	vm.specialMethodNames[METHOD_ITER] = OBJECT_VAL(S("__iter__"));
+	vm.specialMethodNames[METHOD_GETATTR] = OBJECT_VAL(S("__getattr__"));
+	vm.specialMethodNames[METHOD_DIR] = OBJECT_VAL(S("__dir__"));
 
 	/* Create built-in class `object` */
 	vm.objectClass = krk_newClass(S("object"));
@@ -3276,7 +3293,7 @@ void krk_initVM(int flags) {
 	BUILTIN_FUNCTION("dictOf", krk_dict_of); /* Equivalent to dict() */
 	BUILTIN_FUNCTION("isinstance", krk_isinstance);
 	BUILTIN_FUNCTION("globals", krk_globals);
-	BUILTIN_FUNCTION("dir", krk_dirObject);
+	BUILTIN_FUNCTION("dir", _dir);
 	BUILTIN_FUNCTION("len", _len);
 	BUILTIN_FUNCTION("repr", _repr);
 	BUILTIN_FUNCTION("print", _print);
@@ -3706,6 +3723,12 @@ static int valueGetProperty(KrkString * name) {
 
 	/* See if the base class for this non-instance type has a method available */
 	if (krk_bindMethod(objectClass, name)) {
+		return 1;
+	}
+
+	if (objectClass->_getattr) {
+		krk_push(OBJECT_VAL(name));
+		krk_push(krk_callSimple(OBJECT_VAL(objectClass->_getattr), 2, 0));
 		return 1;
 	}
 

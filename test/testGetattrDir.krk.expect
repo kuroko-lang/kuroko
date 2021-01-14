@@ -1,0 +1,4 @@
+<instance of Foo at 0x55e8a79995b0>
+['__class__', '__str__', '__init__', '__dir__', '__repr__', '__getattr__', '_dict']
+1
+['__class__', '__str__', '__dir__', '__repr__', 'butts']
