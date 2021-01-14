@@ -308,6 +308,12 @@ KrkToken krk_scanToken() {
 		return out;
 	}
 
+	if (c == '\\' && peek() == '\n') {
+		advance();
+		nextLine();
+		return makeToken(TOKEN_RETRY);
+	}
+
 	/* Not indentation, not a linefeed on an empty line, must be not be start of line any more */
 	scanner.startOfLine = 0;
 

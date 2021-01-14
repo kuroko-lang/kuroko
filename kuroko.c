@@ -547,9 +547,13 @@ _finishArgs:
 				 * continue to accept input. Our compiler isn't really
 				 * set up to let us compile "on the fly" so we can't just
 				 * run lines through it and see if it wants more... */
-				if (lineLength > 2 && lines[i][lineLength-2] == ':') {
+				if (lineLength > 1 && lines[i][lineLength-2] == ':') {
 					inBlock = 1;
 					blockWidth = countSpaces + 4;
+					continue;
+				} else if (lineLength > 1 && lines[i][lineLength-2] == '\\') {
+					inBlock = 1;
+					blockWidth = 0;
 					continue;
 				} else if (inBlock && lineLength != 1) {
 					if (isSpaces) {
