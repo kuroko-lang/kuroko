@@ -629,6 +629,12 @@ static void letDeclaration(void) {
 		if (current->scopeDepth > 0) {
 			/* Need locals space */
 			args[argCount++] = current->localCount - 1;
+			if (argCount == 1 && match(TOKEN_EQUAL)) {
+				/* Single local, quick assignment */
+				expression();
+				defineVariable(ind);
+				goto _letDone;
+			}
 			emitByte(OP_NONE);
 			defineVariable(ind);
 		} else {
@@ -654,6 +660,7 @@ static void letDeclaration(void) {
 			EMIT_CONSTANT_OP(OP_TUPLE, expressionCount);
 		} else {
 			error("Invalid sequence unpack in 'let' statement");
+			goto _letDone;
 		}
 		if (current->scopeDepth > 0) {
 			for (size_t i = argCount; i > 0; i--) {
@@ -674,9 +681,13 @@ static void letDeclaration(void) {
 		}
 	}
 
+_letDone:
 	if (!match(TOKEN_EOL) && !match(TOKEN_EOF)) {
 		error("Expected end of line after 'let' statement.");
 	}
+
+	FREE_ARRAY(ssize_t,args,argSpace);
+	return;
 }
 
 static void synchronize() {
