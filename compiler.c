@@ -629,14 +629,6 @@ static void letDeclaration(void) {
 		if (current->scopeDepth > 0) {
 			/* Need locals space */
 			args[argCount++] = current->localCount - 1;
-			if (argCount == 1 && match(TOKEN_EQUAL)) {
-				/* Single local, quick assignment */
-				expression();
-				defineVariable(ind);
-				goto _letDone;
-			}
-			emitByte(OP_NONE);
-			defineVariable(ind);
 		} else {
 			args[argCount++] = ind;
 		}
@@ -650,25 +642,15 @@ static void letDeclaration(void) {
 		} while (match(TOKEN_COMMA));
 		if (expressionCount == 1 && argCount > 1) {
 			EMIT_CONSTANT_OP(OP_UNPACK, argCount);
-		} else if (expressionCount == 1 && argCount == 1) {
-			/* Do nothing */
 		} else if (expressionCount == argCount) {
-			/* This is stupid but it flips the stuff around */
-			EMIT_CONSTANT_OP(OP_TUPLE, argCount);
-			EMIT_CONSTANT_OP(OP_UNPACK, argCount);
+			/* Do nothing */
 		} else if (expressionCount > 1 && argCount == 1) {
 			EMIT_CONSTANT_OP(OP_TUPLE, expressionCount);
 		} else {
 			error("Invalid sequence unpack in 'let' statement");
 			goto _letDone;
 		}
-		if (current->scopeDepth > 0) {
-			for (size_t i = argCount; i > 0; i--) {
-				EMIT_CONSTANT_OP(OP_SET_LOCAL, args[i-1]);
-				emitByte(OP_POP);
-			}
-		}
-	} else if (current->scopeDepth == 0) {
+	} else {
 		/* Need to nil it */
 		for (size_t i = 0; i < argCount; ++i) {
 			emitByte(OP_NONE);
@@ -678,6 +660,10 @@ static void letDeclaration(void) {
 	if (current->scopeDepth == 0) {
 		for (size_t i = argCount; i > 0; i--) {
 			defineVariable(args[i-1]);
+		}
+	} else {
+		for (size_t i = 0; i < argCount; i++) {
+			current->locals[current->localCount - 1 - i].depth = current->scopeDepth;
 		}
 	}
 
