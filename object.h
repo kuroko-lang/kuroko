@@ -177,7 +177,7 @@ static inline int isObjType(KrkValue value, ObjType type) {
 
 extern KrkString * krk_takeString(char * chars, size_t length);
 extern KrkString * krk_copyString(const char * chars, size_t length);
-extern KrkFunction *    krk_newFunction();
+extern KrkFunction *    krk_newFunction(void);
 extern KrkNative * krk_newNative(NativeFn function, const char * name, int type);
 extern KrkClosure *     krk_newClosure(KrkFunction * function);
 extern KrkUpvalue *     krk_newUpvalue(int slot);

@@ -196,9 +196,13 @@ static void errorAt(KrkToken * token, const char * message) {
 	size_t i = (token->col - 1);
 	while (token->linePtr[i] && token->linePtr[i] != '\n') i++;
 
-	fprintf(stderr, "Parse error in \"%s\" on line %d col %d (%s): %s\n"
-					"    %.*s\033[31m%.*s\033[39m%.*s\n"
-					"    %-*s\033[31m^\033[39m\n",
+	const char fancyError[] =   "Parse error in \"%s\" on line %d col %d (%s): %s\n"
+								"    %.*s\033[31m%.*s\033[39m%.*s\n"
+								"    %-*s\033[31m^\033[39m\n";
+	const char plainError[] =   "Parse error in \"%s\" on line %d col %d (%s): %s\n"
+								"    %.*s%.*s%.*s\n"
+								"    %-*s^\n";
+	fprintf(stderr, (vm.flags & KRK_NO_ESCAPE) ? plainError: fancyError,
 		currentChunk()->filename->chars,
 		(int)token->line,
 		(int)token->col,
@@ -2091,7 +2095,6 @@ static void declareVariable() {
 		if (local->depth != -1 && local->depth < (ssize_t)current->scopeDepth) break;
 		if (identifiersEqual(name, &local->name)) {
 			error("Duplicate definition");
-			__asm__("int $3");
 		}
 	}
 	addLocal(*name);

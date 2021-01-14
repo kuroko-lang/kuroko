@@ -236,7 +236,6 @@ KrkValue krk_pop() {
 	vm.stackTop--;
 	if (vm.stackTop < vm.stack) {
 		fprintf(stderr, "Fatal error: stack underflow detected in VM, issuing breakpoint.\n");
-		__asm__ ("int $3");
 		return NONE_VAL();
 	}
 	return *vm.stackTop;
@@ -427,7 +426,7 @@ static KrkValue _list_init(int argc, KrkValue argv[]) {
 		krk_runtimeError(vm.exceptions.argumentError, "Can not initialize list from iterable (unsupported, try again later)");
 		return NONE_VAL();
 	}
-	KrkFunction * list = krk_newFunction(NULL);
+	KrkFunction * list = krk_newFunction();
 	krk_push(OBJECT_VAL(list));
 	krk_tableSet(&AS_INSTANCE(argv[0])->fields, vm.specialMethodNames[METHOD_LIST_INT], OBJECT_VAL(list));
 	AS_INSTANCE(argv[0])->_internal = (KrkObj*)list;
@@ -557,7 +556,7 @@ KrkValue krk_list_of(int argc, KrkValue argv[]) {
 	krk_tableGet(&vm.builtins->fields,OBJECT_VAL(S("list")), &Class);
 	KrkInstance * outList = krk_newInstance(AS_CLASS(Class));
 	krk_push(OBJECT_VAL(outList));
-	KrkFunction * listContents = krk_newFunction(NULL);
+	KrkFunction * listContents = krk_newFunction();
 	krk_push(OBJECT_VAL(listContents));
 	krk_tableSet(&outList->fields, vm.specialMethodNames[METHOD_LIST_INT], OBJECT_VAL(listContents));
 	outList->_internal = (KrkObj*)listContents;
@@ -1853,7 +1852,7 @@ static KrkValue _string_join(int argc, KrkValue argv[], int hasKw) {
 	}
 
 	/* TODO: Support any object with an __iter__ - kinda need an internal method to do that well. */
-	if (!IS_INSTANCE(argv[1]) || !AS_INSTANCE(argv[1])->_internal || !((KrkObj*)AS_INSTANCE(argv[1])->_internal)->type == OBJ_FUNCTION) {
+	if (!IS_INSTANCE(argv[1]) || !AS_INSTANCE(argv[1])->_internal || !(((KrkObj*)AS_INSTANCE(argv[1])->_internal)->type == OBJ_FUNCTION)) {
 		krk_runtimeError(vm.exceptions.typeError, "str.join(): expected a list");
 		return NONE_VAL();
 	}
@@ -3014,6 +3013,15 @@ static KrkValue krk_getsize(int argc, KrkValue argv[]) {
 	return INTEGER_VAL(mySize);
 }
 
+static KrkValue krk_setclean(int argc, KrkValue argv[]) {
+	if (!argc || (IS_BOOLEAN(argv[0]) && AS_BOOLEAN(argv[0]))) {
+		vm.flags |= KRK_NO_ESCAPE;
+	} else {
+		vm.flags &= ~KRK_NO_ESCAPE;
+	}
+	return NONE_VAL();
+}
+
 void krk_initVM(int flags) {
 	vm.flags = flags;
 	KRK_PAUSE_GC();
@@ -3101,6 +3109,7 @@ void krk_initVM(int flags) {
 	krk_attachNamedObject(&vm.system->fields, "buildenv", (KrkObj*)S(KRK_BUILD_COMPILER));
 	krk_attachNamedObject(&vm.system->fields, "builddate", (KrkObj*)S(KRK_BUILD_DATE));
 	krk_defineNative(&vm.system->fields, "getsizeof", krk_getsize);
+	krk_defineNative(&vm.system->fields, "set_clean_output", krk_setclean);
 
 	KrkInstance * gcModule = krk_newInstance(vm.moduleClass);
 	krk_attachNamedObject(&vm.modules, "gc", (KrkObj*)gcModule);

@@ -179,7 +179,7 @@ KrkString * krk_copyString(const char * chars, size_t length) {
 	return allocateString(heapChars, length, hash);
 }
 
-KrkFunction * krk_newFunction() {
+KrkFunction * krk_newFunction(void) {
 	KrkFunction * function = ALLOCATE_OBJECT(KrkFunction, OBJ_FUNCTION);
 	function->requiredArgs = 0;
 	function->keywordArgs = 0;

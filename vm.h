@@ -114,6 +114,7 @@ typedef struct {
 #define KRK_ENABLE_DISASSEMBLY  (1 << 1)
 #define KRK_ENABLE_SCAN_TRACING (1 << 2)
 #define KRK_ENABLE_STRESS_GC    (1 << 3)
+#define KRK_NO_ESCAPE           (1 << 4)
 
 #define KRK_GC_PAUSED           (1 << 10)
 #define KRK_HAS_EXCEPTION       (1 << 11)
