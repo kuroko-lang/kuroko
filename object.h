@@ -135,6 +135,7 @@ typedef struct KrkClass {
 	KrkObj * _enter;
 	KrkObj * _exit;
 	KrkObj * _delitem;
+	KrkObj * _iter;
 } KrkClass;
 
 typedef struct KrkInstance {

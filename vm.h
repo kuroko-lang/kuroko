@@ -42,6 +42,7 @@ typedef enum {
 	METHOD_ENTER,
 	METHOD_EXIT,
 	METHOD_DELITEM,
+	METHOD_ITER,
 
 	METHOD__MAX,
 } KrkSpecialMethods;

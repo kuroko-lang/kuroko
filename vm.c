@@ -302,6 +302,7 @@ void krk_finalizeClass(KrkClass * _class) {
 		{&_class->_enter, METHOD_ENTER},
 		{&_class->_exit, METHOD_EXIT},
 		{&_class->_delitem, METHOD_DELITEM},
+		{&_class->_iter, METHOD_ITER},
 		{NULL, 0},
 	};
 
@@ -3103,6 +3104,7 @@ void krk_initVM(int flags) {
 	vm.specialMethodNames[METHOD_ENTER] = OBJECT_VAL(S("__enter__"));
 	vm.specialMethodNames[METHOD_EXIT] = OBJECT_VAL(S("__exit__"));
 	vm.specialMethodNames[METHOD_DELITEM] = OBJECT_VAL(S("__delitem__")); /* delitem */
+	vm.specialMethodNames[METHOD_ITER] = OBJECT_VAL(S("__iter__"));
 
 	/* Create built-in class `object` */
 	vm.objectClass = krk_newClass(S("object"));
@@ -4226,7 +4228,12 @@ static KrkValue run() {
 				} else if (IS_STRING(sequence)) {
 					unpackArray(AS_STRING(sequence)->codesLength, _string_get(2,(KrkValue[]){sequence,INTEGER_VAL(i)}));
 				} else {
-					krk_runtimeError(vm.exceptions.notImplementedError, "Can not iterate '%s' in unpack.", krk_typeName(sequence));
+					KrkClass * type = AS_CLASS(krk_typeOf(1,&sequence));
+					if (!type->_iter) {
+						krk_runtimeError(vm.exceptions.typeError, "Can not unpack non-iterable '%s'", krk_typeName(sequence));
+					} else {
+						krk_runtimeError(vm.exceptions.notImplementedError, "Can not iterate '%s' in unpack", krk_typeName(sequence));
+					}
 					goto _finishException;
 				}
 				break;
@@ -4236,7 +4243,7 @@ static KrkValue run() {
 				KrkValue contextManager = krk_peek(0);
 				KrkClass * type = AS_CLASS(krk_typeOf(1, &contextManager));
 				if (!type->_enter || !type->_exit) {
-					krk_runtimeError(vm.exceptions.attributeError, "Can not use '%s' as context manager.", krk_typeName(contextManager));
+					krk_runtimeError(vm.exceptions.attributeError, "Can not use '%s' as context manager", krk_typeName(contextManager));
 					goto _finishException;
 				}
 				krk_push(contextManager);
