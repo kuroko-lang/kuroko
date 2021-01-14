@@ -301,6 +301,7 @@ void krk_finalizeClass(KrkClass * _class) {
 		{&_class->_len, METHOD_LEN},
 		{&_class->_enter, METHOD_ENTER},
 		{&_class->_exit, METHOD_EXIT},
+		{&_class->_delitem, METHOD_DELITEM},
 		{NULL, 0},
 	};
 
@@ -354,6 +355,30 @@ static KrkValue _dict_set(int argc, KrkValue argv[]) {
 	}
 	KrkValue _dict_internal = OBJECT_VAL(AS_INSTANCE(argv[0])->_internal);
 	krk_tableSet(AS_DICT(_dict_internal), argv[1], argv[2]);
+	return NONE_VAL();
+}
+
+/**
+ * dict.__delitem__
+ */
+static KrkValue _dict_delitem(int argc, KrkValue argv[]) {
+	if (argc < 2) {
+		krk_runtimeError(vm.exceptions.argumentError, "wrong number of arguments");
+		return NONE_VAL();
+	}
+	KrkValue _dict_internal = OBJECT_VAL(AS_INSTANCE(argv[0])->_internal);
+	if (!krk_tableDelete(AS_DICT(_dict_internal), argv[1])) {
+		KrkClass * type = AS_CLASS(krk_typeOf(1,&argv[1]));
+		if (type->_reprer) {
+			krk_push(argv[1]);
+			KrkValue asString = krk_callSimple(OBJECT_VAL(type->_reprer), 1, 0);
+			if (IS_STRING(asString)) {
+				krk_runtimeError(vm.exceptions.keyError, "%s", AS_CSTRING(asString));
+				return NONE_VAL();
+			}
+		}
+		krk_runtimeError(vm.exceptions.keyError, "(Unrepresentable value)");
+	}
 	return NONE_VAL();
 }
 
@@ -3067,6 +3092,7 @@ void krk_initVM(int flags) {
 	vm.specialMethodNames[METHOD_EQ] = OBJECT_VAL(S("__eq__"));
 	vm.specialMethodNames[METHOD_ENTER] = OBJECT_VAL(S("__enter__"));
 	vm.specialMethodNames[METHOD_EXIT] = OBJECT_VAL(S("__exit__"));
+	vm.specialMethodNames[METHOD_DELITEM] = OBJECT_VAL(S("__delitem__")); /* delitem */
 
 	/* Create built-in class `object` */
 	vm.objectClass = krk_newClass(S("object"));
@@ -3301,6 +3327,7 @@ void krk_initVM(int flags) {
 		krk_defineNative(&_class->methods, ".__init__", _list_init);
 		krk_defineNative(&_class->methods, ".__get__", _list_get);
 		krk_defineNative(&_class->methods, ".__set__", _list_set);
+		krk_defineNative(&_class->methods, ".__delitem__", _list_pop);
 		krk_defineNative(&_class->methods, ".__len__", _list_len);
 		krk_defineNative(&_class->methods, ".__contains__", _list_contains);
 		krk_defineNative(&_class->methods, ".__getslice__", _list_slice);
@@ -3315,6 +3342,7 @@ void krk_initVM(int flags) {
 		krk_defineNative(&_class->methods, ".__init__", _dict_init);
 		krk_defineNative(&_class->methods, ".__get__", _dict_get);
 		krk_defineNative(&_class->methods, ".__set__", _dict_set);
+		krk_defineNative(&_class->methods, ".__delitem__", _dict_delitem);
 		krk_defineNative(&_class->methods, ".__len__", _dict_len);
 		krk_defineNative(&_class->methods, ".__contains__", _dict_contains);
 		krk_finalizeClass(_class);
@@ -3674,6 +3702,26 @@ static int valueGetProperty(KrkString * name) {
 	return 0;
 }
 
+static int valueDelProperty(KrkString * name) {
+	if (IS_INSTANCE(krk_peek(0))) {
+		KrkInstance* instance = AS_INSTANCE(krk_peek(0));
+		if (!krk_tableDelete(&instance->fields, OBJECT_VAL(name))) {
+			return 0;
+		}
+		krk_pop(); /* the original value */
+		return 1;
+	} else if (IS_CLASS(krk_peek(0))) {
+		KrkClass * _class = AS_CLASS(krk_peek(0));
+		if (!krk_tableDelete(&_class->fields, OBJECT_VAL(name))) {
+			return 0;
+		}
+		krk_pop(); /* the original value */
+		return 1;
+	}
+	/* TODO del on values? */
+	return 0;
+}
+
 #define READ_BYTE() (*frame->ip++)
 #define BINARY_OP(op) { KrkValue b = krk_pop(); KrkValue a = krk_pop(); krk_push(operator_ ## op (a,b)); break; }
 #define BINARY_OP_CHECK_ZERO(op) { KrkValue b = krk_pop(); KrkValue a = krk_pop(); \
@@ -3859,6 +3907,15 @@ static KrkValue run() {
 				}
 				break;
 			}
+			case OP_DEL_GLOBAL_LONG:
+			case OP_DEL_GLOBAL: {
+				KrkString * name = READ_STRING(operandWidth);
+				if (!krk_tableDelete(frame->globals, OBJECT_VAL(name))) {
+					krk_runtimeError(vm.exceptions.nameError, "Undefined variable '%s'.", name->chars);
+					goto _finishException;
+				}
+				break;
+			}
 			case OP_IMPORT_LONG:
 			case OP_IMPORT: {
 				KrkString * name = READ_STRING(operandWidth);
@@ -3995,6 +4052,15 @@ static KrkValue run() {
 				}
 				break;
 			}
+			case OP_DEL_PROPERTY_LONG:
+			case OP_DEL_PROPERTY: {
+				KrkString * name = READ_STRING(operandWidth);
+				if (!valueDelProperty(name)) {
+					krk_runtimeError(vm.exceptions.attributeError, "'%s' object has no attribute '%s'", krk_typeName(krk_peek(0)), name->chars);
+					goto _finishException;
+				}
+				break;
+			}
 			case OP_INVOKE_GETTER: {
 				KrkClass * type = AS_CLASS(krk_typeOf(1,(KrkValue[]){krk_peek(1)}));
 				if (type->_getter) {
@@ -4023,6 +4089,19 @@ static KrkValue run() {
 					krk_push(krk_callSimple(OBJECT_VAL(type->_slicer), 3, 0));
 				} else {
 					krk_runtimeError(vm.exceptions.attributeError, "'%s' object is not sliceable", krk_typeName(krk_peek(2)));
+				}
+				break;
+			}
+			case OP_INVOKE_DELETE: {
+				KrkClass * type = AS_CLASS(krk_typeOf(1,(KrkValue[]){krk_peek(1)}));
+				if (type->_delitem) {
+					krk_callSimple(OBJECT_VAL(type->_delitem), 2, 0);
+				} else {
+					if (type->_getter) {
+						krk_runtimeError(vm.exceptions.attributeError, "'%s' object is not mutable", krk_typeName(krk_peek(1)));
+					} else {
+						krk_runtimeError(vm.exceptions.attributeError, "'%s' object is not subscriptable", krk_typeName(krk_peek(1)));
+					}
 				}
 				break;
 			}

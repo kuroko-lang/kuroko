@@ -1,0 +1,49 @@
+let foo, bar, baz
+
+del foo
+
+print("foo" in globals()) # False
+print("bar" in globals()) # True
+print("baz" in globals()) # True
+
+del bar, baz
+
+print("foo" in globals()) # False
+print("bar" in globals()) # False
+print("baz" in globals()) # False
+
+let l = [1,2,3,4,5]
+
+del l[1]
+print(l) # [1, 3, 4, 5]
+del l[3]
+print(l) # [1, 3, 4]
+try:
+    del l[3]
+except:
+    print(exception.arg) # List index out of range
+
+let o = object()
+o.foo = object()
+o.foo.bar = object()
+o.foo.bar.baz = 42
+o.foo.bar.qux = "hi"
+
+print(dir(o.foo.bar))
+print(o.foo.bar.baz)
+del o.foo.bar.baz
+print(dir(o.foo.bar))
+print(o.foo.bar.qux)
+try:
+    print(o.foo.bar.baz)
+except:
+    print(exception.arg) # AttributeError
+del o.foo.bar
+print(dir(o.foo))
+try:
+    print(o.foo.bar)
+except:
+    print(exception.arg) # AttributeError
+del o.foo
+del o
+

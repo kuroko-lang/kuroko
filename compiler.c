@@ -124,6 +124,7 @@ typedef struct ClassCompiler {
 static Parser parser;
 static Compiler * current = NULL;
 static ClassCompiler * currentClass = NULL;
+static int inDel = 0;
 
 static KrkChunk * currentChunk() {
 	return &current->function->chunk;
@@ -477,6 +478,10 @@ static int matchAssignment(void) {
 		match(TOKEN_PLUS_PLUS) || match(TOKEN_MINUS_MINUS);
 }
 
+static int matchEndOfDel(void) {
+	return check(TOKEN_COMMA) || match(TOKEN_EOL) || match(TOKEN_EOF);
+}
+
 static void assignmentValue(void) {
 	switch (parser.previous.type) {
 		case TOKEN_PLUS_EQUAL:
@@ -521,7 +526,9 @@ static void get_(int canAssign) {
 			consume(TOKEN_RIGHT_SQUARE, "Expected ending square bracket after slice.");
 		}
 		if (canAssign && matchAssignment()) {
-			error("Can not assign to slice.");
+			error("Slice assignment not implemented.");
+		} else if (inDel && matchEndOfDel()) {
+			error("Slice deletion not implemented.");
 		} else {
 			emitByte(OP_INVOKE_GETSLICE);
 		}
@@ -536,6 +543,13 @@ static void get_(int canAssign) {
 			emitByte(OP_INVOKE_GETTER); /* o e v */
 			assignmentValue(); /* o e v a */
 			emitByte(OP_INVOKE_SETTER); /* r */
+		} else if (inDel && matchEndOfDel()) {
+			if (!canAssign || inDel != 1) {
+				error("Invalid del target");
+			} else if (canAssign) {
+				emitByte(OP_INVOKE_DELETE);
+				inDel = 2;
+			}
 		} else {
 			emitByte(OP_INVOKE_GETTER);
 		}
@@ -553,6 +567,13 @@ static void dot(int canAssign) {
 		EMIT_CONSTANT_OP(OP_GET_PROPERTY, ind);
 		assignmentValue();
 		EMIT_CONSTANT_OP(OP_SET_PROPERTY, ind);
+	} else if (inDel && matchEndOfDel()) {
+		if (!canAssign || inDel != 1) {
+			error("Invalid del target");
+		} else {
+			EMIT_CONSTANT_OP(OP_DEL_PROPERTY, ind);
+			inDel = 2;
+		}
 	} else {
 		EMIT_CONSTANT_OP(OP_GET_PROPERTY, ind);
 	}
@@ -1449,6 +1470,13 @@ static void statement() {
 		tryStatement();
 	} else if (check(TOKEN_WITH)) {
 		withStatement();
+	} else if (match(TOKEN_DEL)) {
+		do {
+			inDel = 1;
+			expression();
+		} while (match(TOKEN_COMMA));
+		inDel = 0;
+		/* del already eats linefeeds */
 	} else {
 		if (match(TOKEN_RAISE)) {
 			raiseStatement();
@@ -1663,7 +1691,8 @@ static ssize_t resolveUpvalue(Compiler * compiler, KrkToken * name) {
 	return -1;
 }
 
-#define DO_VARIABLE(opset,opget) do { \
+#define OP_NONE_LONG -1
+#define DO_VARIABLE(opset,opget,opdel) do { \
 	if (canAssign && match(TOKEN_EQUAL)) { \
 		expression(); \
 		EMIT_CONSTANT_OP(opset, arg); \
@@ -1671,6 +1700,9 @@ static ssize_t resolveUpvalue(Compiler * compiler, KrkToken * name) {
 		EMIT_CONSTANT_OP(opget, arg); \
 		assignmentValue(); \
 		EMIT_CONSTANT_OP(opset, arg); \
+	} else if (inDel && matchEndOfDel()) {\
+		if (opdel == OP_NONE || !canAssign || inDel != 1) { error("Invalid del target"); } else { \
+		EMIT_CONSTANT_OP(opdel, arg); inDel = 2; } \
 	} else { \
 		EMIT_CONSTANT_OP(opget, arg); \
 	} } while (0)
@@ -1678,12 +1710,12 @@ static ssize_t resolveUpvalue(Compiler * compiler, KrkToken * name) {
 static void namedVariable(KrkToken name, int canAssign) {
 	ssize_t arg = resolveLocal(current, &name);
 	if (arg != -1) {
-		DO_VARIABLE(OP_SET_LOCAL, OP_GET_LOCAL);
+		DO_VARIABLE(OP_SET_LOCAL, OP_GET_LOCAL, OP_NONE);
 	} else if ((arg = resolveUpvalue(current, &name)) != -1) {
-		DO_VARIABLE(OP_SET_UPVALUE, OP_GET_UPVALUE);
+		DO_VARIABLE(OP_SET_UPVALUE, OP_GET_UPVALUE, OP_NONE);
 	} else {
 		arg = identifierConstant(&name);
-		DO_VARIABLE(OP_SET_GLOBAL, OP_GET_GLOBAL);
+		DO_VARIABLE(OP_SET_GLOBAL, OP_GET_GLOBAL, OP_DEL_GLOBAL);
 	}
 }
 #undef DO_VARIABLE
@@ -1953,6 +1985,7 @@ ParseRule krk_parseRules[] = {
 	RULE(TOKEN_FALSE,         literal,  NULL,   PREC_NONE),
 	RULE(TOKEN_FOR,           NULL,     NULL,   PREC_NONE),
 	RULE(TOKEN_DEF,           NULL,     NULL,   PREC_NONE),
+	RULE(TOKEN_DEL,           NULL,     NULL,   PREC_NONE),
 	RULE(TOKEN_IF,            NULL,     ternary,PREC_TERNARY),
 	RULE(TOKEN_IN,            NULL,     in_,    PREC_COMPARISON),
 	RULE(TOKEN_LET,           NULL,     NULL,   PREC_NONE),
@@ -2043,6 +2076,9 @@ static void parsePrecedence(Precedence precedence) {
 
 	if (canAssign && matchAssignment()) {
 		error("invalid assignment target");
+	}
+	if (inDel == 1 && matchEndOfDel()) {
+		error("invalid del target");
 	}
 }
 
