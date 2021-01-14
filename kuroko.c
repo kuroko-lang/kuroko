@@ -553,7 +553,6 @@ _finishArgs:
 					continue;
 				} else if (lineLength > 1 && lines[i][lineLength-2] == '\\') {
 					inBlock = 1;
-					blockWidth = 0;
 					continue;
 				} else if (inBlock && lineLength != 1) {
 					if (isSpaces) {
