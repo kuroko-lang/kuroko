@@ -46,6 +46,7 @@ KrkVM vm;
 static KrkValue run();
 static KrkValue krk_isinstance(int argc, KrkValue argv[]);
 static void addObjects();
+static KrkValue _string_get(int argc, KrkValue argv[]);
 
 /* Embedded script for extensions to builtin-ins; see builtins.c/builtins.krk */
 extern const char krk_builtinsSrc[];
@@ -977,23 +978,36 @@ int krk_processComplexArguments(int argCount, KrkValueArray * positionals, KrkTa
 		KrkValue value = startOfExtras[i*2 + 1];
 		if (IS_KWARGS(key)) {
 			if (AS_INTEGER(key) == LONG_MAX-1) { /* unpack list */
-				if (!IS_INSTANCE(value) || !AS_INSTANCE(value)->_internal || !(((KrkObj*)(AS_INSTANCE(value)->_internal))->type == OBJ_FUNCTION)) {
-					krk_runtimeError(vm.exceptions.typeError, "*expresssion value is not a list.");
+#define unpackArray(counter, indexer) do { \
+					if (positionals->count + counter > positionals->capacity) { \
+						size_t old = positionals->capacity; \
+						positionals->capacity = positionals->count + counter; \
+						positionals->values = GROW_ARRAY(KrkValue,positionals->values,old,positionals->capacity); \
+					} \
+					for (size_t i = 0; i < counter; ++i) { \
+						positionals->values[positionals->count] = indexer; \
+						positionals->count++; \
+					} \
+				} while (0)
+				
+				if (IS_TUPLE(value)) {
+					unpackArray(AS_TUPLE(value)->values.count, AS_TUPLE(value)->values.values[i]);
+				} else if (IS_INSTANCE(value) && AS_INSTANCE(value)->_class == vm.baseClasses.listClass) {
+					KrkValue _list_internal = OBJECT_VAL(AS_INSTANCE(value)->_internal);
+					unpackArray(AS_LIST(_list_internal)->count, AS_LIST(_list_internal)->values[i]);
+				} else if (IS_INSTANCE(value) && AS_INSTANCE(value)->_class == vm.baseClasses.dictClass) {
+					KrkValue _dict_internal = OBJECT_VAL(AS_INSTANCE(value)->_internal);
+					unpackArray(AS_DICT(_dict_internal)->count, _dict_nth_key_fast(AS_DICT(_dict_internal)->capacity, AS_DICT(_dict_internal)->entries, i));
+				} else if (IS_STRING(value)) {
+					unpackArray(AS_STRING(value)->codesLength, _string_get(2,(KrkValue[]){value,INTEGER_VAL(i)}));
+				} else {
+					krk_runtimeError(vm.exceptions.typeError, "Can not unpack *expression.");
 					return 0;
 				}
-				KrkValue _list_internal = OBJECT_VAL(AS_INSTANCE(value)->_internal);
-				/* Add all values from 'value' to 'positionals' */
-				if (positionals->count + AS_LIST(_list_internal)->count > positionals->capacity) {
-					size_t old = positionals->capacity;
-					positionals->capacity = positionals->count + AS_LIST(_list_internal)->count;
-					positionals->values = GROW_ARRAY(KrkValue,positionals->values,old,positionals->capacity);
-				}
-				KrkValue * destination = &positionals->values[positionals->count];
-				memcpy(destination, AS_LIST(_list_internal)->values, AS_LIST(_list_internal)->count * sizeof(KrkValue));
-				positionals->count = positionals->count + AS_LIST(_list_internal)->count;
+#undef unpackArray
 			} else if (AS_INTEGER(key) == LONG_MAX-2) { /* unpack dict */
 				if (!IS_INSTANCE(value) || !AS_INSTANCE(value)->_internal || !(((KrkObj*)(AS_INSTANCE(value)->_internal))->type == OBJ_CLASS)) {
-					krk_runtimeError(vm.exceptions.typeError, "**expresssion value is not a dict.");
+					krk_runtimeError(vm.exceptions.typeError, "**expression value is not a dict.");
 					return 0;
 				}
 				KrkValue _dict_internal = OBJECT_VAL(AS_INSTANCE(value)->_internal);
