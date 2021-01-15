@@ -557,6 +557,66 @@ static void get_(int canAssign) {
 }
 
 static void dot(int canAssign) {
+	if (match(TOKEN_LEFT_PAREN)) {
+		startEatingWhitespace();
+		size_t argCount = 0;
+		size_t argSpace = 1;
+		ssize_t * args  = GROW_ARRAY(ssize_t,NULL,0,1);
+
+		do {
+			if (argSpace < argCount + 1) {
+				size_t old = argSpace;
+				argSpace = GROW_CAPACITY(old);
+				args = GROW_ARRAY(ssize_t,args,old,argSpace);
+			}
+			consume(TOKEN_IDENTIFIER, "Expected attribute name");
+			size_t ind = identifierConstant(&parser.previous);
+			args[argCount++] = ind;
+		} while (match(TOKEN_COMMA));
+
+		stopEatingWhitespace();
+		consume(TOKEN_RIGHT_PAREN, "Expected ) after attribute list");
+
+		if (canAssign && match(TOKEN_EQUAL)) {
+			size_t expressionCount = 0;
+			do {
+				expressionCount++;
+				expression();
+			} while (match(TOKEN_COMMA));
+
+			if (expressionCount == 1 && argCount > 1) {
+				EMIT_CONSTANT_OP(OP_UNPACK, argCount);
+			} else if (expressionCount > 1 && argCount == 1) {
+				EMIT_CONSTANT_OP(OP_TUPLE, expressionCount);
+			} else if (expressionCount != argCount) {
+				error("Invalid assignment to attribute pack");
+				goto _dotDone;
+			}
+
+			for (size_t i = argCount; i > 0; i--) {
+				if (i != 1) {
+					emitBytes(OP_DUP, i);
+					emitByte(OP_SWAP);
+				}
+				EMIT_CONSTANT_OP(OP_SET_PROPERTY, args[i-1]);
+				if (i != 1) {
+					emitByte(OP_POP);
+				}
+			}
+		} else {
+			for (size_t i = 0; i < argCount; i++) {
+				emitBytes(OP_DUP,0);
+				EMIT_CONSTANT_OP(OP_GET_PROPERTY,args[i]);
+				emitByte(OP_SWAP);
+			}
+			emitByte(OP_POP);
+			emitBytes(OP_TUPLE,argCount);
+		}
+
+_dotDone:
+		FREE_ARRAY(ssize_t,args,argSpace);
+		return;
+	}
 	consume(TOKEN_IDENTIFIER, "Expected property name");
 	size_t ind = identifierConstant(&parser.previous);
 	if (canAssign && match(TOKEN_EQUAL)) {

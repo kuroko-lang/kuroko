@@ -1,0 +1,22 @@
+let objectWithLongName = object()
+objectWithLongName.(
+    longList,
+    ofAttributes,
+    onThatObject,
+    thatWeWantToSet
+) = 1,2,3,4
+
+print(dir(objectWithLongName))
+print(objectWithLongName.longList)
+print(objectWithLongName.ofAttributes)
+print(objectWithLongName.onThatObject)
+print(objectWithLongName.thatWeWantToSet)
+print(*objectWithLongName.(longList,ofAttributes,onThatObject,thatWeWantToSet))
+
+objectWithLongName.(
+    longList,
+    ofAttributes,
+    onThatObject,
+    thatWeWantToSet
+) = "four"
+print(*objectWithLongName.(longList,ofAttributes,onThatObject,thatWeWantToSet))
