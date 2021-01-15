@@ -7,17 +7,13 @@ with open('test/day7.in') as f:
 descriptions = {}
 
 for line in lines:
-    let i = line.split(" bags contain ", 1)
-    let mine = i[0].strip()
-    let contains = i[1]
+    let mine, contains = line.split(" bags contain ", 1)
     if contains[:8] == "no other":
         descriptions[mine] = []
     else:
         let contents = []
         for bag in contains.split(", "):
-            let i = bag.split(' ',1)
-            let cnt = i[0]
-            let rest = i[1]
+            let cnt, rest = bag.split(' ',1)
             let name = rest.strip().split('bag',1)[0]
             for i in range(int(cnt)):
                 contents.append(name.strip())
