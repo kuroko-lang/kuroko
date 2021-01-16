@@ -55,7 +55,9 @@ static KrkValue _math_ ## func(int argc, KrkValue argv[]) { \
 
 MATH_DELEGATE(ceil)
 MATH_DELEGATE(floor)
+#ifdef trunc
 MATH_DELEGATE(trunc)
+#endif
 
 #define MATH_ONE_NAME(func,name) \
 static KrkValue _math_ ## name(int argc, KrkValue argv[]) { \
@@ -68,7 +70,9 @@ static KrkValue _math_ ## name(int argc, KrkValue argv[]) { \
 #define MATH_ONE(func) MATH_ONE_NAME(func,func)
 
 MATH_ONE(exp)
+#ifdef expm1
 MATH_ONE(expm1)
+#endif
 MATH_ONE(log2)
 MATH_ONE(log10)
 MATH_ONE(sqrt)
@@ -78,14 +82,18 @@ MATH_ONE(atan)
 MATH_ONE(cos)
 MATH_ONE(sin)
 MATH_ONE(tan)
+#ifdef acosh
 MATH_ONE(acosh)
 MATH_ONE(asinh)
 MATH_ONE(atanh)
+#endif
 MATH_ONE(cosh)
 MATH_ONE(sinh)
 MATH_ONE(tanh)
+#ifdef erf
 MATH_ONE(erf)
 MATH_ONE(erfc)
+#endif
 #ifdef gamma
 MATH_ONE(gamma)
 MATH_ONE(lgamma)
@@ -102,9 +110,13 @@ static KrkValue _math_ ## func(int argc, KrkValue argv[]) { \
 	return FLOATING_VAL(func(AS_FLOATING(argv[0]),AS_FLOATING(argv[1]))); \
 }
 
+#ifdef copysign
 MATH_TWO(copysign)
+#endif
 MATH_TWO(fmod)
+#ifdef remainder
 MATH_TWO(remainder)
+#endif
 MATH_TWO(pow)
 MATH_TWO(atan2)
 
@@ -130,9 +142,11 @@ static KrkValue _math_ ## func(int argc, KrkValue argv[]) { \
 	return BOOLEAN_VAL(func(AS_FLOATING(argv[0]))); \
 }
 
+#ifdef isfinite
 MATH_IS(isfinite)
 MATH_IS(isinf)
 MATH_IS(isnan)
+#endif
 
 #define bind(name) krk_defineNative(&module->fields, #name, _math_ ## name)
 
@@ -142,9 +156,13 @@ KrkValue krk_module_onload_math(void) {
 
 	bind(ceil);
 	bind(floor);
+#ifdef _math_trunc
 	bind(trunc);
+#endif
 	bind(exp);
+#ifdef _math_expm1
 	bind(expm1);
+#endif
 	bind(log2);
 	bind(log10);
 	bind(sqrt);
@@ -154,33 +172,46 @@ KrkValue krk_module_onload_math(void) {
 	bind(cos);
 	bind(sin);
 	bind(tan);
+#ifdef _math_acosh
 	bind(acosh);
 	bind(asinh);
 	bind(atanh);
+#endif
 	bind(cosh);
 	bind(sinh);
 	bind(tanh);
+#ifdef _math_erf
 	bind(erf);
 	bind(erfc);
+#endif
 #ifdef _math_gamma
 	bind(gamma);
 	bind(lgamma);
 #endif
+#ifdef _math_copysign
 	bind(copysign);
+#endif
 	bind(fmod);
+#ifdef _math_remainder
 	bind(remainder);
+#endif
 	bind(log1p);
 	bind(pow);
 	bind(atan2);
 	bind(frexp);
+#ifdef _math_isfinite
 	bind(isfinite);
 	bind(isinf);
 	bind(isnan);
+#endif
 
 	krk_attachNamedValue(&module->fields, "pi",  FLOATING_VAL(M_PI));
+#ifndef __toaru__
+	/* TODO: Add these to toaru... */
 	krk_attachNamedValue(&module->fields, "e",   FLOATING_VAL(M_E));
 	krk_attachNamedValue(&module->fields, "inf", FLOATING_VAL(INFINITY));
 	krk_attachNamedValue(&module->fields, "nan", FLOATING_VAL(NAN));
+#endif
 
 	krk_pop();
 	return OBJECT_VAL(module);
