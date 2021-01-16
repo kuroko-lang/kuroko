@@ -40,6 +40,9 @@
 
 #define S(c) (krk_copyString(c,sizeof(c)-1))
 
+#define likely(cond)   __builtin_expect(!!(cond), 1)
+#define unlikely(cond) __builtin_expect(!!(cond), 0)
+
 /* This is macro'd to krk_vm for namespacing reasons. */
 KrkVM vm;
 
@@ -214,7 +217,7 @@ void krk_reserve_stack(size_t space) {
  * to do anything, or if you are pushing anything.
  */
 inline void krk_push(KrkValue value) {
-	if ((size_t)(vm.stackTop - vm.stack) + 1 > vm.stackSize) {
+	if (unlikely((size_t)(vm.stackTop - vm.stack) + 1 > vm.stackSize)) {
 		size_t old = vm.stackSize;
 		size_t old_offset = vm.stackTop - vm.stack;
 		vm.stackSize = GROW_CAPACITY(old);
@@ -233,9 +236,9 @@ inline void krk_push(KrkValue value) {
  * the repl relies on this it expects to be able to get the last
  * pushed value and display it (if it's not None).
  */
-KrkValue krk_pop() {
+inline KrkValue krk_pop() {
 	vm.stackTop--;
-	if (vm.stackTop < vm.stack) {
+	if (unlikely(vm.stackTop < vm.stack)) {
 		fprintf(stderr, "Fatal error: stack underflow detected in VM, issuing breakpoint.\n");
 		return NONE_VAL();
 	}
@@ -478,14 +481,14 @@ static KrkValue _list_init(int argc, KrkValue argv[]) {
  * list.__get__(index)
  */
 static KrkValue _list_get(int argc, KrkValue argv[]) {
-	if (argc < 2 || !IS_INTEGER(argv[1])) {
+	if (unlikely(argc < 2 || !IS_INTEGER(argv[1]))) {
 		krk_runtimeError(vm.exceptions.argumentError, "wrong number or type of arguments in get %d, (%s, %s)", argc, krk_typeName(argv[0]), krk_typeName(argv[1]));
 		return NONE_VAL();
 	}
 	KrkValue _list_internal = OBJECT_VAL(AS_INSTANCE(argv[0])->_internal);
 	int index = AS_INTEGER(argv[1]);
 	if (index < 0) index += AS_LIST(_list_internal)->count;
-	if (index < 0 || index >= (int)AS_LIST(_list_internal)->count) {
+	if (unlikely(index < 0 || index >= (int)AS_LIST(_list_internal)->count)) {
 		krk_runtimeError(vm.exceptions.indexError, "index is out of range: %d", index);
 		return NONE_VAL();
 	}
@@ -496,14 +499,14 @@ static KrkValue _list_get(int argc, KrkValue argv[]) {
  * list.__set__(index, value)
  */
 static KrkValue _list_set(int argc, KrkValue argv[]) {
-	if (argc < 3 || !IS_INTEGER(argv[1])) {
+	if (unlikely(argc < 3 || !IS_INTEGER(argv[1]))) {
 		krk_runtimeError(vm.exceptions.argumentError, "wrong number or type of arguments in set %d, (%s, %s, %s)", argc, krk_typeName(argv[0]), krk_typeName(argv[1]), krk_typeName(argv[2]));
 		return NONE_VAL();
 	}
 	KrkValue _list_internal = OBJECT_VAL(AS_INSTANCE(argv[0])->_internal);
 	int index = AS_INTEGER(argv[1]);
 	if (index < 0) index += AS_LIST(_list_internal)->count;
-	if (index < 0 || index >= (int)AS_LIST(_list_internal)->count) {
+	if (unlikely(index < 0 || index >= (int)AS_LIST(_list_internal)->count)) {
 		krk_runtimeError(vm.exceptions.indexError, "index is out of range: %d", index);
 		return NONE_VAL();
 	}
@@ -515,7 +518,7 @@ static KrkValue _list_set(int argc, KrkValue argv[]) {
  * list.append(value)
  */
 static KrkValue _list_append(int argc, KrkValue argv[]) {
-	if (argc < 2) {
+	if (unlikely(argc < 2)) {
 		krk_runtimeError(vm.exceptions.argumentError, "wrong number or type of arguments");
 		return NONE_VAL();
 	}
@@ -3948,7 +3951,6 @@ static KrkValue run() {
 				KrkString * name = READ_STRING(operandWidth);
 				if (krk_tableSet(frame->globals, OBJECT_VAL(name), krk_peek(0))) {
 					krk_tableDelete(frame->globals, OBJECT_VAL(name));
-					/* TODO: This should probably just work as an assignment? */
 					krk_runtimeError(vm.exceptions.nameError, "Undefined variable '%s'.", name->chars);
 					goto _finishException;
 				}
@@ -4024,10 +4026,7 @@ static KrkValue run() {
 			case OP_CALL_LONG:
 			case OP_CALL: {
 				int argCount = readBytes(frame, operandWidth);
-				if (!krk_callValue(krk_peek(argCount), argCount, 1)) {
-					if (vm.flags & KRK_HAS_EXCEPTION) goto _finishException;
-					return NONE_VAL();
-				}
+				if (unlikely(!krk_callValue(krk_peek(argCount), argCount, 1))) goto _finishException;
 				frame = &vm.frames[vm.frameCount - 1];
 				break;
 			}
@@ -4035,10 +4034,7 @@ static KrkValue run() {
 			 * top of the stack, so we don't have to calculate arity at compile time. */
 			case OP_CALL_STACK: {
 				int argCount = AS_INTEGER(krk_pop());
-				if (!krk_callValue(krk_peek(argCount), argCount, 1)) {
-					if (vm.flags & KRK_HAS_EXCEPTION) goto _finishException;
-					return NONE_VAL();
-				}
+				if (unlikely(!krk_callValue(krk_peek(argCount), argCount, 1))) goto _finishException;
 				frame = &vm.frames[vm.frameCount - 1];
 				break;
 			}
@@ -4093,7 +4089,7 @@ static KrkValue run() {
 			case OP_GET_PROPERTY_LONG:
 			case OP_GET_PROPERTY: {
 				KrkString * name = READ_STRING(operandWidth);
-				if (!valueGetProperty(name)) {
+				if (unlikely(!valueGetProperty(name))) {
 					krk_runtimeError(vm.exceptions.attributeError, "'%s' object has no attribute '%s'", krk_typeName(krk_peek(0)), name->chars);
 					goto _finishException;
 				}
@@ -4102,7 +4098,7 @@ static KrkValue run() {
 			case OP_DEL_PROPERTY_LONG:
 			case OP_DEL_PROPERTY: {
 				KrkString * name = READ_STRING(operandWidth);
-				if (!valueDelProperty(name)) {
+				if (unlikely(!valueDelProperty(name))) {
 					krk_runtimeError(vm.exceptions.attributeError, "'%s' object has no attribute '%s'", krk_typeName(krk_peek(0)), name->chars);
 					goto _finishException;
 				}
@@ -4110,7 +4106,7 @@ static KrkValue run() {
 			}
 			case OP_INVOKE_GETTER: {
 				KrkClass * type = AS_CLASS(krk_typeOf(1,(KrkValue[]){krk_peek(1)}));
-				if (type->_getter) {
+				if (likely(type->_getter)) {
 					krk_push(krk_callSimple(OBJECT_VAL(type->_getter), 2, 0));
 				} else {
 					krk_runtimeError(vm.exceptions.attributeError, "'%s' object is not subscriptable", krk_typeName(krk_peek(1)));
@@ -4119,7 +4115,7 @@ static KrkValue run() {
 			}
 			case OP_INVOKE_SETTER: {
 				KrkClass * type = AS_CLASS(krk_typeOf(1,(KrkValue[]){krk_peek(2)}));
-				if (type->_setter) {
+				if (likely(type->_setter)) {
 					krk_push(krk_callSimple(OBJECT_VAL(type->_setter), 3, 0));
 				} else {
 					if (type->_getter) {
@@ -4132,7 +4128,7 @@ static KrkValue run() {
 			}
 			case OP_INVOKE_GETSLICE: {
 				KrkClass * type = AS_CLASS(krk_typeOf(1,(KrkValue[]){krk_peek(2)}));
-				if (type->_slicer) {
+				if (likely(type->_slicer)) {
 					krk_push(krk_callSimple(OBJECT_VAL(type->_slicer), 3, 0));
 				} else {
 					krk_runtimeError(vm.exceptions.attributeError, "'%s' object is not sliceable", krk_typeName(krk_peek(2)));
@@ -4141,7 +4137,7 @@ static KrkValue run() {
 			}
 			case OP_INVOKE_DELETE: {
 				KrkClass * type = AS_CLASS(krk_typeOf(1,(KrkValue[]){krk_peek(1)}));
-				if (type->_delitem) {
+				if (likely(type->_delitem)) {
 					krk_callSimple(OBJECT_VAL(type->_delitem), 2, 0);
 				} else {
 					if (type->_getter) {
@@ -4187,9 +4183,10 @@ static KrkValue run() {
 			}
 			case OP_INHERIT: {
 				KrkValue superclass = krk_peek(1);
-				if (!IS_CLASS(superclass)) {
-					krk_runtimeError(vm.exceptions.typeError, "Superclass must be a class.");
-					return NONE_VAL();
+				if (unlikely(!IS_CLASS(superclass))) {
+					krk_runtimeError(vm.exceptions.typeError, "Superclass must be a class, not '%s'",
+						krk_typeName(superclass));
+					goto _finishException;
 				}
 				KrkClass * subclass = AS_CLASS(krk_peek(0));
 				subclass->base = AS_CLASS(superclass);
@@ -4208,7 +4205,9 @@ static KrkValue run() {
 				KrkString * name = READ_STRING(operandWidth);
 				KrkClass * superclass = AS_CLASS(krk_pop());
 				if (!krk_bindMethod(superclass, name)) {
-					return NONE_VAL();
+					krk_runtimeError(vm.exceptions.attributeError, "super(%s) has no attribute '%s'",
+						superclass->name->chars, name->chars);
+					goto _finishException;
 				}
 				break;
 			}
@@ -4279,7 +4278,7 @@ static KrkValue run() {
 				uint16_t cleanupTarget = readBytes(frame, 2) + (frame->ip - frame->closure->function->chunk.code);
 				KrkValue contextManager = krk_peek(0);
 				KrkClass * type = AS_CLASS(krk_typeOf(1, &contextManager));
-				if (!type->_enter || !type->_exit) {
+				if (unlikely(!type->_enter || !type->_exit)) {
 					krk_runtimeError(vm.exceptions.attributeError, "Can not use '%s' as context manager", krk_typeName(contextManager));
 					goto _finishException;
 				}
@@ -4291,7 +4290,7 @@ static KrkValue run() {
 				break;
 			}
 		}
-		if (!(vm.flags & KRK_HAS_EXCEPTION)) continue;
+		if (likely(!(vm.flags & KRK_HAS_EXCEPTION))) continue;
 _finishException:
 		if (!handleException()) {
 			frame = &vm.frames[vm.frameCount - 1];

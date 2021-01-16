@@ -1,0 +1,18 @@
+class Bar(object):
+    def __init__(self):
+        super().__init__(self)
+
+try:
+    let b = Bar()
+except:
+    print(exception.arg)
+
+class Foo():
+    def __init__(self):
+        super().__init__(self)
+
+try:
+    let f = Foo()
+except:
+    print(exception.arg)
+
