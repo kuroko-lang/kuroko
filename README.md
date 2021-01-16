@@ -56,6 +56,10 @@ The standard set of C modules can be bundled into the interpreter, whether build
 
 Additional options include `KRK_DISABLE_RLINE=1` to not link with the included rich line editing library (will lose tab completion and syntax highlighting in the repl) and `KRK_DISABLE_DEBUG=1` to disable debugging features (which has not been demonstrated to provide any meaningful performance improvement when the VM is built with optimizations enabled).
 
+### Building for WASM
+
+See [klange/kuroko-wasm-repl](https://github.com/klange/kuroko-wasm-repl) for information on building Kuroko with Emscripten for use in a web browser.
+
 ## Code Examples
 
 _**NOTE**: Due to limitations with Github's markdown renderer, these snippets will be highlighted as Python code._
