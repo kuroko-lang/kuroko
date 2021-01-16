@@ -199,7 +199,7 @@ KrkValue krk_module_onload_math(void) {
 	bind(pow);
 	bind(atan2);
 	bind(frexp);
-#ifdef _math_isfinite
+#ifdef isfinite
 	bind(isfinite);
 	bind(isinf);
 	bind(isnan);

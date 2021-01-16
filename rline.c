@@ -1036,7 +1036,7 @@ struct syntax_definition {
 	{"python",syn_py_calculate, 1},
 	{"esh",syn_esh_calculate, 0},
 #endif
-	{NULL, NULL, NULL},
+	{NULL, NULL, 0},
 };
 
 static struct syntax_definition * syntax;
