@@ -118,7 +118,6 @@ typedef struct Compiler {
 typedef struct ClassCompiler {
 	struct ClassCompiler * enclosing;
 	KrkToken name;
-	int hasSuperClass;
 } ClassCompiler;
 
 static Parser parser;
@@ -866,7 +865,6 @@ static void block(size_t indentation, const char * blockName) {
 
 static void doUpvalues(Compiler * compiler, KrkFunction * function) {
 	for (size_t i = 0; i < function->upvalueCount; ++i) {
-		/* TODO: if the maximum count changes, fix the sizes for this */
 		emitByte(compiler->upvalues[i].isLocal ? 1 : 0);
 		if (i > 255) {
 			emitByte((compiler->upvalues[i].index >> 16) & 0xFF);
@@ -1031,26 +1029,33 @@ static void classDeclaration() {
 
 	ClassCompiler classCompiler;
 	classCompiler.name = parser.previous;
-	classCompiler.hasSuperClass = 0;
 	classCompiler.enclosing = currentClass;
 	currentClass = &classCompiler;
+	int hasSuperclass = 0;
 
 	if (match(TOKEN_LEFT_PAREN)) {
-		if (match(TOKEN_IDENTIFIER)) {
-			variable(0);
-			if (identifiersEqual(&className, &parser.previous)) {
-				error("A class can not inherit from itself.");
-			}
-
-			beginScope();
-			addLocal(syntheticToken("super"));
-			defineVariable(0);
-
-			namedVariable(className, 0);
-			emitByte(OP_INHERIT);
-			classCompiler.hasSuperClass = 1;
+		startEatingWhitespace();
+		if (!check(TOKEN_RIGHT_PAREN)) {
+			expression();
+			hasSuperclass = 1;
 		}
-		consume(TOKEN_RIGHT_PAREN, "Expected closing brace after superclass.");
+		stopEatingWhitespace();
+		consume(TOKEN_RIGHT_PAREN, "Expected ) after superclass.");
+	}
+
+	if (!hasSuperclass) {
+		KrkToken Object = syntheticToken("object");
+		size_t ind = identifierConstant(&Object);
+		EMIT_CONSTANT_OP(OP_GET_GLOBAL, ind);
+	}
+
+	beginScope();
+	addLocal(syntheticToken("super"));
+	defineVariable(0);
+
+	if (hasSuperclass) {
+		namedVariable(className, 0);
+		emitByte(OP_INHERIT);
 	}
 
 	namedVariable(className, 0);
@@ -1086,9 +1091,7 @@ static void classDeclaration() {
 	} /* else empty class (and at end of file?) we'll allow it for now... */
 _pop_class:
 	emitByte(OP_FINALIZE);
-	if (classCompiler.hasSuperClass) {
-		endScope();
-	}
+	endScope();
 	currentClass = currentClass->enclosing;
 }
 
@@ -1848,8 +1851,6 @@ static void self(int canAssign) {
 static void super_(int canAssign) {
 	if (currentClass == NULL) {
 		error("Invalid reference to `super` outside of a class.");
-	} else if (!currentClass->hasSuperClass) {
-		error("Invalid reference to `super` from a base class.");
 	}
 	consume(TOKEN_LEFT_PAREN, "Expected `super` to be called.");
 	consume(TOKEN_RIGHT_PAREN, "`super` can not take arguments.");
