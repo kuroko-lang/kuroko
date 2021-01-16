@@ -86,8 +86,10 @@ MATH_ONE(sinh)
 MATH_ONE(tanh)
 MATH_ONE(erf)
 MATH_ONE(erfc)
+#ifdef gamma
 MATH_ONE(gamma)
 MATH_ONE(lgamma)
+#endif
 MATH_ONE_NAME(log,log1p)
 
 #define MATH_TWO(func) \
@@ -160,8 +162,10 @@ KrkValue krk_module_onload_math(void) {
 	bind(tanh);
 	bind(erf);
 	bind(erfc);
+#ifdef _math_gamma
 	bind(gamma);
 	bind(lgamma);
+#endif
 	bind(copysign);
 	bind(fmod);
 	bind(remainder);
