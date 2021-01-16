@@ -50,6 +50,9 @@ kuroko: ${KUROKO_LIBS}
 modules/%.so: src/%.c
 	${CC} ${CFLAGS} -shared -o $@ $<
 
+modules/math.so: src/math.c
+	${CC} ${CFLAGS} -shared -o $@ $< -lm
+
 libkuroko.so: ${OBJS}
 	${CC} ${CLFAGS} -shared -o $@ ${OBJS}
 
