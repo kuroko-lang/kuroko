@@ -21,7 +21,11 @@
 #include <poll.h>
 #include <signal.h>
 #include <sys/ioctl.h>
+#ifdef __toaru__
+#include <toaru/rline.h>
+#else
 #include "rline.h"
+#endif
 
 static __attribute__((used)) int _isdigit(int c) { if (c > 128) return 0; return isdigit(c); }
 static __attribute__((used)) int _isxdigit(int c) { if (c > 128) return 0; return isxdigit(c); }
@@ -638,6 +642,355 @@ int syn_krk_calculate(struct syntax_state * state) {
 	return -1;
 }
 
+#ifdef __toaru__
+int esh_variable_qualifier(int c) {
+	return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || (c == '_');
+}
+
+int paint_esh_variable(struct syntax_state * state) {
+	if (charat() == '{') {
+		paint(1, FLAG_TYPE);
+		while (charat() != '}' && charat() != -1) paint(1, FLAG_TYPE);
+		if (charat() == '}') paint(1, FLAG_TYPE);
+	} else {
+		if (charat() == '?' || charat() == '$' || charat() == '#') {
+			paint(1, FLAG_TYPE);
+		} else {
+			while (esh_variable_qualifier(charat())) paint(1, FLAG_TYPE);
+		}
+	}
+	return 0;
+}
+
+int paint_esh_string(struct syntax_state * state) {
+	int last = -1;
+	while (charat() != -1) {
+		if (last != '\\' && charat() == '"') {
+			paint(1, FLAG_STRING);
+			return 0;
+		} else if (charat() == '$') {
+			paint(1, FLAG_TYPE);
+			paint_esh_variable(state);
+			last = -1;
+		} else if (charat() != -1) {
+			last = charat();
+			paint(1, FLAG_STRING);
+		}
+	}
+	return 2;
+}
+
+int paint_esh_single_string(struct syntax_state * state) {
+	int last = -1;
+	while (charat() != -1) {
+		if (last != '\\' && charat() == '\'') {
+			paint(1, FLAG_STRING);
+			return 0;
+		} else if (charat() != -1) {
+			last = charat();
+			paint(1, FLAG_STRING);
+		}
+	}
+	return 1;
+}
+
+int esh_keyword_qualifier(int c) {
+	return (isalnum(c) || c == '?' || c == '_' || c == '-'); /* technically anything that isn't a space should qualify... */
+}
+
+char * esh_keywords[] = {
+	"cd","exit","export","help","history","if","empty?",
+	"equals?","return","export-cmd","source","exec","not","while",
+	"then","else","echo",
+	NULL
+};
+
+int syn_esh_calculate(struct syntax_state * state) {
+	if (state->state == 1) {
+		return paint_esh_single_string(state);
+	} else if (state->state == 2) {
+		return paint_esh_string(state);
+	}
+	if (charat() == '#') {
+		while (charat() != -1) {
+			if (common_comment_buzzwords(state)) continue;
+			else paint(1, FLAG_COMMENT);
+		}
+		return -1;
+	} else if (charat() == '$') {
+		paint(1, FLAG_TYPE);
+		paint_esh_variable(state);
+		return 0;
+	} else if (charat() == '\'') {
+		paint(1, FLAG_STRING);
+		return paint_esh_single_string(state);
+	} else if (charat() == '"') {
+		paint(1, FLAG_STRING);
+		return paint_esh_string(state);
+	} else if (match_and_paint(state, "export", FLAG_KEYWORD, esh_keyword_qualifier)) {
+		while (charat() == ' ') skip();
+		while (esh_keyword_qualifier(charat())) paint(1, FLAG_TYPE);
+		return 0;
+	} else if (match_and_paint(state, "export-cmd", FLAG_KEYWORD, esh_keyword_qualifier)) {
+		while (charat() == ' ') skip();
+		while (esh_keyword_qualifier(charat())) paint(1, FLAG_TYPE);
+		return 0;
+	} else if (find_keywords(state, esh_keywords, FLAG_KEYWORD, esh_keyword_qualifier)) {
+		return 0;
+	} else if (find_keywords(state, shell_commands, FLAG_KEYWORD, esh_keyword_qualifier)) {
+		return 0;
+	} else if (isdigit(charat())) {
+		while (isdigit(charat())) paint(1, FLAG_NUMERAL);
+		return 0;
+	} else if (charat() != -1) {
+		skip();
+		return 0;
+	}
+	return -1;
+}
+
+char * syn_py_keywords[] = {
+	"class","def","return","del","if","else","elif","for","while","continue",
+	"break","assert","as","and","or","except","finally","from","global",
+	"import","in","is","lambda","with","nonlocal","not","pass","raise","try","yield",
+	NULL
+};
+
+char * syn_py_types[] = {
+	/* built-in functions */
+	"abs","all","any","ascii","bin","bool","breakpoint","bytes",
+	"bytearray","callable","compile","complex","delattr","chr",
+	"dict","dir","divmod","enumerate","eval","exec","filter","float",
+	"format","frozenset","getattr","globals","hasattr","hash","help",
+	"hex","id","input","int","isinstance","issubclass","iter","len",
+	"list","locals","map","max","memoryview","min","next","object",
+	"oct","open","ord","pow","print","property","range","repr","reverse",
+	"round","set","setattr","slice","sorted","staticmethod","str","sum",
+	"super","tuple","type","vars","zip",
+	NULL
+};
+
+char * syn_py_special[] = {
+	"True","False","None",
+	NULL
+};
+
+int paint_py_triple_double(struct syntax_state * state) {
+	while (charat() != -1) {
+		if (charat() == '"') {
+			paint(1, FLAG_STRING);
+			if (charat() == '"' && nextchar() == '"') {
+				paint(2, FLAG_STRING);
+				return 0;
+			}
+		} else {
+			paint(1, FLAG_STRING);
+		}
+	}
+	return 1; /* continues */
+}
+
+int paint_py_triple_single(struct syntax_state * state) {
+	while (charat() != -1) {
+		if (charat() == '\'') {
+			paint(1, FLAG_STRING);
+			if (charat() == '\'' && nextchar() == '\'') {
+				paint(2, FLAG_STRING);
+				return 0;
+			}
+		} else {
+			paint(1, FLAG_STRING);
+		}
+	}
+	return 2; /* continues */
+}
+
+int paint_py_single_string(struct syntax_state * state) {
+	paint(1, FLAG_STRING);
+	while (charat() != -1) {
+		if (charat() == '\\' && nextchar() == '\'') {
+			paint(2, FLAG_ESCAPE);
+		} else if (charat() == '\'') {
+			paint(1, FLAG_STRING);
+			return 0;
+		} else if (charat() == '\\') {
+			paint(2, FLAG_ESCAPE);
+		} else {
+			paint(1, FLAG_STRING);
+		}
+	}
+	return 0;
+}
+
+int paint_py_numeral(struct syntax_state * state) {
+	if (charat() == '0' && (nextchar() == 'x' || nextchar() == 'X')) {
+		paint(2, FLAG_NUMERAL);
+		while (isxdigit(charat())) paint(1, FLAG_NUMERAL);
+	} else if (charat() == '0' && nextchar() == '.') {
+		paint(2, FLAG_NUMERAL);
+		while (isdigit(charat())) paint(1, FLAG_NUMERAL);
+		if ((charat() == '+' || charat() == '-') && (nextchar() == 'e' || nextchar() == 'E')) {
+			paint(2, FLAG_NUMERAL);
+			while (isdigit(charat())) paint(1, FLAG_NUMERAL);
+		} else if (charat() == 'e' || charat() == 'E') {
+			paint(1, FLAG_NUMERAL);
+			while (isdigit(charat())) paint(1, FLAG_NUMERAL);
+		}
+		if (charat() == 'j') paint(1, FLAG_NUMERAL);
+		return 0;
+	} else {
+		while (isdigit(charat())) paint(1, FLAG_NUMERAL);
+		if (charat() == '.') {
+			paint(1, FLAG_NUMERAL);
+			while (isdigit(charat())) paint(1, FLAG_NUMERAL);
+			if ((charat() == '+' || charat() == '-') && (nextchar() == 'e' || nextchar() == 'E')) {
+				paint(2, FLAG_NUMERAL);
+				while (isdigit(charat())) paint(1, FLAG_NUMERAL);
+			} else if (charat() == 'e' || charat() == 'E') {
+				paint(1, FLAG_NUMERAL);
+				while (isdigit(charat())) paint(1, FLAG_NUMERAL);
+			}
+			if (charat() == 'j') paint(1, FLAG_NUMERAL);
+			return 0;
+		}
+		if (charat() == 'j') paint(1, FLAG_NUMERAL);
+	}
+	while (charat() == 'l' || charat() == 'L') paint(1, FLAG_NUMERAL);
+	return 0;
+}
+
+void paint_py_format_string(struct syntax_state * state, char type) {
+	paint(1, FLAG_STRING);
+	while (charat() != -1) {
+		if (charat() == '\\' && nextchar() == type) {
+			paint(2, FLAG_ESCAPE);
+		} else if (charat() == type) {
+			paint(1, FLAG_STRING);
+			return;
+		} else if (charat() == '\\') {
+			paint(2, FLAG_ESCAPE);
+		} else if (charat() == '{') {
+			paint(1, FLAG_NUMERAL);
+			if (charat() == '}') {
+				state->i--;
+				paint(2, FLAG_ERROR); /* Can't do that. */
+			} else {
+				while (charat() != -1 && charat() != '}') {
+					paint(1, FLAG_NUMERAL);
+				}
+				paint(1, FLAG_NUMERAL);
+			}
+		} else {
+			paint(1, FLAG_STRING);
+		}
+	}
+}
+
+void paint_simple_string(struct syntax_state * state) {
+	/* Assumes you came in from a check of charat() == '"' */
+	paint(1, FLAG_STRING);
+	while (charat() != -1) {
+		if (charat() == '\\' && nextchar() == '"') {
+			paint(2, FLAG_ESCAPE);
+		} else if (charat() == '"') {
+			paint(1, FLAG_STRING);
+			return;
+		} else if (charat() == '\\') {
+			paint(2, FLAG_ESCAPE);
+		} else {
+			paint(1, FLAG_STRING);
+		}
+	}
+}
+
+int syn_py_calculate(struct syntax_state * state) {
+	switch (state->state) {
+		case -1:
+		case 0:
+			if (charat() == '#') {
+				paint_comment(state);
+			} else if (state->i == 0 && match_and_paint(state, "import", FLAG_PRAGMA, c_keyword_qualifier)) {
+				return 0;
+			} else if (charat() == '@') {
+				paint(1, FLAG_PRAGMA);
+				while (c_keyword_qualifier(charat())) paint(1, FLAG_PRAGMA);
+				return 0;
+			} else if (charat() == '"') {
+				if (nextchar() == '"' && charrel(2) == '"') {
+					paint(3, FLAG_STRING);
+					return paint_py_triple_double(state);
+				} else if (lastchar() == 'f') {
+					/* I don't like backtracking like this, but it makes this parse easier */
+					state->i--;
+					paint(1,FLAG_TYPE);
+					paint_py_format_string(state,'"');
+					return 0;
+				} else {
+					paint_simple_string(state);
+					return 0;
+				}
+			} else if (find_keywords(state, syn_py_keywords, FLAG_KEYWORD, c_keyword_qualifier)) {
+				return 0;
+			} else if (lastchar() != '.' && find_keywords(state, syn_py_types, FLAG_TYPE, c_keyword_qualifier)) {
+				return 0;
+			} else if (find_keywords(state, syn_py_special, FLAG_NUMERAL, c_keyword_qualifier)) {
+				return 0;
+			} else if (charat() == '\'') {
+				if (nextchar() == '\'' && charrel(2) == '\'') {
+					paint(3, FLAG_STRING);
+					return paint_py_triple_single(state);
+				} else if (lastchar() == 'f') {
+					/* I don't like backtracking like this, but it makes this parse easier */
+					state->i--;
+					paint(1,FLAG_TYPE);
+					paint_py_format_string(state,'\'');
+					return 0;
+				} else {
+					return paint_py_single_string(state);
+				}
+			} else if (!c_keyword_qualifier(lastchar()) && isdigit(charat())) {
+				paint_py_numeral(state);
+				return 0;
+			} else if (charat() != -1) {
+				skip();
+				return 0;
+			}
+			break;
+		case 1: /* multiline """ string */
+			return paint_py_triple_double(state);
+		case 2: /* multiline ''' string */
+			return paint_py_triple_single(state);
+	}
+	return -1;
+}
+
+void * rline_exp_for_python(void * _stdin, void * _stdout, char * prompt) {
+
+	rline_exp_set_prompts(prompt, "", strlen(prompt), 0);
+
+	char * buf = malloc(1024);
+	memset(buf, 0, 1024);
+
+	rline_exp_set_syntax("python");
+	rline_exit_string = "";
+	rline(buf, 1024);
+	rline_history_insert(strdup(buf));
+	rline_scroll = 0;
+
+	return buf;
+}
+#endif
+
+void rline_redraw(rline_context_t * context) {
+	if (context->quiet) return;
+	printf("\033[u%s\033[K", context->buffer);
+	for (int i = context->offset; i < context->collected; ++i) {
+		printf("\033[D");
+	}
+	fflush(stdout);
+}
+
+
 /**
  * Convert syntax hilighting flag to color code
  */
@@ -676,9 +1029,14 @@ static const char * flag_to_color(int _flag) {
 struct syntax_definition {
 	char * name;
 	int (*calculate)(struct syntax_state *);
+	int tabIndents;
 } syntaxes[] = {
-	{"krk",syn_krk_calculate},
-	{NULL, NULL},
+	{"krk",syn_krk_calculate, 1},
+#ifdef __toaru__
+	{"python",syn_py_calculate, 1},
+	{"esh",syn_esh_calculate, 0},
+#endif
+	{NULL, NULL, NULL},
 };
 
 static struct syntax_definition * syntax;
@@ -1657,7 +2015,7 @@ static int read_line(void) {
 						immediate = 0;
 						break;
 					case '\t':
-						if (column == 0 || the_line->text[column-1].codepoint == ' ') {
+						if ((syntax && syntax->tabIndents) && (column == 0 || the_line->text[column-1].codepoint == ' ')) {
 							/* Insert tab character */
 							insert_char(' ');
 							insert_char(' ');
