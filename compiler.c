@@ -1551,22 +1551,18 @@ static void fromImportStatement() {
 	do {
 		consume(TOKEN_IDENTIFIER, "Expected member name");
 		size_t member = identifierConstant(&parser.previous);
+		emitBytes(OP_DUP, 0); /* Duplicate the package object so we can GET_PROPERTY on it? */
+		EMIT_CONSTANT_OP(OP_GET_PROPERTY, member);
 		if (match(TOKEN_AS)) {
 			consume(TOKEN_IDENTIFIER, "Expected identifier after `as`");
 			member = identifierConstant(&parser.previous);
 		}
 		if (current->scopeDepth) {
-			declareVariable();
-			defineVariable(member);
-		}
-		emitBytes(OP_DUP, 0); /* Duplicate the package object so we can GET_PROPERTY on it? */
-		EMIT_CONSTANT_OP(OP_GET_PROPERTY, member);
-		if (!current->scopeDepth) {
-			declareVariable();
-			defineVariable(member);
-		} else {
+			/* Swaps the original module and the new possible local so it can be in the right place */
 			emitByte(OP_SWAP);
 		}
+		declareVariable();
+		defineVariable(member);
 	} while (match(TOKEN_COMMA));
 	emitByte(OP_POP); /* Pop the remaining copy of the module. */
 }
