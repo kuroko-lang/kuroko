@@ -1,0 +1,17 @@
+def test(val):
+    if val:
+        print("In if")
+    # Comment
+    #    val -= int(val / max) * max
+    return val
+
+print("Result:", test(True))
+print("result:", test(False))
+
+def test2(val):
+    try:
+        print("This has a comment on the next line.", val)
+    # That could have been an else.
+    return val
+
+print("Result:", test2(True))

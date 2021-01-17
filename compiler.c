@@ -1282,14 +1282,14 @@ static void ifStatement() {
 				block(blockWidth,"else");
 				endScope();
 			}
-		} else {
-			if (!check(TOKEN_EOF) && !check(TOKEN_EOL)) {
-				krk_ungetToken(parser.current);
-				parser.current = parser.previous;
-				if (blockWidth) {
-					parser.previous = previous;
-				}
+		} else if (!check(TOKEN_EOF) && !check(TOKEN_EOL)) {
+			krk_ungetToken(parser.current);
+			parser.current = parser.previous;
+			if (blockWidth) {
+				parser.previous = previous;
 			}
+		} else {
+			advance(); /* Ignore this blank indentation line */
 		}
 	}
 
@@ -1519,6 +1519,8 @@ static void tryStatement() {
 			if (blockWidth) {
 				parser.previous = previous;
 			}
+		} else {
+			advance(); /* Ignore this blank indentation line */
 		}
 	}
 
