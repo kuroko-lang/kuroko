@@ -1519,28 +1519,63 @@ static void raiseStatement() {
 	emitByte(OP_RAISE);
 }
 
-static void importStatement() {
+
+static size_t importModule(KrkToken * startOfName) {
 	consume(TOKEN_IDENTIFIER, "Expected module name");
-	size_t ind = identifierConstant(&parser.previous);
+	*startOfName = parser.previous;
+	while (match(TOKEN_DOT)) {
+		if (startOfName->start + startOfName->literalWidth != parser.previous.start) {
+			error("Unexpected whitespace after module path element");
+			return 0;
+		}
+		startOfName->literalWidth += parser.previous.literalWidth;
+		startOfName->length += parser.previous.length;
+		consume(TOKEN_IDENTIFIER, "Expected module path element after '.'");
+		if (startOfName->start + startOfName->literalWidth != parser.previous.start) {
+			error("Unexpected whitespace after '.'");
+			return 0;
+		}
+		startOfName->literalWidth += parser.previous.literalWidth;
+		startOfName->length += parser.previous.length;
+	}
+	size_t ind = identifierConstant(startOfName);
 	EMIT_CONSTANT_OP(OP_IMPORT, ind);
+	return ind;
+}
+
+static void importStatement() {
+	KrkToken firstName = parser.current;
+	KrkToken startOfName;
+	size_t ind = importModule(&startOfName);
 	if (match(TOKEN_AS)) {
 		consume(TOKEN_IDENTIFIER, "Expected identifier after `as`");
 		ind = identifierConstant(&parser.previous);
+	} else if (startOfName.length != firstName.length) {
+		/**
+		 * We imported foo.bar.baz and 'baz' is now on the stack with no name.
+		 * But while doing that, we built a chain so that foo and foo.bar are
+		 * valid modules that already exist in the module table. We want to
+		 * have 'foo.bar.baz' be this new object, so remove 'baz', reimport
+		 * 'foo' directly, and put 'foo' into the appropriate namespace.
+		 */
+		emitByte(OP_POP);
+		parser.previous = firstName;
+		ind = identifierConstant(&firstName);
+		EMIT_CONSTANT_OP(OP_IMPORT, ind);
 	}
 	declareVariable();
 	defineVariable(ind);
 }
 
 static void fromImportStatement() {
-	consume(TOKEN_IDENTIFIER, "Expected module name after 'from'");
-	size_t ind = identifierConstant(&parser.previous);
-	EMIT_CONSTANT_OP(OP_IMPORT, ind);
+	KrkToken startOfName;
+	importModule(&startOfName);
 	consume(TOKEN_IMPORT, "Expected 'import' after module name");
 	do {
 		consume(TOKEN_IDENTIFIER, "Expected member name");
 		size_t member = identifierConstant(&parser.previous);
 		emitBytes(OP_DUP, 0); /* Duplicate the package object so we can GET_PROPERTY on it? */
-		EMIT_CONSTANT_OP(OP_GET_PROPERTY, member);
+		EMIT_CONSTANT_OP(OP_IMPORT_FROM, member);
 		if (match(TOKEN_AS)) {
 			consume(TOKEN_IDENTIFIER, "Expected identifier after `as`");
 			member = identifierConstant(&parser.previous);

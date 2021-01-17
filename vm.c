@@ -3634,11 +3634,11 @@ static int handleException() {
  * a later search path has a krk source and an earlier search path has a shared
  * object module, the later search path will still win.
  */
-int krk_loadModule(KrkString * name, KrkValue * moduleOut, KrkString * runAs) {
+int krk_loadModule(KrkString * path, KrkValue * moduleOut, KrkString * runAs) {
 	KrkValue modulePaths, modulePathsInternal;
 
 	/* See if the module is already loaded */
-	if (krk_tableGet(&vm.modules, OBJECT_VAL(name), moduleOut)) {
+	if (krk_tableGet(&vm.modules, OBJECT_VAL(runAs), moduleOut)) {
 		krk_push(*moduleOut);
 		return 1;
 	}
@@ -3676,22 +3676,36 @@ int krk_loadModule(KrkString * name, KrkValue * moduleOut, KrkString * runAs) {
 
 	struct stat statbuf;
 
-	/* First search for {name}.krk in the module search paths */
+	/* First search for {path}.krk in the module search paths */
 	for (int i = 0; i < moduleCount; ++i, krk_pop()) {
-		krk_push(AS_FUNCTION(modulePathsInternal)->chunk.constants.values[i]);
+		krk_push(AS_LIST(modulePathsInternal)->values[i]);
 		if (!IS_STRING(krk_peek(0))) {
 			*moduleOut = NONE_VAL();
 			krk_runtimeError(vm.exceptions.typeError,
 				"Module search paths must be strings; check the search path at index %d", i);
 			return 0;
 		}
-		krk_push(OBJECT_VAL(name));
+		krk_push(OBJECT_VAL(path));
 		addObjects(); /* Concatenate path... */
 		krk_push(OBJECT_VAL(S(".krk")));
 		addObjects(); /* and file extension */
+		int isPackage = 0;
 
 		char * fileName = AS_CSTRING(krk_peek(0));
-		if (stat(fileName,&statbuf) < 0) continue;
+		if (stat(fileName,&statbuf) < 0) {
+			krk_pop();
+			/* try /__init__.krk */
+			krk_push(AS_LIST(modulePathsInternal)->values[i]);
+			krk_push(OBJECT_VAL(path));
+			addObjects();
+			krk_push(OBJECT_VAL(S("/__init__.krk")));
+			addObjects();
+			fileName = AS_CSTRING(krk_peek(0));
+			if (stat(fileName,&statbuf) < 0) {
+				continue;
+			}
+			isPackage = 1;
+		}
 
 		/* Compile and run the module in a new context and exit the VM when it
 		 * returns to the current call frame; modules should return objects. */
@@ -3702,23 +3716,27 @@ int krk_loadModule(KrkString * name, KrkValue * moduleOut, KrkString * runAs) {
 		if (!IS_OBJECT(*moduleOut)) {
 			if (!(vm.flags & KRK_HAS_EXCEPTION)) {
 				krk_runtimeError(vm.exceptions.importError,
-					"Failed to load module '%s' from '%s'", name->chars, fileName);
+					"Failed to load module '%s' from '%s'", runAs->chars, fileName);
 			}
 			return 0;
 		}
 
 		krk_pop(); /* concatenated filename on stack */
 		krk_push(*moduleOut);
-		krk_tableSet(&vm.modules, OBJECT_VAL(name), *moduleOut);
+		krk_tableSet(&vm.modules, OBJECT_VAL(runAs), *moduleOut);
+		/* Was this a package? */
+		if (isPackage) {
+			krk_attachNamedValue(&AS_INSTANCE(*moduleOut)->fields,"__ispackage__",BOOLEAN_VAL(1));
+		}
 		return 1;
 	}
 
 #ifndef STATIC_ONLY
-	/* If we didn't find {name}.krk, try {name}.so in the same order */
+	/* If we didn't find {path}.krk, try {path}.so in the same order */
 	for (int i = 0; i < moduleCount; ++i, krk_pop()) {
 		/* Assume things haven't changed and all of these are strings. */
 		krk_push(AS_FUNCTION(modulePathsInternal)->chunk.constants.values[i]);
-		krk_push(OBJECT_VAL(name));
+		krk_push(OBJECT_VAL(path));
 		addObjects(); /* this should just be basic concatenation */
 		krk_push(OBJECT_VAL(S(".so")));
 		addObjects();
@@ -3730,12 +3748,17 @@ int krk_loadModule(KrkString * name, KrkValue * moduleOut, KrkString * runAs) {
 		if (!dlRef) {
 			*moduleOut = NONE_VAL();
 			krk_runtimeError(vm.exceptions.importError,
-				"Failed to load native module '%s' from shared object '%s'", name->chars, fileName);
+				"Failed to load native module '%s' from shared object '%s'", runAs->chars, fileName);
 			return 0;
 		}
 
+		const char * start = path->chars;
+		for (const char * c = start; *c; c++) {
+			if (*c == '.') start = c + 1;
+		}
+
 		krk_push(OBJECT_VAL(S("krk_module_onload_")));
-		krk_push(OBJECT_VAL(name));
+		krk_push(OBJECT_VAL(krk_copyString(start,strlen(start))));
 		addObjects();
 
 		char * handlerName = AS_CSTRING(krk_peek(0));
@@ -3757,26 +3780,123 @@ int krk_loadModule(KrkString * name, KrkValue * moduleOut, KrkString * runAs) {
 		*moduleOut = moduleOnLoad(runAs);
 		if (!IS_INSTANCE(*moduleOut)) {
 			krk_runtimeError(vm.exceptions.importError,
-				"Failed to load module '%s' from '%s'", name->chars, fileName);
+				"Failed to load module '%s' from '%s'", runAs->chars, fileName);
 			return 0;
 		}
 
 		krk_push(*moduleOut);
 		krk_swap(1);
 
-		krk_attachNamedObject(&AS_INSTANCE(*moduleOut)->fields, "__name__", (KrkObj*)name);
+		krk_attachNamedObject(&AS_INSTANCE(*moduleOut)->fields, "__name__", (KrkObj*)runAs);
 		krk_attachNamedValue(&AS_INSTANCE(*moduleOut)->fields, "__file__", krk_peek(0));
 
 		krk_pop(); /* filename */
-		krk_tableSet(&vm.modules, OBJECT_VAL(name), *moduleOut);
+		krk_tableSet(&vm.modules, OBJECT_VAL(runAs), *moduleOut);
 		return 1;
 	}
 #endif
 
 	/* If we still haven't found anything, fail. */
 	*moduleOut = NONE_VAL();
-	krk_runtimeError(vm.exceptions.importError, "No module named '%s'", name->chars);
+	krk_runtimeError(vm.exceptions.importError, "No module named '%s'", runAs->chars);
 	return 0;
+}
+
+int krk_doRecursiveModuleLoad(KrkString * name) {
+	/* See if 'name' is clear to directly import */
+	int isClear = 1;
+	for (size_t i = 0; i < name->length; ++i) {
+		if (name->chars[i] == '.') {
+			isClear = 0;
+			break;
+		}
+	}
+
+	if (isClear) {
+		KrkValue base;
+		return krk_loadModule(name,&base,name);
+	}
+
+	/**
+	 * To import foo.bar.baz
+	 * - import foo as foo
+	 * - import foo/bar as foo.bar
+	 * - import foo/bar/baz as foo.bar.baz
+	 */
+
+	/* Let's split up name */
+	krk_push(NONE_VAL());         // -1: last
+	int argBase = vm.stackTop - vm.stack;
+	krk_push(NONE_VAL());         // 0: Name of current node being processed.
+	krk_push(OBJECT_VAL(S("")));  // 1: slash/separated/path
+	krk_push(OBJECT_VAL(S("")));  // 2: dot.separated.path
+	krk_push(OBJECT_VAL(name));   // 3: remaining path to process
+	krk_push(OBJECT_VAL(S("."))); // 4: string "." to search for
+	do {
+		KrkValue listOut = _string_split(3,(KrkValue[]){vm.stack[argBase+3], vm.stack[argBase+4], INTEGER_VAL(1)}, 0);
+		if (!IS_INSTANCE(listOut)) return 0;
+		KrkValue _list_internal = OBJECT_VAL(AS_INSTANCE(listOut)->_internal);
+
+		/* Set node */
+		vm.stack[argBase+0] = AS_LIST(_list_internal)->values[0];
+
+		/* Set remainder */
+		if (AS_LIST(_list_internal)->count > 1) {
+			vm.stack[argBase+3] = AS_LIST(_list_internal)->values[1];
+		} else {
+			vm.stack[argBase+3] = NONE_VAL();
+		}
+
+		/* First is /-path */
+		krk_push(vm.stack[argBase+1]);
+		krk_push(vm.stack[argBase+0]);
+		addObjects();
+		vm.stack[argBase+1] = krk_pop();
+		/* Second is .-path */
+		krk_push(vm.stack[argBase+2]);
+		krk_push(vm.stack[argBase+0]);
+		addObjects();
+		vm.stack[argBase+2] = krk_pop();
+
+		if (IS_NONE(vm.stack[argBase+3])) {
+			krk_pop(); /* dot */
+			krk_pop(); /* remainder */
+			KrkValue current;
+			if (!krk_loadModule(AS_STRING(vm.stack[argBase+1]), &current, AS_STRING(vm.stack[argBase+2]))) return 0;
+			krk_pop(); /* dot-sepaerated */
+			krk_pop(); /* slash-separated */
+			krk_push(current);
+			/* last must be something if we got here, because single-level import happens elsewhere */
+			krk_tableSet(&AS_INSTANCE(vm.stack[argBase-1])->fields, vm.stack[argBase+0], krk_peek(0));
+			vm.stackTop = vm.stack + argBase;
+			vm.stackTop[-1] = current;
+			return 1;
+		} else {
+			KrkValue current;
+			if (!krk_loadModule(AS_STRING(vm.stack[argBase+1]), &current, AS_STRING(vm.stack[argBase+2]))) return 0;
+			krk_push(current);
+			if (!IS_NONE(vm.stack[argBase-1])) {
+				krk_tableSet(&AS_INSTANCE(vm.stack[argBase-1])->fields, vm.stack[argBase+0], krk_peek(0));
+			}
+			/* Is this a package? */
+			KrkValue tmp;
+			if (!krk_tableGet(&AS_INSTANCE(current)->fields, OBJECT_VAL(S("__ispackage__")), &tmp) || !IS_BOOLEAN(tmp) || AS_BOOLEAN(tmp) != 1) {
+				krk_runtimeError(vm.exceptions.importError, "'%s' is not a package", AS_CSTRING(vm.stack[argBase+2]));
+				return 0;
+			}
+			vm.stack[argBase-1] = krk_pop();
+			/* Now concatenate forward slash... */
+			krk_push(vm.stack[argBase+1]); /* Slash path */
+			krk_push(OBJECT_VAL(S("/")));
+			addObjects();
+			vm.stack[argBase+1] = krk_pop();
+			/* And now for the dot... */
+			krk_push(vm.stack[argBase+2]);
+			krk_push(vm.stack[argBase+4]);
+			addObjects();
+			vm.stack[argBase+2] = krk_pop();
+		}
+	} while (1);
 }
 
 /**
@@ -4040,8 +4160,7 @@ static KrkValue run() {
 			case OP_IMPORT_LONG:
 			case OP_IMPORT: {
 				KrkString * name = READ_STRING(operandWidth);
-				KrkValue module;
-				if (!krk_loadModule(name, &module, name)) {
+				if (!krk_doRecursiveModuleLoad(name)) {
 					goto _finishException;
 				}
 				break;
@@ -4158,6 +4277,28 @@ static KrkValue run() {
 				krk_tableAddAll(&vm.objectClass->fields, &_class->fields);
 				break;
 			}
+			case OP_IMPORT_FROM_LONG:
+			case OP_IMPORT_FROM: {
+				KrkString * name = READ_STRING(operandWidth);
+				if (unlikely(!valueGetProperty(name))) {
+					/* Try to import... */
+					KrkValue moduleName;
+					if (!krk_tableGet(&AS_INSTANCE(krk_peek(0))->fields, vm.specialMethodNames[METHOD_NAME], &moduleName)) {
+						krk_runtimeError(vm.exceptions.attributeError, "'%s' object has no attribute '%s'", krk_typeName(krk_peek(0)), name->chars);
+						goto _finishException;
+					}
+					krk_push(moduleName);
+					krk_push(OBJECT_VAL(S(".")));
+					addObjects();
+					krk_push(OBJECT_VAL(name));
+					addObjects();
+					if (!krk_doRecursiveModuleLoad(AS_STRING(krk_peek(0)))) {
+						goto _finishException;
+					}
+					vm.stackTop[-3] = vm.stackTop[-1];
+					vm.stackTop -= 2;
+				}
+			} break;
 			case OP_GET_PROPERTY_LONG:
 			case OP_GET_PROPERTY: {
 				KrkString * name = READ_STRING(operandWidth);
@@ -4399,9 +4540,8 @@ KrkValue krk_interpret(const char * src, int newScope, char * fromName, char * f
 		return NONE_VAL();
 	}
 
-	krk_attachNamedObject(&vm.module->fields, "__file__", (KrkObj*)function->chunk.filename);
-
 	krk_push(OBJECT_VAL(function));
+	krk_attachNamedObject(&vm.module->fields, "__file__", (KrkObj*)function->chunk.filename);
 
 	function->name = krk_copyString(fromName, strlen(fromName));
 

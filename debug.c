@@ -135,6 +135,7 @@ size_t krk_disassembleInstruction(FILE * f, KrkFunction * func, size_t offset) {
 		CONSTANT(OP_METHOD, (void)0)
 		CONSTANT(OP_CLOSURE, CLOSURE_MORE)
 		CONSTANT(OP_IMPORT, (void)0)
+		CONSTANT(OP_IMPORT_FROM, (void)0)
 		CONSTANT(OP_GET_SUPER, (void)0)
 		OPERAND(OP_KWARGS, (void)0)
 		OPERAND(OP_SET_LOCAL, LOCAL_MORE)

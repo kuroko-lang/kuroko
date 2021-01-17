@@ -1,0 +1,2 @@
+print("imported baz.krk as", __name__)
+let qux = "This is it!"

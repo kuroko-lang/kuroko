@@ -1,0 +1,1 @@
+print("Imported bar.__init__ as", __name__)

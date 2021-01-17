@@ -719,6 +719,80 @@ print(imported)
 
 _**Note:** When individual names are imported from a module, they refer to the same object, but if new assignments are made to the name it will not affect the original module. If you need to replace values defined in a module, always be sure to refer to it by its full name._
 
+Modules can also come in the form of _packages_. Packages are modules that contain other modules. To make a package, create a directory in one of the module import paths with the name of your package and place a file named `__init__.krk` in that directory. This file will be run when the package is imported, but if you only want to use packages for namespacing it does not need to have any content.
+
+Say we have a directory tree as follows:
+
+```
+modules/
+    foo/
+        __init__.krk
+        bar/
+            __init__.krk
+            baz.krk
+```
+
+With this directory tree, we can `import foo`, `import foo.bar`, or `import foo.bar.baz`.
+
+When a module within a package is imported directly, as in `import foo.bar.baz`, its parent packages are imported in order and the interpreter ensures each has an attribute pointing to the next child. After the `import` statement, the top-level package will be bound in the current scope:
+
+```py
+import foo.bar.baz
+print(foo)
+print(foo.bar)
+print(foo.bar.baz)
+# → <module 'foo' from './modules/foo/__init__.krk'>
+#   <module 'foo.bar' from './modules/foo/bar/__init__.krk'>
+#   <module 'foo.bar.baz' from './modules/foo/bar/baz.krk'>
+```
+
+If we want to get at the module `baz` we can use `import ... as ...` to bind it to a name instead:
+
+```py
+import foo.bar.baz as baz
+print(baz)
+try:
+    print(foo) # NameError
+except:
+    print(repr(exception))
+# → <module 'foo.bar.baz' from './modules/foo/bar/baz.krk'>
+#   NameError: Undefined variable 'foo'.
+```
+
+Note that only module names can be specified as the first argument to `import` or `from`, and that if a module within a package has never been imported it will not be available from its package.
+
+If we define something in `modules/foo/bar/baz.krk` we can access it either by its full name or through a `from` import:
+
+```py
+# modules/foo/bar/baz.krk
+let qux = "hello, world"
+```
+
+```py
+import foo.bar.baz
+print(foo.bar.baz.qux)
+from foo.bar.baz import qux
+print(qux)
+# → hello, world
+#   hello, world
+```
+
+When using `from ... import`, the imported name can be a module, package, or regular member of the module before the `import`. Multiple names can be imported at once, but only one level can be imported:
+
+```py
+# modules/foo/bar/baz.krk
+let qux = "hello, world"
+let quux = 42
+```
+
+```py
+# This is a syntax error.
+#from foo.bar import baz.qux
+from foo.bar.baz import qux, quux
+print(qux,quux)
+# → hello, world 42
+```
+
 ### Loops
 
 Kuroko supports C-style for loops, while loops, and Python-style iterator for loops.

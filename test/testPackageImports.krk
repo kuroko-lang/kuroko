@@ -1,0 +1,58 @@
+def testTop():
+    import foo
+    print(foo)
+    try:
+        print(foo.bar, "Fail")
+    except:
+        print(repr(exception)) # AttributeError
+
+def testCaching():
+    from foo.bar import baz
+    print(baz)
+    import foo
+    print(foo)
+    print(foo.bar)
+    print(foo.bar.baz)
+    print(foo.bar.baz.qux)
+
+def testDirect():
+    import foo.bar.baz
+    print(foo)
+    print(foo.bar)
+    print(foo.bar.baz)
+    print(foo.bar.baz.qux)
+
+def testFromImport():
+    from foo.bar import baz
+    print(baz)
+    print(baz.qux)
+    try:
+        print(foo, "Fail")
+    except:
+        print(repr(exception))
+
+def testRenames():
+    import foo.bar.baz as blah
+    print(blah)
+    print(blah.qux)
+    try:
+        print(foo, "Fail")
+    except:
+        print(repr(exception))
+    from foo.bar.baz import qux as thing
+    print(thing)
+    try:
+        print(qux, "Fail")
+    except:
+        print(repr(exception))
+    try:
+        print(foo.bar, "Fail")
+    except:
+        print(repr(exception))
+
+if __name__ == '__main__':
+    testTop()
+    testCaching()
+    testDirect()
+    testFromImport()
+    testRenames()
