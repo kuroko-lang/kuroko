@@ -189,44 +189,30 @@ static void string(int canAssign);
 static KrkToken decorator(size_t level, FunctionType type);
 static void call(int canAssign);
 
-static void errorAt(KrkToken * token, const char * message) {
-	if (parser.panicMode) return;
-	parser.panicMode = 1;
-
+static void finishError(KrkToken * token) {
 	size_t i = (token->col - 1);
 	while (token->linePtr[i] && token->linePtr[i] != '\n') i++;
 
-	const char fancyError[] =   "Parse error in \"%s\" on line %d col %d (%s): %s\n"
-								"    %.*s\033[31m%.*s\033[39m%.*s\n"
-								"    %-*s\033[31m^\033[39m\n";
-	const char plainError[] =   "Parse error in \"%s\" on line %d col %d (%s): %s\n"
-								"    %.*s%.*s%.*s\n"
-								"    %-*s^\n";
-	fprintf(stderr, (vm.flags & KRK_NO_ESCAPE) ? plainError: fancyError,
-		currentChunk()->filename->chars,
-		(int)token->line,
-		(int)token->col,
-		getRule(token->type)->name,
-		message,
-		(int)(token->col - 1),
-		token->linePtr,
-		(int)(token->literalWidth),
-		token->linePtr + (token->col - 1),
-		(int)(i - (token->col - 1 + token->literalWidth)),
-		token->linePtr + (token->col - 1 + token->literalWidth),
-		(int)token->col-1,
-		""
-		);
+	krk_attachNamedObject(&AS_INSTANCE(vm.currentException)->fields, "line",   (KrkObj*)krk_copyString(token->linePtr, i));
+	krk_attachNamedObject(&AS_INSTANCE(vm.currentException)->fields, "file",   (KrkObj*)currentChunk()->filename);
+	krk_attachNamedValue (&AS_INSTANCE(vm.currentException)->fields, "lineno", INTEGER_VAL(token->line));
+	krk_attachNamedValue (&AS_INSTANCE(vm.currentException)->fields, "colno",  INTEGER_VAL(token->col));
+	krk_attachNamedValue (&AS_INSTANCE(vm.currentException)->fields, "width",  INTEGER_VAL(token->literalWidth));
+
+	if (current->function->name) {
+		krk_attachNamedObject(&AS_INSTANCE(vm.currentException)->fields, "func", (KrkObj*)current->function->name);
+	} else {
+		KrkValue name = NONE_VAL();
+		krk_tableGet(&vm.module->fields, vm.specialMethodNames[METHOD_NAME], &name);
+		krk_attachNamedValue(&AS_INSTANCE(vm.currentException)->fields, "func", name);
+	}
+
+	parser.panicMode = 1; 
 	parser.hadError = 1;
 }
 
-static void error(const char * message) {
-	errorAt(&parser.previous, message);
-}
-
-static void errorAtCurrent(const char * message) {
-	errorAt(&parser.current, message);
-}
+#define error(...) do { if (parser.panicMode) break; krk_runtimeError(vm.exceptions.syntaxError, __VA_ARGS__); finishError(&parser.previous); } while (0)
+#define errorAtCurrent(...) do { if (parser.panicMode) break; krk_runtimeError(vm.exceptions.syntaxError, __VA_ARGS__); finishError(&parser.current); } while (0)
 
 static void advance() {
 	parser.previous = parser.current;
@@ -2243,7 +2229,7 @@ static void declareVariable() {
 		Local * local = &current->locals[i];
 		if (local->depth != -1 && local->depth < (ssize_t)current->scopeDepth) break;
 		if (identifiersEqual(name, &local->name)) {
-			error("Duplicate definition");
+			error("Duplicate definition for local '%.*s' in this scope.", (int)name->literalWidth, name->start);
 		}
 	}
 	addLocal(*name);

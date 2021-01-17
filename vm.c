@@ -49,7 +49,9 @@ KrkVM vm;
 static KrkValue run();
 static KrkValue krk_isinstance(int argc, KrkValue argv[]);
 static void addObjects();
+/* We use these directly sometimes */
 static KrkValue _string_get(int argc, KrkValue argv[]);
+static KrkValue _string_format(int argc, KrkValue argv[], int hasKw);
 
 /* Embedded script for extensions to builtin-ins; see builtins.c/builtins.krk */
 extern const char krk_builtinsSrc[];
@@ -123,46 +125,56 @@ static void dumpStack(CallFrame * frame) {
 #endif
 
 /**
- * Display a traceback by working through call frames.
- * Called when no exception handler was available and
- * an exception was thrown. If there the exception value
- * is not None, it will also be printed using safe methods.
+ * Display a traceback by scanning up the stack / call frames.
+ * The format of the output here is modeled after the output
+ * given by CPython, so we display the outermost call first
+ * and then move inwards; on each call frame we try to open
+ * the source file and print the corresponding line.
  */
 void krk_dumpTraceback() {
 	if (vm.frameCount) {
-		fprintf(stderr, "Traceback, most recent last:\n");
+		fprintf(stderr, "Traceback (most recent call last):\n");
 		for (size_t i = 0; i <= vm.frameCount - 1; i++) {
 			CallFrame * frame = &vm.frames[i];
 			KrkFunction * function = frame->closure->function;
 			size_t instruction = frame->ip - function->chunk.code - 1;
+			int lineNo = (int)krk_lineNumber(&function->chunk, instruction);
 			fprintf(stderr, "  File \"%s\", line %d, in %s\n",
 				(function->chunk.filename ? function->chunk.filename->chars : "?"),
-				(int)krk_lineNumber(&function->chunk, instruction),
+				lineNo,
 				(function->name ? function->name->chars : "(unnamed)"));
+			if (function->chunk.filename) {
+				FILE * f = fopen(function->chunk.filename->chars, "r");
+				if (f) {
+					int line = 1;
+					do {
+						char c = fgetc(f);
+						if (c < -1) break;
+						if (c == '\n') {
+							line++;
+							continue;
+						}
+						if (line == lineNo) {
+							fprintf(stderr,"    ");
+							while (c == ' ') c = fgetc(f);
+							do {
+								fputc(c, stderr);
+								c = fgetc(f);
+							} while (!feof(f) && c > 0 && c != '\n');
+							fprintf(stderr, "\n");
+							break;
+						}
+					} while (!feof(f));
+					fclose(f);
+				}
+			}
 		}
 	}
 
 	if (!krk_valuesEqual(vm.currentException,NONE_VAL())) {
-		if (IS_STRING(vm.currentException)) {
-			/* Make sure strings are printed without quotes */
-			fprintf(stderr, "%s", AS_CSTRING(vm.currentException));
-		} else if (AS_BOOLEAN(krk_isinstance(2, (KrkValue[]){vm.currentException, OBJECT_VAL(vm.exceptions.baseException)}))) {
-			/* ErrorClass: arg... */
-			fprintf(stderr, "%s: ", AS_INSTANCE(vm.currentException)->_class->name->chars);
-			KrkValue exceptionArg;
-			krk_tableGet(&AS_INSTANCE(vm.currentException)->fields, OBJECT_VAL(S("arg")), &exceptionArg);
-			if (IS_STRING(exceptionArg)) {
-				/* Make sure strings are printed without quotes */
-				fprintf(stderr, "%s", AS_CSTRING(exceptionArg));
-			} else {
-				krk_printValueSafe(stderr, exceptionArg);
-			}
-		} else {
-			/* Whatever, just print it. */
-			krk_printValueSafe(stderr, vm.currentException);
-		}
-
-		fprintf(stderr, "\n");
+		krk_push(vm.currentException);
+		KrkValue result = krk_callSimple(OBJECT_VAL(AS_CLASS(krk_typeOf(1,&vm.currentException))->_reprer), 1, 0);
+		fprintf(stderr, "%s\n", AS_CSTRING(result));
 	}
 }
 
@@ -182,11 +194,9 @@ void krk_runtimeError(KrkClass * type, const char * fmt, ...) {
 	/* Try to allocate an instance of __builtins__. */
 	KrkInstance * exceptionObject = krk_newInstance(type);
 	krk_push(OBJECT_VAL(exceptionObject));
-	KrkString * strArg = S("arg");
-	krk_push(OBJECT_VAL(strArg));
-	KrkString * strVal = krk_copyString(buf, len);
-	krk_push(OBJECT_VAL(strVal));
-	krk_tableSet(&exceptionObject->fields, OBJECT_VAL(strArg), OBJECT_VAL(strVal));
+	krk_push(OBJECT_VAL(S("arg")));
+	krk_push(OBJECT_VAL(krk_copyString(buf, len)));
+	krk_tableSet(&exceptionObject->fields, krk_peek(1), krk_peek(0));
 	krk_pop();
 	krk_pop();
 	krk_pop();
@@ -1411,10 +1421,64 @@ static KrkValue krk_initException(int argc, KrkValue argv[]) {
 	if (argc > 0) {
 		krk_attachNamedValue(&self->fields, "arg", argv[1]);
 	} else {
-		krk_attachNamedValue(&self->fields, "arg", OBJECT_VAL(S("")));
+		krk_attachNamedValue(&self->fields, "arg", NONE_VAL());
 	}
 
 	return argv[0];
+}
+
+static KrkValue _exception_repr(int argc, KrkValue argv[]) {
+	KrkInstance * self = AS_INSTANCE(argv[0]);
+	/* .arg */
+	KrkValue arg;
+	if (!krk_tableGet(&self->fields, OBJECT_VAL(S("arg")), &arg) || IS_NONE(arg)) {
+		return OBJECT_VAL(self->_class->name);
+	} else {
+		krk_push(OBJECT_VAL(self->_class->name));
+		krk_push(OBJECT_VAL(S(": ")));
+		addObjects();
+		krk_push(arg);
+		addObjects();
+		return krk_pop();
+	}
+}
+
+static KrkValue _syntaxerror_repr(int argc, KrkValue argv[]) {
+	KrkInstance * self = AS_INSTANCE(argv[0]);
+	/* .arg */
+	KrkValue file, line, lineno, colno, width, arg, func;
+	if (!krk_tableGet(&self->fields, OBJECT_VAL(S("file")), &file) || !IS_STRING(file)) goto _badSyntaxError;
+	if (!krk_tableGet(&self->fields, OBJECT_VAL(S("line")), &line) || !IS_STRING(line)) goto _badSyntaxError;
+	if (!krk_tableGet(&self->fields, OBJECT_VAL(S("lineno")), &lineno) || !IS_INTEGER(lineno)) goto _badSyntaxError;
+	if (!krk_tableGet(&self->fields, OBJECT_VAL(S("colno")), &colno) || !IS_INTEGER(colno)) goto _badSyntaxError;
+	if (!krk_tableGet(&self->fields, OBJECT_VAL(S("width")), &width) || !IS_INTEGER(width)) goto _badSyntaxError;
+	if (!krk_tableGet(&self->fields, OBJECT_VAL(S("arg")), &arg) || !IS_STRING(arg)) goto _badSyntaxError;
+	if (!krk_tableGet(&self->fields, OBJECT_VAL(S("func")), &func)) goto _badSyntaxError;
+
+	krk_push(OBJECT_VAL(S("  File \"{}\", line {}{}\n    {}\n    {}^\n{}: {}")));
+	char * tmp = malloc(AS_INTEGER(colno));
+	memset(tmp,' ',AS_INTEGER(colno));
+	tmp[AS_INTEGER(colno)-1] = '\0';
+	krk_push(OBJECT_VAL(krk_takeString(tmp,AS_INTEGER(colno)-1)));
+	krk_push(OBJECT_VAL(self->_class->name));
+	if (IS_STRING(func)) {
+		krk_push(OBJECT_VAL(S(" in ")));
+		krk_push(func);
+		addObjects();
+	} else {
+		krk_push(OBJECT_VAL(S("")));
+	}
+	KrkValue formattedString = _string_format(8,
+		(KrkValue[]){krk_peek(3), file, lineno, krk_peek(0), line, krk_peek(2), krk_peek(1), arg}, 0);
+	krk_pop(); /* instr */
+	krk_pop(); /* class */
+	krk_pop(); /* spaces */
+	krk_pop(); /* format string */
+
+	return formattedString;
+
+_badSyntaxError:
+	return OBJECT_VAL(S("SyntaxError: invalid syntax"));
 }
 
 static KrkValue _string_init(int argc, KrkValue argv[]) {
@@ -1491,6 +1555,7 @@ static KrkValue _string_add(int argc, KrkValue argv[]) {
 	obj->base = baseClass; \
 	krk_tableAddAll(&baseClass->methods, &obj->methods); \
 	krk_tableAddAll(&baseClass->fields, &obj->fields); \
+	krk_finalizeClass(obj); \
 } while (0)
 
 #define BUILTIN_FUNCTION(name, func) do { \
@@ -3193,6 +3258,8 @@ void krk_initVM(int flags) {
 	ADD_EXCEPTION_CLASS(vm.exceptions.baseException, "Exception", vm.objectClass);
 	/* base exception class gets an init that takes an optional string */
 	krk_defineNative(&vm.exceptions.baseException->methods, ".__init__", krk_initException);
+	krk_defineNative(&vm.exceptions.baseException->methods, ".__repr__", _exception_repr);
+	krk_finalizeClass(vm.exceptions.baseException);
 	ADD_EXCEPTION_CLASS(vm.exceptions.typeError, "TypeError", vm.exceptions.baseException);
 	ADD_EXCEPTION_CLASS(vm.exceptions.argumentError, "ArgumentError", vm.exceptions.baseException);
 	ADD_EXCEPTION_CLASS(vm.exceptions.indexError, "IndexError", vm.exceptions.baseException);
@@ -3205,6 +3272,9 @@ void krk_initVM(int flags) {
 	ADD_EXCEPTION_CLASS(vm.exceptions.keyboardInterrupt, "KeyboardInterrupt", vm.exceptions.baseException);
 	ADD_EXCEPTION_CLASS(vm.exceptions.zeroDivisionError, "ZeroDivisionError", vm.exceptions.baseException);
 	ADD_EXCEPTION_CLASS(vm.exceptions.notImplementedError, "NotImplementedError", vm.exceptions.baseException);
+	ADD_EXCEPTION_CLASS(vm.exceptions.syntaxError, "SyntaxError", vm.exceptions.baseException);
+	krk_defineNative(&vm.exceptions.syntaxError->methods, ".__repr__", _syntaxerror_repr);
+	krk_finalizeClass(vm.exceptions.syntaxError);
 
 	/* Build classes for basic types */
 	ADD_BASE_CLASS(vm.baseClasses.typeClass, "type", vm.objectClass);
@@ -3630,8 +3700,10 @@ int krk_loadModule(KrkString * name, KrkValue * moduleOut, KrkString * runAs) {
 		*moduleOut = krk_runfile(fileName,1,runAs->chars,fileName);
 		vm.exitOnFrame = previousExitFrame;
 		if (!IS_OBJECT(*moduleOut)) {
-			krk_runtimeError(vm.exceptions.importError,
-				"Failed to load module '%s' from '%s'", name->chars, fileName);
+			if (!(vm.flags & KRK_HAS_EXCEPTION)) {
+				krk_runtimeError(vm.exceptions.importError,
+					"Failed to load module '%s' from '%s'", name->chars, fileName);
+			}
 			return 0;
 		}
 
@@ -4322,7 +4394,10 @@ KrkValue krk_interpret(const char * src, int newScope, char * fromName, char * f
 	if (newScope) krk_startModule(fromName);
 
 	KrkFunction * function = krk_compile(src, 0, fromFile);
-	if (!function) return NONE_VAL();
+	if (!function) {
+		if (!vm.frameCount) handleException();
+		return NONE_VAL();
+	}
 
 	krk_attachNamedObject(&vm.module->fields, "__file__", (KrkObj*)function->chunk.filename);
 
