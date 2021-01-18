@@ -2053,8 +2053,8 @@ static int charIn(char c, const char * str) {
  */
 static KrkValue _string_strip_shared(int argc, KrkValue argv[], int which) {
 	if (!IS_STRING(argv[0])) return NONE_VAL();
-	if (AS_STRING(argv[0])->type != KRK_STRING_ASCII) {
-		krk_runtimeError(vm.exceptions.notImplementedError, "str.strip() not implemented for Unicode strings");
+	if (argc > 1 && IS_STRING(argv[1]) && AS_STRING(argv[1])->type != KRK_STRING_ASCII) {
+		krk_runtimeError(vm.exceptions.notImplementedError, "str.strip() not implemented for Unicode strip lists");
 		return NONE_VAL();
 	}
 	size_t start = 0;

@@ -2409,6 +2409,7 @@ KrkFunction * krk_compile(const char * src, int newScope, char * fileName) {
 				string(parser.previous.type == TOKEN_BIG_STRING);
 				krk_attachNamedObject(&vm.module->fields, "__doc__",
 					(KrkObj*)AS_STRING(currentChunk()->constants.values[currentChunk()->constants.count-1]));
+				emitByte(OP_POP); /* string() actually put an instruction for that, pop its result */
 				consume(TOKEN_EOL,"Garbage after docstring");
 			} else {
 				krk_attachNamedValue(&vm.module->fields, "__doc__", NONE_VAL());

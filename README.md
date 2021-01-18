@@ -309,7 +309,7 @@ Default arguments can be specified as follows:
 def greet(name="world"):
     print("Hello, " + name + "!")
 greet()
-gree("user")
+greet("user")
 # → Hello, world!
 #   Hello, user!
 ```
@@ -882,7 +882,7 @@ As in the _Loops_ section above, an iterator may return a series of tuples which
 ```py
 class TupleGenerator:
     def __iter__():
-        let up = 0, down = 0, limit = 5
+        let up, down, limit = 0, 0, 5
         def _():
             if limit-- == 0: return _
             return (up++,down--)
