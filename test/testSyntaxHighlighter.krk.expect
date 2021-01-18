@@ -1,0 +1,15 @@
+[[[0, 20, 3]], [[0, 31, 2]], [[0, 4, 1], [4, 8, 0], [12, 6, 1], [18, 5, 0]], [[0, 4, 1], [4, 20, 0], [24, 6, 1], [30, 30, 0]], [], [[0, 3, 1], [3, 2, 0]], [[0, 10, 0], [10, 32, 2], [42, 2, 0], [44, 2, 1], [46, 3, 0]], [[0, 35, 0]], [], [[0, 13, 0]], [[0, 5, 4], [5, 14, 0]], [[0, 5, 4], [5, 13, 0]], [[0, 23, 0]]]
+[[('# This is a comment.', 3)], [('\'\'\'This is a big fat string.\'\'\'', 2)], [('from', 1), (' fileio ', 0), ('import', 1), (' open', 0)], [('from', 1), (' syntax.highlighter ', 0), ('import', 1), (' KurokoHighlighter, toTerminal', 0)], [], [('let', 1), (' h', 0)], [('with open(', 0), ('\'test/testSyntaxHighlighter.krk\'', 2), (') ', 0), ('as', 1), (' f:', 0)], [('    h = KurokoHighlighter(f.read())', 0)], [], [('h.highlight()', 0)], [('print', 4), ('(h.linestates)', 0)], [('print', 4), ('(h.process())', 0)], [('toTerminal(h.process())', 0)]]
+[0;90m# This is a comment.[0m
+[0;32m'''This is a big fat string.'''[0m
+[0;94mfrom[0;39m fileio [0;94mimport[0;39m open[0m
+[0;94mfrom[0;39m syntax.highlighter [0;94mimport[0;39m KurokoHighlighter, toTerminal[0m
+[0m
+[0;94mlet[0;39m h[0m
+[0;39mwith open([0;32m'test/testSyntaxHighlighter.krk'[0;39m) [0;94mas[0;39m f:[0m
+[0;39m    h = KurokoHighlighter(f.read())[0m
+[0m
+[0;39mh.highlight()[0m
+[0;33mprint[0;39m(h.linestates)[0m
+[0;33mprint[0;39m(h.process())[0m
+[0;39mtoTerminal(h.process())[0m

@@ -1,0 +1,247 @@
+'''
+Read strings of Kuroko source code and calculate syntax highlighting properties.
+'''
+
+import string
+
+let FLAG_NONE      = 0
+let FLAG_KEYWORD   = 1
+let FLAG_STRING    = 2
+let FLAG_COMMENT   = 3
+let FLAG_TYPE      = 4
+let FLAG_PRAGMA    = 5
+let FLAG_NUMERAL   = 6
+let FLAG_ERROR     = 7
+let FLAG_DIFFPLUS  = 8
+let FLAG_DIFFMINUS = 9
+let FLAG_NOTICE    = 10
+let FLAG_BOLD      = 11
+let FLAG_LINK      = 12
+let FLAG_ESCAPE    = 13
+
+let keywords = [
+    'and','class','def','else','export','for','if','in','import','let','not',
+    'or','return','while','try','except','raise','continue','break','as','from',
+    'elif', 'lambda'
+]
+
+let types = [
+    'self','super','len','str','int','float','dir','repr','list','dict','range',
+    'object','exception','isinstance','type','print'
+]
+
+let special = [
+    'True', 'False', 'None'
+]
+
+def toTerminal(processed,colors=None):
+    if not colors:
+        colors = {
+            FLAG_NONE:      '\[[0;39m',
+            FLAG_KEYWORD:   '\[[0;94m',
+            FLAG_STRING:    '\[[0;32m',
+            FLAG_COMMENT:   '\[[0;90m',
+            FLAG_TYPE:      '\[[0;33m',
+            FLAG_PRAGMA:    '\[[0;31m',
+            FLAG_NUMERAL:   '\[[0;35m',
+            FLAG_ERROR:     '\[[0;97;41m',
+            FLAG_DIFFPLUS:  '\[[0;92m',
+            FLAG_DIFFMINUS: '\[[0;91m',
+            FLAG_NOTICE:    '\[[0;30;103m',
+            FLAG_BOLD:      '\[[0;1m',
+            FLAG_LINK:      '\[[0;4;94m',
+            FLAG_ESCAPE:    '\[[0;92m',
+        }
+    for line in processed:
+        for unit in line:
+            print(colors[unit[1]] + unit[0],end='')
+        print('\[[0m')
+
+class State():
+    def __init__(self, code):
+        self.lines = code.strip().split('\n')
+
+    def highlight(self):
+        self.line_no = 0
+        self.linestates = []
+        for line in self.lines:
+            self.col_no  = 0
+            self.line = line
+            self.current = None
+            self.states  = []
+            self.state   = 0
+            while True:
+                self.state = self.highlightOnce()
+                if self.state == None:
+                    break
+            if self.current:
+                self.states.append(self.current)
+            self.linestates.append(self.states)
+            self.line_no++
+
+    def process(self):
+        let final = []
+        for i = 0; i < len(self.lines); i++:
+            let l = self.lines[i]
+            let s = self.linestates[i]
+            let out = []
+            for state in s:
+                let w = l[state[0]:state[0]+state[1]]
+                out.append((w,state[2]))
+            final.append(out)
+        return final
+
+    def charat(self):
+        return self.charrel(0)
+
+    def nextchar(self):
+        return self.charrel(1)
+
+    def lastchar(self):
+        return self.charrel(-1)
+
+    def charrel(self,i):
+        if self.col_no + i >= 0 and self.col_no + i < len(self.line):
+            return self.line[self.col_no+i]
+        return None
+
+    def paint(self, width, flag):
+        if not self.current:
+            self.current = [self.col_no, width, flag]
+        else:
+            if self.current[2] != flag:
+                self.states.append(self.current)
+                self.current = [self.col_no, width, flag]
+            else:
+                self.current[1] += width
+        self.col_no += width
+
+    def isdigit(self, c):
+        return c in string.digits
+
+    def isxdigit(self, c):
+        return c in string.hexdigits
+
+    def isalpha(self, c):
+        return c in string.ascii_letters
+
+    def cKeywordQualifier(self, c):
+        return c in (string.ascii_letters + string.digits + '_')
+
+    def findKeywords(self, words, flag, checker):
+        if checker(self.lastchar()): return False
+        if not checker(self.charat()): return False
+        for word in words:
+            let d = 0
+            while self.col_no + d < len(self.line) and d < len(word) and self.charrel(d) == word[d]:
+                d++
+            if d == len(word) and (self.col_no + d >= len(self.line) or not checker(self.charrel(d))):
+                self.paint(len(word),flag)
+                return True
+        return False
+
+    def skip(self):
+        self.paint(1,FLAG_NONE)
+
+    def paintComment(self):
+        while self.charat() != None:
+            if self.findKeywords(['TODO','XXX'], FLAG_NOTICE, self.cKeywordQualifier): continue
+            else if self.findKeywords(['FIXME'], FLAG_ERROR,  self.cKeywordQualifier): continue
+            else: self.paint(1, FLAG_COMMENT)
+        return None
+
+class KurokoHighlighter(State):
+
+    def paintTriple(self, strType):
+        while self.charat() != None:
+            if self.charat() == strType:
+                self.paint(1, FLAG_STRING)
+                if self.charat() == strType and self.nextchar() == strType:
+                    self.paint(2, FLAG_STRING)
+                    return 0
+            else:
+                self.paint(1, FLAG_STRING)
+        return int(strType == "'") + 1
+
+    def paintString(self, strType):
+        while self.charat() != None:
+            if self.charat() == '\\' and self.nextchar() == strType:
+                self.paint(2, FLAG_ESCAPE)
+            else if self.charat() == strType:
+                self.paint(1, FLAG_STRING)
+                return 0
+            else if self.charat() == '\\':
+                if self.nextchar() == 'x':
+                    self.paint(4, FLAG_ESCAPE)
+                else if self.nextchar() == 'u':
+                    self.paint(6, FLAG_ESCAPE)
+                else if self.nextchar() == None:
+                    self.paint(1, FLAG_ESCAPE)
+                    return int(strType == "'") + 3
+                else:
+                    self.paint(2, FLAG_ESCAPE)
+            else:
+                self.paint(1, FLAG_STRING)
+        return 0
+
+    def paintNumeral(self):
+        if self.charat() == '0' and (self.nextchar() == 'x' or self.nextchar() == 'X'):
+            self.paint(2, FLAG_NUMERAL)
+            while self.isxdigit(self.charat()):
+                self.paint(1, FLAG_NUMERAL)
+        else if self.charat() == '0' and (self.nextchar() == 'o' or self.nextchar() == 'O'):
+            self.paint(2, FLAG_NUMERAL)
+            while self.charat() in '01234567':
+                self.flag(1, FLAG_NUMERAL)
+        else if self.charat() == '0' and (self.nextchar() == 'b' or self.nextchar() == 'B'):
+            self.paint(2, FLAG_NUMERAL)
+            while self.charat() == '0' or self.charat() == '1':
+                self.paint(1, FLAG_NUMERAL)
+        else:
+            while self.isdigit(self.charat()):
+                self.paint(1, FLAG_NUMERAL)
+            if self.charat() == '.' and self.isdigit(self.nextchar()):
+                self.paint(1, FLAG_NUMERAL)
+                while self.isdigit(self.charat()):
+                    self.paint(1, FLAG_NUMERAL)
+        return 0
+
+    def highlightOnce(self):
+        if self.state <= 0:
+            if self.charat() == '#':
+                self.paintComment()
+            else if self.charat() == '@':
+                self.paint(1, FLAG_TYPE)
+                while self.cKeywordQualifier(self.charat()):
+                    self.paint(1, FLAG_TYPE)
+                return 0
+            else if self.charat() == '"' or self.charat() == "'":
+                let strType = self.charat()
+                if self.nextchar() == strType and self.charrel(2) == strType:
+                    self.paint(3, FLAG_STRING)
+                    return self.paintTriple(strType)
+                self.paint(1, FLAG_STRING)
+                return self.paintString(strType)
+            else if self.findKeywords(keywords, FLAG_KEYWORD, self.cKeywordQualifier):
+                return 0
+            else if self.lastchar() != '.' and self.findKeywords(types, FLAG_TYPE, self.cKeywordQualifier):
+                return 0
+            else if self.findKeywords(special, FLAG_NUMERAL, self.cKeywordQualifier):
+                return 0
+            else if not self.cKeywordQualifier(self.lastchar()) and self.isdigit(self.charat()):
+                self.paintNumeral()
+                return 0
+            else if self.charat() != None:
+                self.skip()
+                return 0
+        else if self.state == 1:
+            return self.paintTriple('"')
+        else if self.state == 2:
+            return self.paintTriple("'")
+        else if self.state == 3:
+            return self.paintString('"')
+        else if self.state == 4:
+            return self.paintString("'")
+        return None
+
+

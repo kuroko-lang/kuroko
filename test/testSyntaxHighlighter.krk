@@ -1,0 +1,13 @@
+# This is a comment.
+'''This is a big fat string.'''
+from fileio import open
+from syntax.highlighter import KurokoHighlighter, toTerminal
+
+let h
+with open('test/testSyntaxHighlighter.krk') as f:
+    h = KurokoHighlighter(f.read())
+
+h.highlight()
+print(h.linestates)
+print(h.process())
+toTerminal(h.process())
