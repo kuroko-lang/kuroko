@@ -4,7 +4,7 @@
 #include <stddef.h>
 #include <stdlib.h>
 
-#ifdef __EMSCRIPTEN__
+#if defined(__EMSCRIPTEN__) || defined(_WIN32)
 typedef long long krk_integer_type;
 #define PRIkrk_int "%lld"
 #define PRIkrk_hex "%llx"
