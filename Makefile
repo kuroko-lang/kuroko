@@ -5,9 +5,13 @@ OBJS     = $(patsubst %.c, %.o, $(filter-out rline.c,$(filter-out kuroko.c,$(sor
 MODULES  = $(patsubst src/%.c, modules/%.so, $(sort $(wildcard src/*.c)))
 
 ifndef KRK_ENABLE_STATIC
-CFLAGS  += -fPIC
-LDFLAGS += -L. -Wl,-rpath -Wl,'$$ORIGIN' -Wl,-z,origin
-LDLIBS  += -lkuroko -ldl
+CFLAGS  += -fPIC -L.
+ifeq (,$(findstring mingw,$(CC)))
+LDFLAGS += -Wl,-rpath -Wl,'$$ORIGIN' -Wl,-z,origin
+LDLIBS  += -ldl -lkuroko
+else
+LDLIBS  += libkuroko.so
+endif
 all: ${TARGET} ${MODULES}
 KUROKO_LIBS = libkuroko.so
 else
@@ -48,13 +52,13 @@ kuroko: ${KUROKO_LIBS}
 %.o: *.h
 
 modules/%.so: src/%.c
-	${CC} ${CFLAGS} -shared -o $@ $<
+	${CC} ${CFLAGS} -shared -o $@ $< ${LDLIBS}
 
 modules/math.so: src/math.c
-	${CC} ${CFLAGS} -shared -o $@ $< -lm
+	${CC} ${CFLAGS} -shared -o $@ $< -lm ${LDLIBS}
 
 libkuroko.so: ${OBJS}
-	${CC} ${CLFAGS} -shared -o $@ ${OBJS}
+	${CC} ${CFLAGS} -shared -o $@ ${OBJS}
 
 builtins.c: builtins.krk
 	echo "const char krk_builtinsSrc[] = " > builtins.c
@@ -63,7 +67,7 @@ builtins.c: builtins.krk
 
 .PHONY: clean
 clean:
-	@rm -f ${OBJS} ${TARGET} ${MODULES} libkuroko.so rline.o kuroko.o src/*.o
+	@rm -f ${OBJS} ${TARGET} ${MODULES} libkuroko.so rline.o kuroko.o src/*.o kuroko.exe
 
 tags: $(wildcard *.c) $(wildcard *.h)
 	@ctags --c-kinds=+lx *.c *.h

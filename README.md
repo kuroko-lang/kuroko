@@ -60,6 +60,14 @@ Additional options include `KRK_DISABLE_RLINE=1` to not link with the included r
 
 See [klange/kuroko-wasm-repl](https://github.com/klange/kuroko-wasm-repl) for information on building Kuroko with Emscripten for use in a web browser.
 
+### Building for Windows
+
+Experimental support is available for building Kuroko to run on Windows using MingW:
+
+    CC=x86_64-w64-mingw32-gcc make
+
+A capable terminal, such as Windows Terminal, is required to run the interpreter's REPL correctly. The older "Command Prompt" (cmd.exe) is specifically known to _not_ work.
+
 ## Code Examples
 
 _**NOTE**: Due to limitations with Github's markdown renderer, these snippets will be highlighted as Python code._

@@ -6,7 +6,11 @@
 #include <string.h>
 #include <errno.h>
 #include <unistd.h>
+#ifndef _WIN32
 #include <sys/utsname.h>
+#else
+#include <windows.h>
+#endif
 
 #include "../vm.h"
 #include "../value.h"
@@ -21,6 +25,7 @@ extern char ** environ;
  * system.uname()
  */
 static KrkValue krk_uname(int argc, KrkValue argv[]) {
+#ifndef _WIN32
 	struct utsname buf;
 	if (uname(&buf) < 0) return NONE_VAL();
 
@@ -35,8 +40,56 @@ static KrkValue krk_uname(int argc, KrkValue argv[]) {
 	});
 
 	KRK_RESUME_GC();
-
 	return result;
+#else
+	KRK_PAUSE_GC();
+
+	TCHAR buffer[256] = TEXT("");
+	DWORD dwSize = sizeof(buffer);
+	GetComputerName(buffer, &dwSize);
+
+	OSVERSIONINFOA versionInfo = {0};
+	versionInfo.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
+	GetVersionExA(&versionInfo);
+	KrkValue release;
+	if (versionInfo.dwMajorVersion == 10) {
+		release = OBJECT_VAL(S("10"));
+	} else if (versionInfo.dwMajorVersion == 6) {
+		if (versionInfo.dwMinorVersion == 3) {
+			release = OBJECT_VAL(S("8.1"));
+		} else if (versionInfo.dwMinorVersion == 2) {
+			release = OBJECT_VAL(S("8.0"));
+		} else if (versionInfo.dwMinorVersion == 1) {
+			release = OBJECT_VAL(S("7"));
+		} else if (versionInfo.dwMinorVersion == 0) {
+			release = OBJECT_VAL(S("Vista"));
+		}
+	} else {
+		release = OBJECT_VAL(S("XP or earlier"));
+	}
+
+	char tmp[256];
+	sprintf(tmp, "%ld", versionInfo.dwBuildNumber);
+
+	KrkValue version = OBJECT_VAL(krk_copyString(tmp,strlen(tmp)));
+	KrkValue machine;
+	if (sizeof(void *) == 8) {
+		machine = OBJECT_VAL(S("x64"));
+	} else {
+		machine = OBJECT_VAL(S("x86"));
+	}
+
+	KrkValue result = krk_dict_of(5 * 2, (KrkValue[]) {
+		OBJECT_VAL(S("sysname")), OBJECT_VAL(S("Windows")),
+		OBJECT_VAL(S("nodename")), OBJECT_VAL(krk_copyString(buffer,dwSize)),
+		OBJECT_VAL(S("release")), release,
+		OBJECT_VAL(S("version")), version,
+		OBJECT_VAL(S("machine")), machine
+	});
+
+	KRK_RESUME_GC();
+	return result;
+#endif
 }
 
 KrkValue krk_os_setenviron(int argc, KrkValue * argv[]) {

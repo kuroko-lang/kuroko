@@ -5,10 +5,6 @@
 #include <errno.h>
 #include <sys/stat.h>
 
-#ifndef STATIC_ONLY
-#include <dlfcn.h>
-#endif
-
 #include "vm.h"
 #include "debug.h"
 #include "memory.h"
@@ -36,6 +32,24 @@
 # define KRK_BUILD_COMPILER "clang " __clang_version__
 #else
 # define KRK_BUILD_COMPILER ""
+#endif
+
+#ifndef _WIN32
+# ifndef STATIC_ONLY
+#  include <dlfcn.h>
+# endif
+# define PATH_SEP "/"
+# define dlRefType void *
+# define dlSymType void *
+# define dlOpen(fileName) dlopen(fileName, RTLD_NOW)
+# define dlSym(dlRef, handlerName) dlsym(dlRef,handlerName)
+#else
+# include <windows.h>
+# define PATH_SEP "\\"
+# define dlRefType HINSTANCE
+# define dlSymType FARPROC
+# define dlOpen(fileName) LoadLibraryA(fileName)
+# define dlSym(dlRef, handlerName) GetProcAddress(dlRef, handlerName)
 #endif
 
 #define S(c) (krk_copyString(c,sizeof(c)-1))
@@ -3247,6 +3261,7 @@ void krk_initVM(int flags) {
 	krk_attachNamedObject(&vm.system->fields, "builddate", (KrkObj*)S(KRK_BUILD_DATE));
 	krk_defineNative(&vm.system->fields, "getsizeof", krk_getsize);
 	krk_defineNative(&vm.system->fields, "set_clean_output", krk_setclean);
+	krk_attachNamedObject(&vm.system->fields, "path_sep", (KrkObj*)S(PATH_SEP));
 
 	KrkInstance * gcModule = krk_newInstance(vm.moduleClass);
 	krk_attachNamedObject(&vm.modules, "gc", (KrkObj*)gcModule);
@@ -3698,7 +3713,7 @@ int krk_loadModule(KrkString * path, KrkValue * moduleOut, KrkString * runAs) {
 			krk_push(AS_LIST(modulePathsInternal)->values[i]);
 			krk_push(OBJECT_VAL(path));
 			addObjects();
-			krk_push(OBJECT_VAL(S("/__init__.krk")));
+			krk_push(OBJECT_VAL(S(PATH_SEP "__init__.krk")));
 			addObjects();
 			fileName = AS_CSTRING(krk_peek(0));
 			if (stat(fileName,&statbuf) < 0) {
@@ -3744,7 +3759,7 @@ int krk_loadModule(KrkString * path, KrkValue * moduleOut, KrkString * runAs) {
 		char * fileName = AS_CSTRING(krk_peek(0));
 		if (stat(fileName,&statbuf) < 0) continue;
 
-		void * dlRef = dlopen(fileName, RTLD_NOW);
+		dlRefType dlRef = dlOpen(fileName);
 		if (!dlRef) {
 			*moduleOut = NONE_VAL();
 			krk_runtimeError(vm.exceptions.importError,
@@ -3764,7 +3779,7 @@ int krk_loadModule(KrkString * path, KrkValue * moduleOut, KrkString * runAs) {
 		char * handlerName = AS_CSTRING(krk_peek(0));
 
 		KrkValue (*moduleOnLoad)(KrkString * name);
-		void * out = dlsym(dlRef, handlerName);
+		dlSymType out = dlSym(dlRef, handlerName);
 		memcpy(&moduleOnLoad,&out,sizeof(out));
 
 		if (!moduleOnLoad) {
@@ -3887,7 +3902,7 @@ int krk_doRecursiveModuleLoad(KrkString * name) {
 			vm.stack[argBase-1] = krk_pop();
 			/* Now concatenate forward slash... */
 			krk_push(vm.stack[argBase+1]); /* Slash path */
-			krk_push(OBJECT_VAL(S("/")));
+			krk_push(OBJECT_VAL(S(PATH_SEP)));
 			addObjects();
 			vm.stack[argBase+1] = krk_pop();
 			/* And now for the dot... */

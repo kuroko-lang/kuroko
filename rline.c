@@ -13,14 +13,19 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <ctype.h>
-#include <termios.h>
 #include <string.h>
 #include <wchar.h>
 #include <unistd.h>
 #include <locale.h>
-#include <poll.h>
 #include <signal.h>
+#ifndef _WIN32
+#include <termios.h>
 #include <sys/ioctl.h>
+#else
+#include <windows.h>
+/* How do we get this in Windows? Seems WT asks the font? */
+#define wcwidth(c) (1)
+#endif
 #ifdef __toaru__
 #include <toaru/rline.h>
 #else
@@ -223,35 +228,15 @@ int rline_exp_set_tab_complete_func(rline_callback_t func) {
 	return 0;
 }
 
-#if 0
-static int _unget = -1;
-static void _ungetc(int c) {
-	_unget = c;
-}
-#endif
-
 static int getch(int immediate, int timeout) {
+#ifndef _WIN32
 	return fgetc(stdin);
-	#if 0
-	if (_unget != -1) {
-		int out = _unget;
-		_unget = -1;
-		return out;
-	}
-	if (immediate) return fgetc(stdin);
-	struct pollfd fds[1];
-	fds[0].fd = STDIN_FILENO;
-	fds[0].events = POLLIN;
-	int ret = poll(fds,1,50);
-	if (ret > 0 && fds[0].revents & POLLIN) {
-		unsigned char buf[1];
-		int unused = read(STDIN_FILENO, buf, 1);
-		(void)unused;
-		return buf[0];
-	} else {
-		return -1;
-	}
-	#endif
+#else
+	TCHAR buf[1];
+	DWORD dwRead;
+	while (!ReadConsole(GetStdHandle(STD_INPUT_HANDLE),buf,1,&dwRead,NULL));
+	return buf[0];
+#endif
 }
 
 /**
@@ -298,7 +283,7 @@ static int to_eight(uint32_t codepoint, char * out) {
  * This is copied from bim. Supports a few useful
  * things like rendering escapes as codepoints.
  */
-static int codepoint_width(wchar_t codepoint) {
+static int codepoint_width(int codepoint) {
 	if (codepoint == '\t') {
 		return 1; /* Recalculate later */
 	}
@@ -1365,15 +1350,18 @@ static void render_line(void) {
 
 	set_colors(COLOR_FG, COLOR_BG);
 
-	/* Fill to end right hand side */
-	for (; j < width + offset - prompt_width_calc; ++j) {
-		printf(" ");
-	}
-
-	/* Print right hand side */
 	if (show_right_side) {
+		/* Fill to end right hand side */
+		for (; j < width + offset - prompt_width_calc; ++j) {
+			printf(" ");
+		}
+
+		/* Print right hand side */
 		printf("\033[0m%s", prompt_right);
+	} else {
+		printf("\033[0K");
 	}
+	fflush(stdout);
 }
 
 /**
@@ -1424,9 +1412,15 @@ static line_t * line_insert(line_t * line, char_t c, int offset) {
  * We don't listen for sigwinch for various reasons...
  */
 static void get_size(void) {
+#ifndef _WIN32
 	struct winsize w;
 	ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
 	rline_terminal_width = w.ws_col;
+#else
+	CONSOLE_SCREEN_BUFFER_INFO csbi;
+	GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi);
+	rline_terminal_width = csbi.srWindow.Right - csbi.srWindow.Left + 1;
+#endif
 	if (rline_terminal_width - prompt_right_width - prompt_width > MINIMUM_SIZE) {
 		show_right_side = 1;
 		show_left_side = 1;
@@ -1778,6 +1772,7 @@ static int handle_escape(int * this_buf, int * timeout, int c) {
 	return 0;
 }
 
+#ifndef _WIN32
 static unsigned int _INTR, _EOF;
 static struct termios old;
 static void get_initial_termios(void) {
@@ -1785,7 +1780,6 @@ static void get_initial_termios(void) {
 	_INTR = old.c_cc[VINTR];
 	_EOF  = old.c_cc[VEOF];
 }
-
 static void set_unbuffered(void) {
 	struct termios new = old;
 	new.c_lflag &= (~ICANON & ~ECHO & ~ISIG);
@@ -1795,6 +1789,18 @@ static void set_unbuffered(void) {
 static void set_buffered(void) {
 	tcsetattr(STDOUT_FILENO, TCSAFLUSH, &old);
 }
+#else
+static unsigned int _INTR = 3;
+static unsigned int _EOF  = 4;
+static void get_initial_termios(void) {
+}
+static void set_unbuffered(void) {
+	SetConsoleMode(GetStdHandle(STD_INPUT_HANDLE), ENABLE_VIRTUAL_TERMINAL_INPUT);
+}
+static void set_buffered(void) {
+	SetConsoleMode(GetStdHandle(STD_INPUT_HANDLE), ENABLE_LINE_INPUT | ENABLE_PROCESSED_INPUT);
+}
+#endif
 
 static int tabbed;
 
@@ -1910,11 +1916,14 @@ static int read_line(void) {
 	uint32_t istate = 0;
 	int immediate = 1;
 
+	#ifndef _WIN32
+	/* Let's disable this under Windows... */
 	set_colors(COLOR_ALT_FG, COLOR_ALT_BG);
 	fprintf(stdout, "◄\033[0m"); /* TODO: This could be retrieved from an envvar */
 	for (int i = 0; i < rline_terminal_width - 1; ++i) {
 		fprintf(stdout, " ");
 	}
+	#endif
 
 	if (rline_preload) {
 		char * c = rline_preload;
@@ -1980,6 +1989,7 @@ static int read_line(void) {
 						delete_at_cursor();
 						immediate = 0;
 						break;
+					case 13:
 					case ENTER_KEY:
 						/* Finished */
 						loading = 1;

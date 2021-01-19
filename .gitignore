@@ -1,5 +1,7 @@
 *.o
 *.so
 kuroko
+*.exe
+*.dll
 wasm/
 jupyter/
