@@ -10,6 +10,7 @@ ifeq (,$(findstring mingw,$(CC)))
 LDFLAGS += -Wl,-rpath -Wl,'$$ORIGIN' -Wl,-z,origin
 LDLIBS  += -ldl -lkuroko
 else
+CFLAGS  += -Wno-format
 LDLIBS  += libkuroko.so
 endif
 all: ${TARGET} ${MODULES}
