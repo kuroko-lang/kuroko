@@ -22,7 +22,7 @@ let FLAG_ESCAPE    = 13
 let keywords = [
     'and','class','def','else','export','for','if','in','import','let','not',
     'or','return','while','try','except','raise','continue','break','as','from',
-    'elif', 'lambda'
+    'elif', 'lambda', 'pass',
 ]
 
 let types = [

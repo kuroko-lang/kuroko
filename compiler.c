@@ -1625,6 +1625,8 @@ static void statement() {
 			breakStatement();
 		} else if (match(TOKEN_CONTINUE)) {
 			continueStatement();
+		} else if (match(TOKEN_PASS)) {
+			/* Do nothing. */
 		} else {
 			expressionStatement();
 		}

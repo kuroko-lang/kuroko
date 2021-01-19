@@ -234,6 +234,7 @@ static KrkTokenType identifierType() {
 		case 'n': return checkKeyword(1, "ot", TOKEN_NOT);
 		case 'N': return checkKeyword(1, "one", TOKEN_NONE);
 		case 'o': return checkKeyword(1, "r", TOKEN_OR);
+		case 'p': return checkKeyword(1, "ass", TOKEN_PASS);
 		case 'r': if (MORE(1)) switch (scanner.start[1]) {
 			case 'e': return checkKeyword(2, "turn", TOKEN_RETURN);
 			case 'a': return checkKeyword(2, "ise", TOKEN_RAISE);
