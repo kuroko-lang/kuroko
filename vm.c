@@ -474,6 +474,50 @@ static KrkValue _dict_key_at_index(int argc, KrkValue argv[]) {
 	return OBJECT_VAL(outValue);
 }
 
+static KrkValue _dict_repr(int argc, KrkValue argv[]) {
+	KrkValue self = argv[0];
+	if (AS_OBJECT(self)->inRepr) return OBJECT_VAL(S("{...}"));
+	KrkValue _dict_internal = OBJECT_VAL(AS_INSTANCE(argv[0])->_internal);
+	krk_push(OBJECT_VAL(S("{")));
+
+	AS_OBJECT(self)->inRepr = 1;
+
+	size_t c = 0;
+	size_t len = AS_DICT(_dict_internal)->capacity;
+	for (size_t i = 0; i < len; ++i) {
+		KrkTableEntry * entry = &AS_DICT(_dict_internal)->entries[i];
+
+		if (IS_KWARGS(entry->key)) continue;
+
+		if (c > 0) {
+			krk_push(OBJECT_VAL(S(", ")));
+			addObjects();
+		}
+
+		c++;
+
+		KrkClass * type = AS_CLASS(krk_typeOf(1, &entry->key));
+		krk_push(entry->key);
+		krk_push(krk_callSimple(OBJECT_VAL(type->_reprer), 1, 0));
+		addObjects();
+
+		krk_push(OBJECT_VAL(S(": ")));
+		addObjects();
+
+		type = AS_CLASS(krk_typeOf(1, &entry->value));
+		krk_push(entry->value);
+		krk_push(krk_callSimple(OBJECT_VAL(type->_reprer), 1, 0));
+		addObjects();
+	}
+
+	AS_OBJECT(self)->inRepr = 0;
+
+	krk_push(OBJECT_VAL(S("}")));
+	addObjects();
+	return krk_pop();
+
+}
+
 static KrkValue _dict_nth_key_fast(size_t capacity, KrkTableEntry * entries, size_t index) {
 	size_t found = 0;
 	for (size_t i = 0; i < capacity; ++i) {
@@ -552,22 +596,89 @@ static KrkValue _list_append(int argc, KrkValue argv[]) {
 }
 
 /**
- * list.extend but only for lists...
+ * list.__repr__
  */
-static KrkValue _list_extend_fast(int argc, KrkValue argv[]) {
-	KrkValue _list_internal_self = OBJECT_VAL(AS_INSTANCE(argv[0])->_internal);
-	KrkValue _list_internal_them = OBJECT_VAL(AS_INSTANCE(argv[1])->_internal);
+static KrkValue _list_repr(int argc, KrkValue argv[]) {
+	KrkValue self = argv[0];
+	if (AS_OBJECT(self)->inRepr) return OBJECT_VAL(S("[...]"));
+	KrkValue _list_internal = OBJECT_VAL(AS_INSTANCE(argv[0])->_internal);
+	krk_push(OBJECT_VAL(S("[")));
 
-	size_t totalSize = AS_LIST(_list_internal_self)->count + AS_LIST(_list_internal_them)->count;
-	if (AS_LIST(_list_internal_self)->capacity < totalSize) {
-		size_t old = AS_LIST(_list_internal_self)->capacity;
-		AS_LIST(_list_internal_self)->capacity = totalSize;
-		AS_LIST(_list_internal_self)->values = GROW_ARRAY(KrkValue, AS_LIST(_list_internal_self)->values, old, totalSize);
+	AS_OBJECT(self)->inRepr = 1;
+
+	size_t len = AS_LIST(_list_internal)->count;
+	for (size_t i = 0; i < len; ++i) {
+		KrkClass * type = AS_CLASS(krk_typeOf(1, &AS_LIST(_list_internal)->values[i]));
+		krk_push(AS_LIST(_list_internal)->values[i]);
+		krk_push(krk_callSimple(OBJECT_VAL(type->_reprer), 1, 0));
+		addObjects();
+		if (i + 1 < len) {
+			krk_push(OBJECT_VAL(S(", ")));
+			addObjects();
+		}
 	}
-	memcpy(&AS_LIST(_list_internal_self)->values[AS_LIST(_list_internal_self)->count],
-		AS_LIST(_list_internal_them)->values, sizeof(KrkValue) * AS_LIST(_list_internal_them)->count);
-	AS_LIST(_list_internal_self)->count = totalSize;
-	return INTEGER_VAL(totalSize);
+
+	AS_OBJECT(self)->inRepr = 0;
+
+	krk_push(OBJECT_VAL(S("]")));
+	addObjects();
+	return krk_pop();
+}
+
+static KrkValue _list_extend(int argc, KrkValue argv[]) {
+	KrkInstance * self = AS_INSTANCE(argv[0]);
+	KrkValue _list_internal = OBJECT_VAL(self->_internal);
+	KrkValueArray *  positionals = AS_LIST(_list_internal);
+#define unpackArray(counter, indexer) do { \
+			if (positionals->count + counter > positionals->capacity) { \
+				size_t old = positionals->capacity; \
+				positionals->capacity = positionals->count + counter; \
+				positionals->values = GROW_ARRAY(KrkValue,positionals->values,old,positionals->capacity); \
+			} \
+			for (size_t i = 0; i < counter; ++i) { \
+				positionals->values[positionals->count] = indexer; \
+				positionals->count++; \
+			} \
+		} while (0)
+	KrkValue value = argv[1];
+	//UNPACK_ARRAY();  /* This should be a macro that does all of these things. */
+	if (IS_TUPLE(value)) {
+		unpackArray(AS_TUPLE(value)->values.count, AS_TUPLE(value)->values.values[i]);
+	} else if (IS_INSTANCE(value) && AS_INSTANCE(value)->_class == vm.baseClasses.listClass) {
+		KrkValue _list_internal = OBJECT_VAL(AS_INSTANCE(value)->_internal);
+		unpackArray(AS_LIST(_list_internal)->count, AS_LIST(_list_internal)->values[i]);
+	} else if (IS_INSTANCE(value) && AS_INSTANCE(value)->_class == vm.baseClasses.dictClass) {
+		KrkValue _dict_internal = OBJECT_VAL(AS_INSTANCE(value)->_internal);
+		unpackArray(AS_DICT(_dict_internal)->count, _dict_nth_key_fast(AS_DICT(_dict_internal)->capacity, AS_DICT(_dict_internal)->entries, i));
+	} else if (IS_STRING(value)) {
+		unpackArray(AS_STRING(value)->codesLength, _string_get(2,(KrkValue[]){value,INTEGER_VAL(i)}));
+	} else {
+		KrkClass * type = AS_CLASS(krk_typeOf(1,&argv[1]));
+		if (type->_iter) {
+			/* Create the iterator */
+			size_t stackOffset = vm.stackTop - vm.stack;
+			krk_push(argv[1]);
+			krk_push(krk_callSimple(OBJECT_VAL(type->_iter), 1, 0));
+
+			do {
+				/* Call it until it gives us itself */
+				krk_push(vm.stack[stackOffset]);
+				krk_push(krk_callSimple(krk_peek(0), 0, 1));
+				if (krk_valuesSame(vm.stack[stackOffset], krk_peek(0))) {
+					/* We're done. */
+					krk_pop(); /* The result of iteration */
+					krk_pop(); /* The iterator */
+					break;
+				}
+				_list_append(2, (KrkValue[]){argv[0], krk_peek(0)});
+				krk_pop();
+			} while (1);
+		} else {
+			krk_runtimeError(vm.exceptions.typeError, "'%s' object is not iterable", krk_typeName(value));
+		}
+	}
+#undef unpackArray
+	return NONE_VAL();
 }
 
 /**
@@ -3372,6 +3483,21 @@ void krk_initVM(int flags) {
 	krk_defineNative(&vm.baseClasses.bytesClass->methods, ".__get__", _bytes_get);
 	krk_defineNative(&vm.baseClasses.bytesClass->methods, ".__eq__", _bytes_eq);
 	krk_finalizeClass(vm.baseClasses.bytesClass);
+	ADD_BASE_CLASS(vm.baseClasses.listClass, "list", vm.objectClass);
+	krk_defineNative(&vm.baseClasses.listClass->methods, ".__init__", _list_init);
+	krk_defineNative(&vm.baseClasses.listClass->methods, ".__get__", _list_get);
+	krk_defineNative(&vm.baseClasses.listClass->methods, ".__set__", _list_set);
+	krk_defineNative(&vm.baseClasses.listClass->methods, ".__delitem__", _list_pop);
+	krk_defineNative(&vm.baseClasses.listClass->methods, ".__len__", _list_len);
+	krk_defineNative(&vm.baseClasses.listClass->methods, ".__str__", _list_repr);
+	krk_defineNative(&vm.baseClasses.listClass->methods, ".__repr__", _list_repr);
+	krk_defineNative(&vm.baseClasses.listClass->methods, ".__contains__", _list_contains);
+	krk_defineNative(&vm.baseClasses.listClass->methods, ".__getslice__", _list_slice);
+	krk_defineNative(&vm.baseClasses.listClass->methods, ".__iter__", _list_iter);
+	krk_defineNative(&vm.baseClasses.listClass->methods, ".append", _list_append);
+	krk_defineNative(&vm.baseClasses.listClass->methods, ".extend", _list_extend);
+	krk_defineNative(&vm.baseClasses.listClass->methods, ".pop", _list_pop);
+	krk_finalizeClass(vm.baseClasses.listClass);
 
 	/* Build global builtin functions. */
 	BUILTIN_FUNCTION("listOf", krk_list_of);
@@ -3437,24 +3563,12 @@ void krk_initVM(int flags) {
 		/* Now we can attach the native initializers and getters/setters to
 		 * the list and dict types by pulling them out of the global namespace,
 		 * as they were exported by builtins.krk */
-		krk_tableGet(&vm.builtins->fields,OBJECT_VAL(S("list")),&val);
-		vm.baseClasses.listClass = AS_CLASS(val);
-		krk_defineNative(&vm.baseClasses.listClass->methods, ".__init__", _list_init);
-		krk_defineNative(&vm.baseClasses.listClass->methods, ".__get__", _list_get);
-		krk_defineNative(&vm.baseClasses.listClass->methods, ".__set__", _list_set);
-		krk_defineNative(&vm.baseClasses.listClass->methods, ".__delitem__", _list_pop);
-		krk_defineNative(&vm.baseClasses.listClass->methods, ".__len__", _list_len);
-		krk_defineNative(&vm.baseClasses.listClass->methods, ".__contains__", _list_contains);
-		krk_defineNative(&vm.baseClasses.listClass->methods, ".__getslice__", _list_slice);
-		krk_defineNative(&vm.baseClasses.listClass->methods, ".__iter__", _list_iter);
-		krk_defineNative(&vm.baseClasses.listClass->methods, ".append", _list_append);
-		krk_defineNative(&vm.baseClasses.listClass->methods, ".pop", _list_pop);
-		krk_defineNative(&vm.baseClasses.listClass->methods, "._extend_fast", _list_extend_fast);
-		krk_finalizeClass(vm.baseClasses.listClass);
 
 		krk_tableGet(&vm.builtins->fields,OBJECT_VAL(S("dict")),&val);
 		vm.baseClasses.dictClass = AS_CLASS(val);
 		krk_defineNative(&vm.baseClasses.dictClass->methods, ".__init__", _dict_init);
+		krk_defineNative(&vm.baseClasses.dictClass->methods, ".__str__", _dict_repr);
+		krk_defineNative(&vm.baseClasses.dictClass->methods, ".__repr__", _dict_repr);
 		krk_defineNative(&vm.baseClasses.dictClass->methods, ".__get__", _dict_get);
 		krk_defineNative(&vm.baseClasses.dictClass->methods, ".__set__", _dict_set);
 		krk_defineNative(&vm.baseClasses.dictClass->methods, ".__delitem__", _dict_delitem);

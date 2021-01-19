@@ -44,7 +44,7 @@ def find_depth(bag):
     while to_scan:
         let i = to_scan.pop(0)
         count += 1
-        to_scan._extend_fast(descriptions[i])
+        to_scan.extend(descriptions[i])
     return count
 
 print("A shiny gold bag contains", find_depth('shiny gold'), "bags.")

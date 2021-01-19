@@ -15,6 +15,7 @@ static KrkObj * allocateObject(size_t size, ObjType type) {
 	KrkObj * object = (KrkObj*)krk_reallocate(NULL, 0, size);
 	object->type = type;
 	object->isMarked = 0;
+	object->inRepr   = 0;
 	object->next = vm.objects;
 	vm.objects = object;
 	return object;

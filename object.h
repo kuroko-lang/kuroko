@@ -44,7 +44,8 @@ typedef enum {
 
 struct Obj {
 	ObjType type;
-	char isMarked;
+	unsigned char isMarked:1;
+	unsigned char inRepr:1;
 	struct Obj * next;
 };
 
