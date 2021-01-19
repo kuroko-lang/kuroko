@@ -51,10 +51,10 @@ kuroko: ${KUROKO_LIBS}
 
 %.o: *.h
 
-modules/%.so: src/%.c
+modules/%.so: src/%.c libkuroko.so
 	${CC} ${CFLAGS} -shared -o $@ $< ${LDLIBS}
 
-modules/math.so: src/math.c
+modules/math.so: src/math.c libkuroko.so
 	${CC} ${CFLAGS} -shared -o $@ $< -lm ${LDLIBS}
 
 libkuroko.so: ${OBJS}
