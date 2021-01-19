@@ -3374,8 +3374,9 @@ void krk_initVM(int flags) {
 	krk_finalizeClass(vm.baseClasses.bytesClass);
 
 	/* Build global builtin functions. */
-	BUILTIN_FUNCTION("listOf", krk_list_of); /* Equivalent to list() */
-	BUILTIN_FUNCTION("dictOf", krk_dict_of); /* Equivalent to dict() */
+	BUILTIN_FUNCTION("listOf", krk_list_of);
+	BUILTIN_FUNCTION("dictOf", krk_dict_of);
+	BUILTIN_FUNCTION("tupleOf", _tuple_of);
 	BUILTIN_FUNCTION("isinstance", krk_isinstance);
 	BUILTIN_FUNCTION("globals", krk_globals);
 	BUILTIN_FUNCTION("dir", _dir);

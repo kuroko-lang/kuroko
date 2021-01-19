@@ -18,7 +18,7 @@ On top of this, Kuroko adds a number of features inspired by Python, such as:
 - Indentation-based block syntax.
 - Collection types: `list`, `dict`, `tuple`, with compiler literal syntax (`[]`,`{}`,`(,)`).
 - Iterable types, with `for ... in ...` syntax.
-- List comprehensions (`[foo(x) for x in [1,2,3,4]]` and similar expressions).
+- List and dict comprehensions (`[foo(x) for x in [1,2,3,4]]` and similar expressions).
 - Pseudo-classes for basic values (eg. strings are pseudo-instances of a `str` class providing methods like `.format()`)
 - Exception handling, with `try`/`except`/`raise`.
 - Modules, both for native C code and managed Kuroko code.
@@ -587,7 +587,7 @@ print(s)
 # → {1, 2, 3, 4}
 ```
 
-Lists can also be generated dynamically through _comprehensions_, just as in Python:
+Lists, dicts, and tuples can also be generated dynamically through _comprehensions_, just as in Python:
 
 ```py
 let fives = [x * 5 for x in [1,2,3,4,5]]
@@ -595,7 +595,12 @@ print(fives)
 # → [5, 10, 15, 20, 25]
 ```
 
-_**Note:** Dictionary, tuple, and set comprehensions are not currently available, but are planned._
+```py
+let d = {'a': 1, 'b': 2, 'c': 3}
+let dInverted = {v: k for k, v in d.items()}
+print(d,dInverted)
+# → {'a': 1, 'b': 2, 'c': 3} {1: 'a', 2: 'b', 3: 'c'}
+```
 
 ### Exceptions
 

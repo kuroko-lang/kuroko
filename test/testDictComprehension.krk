@@ -1,0 +1,4 @@
+let d = {'a': 1, 'b': 2, 'c': 3}
+let dInverted = {v: k for k, v in d.items()}
+print(d,dInverted)
+

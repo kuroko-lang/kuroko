@@ -1649,27 +1649,6 @@ _anotherSimpleStatement:
 	}
 }
 
-static void grouping(int canAssign) {
-	startEatingWhitespace();
-	if (check(TOKEN_RIGHT_PAREN)) {
-		emitBytes(OP_TUPLE,0);
-	} else {
-		expression();
-		if (match(TOKEN_COMMA)) {
-			size_t argCount = 1;
-			if (!check(TOKEN_RIGHT_PAREN)) {
-				do {
-					expression();
-					argCount++;
-				} while (match(TOKEN_COMMA) && !check(TOKEN_RIGHT_PAREN));
-			}
-			EMIT_CONSTANT_OP(OP_TUPLE, argCount);
-		}
-	}
-	stopEatingWhitespace();
-	consume(TOKEN_RIGHT_PAREN, "Expect ')' after expression.");
-}
-
 static void unary(int canAssign) {
 	KrkTokenType operatorType = parser.previous.type;
 
@@ -1895,6 +1874,176 @@ static void super_(int canAssign) {
 	EMIT_CONSTANT_OP(OP_GET_SUPER, ind);
 }
 
+static void comprehension(KrkScanner scannerBefore, Parser parserBefore, const char buildFunc[], void (*inner)(ssize_t loopCounter)) {
+	/* Compile list comprehension as a function */
+	Compiler subcompiler;
+	initCompiler(&subcompiler, TYPE_FUNCTION);
+	subcompiler.function->chunk.filename = subcompiler.enclosing->function->chunk.filename;
+
+	beginScope();
+
+	/* for i=0, */
+	emitConstant(INTEGER_VAL(0));
+	size_t indLoopCounter = current->localCount;
+	addLocal(syntheticToken(""));
+	defineVariable(indLoopCounter);
+
+	/* x in... */
+	ssize_t loopInd = current->localCount;
+	ssize_t varCount = 0;
+	do {
+		defineVariable(parseVariable("Expected name for iteration variable."));
+		emitByte(OP_NONE);
+		defineVariable(loopInd);
+		varCount++;
+	} while (match(TOKEN_COMMA));
+
+	consume(TOKEN_IN, "Only iterator loops (for ... in ...) are allowed in comprehensions.");
+
+	beginScope();
+	parsePrecedence(PREC_OR); /* Otherwise we can get trapped on a ternary */
+	endScope();
+
+	/* iterable... */
+	size_t indLoopIter = current->localCount;
+	addLocal(syntheticToken(""));
+	defineVariable(indLoopIter);
+
+	/* Now try to call .__iter__ on the result to produce our iterator */
+	KrkToken _iter = syntheticToken("__iter__");
+	ssize_t ind = identifierConstant(&_iter);
+	EMIT_CONSTANT_OP(OP_GET_PROPERTY, ind);
+	emitBytes(OP_CALL, 0);
+
+	/* Assign the resulting iterator to indLoopIter */
+	EMIT_CONSTANT_OP(OP_SET_LOCAL, indLoopIter);
+
+	/* Mark the start of the loop */
+	int loopStart = currentChunk()->count;
+
+	/* Call the iterator to get a value for our list */
+	EMIT_CONSTANT_OP(OP_GET_LOCAL, indLoopIter);
+	emitBytes(OP_CALL, 0);
+
+	/* Assign the result to our loop index */
+	EMIT_CONSTANT_OP(OP_SET_LOCAL, loopInd);
+
+	/* Compare the iterator to the loop index;
+	 * our iterators return themselves to say they are done;
+	 * this allows them to return None without any issue,
+	 * and there's no feasible way they can return themselves without
+	 * our intended sentinel meaning, right? Surely? */
+	EMIT_CONSTANT_OP(OP_GET_LOCAL, indLoopIter);
+	emitByte(OP_EQUAL);
+	int exitJump = emitJump(OP_JUMP_IF_TRUE);
+	emitByte(OP_POP);
+
+	/* Unpack tuple */
+	if (varCount > 1) {
+		EMIT_CONSTANT_OP(OP_GET_LOCAL, loopInd);
+		EMIT_CONSTANT_OP(OP_UNPACK, varCount);
+		for (ssize_t i = loopInd + varCount - 1; i >= loopInd; i--) {
+			EMIT_CONSTANT_OP(OP_SET_LOCAL, i);
+			emitByte(OP_POP);
+		}
+	}
+
+	if (match(TOKEN_IF)) {
+		parsePrecedence(PREC_OR);
+		int acceptJump = emitJump(OP_JUMP_IF_TRUE);
+		emitByte(OP_POP); /* Pop condition */
+		emitLoop(loopStart);
+		patchJump(acceptJump);
+		emitByte(OP_POP); /* Pop condition */
+	}
+
+	/* Now we can rewind the scanner to have it parse the original
+	 * expression that uses our iterated values! */
+	KrkScanner scannerAfter = krk_tellScanner();
+	Parser  parserAfter = parser;
+	krk_rewindScanner(scannerBefore);
+	parser = parserBefore;
+
+	beginScope();
+	inner(indLoopCounter);
+	endScope();
+
+	/* Then we can put the parser back to where it was at the end of
+	 * the iterator expression and continue. */
+	krk_rewindScanner(scannerAfter);
+	parser = parserAfter;
+
+	/* We keep a counter so we can keep track of how many arguments
+	 * are on the stack, which we need in order to find the listOf()
+	 * method above; having run the expression and generated an
+	 * item which is now on the stack, increment the counter */
+	EMIT_CONSTANT_OP(OP_INC, indLoopCounter);
+	/* ... and loop back to the iterator call. */
+	emitLoop(loopStart);
+
+	/* Finally, at this point, we've seen the iterator produce itself
+	 * and we're done receiving objects, so mark this instruction
+	 * offset as the exit target for the OP_JUMP_IF_FALSE above */
+	patchJump(exitJump);
+	/* Pop the last loop expression result which was already stored */
+	emitByte(OP_POP);
+	/* Pull in listOf from the global namespace */
+	KrkToken collectionBuilder = syntheticToken(buildFunc);
+	size_t indList = identifierConstant(&collectionBuilder);
+	EMIT_CONSTANT_OP(OP_GET_GLOBAL, indList);
+	/* And move it into where we were storing the loop iterator */
+	EMIT_CONSTANT_OP(OP_SET_LOCAL, indLoopIter);
+	/* (And pop it from the top of the stack) */
+	emitByte(OP_POP);
+	/* Then get the counter for our arg count */
+	EMIT_CONSTANT_OP(OP_GET_LOCAL, indLoopCounter);
+	/* And then call the native method which should be ^ that many items down */
+	emitByte(OP_CALL_STACK);
+	/* And return the result back to the original scope */
+	emitByte(OP_RETURN);
+	/* Now because we made a function we need to fill out its upvalues
+	 * and write the closure call for it. */
+	KrkFunction *subfunction = endCompiler();
+	size_t indFunc = krk_addConstant(currentChunk(), OBJECT_VAL(subfunction));
+	EMIT_CONSTANT_OP(OP_CLOSURE, indFunc);
+	doUpvalues(&subcompiler, subfunction);
+	freeCompiler(&subcompiler);
+
+	/* And finally we can call the subfunction and get the result. */
+	emitBytes(OP_CALL, 0);
+}
+
+static void singleInner(ssize_t indLoopCounter) {
+	expression();
+}
+
+static void grouping(int canAssign) {
+	startEatingWhitespace();
+	if (check(TOKEN_RIGHT_PAREN)) {
+		emitBytes(OP_TUPLE,0);
+	} else {
+		size_t chunkBefore = currentChunk()->count;
+		KrkScanner scannerBefore = krk_tellScanner();
+		Parser  parserBefore = parser;
+		expression();
+		if (match(TOKEN_FOR)) {
+			currentChunk()->count = chunkBefore;
+			comprehension(scannerBefore, parserBefore, "tupleOf", singleInner);
+		} else if (match(TOKEN_COMMA)) {
+			size_t argCount = 1;
+			if (!check(TOKEN_RIGHT_PAREN)) {
+				do {
+					expression();
+					argCount++;
+				} while (match(TOKEN_COMMA) && !check(TOKEN_RIGHT_PAREN));
+			}
+			EMIT_CONSTANT_OP(OP_TUPLE, argCount);
+		}
+	}
+	stopEatingWhitespace();
+	consume(TOKEN_RIGHT_PAREN, "Expect ')' after expression.");
+}
+
 static void list(int canAssign) {
 	size_t     chunkBefore = currentChunk()->count;
 
@@ -1920,180 +2069,67 @@ static void list(int canAssign) {
 			/* Roll back the earlier compiler */
 			currentChunk()->count = chunkBefore;
 
-			/* Compile list comprehension as a function */
-			Compiler subcompiler;
-			initCompiler(&subcompiler, TYPE_FUNCTION);
-			subcompiler.function->chunk.filename = subcompiler.enclosing->function->chunk.filename;
-
-			beginScope();
-
-			/* for i=0, */
-			emitConstant(INTEGER_VAL(0));
-			size_t indLoopCounter = current->localCount;
-			addLocal(syntheticToken("__loop_count"));
-			defineVariable(indLoopCounter);
-
-			/* x in... */
-			ssize_t loopInd = current->localCount;
-			ssize_t varCount = 0;
-			do {
-				defineVariable(parseVariable("Expected name for iteration variable."));
-				emitByte(OP_NONE);
-				defineVariable(loopInd);
-				varCount++;
-			} while (match(TOKEN_COMMA));
-
-			consume(TOKEN_IN, "Only iterator loops (for ... in ...) are allowed in list comprehensions.");
-
-			beginScope();
-			parsePrecedence(PREC_OR); /* Otherwise we can get trapped on a ternary */
-			endScope();
-
-			/* iterable... */
-			size_t indLoopIter = current->localCount;
-			addLocal(syntheticToken("__loop_iter"));
-			defineVariable(indLoopIter);
-
-			/* Now try to call .__iter__ on the result to produce our iterator */
-			KrkToken _iter = syntheticToken("__iter__");
-			ssize_t ind = identifierConstant(&_iter);
-			EMIT_CONSTANT_OP(OP_GET_PROPERTY, ind);
-			emitBytes(OP_CALL, 0);
-
-			/* Assign the resulting iterator to indLoopIter */
-			EMIT_CONSTANT_OP(OP_SET_LOCAL, indLoopIter);
-
-			/* Mark the start of the loop */
-			int loopStart = currentChunk()->count;
-
-			/* Call the iterator to get a value for our list */
-			EMIT_CONSTANT_OP(OP_GET_LOCAL, indLoopIter);
-			emitBytes(OP_CALL, 0);
-
-			/* Assign the result to our loop index */
-			EMIT_CONSTANT_OP(OP_SET_LOCAL, loopInd);
-
-			/* Compare the iterator to the loop index;
-			 * our iterators return themselves to say they are done;
-			 * this allows them to return None without any issue,
-			 * and there's no feasible way they can return themselves without
-			 * our intended sentinel meaning, right? Surely? */
-			EMIT_CONSTANT_OP(OP_GET_LOCAL, indLoopIter);
-			emitByte(OP_EQUAL);
-			int exitJump = emitJump(OP_JUMP_IF_TRUE);
-			emitByte(OP_POP);
-
-			/* Unpack tuple */
-			if (varCount > 1) {
-				EMIT_CONSTANT_OP(OP_GET_LOCAL, loopInd);
-				EMIT_CONSTANT_OP(OP_UNPACK, varCount);
-				for (ssize_t i = loopInd + varCount - 1; i >= loopInd; i--) {
-					EMIT_CONSTANT_OP(OP_SET_LOCAL, i);
-					emitByte(OP_POP);
-				}
-			}
-
-			if (match(TOKEN_IF)) {
-				parsePrecedence(PREC_OR);
-				int acceptJump = emitJump(OP_JUMP_IF_TRUE);
-				emitByte(OP_POP); /* Pop condition */
-				emitLoop(loopStart);
-				patchJump(acceptJump);
-				emitByte(OP_POP); /* Pop condition */
-			}
-
-			/* Now we can rewind the scanner to have it parse the original
-			 * expression that uses our iterated values! */
-			KrkScanner scannerAfter = krk_tellScanner();
-			Parser  parserAfter = parser;
-			krk_rewindScanner(scannerBefore);
-			parser = parserBefore;
-
-			beginScope();
-			expression();
-			endScope();
-
-			/* Then we can put the parser back to where it was at the end of
-			 * the iterator expression and continue. */
-			krk_rewindScanner(scannerAfter);
-			parser = parserAfter;
-
-			/* We keep a counter so we can keep track of how many arguments
-			 * are on the stack, which we need in order to find the listOf()
-			 * method above; having run the expression and generated an
-			 * item which is now on the stack, increment the counter */
-			EMIT_CONSTANT_OP(OP_INC, indLoopCounter);
-			/* ... and loop back to the iterator call. */
-			emitLoop(loopStart);
-
-			/* Finally, at this point, we've seen the iterator produce itself
-			 * and we're done receiving objects, so mark this instruction
-			 * offset as the exit target for the OP_JUMP_IF_FALSE above */
-			patchJump(exitJump);
-			/* Parse the ] that indicates the end of the list comprehension */
-			stopEatingWhitespace();
-			consume(TOKEN_RIGHT_SQUARE,"Expected ] at end of list expression.");
-			/* Pop the last loop expression result which was already stored */
-			emitByte(OP_POP);
-			/* Pull in listOf from the global namespace */
-			KrkToken listOf = syntheticToken("listOf");
-			size_t indList = identifierConstant(&listOf);
-			EMIT_CONSTANT_OP(OP_GET_GLOBAL, indList);
-			/* And move it into where we were storing the loop iterator */
-			EMIT_CONSTANT_OP(OP_SET_LOCAL, indLoopIter);
-			/* (And pop it from the top of the stack) */
-			emitByte(OP_POP);
-			/* Then get the counter for our arg count */
-			EMIT_CONSTANT_OP(OP_GET_LOCAL, indLoopCounter);
-			/* And then call the native method which should be ^ that many items down */
-			emitByte(OP_CALL_STACK);
-			/* And return the result back to the original scope */
-			emitByte(OP_RETURN);
-			/* Now because we made a function we need to fill out its upvalues
-			 * and write the closure call for it. */
-			KrkFunction *subfunction = endCompiler();
-			size_t indFunc = krk_addConstant(currentChunk(), OBJECT_VAL(subfunction));
-			EMIT_CONSTANT_OP(OP_CLOSURE, indFunc);
-			doUpvalues(&subcompiler, subfunction);
-			freeCompiler(&subcompiler);
-
-			/* And finally we can call the subfunction and get the result. */
-			emitBytes(OP_CALL, 0);
+			comprehension(scannerBefore, parserBefore, "listOf", singleInner);
 		} else {
 			size_t argCount = 1;
 			while (match(TOKEN_COMMA) && !check(TOKEN_RIGHT_SQUARE)) {
 				expression();
 				argCount++;
 			}
-			stopEatingWhitespace();
-			consume(TOKEN_RIGHT_SQUARE,"Expected ] at end of list expression.");
 			EMIT_CONSTANT_OP(OP_CALL, argCount);
 		}
 	} else {
 		/* Empty list expression */
-		stopEatingWhitespace();
-		advance();
 		emitBytes(OP_CALL, 0);
 	}
+	stopEatingWhitespace();
+	consume(TOKEN_RIGHT_SQUARE,"Expected ] at end of list expression.");
+}
+
+static void dictInner(ssize_t indLoopCounter) {
+	expression();
+	consume(TOKEN_COLON, "Expect colon after dict key.");
+	expression();
+	EMIT_CONSTANT_OP(OP_INC, indLoopCounter);
 }
 
 static void dict(int canAssign) {
+	size_t     chunkBefore = currentChunk()->count;
+
 	startEatingWhitespace();
+
 	KrkToken dictOf = syntheticToken("dictOf");
 	size_t ind = identifierConstant(&dictOf);
 	EMIT_CONSTANT_OP(OP_GET_GLOBAL, ind);
-	size_t argCount = 0;
+
 	if (!check(TOKEN_RIGHT_BRACE)) {
-		do {
-			expression();
-			consume(TOKEN_COLON, "Expect colon after dict key.");
-			expression();
-			argCount += 2;
-		} while (match(TOKEN_COMMA) && !check(TOKEN_RIGHT_BRACE));
+		KrkScanner scannerBefore = krk_tellScanner();
+		Parser  parserBefore = parser;
+
+		expression();
+		consume(TOKEN_COLON, "Expect colon after dict key.");
+		expression();
+
+		if (match(TOKEN_FOR)) {
+			/* Roll back the earlier compiler */
+			currentChunk()->count = chunkBefore;
+
+			comprehension(scannerBefore, parserBefore, "dictOf", dictInner);
+		} else {
+			size_t argCount = 2;
+			while (match(TOKEN_COMMA) && !check(TOKEN_RIGHT_BRACE)) {
+				expression();
+				consume(TOKEN_COLON, "Expect colon after dict key.");
+				expression();
+				argCount += 2;
+			}
+			EMIT_CONSTANT_OP(OP_CALL, argCount);
+		}
+	} else {
+		emitBytes(OP_CALL, 0);
 	}
 	stopEatingWhitespace();
 	consume(TOKEN_RIGHT_BRACE,"Expected } at end of dict expression.");
-	EMIT_CONSTANT_OP(OP_CALL, argCount);
 }
 
 #define RULE(token, a, b, c) [token] = {# token, a, b, c}
