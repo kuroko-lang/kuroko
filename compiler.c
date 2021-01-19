@@ -464,7 +464,7 @@ static int matchAssignment(void) {
 }
 
 static int matchEndOfDel(void) {
-	return check(TOKEN_COMMA) || match(TOKEN_EOL) || match(TOKEN_EOF);
+	return check(TOKEN_COMMA) || check(TOKEN_EOL) || check(TOKEN_EOF) || check(TOKEN_SEMICOLON);
 }
 
 static void assignmentValue(void) {
@@ -1590,6 +1590,14 @@ static void fromImportStatement() {
 	emitByte(OP_POP); /* Pop the remaining copy of the module. */
 }
 
+static void delStatement() {
+	do {
+		inDel = 1;
+		expression();
+	} while (match(TOKEN_COMMA));
+	inDel = 0;
+}
+
 static void statement() {
 	if (match(TOKEN_EOL) || match(TOKEN_EOF)) {
 		return; /* Meaningless blank line */
@@ -1605,14 +1613,9 @@ static void statement() {
 		tryStatement();
 	} else if (check(TOKEN_WITH)) {
 		withStatement();
-	} else if (match(TOKEN_DEL)) {
-		do {
-			inDel = 1;
-			expression();
-		} while (match(TOKEN_COMMA));
-		inDel = 0;
-		/* del already eats linefeeds */
 	} else {
+		/* These statements don't eat line feeds, so we need expect to see another one. */
+_anotherSimpleStatement:
 		if (match(TOKEN_RAISE)) {
 			raiseStatement();
 		} else if (match(TOKEN_RETURN)) {
@@ -1625,11 +1628,14 @@ static void statement() {
 			breakStatement();
 		} else if (match(TOKEN_CONTINUE)) {
 			continueStatement();
+		} else if (match(TOKEN_DEL)) {
+			delStatement();
 		} else if (match(TOKEN_PASS)) {
 			/* Do nothing. */
 		} else {
 			expressionStatement();
 		}
+		if (match(TOKEN_SEMICOLON)) goto _anotherSimpleStatement;
 		if (!match(TOKEN_EOL) && !match(TOKEN_EOF)) {
 			errorAtCurrent("Unexpected token after statement.");
 		}
