@@ -1381,7 +1381,7 @@ static void forStatement() {
 		expression();
 		endScope();
 
-		KrkToken _it = syntheticToken("__loop_iter");
+		KrkToken _it = syntheticToken("");
 		size_t indLoopIter = current->localCount;
 		addLocal(_it);
 		defineVariable(indLoopIter);
