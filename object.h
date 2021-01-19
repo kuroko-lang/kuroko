@@ -202,3 +202,4 @@ extern uint32_t krk_unicodeCodepoint(KrkString * string, size_t index);
 
 extern KrkBytes * krk_newBytes(size_t length, uint8_t * source);
 extern void krk_bytesUpdateHash(KrkBytes * bytes);
+extern size_t krk_codepointToBytes(krk_integer_type value, unsigned char * out);

@@ -175,6 +175,8 @@ class KurokoHighlighter(State):
                     self.paint(4, FLAG_ESCAPE)
                 else if self.nextchar() == 'u':
                     self.paint(6, FLAG_ESCAPE)
+                else if self.nextchar() == 'U':
+                    self.paint(10, FLAG_ESCAPE)
                 else if self.nextchar() == None:
                     self.paint(1, FLAG_ESCAPE)
                     return int(strType == "'") + 3

@@ -20,6 +20,28 @@ static KrkObj * allocateObject(size_t size, ObjType type) {
 	return object;
 }
 
+size_t krk_codepointToBytes(krk_integer_type value, unsigned char * out) {
+	if (value > 0xFFFF) {
+		out[0] = (0xF0 | (value >> 18));
+		out[1] = (0x80 | ((value >> 12) & 0x3F));
+		out[2] = (0x80 | ((value >> 6) & 0x3F));
+		out[3] = (0x80 | ((value) & 0x3F));
+		return 4;
+	} else if (value > 0x7FF) {
+		out[0] = (0xE0 | (value >> 12));
+		out[1] = (0x80 | ((value >> 6) & 0x3F));
+		out[2] = (0x80 | (value & 0x3F));
+		return 3;
+	} else if (value > 0x7F) {
+		out[0] = (0xC0 | (value >> 6));
+		out[1] = (0x80 | (value & 0x3F));
+		return 2;
+	} else {
+		out[0] = (unsigned char)value;
+		return 1;
+	}
+}
+
 #define UTF8_ACCEPT 0
 #define UTF8_REJECT 1
 

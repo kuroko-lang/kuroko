@@ -1688,6 +1688,28 @@ static void string(int type) {
 		stringBytes = GROW_ARRAY(char, stringBytes, old, stringCapacity); \
 	} stringBytes[stringLength++] = c; } while (0)
 
+#define PUSH_HEX(n, type) do { \
+	char tmpbuf[10] = {0}; \
+	for (size_t i = 0; i < n; ++i) { \
+		if (c + i + 2 == end || !isHex(c[i+2])) { \
+			error("truncated \\%c escape", type); \
+			return; \
+		} \
+		tmpbuf[i] = c[i+2]; \
+	} \
+	unsigned long value = strtoul(tmpbuf, NULL, 16); \
+	if (value >= 0x110000) { \
+		error("invalid codepoint in \\%c escape", type); \
+	} \
+	if (isBytes) { \
+		PUSH_CHAR(value); \
+		break; \
+	} \
+	unsigned char bytes[5] = {0}; \
+	size_t len = krk_codepointToBytes(value, bytes); \
+	for (size_t i = 0; i < len; i++) PUSH_CHAR(bytes[i]); \
+} while (0)
+
 	int isBytes = (parser.previous.type == TOKEN_PREFIX_B);
 	if (isBytes && !(match(TOKEN_STRING) || match(TOKEN_BIG_STRING))) {
 		error("Expected string after 'b' prefix?");
@@ -1713,19 +1735,7 @@ static void string(int type) {
 					case 'v': PUSH_CHAR('\v'); break;
 					case '[': PUSH_CHAR('\033'); break;
 					case 'x': {
-						if (c+2 == end || c+3 == end || !isHex(c[2]) || !isHex(c[3])) {
-							error("invalid \\x escape");
-							return;
-						}
-						unsigned long value = strtoul((char[]){c[2],c[3],'\0'}, NULL, 16);
-						if (isBytes) {
-							PUSH_CHAR(value);
-						} else if (value > 127) {
-							PUSH_CHAR((0xC0 | (value >> 6)));
-							PUSH_CHAR((0x80 | (value & 0x3F)));
-						} else {
-							PUSH_CHAR(value);
-						}
+						PUSH_HEX(2,'x');
 						c += 2;
 					} break;
 					case 'u': {
@@ -1733,28 +1743,17 @@ static void string(int type) {
 							PUSH_CHAR(c[0]);
 							PUSH_CHAR(c[1]);
 						} else {
-							if (c+2 == end || c+3 == end || !isHex(c[2]) || !isHex(c[3]) ||
-								c+4 == end || c+5 == end || !isHex(c[4]) || !isHex(c[5])) {
-								error("truncated \\u escape");
-								return;
-							}
-							unsigned long value = strtoul((char[]){c[2],c[3],c[4],c[5],'\0'}, NULL, 16);
-							if (value > 0xFFFF) {
-								PUSH_CHAR((0xF0 | (value >> 18)));
-								PUSH_CHAR((0x80 | ((value >> 12) & 0x3F)));
-								PUSH_CHAR((0x80 | ((value >> 6) & 0x3F)));
-								PUSH_CHAR((0x80 | ((value) & 0x3F)));
-							} else if (value > 0x7FF) {
-								PUSH_CHAR((0xE0 | (value >> 12)));
-								PUSH_CHAR((0x80 | ((value >> 6) & 0x3F)));
-								PUSH_CHAR((0x80 | (value & 0x3F)));
-							} else if (value > 0x7F) {
-								PUSH_CHAR((0xC0 | (value >> 6)));
-								PUSH_CHAR((0x80 | (value & 0x3F)));
-							} else {
-								PUSH_CHAR(value);
-							}
+							PUSH_HEX(4,'u');
 							c += 4;
+						}
+					} break;
+					case 'U': {
+						if (isBytes) {
+							PUSH_CHAR(c[0]);
+							PUSH_CHAR(c[1]);
+						} else {
+							PUSH_HEX(8,'U');
+							c += 8;
 						}
 					} break;
 					case '\n': break;

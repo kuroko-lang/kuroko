@@ -498,6 +498,14 @@ int c_keyword_qualifier(int c) {
 	return isalnum(c) || (c == '_');
 }
 
+void paintNHex(struct syntax_state * state, int n) {
+	paint(2, FLAG_ESCAPE);
+	/* Why is my FLAG_ERROR not valid in rline? */
+	for (int i = 0; i < n; ++i) {
+		paint(1, isxdigit(charat()) ? FLAG_ESCAPE : FLAG_DIFFMINUS);
+	}
+}
+
 void paint_krk_string(struct syntax_state * state, int type) {
 	/* Assumes you came in from a check of charat() == '"' */
 	paint(1, FLAG_STRING);
@@ -509,17 +517,11 @@ void paint_krk_string(struct syntax_state * state, int type) {
 			return;
 		} else if (charat() == '\\') {
 			if (nextchar() == 'x') {
-				paint(2, FLAG_ESCAPE);
-				/* Why is my FLAG_ERROR not valid in rline? */
-				paint(1, isxdigit(charat()) ? FLAG_ESCAPE : FLAG_DIFFMINUS);
-				paint(1, isxdigit(charat()) ? FLAG_ESCAPE : FLAG_DIFFMINUS);
+				paintNHex(state, 2);
 			} else if (nextchar() == 'u') {
-				paint(2, FLAG_ESCAPE);
-				/* Why is my FLAG_ERROR not valid in rline? */
-				paint(1, isxdigit(charat()) ? FLAG_ESCAPE : FLAG_DIFFMINUS);
-				paint(1, isxdigit(charat()) ? FLAG_ESCAPE : FLAG_DIFFMINUS);
-				paint(1, isxdigit(charat()) ? FLAG_ESCAPE : FLAG_DIFFMINUS);
-				paint(1, isxdigit(charat()) ? FLAG_ESCAPE : FLAG_DIFFMINUS);
+				paintNHex(state, 4);
+			} else if (nextchar() == 'U') {
+				paintNHex(state, 8);
 			} else {
 				paint(2, FLAG_ESCAPE);
 			}

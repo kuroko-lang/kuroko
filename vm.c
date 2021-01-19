@@ -1595,26 +1595,9 @@ static KrkValue _int_to_floating(int argc, KrkValue argv[]) {
 /* int.__chr__() */
 static KrkValue _int_to_char(int argc, KrkValue argv[]) {
 	krk_integer_type value = AS_INTEGER(argv[0]);
-	unsigned char out[5] = {0};
-	if (value > 0xFFFF) {
-		out[0] = (0xF0 | (value >> 18));
-		out[1] = (0x80 | ((value >> 12) & 0x3F));
-		out[2] = (0x80 | ((value >> 6) & 0x3F));
-		out[3] = (0x80 | ((value) & 0x3F));
-		return OBJECT_VAL(krk_copyString((char*)out,4));
-	} else if (value > 0x7FF) {
-		out[0] = (0xE0 | (value >> 12));
-		out[1] = (0x80 | ((value >> 6) & 0x3F));
-		out[2] = (0x80 | (value & 0x3F));
-		return OBJECT_VAL(krk_copyString((char*)out,3));
-	} else if (value > 0x7F) {
-		out[0] = (0xC0 | (value >> 6));
-		out[1] = (0x80 | (value & 0x3F));
-		return OBJECT_VAL(krk_copyString((char*)out,2));
-	} else {
-		out[0] = (unsigned char)value;
-		return OBJECT_VAL(krk_copyString((char*)out,1));
-	}
+	unsigned char bytes[5] = {0};
+	size_t len = krk_codepointToBytes(value, bytes);
+	return OBJECT_VAL(krk_copyString((char*)bytes,len));
 }
 
 /* str.__ord__() */
