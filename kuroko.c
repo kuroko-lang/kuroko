@@ -386,6 +386,7 @@ _finishArgs:
 	BUNDLED(dis);
 	BUNDLED(os);
 	BUNDLED(time);
+	BUNDLED(math);
 #endif
 
 	KrkValue result = INTEGER_VAL(0);
