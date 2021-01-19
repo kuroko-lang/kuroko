@@ -4601,10 +4601,40 @@ static KrkValue run() {
 					KrkClass * type = AS_CLASS(krk_typeOf(1,&sequence));
 					if (!type->_iter) {
 						krk_runtimeError(vm.exceptions.typeError, "Can not unpack non-iterable '%s'", krk_typeName(sequence));
+						goto _finishException;
 					} else {
-						krk_runtimeError(vm.exceptions.notImplementedError, "Can not iterate '%s' in unpack", krk_typeName(sequence));
+						size_t stackStart = vm.stackTop - vm.stack - 1;
+						size_t counter = 0;
+						for (size_t i = 0; i < count-1; i++) {
+							krk_push(NONE_VAL());
+						}
+						/* Create the iterator */
+						krk_push(vm.stack[stackStart]);
+						krk_push(krk_callSimple(OBJECT_VAL(type->_iter), 1, 0));
+
+						do {
+							/* Call it until it gives us itself */
+							krk_push(vm.stackTop[-1]);
+							krk_push(krk_callSimple(krk_peek(0), 0, 1));
+							if (krk_valuesSame(vm.stackTop[-2], vm.stackTop[-1])) {
+								/* We're done. */
+								krk_pop(); /* The result of iteration */
+								krk_pop(); /* The iterator */
+								if (counter != count) {
+									krk_runtimeError(vm.exceptions.valueError, "Wrong number of values to unpack (wanted %d, got %d)", (int)count, (int)counter);
+									goto _finishException;
+								}
+								break;
+							}
+							if (counter == count) {
+								krk_runtimeError(vm.exceptions.valueError, "Wrong number of values to unpack (wanted %d, got %d)", (int)count, (int)counter);
+								goto _finishException;
+							}
+							/* Rotate */
+							vm.stack[stackStart+counter] = krk_pop();
+							counter++;
+						} while (1);
 					}
-					goto _finishException;
 				}
 				break;
 			}
