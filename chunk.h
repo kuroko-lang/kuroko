@@ -56,6 +56,7 @@ typedef enum {
 	OP_DUP,
 	OP_SWAP,
 	OP_KWARGS,
+	OP_POW,
 
 	OP_BITOR,
 	OP_BITXOR,

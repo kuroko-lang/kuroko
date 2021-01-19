@@ -205,6 +205,13 @@ KrkValue krk_module_onload_math(void) {
 	bind(isnan);
 #endif
 
+	/**
+	 * Maybe the math library should be a core one, but I'm not sure if I want
+	 * to have to depend on -lm in the main interpreter, so instead if we have
+	 * imported math, we'll just quietly give floats a __pow__ method...
+	 */
+	krk_defineNative(&vm.baseClasses.floatClass->methods, "__pow__", _math_pow);
+
 	krk_attachNamedValue(&module->fields, "pi",  FLOATING_VAL(M_PI));
 #ifndef __toaru__
 	/* TODO: Add these to toaru... */

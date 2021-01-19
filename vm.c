@@ -3536,6 +3536,13 @@ MAKE_BIN_OP(sub,-)
 MAKE_BIN_OP(mul,*)
 MAKE_BIN_OP(div,/)
 
+#define MAKE_UNOPTIMIZED_BIN_OP(name,operator) \
+	static KrkValue operator_ ## name (KrkValue a, KrkValue b) { \
+		return tryBind("__" #name "__", a, b, "unsupported operand types for " #operator ": '%s' and '%s'"); \
+	}
+
+MAKE_UNOPTIMIZED_BIN_OP(pow,**)
+
 /* Bit ops are invalid on doubles in C, so we can't use the same set of macros for them;
  * they should be invalid in Kuroko as well. */
 #define MAKE_BIT_OP(name,operator) \
@@ -4091,6 +4098,7 @@ static KrkValue run() {
 			case OP_BITAND: BINARY_OP(and)
 			case OP_SHIFTLEFT: BINARY_OP(lshift)
 			case OP_SHIFTRIGHT: BINARY_OP(rshift)
+			case OP_POW: BINARY_OP(pow)
 			case OP_BITNEGATE: {
 				KrkValue value = krk_pop();
 				if (IS_INTEGER(value)) krk_push(INTEGER_VAL(~AS_INTEGER(value)));

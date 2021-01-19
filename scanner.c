@@ -337,21 +337,21 @@ KrkToken krk_scanToken() {
 		case ',': return makeToken(TOKEN_COMMA);
 		case '.': return makeToken(TOKEN_DOT);
 		case ';': return makeToken(TOKEN_SEMICOLON);
-		case '/': return makeToken(TOKEN_SOLIDUS);
-		case '*': return makeToken(TOKEN_ASTERISK);
-		case '%': return makeToken(TOKEN_MODULO);
 		case '@': return makeToken(TOKEN_AT);
 		case '~': return makeToken(TOKEN_TILDE);
-		case '^': return makeToken(TOKEN_CARET);
-		case '|': return makeToken(TOKEN_PIPE);
-		case '&': return makeToken(TOKEN_AMPERSAND);
 
-		case '!': return makeToken(match('=') ? TOKEN_BANG_EQUAL : TOKEN_BANG);
-		case '=': return makeToken(match('=') ? TOKEN_EQUAL_EQUAL : TOKEN_EQUAL);
-		case '<': return makeToken(match('=') ? TOKEN_LESS_EQUAL : (match('<') ? TOKEN_LEFT_SHIFT : TOKEN_LESS));
-		case '>': return makeToken(match('=') ? TOKEN_GREATER_EQUAL : (match('>') ? TOKEN_RIGHT_SHIFT : TOKEN_GREATER));
-		case '-': return makeToken(match('=') ? TOKEN_MINUS_EQUAL : (match('-') ? TOKEN_MINUS_MINUS : TOKEN_MINUS));
-		case '+': return makeToken(match('=') ? TOKEN_PLUS_EQUAL : (match('+') ? TOKEN_PLUS_PLUS : TOKEN_PLUS));
+		case '!': return makeToken(match('=') ? TOKEN_BANG_EQUAL    : TOKEN_BANG);
+		case '=': return makeToken(match('=') ? TOKEN_EQUAL_EQUAL   : TOKEN_EQUAL);
+		case '<': return makeToken(match('=') ? TOKEN_LESS_EQUAL    : (match('<') ? (match('=') ? TOKEN_LSHIFT_EQUAL : TOKEN_LEFT_SHIFT) :  TOKEN_LESS));
+		case '>': return makeToken(match('=') ? TOKEN_GREATER_EQUAL : (match('>') ? (match('=') ? TOKEN_RSHIFT_EQUAL : TOKEN_RIGHT_SHIFT) : TOKEN_GREATER));
+		case '-': return makeToken(match('=') ? TOKEN_MINUS_EQUAL   : (match('-') ? TOKEN_MINUS_MINUS : TOKEN_MINUS));
+		case '+': return makeToken(match('=') ? TOKEN_PLUS_EQUAL    : (match('+') ? TOKEN_PLUS_PLUS   : TOKEN_PLUS));
+		case '^': return makeToken(match('=') ? TOKEN_CARET_EQUAL   : TOKEN_CARET);
+		case '|': return makeToken(match('=') ? TOKEN_PIPE_EQUAL    : TOKEN_PIPE);
+		case '&': return makeToken(match('=') ? TOKEN_AMP_EQUAL     : TOKEN_AMPERSAND);
+		case '/': return makeToken(match('=') ? TOKEN_SOLIDUS_EQUAL : TOKEN_SOLIDUS);
+		case '*': return makeToken(match('=') ? TOKEN_ASTERISK_EQUAL: (match('*') ? (match('=') ? TOKEN_POW_EQUAL : TOKEN_POW) : TOKEN_ASTERISK));
+		case '%': return makeToken(match('=') ? TOKEN_MODULO_EQUAL  : TOKEN_MODULO);
 
 		case '"': return string('"');
 		case '\'': return string('\'');

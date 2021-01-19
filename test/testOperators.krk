@@ -1,0 +1,31 @@
+import math
+# Import is needed or we don't have pow. Dunno if I care to fix that.
+
+let x = 1.27
+print(x ** 2.7)
+x **= 2.7
+print(x)
+
+let x = 123
+print(x << 1)
+x <<= 1
+print(x)
+
+x >>= 1
+print(x)
+
+x |= 321
+print(x)
+x ^= 321
+print(x)
+x ^= 321
+print(x)
+
+x++
+print(x)
+x+=2
+print(x)
+x--
+print(x)
+
+

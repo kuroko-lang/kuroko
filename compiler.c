@@ -52,15 +52,15 @@ typedef enum {
 	PREC_TERNARY,
 	PREC_OR,         /* or */
 	PREC_AND,        /* and */
+	PREC_COMPARISON, /* < > <= >= in 'not in' */
 	PREC_BITOR,      /* | */
 	PREC_BITXOR,     /* ^ */
 	PREC_BITAND,     /* & */
-	PREC_EQUALITY,   /* == != in */
-	PREC_COMPARISON, /* < > <= >= */
 	PREC_SHIFT,      /* << >> */
 	PREC_TERM,       /* + - */
 	PREC_FACTOR,     /* * / % */
 	PREC_UNARY,      /* ! - not */
+	PREC_EXPONENT,   /* ** */
 	PREC_CALL,       /* . () */
 	PREC_PRIMARY
 } Precedence;
@@ -225,8 +225,9 @@ static void advance() {
 
 #ifdef ENABLE_SCAN_TRACING
 		if (vm.flags & KRK_ENABLE_SCAN_TRACING) {
-			fprintf(stderr, "[%s %d:%d '%.*s'] ",
+			fprintf(stderr, "[%s<%d> %d:%d '%.*s'] ",
 				getRule(parser.current.type)->name,
+				(int)parser.current.type,
 				(int)parser.current.line,
 				(int)parser.current.col,
 				(int)parser.current.length,
@@ -451,6 +452,7 @@ static void binary(int canAssign) {
 		case TOKEN_PLUS:     emitByte(OP_ADD); break;
 		case TOKEN_MINUS:    emitByte(OP_SUBTRACT); break;
 		case TOKEN_ASTERISK: emitByte(OP_MULTIPLY); break;
+		case TOKEN_POW:      emitByte(OP_POW); break;
 		case TOKEN_SOLIDUS:  emitByte(OP_DIVIDE); break;
 		case TOKEN_MODULO:   emitByte(OP_MODULO); break;
 		case TOKEN_IN:       emitByte(OP_EQUAL); break;
@@ -459,8 +461,7 @@ static void binary(int canAssign) {
 }
 
 static int matchAssignment(void) {
-	return match(TOKEN_EQUAL) || match(TOKEN_PLUS_EQUAL) || match(TOKEN_MINUS_EQUAL) ||
-		match(TOKEN_PLUS_PLUS) || match(TOKEN_MINUS_MINUS);
+	return (parser.current.type >= TOKEN_EQUAL && parser.current.type <= TOKEN_MODULO_EQUAL) ? (advance(), 1) : 0;
 }
 
 static int matchEndOfDel(void) {
@@ -468,23 +469,29 @@ static int matchEndOfDel(void) {
 }
 
 static void assignmentValue(void) {
-	switch (parser.previous.type) {
-		case TOKEN_PLUS_EQUAL:
-			expression();
-			emitByte(OP_ADD);
-			break;
-		case TOKEN_MINUS_EQUAL:
-			expression();
-			emitByte(OP_SUBTRACT);
-			break;
-		case TOKEN_PLUS_PLUS:
-			emitConstant(INTEGER_VAL(1));
-			emitByte(OP_ADD);
-			break;
-		case TOKEN_MINUS_MINUS:
-			emitConstant(INTEGER_VAL(1));
-			emitByte(OP_SUBTRACT);
-			break;
+	KrkTokenType type = parser.previous.type;
+	if (type == TOKEN_PLUS_PLUS || type == TOKEN_MINUS_MINUS) {
+		emitConstant(INTEGER_VAL(1));
+	} else {
+		expression();
+	}
+
+	switch (type) {
+		case TOKEN_PIPE_EQUAL:      emitByte(OP_BITOR); break;
+		case TOKEN_CARET_EQUAL:     emitByte(OP_BITXOR); break;
+		case TOKEN_AMP_EQUAL:       emitByte(OP_BITAND); break;
+		case TOKEN_LSHIFT_EQUAL:    emitByte(OP_SHIFTLEFT); break;
+		case TOKEN_RSHIFT_EQUAL:    emitByte(OP_SHIFTRIGHT); break;
+
+		case TOKEN_PLUS_EQUAL:      emitByte(OP_ADD); break;
+		case TOKEN_PLUS_PLUS:       emitByte(OP_ADD); break;
+		case TOKEN_MINUS_EQUAL:     emitByte(OP_SUBTRACT); break;
+		case TOKEN_MINUS_MINUS:     emitByte(OP_SUBTRACT); break;
+		case TOKEN_ASTERISK_EQUAL:  emitByte(OP_MULTIPLY); break;
+		case TOKEN_POW_EQUAL:       emitByte(OP_POW); break;
+		case TOKEN_SOLIDUS_EQUAL:   emitByte(OP_DIVIDE); break;
+		case TOKEN_MODULO_EQUAL:    emitByte(OP_MODULO); break;
+
 		default:
 			error("Unexpected operand in assignment");
 			break;
@@ -881,8 +888,8 @@ static void function(FunctionType type, size_t blockWidth) {
 				}
 				continue;
 			}
-			if (match(TOKEN_ASTERISK)) {
-				if (match(TOKEN_ASTERISK)) {
+			if (match(TOKEN_ASTERISK) || check(TOKEN_POW)) {
+				if (match(TOKEN_POW)) {
 					if (hasCollectors == 2) {
 						error("Duplicate ** in parameter list.");
 						return;
@@ -2106,11 +2113,12 @@ ParseRule krk_parseRules[] = {
 	RULE(TOKEN_SEMICOLON,     NULL,     NULL,   PREC_NONE),
 	RULE(TOKEN_SOLIDUS,       NULL,     binary, PREC_FACTOR),
 	RULE(TOKEN_ASTERISK,      NULL,     binary, PREC_FACTOR),
+	RULE(TOKEN_POW,           NULL,     binary, PREC_EXPONENT),
 	RULE(TOKEN_MODULO,        NULL,     binary, PREC_FACTOR),
 	RULE(TOKEN_BANG,          unary,    NULL,   PREC_NONE),
-	RULE(TOKEN_BANG_EQUAL,    NULL,     binary, PREC_EQUALITY),
+	RULE(TOKEN_BANG_EQUAL,    NULL,     binary, PREC_COMPARISON),
 	RULE(TOKEN_EQUAL,         NULL,     NULL,   PREC_NONE),
-	RULE(TOKEN_EQUAL_EQUAL,   NULL,     binary, PREC_EQUALITY),
+	RULE(TOKEN_EQUAL_EQUAL,   NULL,     binary, PREC_COMPARISON),
 	RULE(TOKEN_GREATER,       NULL,     binary, PREC_COMPARISON),
 	RULE(TOKEN_GREATER_EQUAL, NULL,     binary, PREC_COMPARISON),
 	RULE(TOKEN_LESS,          NULL,     binary, PREC_COMPARISON),
@@ -2141,6 +2149,8 @@ ParseRule krk_parseRules[] = {
 	RULE(TOKEN_WHILE,         NULL,     NULL,   PREC_NONE),
 	RULE(TOKEN_BREAK,         NULL,     NULL,   PREC_NONE),
 	RULE(TOKEN_CONTINUE,      NULL,     NULL,   PREC_NONE),
+	RULE(TOKEN_IMPORT,        NULL,     NULL,   PREC_NONE),
+	RULE(TOKEN_RAISE,         NULL,     NULL,   PREC_NONE),
 
 	RULE(TOKEN_AT,            NULL,     NULL,   PREC_NONE),
 
@@ -2155,6 +2165,14 @@ ParseRule krk_parseRules[] = {
 	RULE(TOKEN_MINUS_EQUAL,   NULL,     NULL,   PREC_NONE),
 	RULE(TOKEN_PLUS_PLUS,     NULL,     NULL,   PREC_NONE),
 	RULE(TOKEN_MINUS_MINUS,   NULL,     NULL,   PREC_NONE),
+	RULE(TOKEN_CARET_EQUAL,   NULL,     NULL,   PREC_NONE),
+	RULE(TOKEN_PIPE_EQUAL,    NULL,     NULL,   PREC_NONE),
+	RULE(TOKEN_LSHIFT_EQUAL,  NULL,     NULL,   PREC_NONE),
+	RULE(TOKEN_RSHIFT_EQUAL,  NULL,     NULL,   PREC_NONE),
+	RULE(TOKEN_AMP_EQUAL,     NULL,     NULL,   PREC_NONE),
+	RULE(TOKEN_SOLIDUS_EQUAL, NULL,     NULL,   PREC_NONE),
+	RULE(TOKEN_ASTERISK_EQUAL,NULL,     NULL,   PREC_NONE),
+	RULE(TOKEN_MODULO_EQUAL,  NULL,     NULL,   PREC_NONE),
 
 	RULE(TOKEN_LAMBDA,        lambda,   NULL,   PREC_NONE),
 
@@ -2163,6 +2181,7 @@ ParseRule krk_parseRules[] = {
 	RULE(TOKEN_ERROR,         NULL,     NULL,   PREC_NONE),
 	RULE(TOKEN_EOL,           NULL,     NULL,   PREC_NONE),
 	RULE(TOKEN_EOF,           NULL,     NULL,   PREC_NONE),
+	RULE(TOKEN_RETRY,         NULL,     NULL,   PREC_NONE),
 };
 
 static void actualTernary(size_t count, KrkScanner oldScanner, Parser oldParser) {
@@ -2300,9 +2319,9 @@ static void call(int canAssign) {
 	size_t argCount = 0, specialArgs = 0, keywordArgs = 0, seenKeywordUnpacking = 0;
 	if (!check(TOKEN_RIGHT_PAREN)) {
 		do {
-			if (match(TOKEN_ASTERISK)) {
+			if (match(TOKEN_ASTERISK) || check(TOKEN_POW)) {
 				specialArgs++;
-				if (match(TOKEN_ASTERISK)) {
+				if (match(TOKEN_POW)) {
 					seenKeywordUnpacking = 1;
 					emitBytes(OP_EXPAND_ARGS, 2); /* Outputs something special */
 					expression(); /* Expect dict */
