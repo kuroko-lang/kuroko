@@ -37,6 +37,7 @@ ifdef KRK_ENABLE_BUNDLE
 MODULES =
 KUROKO_LIBS += $(patsubst %.c,%.o,$(sort $(wildcard src/*.c)))
 CFLAGS += -DBUNDLE_LIBS=1
+LDLIBS += -lm
 endif
 
 .PHONY: help
