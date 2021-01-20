@@ -72,6 +72,8 @@ A capable terminal, such as Windows Terminal, is required to run the interpreter
 
 _**NOTE**: Due to limitations with Github's markdown renderer, these snippets will be highlighted as Python code._
 
+These examples are also available in [an interactive tutorial](https://klange.dev/kuroko?r=y&c=tutorial(%29).
+
 ### Hello World
 
 ```py
@@ -1135,8 +1137,8 @@ aFunction(b=2,c=3,a=1)
 This will be slower in execution than a normal function call, as the interpreter will need to figure out where to place arguments in the requested function by examining it at runtime, but it allows for functions to take many default arguments without forcing the caller to specify the values for everything leading up to one they want to specifically set.
 
 ```py
-def aFunction(with=None,lots=None,of=None,default=None,args=None):
-    print(with,lots,of,default,args)
+def aFunction(having=None,lots=None,of=None,default=None,args=None):
+    print(having,lots,of,default,args)
 
 aFunction(of="hello!")
 # → None None hello! None None
@@ -1360,7 +1362,7 @@ There is a single, shared VM state. `krk_initVM()` will initialize the compiler 
 
 If `newModuleScope` is non-zero, the interpreter will parse code in the context of a new _module_ and the `KrkValue` returned will be a `module` object.
 
-If `newModuleScope` is zero, the return value will be the last value popped from the stack during execution of `sourceText`. This can be used, as in the REPL, when provided interactive sessions.
+If `newModuleScope` is zero, the return value will be the last value popped from the stack during execution of `sourceText`. This can be used, as in the REPL, when providing interactive sessions.
 
 The arguments `fromName` provide the name of the module created by when `newModuleScope` is non-zero, and `fromFile` will be used when displaying tracebacks.
 
