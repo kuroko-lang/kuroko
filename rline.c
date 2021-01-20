@@ -1353,7 +1353,7 @@ static void render_line(void) {
 
 	set_colors(COLOR_FG, COLOR_BG);
 
-	if (show_right_side) {
+	if (show_right_side && prompt_right_width) {
 		/* Fill to end right hand side */
 		for (; j < width + offset - prompt_width_calc; ++j) {
 			printf(" ");
