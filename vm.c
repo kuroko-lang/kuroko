@@ -682,6 +682,26 @@ static KrkValue _list_extend(int argc, KrkValue argv[]) {
 	return NONE_VAL();
 }
 
+static KrkValue _list_mul(int argc, KrkValue argv[]) {
+	if (!IS_INTEGER(argv[1])) {
+		krk_runtimeError(vm.exceptions.typeError, "unsupported operand types for *: '%s' and '%s'",
+			"list", krk_typeName(argv[1]));
+		return NONE_VAL();
+	}
+
+	krk_integer_type howMany = AS_INTEGER(argv[1]);
+
+	KrkValue out = krk_list_of(0, NULL);
+
+	krk_push(out);
+
+	for (krk_integer_type i = 0; i < howMany; i++) {
+		_list_extend(2, (KrkValue[]){out,argv[0]});
+	}
+
+	return krk_pop();
+}
+
 /**
  * list.__len__
  */
@@ -2088,6 +2108,25 @@ _freeAndDone:
 	return NONE_VAL();
 }
 
+static KrkValue _string_mul(int argc, KrkValue argv[]) {
+	if (!IS_INTEGER(argv[1])) {
+		krk_runtimeError(vm.exceptions.typeError, "unsupported operand types for *: '%s' and '%s'",
+			"list", krk_typeName(argv[1]));
+		return NONE_VAL();
+	}
+
+	krk_integer_type howMany = AS_INTEGER(argv[1]);
+
+	krk_push(OBJECT_VAL(S("")));
+
+	for (krk_integer_type i = 0; i < howMany; ++i) {
+		krk_push(argv[0]);
+		addObjects();
+	}
+
+	return krk_pop();
+}
+
 /* str.join(list) */
 static KrkValue _string_join(int argc, KrkValue argv[], int hasKw) {
 	if (!IS_STRING(argv[0])) return NONE_VAL();
@@ -3466,6 +3505,7 @@ void krk_initVM(int flags) {
 	krk_defineNative(&vm.baseClasses.strClass->methods, ".__gt__", _string_gt);
 	krk_defineNative(&vm.baseClasses.strClass->methods, ".__mod__", _string_mod);
 	krk_defineNative(&vm.baseClasses.strClass->methods, ".__add__", _string_add);
+	krk_defineNative(&vm.baseClasses.strClass->methods, ".__mul__", _string_mul);
 	krk_defineNative(&vm.baseClasses.strClass->methods, ".encode", _string_encode);
 	krk_finalizeClass(vm.baseClasses.strClass);
 	/* TODO: Don't attach */
@@ -3517,6 +3557,7 @@ void krk_initVM(int flags) {
 	krk_defineNative(&vm.baseClasses.listClass->methods, ".__contains__", _list_contains);
 	krk_defineNative(&vm.baseClasses.listClass->methods, ".__getslice__", _list_slice);
 	krk_defineNative(&vm.baseClasses.listClass->methods, ".__iter__", _list_iter);
+	krk_defineNative(&vm.baseClasses.listClass->methods, ".__mul__", _list_mul);
 	krk_defineNative(&vm.baseClasses.listClass->methods, ".append", _list_append);
 	krk_defineNative(&vm.baseClasses.listClass->methods, ".extend", _list_extend);
 	krk_defineNative(&vm.baseClasses.listClass->methods, ".pop", _list_pop);
