@@ -130,7 +130,7 @@ static void _loadEnviron(KrkInstance * module) {
 	/* Now load the environment into it */
 	if (!environ) return; /* Empty environment */
 
-	KrkClass * dictContents = environObj->_internal;
+	KrkValue _dict_internal = OBJECT_VAL(environObj->_internal);
 
 	char ** env = environ;
 	for (; *env; env++) {
@@ -146,7 +146,7 @@ static void _loadEnviron(KrkInstance * module) {
 		KrkValue val = OBJECT_VAL(krk_copyString(equals+1, valLen));
 		krk_push(val);
 
-		krk_tableSet(&dictContents->methods, key, val);
+		krk_tableSet(AS_DICT(_dict_internal), key, val);
 		krk_pop(); /* val */
 		krk_pop(); /* key */
 	}

@@ -351,10 +351,10 @@ void krk_finalizeClass(KrkClass * _class) {
  * dict.__init__()
  */
 static KrkValue _dict_init(int argc, KrkValue argv[]) {
-	KrkClass * dict = krk_newClass(NULL);
-	krk_push(OBJECT_VAL(dict));
-	krk_tableSet(&AS_INSTANCE(argv[0])->fields, vm.specialMethodNames[METHOD_DICT_INT], OBJECT_VAL(dict));
-	AS_INSTANCE(argv[0])->_internal = (KrkObj*)dict;
+	KrkValue _dict_internal = OBJECT_VAL(krk_newInstance(NULL));
+	krk_push(_dict_internal);
+	krk_tableSet(&AS_INSTANCE(argv[0])->fields, vm.specialMethodNames[METHOD_DICT_INT], _dict_internal);
+	AS_INSTANCE(argv[0])->_internal = AS_OBJECT(_dict_internal);
 	krk_tableSet(&AS_INSTANCE(argv[0])->fields, vm.specialMethodNames[METHOD_INREPR], INTEGER_VAL(0));
 	krk_pop();
 	return argv[0];
@@ -536,10 +536,11 @@ static KrkValue _list_init(int argc, KrkValue argv[]) {
 		krk_runtimeError(vm.exceptions.argumentError, "Can not initialize list from iterable (unsupported, try again later)");
 		return NONE_VAL();
 	}
-	KrkFunction * list = krk_newFunction();
-	krk_push(OBJECT_VAL(list));
-	krk_tableSet(&AS_INSTANCE(argv[0])->fields, vm.specialMethodNames[METHOD_LIST_INT], OBJECT_VAL(list));
-	AS_INSTANCE(argv[0])->_internal = (KrkObj*)list;
+	/* Lists are secretly tuples shoved into instances, just don't tell anyone? */
+	KrkTuple * _list_internal = krk_newTuple(0);
+	krk_push(OBJECT_VAL(_list_internal));
+	krk_tableSet(&AS_INSTANCE(argv[0])->fields, vm.specialMethodNames[METHOD_LIST_INT], OBJECT_VAL(_list_internal));
+	AS_INSTANCE(argv[0])->_internal = (KrkObj*)_list_internal;
 	krk_tableSet(&AS_INSTANCE(argv[0])->fields, vm.specialMethodNames[METHOD_INREPR], INTEGER_VAL(0));
 	krk_pop();
 	return argv[0];
@@ -733,17 +734,17 @@ KrkValue krk_list_of(int argc, KrkValue argv[]) {
 	krk_tableGet(&vm.builtins->fields,OBJECT_VAL(S("list")), &Class);
 	KrkInstance * outList = krk_newInstance(AS_CLASS(Class));
 	krk_push(OBJECT_VAL(outList));
-	KrkFunction * listContents = krk_newFunction();
-	krk_push(OBJECT_VAL(listContents));
-	krk_tableSet(&outList->fields, vm.specialMethodNames[METHOD_LIST_INT], OBJECT_VAL(listContents));
-	outList->_internal = (KrkObj*)listContents;
+	KrkValue _list_internal = OBJECT_VAL(krk_newTuple(0));
+	krk_push(_list_internal);
+	krk_tableSet(&outList->fields, vm.specialMethodNames[METHOD_LIST_INT], _list_internal);
+	outList->_internal = AS_OBJECT(_list_internal);
 	krk_tableSet(&outList->fields, vm.specialMethodNames[METHOD_INREPR], INTEGER_VAL(0));
 
 	if (argc) {
-		listContents->chunk.constants.capacity = argc;
-		listContents->chunk.constants.values = GROW_ARRAY(KrkValue, listContents->chunk.constants.values, 0, argc);
-		memcpy(listContents->chunk.constants.values, argv, sizeof(KrkValue) * argc);
-		listContents->chunk.constants.count = argc;
+		AS_LIST(_list_internal)->capacity = argc;
+		AS_LIST(_list_internal)->values = GROW_ARRAY(KrkValue, AS_LIST(_list_internal)->values, 0, argc);
+		memcpy(AS_LIST(_list_internal)->values, argv, sizeof(KrkValue) * argc);
+		AS_LIST(_list_internal)->count = argc;
 	}
 	KrkValue out = OBJECT_VAL(outList);
 	krk_pop(); /* listContents */
@@ -764,13 +765,13 @@ KrkValue krk_dict_of(int argc, KrkValue argv[]) {
 	krk_tableGet(&vm.builtins->fields,OBJECT_VAL(S("dict")), &Class);
 	KrkInstance * outDict = krk_newInstance(AS_CLASS(Class));
 	krk_push(OBJECT_VAL(outDict));
-	KrkClass * dictContents = krk_newClass(NULL);
-	krk_push(OBJECT_VAL(dictContents));
-	krk_tableSet(&outDict->fields, vm.specialMethodNames[METHOD_DICT_INT], OBJECT_VAL(dictContents));
-	outDict->_internal = (KrkObj*)dictContents;
+	KrkValue _dict_internal = OBJECT_VAL(krk_newInstance(NULL));
+	krk_push(_dict_internal);
+	krk_tableSet(&outDict->fields, vm.specialMethodNames[METHOD_DICT_INT], _dict_internal);
+	outDict->_internal = AS_OBJECT(_dict_internal);
 	krk_tableSet(&outDict->fields, vm.specialMethodNames[METHOD_INREPR], INTEGER_VAL(0));
 	for (int ind = 0; ind < argc; ind += 2) {
-		krk_tableSet(&dictContents->methods, argv[ind], argv[ind+1]);
+		krk_tableSet(AS_DICT(_dict_internal), argv[ind], argv[ind+1]);
 	}
 	KrkValue out = OBJECT_VAL(outDict);
 	krk_pop(); /* dictContents */
@@ -1066,7 +1067,7 @@ static KrkValue krk_globals(int argc, KrkValue argv[]) {
 	/* Get its internal table */
 	KrkValue _dict_internal = OBJECT_VAL(AS_INSTANCE(krk_peek(0))->_internal);
 	/* Copy the globals table into it */
-	krk_tableAddAll(vm.frames[vm.frameCount-1].globals, &AS_CLASS(_dict_internal)->methods);
+	krk_tableAddAll(vm.frames[vm.frameCount-1].globals, AS_DICT(_dict_internal));
 	krk_pop();
 
 	return dict;
@@ -1166,7 +1167,7 @@ int krk_processComplexArguments(int argCount, KrkValueArray * positionals, KrkTa
 				}
 #undef unpackArray
 			} else if (AS_INTEGER(key) == LONG_MAX-2) { /* unpack dict */
-				if (!IS_INSTANCE(value) || !AS_INSTANCE(value)->_internal || !(((KrkObj*)(AS_INSTANCE(value)->_internal))->type == OBJ_CLASS)) {
+				if (!IS_INSTANCE(value) || !AS_INSTANCE(value)->_internal || !(((KrkObj*)(AS_INSTANCE(value)->_internal))->type == OBJ_INSTANCE)) {
 					krk_runtimeError(vm.exceptions.typeError, "**expression value is not a dict.");
 					return 0;
 				}
@@ -2102,7 +2103,7 @@ static KrkValue _string_join(int argc, KrkValue argv[], int hasKw) {
 	}
 
 	/* TODO: Support any object with an __iter__ - kinda need an internal method to do that well. */
-	if (!IS_INSTANCE(argv[1]) || !AS_INSTANCE(argv[1])->_internal || !(((KrkObj*)AS_INSTANCE(argv[1])->_internal)->type == OBJ_FUNCTION)) {
+	if (!IS_INSTANCE(argv[1]) || !AS_INSTANCE(argv[1])->_internal || !(((KrkObj*)AS_INSTANCE(argv[1])->_internal)->type == OBJ_TUPLE)) {
 		krk_runtimeError(vm.exceptions.typeError, "str.join(): expected a list");
 		return NONE_VAL();
 	}
@@ -3795,20 +3796,14 @@ int krk_loadModule(KrkString * path, KrkValue * moduleOut, KrkString * runAs) {
 
 	/* Obtain __builtins__.module_paths.__list so we can do lookups directly */
 	modulePathsInternal = OBJECT_VAL(AS_INSTANCE(modulePaths)->_internal);
-	if (!IS_FUNCTION(modulePathsInternal)) {
+	if (!IS_TUPLE(modulePathsInternal)) {
 		*moduleOut = NONE_VAL();
 		krk_runtimeError(vm.exceptions.baseException,
 			"Internal error: kuroko.module_paths is corrupted or incorrectly set.");
 		return 0;
 	}
 
-	/*
-	 * So maybe storing lists magically as functions to reuse their constants
-	 * tables isn't the _best_ approach, but it works, and until I do something
-	 * else it's what we have, so let's do the most efficient thing and look
-	 * at the function object directly instead of calling _list_length/_get
-	 */
-	int moduleCount = AS_FUNCTION(modulePathsInternal)->chunk.constants.count;
+	int moduleCount = AS_LIST(modulePathsInternal)->count;
 	if (!moduleCount) {
 		*moduleOut = NONE_VAL();
 		krk_runtimeError(vm.exceptions.importError,
@@ -3877,7 +3872,7 @@ int krk_loadModule(KrkString * path, KrkValue * moduleOut, KrkString * runAs) {
 	/* If we didn't find {path}.krk, try {path}.so in the same order */
 	for (int i = 0; i < moduleCount; ++i, krk_pop()) {
 		/* Assume things haven't changed and all of these are strings. */
-		krk_push(AS_FUNCTION(modulePathsInternal)->chunk.constants.values[i]);
+		krk_push(AS_LIST(modulePathsInternal)->values[i]);
 		krk_push(OBJECT_VAL(path));
 		addObjects(); /* this should just be basic concatenation */
 		krk_push(OBJECT_VAL(S(".so")));

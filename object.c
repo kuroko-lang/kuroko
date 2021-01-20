@@ -280,9 +280,11 @@ KrkInstance * krk_newInstance(KrkClass * _class) {
 	KrkInstance * instance = ALLOCATE_OBJECT(KrkInstance, OBJ_INSTANCE);
 	instance->_class = _class;
 	krk_initTable(&instance->fields);
-	krk_push(OBJECT_VAL(instance));
-	krk_tableAddAll(&_class->fields, &instance->fields);
-	krk_pop();
+	if (_class) {
+		krk_push(OBJECT_VAL(instance));
+		krk_tableAddAll(&_class->fields, &instance->fields);
+		krk_pop();
+	}
 	instance->_internal = NULL; /* To be used by C-defined types to track internal objects. */
 	return instance;
 }

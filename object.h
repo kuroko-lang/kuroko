@@ -169,8 +169,8 @@ typedef struct {
 	int inrepr;
 } KrkTuple;
 
-#define AS_LIST(value) (&AS_FUNCTION(value)->chunk.constants)
-#define AS_DICT(value) (&AS_CLASS(value)->methods)
+#define AS_LIST(value) (&AS_TUPLE(value)->values)
+#define AS_DICT(value) (&AS_INSTANCE(value)->fields)
 typedef KrkFunction KrkList;
 typedef KrkClass KrkDict;
 #define krk_newList() AS_LIST(krk_list_of(0,(KrkValue[]){}))
