@@ -1139,8 +1139,30 @@ int krk_processComplexArguments(int argCount, KrkValueArray * positionals, KrkTa
 				} else if (IS_STRING(value)) {
 					unpackArray(AS_STRING(value)->codesLength, _string_get(2,(KrkValue[]){value,INTEGER_VAL(i)}));
 				} else {
-					krk_runtimeError(vm.exceptions.typeError, "Can not unpack *expression.");
-					return 0;
+					KrkClass * type = AS_CLASS(krk_typeOf(1,&value));
+					if (type->_iter) {
+						/* Create the iterator */
+						size_t stackOffset = vm.stackTop - vm.stack;
+						krk_push(value);
+						krk_push(krk_callSimple(OBJECT_VAL(type->_iter), 1, 0));
+
+						do {
+							/* Call it until it gives us itself */
+							krk_push(vm.stack[stackOffset]);
+							krk_push(krk_callSimple(krk_peek(0), 0, 1));
+							if (krk_valuesSame(vm.stack[stackOffset], krk_peek(0))) {
+								/* We're done. */
+								krk_pop(); /* The result of iteration */
+								krk_pop(); /* The iterator */
+								break;
+							}
+							krk_writeValueArray(positionals, krk_peek(0));
+							krk_pop();
+						} while (1);
+					} else {
+						krk_runtimeError(vm.exceptions.typeError, "Can not unpack *expression: '%s' object is not iterable", krk_typeName(value));
+						return 0;
+					}
 				}
 #undef unpackArray
 			} else if (AS_INTEGER(key) == LONG_MAX-2) { /* unpack dict */
@@ -4405,7 +4427,7 @@ static KrkValue run() {
 					/* Try to import... */
 					KrkValue moduleName;
 					if (!krk_tableGet(&AS_INSTANCE(krk_peek(0))->fields, vm.specialMethodNames[METHOD_NAME], &moduleName)) {
-						krk_runtimeError(vm.exceptions.attributeError, "'%s' object has no attribute '%s'", krk_typeName(krk_peek(0)), name->chars);
+						krk_runtimeError(vm.exceptions.importError, "Can not import '%s' from non-module '%s' object", name->chars, krk_typeName(krk_peek(0)));
 						goto _finishException;
 					}
 					krk_push(moduleName);
@@ -4414,6 +4436,7 @@ static KrkValue run() {
 					krk_push(OBJECT_VAL(name));
 					addObjects();
 					if (!krk_doRecursiveModuleLoad(AS_STRING(krk_peek(0)))) {
+						krk_runtimeError(vm.exceptions.importError, "Can not import '%s' from '%s'", name->chars, AS_CSTRING(moduleName));
 						goto _finishException;
 					}
 					vm.stackTop[-3] = vm.stackTop[-1];
@@ -4636,6 +4659,7 @@ static KrkValue run() {
 						} while (1);
 					}
 				}
+#undef unpackArray
 				break;
 			}
 			case OP_PUSH_WITH: {
