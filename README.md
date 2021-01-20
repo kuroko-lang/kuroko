@@ -72,7 +72,7 @@ A capable terminal, such as Windows Terminal, is required to run the interpreter
 
 _**NOTE**: Due to limitations with Github's markdown renderer, these snippets will be highlighted as Python code._
 
-These examples are also available in [an interactive tutorial](https://klange.dev/kuroko?r=y&c=tutorial(%29).
+These examples are also available in [an interactive tutorial](https://klange.dev/kuroko?r=y&c=tutorial%28%29).
 
 ### Hello World
 
