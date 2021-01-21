@@ -2423,14 +2423,26 @@ static KrkValue _string_repr(int argc, KrkValue argv[]) {
 	size_t stringLength   = 0;
 	char * stringBytes    = NULL;
 
-	PUSH_CHAR('\'');
-
 	char * end = AS_CSTRING(argv[0]) + AS_STRING(argv[0])->length;
+
+	/* First count quotes */
+	size_t singles = 0;
+	size_t doubles = 0;
+	for (char * c = AS_CSTRING(argv[0]); c < end; ++c) {
+		if (*c == '\'') singles++;
+		if (*c == '\"') doubles++;
+	}
+
+	char quote = (singles > doubles) ? '\"' : '\'';
+
+	PUSH_CHAR(quote);
+
 	for (char * c = AS_CSTRING(argv[0]); c < end; ++c) {
 		switch (*c) {
 			/* XXX: Other non-printables should probably be escaped as well. */
 			case '\\': PUSH_CHAR('\\'); PUSH_CHAR('\\'); break;
-			case '\'': PUSH_CHAR('\\'); PUSH_CHAR('\''); break;
+			case '\'': if (quote == *c) { PUSH_CHAR('\\'); } PUSH_CHAR('\''); break;
+			case '\"': if (quote == *c) { PUSH_CHAR('\\'); } PUSH_CHAR('\"'); break;
 			case '\a': PUSH_CHAR('\\'); PUSH_CHAR('a'); break;
 			case '\b': PUSH_CHAR('\\'); PUSH_CHAR('b'); break;
 			case '\f': PUSH_CHAR('\\'); PUSH_CHAR('f'); break;
@@ -2455,7 +2467,7 @@ static KrkValue _string_repr(int argc, KrkValue argv[]) {
 		}
 	}
 
-	PUSH_CHAR('\'');
+	PUSH_CHAR(quote);
 	KrkValue tmp = OBJECT_VAL(krk_copyString(stringBytes, stringLength));
 	if (stringBytes) FREE_ARRAY(char,stringBytes,stringCapacity);
 	return tmp;
