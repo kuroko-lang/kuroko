@@ -3,6 +3,7 @@ CFLAGS  ?= -g -O3 -Wall -Wextra -pedantic -Wno-unused-parameter
 TARGET   = kuroko
 OBJS     = $(patsubst %.c, %.o, $(filter-out src/module_% src/rline.c src/kuroko.c,$(sort $(wildcard src/*.c))))
 MODULES  = $(patsubst src/module_%.c, modules/%.so, $(sort $(wildcard src/module_*.c)))
+HEADERS  = $(wildcard src/*.h)
 
 ifndef KRK_ENABLE_STATIC
 CFLAGS  += -fPIC -L.
@@ -52,7 +53,7 @@ help:
 kuroko: src/kuroko.o ${KUROKO_LIBS}
 	${CC} ${CFLAGS} ${LDFLAGS} -o $@ src/kuroko.o ${KUROKO_LIBS} ${LDLIBS}
 
-%.o: *.h
+%.o: ${HEADERS}
 
 modules/%.so: src/module_%.c libkuroko.so
 	${CC} ${CFLAGS} -shared -o $@ $< ${LDLIBS}
@@ -72,8 +73,8 @@ src/builtins.c: src/builtins.krk
 clean:
 	@rm -f ${OBJS} ${TARGET} ${MODULES} libkuroko.so src/*.o kuroko.exe
 
-tags: $(wildcard *.c) $(wildcard *.h)
-	@ctags --c-kinds=+lx *.c *.h
+tags: $(wildcard src/*.c) $(wildcard src/*.h)
+	@ctags --c-kinds=+lx src/*.c src/*.h
 
 .PHONY: test
 
