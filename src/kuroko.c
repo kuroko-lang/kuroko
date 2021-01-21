@@ -64,7 +64,7 @@ static KrkValue findFromProperty(KrkValue current, KrkToken next) {
 		if (krk_tableGet(&AS_INSTANCE(current)->_class->methods, member, &value)) goto _found;
 	} else {
 		/* try methods */
-		KrkClass * _class = AS_CLASS(krk_typeOf(1,(KrkValue[]){current}));
+		KrkClass * _class = krk_getType(current);
 		if (krk_tableGet(&_class->methods, member, &value)) goto _found;
 	}
 
@@ -595,7 +595,7 @@ _finishArgs:
 			if (valid) {
 				KrkValue result = krk_interpret(allData, 0, "<module>","<stdin>");
 				if (!IS_NONE(result)) {
-					KrkClass * type = AS_CLASS(krk_typeOf(1,&result));
+					KrkClass * type = krk_getType(result);
 					const char * formatStr = " \033[1;30m=> %s\033[0m\n";
 					if (type->_reprer) {
 						krk_push(result);

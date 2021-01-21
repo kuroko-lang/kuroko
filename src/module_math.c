@@ -23,7 +23,7 @@
 		case VAL_INTEGER: arg = FLOATING_VAL(AS_INTEGER(arg)); break; \
 		case VAL_BOOLEAN: arg = FLOATING_VAL(AS_BOOLEAN(arg)); break; \
 		default: { \
-			KrkClass * type = AS_CLASS(krk_typeOf(1,&arg)); \
+			KrkClass * type = krk_getType(arg); \
 			krk_push(arg); \
 			if (!krk_bindMethod(type, S("__float__"))) { \
 				krk_pop(); \
@@ -46,7 +46,7 @@ static KrkValue _math_ ## func(int argc, KrkValue argv[]) { \
 	} else if (IS_INTEGER(argv[0])) { \
 		return argv[0]; /* no op */ \
 	} else { \
-		KrkClass * type = AS_CLASS(krk_typeOf(1,&argv[0])); \
+		KrkClass * type = krk_getType(argv[0]); \
 		krk_push(argv[0]); \
 		if (!krk_bindMethod(type, S("__" #func "__"))) REAL_NUMBER_NOT(func,argv[0]) \
 		return krk_callSimple(krk_peek(0), 0, 1); \

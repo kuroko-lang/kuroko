@@ -187,7 +187,7 @@ void krk_dumpTraceback() {
 
 	if (!krk_valuesEqual(vm.currentException,NONE_VAL())) {
 		krk_push(vm.currentException);
-		KrkValue result = krk_callSimple(OBJECT_VAL(AS_CLASS(krk_typeOf(1,&vm.currentException))->_reprer), 1, 0);
+		KrkValue result = krk_callSimple(OBJECT_VAL(krk_getType(vm.currentException)->_reprer), 1, 0);
 		fprintf(stderr, "%s\n", AS_CSTRING(result));
 	}
 }
@@ -400,7 +400,7 @@ static KrkValue _dict_delitem(int argc, KrkValue argv[]) {
 	}
 	KrkValue _dict_internal = OBJECT_VAL(AS_INSTANCE(argv[0])->_internal);
 	if (!krk_tableDelete(AS_DICT(_dict_internal), argv[1])) {
-		KrkClass * type = AS_CLASS(krk_typeOf(1,&argv[1]));
+		KrkClass * type = krk_getType(argv[1]);
 		if (type->_reprer) {
 			krk_push(argv[1]);
 			KrkValue asString = krk_callSimple(OBJECT_VAL(type->_reprer), 1, 0);
@@ -497,7 +497,7 @@ static KrkValue _dict_repr(int argc, KrkValue argv[]) {
 
 		c++;
 
-		KrkClass * type = AS_CLASS(krk_typeOf(1, &entry->key));
+		KrkClass * type = krk_getType(entry->key);
 		krk_push(entry->key);
 		krk_push(krk_callSimple(OBJECT_VAL(type->_reprer), 1, 0));
 		addObjects();
@@ -505,7 +505,7 @@ static KrkValue _dict_repr(int argc, KrkValue argv[]) {
 		krk_push(OBJECT_VAL(S(": ")));
 		addObjects();
 
-		type = AS_CLASS(krk_typeOf(1, &entry->value));
+		type = krk_getType(entry->value);
 		krk_push(entry->value);
 		krk_push(krk_callSimple(OBJECT_VAL(type->_reprer), 1, 0));
 		addObjects();
@@ -610,7 +610,7 @@ static KrkValue _list_repr(int argc, KrkValue argv[]) {
 
 	size_t len = AS_LIST(_list_internal)->count;
 	for (size_t i = 0; i < len; ++i) {
-		KrkClass * type = AS_CLASS(krk_typeOf(1, &AS_LIST(_list_internal)->values[i]));
+		KrkClass * type = krk_getType(AS_LIST(_list_internal)->values[i]);
 		krk_push(AS_LIST(_list_internal)->values[i]);
 		krk_push(krk_callSimple(OBJECT_VAL(type->_reprer), 1, 0));
 		addObjects();
@@ -655,7 +655,7 @@ static KrkValue _list_extend(int argc, KrkValue argv[]) {
 	} else if (IS_STRING(value)) {
 		unpackArray(AS_STRING(value)->codesLength, _string_get(2,(KrkValue[]){value,INTEGER_VAL(i)}));
 	} else {
-		KrkClass * type = AS_CLASS(krk_typeOf(1,&argv[1]));
+		KrkClass * type = krk_getType(argv[1]);
 		if (type->_iter) {
 			/* Create the iterator */
 			size_t stackOffset = vm.stackTop - vm.stack;
@@ -948,7 +948,7 @@ KrkValue krk_dirObject(int argc, KrkValue argv[]) {
 				}
 			}
 		}
-		KrkClass * type = AS_CLASS(krk_typeOf(1, (KrkValue[]){argv[0]}));
+		KrkClass * type = krk_getType(argv[0]);
 
 		for (size_t i = 0; i < type->methods.capacity; ++i) {
 			if (type->methods.entries[i].key.type != VAL_KWARGS) {
@@ -964,47 +964,50 @@ KrkValue krk_dirObject(int argc, KrkValue argv[]) {
 }
 
 /**
- * type(obj)
- *
- * For basic types (non-instances), finds the associated pseudo-class;
- * for instances, returns the associated real class.
- *
- * Called often in native code as krk_typeOf(1,(KrkValue[]){value})
+ * Maps values to their base classes.
+ * Internal version of type().
  */
-KrkValue krk_typeOf(int argc, KrkValue argv[]) {
-	switch (argv[0].type) {
+inline KrkClass * krk_getType(KrkValue of) {
+	switch (of.type) {
 		case VAL_INTEGER:
-			return OBJECT_VAL(vm.baseClasses.intClass);
+			return vm.baseClasses.intClass;
 		case VAL_FLOATING:
-			return OBJECT_VAL(vm.baseClasses.floatClass);
+			return vm.baseClasses.floatClass;
 		case VAL_BOOLEAN:
-			return OBJECT_VAL(vm.baseClasses.boolClass);
+			return vm.baseClasses.boolClass;
 		case VAL_NONE:
-			return OBJECT_VAL(vm.baseClasses.noneTypeClass);
+			return vm.baseClasses.noneTypeClass;
 		case VAL_OBJECT:
-			switch (AS_OBJECT(argv[0])->type) {
+			switch (AS_OBJECT(of)->type) {
 				case OBJ_CLASS:
-					return OBJECT_VAL(vm.baseClasses.typeClass);
+					return vm.baseClasses.typeClass;
 				case OBJ_NATIVE:
 				case OBJ_FUNCTION:
 				case OBJ_CLOSURE:
-					return OBJECT_VAL(vm.baseClasses.functionClass);
+					return vm.baseClasses.functionClass;
 				case OBJ_BOUND_METHOD:
-					return OBJECT_VAL(vm.baseClasses.methodClass);
+					return vm.baseClasses.methodClass;
 				case OBJ_STRING:
-					return OBJECT_VAL(vm.baseClasses.strClass);
+					return vm.baseClasses.strClass;
 				case OBJ_TUPLE:
-					return OBJECT_VAL(vm.baseClasses.tupleClass);
+					return vm.baseClasses.tupleClass;
 				case OBJ_BYTES:
-					return OBJECT_VAL(vm.baseClasses.bytesClass);
+					return vm.baseClasses.bytesClass;
 				case OBJ_INSTANCE:
-					return OBJECT_VAL(AS_INSTANCE(argv[0])->_class);
+					return AS_INSTANCE(of)->_class;
 				default:
-					return OBJECT_VAL(vm.objectClass);
+					return vm.objectClass;
 			} break;
 		default:
-			return OBJECT_VAL(vm.objectClass);
+			return vm.objectClass;
 	}
+}
+
+/**
+ * type()
+ */
+KrkValue krk_typeOf(int argc, KrkValue argv[]) {
+	return OBJECT_VAL(krk_getType(argv[0]));
 }
 
 static KrkValue _type_init(int argc, KrkValue argv[]) {
@@ -1012,7 +1015,7 @@ static KrkValue _type_init(int argc, KrkValue argv[]) {
 		krk_runtimeError(vm.exceptions.argumentError, "type() takes 1 argument");
 		return NONE_VAL();
 	}
-	return krk_typeOf(1,&argv[1]);
+	return OBJECT_VAL(krk_getType(argv[1]));
 }
 
 /* Class.__base__ */
@@ -1063,9 +1066,7 @@ static KrkValue krk_isinstance(int argc, KrkValue argv[]) {
 		return NONE_VAL();
 	}
 
-	KrkValue obj_type = krk_typeOf(1, (KrkValue[]){argv[0]});
-	KrkClass * obj_class = AS_CLASS(obj_type);
-
+	KrkClass * obj_class = krk_getType(argv[0]);
 	KrkClass * _class = AS_CLASS(argv[1]);
 
 	while (obj_class) {
@@ -1161,7 +1162,7 @@ int krk_processComplexArguments(int argCount, KrkValueArray * positionals, KrkTa
 				} else if (IS_STRING(value)) {
 					unpackArray(AS_STRING(value)->codesLength, _string_get(2,(KrkValue[]){value,INTEGER_VAL(i)}));
 				} else {
-					KrkClass * type = AS_CLASS(krk_typeOf(1,&value));
+					KrkClass * type = krk_getType(value);
 					if (type->_iter) {
 						/* Create the iterator */
 						size_t stackOffset = vm.stackTop - vm.stack;
@@ -1662,11 +1663,11 @@ static KrkValue _string_init(int argc, KrkValue argv[]) {
 	if (IS_STRING(argv[1])) return argv[1]; /* strings are immutable, so we can just return the arg */
 	/* Find the type of arg */
 	krk_push(argv[1]);
-	if (!AS_CLASS(krk_typeOf(1,&argv[1]))->_tostr) {
+	if (!krk_getType(argv[1])->_tostr) {
 		krk_runtimeError(vm.exceptions.typeError, "Can not convert %s to str", krk_typeName(argv[1]));
 		return NONE_VAL();
 	}
-	return krk_callSimple(OBJECT_VAL(AS_CLASS(krk_typeOf(1,&argv[1]))->_tostr), 1, 0);
+	return krk_callSimple(OBJECT_VAL(krk_getType(argv[1])->_tostr), 1, 0);
 }
 
 static KrkValue _string_add(int argc, KrkValue argv[]) {
@@ -1678,7 +1679,7 @@ static KrkValue _string_add(int argc, KrkValue argv[]) {
 	al = AS_STRING(argv[0])->length;
 
 	if (!IS_STRING(argv[1])) {
-		KrkClass * type = AS_CLASS(krk_typeOf(1, &argv[1]));
+		KrkClass * type = krk_getType(argv[1]);
 		if (type->_tostr) {
 			krk_push(argv[1]);
 			KrkValue result = krk_callSimple(OBJECT_VAL(type->_tostr), 1, 0);
@@ -2049,7 +2050,7 @@ static KrkValue _string_format(int argc, KrkValue argv[], int hasKw) {
 					asString = value;
 				} else {
 					krk_push(value);
-					KrkClass * type = AS_CLASS(krk_typeOf(1, (KrkValue[]){value}));
+					KrkClass * type = krk_getType(value);
 					if (type->_tostr) {
 						asString = krk_callSimple(OBJECT_VAL(type->_tostr), 1, 0);
 					} else {
@@ -2783,7 +2784,7 @@ static KrkValue _tuple_repr(int argc, KrkValue argv[]) {
 
 	for (size_t i = 0; i < tuple->values.count; ++i) {
 		krk_push(tuple->values.values[i]);
-		krk_push(krk_callSimple(OBJECT_VAL(AS_CLASS(krk_typeOf(1,&tuple->values.values[i]))->_reprer), 1, 0));
+		krk_push(krk_callSimple(OBJECT_VAL(krk_getType(tuple->values.values[i])->_reprer), 1, 0));
 		addObjects(); /* pops both, pushes result */
 		if (i != tuple->values.count - 1) {
 			krk_push(OBJECT_VAL(S(", ")));
@@ -2816,7 +2817,7 @@ static KrkValue _tuple_repr(int argc, KrkValue argv[]) {
  * those methods.
  */
 static KrkValue _strBase(int argc, KrkValue argv[]) {
-	KrkClass * type = AS_CLASS(krk_typeOf(1,(KrkValue[]){argv[0]}));
+	KrkClass * type = krk_getType(argv[0]);
 	size_t len = sizeof("<instance of . at 0x1234567812345678>") + type->name->length;
 	char * tmp = malloc(len);
 	if (IS_OBJECT(argv[0])) {
@@ -2909,7 +2910,7 @@ static int isFalsey(KrkValue value) {
 		}
 		default: break;
 	}
-	KrkClass * type = AS_CLASS(krk_typeOf(1,&value));
+	KrkClass * type = krk_getType(value);
 
 	/* If it has a length, and that length is 0, it's Falsey */
 	if (type->_len) {
@@ -2944,7 +2945,7 @@ static KrkValue _len(int argc, KrkValue argv[]) {
 	if (IS_STRING(argv[0])) return INTEGER_VAL(AS_STRING(argv[0])->codesLength);
 	if (IS_TUPLE(argv[0])) return INTEGER_VAL(AS_TUPLE(argv[0])->values.count);
 
-	KrkClass * type = AS_CLASS(krk_typeOf(1,&argv[0]));
+	KrkClass * type = krk_getType(argv[0]);
 	if (!type->_len) {
 		krk_runtimeError(vm.exceptions.typeError, "object of type '%s' has no len()", krk_typeName(argv[0]));
 		return NONE_VAL();
@@ -2959,7 +2960,7 @@ static KrkValue _dir(int argc, KrkValue argv[]) {
 		krk_runtimeError(vm.exceptions.argumentError, "dir() takes exactly one argument");
 		return NONE_VAL();
 	}
-	KrkClass * type = AS_CLASS(krk_typeOf(1,&argv[0]));
+	KrkClass * type = krk_getType(argv[0]);
 	if (!type->_dir) {
 		return krk_dirObject(argc,argv); /* Fallback */
 	}
@@ -2974,7 +2975,7 @@ static KrkValue _repr(int argc, KrkValue argv[]) {
 	}
 
 	/* Everything should have a __repr__ */
-	KrkClass * type = AS_CLASS(krk_typeOf(1,&argv[0]));
+	KrkClass * type = krk_getType(argv[0]);
 	krk_push(argv[0]);
 	return krk_callSimple(OBJECT_VAL(type->_reprer), 1, 0);
 }
@@ -2985,7 +2986,7 @@ static KrkValue _ord(int argc, KrkValue argv[]) {
 		return NONE_VAL();
 	}
 
-	KrkClass * type = AS_CLASS(krk_typeOf(1, &argv[0]));
+	KrkClass * type = krk_getType(argv[0]);
 	KrkValue method;
 	if (krk_tableGet(&type->methods, vm.specialMethodNames[METHOD_ORD], &method)) {
 		krk_push(argv[0]);
@@ -3002,7 +3003,7 @@ static KrkValue _chr(int argc, KrkValue argv[]) {
 		return NONE_VAL();
 	}
 
-	KrkClass * type = AS_CLASS(krk_typeOf(1, &argv[0]));
+	KrkClass * type = krk_getType(argv[0]);
 	KrkValue method;
 	if (krk_tableGet(&type->methods, vm.specialMethodNames[METHOD_CHR], &method)) {
 		krk_push(argv[0]);
@@ -3729,13 +3730,13 @@ void krk_freeVM() {
  * creating exception strings.
  */
 const char * krk_typeName(KrkValue value) {
-	return AS_CLASS(krk_typeOf(1, (KrkValue[]){value}))->name->chars;
+	return krk_getType(value)->name->chars;
 }
 
 static KrkValue tryBind(const char * name, KrkValue a, KrkValue b, const char * msg) {
 	krk_push(b);
 	krk_push(a);
-	KrkClass * type = AS_CLASS(krk_typeOf(1,&a));
+	KrkClass * type = krk_getType(a);
 	KrkString * methodName = krk_copyString(name, strlen(name));
 	krk_push(OBJECT_VAL(methodName));
 	KrkValue value = KWARGS_VAL(0);
@@ -4168,9 +4169,9 @@ static int valueGetProperty(KrkString * name) {
 			krk_push(value);
 			return 1;
 		}
-		objectClass = AS_CLASS(krk_typeOf(1, (KrkValue[]){krk_peek(0)}));
+		objectClass = krk_getType(krk_peek(0));
 	} else {
-		objectClass = AS_CLASS(krk_typeOf(1, (KrkValue[]){krk_peek(0)}));
+		objectClass = krk_getType(krk_peek(0));
 	}
 
 	/* See if the base class for this non-instance type has a method available */
@@ -4273,7 +4274,7 @@ static KrkValue run() {
 				/* Top of stack is a HANDLER that should have had something loaded into it if it was still valid */
 				KrkValue handler = krk_peek(0);
 				KrkValue contextManager = krk_peek(1);
-				KrkClass * type = AS_CLASS(krk_typeOf(1, &contextManager));
+				KrkClass * type = krk_getType(contextManager);
 				krk_push(contextManager);
 				krk_callSimple(OBJECT_VAL(type->_exit), 1, 0);
 				/* Top of stack is now either someone else's problem or a return value */
@@ -4563,7 +4564,7 @@ static KrkValue run() {
 				break;
 			}
 			case OP_INVOKE_GETTER: {
-				KrkClass * type = AS_CLASS(krk_typeOf(1,(KrkValue[]){krk_peek(1)}));
+				KrkClass * type = krk_getType(krk_peek(1));
 				if (likely(type->_getter)) {
 					krk_push(krk_callSimple(OBJECT_VAL(type->_getter), 2, 0));
 				} else {
@@ -4572,7 +4573,7 @@ static KrkValue run() {
 				break;
 			}
 			case OP_INVOKE_SETTER: {
-				KrkClass * type = AS_CLASS(krk_typeOf(1,(KrkValue[]){krk_peek(2)}));
+				KrkClass * type = krk_getType(krk_peek(2));
 				if (likely(type->_setter)) {
 					krk_push(krk_callSimple(OBJECT_VAL(type->_setter), 3, 0));
 				} else {
@@ -4585,7 +4586,7 @@ static KrkValue run() {
 				break;
 			}
 			case OP_INVOKE_GETSLICE: {
-				KrkClass * type = AS_CLASS(krk_typeOf(1,(KrkValue[]){krk_peek(2)}));
+				KrkClass * type = krk_getType(krk_peek(2));
 				if (likely(type->_slicer)) {
 					krk_push(krk_callSimple(OBJECT_VAL(type->_slicer), 3, 0));
 				} else {
@@ -4594,7 +4595,7 @@ static KrkValue run() {
 				break;
 			}
 			case OP_INVOKE_DELETE: {
-				KrkClass * type = AS_CLASS(krk_typeOf(1,(KrkValue[]){krk_peek(1)}));
+				KrkClass * type = krk_getType(krk_peek(1));
 				if (likely(type->_delitem)) {
 					krk_callSimple(OBJECT_VAL(type->_delitem), 2, 0);
 				} else {
@@ -4722,7 +4723,7 @@ static KrkValue run() {
 				} else if (IS_STRING(sequence)) {
 					unpackArray(AS_STRING(sequence)->codesLength, _string_get(2,(KrkValue[]){sequence,INTEGER_VAL(i)}));
 				} else {
-					KrkClass * type = AS_CLASS(krk_typeOf(1,&sequence));
+					KrkClass * type = krk_getType(sequence);
 					if (!type->_iter) {
 						krk_runtimeError(vm.exceptions.typeError, "Can not unpack non-iterable '%s'", krk_typeName(sequence));
 						goto _finishException;
@@ -4766,7 +4767,7 @@ static KrkValue run() {
 			case OP_PUSH_WITH: {
 				uint16_t cleanupTarget = readBytes(frame, 2) + (frame->ip - frame->closure->function->chunk.code);
 				KrkValue contextManager = krk_peek(0);
-				KrkClass * type = AS_CLASS(krk_typeOf(1, &contextManager));
+				KrkClass * type = krk_getType(contextManager);
 				if (unlikely(!type->_enter || !type->_exit)) {
 					krk_runtimeError(vm.exceptions.attributeError, "Can not use '%s' as context manager", krk_typeName(contextManager));
 					goto _finishException;

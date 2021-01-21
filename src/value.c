@@ -55,7 +55,7 @@ void krk_printValue(FILE * f, KrkValue printable) {
 		}
 		return;
 	}
-	KrkClass * type = AS_CLASS(krk_typeOf(1,&printable));
+	KrkClass * type = krk_getType(printable);
 	if (type->_tostr) {
 		krk_push(printable);
 		printable = krk_callSimple(OBJECT_VAL(type->_tostr), 1, 0);
