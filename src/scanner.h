@@ -89,6 +89,7 @@ typedef enum {
 	TOKEN_WITH,
 
 	TOKEN_PREFIX_B,
+	TOKEN_PREFIX_F,
 
 	TOKEN_INDENTATION,
 

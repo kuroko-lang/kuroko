@@ -1705,8 +1705,14 @@ static void string(int type) {
 } while (0)
 
 	int isBytes = (parser.previous.type == TOKEN_PREFIX_B);
-	if (isBytes && !(match(TOKEN_STRING) || match(TOKEN_BIG_STRING))) {
-		error("Expected string after 'b' prefix?");
+	int isFormat = (parser.previous.type == TOKEN_PREFIX_F);
+
+	int atLeastOne = 0;
+	const char * lineBefore = krk_tellScanner().linePtr;
+	size_t lineNo = krk_tellScanner().line;
+
+	if ((isBytes || isFormat) && !(match(TOKEN_STRING) || match(TOKEN_BIG_STRING))) {
+		error("Expected string after prefix? (Internal error - scanner should not have produced this.)");
 	}
 
 	/* This should capture everything but the quotes. */
@@ -1754,15 +1760,61 @@ static void string(int type) {
 					default:
 						/* TODO octal */
 						PUSH_CHAR(c[0]);
-						PUSH_CHAR(c[1]);
-						break;
+						c++;
+						continue;
 				}
 				c += 2;
+			} else if (isFormat && *c == '{') {
+				emitConstant(OBJECT_VAL(krk_copyString(stringBytes,stringLength)));
+				stringLength = 0;
+				KrkScanner beforeExpression = krk_tellScanner();
+				Parser  parserBefore = parser;
+				KrkScanner inner = (KrkScanner){.start=c+1, .cur=c+1, .linePtr=lineBefore, .line=lineNo, .startOfLine = 0, .hasUnget = 0};
+				krk_rewindScanner(inner);
+				advance();
+				expression();
+				if (parser.hadError) {
+					FREE_ARRAY(char,stringBytes,stringCapacity);
+					return;
+				}
+				inner = krk_tellScanner(); /* To figure out how far to advance c */
+				krk_rewindScanner(beforeExpression); /* To get us back to where we were with a string token */
+				parser = parserBefore;
+				c = inner.start;
+				if (*c == '!') {
+					c++;
+					/* Conversion specifiers, must only be one */
+					KrkToken which;
+					if (*c == 'r') {
+						which = syntheticToken("repr");
+					} else if (*c == 's') {
+						which = syntheticToken("str");
+					} else {
+						error("Unsupported conversion flag for f-string expression");
+						goto _cleanupError;
+					}
+					size_t ind = identifierConstant(&which);
+					EMIT_CONSTANT_OP(OP_GET_GLOBAL, ind);
+					emitByte(OP_SWAP);
+					emitBytes(OP_CALL, 1);
+					c++;
+				}
+				if (*c == ':') {
+					/* TODO format specs */
+					error("Format spec not supported in f-string");
+					goto _cleanupError;
+				}
+				if (*c != '}') {
+					error("Expected closing } after expression in f-string");
+					goto _cleanupError;
+				}
+				emitByte(OP_ADD);
+				atLeastOne = 1;
+				c++;
 			} else {
 				if (*(unsigned char*)c > 127 && isBytes) {
-					FREE_ARRAY(char,stringBytes,stringCapacity);
 					error("bytes literal can only contain ASCII characters");
-					return;
+					goto _cleanupError;
 				}
 				PUSH_CHAR(*c);
 				c++;
@@ -1770,9 +1822,8 @@ static void string(int type) {
 		}
 	} while ((!isBytes || match(TOKEN_PREFIX_B)) && (match(TOKEN_STRING) || match(TOKEN_BIG_STRING)));
 	if (isBytes && (match(TOKEN_STRING) || match(TOKEN_BIG_STRING))) {
-		FREE_ARRAY(char,stringBytes,stringCapacity);
 		error("can not mix bytes and string literals");
-		return;
+		goto _cleanupError;
 	}
 	if (isBytes) {
 		KrkBytes * bytes = krk_newBytes(0,NULL);
@@ -1784,7 +1835,11 @@ static void string(int type) {
 	}
 	emitConstant(OBJECT_VAL(krk_copyString(stringBytes,stringLength)));
 	FREE_ARRAY(char,stringBytes,stringCapacity);
+	if (isFormat && atLeastOne) emitByte(OP_ADD);
 #undef PUSH_CHAR
+	return;
+_cleanupError:
+	FREE_ARRAY(char,stringBytes,stringCapacity);
 }
 
 static size_t addUpvalue(Compiler * compiler, ssize_t index, int isLocal) {
@@ -2163,6 +2218,7 @@ ParseRule krk_parseRules[] = {
 	RULE(TOKEN_STRING,        string,   NULL,   PREC_NONE),
 	RULE(TOKEN_BIG_STRING,    string,   NULL,   PREC_NONE),
 	RULE(TOKEN_PREFIX_B,      string,   NULL,   PREC_NONE),
+	RULE(TOKEN_PREFIX_F,      string,   NULL,   PREC_NONE),
 	RULE(TOKEN_NUMBER,        number,   NULL,   PREC_NONE),
 	RULE(TOKEN_AND,           NULL,     and_,   PREC_AND),
 	RULE(TOKEN_CLASS,         NULL,     NULL,   PREC_NONE),
