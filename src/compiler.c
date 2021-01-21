@@ -1551,27 +1551,29 @@ static size_t importModule(KrkToken * startOfName) {
 }
 
 static void importStatement() {
-	KrkToken firstName = parser.current;
-	KrkToken startOfName;
-	size_t ind = importModule(&startOfName);
-	if (match(TOKEN_AS)) {
-		consume(TOKEN_IDENTIFIER, "Expected identifier after `as`");
-		ind = identifierConstant(&parser.previous);
-	} else if (startOfName.length != firstName.length) {
-		/**
-		 * We imported foo.bar.baz and 'baz' is now on the stack with no name.
-		 * But while doing that, we built a chain so that foo and foo.bar are
-		 * valid modules that already exist in the module table. We want to
-		 * have 'foo.bar.baz' be this new object, so remove 'baz', reimport
-		 * 'foo' directly, and put 'foo' into the appropriate namespace.
-		 */
-		emitByte(OP_POP);
-		parser.previous = firstName;
-		ind = identifierConstant(&firstName);
-		EMIT_CONSTANT_OP(OP_IMPORT, ind);
-	}
-	declareVariable();
-	defineVariable(ind);
+	do {
+		KrkToken firstName = parser.current;
+		KrkToken startOfName;
+		size_t ind = importModule(&startOfName);
+		if (match(TOKEN_AS)) {
+			consume(TOKEN_IDENTIFIER, "Expected identifier after `as`");
+			ind = identifierConstant(&parser.previous);
+		} else if (startOfName.length != firstName.length) {
+			/**
+			 * We imported foo.bar.baz and 'baz' is now on the stack with no name.
+			 * But while doing that, we built a chain so that foo and foo.bar are
+			 * valid modules that already exist in the module table. We want to
+			 * have 'foo.bar.baz' be this new object, so remove 'baz', reimport
+			 * 'foo' directly, and put 'foo' into the appropriate namespace.
+			 */
+			emitByte(OP_POP);
+			parser.previous = firstName;
+			ind = identifierConstant(&firstName);
+			EMIT_CONSTANT_OP(OP_IMPORT, ind);
+		}
+		declareVariable();
+		defineVariable(ind);
+	} while (match(TOKEN_COMMA));
 }
 
 static void fromImportStatement() {
