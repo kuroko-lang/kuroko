@@ -1771,6 +1771,7 @@ static void string(int type) {
 				c += 2;
 			} else if (isFormat && *c == '{') {
 				emitConstant(OBJECT_VAL(krk_copyString(stringBytes,stringLength)));
+				if (atLeastOne) emitByte(OP_ADD);
 				stringLength = 0;
 				KrkScanner beforeExpression = krk_tellScanner();
 				Parser  parserBefore = parser;
