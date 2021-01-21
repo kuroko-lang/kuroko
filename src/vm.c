@@ -597,6 +597,34 @@ static KrkValue _list_append(int argc, KrkValue argv[]) {
 	return NONE_VAL();
 }
 
+static KrkValue _list_insert(int argc, KrkValue argv[]) {
+	if (unlikely(argc < 3)) {
+		krk_runtimeError(vm.exceptions.argumentError, "list.insert() expects two arguments");
+		return NONE_VAL();
+	}
+	if (unlikely(!IS_INTEGER(argv[1]))) {
+		krk_runtimeError(vm.exceptions.typeError, "index must be integer");
+		return NONE_VAL();
+	}
+	krk_integer_type index = AS_INTEGER(argv[1]);
+	KrkValue _list_internal = OBJECT_VAL(AS_INSTANCE(argv[0])->_internal);
+	if (index < 0) index += AS_LIST(_list_internal)->count;
+	if (index < 0 || index > (long)AS_LIST(_list_internal)->count) {
+		krk_runtimeError(vm.exceptions.indexError, "list index out of range: %d", (int)index);
+		return NONE_VAL();
+	}
+
+	krk_writeValueArray(AS_LIST(_list_internal), NONE_VAL());
+
+	/* Move everything at and after this index one forward. */
+	memcpy(&AS_LIST(_list_internal)->values[index+1],
+	       &AS_LIST(_list_internal)->values[index],
+	       sizeof(KrkValue) * (AS_LIST(_list_internal)->count - index - 1));
+	/* Stick argv[2] where it belongs */
+	AS_LIST(_list_internal)->values[index] = argv[2];
+	return NONE_VAL();
+}
+
 /**
  * list.__repr__
  */
@@ -3623,6 +3651,7 @@ void krk_initVM(int flags) {
 	krk_defineNative(&vm.baseClasses.listClass->methods, ".append", _list_append);
 	krk_defineNative(&vm.baseClasses.listClass->methods, ".extend", _list_extend);
 	krk_defineNative(&vm.baseClasses.listClass->methods, ".pop", _list_pop);
+	krk_defineNative(&vm.baseClasses.listClass->methods, ".insert", _list_insert);
 	krk_finalizeClass(vm.baseClasses.listClass);
 	vm.baseClasses.listClass->docstring = S("Mutable sequence of arbitrary values.");
 
