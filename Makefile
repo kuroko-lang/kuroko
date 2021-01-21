@@ -1,8 +1,8 @@
 CFLAGS  ?= -g -O3 -Wall -Wextra -pedantic -Wno-unused-parameter
 
 TARGET   = kuroko
-OBJS     = $(patsubst %.c, %.o, $(filter-out rline.c,$(filter-out kuroko.c,$(sort $(wildcard *.c)))))
-MODULES  = $(patsubst src/%.c, modules/%.so, $(sort $(wildcard src/*.c)))
+OBJS     = $(patsubst %.c, %.o, $(filter-out src/module_% src/rline.c src/kuroko.c,$(sort $(wildcard src/*.c))))
+MODULES  = $(patsubst src/module_%.c, modules/%.so, $(sort $(wildcard src/module_*.c)))
 
 ifndef KRK_ENABLE_STATIC
 CFLAGS  += -fPIC -L.
@@ -19,12 +19,12 @@ else
 CFLAGS +=-DSTATIC_ONLY
 LDFLAGS += -static
 all: ${TARGET}
-OBJS += kuroko.o
+OBJS += src/kuroko.o
 KUROKO_LIBS = ${OBJS}
 endif
 
 ifndef KRK_DISABLE_RLINE
-KUROKO_LIBS += rline.o
+KUROKO_LIBS += src/rline.o
 else
 CFLAGS  += -DNO_RLINE
 endif
@@ -35,7 +35,7 @@ endif
 
 ifdef KRK_ENABLE_BUNDLE
 MODULES =
-KUROKO_LIBS += $(patsubst %.c,%.o,$(sort $(wildcard src/*.c)))
+KUROKO_LIBS += $(patsubst %.c,%.o,$(sort $(wildcard src/module_*.c)))
 CFLAGS += -DBUNDLE_LIBS=1
 LDLIBS += -lm
 endif
@@ -49,27 +49,28 @@ help:
 	@echo "   KRK_ENABLE_STATIC=1    Build a single static binary."
 	@echo "   KRK_ENABLE_BUNDLE=1    Link C modules directly into the interpreter."
 
-kuroko: ${KUROKO_LIBS}
+kuroko: src/kuroko.o ${KUROKO_LIBS}
+	${CC} ${CFLAGS} ${LDFLAGS} -o $@ src/kuroko.o ${KUROKO_LIBS} ${LDLIBS}
 
 %.o: *.h
 
-modules/%.so: src/%.c libkuroko.so
+modules/%.so: src/module_%.c libkuroko.so
 	${CC} ${CFLAGS} -shared -o $@ $< ${LDLIBS}
 
-modules/math.so: src/math.c libkuroko.so
+modules/math.so: src/module_math.c libkuroko.so
 	${CC} ${CFLAGS} -shared -o $@ $< -lm ${LDLIBS}
 
 libkuroko.so: ${OBJS}
 	${CC} ${CFLAGS} -shared -o $@ ${OBJS}
 
-builtins.c: builtins.krk
-	echo "const char krk_builtinsSrc[] = " > builtins.c
-	cat builtins.krk | sed s'/\(.*\)/\"\0\\n\"/' >> builtins.c
-	echo ";" >> builtins.c
+src/builtins.c: src/builtins.krk
+	echo "const char krk_builtinsSrc[] = " > $@
+	cat $< | sed s'/\(.*\)/\"\0\\n\"/' >> $@
+	echo ";" >> $@
 
 .PHONY: clean
 clean:
-	@rm -f ${OBJS} ${TARGET} ${MODULES} libkuroko.so rline.o kuroko.o src/*.o kuroko.exe
+	@rm -f ${OBJS} ${TARGET} ${MODULES} libkuroko.so src/*.o kuroko.exe
 
 tags: $(wildcard *.c) $(wildcard *.h)
 	@ctags --c-kinds=+lx *.c *.h

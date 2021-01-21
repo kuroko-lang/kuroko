@@ -6,9 +6,9 @@
 #include <string.h>
 #include <errno.h>
 
-#include "../vm.h"
-#include "../value.h"
-#include "../object.h"
+#include "vm.h"
+#include "value.h"
+#include "object.h"
 
 #define S(c) (krk_copyString(c,sizeof(c)-1))
 

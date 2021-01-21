@@ -12,9 +12,9 @@
 #include <windows.h>
 #endif
 
-#include "../vm.h"
-#include "../value.h"
-#include "../object.h"
+#include "vm.h"
+#include "value.h"
+#include "object.h"
 
 /* Did you know this is actually specified to not exist in a header? */
 extern char ** environ;

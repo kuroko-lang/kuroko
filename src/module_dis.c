@@ -7,10 +7,10 @@
 #include <errno.h>
 #include <unistd.h>
 
-#include "../vm.h"
-#include "../value.h"
-#include "../object.h"
-#include "../debug.h"
+#include "vm.h"
+#include "value.h"
+#include "object.h"
+#include "debug.h"
 
 #define S(c) (krk_copyString(c,sizeof(c)-1))
 
