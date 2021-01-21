@@ -499,7 +499,7 @@ _finishArgs:
 						break;
 					}
 				} else {
-#else
+#endif
 					char * out = fgets(buf, 4096, stdin);
 					if (!out || !strlen(buf)) {
 						fprintf(stdout, "^D\n");
@@ -507,7 +507,6 @@ _finishArgs:
 						exitRepl = 1;
 						break;
 					}
-#endif
 #ifndef NO_RLINE
 				}
 #endif
