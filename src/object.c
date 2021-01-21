@@ -225,6 +225,7 @@ KrkNative * krk_newNative(NativeFn function, const char * name, int type) {
 	native->function = function;
 	native->isMethod = type;
 	native->name = name;
+	native->doc = NULL;
 	return native;
 }
 

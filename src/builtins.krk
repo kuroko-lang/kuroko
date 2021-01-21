@@ -78,7 +78,7 @@ __builtins__.all = all
 class Helper():
  '''You seem to already know how to use this.'''
  def __call__(self,obj=None):
-  if obj:
+  if obj is not None:
    try:
     print(obj.__doc__)
    except:

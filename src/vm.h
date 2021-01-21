@@ -140,7 +140,7 @@ extern void krk_push(KrkValue value);
 extern KrkValue krk_pop(void);
 extern KrkValue krk_peek(int distance);
 extern const char * krk_typeName(KrkValue value);
-extern void krk_defineNative(KrkTable * table, const char * name, NativeFn function);
+extern KrkNative * krk_defineNative(KrkTable * table, const char * name, NativeFn function);
 extern void krk_attachNamedObject(KrkTable * table, const char name[], KrkObj * obj);
 extern void krk_attachNamedValue(KrkTable * table, const char name[], KrkValue obj);
 extern void krk_runtimeError(KrkClass * type, const char * fmt, ...);

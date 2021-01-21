@@ -286,7 +286,7 @@ void krk_swap(int distance) {
  * Bind a native function to the given table (eg. vm.globals, or _class->methods)
  * GC safe: pushes allocated values.
  */
-void krk_defineNative(KrkTable * table, const char * name, NativeFn function) {
+KrkNative * krk_defineNative(KrkTable * table, const char * name, NativeFn function) {
 	int functionType = 0;
 	if (*name == '.') {
 		name++;
@@ -302,6 +302,7 @@ void krk_defineNative(KrkTable * table, const char * name, NativeFn function) {
 	krk_tableSet(table, krk_peek(0), krk_peek(1));
 	krk_pop();
 	krk_pop();
+	return func;
 }
 
 /**
@@ -1409,7 +1410,7 @@ int krk_callValue(KrkValue callee, int argCount, int extra) {
 			case OBJ_CLOSURE:
 				return call(AS_CLOSURE(callee), argCount, extra);
 			case OBJ_NATIVE: {
-				NativeFnKw native = (NativeFnKw)AS_NATIVE(callee);
+				NativeFnKw native = (NativeFnKw)AS_NATIVE(callee)->function;
 				if (argCount && IS_KWARGS(vm.stackTop[-1])) {
 					KRK_PAUSE_GC();
 					KrkValue myList = krk_list_of(0,NULL);
@@ -1507,7 +1508,7 @@ int krk_bindMethod(KrkClass * _class, KrkString * name) {
 	KrkValue method, out;
 	if (!krk_tableGet(&_class->methods, OBJECT_VAL(name), &method)) return 0;
 	if (IS_NATIVE(method) && ((KrkNative*)AS_OBJECT(method))->isMethod == 2) {
-		out = AS_NATIVE(method)(1, (KrkValue[]){krk_peek(0)});
+		out = AS_NATIVE(method)->function(1, (KrkValue[]){krk_peek(0)});
 	} else {
 		out = OBJECT_VAL(krk_newBoundMethod(krk_peek(0), AS_OBJECT(method)));
 	}
@@ -1726,8 +1727,8 @@ static KrkValue _string_add(int argc, KrkValue argv[]) {
 	krk_finalizeClass(obj); \
 } while (0)
 
-#define BUILTIN_FUNCTION(name, func) do { \
-	krk_defineNative(&vm.builtins->fields, name, func); \
+#define BUILTIN_FUNCTION(name, func, docStr) do { \
+	krk_defineNative(&vm.builtins->fields, name, func)->doc = docStr; \
 } while (0)
 
 
@@ -2592,8 +2593,13 @@ static KrkValue _int_init(int argc, KrkValue argv[]) {
 
 /* function.__doc__ */
 static KrkValue _closure_get_doc(int argc, KrkValue argv[]) {
-	if (!IS_CLOSURE(argv[0])) return NONE_VAL();
-	return AS_CLOSURE(argv[0])->function->docstring ? OBJECT_VAL(AS_CLOSURE(argv[0])->function->docstring) : NONE_VAL();
+	if (IS_NATIVE(argv[0]) && AS_NATIVE(argv[0])->doc) {
+		return OBJECT_VAL(krk_copyString(AS_NATIVE(argv[0])->doc, strlen(AS_NATIVE(argv[0])->doc)));
+	} else if (IS_CLOSURE(argv[0]) && AS_CLOSURE(argv[0])->function->docstring) {
+		return  OBJECT_VAL(AS_CLOSURE(argv[0])->function->docstring);
+	} else {
+		return NONE_VAL();
+	}
 }
 
 /* method.__doc__ */
@@ -3345,37 +3351,51 @@ void krk_initVM(int flags) {
 	memset(vm.specialMethodNames,0,sizeof(vm.specialMethodNames));
 	vm.watchdog = 0;
 
-	/* To make lookup faster, store these so we can don't have to keep boxing
-	 * and unboxing, copying/hashing etc. */
-	vm.specialMethodNames[METHOD_INIT] = OBJECT_VAL(S("__init__"));
-	vm.specialMethodNames[METHOD_STR]  = OBJECT_VAL(S("__str__"));
-	vm.specialMethodNames[METHOD_REPR] = OBJECT_VAL(S("__repr__"));
-	vm.specialMethodNames[METHOD_GET]  = OBJECT_VAL(S("__get__"));
-	vm.specialMethodNames[METHOD_SET]  = OBJECT_VAL(S("__set__"));
-	vm.specialMethodNames[METHOD_CLASS]= OBJECT_VAL(S("__class__"));
-	vm.specialMethodNames[METHOD_NAME] = OBJECT_VAL(S("__name__"));
-	vm.specialMethodNames[METHOD_FILE] = OBJECT_VAL(S("__file__"));
-	vm.specialMethodNames[METHOD_INT]  = OBJECT_VAL(S("__int__"));
-	vm.specialMethodNames[METHOD_CHR]  = OBJECT_VAL(S("__chr__"));
-	vm.specialMethodNames[METHOD_ORD]  = OBJECT_VAL(S("__ord__"));
-	vm.specialMethodNames[METHOD_FLOAT]= OBJECT_VAL(S("__float__"));
-	vm.specialMethodNames[METHOD_LEN]  = OBJECT_VAL(S("__len__"));
-	vm.specialMethodNames[METHOD_DOC]  = OBJECT_VAL(S("__doc__"));
-	vm.specialMethodNames[METHOD_BASE] = OBJECT_VAL(S("__base__"));
-	vm.specialMethodNames[METHOD_CALL] = OBJECT_VAL(S("__call__"));
-	vm.specialMethodNames[METHOD_GETSLICE] = OBJECT_VAL(S("__getslice__"));
-	vm.specialMethodNames[METHOD_LIST_INT] = OBJECT_VAL(S("__list"));
-	vm.specialMethodNames[METHOD_DICT_INT] = OBJECT_VAL(S("__dict"));
-	vm.specialMethodNames[METHOD_INREPR] = OBJECT_VAL(S("__inrepr"));
-	vm.specialMethodNames[METHOD_EQ] = OBJECT_VAL(S("__eq__"));
-	vm.specialMethodNames[METHOD_ENTER] = OBJECT_VAL(S("__enter__"));
-	vm.specialMethodNames[METHOD_EXIT] = OBJECT_VAL(S("__exit__"));
-	vm.specialMethodNames[METHOD_DELITEM] = OBJECT_VAL(S("__delitem__")); /* delitem */
-	vm.specialMethodNames[METHOD_ITER] = OBJECT_VAL(S("__iter__"));
-	vm.specialMethodNames[METHOD_GETATTR] = OBJECT_VAL(S("__getattr__"));
-	vm.specialMethodNames[METHOD_DIR] = OBJECT_VAL(S("__dir__"));
+	/*
+	 * To make lookup faster, store these so we can don't have to keep boxing
+	 * and unboxing, copying/hashing etc.
+	 */
+	struct { const char * s; size_t len; } _methods[] = {
+	#define _(m,s) [m] = {s,sizeof(s)-1}
+		_(METHOD_INIT, "__init__"),
+		_(METHOD_STR, "__str__"),
+		_(METHOD_REPR, "__repr__"),
+		_(METHOD_GET, "__get__"),
+		_(METHOD_SET, "__set__"),
+		_(METHOD_CLASS, "__class__"),
+		_(METHOD_NAME, "__name__"),
+		_(METHOD_FILE, "__file__"),
+		_(METHOD_INT, "__int__"),
+		_(METHOD_CHR, "__chr__"),
+		_(METHOD_ORD, "__ord__"),
+		_(METHOD_FLOAT, "__float__"),
+		_(METHOD_LEN, "__len__"),
+		_(METHOD_DOC, "__doc__"),
+		_(METHOD_BASE, "__base__"),
+		_(METHOD_CALL, "__call__"),
+		_(METHOD_GETSLICE, "__getslice__"),
+		_(METHOD_LIST_INT, "__list"),
+		_(METHOD_DICT_INT, "__dict"),
+		_(METHOD_INREPR, "__inrepr"),
+		_(METHOD_EQ, "__eq__"),
+		_(METHOD_ENTER, "__enter__"),
+		_(METHOD_EXIT, "__exit__"),
+		_(METHOD_DELITEM, "__delitem__"),
+		_(METHOD_ITER, "__iter__"),
+		_(METHOD_GETATTR, "__getattr__"),
+		_(METHOD_DIR, "__dir__"),
+	#undef _
+	};
+	for (size_t i = 0; i < METHOD__MAX; ++i) {
+		vm.specialMethodNames[i] = OBJECT_VAL(krk_copyString(_methods[i].s, _methods[i].len));
+	}
 
-	/* Create built-in class `object` */
+	/**
+	 * class object()
+	 *
+	 * The base class for all types.
+	 * Defines the last-resort implementation of __str__, __repr__, and __dir__.
+	 */
 	vm.objectClass = krk_newClass(S("object"));
 
 	krk_defineNative(&vm.objectClass->methods, ":__class__", krk_typeOf);
@@ -3383,29 +3403,46 @@ void krk_initVM(int flags) {
 	krk_defineNative(&vm.objectClass->methods, ".__str__", _strBase);
 	krk_defineNative(&vm.objectClass->methods, ".__repr__", _strBase); /* Override if necesary */
 	krk_finalizeClass(vm.objectClass);
+	vm.objectClass->docstring = S("Base class for all types.");
 
-	/* Make module class as a subtype of object */
+	/**
+	 * class module(object)
+	 *
+	 * When files are imported as modules, their global namespace is the fields
+	 * table of an instance of this class. All modules also end up with their
+	 * names and file paths as __name__ and __file__.
+	 */
 	vm.moduleClass = krk_newClass(S("module"));
 	vm.moduleClass->base = vm.objectClass;
 	krk_tableAddAll(&vm.objectClass->methods, &vm.moduleClass->methods);
 	krk_tableAddAll(&vm.objectClass->fields, &vm.moduleClass->fields);
-
-	/* Attach new repr/str */
 	krk_defineNative(&vm.moduleClass->methods, ".__repr__", _module_repr);
 	krk_defineNative(&vm.moduleClass->methods, ".__str__", _module_repr);
 	krk_finalizeClass(vm.moduleClass);
+	vm.moduleClass->docstring = S("");
 
-	/* Build a __builtins__ namespace for some extra functions. */
+	/**
+	 * __builtins__ = module()
+	 *
+	 * The builtins namespace is always available underneath the current
+	 * globals namespace, and is also added to all modules as __builtins__
+	 * for direct references (eg., in case one of the names is shadowed
+	 * by a global).
+	 */
 	vm.builtins = krk_newInstance(vm.moduleClass);
 	krk_attachNamedObject(&vm.modules, "__builtins__", (KrkObj*)vm.builtins);
 	krk_attachNamedObject(&vm.builtins->fields, "object", (KrkObj*)vm.objectClass);
 	krk_attachNamedObject(&vm.builtins->fields, "__name__", (KrkObj*)S("__builtins__"));
 	krk_attachNamedValue(&vm.builtins->fields, "__file__", NONE_VAL());
+	krk_attachNamedObject(&vm.builtins->fields, "__doc__",
+		(KrkObj*)S("Internal module containing built-in functions and classes."));
 
-	/*
-	 * Build system module; for Python compatibility we don't use the "sys" namespace
-	 * for this as we'll want to stick fake data in there, like `sys.version`.
-	 * Instead, we have `kuroko`.
+	/**
+	 * kuroko = module()
+	 *
+	 * This is equivalent to Python's "sys" module, but we do not use that name
+	 * in consideration of future compatibility, where a "sys" module may be
+	 * added to emulate Python version numbers, etc.
 	 */
 	vm.system = krk_newInstance(vm.moduleClass);
 	krk_attachNamedObject(&vm.modules, "kuroko", (KrkObj*)vm.system);
@@ -3419,11 +3456,18 @@ void krk_initVM(int flags) {
 	krk_defineNative(&vm.system->fields, "set_clean_output", krk_setclean);
 	krk_attachNamedObject(&vm.system->fields, "path_sep", (KrkObj*)S(PATH_SEP));
 
+	/**
+	 * gc = module()
+	 *
+	 * Namespace for methods for controlling the garbage collector.
+	 */
 	KrkInstance * gcModule = krk_newInstance(vm.moduleClass);
 	krk_attachNamedObject(&vm.modules, "gc", (KrkObj*)gcModule);
 	krk_attachNamedObject(&gcModule->fields, "__name__", (KrkObj*)S("gc"));
 	krk_attachNamedValue(&gcModule->fields, "__file__", NONE_VAL());
 	krk_defineNative(&gcModule->fields, "collect", krk_collectGarbage_wrapper);
+	krk_attachNamedObject(&gcModule->fields, "__doc__",
+		(KrkObj*)S("Namespace containing methods for controlling the garbge collector."));
 
 	/* Add exception classes */
 	ADD_EXCEPTION_CLASS(vm.exceptions.baseException, "Exception", vm.objectClass);
@@ -3457,6 +3501,7 @@ void krk_initVM(int flags) {
 	krk_defineNative(&vm.baseClasses.typeClass->methods, ".__str__", _class_to_str);
 	krk_defineNative(&vm.baseClasses.typeClass->methods, ".__repr__", _class_to_str);
 	krk_finalizeClass(vm.baseClasses.typeClass);
+	vm.baseClasses.typeClass->docstring = S("Obtain the object representation of the class of an object.");
 	ADD_BASE_CLASS(vm.baseClasses.intClass, "int", vm.objectClass);
 	krk_defineNative(&vm.baseClasses.intClass->methods, ".__init__", _int_init);
 	krk_defineNative(&vm.baseClasses.intClass->methods, ".__int__", _noop);
@@ -3465,6 +3510,7 @@ void krk_initVM(int flags) {
 	krk_defineNative(&vm.baseClasses.intClass->methods, ".__str__", _int_to_str);
 	krk_defineNative(&vm.baseClasses.intClass->methods, ".__repr__", _int_to_str);
 	krk_finalizeClass(vm.baseClasses.intClass);
+	vm.baseClasses.intClass->docstring = S("Convert a number or string type to an integer representation.");
 	ADD_BASE_CLASS(vm.baseClasses.floatClass, "float", vm.objectClass);
 	krk_defineNative(&vm.baseClasses.floatClass->methods, ".__init__", _float_init);
 	krk_defineNative(&vm.baseClasses.floatClass->methods, ".__int__", _floating_to_int);
@@ -3472,11 +3518,13 @@ void krk_initVM(int flags) {
 	krk_defineNative(&vm.baseClasses.floatClass->methods, ".__str__", _float_to_str);
 	krk_defineNative(&vm.baseClasses.floatClass->methods, ".__repr__", _float_to_str);
 	krk_finalizeClass(vm.baseClasses.floatClass);
+	vm.baseClasses.floatClass->docstring = S("Convert a number or string type to a float representation.");
 	ADD_BASE_CLASS(vm.baseClasses.boolClass, "bool", vm.objectClass);
 	krk_defineNative(&vm.baseClasses.boolClass->methods, ".__init__", _bool_init);
 	krk_defineNative(&vm.baseClasses.boolClass->methods, ".__str__", _bool_to_str);
 	krk_defineNative(&vm.baseClasses.boolClass->methods, ".__repr__", _bool_to_str);
 	krk_finalizeClass(vm.baseClasses.boolClass);
+	vm.baseClasses.floatClass->docstring = S("Returns False if the argument is 'falsey', otherwise True.");
 	/* TODO: Don't attach */
 	ADD_BASE_CLASS(vm.baseClasses.noneTypeClass, "NoneType", vm.objectClass);
 	krk_defineNative(&vm.baseClasses.noneTypeClass->methods, ".__str__", _none_to_str);
@@ -3508,6 +3556,7 @@ void krk_initVM(int flags) {
 	krk_defineNative(&vm.baseClasses.strClass->methods, ".__mul__", _string_mul);
 	krk_defineNative(&vm.baseClasses.strClass->methods, ".encode", _string_encode);
 	krk_finalizeClass(vm.baseClasses.strClass);
+	vm.baseClasses.strClass->docstring = S("Obtain a string representation of an object.");
 	/* TODO: Don't attach */
 	ADD_BASE_CLASS(vm.baseClasses.functionClass, "function", vm.objectClass);
 	krk_defineNative(&vm.baseClasses.functionClass->methods, ".__str__", _closure_str);
@@ -3562,23 +3611,24 @@ void krk_initVM(int flags) {
 	krk_defineNative(&vm.baseClasses.listClass->methods, ".extend", _list_extend);
 	krk_defineNative(&vm.baseClasses.listClass->methods, ".pop", _list_pop);
 	krk_finalizeClass(vm.baseClasses.listClass);
+	vm.baseClasses.listClass->docstring = S("Mutable sequence of arbitrary values.");
 
 	/* Build global builtin functions. */
-	BUILTIN_FUNCTION("listOf", krk_list_of);
-	BUILTIN_FUNCTION("dictOf", krk_dict_of);
-	BUILTIN_FUNCTION("tupleOf", _tuple_of);
-	BUILTIN_FUNCTION("isinstance", krk_isinstance);
-	BUILTIN_FUNCTION("globals", krk_globals);
-	BUILTIN_FUNCTION("dir", _dir);
-	BUILTIN_FUNCTION("len", _len);
-	BUILTIN_FUNCTION("repr", _repr);
-	BUILTIN_FUNCTION("print", _print);
-	BUILTIN_FUNCTION("ord", _ord);
-	BUILTIN_FUNCTION("chr", _chr);
-	BUILTIN_FUNCTION("hex", _hex);
+	BUILTIN_FUNCTION("listOf", krk_list_of, "Convert argument sequence to list object.");
+	BUILTIN_FUNCTION("dictOf", krk_dict_of, "Convert argument sequence to dict object.");
+	BUILTIN_FUNCTION("tupleOf", _tuple_of,  "Convert argument sequence to tuple object.");
+	BUILTIN_FUNCTION("isinstance", krk_isinstance, "Determine if an object is an instance of the given class or one if its subclasses.");
+	BUILTIN_FUNCTION("globals", krk_globals, "Return a mapping of names in the current global namespace.");
+	BUILTIN_FUNCTION("dir", _dir, "Return a list of known property names for a given object.");
+	BUILTIN_FUNCTION("len", _len, "Return the length of a given sequence object.");
+	BUILTIN_FUNCTION("repr", _repr, "Produce a string representation of the given object.");
+	BUILTIN_FUNCTION("print", _print, "Print values to the standard output descriptor.");
+	BUILTIN_FUNCTION("ord", _ord, "Obtain the ordinal integer value of a codepoint or byte.");
+	BUILTIN_FUNCTION("chr", _chr, "Convert an integer codepoint to its string representation.");
+	BUILTIN_FUNCTION("hex", _hex, "Convert an integer value to a hexadecimal string.");
 
 	/* __builtins__.set_tracing is namespaced */
-	krk_defineNative(&vm.builtins->fields, "set_tracing", krk_set_tracing);
+	krk_defineNative(&vm.builtins->fields, "set_tracing", krk_set_tracing)->doc = "Toggle debugging modes.";
 
 	/* TODO: Don't attach */
 	ADD_BASE_CLASS(vm.baseClasses.listiteratorClass, "listiterator", vm.objectClass);
@@ -3597,6 +3647,9 @@ void krk_initVM(int flags) {
 	krk_defineNative(&vm.baseClasses.rangeClass->methods, ".__iter__", _range_iter);
 	krk_defineNative(&vm.baseClasses.rangeClass->methods, ".__repr__", _range_repr);
 	krk_finalizeClass(vm.baseClasses.rangeClass);
+	vm.baseClasses.rangeClass->docstring = S("range(max), range(min, max[, step]): "
+		"An iterable object that produces numeric values. "
+		"'min' is inclusive, 'max' is exclusive.");
 
 	/* TODO: Don't attach */
 	ADD_BASE_CLASS(vm.baseClasses.rangeiteratorClass, "rangeiterator", vm.objectClass);

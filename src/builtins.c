@@ -79,7 +79,7 @@ const char krk_builtinsSrc[] =
 "class Helper():\n"
 " '''You seem to already know how to use this.'''\n"
 " def __call__(self,obj=None):\n"
-"  if obj:\n"
+"  if obj is not None:\n"
 "   try:\n"
 "    print(obj.__doc__)\n"
 "   except:\n"

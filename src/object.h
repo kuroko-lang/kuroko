@@ -16,7 +16,7 @@
 #define IS_FUNCTION(value) isObjType(value, OBJ_FUNCTION)
 #define AS_FUNCTION(value) ((KrkFunction *)AS_OBJECT(value))
 #define IS_NATIVE(value)   isObjType(value, OBJ_NATIVE)
-#define AS_NATIVE(value)   (((KrkNative *)AS_OBJECT(value))->function)
+#define AS_NATIVE(value)   ((KrkNative *)AS_OBJECT(value))
 #define IS_CLOSURE(value)  isObjType(value, OBJ_CLOSURE)
 #define AS_CLOSURE(value)  ((KrkClosure *)AS_OBJECT(value))
 #define IS_CLASS(value)    isObjType(value, OBJ_CLASS)
@@ -160,6 +160,7 @@ typedef struct {
 	KrkObj obj;
 	NativeFn function;
 	const char * name;
+	const char * doc;
 	int isMethod;
 } KrkNative;
 
