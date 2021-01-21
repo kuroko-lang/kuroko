@@ -3496,6 +3496,9 @@ void krk_initVM(int flags) {
 	krk_defineNative(&vm.system->fields, "getsizeof", krk_getsize);
 	krk_defineNative(&vm.system->fields, "set_clean_output", krk_setclean);
 	krk_attachNamedObject(&vm.system->fields, "path_sep", (KrkObj*)S(PATH_SEP));
+#ifdef _WIN32
+	krk_attachNamedObject(&vm.system->fields, "executable_path", (KrkObj*)krk_copyString(_pgmptr, strlen(_pgmptr)));
+#endif
 
 	/**
 	 * gc = module()

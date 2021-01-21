@@ -111,6 +111,9 @@ const char krk_builtinsSrc[] =
 "# this works because `kuroko` is always a built-in\n"
 "import kuroko\n"
 "kuroko.module_paths = ['./','./modules/','/usr/local/lib/kuroko/']\n"
+"if 'executable_path' in dir(kuroko):\n"
+" let basepath = kuroko.path_sep.join(kuroko.executable_path.split(kuroko.path_sep)[:-1])\n"
+" kuroko.module_paths.append(basepath + kuroko.path_sep + 'modules' + kuroko.path_sep)\n"
 "\n"
 "return object()\n"
 ;
