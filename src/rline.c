@@ -23,6 +23,8 @@
 #include <sys/ioctl.h>
 #else
 #include <windows.h>
+#include <io.h>
+#define _O_U8TEXT 0x00040000
 /* How do we get this in Windows? Seems WT asks the font? */
 #define wcwidth(c) (1)
 #endif
@@ -303,6 +305,11 @@ static int codepoint_width(int codepoint) {
 		/* Non-breaking space _ */
 		return 1;
 	}
+#ifdef _WIN32
+	if (codepoint > 127) {
+		return (codepoint < 0x10000) ? 8 : 10;
+	}
+#else
 	/* Skip wcwidth for anything under 256 */
 	if (codepoint > 256) {
 		/* Higher codepoints may be wider (eg. Japanese) */
@@ -311,6 +318,7 @@ static int codepoint_width(int codepoint) {
 		/* Invalid character, render as [U+ABCD] or [U+ABCDEF] */
 		return (codepoint < 0x10000) ? 8 : 10;
 	}
+#endif
 	return 1;
 }
 
@@ -1321,7 +1329,11 @@ static void render_line(void) {
 #endif
 			} else if (i > 0 && is_spaces && c.codepoint == ' ' && !(i % 4)) {
 				set_colors(COLOR_ALT_FG, COLOR_BG); /* Normal background so this is more subtle */
+#ifndef _WIN32
 				printf("▏");
+#else
+				printf("|");
+#endif
 				set_colors(last_color ? last_color : COLOR_FG, COLOR_BG);
 			} else {
 				/* Normal characters get output */
@@ -1799,6 +1811,7 @@ static void get_initial_termios(void) {
 }
 static void set_unbuffered(void) {
 	SetConsoleMode(GetStdHandle(STD_INPUT_HANDLE), ENABLE_VIRTUAL_TERMINAL_INPUT);
+	SetConsoleMode(GetStdHandle(STD_OUTPUT_HANDLE), ENABLE_PROCESSED_OUTPUT | ENABLE_VIRTUAL_TERMINAL_PROCESSING | ENABLE_WRAP_AT_EOL_OUTPUT);
 }
 static void set_buffered(void) {
 	SetConsoleMode(GetStdHandle(STD_INPUT_HANDLE), ENABLE_LINE_INPUT | ENABLE_PROCESSED_INPUT);
