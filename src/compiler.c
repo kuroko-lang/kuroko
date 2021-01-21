@@ -1143,7 +1143,7 @@ static KrkToken decorator(size_t level, FunctionType type) {
 		if (parser.previous.length != blockWidth) error("Expected next line after decorator to have same indentation.");
 	}
 
-	KrkToken funcName;
+	KrkToken funcName = {0};
 	if (check(TOKEN_DEF)) {
 		/* We already checked for block level */
 		advance();

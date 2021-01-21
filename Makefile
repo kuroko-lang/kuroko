@@ -6,9 +6,9 @@ MODULES  = $(patsubst src/module_%.c, modules/%.so, $(sort $(wildcard src/module
 HEADERS  = $(wildcard src/*.h)
 
 ifndef KRK_ENABLE_STATIC
-CFLAGS  += -fPIC -L.
+CFLAGS  += -fPIC
 ifeq (,$(findstring mingw,$(CC)))
-LDFLAGS += -Wl,-rpath -Wl,'$$ORIGIN' -Wl,-z,origin
+LDFLAGS += -Wl,-rpath -Wl,'$$ORIGIN' -L.
 LDLIBS  += -ldl -lkuroko
 else
 CFLAGS  += -Wno-format
@@ -56,13 +56,13 @@ kuroko: src/kuroko.o ${KUROKO_LIBS}
 %.o: ${HEADERS}
 
 modules/%.so: src/module_%.c libkuroko.so
-	${CC} ${CFLAGS} -shared -o $@ $< ${LDLIBS}
+	${CC} ${CFLAGS} ${LDFLAGS} -shared -o $@ $< ${LDLIBS}
 
 modules/math.so: src/module_math.c libkuroko.so
-	${CC} ${CFLAGS} -shared -o $@ $< -lm ${LDLIBS}
+	${CC} ${CFLAGS} ${LDFLAGS} -shared -o $@ $< -lm ${LDLIBS}
 
 libkuroko.so: ${OBJS}
-	${CC} ${CFLAGS} -shared -o $@ ${OBJS}
+	${CC} ${CFLAGS} ${LDFLAGS} -shared -o $@ ${OBJS}
 
 src/builtins.c: src/builtins.krk
 	echo "const char krk_builtinsSrc[] = " > $@
