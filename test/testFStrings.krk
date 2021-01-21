@@ -1,0 +1,6 @@
+print(f"Regular string")
+print(f"{1 + 2}")
+print(f"{1 + 2} with a string after")
+print(f"with a string before {1 + 2}")
+print(f"with {1+2}{object} nothing in between")
+print(f"{1 + 2}{3 + 4}{[]}{{}} with some fun expressions")

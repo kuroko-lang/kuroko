@@ -1770,8 +1770,11 @@ static void string(int type) {
 				}
 				c += 2;
 			} else if (isFormat && *c == '{') {
-				emitConstant(OBJECT_VAL(krk_copyString(stringBytes,stringLength)));
-				if (atLeastOne) emitByte(OP_ADD);
+				if (!atLeastOne || stringLength) { /* Make sure there's a string for coersion reasons */
+					emitConstant(OBJECT_VAL(krk_copyString(stringBytes,stringLength)));
+					if (atLeastOne) emitByte(OP_ADD);
+					atLeastOne = 1;
+				}
 				stringLength = 0;
 				KrkScanner beforeExpression = krk_tellScanner();
 				Parser  parserBefore = parser;
@@ -1814,7 +1817,7 @@ static void string(int type) {
 					error("Expected closing } after expression in f-string");
 					goto _cleanupError;
 				}
-				emitByte(OP_ADD);
+				if (atLeastOne) emitByte(OP_ADD);
 				atLeastOne = 1;
 				c++;
 			} else {
@@ -1839,9 +1842,11 @@ static void string(int type) {
 		emitConstant(OBJECT_VAL(bytes));
 		return;
 	}
-	emitConstant(OBJECT_VAL(krk_copyString(stringBytes,stringLength)));
+	if (!isFormat || stringLength || !atLeastOne) {
+		emitConstant(OBJECT_VAL(krk_copyString(stringBytes,stringLength)));
+		if (atLeastOne) emitByte(OP_ADD);
+	}
 	FREE_ARRAY(char,stringBytes,stringCapacity);
-	if (isFormat && atLeastOne) emitByte(OP_ADD);
 #undef PUSH_CHAR
 	return;
 _cleanupError:
