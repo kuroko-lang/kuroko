@@ -228,7 +228,7 @@ int rline_exp_set_tab_complete_func(rline_callback_t func) {
 	return 0;
 }
 
-static int getch(int immediate, int timeout) {
+static int getch(int timeout) {
 #ifndef _WIN32
 	return fgetc(stdin);
 #else
@@ -1917,7 +1917,6 @@ static int read_line(void) {
 	int timeout = 0;
 	int this_buf[20];
 	uint32_t istate = 0;
-	int immediate = 1;
 
 	#ifndef _WIN32
 	/* Let's disable this under Windows... */
@@ -1941,7 +1940,7 @@ static int read_line(void) {
 	render_line();
 	rline_place_cursor();
 
-	while ((cin = getch(immediate,timeout))) {
+	while ((cin = getch(timeout))) {
 		if (cin == -1) continue;
 		get_size();
 		if (!decode(&istate, &c, cin)) {
@@ -1955,7 +1954,6 @@ static int read_line(void) {
 					the_line->actual = 0;
 					column = 0;
 					insert_char('\n');
-					immediate = 0;
 					raise(SIGINT);
 					return 1;
 				}
@@ -1975,7 +1973,6 @@ static int read_line(void) {
 						if (column < the_line->actual) {
 							line_delete(the_line, column+1);
 							if (offset > 0) offset--;
-							immediate = 0;
 						}
 						continue;
 					}
@@ -1990,7 +1987,6 @@ static int read_line(void) {
 					case DELETE_KEY:
 					case BACKSPACE_KEY:
 						delete_at_cursor();
-						immediate = 0;
 						break;
 					case 13:
 					case ENTER_KEY:
@@ -1999,18 +1995,15 @@ static int read_line(void) {
 						column = the_line->actual;
 						render_line();
 						insert_char('\n');
-						immediate = 0;
 						return 1;
 					case 22: /* ^V */
 						/* Don't bother with unicode, just take the next byte */
 						rline_place_cursor();
 						printf("^\b");
 						insert_char(getc(stdin));
-						immediate = 0;
 						break;
 					case 23: /* ^W */
 						delete_word();
-						immediate = 0;
 						break;
 					case 12: /* ^L - Repaint the whole screen */
 						printf("\033[2J\033[H");
@@ -2019,13 +2012,11 @@ static int read_line(void) {
 						break;
 					case 11: /* ^K - Clear to end */
 						the_line->actual = column;
-						immediate = 0;
 						break;
 					case 21: /* ^U - Kill to beginning */
 						while (column) {
 							delete_at_cursor();
 						}
-						immediate = 0;
 						break;
 					case '\t':
 						if ((syntax && syntax->tabIndents) && (column == 0 || the_line->text[column-1].codepoint == ' ')) {
@@ -2034,18 +2025,15 @@ static int read_line(void) {
 							insert_char(' ');
 							insert_char(' ');
 							insert_char(' ');
-							immediate = 0;
 						} else if (tab_complete_func) {
 							/* Tab complete */
 							rline_context_t context = {0};
 							call_rline_func(tab_complete_func, &context);
-							immediate = 0;
 							continue;
 						}
 						break;
 					default:
 						insert_char(c);
-						immediate = 0;
 						break;
 				}
 			} else {
@@ -2054,7 +2042,6 @@ static int read_line(void) {
 					rline_place_cursor();
 					continue;
 				}
-				immediate = 0;
 			}
 			render_line();
 			rline_place_cursor();

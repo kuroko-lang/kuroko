@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -857,6 +858,7 @@ static void block(size_t indentation, const char * blockName) {
 }
 
 static void doUpvalues(Compiler * compiler, KrkFunction * function) {
+	assert(!!function->upvalueCount == !!compiler->upvalues);
 	for (size_t i = 0; i < function->upvalueCount; ++i) {
 		emitByte(compiler->upvalues[i].isLocal ? 1 : 0);
 		if (i > 255) {
@@ -1155,6 +1157,7 @@ static KrkToken decorator(size_t level, FunctionType type) {
 		funcName = decorator(level+1, type);
 	} else {
 		error("Expected a function declaration or another decorator.");
+		return funcName;
 	}
 
 	emitBytes(OP_CALL, 1);
