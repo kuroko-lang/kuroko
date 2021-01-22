@@ -64,16 +64,18 @@ class State():
     def highlight(self):
         self.line_no = 0
         self.linestates = []
+        self.state   = 0
         for line in self.lines:
             self.col_no  = 0
             self.line = line
             self.current = None
             self.states  = []
-            self.state   = 0
             while True:
                 self.state = self.highlightOnce()
-                if self.state == None:
+                if self.state != 0:
                     break
+            if self.state is None:
+                self.state = 0
             if self.current:
                 self.states.append(self.current)
             self.linestates.append(self.states)
@@ -144,7 +146,7 @@ class State():
         self.paint(1,FLAG_NONE)
 
     def paintComment(self):
-        while self.charat() != None:
+        while self.charat() is not None:
             if self.findKeywords(['TODO','XXX'], FLAG_NOTICE, self.cKeywordQualifier): continue
             else if self.findKeywords(['FIXME'], FLAG_ERROR,  self.cKeywordQualifier): continue
             else: self.paint(1, FLAG_COMMENT)
@@ -153,7 +155,7 @@ class State():
 class KurokoHighlighter(State):
 
     def paintTriple(self, strType):
-        while self.charat() != None:
+        while self.charat() is not None:
             if self.charat() == strType:
                 self.paint(1, FLAG_STRING)
                 if self.charat() == strType and self.nextchar() == strType:
@@ -164,7 +166,7 @@ class KurokoHighlighter(State):
         return int(strType == "'") + 1
 
     def paintString(self, strType):
-        while self.charat() != None:
+        while self.charat() is not None:
             if self.charat() == '\\' and self.nextchar() == strType:
                 self.paint(2, FLAG_ESCAPE)
             else if self.charat() == strType:
@@ -233,7 +235,7 @@ class KurokoHighlighter(State):
             else if not self.cKeywordQualifier(self.lastchar()) and self.isdigit(self.charat()):
                 self.paintNumeral()
                 return 0
-            else if self.charat() != None:
+            else if self.charat() is not None:
                 self.skip()
                 return 0
         else if self.state == 1:
