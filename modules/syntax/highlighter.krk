@@ -27,7 +27,8 @@ let keywords = [
 
 let types = [
     'self','super','len','str','int','float','dir','repr','list','dict','range',
-    'object','exception','isinstance','type','print','tuple'
+    'object','exception','isinstance','type','print','tuple','bool','any','all',
+    'hex','ord','chr'
 ]
 
 let special = [
@@ -42,8 +43,8 @@ def toTerminal(processed,colors=None):
             FLAG_STRING:    '\[[0;32m',
             FLAG_COMMENT:   '\[[0;90m',
             FLAG_TYPE:      '\[[0;33m',
-            FLAG_PRAGMA:    '\[[0;31m',
-            FLAG_NUMERAL:   '\[[0;35m',
+            FLAG_PRAGMA:    '\[[0;35m',
+            FLAG_NUMERAL:   '\[[0;31m',
             FLAG_ERROR:     '\[[0;97;41m',
             FLAG_DIFFPLUS:  '\[[0;92m',
             FLAG_DIFFMINUS: '\[[0;91m',
@@ -196,7 +197,7 @@ class KurokoHighlighter(State):
         else if self.charat() == '0' and (self.nextchar() == 'o' or self.nextchar() == 'O'):
             self.paint(2, FLAG_NUMERAL)
             while self.charat() in '01234567':
-                self.flag(1, FLAG_NUMERAL)
+                self.paint(1, FLAG_NUMERAL)
         else if self.charat() == '0' and (self.nextchar() == 'b' or self.nextchar() == 'B'):
             self.paint(2, FLAG_NUMERAL)
             while self.charat() == '0' or self.charat() == '1':
