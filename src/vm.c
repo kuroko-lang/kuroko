@@ -61,7 +61,6 @@
 KrkVM vm;
 
 static KrkValue run();
-static KrkValue krk_isinstance(int argc, KrkValue argv[]);
 static void addObjects();
 /* We use these directly sometimes */
 static KrkValue _string_get(int argc, KrkValue argv[]);
@@ -1000,7 +999,7 @@ inline KrkClass * krk_getType(KrkValue of) {
 /**
  * type()
  */
-KrkValue krk_typeOf(int argc, KrkValue argv[]) {
+KrkValue _type(int argc, KrkValue argv[]) {
 	return OBJECT_VAL(krk_getType(argv[0]));
 }
 
@@ -1049,7 +1048,15 @@ static KrkValue _class_to_str(int argc, KrkValue argv[]) {
  * type and didn't inherit from object(), everything is eventually
  * an object - even basic types like INTEGERs and FLOATINGs.
  */
-static KrkValue krk_isinstance(int argc, KrkValue argv[]) {
+int krk_isInstanceOf(KrkValue obj, KrkClass * type) {
+	KrkClass * mine = krk_getType(obj);
+	while (mine) {
+		if (mine == type) return 1;
+		mine = mine->base;
+	}
+	return 0;
+}
+static KrkValue _isinstance(int argc, KrkValue argv[]) {
 	if (argc != 2) {
 		krk_runtimeError(vm.exceptions.argumentError, "isinstance expects 2 arguments, got %d", argc);
 		return NONE_VAL();
@@ -1060,15 +1067,7 @@ static KrkValue krk_isinstance(int argc, KrkValue argv[]) {
 		return NONE_VAL();
 	}
 
-	KrkClass * obj_class = krk_getType(argv[0]);
-	KrkClass * _class = AS_CLASS(argv[1]);
-
-	while (obj_class) {
-		if (obj_class == _class) return BOOLEAN_VAL(1);
-		obj_class = obj_class->base;
-	}
-
-	return BOOLEAN_VAL(0);
+	return BOOLEAN_VAL(krk_isInstanceOf(argv[0], AS_CLASS(argv[1])));
 }
 
 /**
@@ -3383,7 +3382,7 @@ void krk_initVM(int flags) {
 	 */
 	vm.objectClass = krk_newClass(S("object"), NULL);
 
-	krk_defineNative(&vm.objectClass->methods, ":__class__", krk_typeOf);
+	krk_defineNative(&vm.objectClass->methods, ":__class__", _type);
 	krk_defineNative(&vm.objectClass->methods, ".__dir__", krk_dirObject);
 	krk_defineNative(&vm.objectClass->methods, ".__str__", _strBase);
 	krk_defineNative(&vm.objectClass->methods, ".__repr__", _strBase); /* Override if necesary */
@@ -3606,7 +3605,7 @@ void krk_initVM(int flags) {
 	BUILTIN_FUNCTION("listOf", krk_list_of, "Convert argument sequence to list object.");
 	BUILTIN_FUNCTION("dictOf", krk_dict_of, "Convert argument sequence to dict object.");
 	BUILTIN_FUNCTION("tupleOf", _tuple_of,  "Convert argument sequence to tuple object.");
-	BUILTIN_FUNCTION("isinstance", krk_isinstance, "Determine if an object is an instance of the given class or one if its subclasses.");
+	BUILTIN_FUNCTION("isinstance", _isinstance, "Determine if an object is an instance of the given class or one if its subclasses.");
 	BUILTIN_FUNCTION("globals", krk_globals, "Return a mapping of names in the current global namespace.");
 	BUILTIN_FUNCTION("dir", _dir, "Return a list of known property names for a given object.");
 	BUILTIN_FUNCTION("len", _len, "Return the length of a given sequence object.");

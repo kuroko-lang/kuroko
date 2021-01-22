@@ -150,8 +150,8 @@ extern void krk_runtimeError(KrkClass * type, const char * fmt, ...);
 
 extern KrkInstance * krk_dictCreate(void);
 extern KrkValue  krk_runNext(void);
-extern KrkValue krk_typeOf(int argc, KrkValue argv[]);
 extern KrkClass * krk_getType(KrkValue);
+extern int krk_isInstanceOf(KrkValue obj, KrkClass * type);
 extern int krk_bindMethod(KrkClass * _class, KrkString * name);
 extern int krk_callValue(KrkValue callee, int argCount, int extra);
 

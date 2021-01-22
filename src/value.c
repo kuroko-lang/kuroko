@@ -151,7 +151,7 @@ int krk_valuesEqual(KrkValue a, KrkValue b) {
 		}
 	}
 
-	KrkClass * type = AS_CLASS(krk_typeOf(1,(KrkValue[]){a}));
+	KrkClass * type = krk_getType(a);
 	if (type && type->_eq) {
 		krk_push(a);
 		krk_push(b);

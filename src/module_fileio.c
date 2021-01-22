@@ -99,6 +99,10 @@ KrkValue krk_open(int argc, KrkValue argv[]) {
 #define BLOCK_SIZE 1024
 
 static KrkValue krk_file_str(int argc, KrkValue argv[]) {
+	if (argc < 1 || !krk_isInstanceOf(argv[0],FileClass)) {
+		krk_runtimeError(vm.exceptions.typeError, "argument must be File");
+		return NONE_VAL();
+	}
 	KrkInstance * fileObj = AS_INSTANCE(argv[0]);
 	KrkValue filename, modestr;
 	krk_tableGet(&fileObj->fields, OBJECT_VAL(S("filename")), &filename);
@@ -111,10 +115,11 @@ static KrkValue krk_file_str(int argc, KrkValue argv[]) {
 }
 
 static KrkValue krk_file_readline(int argc, KrkValue argv[]) {
-	if (argc < 1 || !IS_INSTANCE(argv[0])) {
-		krk_runtimeError(vm.exceptions.baseException, "Not sure how that happened.");
+	if (argc < 1 || !krk_isInstanceOf(argv[0],FileClass)) {
+		krk_runtimeError(vm.exceptions.typeError, "argument must be File");
 		return NONE_VAL();
 	}
+
 
 	FILE * file = ((struct FileObject*)AS_OBJECT(argv[0]))->filePtr;
 
@@ -155,6 +160,11 @@ _finish_line: (void)0;
 }
 
 static KrkValue krk_file_readlines(int argc, KrkValue argv[]) {
+	if (argc < 1 || !krk_isInstanceOf(argv[0],FileClass)) {
+		krk_runtimeError(vm.exceptions.typeError, "argument must be File");
+		return NONE_VAL();
+	}
+
 	KrkValue myList = krk_list_of(0,NULL);
 	krk_push(myList);
 
@@ -172,8 +182,8 @@ static KrkValue krk_file_readlines(int argc, KrkValue argv[]) {
 }
 
 static KrkValue krk_file_read(int argc, KrkValue argv[]) {
-	if (argc < 1 || !IS_INSTANCE(argv[0])) {
-		krk_runtimeError(vm.exceptions.baseException, "Not sure how that happened.");
+	if (argc < 1 || !krk_isInstanceOf(argv[0],FileClass)) {
+		krk_runtimeError(vm.exceptions.typeError, "argument must be File");
 		return NONE_VAL();
 	}
 
@@ -217,7 +227,7 @@ static KrkValue krk_file_read(int argc, KrkValue argv[]) {
 
 static KrkValue krk_file_write(int argc, KrkValue argv[]) {
 	/* Expect just a string as arg 2 */
-	if (argc < 2 || !IS_INSTANCE(argv[0]) || !IS_STRING(argv[1])) {
+	if (argc < 2 || !krk_isInstanceOf(argv[0], FileClass) || !IS_STRING(argv[1])) {
 		krk_runtimeError(vm.exceptions.typeError, "write: expected string");
 		return NONE_VAL();
 	}
@@ -233,8 +243,8 @@ static KrkValue krk_file_write(int argc, KrkValue argv[]) {
 }
 
 static KrkValue krk_file_close(int argc, KrkValue argv[]) {
-	if (argc < 1 || !IS_INSTANCE(argv[0])) {
-		krk_runtimeError(vm.exceptions.baseException, "Not sure how that happened.");
+	if (argc < 1 || !krk_isInstanceOf(argv[0],FileClass)) {
+		krk_runtimeError(vm.exceptions.typeError, "argument must be File");
 		return NONE_VAL();
 	}
 
@@ -250,8 +260,8 @@ static KrkValue krk_file_close(int argc, KrkValue argv[]) {
 }
 
 static KrkValue krk_file_flush(int argc, KrkValue argv[]) {
-	if (argc < 1 || !IS_INSTANCE(argv[0])) {
-		krk_runtimeError(vm.exceptions.baseException, "Not sure how that happened.");
+	if (argc < 1 || !krk_isInstanceOf(argv[0],FileClass)) {
+		krk_runtimeError(vm.exceptions.typeError, "argument must be File");
 		return NONE_VAL();
 	}
 
@@ -295,8 +305,8 @@ static void makeFileInstance(KrkInstance * module, const char name[], FILE * fil
 }
 
 static KrkValue krk_file_readline_b(int argc, KrkValue argv[]) {
-	if (argc < 1 || !IS_INSTANCE(argv[0])) {
-		krk_runtimeError(vm.exceptions.baseException, "Not sure how that happened.");
+	if (argc < 1 || !krk_isInstanceOf(argv[0],BinaryFileClass)) {
+		krk_runtimeError(vm.exceptions.typeError, "argument must be BinaryFile");
 		return NONE_VAL();
 	}
 
@@ -339,6 +349,10 @@ _finish_line: (void)0;
 }
 
 static KrkValue krk_file_readlines_b(int argc, KrkValue argv[]) {
+	if (argc < 1 || !krk_isInstanceOf(argv[0],BinaryFileClass)) {
+		krk_runtimeError(vm.exceptions.typeError, "argument must be BinaryFile");
+		return NONE_VAL();
+	}
 	KrkValue myList = krk_list_of(0,NULL);
 	krk_push(myList);
 
@@ -356,8 +370,8 @@ static KrkValue krk_file_readlines_b(int argc, KrkValue argv[]) {
 }
 
 static KrkValue krk_file_read_b(int argc, KrkValue argv[]) {
-	if (argc < 1 || !IS_INSTANCE(argv[0])) {
-		krk_runtimeError(vm.exceptions.baseException, "Not sure how that happened.");
+	if (argc < 1 || !krk_isInstanceOf(argv[0], BinaryFileClass)) {
+		krk_runtimeError(vm.exceptions.typeError, "argument must be BinaryFile");
 		return NONE_VAL();
 	}
 
@@ -401,7 +415,7 @@ static KrkValue krk_file_read_b(int argc, KrkValue argv[]) {
 
 static KrkValue krk_file_write_b(int argc, KrkValue argv[]) {
 	/* Expect just a string as arg 2 */
-	if (argc < 2 || !IS_INSTANCE(argv[0]) || !IS_BYTES(argv[1])) {
+	if (argc < 2 || !krk_isInstanceOf(argv[0], BinaryFileClass) || !IS_BYTES(argv[1])) {
 		krk_runtimeError(vm.exceptions.typeError, "write: expected bytes");
 		return NONE_VAL();
 	}
