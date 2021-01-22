@@ -81,8 +81,9 @@ static KrkValue krk_file_str(int argc, KrkValue argv[]) {
 	if (argc < 1 || !krk_isInstanceOf(argv[0],FileClass)) return krk_runtimeError(vm.exceptions.typeError, "argument must be File");
 	KrkInstance * fileObj = AS_INSTANCE(argv[0]);
 	KrkValue filename, modestr;
-	krk_tableGet(&fileObj->fields, OBJECT_VAL(S("filename")), &filename);
-	krk_tableGet(&fileObj->fields, OBJECT_VAL(S("modestr")), &modestr);
+	if (!krk_tableGet(&fileObj->fields, OBJECT_VAL(S("filename")), &filename) || !IS_STRING(filename)) return krk_runtimeError(vm.exceptions.baseException, "Corrupt File");
+	if (!krk_tableGet(&fileObj->fields, OBJECT_VAL(S("modestr")), &modestr) || !IS_STRING(modestr)) return krk_runtimeError(vm.exceptions.baseException, "Corrupt File");
+
 	char * tmp = malloc(AS_STRING(filename)->length + AS_STRING(modestr)->length + 100); /* safety */
 	sprintf(tmp, "<%s file '%s', mode '%s' at %p>", ((struct FileObject*)fileObj)->filePtr ? "open" : "closed", AS_CSTRING(filename), AS_CSTRING(modestr), (void*)fileObj);
 	KrkString * out = krk_copyString(tmp, strlen(tmp));
