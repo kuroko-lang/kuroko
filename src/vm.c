@@ -1564,6 +1564,9 @@ _badSyntaxError:
 	return OBJECT_VAL(S("SyntaxError: invalid syntax"));
 }
 
+#define CHECK_STRING() if (unlikely(argc < 1 || !IS_STRING(argv[0]))) \
+	return krk_runtimeError(vm.exceptions.typeError, "expected str")
+
 static KrkValue _string_init(int argc, KrkValue argv[]) {
 	/* Ignore argument which would have been an instance */
 	if (argc < 2) {
@@ -1578,6 +1581,7 @@ static KrkValue _string_init(int argc, KrkValue argv[]) {
 }
 
 static KrkValue _string_add(int argc, KrkValue argv[]) {
+	CHECK_STRING();
 	const char * a, * b;
 	size_t al, bl;
 	int needsPop = 0;
@@ -1656,6 +1660,7 @@ static KrkValue _int_to_char(int argc, KrkValue argv[]) {
 
 /* str.__ord__() */
 static KrkValue _string_ord(int argc, KrkValue argv[]) {
+	CHECK_STRING();
 	if (AS_STRING(argv[0])->codesLength != 1)
 		return krk_runtimeError(vm.exceptions.typeError, "ord() expected a character, but string of length %d found",
 			AS_STRING(argv[0])->codesLength);
@@ -1825,7 +1830,7 @@ static KrkValue _string_get(int argc, KrkValue argv[]) {
 
 /* str.format(**kwargs) */
 static KrkValue _string_format(int argc, KrkValue argv[], int hasKw) {
-	if (!IS_STRING(argv[0])) return NONE_VAL();
+	CHECK_STRING();
 	if (AS_STRING(argv[0])->type != KRK_STRING_ASCII) {
 		return krk_runtimeError(vm.exceptions.notImplementedError, "Unable to call .format() on non-ASCII string.");
 	}
@@ -1973,6 +1978,7 @@ _freeAndDone:
 }
 
 static KrkValue _string_mul(int argc, KrkValue argv[]) {
+	CHECK_STRING();
 	if (!IS_INTEGER(argv[1])) {
 		return krk_runtimeError(vm.exceptions.typeError, "unsupported operand types for *: '%s' and '%s'",
 			"list", krk_typeName(argv[1]));
@@ -1992,7 +1998,7 @@ static KrkValue _string_mul(int argc, KrkValue argv[]) {
 
 /* str.join(list) */
 static KrkValue _string_join(int argc, KrkValue argv[], int hasKw) {
-	if (!IS_STRING(argv[0])) return NONE_VAL();
+	CHECK_STRING();
 	KrkString * self = AS_STRING(argv[0]);
 	if (hasKw) return krk_runtimeError(vm.exceptions.argumentError, "str.join() does not take keyword arguments");
 	if (argc < 2) return krk_runtimeError(vm.exceptions.argumentError, "str.join(): expected exactly one argument");
@@ -2070,7 +2076,7 @@ static int charIn(char c, const char * str) {
  * Set which = 0, 1, 2 respectively
  */
 static KrkValue _string_strip_shared(int argc, KrkValue argv[], int which) {
-	if (!IS_STRING(argv[0])) return NONE_VAL();
+	CHECK_STRING();
 	if (argc > 1 && IS_STRING(argv[1]) && AS_STRING(argv[1])->type != KRK_STRING_ASCII) {
 		return krk_runtimeError(vm.exceptions.notImplementedError, "str.strip() not implemented for Unicode strip lists");
 	}
@@ -2106,7 +2112,8 @@ static KrkValue _string_rstrip(int argc, KrkValue argv[]) {
 }
 
 static KrkValue _string_lt(int argc, KrkValue argv[]) {
-	if (!IS_STRING(argv[1])) {
+	CHECK_STRING();
+	if (argc < 2 || !IS_STRING(argv[1])) {
 		return KWARGS_VAL(0); /* represents 'not implemented' */
 	}
 
@@ -2124,7 +2131,8 @@ static KrkValue _string_lt(int argc, KrkValue argv[]) {
 }
 
 static KrkValue _string_gt(int argc, KrkValue argv[]) {
-	if (!IS_STRING(argv[1])) {
+	CHECK_STRING();
+	if (argc < 2 || !IS_STRING(argv[1])) {
 		return KWARGS_VAL(0); /* represents 'not implemented' */
 	}
 
@@ -2148,7 +2156,7 @@ static KrkValue _string_mod(int argc, KrkValue argv[]) {
 
 /* str.split() */
 static KrkValue _string_split(int argc, KrkValue argv[], int hasKw) {
-	if (!IS_STRING(argv[0])) return NONE_VAL();
+	CHECK_STRING();
 	KrkString * self = AS_STRING(argv[0]);
 	if (argc > 1) {
 		if (!IS_STRING(argv[1])) {
@@ -2259,6 +2267,7 @@ static KrkValue _string_split(int argc, KrkValue argv[], int hasKw) {
  * should escape characters like quotes.
  */
 static KrkValue _string_repr(int argc, KrkValue argv[]) {
+	CHECK_STRING();
 	size_t stringCapacity = 0;
 	size_t stringLength   = 0;
 	char * stringBytes    = NULL;
@@ -2314,6 +2323,7 @@ static KrkValue _string_repr(int argc, KrkValue argv[]) {
 }
 
 static KrkValue _string_encode(int argc, KrkValue argv[]) {
+	CHECK_STRING();
 	return OBJECT_VAL(krk_newBytes(AS_STRING(argv[0])->length, (uint8_t*)AS_CSTRING(argv[0])));
 }
 
