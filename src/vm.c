@@ -349,10 +349,19 @@ void krk_finalizeClass(KrkClass * _class) {
  * Collections *
 ****************/
 
+#define CHECK_DICT_FAST() if (unlikely(argc < 0 || !IS_INSTANCE(argv[0]) || \
+	(AS_INSTANCE(argv[0])->_class != vm.baseClasses.dictClass && !krk_isInstanceOf(argv[0], vm.baseClasses.dictClass)))) \
+		return krk_runtimeError(vm.exceptions.typeError, "expected dict")
+
+#define CHECK_LIST_FAST() if (unlikely(argc < 0 || !IS_INSTANCE(argv[0]) || \
+	(AS_INSTANCE(argv[0])->_class != vm.baseClasses.listClass && !krk_isInstanceOf(argv[0], vm.baseClasses.listClass)))) \
+		return krk_runtimeError(vm.exceptions.typeError, "expected list")
+
 /**
  * dict.__init__()
  */
 static KrkValue _dict_init(int argc, KrkValue argv[]) {
+	CHECK_DICT_FAST();
 	krk_initTable(&((KrkDict *)AS_OBJECT(argv[0]))->entries);
 	return argv[0];
 }
@@ -369,6 +378,7 @@ static void _dict_gcsweep(KrkInstance * self) {
  * dict.__get__(key)
  */
 static KrkValue _dict_get(int argc, KrkValue argv[]) {
+	CHECK_DICT_FAST();
 	if (argc < 2) return krk_runtimeError(vm.exceptions.argumentError, "wrong number of arguments");
 	KrkValue out;
 	if (!krk_tableGet(AS_DICT(argv[0]), argv[1], &out)) return krk_runtimeError(vm.exceptions.keyError, "key error");
@@ -379,12 +389,14 @@ static KrkValue _dict_get(int argc, KrkValue argv[]) {
  * dict.__set__(key, value)
  */
 static KrkValue _dict_set(int argc, KrkValue argv[]) {
+	CHECK_DICT_FAST();
 	if (argc < 3) return krk_runtimeError(vm.exceptions.argumentError, "wrong number of arguments");
 	krk_tableSet(AS_DICT(argv[0]), argv[1], argv[2]);
 	return NONE_VAL();
 }
 
 static KrkValue _dict_or(int argc, KrkValue argv[]) {
+	CHECK_DICT_FAST();
 	if (argc < 2) return krk_runtimeError(vm.exceptions.argumentError, "wrong number of arguments");
 	if (!krk_isInstanceOf(argv[0],vm.baseClasses.dictClass) ||
 	    !krk_isInstanceOf(argv[1],vm.baseClasses.dictClass))
@@ -406,6 +418,7 @@ static KrkValue _dict_or(int argc, KrkValue argv[]) {
  * dict.__delitem__
  */
 static KrkValue _dict_delitem(int argc, KrkValue argv[]) {
+	CHECK_DICT_FAST();
 	if (argc < 2) return krk_runtimeError(vm.exceptions.argumentError, "wrong number of arguments");
 	if (!krk_tableDelete(AS_DICT(argv[0]), argv[1])) {
 		KrkClass * type = krk_getType(argv[1]);
@@ -423,6 +436,7 @@ static KrkValue _dict_delitem(int argc, KrkValue argv[]) {
  * dict.__len__()
  */
 static KrkValue _dict_len(int argc, KrkValue argv[]) {
+	CHECK_DICT_FAST();
 	if (argc < 1) return krk_runtimeError(vm.exceptions.argumentError, "wrong number of arguments");
 	return INTEGER_VAL(AS_DICT(argv[0])->count);
 }
@@ -431,6 +445,7 @@ static KrkValue _dict_len(int argc, KrkValue argv[]) {
  * dict.__contains__()
  */
 static KrkValue _dict_contains(int argc, KrkValue argv[]) {
+	CHECK_DICT_FAST();
 	KrkValue _unused;
 	return BOOLEAN_VAL(krk_tableGet(AS_DICT(argv[0]), argv[1], &_unused));
 }
@@ -439,11 +454,13 @@ static KrkValue _dict_contains(int argc, KrkValue argv[]) {
  * dict.capacity()
  */
 static KrkValue _dict_capacity(int argc, KrkValue argv[]) {
+	CHECK_DICT_FAST();
 	if (argc < 1) return krk_runtimeError(vm.exceptions.argumentError, "wrong number of arguments");
 	return INTEGER_VAL(AS_DICT(argv[0])->capacity);
 }
 
 static KrkValue _dict_repr(int argc, KrkValue argv[]) {
+	CHECK_DICT_FAST();
 	KrkValue self = argv[0];
 	if (AS_OBJECT(self)->inRepr) return OBJECT_VAL(S("{...}"));
 	krk_push(OBJECT_VAL(S("{")));
@@ -500,6 +517,7 @@ static KrkValue _dict_nth_key_fast(size_t capacity, KrkTableEntry * entries, siz
  * list.__init__()
  */
 static KrkValue _list_init(int argc, KrkValue argv[]) {
+	CHECK_LIST_FAST();
 	if (argc > 1) return krk_runtimeError(vm.exceptions.argumentError, "Can not initialize list from iterable (unsupported, try again later)");
 	krk_initValueArray(AS_LIST(argv[0]));
 	return argv[0];
@@ -519,6 +537,7 @@ static void _list_gcsweep(KrkInstance * self) {
  * list.__get__(index)
  */
 static KrkValue _list_get(int argc, KrkValue argv[]) {
+	CHECK_LIST_FAST();
 	if (unlikely(argc < 2 || !IS_INTEGER(argv[1]))) return krk_runtimeError(vm.exceptions.argumentError, "wrong number or type of arguments in get %d, (%s, %s)", argc, krk_typeName(argv[0]), krk_typeName(argv[1]));
 	int index = AS_INTEGER(argv[1]);
 	if (index < 0) index += AS_LIST(argv[0])->count;
@@ -530,6 +549,7 @@ static KrkValue _list_get(int argc, KrkValue argv[]) {
  * list.__set__(index, value)
  */
 static KrkValue _list_set(int argc, KrkValue argv[]) {
+	CHECK_LIST_FAST();
 	if (unlikely(argc < 3 || !IS_INTEGER(argv[1]))) return krk_runtimeError(vm.exceptions.argumentError, "wrong number or type of arguments in set %d, (%s, %s, %s)", argc, krk_typeName(argv[0]), krk_typeName(argv[1]), krk_typeName(argv[2]));
 	int index = AS_INTEGER(argv[1]);
 	if (index < 0) index += AS_LIST(argv[0])->count;
@@ -542,12 +562,14 @@ static KrkValue _list_set(int argc, KrkValue argv[]) {
  * list.append(value)
  */
 static KrkValue _list_append(int argc, KrkValue argv[]) {
+	CHECK_LIST_FAST();
 	if (unlikely(argc < 2)) return krk_runtimeError(vm.exceptions.argumentError, "wrong number or type of arguments");
 	krk_writeValueArray(AS_LIST(argv[0]), argv[1]);
 	return NONE_VAL();
 }
 
 static KrkValue _list_insert(int argc, KrkValue argv[]) {
+	CHECK_LIST_FAST();
 	if (unlikely(argc < 3)) return krk_runtimeError(vm.exceptions.argumentError, "list.insert() expects two arguments");
 	if (unlikely(!IS_INTEGER(argv[1]))) return krk_runtimeError(vm.exceptions.typeError, "index must be integer");
 	krk_integer_type index = AS_INTEGER(argv[1]);
@@ -569,6 +591,7 @@ static KrkValue _list_insert(int argc, KrkValue argv[]) {
  * list.__repr__
  */
 static KrkValue _list_repr(int argc, KrkValue argv[]) {
+	CHECK_LIST_FAST();
 	KrkValue self = argv[0];
 	if (AS_OBJECT(self)->inRepr) return OBJECT_VAL(S("[...]"));
 	krk_push(OBJECT_VAL(S("[")));
@@ -595,6 +618,7 @@ static KrkValue _list_repr(int argc, KrkValue argv[]) {
 }
 
 static KrkValue _list_extend(int argc, KrkValue argv[]) {
+	CHECK_LIST_FAST();
 	KrkValueArray *  positionals = AS_LIST(argv[0]);
 #define unpackArray(counter, indexer) do { \
 			if (positionals->count + counter > positionals->capacity) { \
@@ -647,6 +671,7 @@ static KrkValue _list_extend(int argc, KrkValue argv[]) {
 }
 
 static KrkValue _list_mul(int argc, KrkValue argv[]) {
+	CHECK_LIST_FAST();
 	if (!IS_INTEGER(argv[1]))
 		return krk_runtimeError(vm.exceptions.typeError, "unsupported operand types for *: '%s' and '%s'",
 			"list", krk_typeName(argv[1]));
@@ -668,6 +693,7 @@ static KrkValue _list_mul(int argc, KrkValue argv[]) {
  * list.__len__
  */
 static KrkValue _list_len(int argc, KrkValue argv[]) {
+	CHECK_LIST_FAST();
 	if (argc < 1) return krk_runtimeError(vm.exceptions.argumentError, "wrong number or type of arguments");
 	return INTEGER_VAL(AS_LIST(argv[0])->count);
 }
@@ -676,6 +702,7 @@ static KrkValue _list_len(int argc, KrkValue argv[]) {
  * list.__contains__
  */
 static KrkValue _list_contains(int argc, KrkValue argv[]) {
+	CHECK_LIST_FAST();
 	if (argc < 2) return krk_runtimeError(vm.exceptions.argumentError, "wrong number or type of arguments");
 	for (size_t i = 0; i < AS_LIST(argv[0])->count; ++i) {
 		if (krk_valuesEqual(argv[1], AS_LIST(argv[0])->values[i])) return BOOLEAN_VAL(1);
@@ -721,6 +748,7 @@ KrkValue krk_dict_of(int argc, KrkValue argv[]) {
  * list.__getslice__
  */
 static KrkValue _list_slice(int argc, KrkValue argv[]) {
+	CHECK_LIST_FAST();
 	if (argc < 3) return krk_runtimeError(vm.exceptions.argumentError, "slice: expected 2 arguments, got %d", argc-1);
 	if (!IS_INSTANCE(argv[0]) ||
 		!(IS_INTEGER(argv[1]) || IS_NONE(argv[1])) ||
@@ -745,6 +773,7 @@ static KrkValue _list_slice(int argc, KrkValue argv[]) {
  * list.pop()
  */
 static KrkValue _list_pop(int argc, KrkValue argv[]) {
+	CHECK_LIST_FAST();
 	if (!AS_LIST(argv[0])->count) return krk_runtimeError(vm.exceptions.indexError, "pop from empty list");
 	long index = AS_LIST(argv[0])->count - 1;
 	if (argc > 1) {
@@ -915,26 +944,31 @@ static KrkValue _type_init(int argc, KrkValue argv[]) {
 
 /* Class.__base__ */
 static KrkValue krk_baseOfClass(int argc, KrkValue argv[]) {
+	if (!IS_CLASS(argv[0])) return krk_runtimeError(vm.exceptions.typeError, "expected class");
 	return AS_CLASS(argv[0])->base ? OBJECT_VAL(AS_CLASS(argv[0])->base) : NONE_VAL();
 }
 
 /* Class.__name */
 static KrkValue krk_nameOfClass(int argc, KrkValue argv[]) {
+	if (!IS_CLASS(argv[0])) return krk_runtimeError(vm.exceptions.typeError, "expected class");
 	return AS_CLASS(argv[0])->name ? OBJECT_VAL(AS_CLASS(argv[0])->name) : NONE_VAL();
 }
 
 /* Class.__file__ */
 static KrkValue krk_fileOfClass(int argc, KrkValue argv[]) {
+	if (!IS_CLASS(argv[0])) return krk_runtimeError(vm.exceptions.typeError, "expected class");
 	return AS_CLASS(argv[0])->filename ? OBJECT_VAL(AS_CLASS(argv[0])->filename) : NONE_VAL();
 }
 
 /* Class.__doc__ */
 static KrkValue krk_docOfClass(int argc, KrkValue argv[]) {
+	if (!IS_CLASS(argv[0])) return krk_runtimeError(vm.exceptions.typeError, "expected class");
 	return AS_CLASS(argv[0])->docstring ? OBJECT_VAL(AS_CLASS(argv[0])->docstring) : NONE_VAL();
 }
 
 /* Class.__str__() (and Class.__repr__) */
 static KrkValue _class_to_str(int argc, KrkValue argv[]) {
+	if (!IS_CLASS(argv[0])) return krk_runtimeError(vm.exceptions.typeError, "expected class");
 	char * tmp = malloc(sizeof("<type ''>") + AS_CLASS(argv[0])->name->length);
 	size_t l = sprintf(tmp, "<type '%s'>", AS_CLASS(argv[0])->name->chars);
 	KrkString * out = krk_copyString(tmp,l);
