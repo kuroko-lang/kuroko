@@ -68,6 +68,7 @@ typedef struct {
 	KrkObj** grayStack;
 	KrkValue specialMethodNames[METHOD__MAX];
 
+	char * binpath;
 	KrkClass * objectClass;
 	KrkClass * moduleClass;
 	KrkInstance * builtins;

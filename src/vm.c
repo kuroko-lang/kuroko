@@ -58,7 +58,7 @@
 #define unlikely(cond) __builtin_expect(!!(cond), 0)
 
 /* This is macro'd to krk_vm for namespacing reasons. */
-KrkVM vm;
+KrkVM vm = {0};
 
 /* Some quick forward declarations of string methods we like to call directly... */
 static void addObjects();
@@ -3372,9 +3372,9 @@ void krk_initVM(int flags) {
 	krk_defineNative(&vm.system->fields, "getsizeof", krk_getsize);
 	krk_defineNative(&vm.system->fields, "set_clean_output", krk_setclean);
 	krk_attachNamedObject(&vm.system->fields, "path_sep", (KrkObj*)S(PATH_SEP));
-#ifdef _WIN32
-	krk_attachNamedObject(&vm.system->fields, "executable_path", (KrkObj*)krk_copyString(_pgmptr, strlen(_pgmptr)));
-#endif
+	if (vm.binpath) {
+		krk_attachNamedObject(&vm.system->fields, "executable_path", (KrkObj*)krk_takeString(vm.binpath, strlen(vm.binpath)));
+	}
 
 	/**
 	 * gc = module()

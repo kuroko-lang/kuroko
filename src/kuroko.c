@@ -4,6 +4,7 @@
  * Reads lines from stdin with the `rline` library and executes them,
  * or executes scripts from the argument list.
  */
+#define _DEFAULT_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -275,15 +276,51 @@ static void handleSigint(int sigNum) {
 	signal(sigNum, handleSigint);
 }
 
+static void findInterpreter(char * argv[]) {
+#ifdef _WIN32
+	vm.binpath = strdup(_pgmptr);
+#else
+	/* Try asking /proc */
+	char * binpath = realpath("/proc/self/exe", NULL);
+	if (!binpath) {
+		if (strchr(argv[0], '/')) {
+			binpath = realpath(argv[0], NULL);
+		} else {
+			/* Search PATH for argv[0] */
+			char * _path = strdup(getenv("PATH"));
+			char * path = _path;
+			while (path) {
+				char * next = strchr(path,':');
+				if (next) *next++ = '\0';
+
+				char tmp[4096];
+				sprintf(tmp, "%s/%s", path, argv[0]);
+				if (access(tmp, X_OK)) {
+					binpath = strdup(tmp);
+					break;
+				}
+				path = next;
+			}
+			free(_path);
+		}
+	}
+	if (binpath) {
+		vm.binpath = binpath;
+	} /* Else, give up at this point and just don't attach it at all. */
+#endif
+}
+
 /* Runs the interpreter to get the version information. */
-static int version(void) {
+static int version(char * argv[]) {
+	findInterpreter(argv);
 	krk_initVM(0);
 	krk_interpret("import kuroko\nprint('Kuroko',kuroko.version)\n", 1, "<stdin>","<stdin>");
 	krk_freeVM();
 	return 0;
 }
 
-static int modulePaths(void) {
+static int modulePaths(char * argv[]) {
+	findInterpreter(argv);
 	krk_initVM(0);
 	krk_interpret("import kuroko\nprint(kuroko.module_paths)\n", 1, "<stdin>","<stdin>");
 	krk_freeVM();
@@ -330,12 +367,12 @@ int main(int argc, char * argv[]) {
 				enableRline = 0;
 				break;
 			case 'M':
-				return modulePaths();
+				return modulePaths(argv);
 			case 'V':
-				return version();
+				return version(argv);
 			case '-':
 				if (!strcmp(optarg,"version")) {
-					return version();
+					return version(argv);
 				} else if (!strcmp(optarg,"help")) {
 					fprintf(stderr,"usage: %s [flags] [FILE...]\n"
 						"\n"
@@ -363,6 +400,7 @@ int main(int argc, char * argv[]) {
 	}
 
 _finishArgs:
+	findInterpreter(argv);
 	krk_initVM(flags);
 
 	/* Attach kuroko.argv - argv[0] will be set to an empty string for the repl */
