@@ -352,13 +352,16 @@ void krk_finalizeClass(KrkClass * _class) {
  * dict.__init__()
  */
 static KrkValue _dict_init(int argc, KrkValue argv[]) {
-	KrkValue _dict_internal = OBJECT_VAL(krk_newInstance(NULL));
-	krk_push(_dict_internal);
-	krk_tableSet(&AS_INSTANCE(argv[0])->fields, vm.specialMethodNames[METHOD_DICT_INT], _dict_internal);
-	AS_INSTANCE(argv[0])->_internal = AS_OBJECT(_dict_internal);
-	krk_tableSet(&AS_INSTANCE(argv[0])->fields, vm.specialMethodNames[METHOD_INREPR], INTEGER_VAL(0));
-	krk_pop();
+	krk_initTable(&((KrkDict *)AS_OBJECT(argv[0]))->entries);
 	return argv[0];
+}
+
+static void _dict_gcscan(KrkInstance * self) {
+	krk_markTable(&((KrkDict*)self)->entries);
+}
+
+static void _dict_gcsweep(KrkInstance * self) {
+	krk_freeTable(&((KrkDict*)self)->entries);
 }
 
 /**
@@ -369,9 +372,8 @@ static KrkValue _dict_get(int argc, KrkValue argv[]) {
 		krk_runtimeError(vm.exceptions.argumentError, "wrong number of arguments");
 		return NONE_VAL();
 	}
-	KrkValue _dict_internal = OBJECT_VAL(AS_INSTANCE(argv[0])->_internal);
 	KrkValue out;
-	if (!krk_tableGet(AS_DICT(_dict_internal), argv[1], &out)) {
+	if (!krk_tableGet(AS_DICT(argv[0]), argv[1], &out)) {
 		krk_runtimeError(vm.exceptions.keyError, "key error");
 	}
 	return out;
@@ -385,8 +387,7 @@ static KrkValue _dict_set(int argc, KrkValue argv[]) {
 		krk_runtimeError(vm.exceptions.argumentError, "wrong number of arguments");
 		return NONE_VAL();
 	}
-	KrkValue _dict_internal = OBJECT_VAL(AS_INSTANCE(argv[0])->_internal);
-	krk_tableSet(AS_DICT(_dict_internal), argv[1], argv[2]);
+	krk_tableSet(AS_DICT(argv[0]), argv[1], argv[2]);
 	return NONE_VAL();
 }
 
@@ -398,8 +399,7 @@ static KrkValue _dict_delitem(int argc, KrkValue argv[]) {
 		krk_runtimeError(vm.exceptions.argumentError, "wrong number of arguments");
 		return NONE_VAL();
 	}
-	KrkValue _dict_internal = OBJECT_VAL(AS_INSTANCE(argv[0])->_internal);
-	if (!krk_tableDelete(AS_DICT(_dict_internal), argv[1])) {
+	if (!krk_tableDelete(AS_DICT(argv[0]), argv[1])) {
 		KrkClass * type = krk_getType(argv[1]);
 		if (type->_reprer) {
 			krk_push(argv[1]);
@@ -422,8 +422,7 @@ static KrkValue _dict_len(int argc, KrkValue argv[]) {
 		krk_runtimeError(vm.exceptions.argumentError, "wrong number of arguments");
 		return NONE_VAL();
 	}
-	KrkValue _dict_internal = OBJECT_VAL(AS_INSTANCE(argv[0])->_internal);
-	return INTEGER_VAL(AS_DICT(_dict_internal)->count);
+	return INTEGER_VAL(AS_DICT(argv[0])->count);
 }
 
 /**
@@ -431,8 +430,7 @@ static KrkValue _dict_len(int argc, KrkValue argv[]) {
  */
 static KrkValue _dict_contains(int argc, KrkValue argv[]) {
 	KrkValue _unused;
-	KrkValue _dict_internal = OBJECT_VAL(AS_INSTANCE(argv[0])->_internal);
-	return BOOLEAN_VAL(krk_tableGet(AS_DICT(_dict_internal), argv[1], &_unused));
+	return BOOLEAN_VAL(krk_tableGet(AS_DICT(argv[0]), argv[1], &_unused));
 }
 
 /**
@@ -443,8 +441,7 @@ static KrkValue _dict_capacity(int argc, KrkValue argv[]) {
 		krk_runtimeError(vm.exceptions.argumentError, "wrong number of arguments");
 		return NONE_VAL();
 	}
-	KrkValue _dict_internal = OBJECT_VAL(AS_INSTANCE(argv[0])->_internal);
-	return INTEGER_VAL(AS_DICT(_dict_internal)->capacity);
+	return INTEGER_VAL(AS_DICT(argv[0])->capacity);
 }
 
 /**
@@ -460,12 +457,11 @@ static KrkValue _dict_key_at_index(int argc, KrkValue argv[]) {
 		return NONE_VAL();
 	}
 	int i = AS_INTEGER(argv[1]);
-	KrkValue _dict_internal = OBJECT_VAL(AS_INSTANCE(argv[0])->_internal);
-	if (i < 0 || i > (int)AS_DICT(_dict_internal)->capacity) {
+	if (i < 0 || i > (int)AS_DICT(argv[0])->capacity) {
 		krk_runtimeError(vm.exceptions.indexError, "hash table index is out of range: %d", i);
 		return NONE_VAL();
 	}
-	KrkTableEntry entry = AS_DICT(_dict_internal)->entries[i];
+	KrkTableEntry entry = AS_DICT(argv[0])->entries[i];
 	KrkTuple * outValue = krk_newTuple(2);
 	krk_push(OBJECT_VAL(outValue));
 	outValue->values.values[0] = IS_KWARGS(entry.key) ? BOOLEAN_VAL(0) : BOOLEAN_VAL(1);
@@ -478,15 +474,14 @@ static KrkValue _dict_key_at_index(int argc, KrkValue argv[]) {
 static KrkValue _dict_repr(int argc, KrkValue argv[]) {
 	KrkValue self = argv[0];
 	if (AS_OBJECT(self)->inRepr) return OBJECT_VAL(S("{...}"));
-	KrkValue _dict_internal = OBJECT_VAL(AS_INSTANCE(argv[0])->_internal);
 	krk_push(OBJECT_VAL(S("{")));
 
 	AS_OBJECT(self)->inRepr = 1;
 
 	size_t c = 0;
-	size_t len = AS_DICT(_dict_internal)->capacity;
+	size_t len = AS_DICT(argv[0])->capacity;
 	for (size_t i = 0; i < len; ++i) {
-		KrkTableEntry * entry = &AS_DICT(_dict_internal)->entries[i];
+		KrkTableEntry * entry = &AS_DICT(argv[0])->entries[i];
 
 		if (IS_KWARGS(entry->key)) continue;
 
@@ -537,14 +532,18 @@ static KrkValue _list_init(int argc, KrkValue argv[]) {
 		krk_runtimeError(vm.exceptions.argumentError, "Can not initialize list from iterable (unsupported, try again later)");
 		return NONE_VAL();
 	}
-	/* Lists are secretly tuples shoved into instances, just don't tell anyone? */
-	KrkTuple * _list_internal = krk_newTuple(0);
-	krk_push(OBJECT_VAL(_list_internal));
-	krk_tableSet(&AS_INSTANCE(argv[0])->fields, vm.specialMethodNames[METHOD_LIST_INT], OBJECT_VAL(_list_internal));
-	AS_INSTANCE(argv[0])->_internal = (KrkObj*)_list_internal;
-	krk_tableSet(&AS_INSTANCE(argv[0])->fields, vm.specialMethodNames[METHOD_INREPR], INTEGER_VAL(0));
-	krk_pop();
+	krk_initValueArray(AS_LIST(argv[0]));
 	return argv[0];
+}
+
+static void _list_gcscan(KrkInstance * self) {
+	for (size_t i = 0; i < ((KrkList*)self)->values.count; ++i) {
+		krk_markValue(((KrkList*)self)->values.values[i]);
+	}
+}
+
+static void _list_gcsweep(KrkInstance * self) {
+	krk_freeValueArray(&((KrkList*)self)->values);
 }
 
 /**
@@ -555,14 +554,13 @@ static KrkValue _list_get(int argc, KrkValue argv[]) {
 		krk_runtimeError(vm.exceptions.argumentError, "wrong number or type of arguments in get %d, (%s, %s)", argc, krk_typeName(argv[0]), krk_typeName(argv[1]));
 		return NONE_VAL();
 	}
-	KrkValue _list_internal = OBJECT_VAL(AS_INSTANCE(argv[0])->_internal);
 	int index = AS_INTEGER(argv[1]);
-	if (index < 0) index += AS_LIST(_list_internal)->count;
-	if (unlikely(index < 0 || index >= (int)AS_LIST(_list_internal)->count)) {
+	if (index < 0) index += AS_LIST(argv[0])->count;
+	if (unlikely(index < 0 || index >= (int)AS_LIST(argv[0])->count)) {
 		krk_runtimeError(vm.exceptions.indexError, "index is out of range: %d", index);
 		return NONE_VAL();
 	}
-	return AS_LIST(_list_internal)->values[index];
+	return AS_LIST(argv[0])->values[index];
 }
 
 /**
@@ -573,14 +571,13 @@ static KrkValue _list_set(int argc, KrkValue argv[]) {
 		krk_runtimeError(vm.exceptions.argumentError, "wrong number or type of arguments in set %d, (%s, %s, %s)", argc, krk_typeName(argv[0]), krk_typeName(argv[1]), krk_typeName(argv[2]));
 		return NONE_VAL();
 	}
-	KrkValue _list_internal = OBJECT_VAL(AS_INSTANCE(argv[0])->_internal);
 	int index = AS_INTEGER(argv[1]);
-	if (index < 0) index += AS_LIST(_list_internal)->count;
-	if (unlikely(index < 0 || index >= (int)AS_LIST(_list_internal)->count)) {
+	if (index < 0) index += AS_LIST(argv[0])->count;
+	if (unlikely(index < 0 || index >= (int)AS_LIST(argv[0])->count)) {
 		krk_runtimeError(vm.exceptions.indexError, "index is out of range: %d", index);
 		return NONE_VAL();
 	}
-	AS_LIST(_list_internal)->values[index] = argv[2];
+	AS_LIST(argv[0])->values[index] = argv[2];
 	return NONE_VAL();
 }
 
@@ -592,8 +589,7 @@ static KrkValue _list_append(int argc, KrkValue argv[]) {
 		krk_runtimeError(vm.exceptions.argumentError, "wrong number or type of arguments");
 		return NONE_VAL();
 	}
-	KrkValue _list_internal = OBJECT_VAL(AS_INSTANCE(argv[0])->_internal);
-	krk_writeValueArray(AS_LIST(_list_internal), argv[1]);
+	krk_writeValueArray(AS_LIST(argv[0]), argv[1]);
 	return NONE_VAL();
 }
 
@@ -607,21 +603,20 @@ static KrkValue _list_insert(int argc, KrkValue argv[]) {
 		return NONE_VAL();
 	}
 	krk_integer_type index = AS_INTEGER(argv[1]);
-	KrkValue _list_internal = OBJECT_VAL(AS_INSTANCE(argv[0])->_internal);
-	if (index < 0) index += AS_LIST(_list_internal)->count;
-	if (index < 0 || index > (long)AS_LIST(_list_internal)->count) {
+	if (index < 0) index += AS_LIST(argv[0])->count;
+	if (index < 0 || index > (long)AS_LIST(argv[0])->count) {
 		krk_runtimeError(vm.exceptions.indexError, "list index out of range: %d", (int)index);
 		return NONE_VAL();
 	}
 
-	krk_writeValueArray(AS_LIST(_list_internal), NONE_VAL());
+	krk_writeValueArray(AS_LIST(argv[0]), NONE_VAL());
 
 	/* Move everything at and after this index one forward. */
-	memcpy(&AS_LIST(_list_internal)->values[index+1],
-	       &AS_LIST(_list_internal)->values[index],
-	       sizeof(KrkValue) * (AS_LIST(_list_internal)->count - index - 1));
+	memcpy(&AS_LIST(argv[0])->values[index+1],
+	       &AS_LIST(argv[0])->values[index],
+	       sizeof(KrkValue) * (AS_LIST(argv[0])->count - index - 1));
 	/* Stick argv[2] where it belongs */
-	AS_LIST(_list_internal)->values[index] = argv[2];
+	AS_LIST(argv[0])->values[index] = argv[2];
 	return NONE_VAL();
 }
 
@@ -631,15 +626,14 @@ static KrkValue _list_insert(int argc, KrkValue argv[]) {
 static KrkValue _list_repr(int argc, KrkValue argv[]) {
 	KrkValue self = argv[0];
 	if (AS_OBJECT(self)->inRepr) return OBJECT_VAL(S("[...]"));
-	KrkValue _list_internal = OBJECT_VAL(AS_INSTANCE(argv[0])->_internal);
 	krk_push(OBJECT_VAL(S("[")));
 
 	AS_OBJECT(self)->inRepr = 1;
 
-	size_t len = AS_LIST(_list_internal)->count;
+	size_t len = AS_LIST(self)->count;
 	for (size_t i = 0; i < len; ++i) {
-		KrkClass * type = krk_getType(AS_LIST(_list_internal)->values[i]);
-		krk_push(AS_LIST(_list_internal)->values[i]);
+		KrkClass * type = krk_getType(AS_LIST(self)->values[i]);
+		krk_push(AS_LIST(self)->values[i]);
 		krk_push(krk_callSimple(OBJECT_VAL(type->_reprer), 1, 0));
 		addObjects();
 		if (i + 1 < len) {
@@ -656,9 +650,7 @@ static KrkValue _list_repr(int argc, KrkValue argv[]) {
 }
 
 static KrkValue _list_extend(int argc, KrkValue argv[]) {
-	KrkInstance * self = AS_INSTANCE(argv[0]);
-	KrkValue _list_internal = OBJECT_VAL(self->_internal);
-	KrkValueArray *  positionals = AS_LIST(_list_internal);
+	KrkValueArray *  positionals = AS_LIST(argv[0]);
 #define unpackArray(counter, indexer) do { \
 			if (positionals->count + counter > positionals->capacity) { \
 				size_t old = positionals->capacity; \
@@ -675,11 +667,9 @@ static KrkValue _list_extend(int argc, KrkValue argv[]) {
 	if (IS_TUPLE(value)) {
 		unpackArray(AS_TUPLE(value)->values.count, AS_TUPLE(value)->values.values[i]);
 	} else if (IS_INSTANCE(value) && AS_INSTANCE(value)->_class == vm.baseClasses.listClass) {
-		KrkValue _list_internal = OBJECT_VAL(AS_INSTANCE(value)->_internal);
-		unpackArray(AS_LIST(_list_internal)->count, AS_LIST(_list_internal)->values[i]);
+		unpackArray(AS_LIST(value)->count, AS_LIST(value)->values[i]);
 	} else if (IS_INSTANCE(value) && AS_INSTANCE(value)->_class == vm.baseClasses.dictClass) {
-		KrkValue _dict_internal = OBJECT_VAL(AS_INSTANCE(value)->_internal);
-		unpackArray(AS_DICT(_dict_internal)->count, _dict_nth_key_fast(AS_DICT(_dict_internal)->capacity, AS_DICT(_dict_internal)->entries, i));
+		unpackArray(AS_DICT(value)->count, _dict_nth_key_fast(AS_DICT(value)->capacity, AS_DICT(value)->entries, i));
 	} else if (IS_STRING(value)) {
 		unpackArray(AS_STRING(value)->codesLength, _string_get(2,(KrkValue[]){value,INTEGER_VAL(i)}));
 	} else {
@@ -739,8 +729,7 @@ static KrkValue _list_len(int argc, KrkValue argv[]) {
 		krk_runtimeError(vm.exceptions.argumentError, "wrong number or type of arguments");
 		return NONE_VAL();
 	}
-	KrkValue _list_internal = OBJECT_VAL(AS_INSTANCE(argv[0])->_internal);
-	return INTEGER_VAL(AS_LIST(_list_internal)->count);
+	return INTEGER_VAL(AS_LIST(argv[0])->count);
 }
 
 /**
@@ -751,9 +740,8 @@ static KrkValue _list_contains(int argc, KrkValue argv[]) {
 		krk_runtimeError(vm.exceptions.argumentError, "wrong number or type of arguments");
 		return NONE_VAL();
 	}
-	KrkValue _list_internal = OBJECT_VAL(AS_INSTANCE(argv[0])->_internal);
-	for (size_t i = 0; i < AS_LIST(_list_internal)->count; ++i) {
-		if (krk_valuesEqual(argv[1], AS_LIST(_list_internal)->values[i])) return BOOLEAN_VAL(1);
+	for (size_t i = 0; i < AS_LIST(argv[0])->count; ++i) {
+		if (krk_valuesEqual(argv[1], AS_LIST(argv[0])->values[i])) return BOOLEAN_VAL(1);
 	}
 	return BOOLEAN_VAL(0);
 }
@@ -779,26 +767,18 @@ KrkValue krk_runNext(void) {
  * Presented in the global namespace as listOf(...)
  */
 KrkValue krk_list_of(int argc, KrkValue argv[]) {
-	KrkValue Class;
-	krk_tableGet(&vm.builtins->fields,OBJECT_VAL(S("list")), &Class);
-	KrkInstance * outList = krk_newInstance(AS_CLASS(Class));
-	krk_push(OBJECT_VAL(outList));
-	KrkValue _list_internal = OBJECT_VAL(krk_newTuple(0));
-	krk_push(_list_internal);
-	krk_tableSet(&outList->fields, vm.specialMethodNames[METHOD_LIST_INT], _list_internal);
-	outList->_internal = AS_OBJECT(_list_internal);
-	krk_tableSet(&outList->fields, vm.specialMethodNames[METHOD_INREPR], INTEGER_VAL(0));
+	KrkValue outList = OBJECT_VAL(krk_newInstance(vm.baseClasses.listClass));
+	krk_push(outList);
+	krk_initValueArray(AS_LIST(outList));
 
 	if (argc) {
-		AS_LIST(_list_internal)->capacity = argc;
-		AS_LIST(_list_internal)->values = GROW_ARRAY(KrkValue, AS_LIST(_list_internal)->values, 0, argc);
-		memcpy(AS_LIST(_list_internal)->values, argv, sizeof(KrkValue) * argc);
-		AS_LIST(_list_internal)->count = argc;
+		AS_LIST(outList)->capacity = argc;
+		AS_LIST(outList)->values = GROW_ARRAY(KrkValue, AS_LIST(outList)->values, 0, argc);
+		memcpy(AS_LIST(outList)->values, argv, sizeof(KrkValue) * argc);
+		AS_LIST(outList)->count = argc;
 	}
-	KrkValue out = OBJECT_VAL(outList);
-	krk_pop(); /* listContents */
-	krk_pop(); /* outList */
-	return out;
+
+	return krk_pop();
 }
 
 /**
@@ -810,22 +790,13 @@ KrkValue krk_dict_of(int argc, KrkValue argv[]) {
 		krk_runtimeError(vm.exceptions.argumentError, "Expected even number of arguments to dictOf");
 		return NONE_VAL();
 	}
-	KrkValue Class;
-	krk_tableGet(&vm.builtins->fields,OBJECT_VAL(S("dict")), &Class);
-	KrkInstance * outDict = krk_newInstance(AS_CLASS(Class));
+	KrkInstance * outDict = krk_newInstance(vm.baseClasses.dictClass);
 	krk_push(OBJECT_VAL(outDict));
-	KrkValue _dict_internal = OBJECT_VAL(krk_newInstance(NULL));
-	krk_push(_dict_internal);
-	krk_tableSet(&outDict->fields, vm.specialMethodNames[METHOD_DICT_INT], _dict_internal);
-	outDict->_internal = AS_OBJECT(_dict_internal);
-	krk_tableSet(&outDict->fields, vm.specialMethodNames[METHOD_INREPR], INTEGER_VAL(0));
+	krk_initTable(&((KrkDict*)outDict)->entries);
 	for (int ind = 0; ind < argc; ind += 2) {
-		krk_tableSet(AS_DICT(_dict_internal), argv[ind], argv[ind+1]);
+		krk_tableSet(&((KrkDict*)outDict)->entries, argv[ind], argv[ind+1]);
 	}
-	KrkValue out = OBJECT_VAL(outDict);
-	krk_pop(); /* dictContents */
-	krk_pop(); /* outDict */
-	return out;
+	return krk_pop();
 }
 
 /**
@@ -843,49 +814,46 @@ static KrkValue _list_slice(int argc, KrkValue argv[]) {
 		return NONE_VAL();
 	}
 
-	KrkValue _list_internal = OBJECT_VAL(AS_INSTANCE(argv[0])->_internal);
-
 	int start = IS_NONE(argv[1]) ? 0 : AS_INTEGER(argv[1]);
-	int end   = IS_NONE(argv[2]) ? (int)AS_LIST(_list_internal)->count : AS_INTEGER(argv[2]);
-	if (start < 0) start = (int)AS_LIST(_list_internal)->count + start;
+	int end   = IS_NONE(argv[2]) ? (int)AS_LIST(argv[0])->count : AS_INTEGER(argv[2]);
+	if (start < 0) start = (int)AS_LIST(argv[0])->count + start;
 	if (start < 0) start = 0;
-	if (end < 0) end = (int)AS_LIST(_list_internal)->count + end;
-	if (start > (int)AS_LIST(_list_internal)->count) start = (int)AS_LIST(_list_internal)->count;
-	if (end > (int)AS_LIST(_list_internal)->count) end = (int)AS_LIST(_list_internal)->count;
+	if (end < 0) end = (int)AS_LIST(argv[0])->count + end;
+	if (start > (int)AS_LIST(argv[0])->count) start = (int)AS_LIST(argv[0])->count;
+	if (end > (int)AS_LIST(argv[0])->count) end = (int)AS_LIST(argv[0])->count;
 	if (end < start) end = start;
 	int len = end - start;
 
-	return krk_list_of(len, &AS_LIST(_list_internal)->values[start]);
+	return krk_list_of(len, &AS_LIST(argv[0])->values[start]);
 }
 
 /**
  * list.pop()
  */
 static KrkValue _list_pop(int argc, KrkValue argv[]) {
-	KrkValue _list_internal = OBJECT_VAL(AS_INSTANCE(argv[0])->_internal);
-	if (!AS_LIST(_list_internal)->count) {
+	if (!AS_LIST(argv[0])->count) {
 		krk_runtimeError(vm.exceptions.indexError, "pop from empty list");
 		return NONE_VAL();
 	}
-	long index = AS_LIST(_list_internal)->count - 1;
+	long index = AS_LIST(argv[0])->count - 1;
 	if (argc > 1) {
 		index = AS_INTEGER(argv[1]);
 	}
-	if (index < 0) index += AS_LIST(_list_internal)->count;
-	if (index < 0 || index >= (long)AS_LIST(_list_internal)->count) {
+	if (index < 0) index += AS_LIST(argv[0])->count;
+	if (index < 0 || index >= (long)AS_LIST(argv[0])->count) {
 		krk_runtimeError(vm.exceptions.indexError, "list index out of range: %d", (int)index);
 		return NONE_VAL();
 	}
-	KrkValue outItem = AS_LIST(_list_internal)->values[index];
-	if (index == (long)AS_LIST(_list_internal)->count-1) {
-		AS_LIST(_list_internal)->count--;
+	KrkValue outItem = AS_LIST(argv[0])->values[index];
+	if (index == (long)AS_LIST(argv[0])->count-1) {
+		AS_LIST(argv[0])->count--;
 		return outItem;
 	} else {
 		/* Need to move up */
-		size_t remaining = AS_LIST(_list_internal)->count - index - 1;
-		memmove(&AS_LIST(_list_internal)->values[index], &AS_LIST(_list_internal)->values[index+1],
+		size_t remaining = AS_LIST(argv[0])->count - index - 1;
+		memmove(&AS_LIST(argv[0])->values[index], &AS_LIST(argv[0])->values[index+1],
 			sizeof(KrkValue) * remaining);
-		AS_LIST(_list_internal)->count--;
+		AS_LIST(argv[0])->count--;
 		return outItem;
 	}
 }
@@ -899,15 +867,14 @@ static KrkValue krk_set_tracing(int argc, KrkValue argv[], int hasKw) {
 #ifdef DEBUG
 	if (argc != 1) return NONE_VAL();
 	if (hasKw) {
-		KrkValue _dict_internal = OBJECT_VAL(AS_INSTANCE(argv[0])->_internal);
 		KrkValue test;
-		if (krk_tableGet(AS_DICT(_dict_internal), OBJECT_VAL(S("tracing")), &test)) {
+		if (krk_tableGet(AS_DICT(argv[0]), OBJECT_VAL(S("tracing")), &test)) {
 			if (AS_INTEGER(test) == 1) vm.flags |= KRK_ENABLE_TRACING; else vm.flags &= ~KRK_ENABLE_TRACING; }
-		if (krk_tableGet(AS_DICT(_dict_internal), OBJECT_VAL(S("disassembly")), &test)) {
+		if (krk_tableGet(AS_DICT(argv[0]), OBJECT_VAL(S("disassembly")), &test)) {
 			if (AS_INTEGER(test) == 1) vm.flags |= KRK_ENABLE_DISASSEMBLY; else vm.flags &= ~KRK_ENABLE_DISASSEMBLY; }
-		if (krk_tableGet(AS_DICT(_dict_internal), OBJECT_VAL(S("stressgc")), &test)) {
+		if (krk_tableGet(AS_DICT(argv[0]), OBJECT_VAL(S("stressgc")), &test)) {
 			if (AS_INTEGER(test) == 1) vm.flags |= KRK_ENABLE_STRESS_GC; else vm.flags &= ~KRK_ENABLE_STRESS_GC; }
-		if (krk_tableGet(AS_DICT(_dict_internal), OBJECT_VAL(S("scantracing")), &test)) {
+		if (krk_tableGet(AS_DICT(argv[0]), OBJECT_VAL(S("scantracing")), &test)) {
 			if (AS_INTEGER(test) == 1) vm.flags |= KRK_ENABLE_SCAN_TRACING; else vm.flags &= ~KRK_ENABLE_SCAN_TRACING; }
 		return BOOLEAN_VAL(1);
 	} else {
@@ -939,7 +906,6 @@ KrkValue krk_dirObject(int argc, KrkValue argv[]) {
 	/* Create a new list instance */
 	KrkValue myList = krk_list_of(0,NULL);
 	krk_push(myList);
-	KrkValue _list_internal = OBJECT_VAL(AS_INSTANCE(myList)->_internal);
 
 	if (IS_INSTANCE(argv[0])) {
 		/* Obtain self-reference */
@@ -948,7 +914,7 @@ KrkValue krk_dirObject(int argc, KrkValue argv[]) {
 		/* First add each method of the class */
 		for (size_t i = 0; i < self->_class->methods.capacity; ++i) {
 			if (self->_class->methods.entries[i].key.type != VAL_KWARGS) {
-				krk_writeValueArray(AS_LIST(_list_internal),
+				krk_writeValueArray(AS_LIST(myList),
 					self->_class->methods.entries[i].key);
 			}
 		}
@@ -956,7 +922,7 @@ KrkValue krk_dirObject(int argc, KrkValue argv[]) {
 		/* Then add each field of the instance */
 		for (size_t i = 0; i < self->fields.capacity; ++i) {
 			if (self->fields.entries[i].key.type != VAL_KWARGS) {
-				krk_writeValueArray(AS_LIST(_list_internal),
+				krk_writeValueArray(AS_LIST(myList),
 					self->fields.entries[i].key);
 			}
 		}
@@ -965,13 +931,13 @@ KrkValue krk_dirObject(int argc, KrkValue argv[]) {
 			KrkClass * _class = AS_CLASS(argv[0]);
 			for (size_t i = 0; i < _class->methods.capacity; ++i) {
 				if (_class->methods.entries[i].key.type != VAL_KWARGS) {
-					krk_writeValueArray(AS_LIST(_list_internal),
+					krk_writeValueArray(AS_LIST(myList),
 						_class->methods.entries[i].key);
 				}
 			}
 			for (size_t i = 0; i < _class->fields.capacity; ++i) {
 				if (_class->fields.entries[i].key.type != VAL_KWARGS) {
-					krk_writeValueArray(AS_LIST(_list_internal),
+					krk_writeValueArray(AS_LIST(myList),
 						_class->fields.entries[i].key);
 				}
 			}
@@ -980,7 +946,7 @@ KrkValue krk_dirObject(int argc, KrkValue argv[]) {
 
 		for (size_t i = 0; i < type->methods.capacity; ++i) {
 			if (type->methods.entries[i].key.type != VAL_KWARGS) {
-				krk_writeValueArray(AS_LIST(_list_internal),
+				krk_writeValueArray(AS_LIST(myList),
 					type->methods.entries[i].key);
 			}
 		}
@@ -1114,10 +1080,8 @@ static KrkValue krk_globals(int argc, KrkValue argv[]) {
 	/* Make a new empty dict */
 	KrkValue dict = krk_dict_of(0, NULL);
 	krk_push(dict);
-	/* Get its internal table */
-	KrkValue _dict_internal = OBJECT_VAL(AS_INSTANCE(krk_peek(0))->_internal);
 	/* Copy the globals table into it */
-	krk_tableAddAll(vm.frames[vm.frameCount-1].globals, AS_DICT(_dict_internal));
+	krk_tableAddAll(vm.frames[vm.frameCount-1].globals, AS_DICT(dict));
 	krk_pop();
 
 	return dict;
@@ -1182,11 +1146,9 @@ int krk_processComplexArguments(int argCount, KrkValueArray * positionals, KrkTa
 				if (IS_TUPLE(value)) {
 					unpackArray(AS_TUPLE(value)->values.count, AS_TUPLE(value)->values.values[i]);
 				} else if (IS_INSTANCE(value) && AS_INSTANCE(value)->_class == vm.baseClasses.listClass) {
-					KrkValue _list_internal = OBJECT_VAL(AS_INSTANCE(value)->_internal);
-					unpackArray(AS_LIST(_list_internal)->count, AS_LIST(_list_internal)->values[i]);
+					unpackArray(AS_LIST(value)->count, AS_LIST(value)->values[i]);
 				} else if (IS_INSTANCE(value) && AS_INSTANCE(value)->_class == vm.baseClasses.dictClass) {
-					KrkValue _dict_internal = OBJECT_VAL(AS_INSTANCE(value)->_internal);
-					unpackArray(AS_DICT(_dict_internal)->count, _dict_nth_key_fast(AS_DICT(_dict_internal)->capacity, AS_DICT(_dict_internal)->entries, i));
+					unpackArray(AS_DICT(value)->count, _dict_nth_key_fast(AS_DICT(value)->capacity, AS_DICT(value)->entries, i));
 				} else if (IS_STRING(value)) {
 					unpackArray(AS_STRING(value)->codesLength, _string_get(2,(KrkValue[]){value,INTEGER_VAL(i)}));
 				} else {
@@ -1217,13 +1179,12 @@ int krk_processComplexArguments(int argCount, KrkValueArray * positionals, KrkTa
 				}
 #undef unpackArray
 			} else if (AS_INTEGER(key) == LONG_MAX-2) { /* unpack dict */
-				if (!IS_INSTANCE(value) || !AS_INSTANCE(value)->_internal || !(((KrkObj*)(AS_INSTANCE(value)->_internal))->type == OBJ_INSTANCE)) {
+				if (!IS_INSTANCE(value)) {
 					krk_runtimeError(vm.exceptions.typeError, "**expression value is not a dict.");
 					return 0;
 				}
-				KrkValue _dict_internal = OBJECT_VAL(AS_INSTANCE(value)->_internal);
-				for (size_t i = 0; i < AS_DICT(_dict_internal)->capacity; ++i) {
-					KrkTableEntry * entry = &AS_DICT(_dict_internal)->entries[i];
+				for (size_t i = 0; i < AS_DICT(value)->capacity; ++i) {
+					KrkTableEntry * entry = &AS_DICT(value)->entries[i];
 					if (entry->key.type != VAL_KWARGS) {
 						if (!IS_STRING(entry->key)) {
 							krk_runtimeError(vm.exceptions.typeError, "**expression contains non-string key");
@@ -1358,8 +1319,7 @@ _finishKwarg:
 		if (closure->function->collectsKeywords) {
 			krk_push(krk_dict_of(0,NULL));
 			argCount++;
-			KrkValue _dict_internal = OBJECT_VAL(AS_INSTANCE(krk_peek(0))->_internal);
-			krk_tableAddAll(&keywords, AS_DICT(_dict_internal));
+			krk_tableAddAll(&keywords, AS_DICT(krk_peek(0)));
 		}
 
 		krk_freeTable(&keywords);
@@ -1444,9 +1404,7 @@ int krk_callValue(KrkValue callee, int argCount, int extra) {
 					KRK_PAUSE_GC();
 					KrkValue myList = krk_list_of(0,NULL);
 					KrkValue myDict = krk_dict_of(0,NULL);
-					KrkValue _list_internal = OBJECT_VAL(AS_INSTANCE(myList)->_internal);
-					KrkValue _dict_internal = OBJECT_VAL(AS_INSTANCE(myDict)->_internal);
-					if (!krk_processComplexArguments(argCount, AS_LIST(_list_internal), AS_DICT(_dict_internal))) {
+					if (!krk_processComplexArguments(argCount, AS_LIST(myList), AS_DICT(myDict))) {
 						KRK_RESUME_GC();
 						return 0;
 					}
@@ -1455,8 +1413,8 @@ int krk_callValue(KrkValue callee, int argCount, int extra) {
 					vm.stackTop -= argCount + extra; /* We can just put the stack back to normal */
 					krk_push(myList);
 					krk_push(myDict);
-					krk_writeValueArray(AS_LIST(_list_internal), myDict);
-					KrkValue result = native(AS_LIST(_list_internal)->count, AS_LIST(_list_internal)->values, 1);
+					krk_writeValueArray(AS_LIST(myList), myDict);
+					KrkValue result = native(AS_LIST(myList)->count, AS_LIST(myList)->values, 1);
 					if (vm.stackTop == vm.stack) return 0;
 					krk_pop();
 					krk_pop();
@@ -1740,19 +1698,13 @@ static KrkValue _string_add(int argc, KrkValue argv[]) {
 }
 
 #define ADD_BASE_CLASS(obj, name, baseClass) do { \
-	obj = krk_newClass(S(name)); \
+	obj = krk_newClass(S(name), baseClass); \
 	krk_attachNamedObject(&vm.builtins->fields, name, (KrkObj*)obj); \
-	obj->base = baseClass; \
-	krk_tableAddAll(&baseClass->methods, &obj->methods); \
-	krk_tableAddAll(&baseClass->fields, &obj->fields); \
 } while (0)
 
 #define ADD_EXCEPTION_CLASS(obj, name, baseClass) do { \
-	obj = krk_newClass(S(name)); \
+	obj = krk_newClass(S(name), baseClass); \
 	krk_attachNamedObject(&vm.builtins->fields, name, (KrkObj*)obj); \
-	obj->base = baseClass; \
-	krk_tableAddAll(&baseClass->methods, &obj->methods); \
-	krk_tableAddAll(&baseClass->fields, &obj->fields); \
 	krk_finalizeClass(obj); \
 } while (0)
 
@@ -1801,8 +1753,7 @@ static KrkValue _print(int argc, KrkValue argv[], int hasKw) {
 	char * end = "\n"; size_t endLen = 1;
 	if (hasKw) {
 		argc--;
-		KrkValue _dict_internal = OBJECT_VAL(AS_INSTANCE(argv[argc])->_internal);
-		if (krk_tableGet(AS_DICT(_dict_internal), OBJECT_VAL(S("sep")), &sepVal)) {
+		if (krk_tableGet(AS_DICT(argv[argc]), OBJECT_VAL(S("sep")), &sepVal)) {
 			if (!IS_STRING(sepVal)) {
 				krk_runtimeError(vm.exceptions.typeError, "'sep' should be a string, not '%s'", krk_typeName(sepVal));
 				return NONE_VAL();
@@ -1810,7 +1761,7 @@ static KrkValue _print(int argc, KrkValue argv[], int hasKw) {
 			sep = AS_CSTRING(sepVal);
 			sepLen = AS_STRING(sepVal)->length;
 		}
-		if (krk_tableGet(AS_DICT(_dict_internal), OBJECT_VAL(S("end")), &endVal)) {
+		if (krk_tableGet(AS_DICT(argv[argc]), OBJECT_VAL(S("end")), &endVal)) {
 			if (!IS_STRING(endVal)) {
 				krk_runtimeError(vm.exceptions.typeError, "'end' should be a string, not '%s'", krk_typeName(endVal));
 				return NONE_VAL();
@@ -1999,7 +1950,7 @@ static KrkValue _string_format(int argc, KrkValue argv[], int hasKw) {
 	KrkValue kwargs = NONE_VAL();
 	if (hasKw) {
 		argc--; /* last arg is the keyword dictionary */
-		kwargs = OBJECT_VAL(AS_INSTANCE(argv[argc])->_internal);
+		kwargs = argv[argc];
 	}
 
 	/* Read through `self` until we find a field specifier. */
@@ -2172,12 +2123,10 @@ static KrkValue _string_join(int argc, KrkValue argv[], int hasKw) {
 	}
 
 	/* TODO: Support any object with an __iter__ - kinda need an internal method to do that well. */
-	if (!IS_INSTANCE(argv[1]) || !AS_INSTANCE(argv[1])->_internal || !(((KrkObj*)AS_INSTANCE(argv[1])->_internal)->type == OBJ_TUPLE)) {
+	if (!IS_INSTANCE(argv[1])) {
 		krk_runtimeError(vm.exceptions.typeError, "str.join(): expected a list");
 		return NONE_VAL();
 	}
-
-	KrkValue _list_internal = OBJECT_VAL(AS_INSTANCE(argv[1])->_internal);
 
 	const char * errorStr = NULL;
 
@@ -2185,9 +2134,9 @@ static KrkValue _string_join(int argc, KrkValue argv[], int hasKw) {
 	size_t stringLength   = 0;
 	char * stringBytes    = 0;
 
-	for (size_t i = 0; i < AS_LIST(_list_internal)->count; ++i) {
-		KrkValue value = AS_LIST(_list_internal)->values[i];
-		if (!IS_STRING(AS_LIST(_list_internal)->values[i])) {
+	for (size_t i = 0; i < AS_LIST(argv[1])->count; ++i) {
+		KrkValue value = AS_LIST(argv[1])->values[i];
+		if (!IS_STRING(AS_LIST(argv[1])->values[i])) {
 			errorStr = krk_typeName(value);
 			goto _expectedString;
 		}
@@ -2353,7 +2302,6 @@ static KrkValue _string_split(int argc, KrkValue argv[], int hasKw) {
 
 	KrkValue myList = krk_list_of(0,NULL);
 	krk_push(myList);
-	KrkValue _list_internal = OBJECT_VAL(AS_INSTANCE(myList)->_internal);
 
 	size_t i = 0;
 	char * c = self->chars;
@@ -2375,7 +2323,7 @@ static KrkValue _string_split(int argc, KrkValue argv[], int hasKw) {
 				KrkValue tmp = OBJECT_VAL(krk_copyString(stringBytes, stringLength));
 				FREE_ARRAY(char,stringBytes,stringCapacity);
 				krk_push(tmp);
-				krk_writeValueArray(AS_LIST(_list_internal), tmp);
+				krk_writeValueArray(AS_LIST(myList), tmp);
 				krk_pop();
 				#if 0
 				/* Need to parse kwargs to support this */
@@ -2387,7 +2335,7 @@ static KrkValue _string_split(int argc, KrkValue argv[], int hasKw) {
 						PUSH_CHAR(*c);
 						i++; c++;
 					}
-					krk_writeValueArray(AS_LIST(_list_internal), OBJECT_VAL(krk_copyString(stringBytes, stringLength)));
+					krk_writeValueArray(AS_LIST(myList), OBJECT_VAL(krk_copyString(stringBytes, stringLength)));
 					if (stringBytes) FREE_ARRAY(char,stringBytes,stringCapacity);
 					break;
 				}
@@ -2406,7 +2354,7 @@ static KrkValue _string_split(int argc, KrkValue argv[], int hasKw) {
 			KrkValue tmp = OBJECT_VAL(krk_copyString(stringBytes, stringLength));
 			if (stringBytes) FREE_ARRAY(char,stringBytes,stringCapacity);
 			krk_push(tmp);
-			krk_writeValueArray(AS_LIST(_list_internal), tmp);
+			krk_writeValueArray(AS_LIST(myList), tmp);
 			krk_pop();
 			if (substringMatch(c, self->length - i, AS_STRING(argv[1])->chars, AS_STRING(argv[1])->length)) {
 				i += AS_STRING(argv[1])->length;
@@ -2423,14 +2371,14 @@ static KrkValue _string_split(int argc, KrkValue argv[], int hasKw) {
 					KrkValue tmp = OBJECT_VAL(krk_copyString(stringBytes, stringLength));
 					if (stringBytes) FREE_ARRAY(char,stringBytes,stringCapacity);
 					krk_push(tmp);
-					krk_writeValueArray(AS_LIST(_list_internal), tmp);
+					krk_writeValueArray(AS_LIST(myList), tmp);
 					krk_pop();
 					break;
 				}
 				if (i == self->length) {
 					KrkValue tmp = OBJECT_VAL(S(""));
 					krk_push(tmp);
-					krk_writeValueArray(AS_LIST(_list_internal), tmp);
+					krk_writeValueArray(AS_LIST(myList), tmp);
 					krk_pop();
 				}
 			}
@@ -2805,8 +2753,8 @@ static KrkValue _tuple_repr(int argc, KrkValue argv[]) {
 		return NONE_VAL();
 	}
 	KrkTuple * tuple = AS_TUPLE(argv[0]);
-	if (tuple->inrepr) return OBJECT_VAL(S("(...)"));
-	tuple->inrepr = 1;
+	if (((KrkObj*)tuple)->inRepr) return OBJECT_VAL(S("(...)"));
+	((KrkObj*)tuple)->inRepr = 1;
 	/* String building time. */
 	krk_push(OBJECT_VAL(S("(")));
 
@@ -2827,7 +2775,7 @@ static KrkValue _tuple_repr(int argc, KrkValue argv[]) {
 
 	krk_push(OBJECT_VAL(S(")")));
 	addObjects();
-	tuple->inrepr = 0;
+	((KrkObj*)tuple)->inRepr = 0;
 	return krk_pop();
 }
 
@@ -3053,32 +3001,40 @@ static KrkValue _hex(int argc, KrkValue argv[]) {
 	return OBJECT_VAL(krk_copyString(tmp,len));
 }
 
+struct TupleIter {
+	KrkInstance inst;
+	KrkValue myTuple;
+	int i;
+};
+
 static KrkValue _tuple_iter_init(int argc, KrkValue argv[]) {
 	KrkInstance * self = AS_INSTANCE(argv[0]);
 	krk_push(argv[0]);
-	KrkTuple * myTuple = krk_newTuple(2);
-	krk_push(OBJECT_VAL(myTuple));
-	myTuple->values.values[0] = argv[1]; /* The tuple to iterator over */
-	myTuple->values.values[1] = INTEGER_VAL(0); /* The index counter */
-	myTuple->values.count = 2;
-	krk_attachNamedObject(&self->fields, "_tuple", (KrkObj*)myTuple);
-	self->_internal = myTuple;
+
+	((struct TupleIter*)self)->myTuple = argv[0];
+	((struct TupleIter*)self)->i = 0;
+
+	/* Otherwise we need to bother with a _ongcmark, _ongcsweep */
+	krk_attachNamedValue(&self->fields, "_tuple", argv[0]);
 	krk_pop(); /* myTuple */
 	krk_pop(); /* self */
 
 	return argv[0];
 }
 
+static void _tuple_iter_gcscan(KrkInstance * self) {
+	krk_markValue(((struct TupleIter*)self)->myTuple);
+}
+
 static KrkValue _tuple_iter_call(int argc, KrkValue argv[]) {
 	KrkInstance * self = AS_INSTANCE(argv[0]);
-	KrkTuple * myTuple = self->_internal;
-	KrkValue t = myTuple->values.values[0]; /* Tuple to iterate */
-	KrkValue i = myTuple->values.values[1]; /* Index value */
-	if (AS_INTEGER(i) >= (krk_integer_type)AS_TUPLE(t)->values.count) {
+	KrkValue t = ((struct TupleIter*)self)->myTuple; /* Tuple to iterate */
+	int i = ((struct TupleIter*)self)->i;
+	if (i >= (krk_integer_type)AS_TUPLE(t)->values.count) {
 		return argv[0];
 	} else {
-		myTuple->values.values[1] = INTEGER_VAL(AS_INTEGER(i)+1);
-		return AS_TUPLE(t)->values.values[AS_INTEGER(i)];
+		((struct TupleIter*)self)->i = i+1;
+		return AS_TUPLE(t)->values.values[i];
 	}
 }
 
@@ -3183,13 +3139,11 @@ static KrkValue _listiter_call(int argc, KrkValue argv[]) {
 		goto _corrupt;
 	}
 
-	KrkValue _list_internal = OBJECT_VAL(AS_INSTANCE(_list)->_internal);
-
-	if ((size_t)AS_INTEGER(_counter) >= AS_LIST(_list_internal)->count) {
+	if ((size_t)AS_INTEGER(_counter) >= AS_LIST(_list)->count) {
 		return argv[0];
 	} else {
 		krk_attachNamedValue(&self->fields, "i", INTEGER_VAL(AS_INTEGER(_counter)+1));
-		return AS_LIST(_list_internal)->values[AS_INTEGER(_counter)];
+		return AS_LIST(_list)->values[AS_INTEGER(_counter)];
 	}
 
 _corrupt:
@@ -3206,6 +3160,12 @@ static KrkValue _list_iter(int argc, KrkValue argv[]) {
 
 	return OBJECT_VAL(output);
 }
+
+struct Range {
+	KrkInstance inst;
+	krk_integer_type min;
+	krk_integer_type max;
+};
 
 static KrkValue _range_init(int argc, KrkValue argv[]) {
 	KrkInstance * self = AS_INSTANCE(argv[0]);
@@ -3230,79 +3190,63 @@ static KrkValue _range_init(int argc, KrkValue argv[]) {
 		return NONE_VAL();
 	}
 
-	krk_push(OBJECT_VAL(self));
-
-	/* Add them to ourselves */
-	KrkTuple * myTuple = krk_newTuple(2);
-	krk_push(OBJECT_VAL(myTuple));
-
-	myTuple->values.values[0] = min;
-	myTuple->values.values[1] = max;
-	myTuple->values.count = 2;
-
-	krk_attachNamedObject(&self->fields, "_tuple", (KrkObj*)myTuple);
-	self->_internal = myTuple;
-
-	krk_pop(); /* myTuple */
-	krk_pop(); /* self */
+	((struct Range*)self)->min = AS_INTEGER(min);
+	((struct Range*)self)->max = AS_INTEGER(max);
 
 	return argv[0];
 }
 
 static KrkValue _range_repr(int argc, KrkValue argv[]) {
 	KrkInstance * self = AS_INSTANCE(argv[0]);
-	KrkTuple * myTuple = self->_internal;
 
-	KrkValue min = myTuple->values.values[0];
-	KrkValue max = myTuple->values.values[1];
+	krk_integer_type min = ((struct Range*)self)->min;
+	krk_integer_type max = ((struct Range*)self)->max;
 
 	krk_push(OBJECT_VAL(S("range({},{})")));
-	KrkValue output = _string_format(3, (KrkValue[]){krk_peek(0), min, max}, 0);
+	KrkValue output = _string_format(3, (KrkValue[]){krk_peek(0), INTEGER_VAL(min), INTEGER_VAL(max)}, 0);
 	krk_pop();
 	return output;
 }
 
+struct RangeIterator {
+	KrkInstance inst;
+	krk_integer_type i;
+	krk_integer_type max;
+};
+
 static KrkValue _rangeiterator_init(int argc, KrkValue argv[]) {
 	KrkInstance * self = AS_INSTANCE(argv[0]);
-	krk_push(argv[0]);
-	KrkTuple * myTuple = krk_newTuple(2);
 
-	krk_push(OBJECT_VAL(myTuple));
-	myTuple->values.values[0] = argv[1];
-	myTuple->values.values[1] = argv[2];
-	myTuple->values.count = 2;
+	((struct RangeIterator*)self)->i = AS_INTEGER(argv[1]);
+	((struct RangeIterator*)self)->max = AS_INTEGER(argv[2]);
 
-	krk_attachNamedObject(&self->fields, "_tuple", (KrkObj*)myTuple);
-	self->_internal = myTuple;
-
-	krk_pop(); /* myTuple */
-	krk_pop(); /* self */
 	return argv[0];
 }
 
 static KrkValue _rangeiterator_call(int argc, KrkValue argv[]) {
 	KrkInstance * self = AS_INSTANCE(argv[0]);
-	KrkTuple * myTuple = self->_internal;
-	KrkValue i = myTuple->values.values[0];
-	if (AS_INTEGER(i) >= AS_INTEGER(myTuple->values.values[1])) {
+
+	krk_integer_type i, max;
+	i = ((struct RangeIterator*)self)->i;
+	max = ((struct RangeIterator*)self)->max;
+
+	if (i >= max) {
 		return argv[0];
 	} else {
-		myTuple->values.values[0] = INTEGER_VAL(AS_INTEGER(i)+1);
-		return i;
+		((struct RangeIterator*)self)->i = i + 1;
+		return INTEGER_VAL(i);
 	}
 }
 
 static KrkValue _range_iter(int argc, KrkValue argv[]) {
 	KrkInstance * self = AS_INSTANCE(argv[0]);
-	KrkTuple * myTuple = self->_internal;
-
-	KrkValue min = myTuple->values.values[0];
-	KrkValue max = myTuple->values.values[1];
 
 	KrkInstance * output = krk_newInstance(vm.baseClasses.rangeiteratorClass);
+	krk_integer_type min = ((struct Range*)self)->min;
+	krk_integer_type max = ((struct Range*)self)->max;
 
 	krk_push(OBJECT_VAL(output));
-	_rangeiterator_init(3, (KrkValue[]){krk_peek(0), min, max});
+	_rangeiterator_init(3, (KrkValue[]){krk_peek(0), INTEGER_VAL(min), INTEGER_VAL(max)});
 	krk_pop();
 
 	return OBJECT_VAL(output);
@@ -3437,7 +3381,7 @@ void krk_initVM(int flags) {
 	 * The base class for all types.
 	 * Defines the last-resort implementation of __str__, __repr__, and __dir__.
 	 */
-	vm.objectClass = krk_newClass(S("object"));
+	vm.objectClass = krk_newClass(S("object"), NULL);
 
 	krk_defineNative(&vm.objectClass->methods, ":__class__", krk_typeOf);
 	krk_defineNative(&vm.objectClass->methods, ".__dir__", krk_dirObject);
@@ -3453,10 +3397,7 @@ void krk_initVM(int flags) {
 	 * table of an instance of this class. All modules also end up with their
 	 * names and file paths as __name__ and __file__.
 	 */
-	vm.moduleClass = krk_newClass(S("module"));
-	vm.moduleClass->base = vm.objectClass;
-	krk_tableAddAll(&vm.objectClass->methods, &vm.moduleClass->methods);
-	krk_tableAddAll(&vm.objectClass->fields, &vm.moduleClass->fields);
+	vm.moduleClass = krk_newClass(S("module"), vm.objectClass);
 	krk_defineNative(&vm.moduleClass->methods, ".__repr__", _module_repr);
 	krk_defineNative(&vm.moduleClass->methods, ".__str__", _module_repr);
 	krk_finalizeClass(vm.moduleClass);
@@ -3640,6 +3581,9 @@ void krk_initVM(int flags) {
 	krk_defineNative(&vm.baseClasses.bytesClass->methods, ".__eq__", _bytes_eq);
 	krk_finalizeClass(vm.baseClasses.bytesClass);
 	ADD_BASE_CLASS(vm.baseClasses.listClass, "list", vm.objectClass);
+	vm.baseClasses.listClass->allocSize = sizeof(KrkList);
+	vm.baseClasses.listClass->_ongcscan = _list_gcscan;
+	vm.baseClasses.listClass->_ongcsweep = _list_gcsweep;
 	krk_defineNative(&vm.baseClasses.listClass->methods, ".__init__", _list_init);
 	krk_defineNative(&vm.baseClasses.listClass->methods, ".__get__", _list_get);
 	krk_defineNative(&vm.baseClasses.listClass->methods, ".__set__", _list_set);
@@ -3688,6 +3632,7 @@ void krk_initVM(int flags) {
 	krk_finalizeClass(vm.baseClasses.striteratorClass);
 
 	ADD_BASE_CLASS(vm.baseClasses.rangeClass, "range", vm.objectClass);
+	vm.baseClasses.rangeClass->allocSize = sizeof(struct Range);
 	krk_defineNative(&vm.baseClasses.rangeClass->methods, ".__init__", _range_init);
 	krk_defineNative(&vm.baseClasses.rangeClass->methods, ".__iter__", _range_iter);
 	krk_defineNative(&vm.baseClasses.rangeClass->methods, ".__repr__", _range_repr);
@@ -3698,12 +3643,15 @@ void krk_initVM(int flags) {
 
 	/* TODO: Don't attach */
 	ADD_BASE_CLASS(vm.baseClasses.rangeiteratorClass, "rangeiterator", vm.objectClass);
+	vm.baseClasses.rangeiteratorClass->allocSize = sizeof(struct RangeIterator);
 	krk_defineNative(&vm.baseClasses.rangeiteratorClass->methods, ".__init__", _rangeiterator_init);
 	krk_defineNative(&vm.baseClasses.rangeiteratorClass->methods, ".__call__", _rangeiterator_call);
 	krk_finalizeClass(vm.baseClasses.rangeiteratorClass);
 
 	/* TODO: Don't attach */
 	ADD_BASE_CLASS(vm.baseClasses.tupleiteratorClass, "tupleiterator", vm.objectClass);
+	vm.baseClasses.tupleiteratorClass->allocSize = sizeof(struct TupleIter);
+	vm.baseClasses.tupleiteratorClass->_ongcscan = _tuple_iter_gcscan;
 	krk_defineNative(&vm.baseClasses.tupleiteratorClass->methods, ".__init__", _tuple_iter_init);
 	krk_defineNative(&vm.baseClasses.tupleiteratorClass->methods, ".__call__", _tuple_iter_call);
 	krk_finalizeClass(vm.baseClasses.tupleiteratorClass);
@@ -3728,6 +3676,9 @@ void krk_initVM(int flags) {
 
 		krk_tableGet(&vm.builtins->fields,OBJECT_VAL(S("dict")),&val);
 		vm.baseClasses.dictClass = AS_CLASS(val);
+		vm.baseClasses.dictClass->allocSize = sizeof(KrkDict);
+		vm.baseClasses.dictClass->_ongcscan = _dict_gcscan;
+		vm.baseClasses.dictClass->_ongcsweep = _dict_gcsweep;
 		krk_defineNative(&vm.baseClasses.dictClass->methods, ".__init__", _dict_init);
 		krk_defineNative(&vm.baseClasses.dictClass->methods, ".__str__", _dict_repr);
 		krk_defineNative(&vm.baseClasses.dictClass->methods, ".__repr__", _dict_repr);
@@ -3917,7 +3868,7 @@ static int handleException() {
  * object module, the later search path will still win.
  */
 int krk_loadModule(KrkString * path, KrkValue * moduleOut, KrkString * runAs) {
-	KrkValue modulePaths, modulePathsInternal;
+	KrkValue modulePaths;
 
 	/* See if the module is already loaded */
 	if (krk_tableGet(&vm.modules, OBJECT_VAL(runAs), moduleOut)) {
@@ -3934,15 +3885,7 @@ int krk_loadModule(KrkString * path, KrkValue * moduleOut, KrkString * runAs) {
 	}
 
 	/* Obtain __builtins__.module_paths.__list so we can do lookups directly */
-	modulePathsInternal = OBJECT_VAL(AS_INSTANCE(modulePaths)->_internal);
-	if (!IS_TUPLE(modulePathsInternal)) {
-		*moduleOut = NONE_VAL();
-		krk_runtimeError(vm.exceptions.baseException,
-			"Internal error: kuroko.module_paths is corrupted or incorrectly set.");
-		return 0;
-	}
-
-	int moduleCount = AS_LIST(modulePathsInternal)->count;
+	int moduleCount = AS_LIST(modulePaths)->count;
 	if (!moduleCount) {
 		*moduleOut = NONE_VAL();
 		krk_runtimeError(vm.exceptions.importError,
@@ -3954,7 +3897,7 @@ int krk_loadModule(KrkString * path, KrkValue * moduleOut, KrkString * runAs) {
 
 	/* First search for {path}.krk in the module search paths */
 	for (int i = 0; i < moduleCount; ++i, krk_pop()) {
-		krk_push(AS_LIST(modulePathsInternal)->values[i]);
+		krk_push(AS_LIST(modulePaths)->values[i]);
 		if (!IS_STRING(krk_peek(0))) {
 			*moduleOut = NONE_VAL();
 			krk_runtimeError(vm.exceptions.typeError,
@@ -3971,7 +3914,7 @@ int krk_loadModule(KrkString * path, KrkValue * moduleOut, KrkString * runAs) {
 		if (stat(fileName,&statbuf) < 0) {
 			krk_pop();
 			/* try /__init__.krk */
-			krk_push(AS_LIST(modulePathsInternal)->values[i]);
+			krk_push(AS_LIST(modulePaths)->values[i]);
 			krk_push(OBJECT_VAL(path));
 			addObjects();
 			krk_push(OBJECT_VAL(S(PATH_SEP "__init__.krk")));
@@ -4011,7 +3954,7 @@ int krk_loadModule(KrkString * path, KrkValue * moduleOut, KrkString * runAs) {
 	/* If we didn't find {path}.krk, try {path}.so in the same order */
 	for (int i = 0; i < moduleCount; ++i, krk_pop()) {
 		/* Assume things haven't changed and all of these are strings. */
-		krk_push(AS_LIST(modulePathsInternal)->values[i]);
+		krk_push(AS_LIST(modulePaths)->values[i]);
 		krk_push(OBJECT_VAL(path));
 		addObjects(); /* this should just be basic concatenation */
 		krk_push(OBJECT_VAL(S(".so")));
@@ -4111,14 +4054,13 @@ int krk_doRecursiveModuleLoad(KrkString * name) {
 	do {
 		KrkValue listOut = _string_split(3,(KrkValue[]){vm.stack[argBase+3], vm.stack[argBase+4], INTEGER_VAL(1)}, 0);
 		if (!IS_INSTANCE(listOut)) return 0;
-		KrkValue _list_internal = OBJECT_VAL(AS_INSTANCE(listOut)->_internal);
 
 		/* Set node */
-		vm.stack[argBase+0] = AS_LIST(_list_internal)->values[0];
+		vm.stack[argBase+0] = AS_LIST(listOut)->values[0];
 
 		/* Set remainder */
-		if (AS_LIST(_list_internal)->count > 1) {
-			vm.stack[argBase+3] = AS_LIST(_list_internal)->values[1];
+		if (AS_LIST(listOut)->count > 1) {
+			vm.stack[argBase+3] = AS_LIST(listOut)->values[1];
 		} else {
 			vm.stack[argBase+3] = NONE_VAL();
 		}
@@ -4546,12 +4488,9 @@ static KrkValue run() {
 			case OP_CLASS_LONG:
 			case OP_CLASS: {
 				KrkString * name = READ_STRING(operandWidth);
-				KrkClass * _class = krk_newClass(name);
+				KrkClass * _class = krk_newClass(name, vm.objectClass);
 				krk_push(OBJECT_VAL(_class));
 				_class->filename = frame->closure->function->chunk.filename;
-				_class->base = vm.objectClass;
-				krk_tableAddAll(&vm.objectClass->methods, &_class->methods);
-				krk_tableAddAll(&vm.objectClass->fields, &_class->fields);
 				break;
 			}
 			case OP_IMPORT_FROM_LONG:
@@ -4683,6 +4622,9 @@ static KrkValue run() {
 				subclass->base = AS_CLASS(superclass);
 				krk_tableAddAll(&AS_CLASS(superclass)->methods, &subclass->methods);
 				krk_tableAddAll(&AS_CLASS(superclass)->fields, &subclass->fields);
+				subclass->allocSize = AS_CLASS(superclass)->allocSize;
+				subclass->_ongcsweep = AS_CLASS(superclass)->_ongcsweep;
+				subclass->_ongcscan = AS_CLASS(superclass)->_ongcscan;
 				krk_pop();
 				break;
 			}
@@ -4747,11 +4689,9 @@ static KrkValue run() {
 				if (IS_TUPLE(sequence)) {
 					unpackArray(AS_TUPLE(sequence)->values.count, AS_TUPLE(sequence)->values.values[i]);
 				} else if (IS_INSTANCE(sequence) && AS_INSTANCE(sequence)->_class == vm.baseClasses.listClass) {
-					KrkValue _list_internal = OBJECT_VAL(AS_INSTANCE(sequence)->_internal);
-					unpackArray(AS_LIST(_list_internal)->count, AS_LIST(_list_internal)->values[i]);
+					unpackArray(AS_LIST(sequence)->count, AS_LIST(sequence)->values[i]);
 				} else if (IS_INSTANCE(sequence) && AS_INSTANCE(sequence)->_class == vm.baseClasses.dictClass) {
-					KrkValue _dict_internal = OBJECT_VAL(AS_INSTANCE(sequence)->_internal);
-					unpackArray(AS_DICT(_dict_internal)->count, _dict_nth_key_fast(AS_DICT(_dict_internal)->capacity, AS_DICT(_dict_internal)->entries, i));
+					unpackArray(AS_DICT(sequence)->count, _dict_nth_key_fast(AS_DICT(sequence)->capacity, AS_DICT(sequence)->entries, i));
 				} else if (IS_STRING(sequence)) {
 					unpackArray(AS_STRING(sequence)->codesLength, _string_get(2,(KrkValue[]){sequence,INTEGER_VAL(i)}));
 				} else {

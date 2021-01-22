@@ -101,16 +101,9 @@ static void _loadEnviron(KrkInstance * module) {
 	/* Create a new class to subclass `dict` */
 	KrkString * className = S("_Environ");
 	krk_push(OBJECT_VAL(className));
-	KrkClass * environClass = krk_newClass(className);
+	KrkClass * environClass = krk_newClass(className, vm.baseClasses.dictClass);
 	krk_attachNamedObject(&module->fields, "_Environ", (KrkObj*)environClass);
 	krk_pop(); /* className */
-
-	/* Inherit from base dict */
-	KrkValue dictClass;
-	krk_tableGet(&vm.builtins->fields,OBJECT_VAL(S("dict")), &dictClass);
-	krk_tableAddAll(&AS_CLASS(dictClass)->methods, &environClass->methods);
-	krk_tableAddAll(&AS_CLASS(dictClass)->fields, &environClass->fields);
-	environClass->base = AS_CLASS(dictClass);
 
 	/* Add our set method that should also call dict's set method */
 	krk_defineNative(&environClass->methods, ".__set__", krk_os_setenviron);
@@ -130,8 +123,6 @@ static void _loadEnviron(KrkInstance * module) {
 	/* Now load the environment into it */
 	if (!environ) return; /* Empty environment */
 
-	KrkValue _dict_internal = OBJECT_VAL(environObj->_internal);
-
 	char ** env = environ;
 	for (; *env; env++) {
 		const char * equals = strchr(*env, '=');
@@ -146,7 +137,7 @@ static void _loadEnviron(KrkInstance * module) {
 		KrkValue val = OBJECT_VAL(krk_copyString(equals+1, valLen));
 		krk_push(val);
 
-		krk_tableSet(AS_DICT(_dict_internal), key, val);
+		krk_tableSet(AS_DICT(OBJECT_VAL(environObj)), key, val);
 		krk_pop(); /* val */
 		krk_pop(); /* key */
 	}

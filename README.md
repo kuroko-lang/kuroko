@@ -1456,20 +1456,13 @@ _**NOTE:** When creating and attaching objects, pay careful attention to the ord
 
 ```c
     /* Create a class 'className_' and attach it to our module. */
-    KrkClass * myNewClass = krk_newClass(krk_copyString("MyNewClass", 10));
+    KrkClass * myNewClass = krk_newClass(krk_copyString("MyNewClass", 10), vm.objectClass);
     krk_attachNamedObject(&module->fields, "MyNewClass", (KrkObj*)myNewClass);
 ```
 
 Here we have created a new class named `MyNameClass` and exposed it through the `fields` table of our module object under the same name. We're not done preparing our class, though:
 
-
-```c
-    myNewClass->base = vm.objectClass;
-    krk_tableAddAll(&vm.objectClass->methods, &myNewClass->methods);
-    krk_tableAddAll(&vm.objectClass->fields, &myNewClass->fields);
-```
-
-We also want to make sure that our new class fits into the general inheritance hierarchy, which typically means inheriting from `vm.objectClass` - we do this by setting our new class's `base` pointer to `vm.objectClass` and copying `vm.objectClass`'s method and field tables. Now we can start customizing our class with its own methods.
+We also want to make sure that our new class fits into the general inheritance hierarchy, which typically means inheriting from `vm.objectClass` - we do this by passing `vm.objectClass` to `krk_newClass` as a base class.
 
 Native functions are attached to class method tables in a similar manner to normal functions:
 
@@ -1495,3 +1488,61 @@ krk_finalizeClass(myNewClass)
 
 Specifically, this will search through the class's method table to find implementations for functions like `__repr__` and `__init__`. This step is required for these functions to work as expected as the VM will not look them up by name.
 
+### Creating Types with Internal State
+
+There are two ways to attach internal state to new types:
+
+ - If state lookup does not need to be fast and consists entirely of values that can be represented with Kuroko's type system, use the instance's `fields` table.
+ - If state lookup needs to be immediate and involves non-Kuroko types, extend `KrkInstance`.
+
+The first approach is easy to implement: Just attach named values to an instance's `fields` table where appropriate, such as in the type's `__init__` method.
+
+The second approach requires some additional work: The class must specify its allocation size, define a structure with a `KrkInstance` as its first member (followed by the additional members for the type), ensure that values are properly initialized on creation, and also provide callbacks for any work that needs to be done when the object is scanned or sweeped by the garbage collector.
+
+The `range` class is an example of a simple type that extends `KrkInstance`:
+
+```c
+struct Range {
+	KrkInstance inst;
+	krk_integer_type min;
+	krk_integer_type max;
+};
+```
+
+As the additional members `min` and `max` do not need any cleanup work, the `range` class only needs to indicate its allocation size when it is defined:
+
+```c
+ADD_BASE_CLASS(vm.baseClasses.rangeClass, "range", vm.objectClass);
+vm.baseClasses.rangeClass->allocSize = sizeof(struct Range);
+...
+```
+
+The `list` class, however, stores Kuroko objects in a flexible array:
+
+```c
+typedef struct {
+	KrkInstance inst;
+	KrkValueArray values;
+} KrkList;
+```
+
+And must bind callbacks to ensure its contents are not garbage collected, and that when the list itself is garbage collected the additional memory of its flexible array is correctly freed:
+
+```c
+vm.baseClasses.listClass->allocSize = sizeof(KrkList);
+vm.baseClasses.listClass->_ongcscan = _list_gcscan;
+vm.baseClasses.listClass->_ongcsweep = _list_gcsweep;
+...
+```
+
+```c
+static void _list_gcscan(KrkInstance * self) {
+	for (size_t i = 0; i < ((KrkList*)self)->values.count; ++i) {
+		krk_markValue(((KrkList*)self)->values.values[i]);
+	}
+}
+
+static void _list_gcsweep(KrkInstance * self) {
+	krk_freeValueArray(&((KrkList*)self)->values);
+}
+```

@@ -67,6 +67,7 @@ static void freeObject(KrkObj * object) {
 			break;
 		}
 		case OBJ_INSTANCE: {
+			if (((KrkInstance*)object)->_class->_ongcsweep) ((KrkInstance*)object)->_class->_ongcsweep((KrkInstance*)object);
 			krk_freeTable(&((KrkInstance*)object)->fields);
 			FREE(KrkInstance, object);
 			break;
@@ -162,6 +163,7 @@ static void blackenObject(KrkObj * object) {
 		}
 		case OBJ_INSTANCE: {
 			krk_markObject((KrkObj*)((KrkInstance*)object)->_class);
+			if (((KrkInstance*)object)->_class->_ongcscan) ((KrkInstance*)object)->_class->_ongcscan((KrkInstance*)object);
 			krk_markTable(&((KrkInstance*)object)->fields);
 			break;
 		}

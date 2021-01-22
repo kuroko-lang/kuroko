@@ -249,14 +249,18 @@ KrkUpvalue * krk_newUpvalue(int slot) {
 	return upvalue;
 }
 
-KrkClass * krk_newClass(KrkString * name) {
+KrkClass * krk_newClass(KrkString * name, KrkClass * baseClass) {
 	KrkClass * _class = ALLOCATE_OBJECT(KrkClass, OBJ_CLASS);
 	_class->name = name;
 	_class->filename = NULL;
 	_class->docstring = NULL;
 	_class->base = NULL;
+	_class->allocSize = sizeof(KrkInstance);
 	krk_initTable(&_class->methods);
 	krk_initTable(&_class->fields);
+
+	_class->_ongcscan = NULL;
+	_class->_ongcsweep = NULL;
 
 	_class->_getter = NULL;
 	_class->_setter = NULL;
@@ -274,11 +278,24 @@ KrkClass * krk_newClass(KrkString * name) {
 	_class->_getattr = NULL;
 	_class->_dir = NULL;
 
+	if (baseClass) {
+		krk_push(OBJECT_VAL(_class));
+		_class->base = baseClass;
+		_class->allocSize = baseClass->allocSize;
+
+		_class->_ongcscan = baseClass->_ongcscan;
+		_class->_ongcsweep = baseClass->_ongcsweep;
+
+		krk_tableAddAll(&baseClass->methods, &_class->methods);
+		krk_tableAddAll(&baseClass->fields, &_class->fields);
+		krk_pop();
+	}
+
 	return _class;
 }
 
 KrkInstance * krk_newInstance(KrkClass * _class) {
-	KrkInstance * instance = ALLOCATE_OBJECT(KrkInstance, OBJ_INSTANCE);
+	KrkInstance * instance = (KrkInstance*)allocateObject(_class->allocSize, OBJ_INSTANCE);
 	instance->_class = _class;
 	krk_initTable(&instance->fields);
 	if (_class) {
@@ -286,7 +303,6 @@ KrkInstance * krk_newInstance(KrkClass * _class) {
 		krk_tableAddAll(&_class->fields, &instance->fields);
 		krk_pop();
 	}
-	instance->_internal = NULL; /* To be used by C-defined types to track internal objects. */
 	return instance;
 }
 
@@ -299,7 +315,6 @@ KrkBoundMethod * krk_newBoundMethod(KrkValue receiver, KrkObj * method) {
 
 KrkTuple * krk_newTuple(size_t length) {
 	KrkTuple * tuple = ALLOCATE_OBJECT(KrkTuple, OBJ_TUPLE);
-	tuple->inrepr = 0;
 	krk_initValueArray(&tuple->values);
 	krk_push(OBJECT_VAL(tuple));
 	tuple->values.capacity = length;

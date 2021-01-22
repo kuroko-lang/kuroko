@@ -114,6 +114,8 @@ typedef struct {
 	size_t upvalueCount;
 } KrkClosure;
 
+typedef void (*KrkCleanupCallback)(struct KrkInstance *);
+
 typedef struct KrkClass {
 	KrkObj obj;
 	KrkString * name;
@@ -122,6 +124,9 @@ typedef struct KrkClass {
 	struct KrkClass * base;
 	KrkTable methods;
 	KrkTable fields;
+	size_t allocSize;
+	KrkCleanupCallback _ongcscan;
+	KrkCleanupCallback _ongcsweep;
 
 	/* Quick access for common stuff */
 	KrkObj * _getter;
@@ -145,7 +150,6 @@ typedef struct KrkInstance {
 	KrkObj obj;
 	KrkClass * _class;
 	KrkTable fields;
-	void * _internal;
 } KrkInstance;
 
 typedef struct {
@@ -167,15 +171,20 @@ typedef struct {
 typedef struct {
 	KrkObj obj;
 	KrkValueArray values;
-	int inrepr;
 } KrkTuple;
 
-#define AS_LIST(value) (&AS_TUPLE(value)->values)
-#define AS_DICT(value) (&AS_INSTANCE(value)->fields)
-typedef KrkFunction KrkList;
-typedef KrkClass KrkDict;
-#define krk_newList() AS_LIST(krk_list_of(0,(KrkValue[]){}))
-#define krk_newDict() AS_DICT(krk_dict_of(0,(KrkValue[]){}))
+typedef struct {
+	KrkInstance inst;
+	KrkValueArray values;
+} KrkList;
+
+typedef struct {
+	KrkInstance inst;
+	KrkTable entries;
+} KrkDict;
+
+#define AS_LIST(value) (&((KrkList *)AS_OBJECT(value))->values)
+#define AS_DICT(value) (&((KrkDict *)AS_OBJECT(value))->entries)
 
 static inline int isObjType(KrkValue value, ObjType type) {
 	return IS_OBJECT(value) && AS_OBJECT(value)->type == type;
@@ -187,7 +196,7 @@ extern KrkFunction *    krk_newFunction(void);
 extern KrkNative * krk_newNative(NativeFn function, const char * name, int type);
 extern KrkClosure *     krk_newClosure(KrkFunction * function);
 extern KrkUpvalue *     krk_newUpvalue(int slot);
-extern KrkClass *       krk_newClass(KrkString * name);
+extern KrkClass *       krk_newClass(KrkString * name, KrkClass * base);
 extern KrkInstance *    krk_newInstance(KrkClass * _class);
 extern KrkBoundMethod * krk_newBoundMethod(KrkValue receiver, KrkObj * method);
 extern KrkTuple *       krk_newTuple(size_t length);

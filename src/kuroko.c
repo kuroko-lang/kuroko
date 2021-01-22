@@ -155,10 +155,9 @@ static void tab_complete_func(rline_context_t * c) {
 					fprintf(stderr,"\nInternal error while tab completting.\n");
 					goto _cleanup;
 				}
-				KrkValue _list_internal = OBJECT_VAL(AS_INSTANCE(dirList)->_internal);
 
-				for (size_t i = 0; i < AS_LIST(_list_internal)->count; ++i) {
-					KrkString * s = AS_STRING(AS_LIST(_list_internal)->values[i]);
+				for (size_t i = 0; i < AS_LIST(dirList)->count; ++i) {
+					KrkString * s = AS_STRING(AS_LIST(dirList)->values[i]);
 					KrkToken asToken = {.start = s->chars, .literalWidth = s->length};
 					KrkValue thisValue = findFromProperty(root, asToken);
 					if (IS_CLOSURE(thisValue) || IS_BOUND_METHOD(thisValue) ||
@@ -399,7 +398,7 @@ _finishArgs:
 		KrkValue module;
 		krk_push(OBJECT_VAL(krk_copyString("__main__",8)));
 		int out = !krk_loadModule(
-			AS_STRING(AS_LIST(OBJECT_VAL(AS_INSTANCE(argList)->_internal))->values[0]),
+			AS_STRING(AS_LIST(argList)->values[0]),
 			&module,
 			AS_STRING(krk_peek(0)));
 		if (vm.flags & KRK_HAS_EXCEPTION) {

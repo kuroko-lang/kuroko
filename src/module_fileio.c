@@ -15,6 +15,11 @@
 static KrkClass * FileClass = NULL;
 static KrkClass * BinaryFileClass = NULL;
 
+struct FileObject {
+	KrkInstance inst;
+	FILE * filePtr;
+};
+
 KrkValue krk_open(int argc, KrkValue argv[]) {
 	/* How are we going to store files if we need to delete them at runtime
 	 * when the GC finishes... maybe we could add a new object type that
@@ -84,7 +89,7 @@ KrkValue krk_open(int argc, KrkValue argv[]) {
 	krk_attachNamedValue(&fileObject->fields, "filename", argv[0]);
 	krk_attachNamedValue(&fileObject->fields, "modestr", arg);
 
-	fileObject->_internal = file;
+	((struct FileObject*)fileObject)->filePtr = file;
 
 	krk_pop();
 	krk_pop();
@@ -99,7 +104,7 @@ static KrkValue krk_file_str(int argc, KrkValue argv[]) {
 	krk_tableGet(&fileObj->fields, OBJECT_VAL(S("filename")), &filename);
 	krk_tableGet(&fileObj->fields, OBJECT_VAL(S("modestr")), &modestr);
 	char * tmp = malloc(AS_STRING(filename)->length + AS_STRING(modestr)->length + 100); /* safety */
-	sprintf(tmp, "<%s file '%s', mode '%s' at %p>", fileObj->_internal ? "open" : "closed", AS_CSTRING(filename), AS_CSTRING(modestr), (void*)fileObj);
+	sprintf(tmp, "<%s file '%s', mode '%s' at %p>", ((struct FileObject*)fileObj)->filePtr ? "open" : "closed", AS_CSTRING(filename), AS_CSTRING(modestr), (void*)fileObj);
 	KrkString * out = krk_copyString(tmp, strlen(tmp));
 	free(tmp);
 	return OBJECT_VAL(out);
@@ -111,7 +116,7 @@ static KrkValue krk_file_readline(int argc, KrkValue argv[]) {
 		return NONE_VAL();
 	}
 
-	FILE * file = AS_INSTANCE(argv[0])->_internal;
+	FILE * file = ((struct FileObject*)AS_OBJECT(argv[0]))->filePtr;
 
 	if (!file || feof(file)) {
 		return NONE_VAL();
@@ -153,14 +158,12 @@ static KrkValue krk_file_readlines(int argc, KrkValue argv[]) {
 	KrkValue myList = krk_list_of(0,NULL);
 	krk_push(myList);
 
-	KrkValue _list_internal = OBJECT_VAL(AS_INSTANCE(myList)->_internal);
-
 	for (;;) {
 		KrkValue line = krk_file_readline(1, argv);
 		if (IS_NONE(line)) break;
 
 		krk_push(line);
-		krk_writeValueArray(AS_LIST(_list_internal), line);
+		krk_writeValueArray(AS_LIST(myList), line);
 		krk_pop(); /* line */
 	}
 
@@ -175,7 +178,7 @@ static KrkValue krk_file_read(int argc, KrkValue argv[]) {
 	}
 
 	/* Get the file ptr reference */
-	FILE * file = AS_INSTANCE(argv[0])->_internal;
+	FILE * file = ((struct FileObject*)AS_OBJECT(argv[0]))->filePtr;
 
 	if (!file || feof(file)) {
 		return NONE_VAL();
@@ -220,7 +223,7 @@ static KrkValue krk_file_write(int argc, KrkValue argv[]) {
 	}
 
 	/* Find the file ptr reference */
-	FILE * file = AS_INSTANCE(argv[0])->_internal;
+	FILE * file = ((struct FileObject*)AS_OBJECT(argv[0]))->filePtr;
 
 	if (!file || feof(file)) {
 		return NONE_VAL();
@@ -235,13 +238,13 @@ static KrkValue krk_file_close(int argc, KrkValue argv[]) {
 		return NONE_VAL();
 	}
 
-	FILE * file = AS_INSTANCE(argv[0])->_internal;
+	FILE * file = ((struct FileObject*)AS_OBJECT(argv[0]))->filePtr;
 
 	if (!file) return NONE_VAL();
 
 	fclose(file);
 
-	AS_INSTANCE(argv[0])->_internal = NULL;
+	((struct FileObject*)AS_OBJECT(argv[0]))->filePtr = NULL;
 
 	return NONE_VAL();
 }
@@ -252,7 +255,7 @@ static KrkValue krk_file_flush(int argc, KrkValue argv[]) {
 		return NONE_VAL();
 	}
 
-	FILE * file = AS_INSTANCE(argv[0])->_internal;
+	FILE * file = ((struct FileObject*)AS_OBJECT(argv[0]))->filePtr;
 
 	if (!file) return NONE_VAL();
 
@@ -283,7 +286,7 @@ static void makeFileInstance(KrkInstance * module, const char name[], FILE * fil
 	krk_push(filename);
 
 	krk_attachNamedValue(&fileObject->fields, "filename", filename);
-	fileObject->_internal = file;
+	((struct FileObject*)fileObject)->filePtr = file;
 
 	krk_attachNamedObject(&module->fields, name, (KrkObj*)fileObject);
 
@@ -297,7 +300,7 @@ static KrkValue krk_file_readline_b(int argc, KrkValue argv[]) {
 		return NONE_VAL();
 	}
 
-	FILE * file = AS_INSTANCE(argv[0])->_internal;
+	FILE * file = ((struct FileObject*)AS_OBJECT(argv[0]))->filePtr;
 
 	if (!file || feof(file)) {
 		return NONE_VAL();
@@ -339,14 +342,12 @@ static KrkValue krk_file_readlines_b(int argc, KrkValue argv[]) {
 	KrkValue myList = krk_list_of(0,NULL);
 	krk_push(myList);
 
-	KrkValue _list_internal = OBJECT_VAL(AS_INSTANCE(myList)->_internal);
-
 	for (;;) {
 		KrkValue line = krk_file_readline_b(1, argv);
 		if (IS_NONE(line)) break;
 
 		krk_push(line);
-		krk_writeValueArray(AS_LIST(_list_internal), line);
+		krk_writeValueArray(AS_LIST(myList), line);
 		krk_pop(); /* line */
 	}
 
@@ -361,7 +362,7 @@ static KrkValue krk_file_read_b(int argc, KrkValue argv[]) {
 	}
 
 	/* Get the file ptr reference */
-	FILE * file = AS_INSTANCE(argv[0])->_internal;
+	FILE * file = ((struct FileObject*)AS_OBJECT(argv[0]))->filePtr;
 
 	if (!file || feof(file)) {
 		return NONE_VAL();
@@ -406,7 +407,7 @@ static KrkValue krk_file_write_b(int argc, KrkValue argv[]) {
 	}
 
 	/* Find the file ptr reference */
-	FILE * file = AS_INSTANCE(argv[0])->_internal;
+	FILE * file = ((struct FileObject*)AS_OBJECT(argv[0]))->filePtr;
 
 	if (!file || feof(file)) {
 		return NONE_VAL();
@@ -418,15 +419,20 @@ static KrkValue krk_file_write_b(int argc, KrkValue argv[]) {
 static void makeClass(KrkInstance * module, KrkClass ** _class, const char * name, KrkClass * base) {
 	KrkString * str_Name = krk_copyString(name,strlen(name));
 	krk_push(OBJECT_VAL(str_Name));
-	*_class = krk_newClass(str_Name);
+	*_class = krk_newClass(str_Name, base);
 	krk_push(OBJECT_VAL(*_class));
 	/* Bind it */
 	krk_attachNamedObject(&module->fields,name,(KrkObj*)*_class);
-	/* Inherit from object */
-	krk_tableAddAll(&base->methods, &(*_class)->methods);
-	krk_tableAddAll(&base->fields, &(*_class)->fields);
 	krk_pop();
 	krk_pop();
+}
+
+static void _file_sweep(KrkInstance * self) {
+	struct FileObject * me = (void *)self;
+	if (me->filePtr) {
+		fclose(me->filePtr);
+		me->filePtr = NULL;
+	}
 }
 
 KrkValue krk_module_onload_fileio(void) {
@@ -437,6 +443,8 @@ KrkValue krk_module_onload_fileio(void) {
 
 	/* Define a class to represent files. (Should this be a helper method?) */
 	makeClass(module, &FileClass, "File", vm.objectClass);
+	FileClass->allocSize = sizeof(struct FileObject);
+	FileClass->_ongcsweep = _file_sweep;
 
 	/* Add methods to it... */
 	krk_defineNative(&FileClass->methods, ".read", krk_file_read);
