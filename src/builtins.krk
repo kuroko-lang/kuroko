@@ -63,18 +63,6 @@ class set():
 
 __builtins__.set = set
 
-def any(iter):
- for v in iter:
-  if v: return True
- return False
-__builtins__.any = any
-
-def all(iter):
- for v in iter:
-  if not v: return False
- return True
-__builtins__.all = all
-
 class Helper():
  '''You seem to already know how to use this.'''
  def __call__(self,obj=None):

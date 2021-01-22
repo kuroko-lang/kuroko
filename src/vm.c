@@ -2775,6 +2775,102 @@ static KrkValue _hex(int argc, KrkValue argv[]) {
 	return OBJECT_VAL(krk_copyString(tmp,len));
 }
 
+static KrkValue _any(int argc, KrkValue argv[]) {
+#define unpackArray(counter, indexer) do { \
+	for (size_t i = 0; i < counter; ++i) { \
+		if (!isFalsey(indexer)) return BOOLEAN_VAL(1); \
+	} \
+} while (0)
+	KrkValue value = argv[0];
+	if (IS_TUPLE(value)) {
+		unpackArray(AS_TUPLE(value)->values.count, AS_TUPLE(value)->values.values[i]);
+	} else if (IS_INSTANCE(value) && AS_INSTANCE(value)->_class == vm.baseClasses.listClass) {
+		unpackArray(AS_LIST(value)->count, AS_LIST(value)->values[i]);
+	} else if (IS_INSTANCE(value) && AS_INSTANCE(value)->_class == vm.baseClasses.dictClass) {
+		unpackArray(AS_DICT(value)->count, _dict_nth_key_fast(AS_DICT(value)->capacity, AS_DICT(value)->entries, i));
+	} else if (IS_STRING(value)) {
+		unpackArray(AS_STRING(value)->codesLength, _string_get(2,(KrkValue[]){value,INTEGER_VAL(i)}));
+	} else {
+		KrkClass * type = krk_getType(argv[0]);
+		if (type->_iter) {
+			/* Create the iterator */
+			size_t stackOffset = vm.stackTop - vm.stack;
+			krk_push(argv[1]);
+			krk_push(krk_callSimple(OBJECT_VAL(type->_iter), 1, 0));
+
+			do {
+				/* Call it until it gives us itself */
+				krk_push(vm.stack[stackOffset]);
+				krk_push(krk_callSimple(krk_peek(0), 0, 1));
+				if (krk_valuesSame(vm.stack[stackOffset], krk_peek(0))) {
+					/* We're done. */
+					krk_pop(); /* The result of iteration */
+					krk_pop(); /* The iterator */
+					break;
+				}
+				if (!isFalsey(krk_peek(0))) {
+					krk_pop();
+					krk_pop();
+					return BOOLEAN_VAL(1);
+				}
+				krk_pop();
+			} while (1);
+		} else {
+			return krk_runtimeError(vm.exceptions.typeError, "'%s' object is not iterable", krk_typeName(value));
+		}
+	}
+#undef unpackArray
+	return BOOLEAN_VAL(0);
+}
+
+static KrkValue _all(int argc, KrkValue argv[]) {
+#define unpackArray(counter, indexer) do { \
+	for (size_t i = 0; i < counter; ++i) { \
+		if (isFalsey(indexer)) return BOOLEAN_VAL(0); \
+	} \
+} while (0)
+	KrkValue value = argv[0];
+	if (IS_TUPLE(value)) {
+		unpackArray(AS_TUPLE(value)->values.count, AS_TUPLE(value)->values.values[i]);
+	} else if (IS_INSTANCE(value) && AS_INSTANCE(value)->_class == vm.baseClasses.listClass) {
+		unpackArray(AS_LIST(value)->count, AS_LIST(value)->values[i]);
+	} else if (IS_INSTANCE(value) && AS_INSTANCE(value)->_class == vm.baseClasses.dictClass) {
+		unpackArray(AS_DICT(value)->count, _dict_nth_key_fast(AS_DICT(value)->capacity, AS_DICT(value)->entries, i));
+	} else if (IS_STRING(value)) {
+		unpackArray(AS_STRING(value)->codesLength, _string_get(2,(KrkValue[]){value,INTEGER_VAL(i)}));
+	} else {
+		KrkClass * type = krk_getType(argv[0]);
+		if (type->_iter) {
+			/* Create the iterator */
+			size_t stackOffset = vm.stackTop - vm.stack;
+			krk_push(argv[1]);
+			krk_push(krk_callSimple(OBJECT_VAL(type->_iter), 1, 0));
+
+			do {
+				/* Call it until it gives us itself */
+				krk_push(vm.stack[stackOffset]);
+				krk_push(krk_callSimple(krk_peek(0), 0, 1));
+				if (krk_valuesSame(vm.stack[stackOffset], krk_peek(0))) {
+					/* We're done. */
+					krk_pop(); /* The result of iteration */
+					krk_pop(); /* The iterator */
+					break;
+				}
+				if (isFalsey(krk_peek(0))) {
+					krk_pop();
+					krk_pop();
+					return BOOLEAN_VAL(0);
+				}
+				krk_pop();
+			} while (1);
+		} else {
+			return krk_runtimeError(vm.exceptions.typeError, "'%s' object is not iterable", krk_typeName(value));
+		}
+	}
+#undef unpackArray
+	return BOOLEAN_VAL(1);
+}
+
 struct TupleIter {
 	KrkInstance inst;
 	KrkValue myTuple;
@@ -3384,6 +3480,8 @@ void krk_initVM(int flags) {
 	BUILTIN_FUNCTION("ord", _ord, "Obtain the ordinal integer value of a codepoint or byte.");
 	BUILTIN_FUNCTION("chr", _chr, "Convert an integer codepoint to its string representation.");
 	BUILTIN_FUNCTION("hex", _hex, "Convert an integer value to a hexadecimal string.");
+	BUILTIN_FUNCTION("any", _any, "Returns True if at least one element in the given iterable is truthy, False otherwise.");
+	BUILTIN_FUNCTION("all", _all, "Returns True if every element in the given iterable is truthy, False otherwise.");
 
 	/* __builtins__.set_tracing is namespaced */
 	krk_defineNative(&vm.builtins->fields, "set_tracing", krk_set_tracing)->doc = "Toggle debugging modes.";
