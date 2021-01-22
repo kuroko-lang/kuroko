@@ -616,13 +616,7 @@ _finishArgs:
 			(void)blockWidth;
 		}
 	} else {
-		/* Expect the rest of the arguments to be scripts to run;
-		 * collect the result of the last one and use it as the
-		 * exit code if it's an integer. */
-		for (int i = optind; i < argc; ++i) {
-			KrkValue out = krk_runfile(argv[i],1,"__main__",argv[i]);
-			if (i + 1 == argc) result = out;
-		}
+		result = krk_runfile(argv[optind],1,"__main__",argv[optind]);
 	}
 
 	krk_freeVM();
