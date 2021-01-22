@@ -92,15 +92,39 @@ static KrkValue krk_uname(int argc, KrkValue argv[]) {
 #endif
 }
 
-KrkValue krk_os_setenviron(int argc, KrkValue * argv[]) {
-	return krk_runtimeError(vm.exceptions.typeError, "(unimplemented)");
+KrkClass * environClass;
+
+KrkValue krk_os_setenviron(int argc, KrkValue argv[]) {
+	if (argc < 3 || !krk_isInstanceOf(argv[0], environClass) ||
+		!IS_STRING(argv[1]) || !IS_STRING(argv[2])) {
+		return krk_runtimeError(vm.exceptions.argumentError, "Invalid arguments to environ.__set__");
+	}
+	/* Set environment variable */
+#ifdef setenv
+	if (setenv(AS_CSTRING(argv[1]), AS_CSTRING(argv[2]), 1) == 0) {
+#else
+	char * tmp = malloc(AS_STRING(argv[1])->length + AS_STRING(argv[2])->length + 2);
+	sprintf(tmp, "%s=%s", AS_CSTRING(argv[1]), AS_CSTRING(argv[2]));
+	int r = putenv(tmp);
+	free(tmp);
+	if (r == 0) {
+#endif
+		/* Make super call */
+		krk_push(argv[0]);
+		krk_push(argv[1]);
+		krk_push(argv[2]);
+		return krk_callSimple(OBJECT_VAL(vm.baseClasses.dictClass->_setter), 3, 0);
+	} else {
+		/* OSError? */
+		return krk_runtimeError(vm.exceptions.baseException, strerror(errno));
+	}
 }
 
 static void _loadEnviron(KrkInstance * module) {
 	/* Create a new class to subclass `dict` */
 	KrkString * className = S("_Environ");
 	krk_push(OBJECT_VAL(className));
-	KrkClass * environClass = krk_newClass(className, vm.baseClasses.dictClass);
+	environClass = krk_newClass(className, vm.baseClasses.dictClass);
 	krk_attachNamedObject(&module->fields, "_Environ", (KrkObj*)environClass);
 	krk_pop(); /* className */
 
