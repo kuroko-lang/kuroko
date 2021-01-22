@@ -24,7 +24,7 @@ extern char ** environ;
 /**
  * system.uname()
  */
-static KrkValue krk_uname(int argc, KrkValue argv[]) {
+static KrkValue _os_uname(int argc, KrkValue argv[]) {
 #ifndef _WIN32
 	struct utsname buf;
 	if (uname(&buf) < 0) return NONE_VAL();
@@ -167,13 +167,20 @@ static void _loadEnviron(KrkInstance * module) {
 
 }
 
+static KrkValue _os_system(int argc, KrkValue argv[]) {
+	if (argc != 1 || !IS_STRING(argv[0])) return krk_runtimeError(vm.exceptions.typeError, "system() expects one string argument");
+
+	return INTEGER_VAL(system(AS_CSTRING(argv[0])));
+}
+
 KrkValue krk_module_onload_os(void) {
 	KrkInstance * module = krk_newInstance(vm.moduleClass);
 	/* Store it on the stack for now so we can do stuff that may trip GC
 	 * and not lose it to garbage colletion... */
 	krk_push(OBJECT_VAL(module));
 
-	krk_defineNative(&module->fields, "uname", krk_uname);
+	krk_defineNative(&module->fields, "uname", _os_uname);
+	krk_defineNative(&module->fields, "system", _os_system);
 
 	_loadEnviron(module);
 
