@@ -60,9 +60,8 @@
 /* This is macro'd to krk_vm for namespacing reasons. */
 KrkVM vm;
 
-static KrkValue run();
+/* Some quick forward declarations of string methods we like to call directly... */
 static void addObjects();
-/* We use these directly sometimes */
 static KrkValue _string_get(int argc, KrkValue argv[]);
 static KrkValue _string_format(int argc, KrkValue argv[], int hasKw);
 
@@ -196,7 +195,7 @@ void krk_dumpTraceback() {
  * and formats a message string to attach to it. Exception classes are
  * found in vm.exceptions and are initialized on startup.
  */
-void krk_runtimeError(KrkClass * type, const char * fmt, ...) {
+KrkValue krk_runtimeError(KrkClass * type, const char * fmt, ...) {
 	char buf[1024] = {0};
 	va_list args;
 	va_start(args, fmt);
@@ -204,17 +203,20 @@ void krk_runtimeError(KrkClass * type, const char * fmt, ...) {
 	va_end(args);
 	vm.flags |= KRK_HAS_EXCEPTION;
 
-	/* Try to allocate an instance of __builtins__. */
+	/* Allocate an exception object of the requested type. */
 	KrkInstance * exceptionObject = krk_newInstance(type);
 	krk_push(OBJECT_VAL(exceptionObject));
 	krk_push(OBJECT_VAL(S("arg")));
 	krk_push(OBJECT_VAL(krk_copyString(buf, len)));
+	/* Attach its argument */
 	krk_tableSet(&exceptionObject->fields, krk_peek(1), krk_peek(0));
 	krk_pop();
 	krk_pop();
 	krk_pop();
 
+	/* Set the current exception to be picked up by handleException */
 	vm.currentException = OBJECT_VAL(exceptionObject);
+	return NONE_VAL();
 }
 
 /**
@@ -367,14 +369,9 @@ static void _dict_gcsweep(KrkInstance * self) {
  * dict.__get__(key)
  */
 static KrkValue _dict_get(int argc, KrkValue argv[]) {
-	if (argc < 2) {
-		krk_runtimeError(vm.exceptions.argumentError, "wrong number of arguments");
-		return NONE_VAL();
-	}
+	if (argc < 2) return krk_runtimeError(vm.exceptions.argumentError, "wrong number of arguments");
 	KrkValue out;
-	if (!krk_tableGet(AS_DICT(argv[0]), argv[1], &out)) {
-		krk_runtimeError(vm.exceptions.keyError, "key error");
-	}
+	if (!krk_tableGet(AS_DICT(argv[0]), argv[1], &out)) return krk_runtimeError(vm.exceptions.keyError, "key error");
 	return out;
 }
 
@@ -382,10 +379,7 @@ static KrkValue _dict_get(int argc, KrkValue argv[]) {
  * dict.__set__(key, value)
  */
 static KrkValue _dict_set(int argc, KrkValue argv[]) {
-	if (argc < 3) {
-		krk_runtimeError(vm.exceptions.argumentError, "wrong number of arguments");
-		return NONE_VAL();
-	}
+	if (argc < 3) return krk_runtimeError(vm.exceptions.argumentError, "wrong number of arguments");
 	krk_tableSet(AS_DICT(argv[0]), argv[1], argv[2]);
 	return NONE_VAL();
 }
@@ -394,21 +388,15 @@ static KrkValue _dict_set(int argc, KrkValue argv[]) {
  * dict.__delitem__
  */
 static KrkValue _dict_delitem(int argc, KrkValue argv[]) {
-	if (argc < 2) {
-		krk_runtimeError(vm.exceptions.argumentError, "wrong number of arguments");
-		return NONE_VAL();
-	}
+	if (argc < 2) return krk_runtimeError(vm.exceptions.argumentError, "wrong number of arguments");
 	if (!krk_tableDelete(AS_DICT(argv[0]), argv[1])) {
 		KrkClass * type = krk_getType(argv[1]);
 		if (type->_reprer) {
 			krk_push(argv[1]);
 			KrkValue asString = krk_callSimple(OBJECT_VAL(type->_reprer), 1, 0);
-			if (IS_STRING(asString)) {
-				krk_runtimeError(vm.exceptions.keyError, "%s", AS_CSTRING(asString));
-				return NONE_VAL();
-			}
+			if (IS_STRING(asString)) return krk_runtimeError(vm.exceptions.keyError, "%s", AS_CSTRING(asString));
 		}
-		krk_runtimeError(vm.exceptions.keyError, "(Unrepresentable value)");
+		return krk_runtimeError(vm.exceptions.keyError, "(Unrepresentable value)");
 	}
 	return NONE_VAL();
 }
@@ -417,10 +405,7 @@ static KrkValue _dict_delitem(int argc, KrkValue argv[]) {
  * dict.__len__()
  */
 static KrkValue _dict_len(int argc, KrkValue argv[]) {
-	if (argc < 1) {
-		krk_runtimeError(vm.exceptions.argumentError, "wrong number of arguments");
-		return NONE_VAL();
-	}
+	if (argc < 1) return krk_runtimeError(vm.exceptions.argumentError, "wrong number of arguments");
 	return INTEGER_VAL(AS_DICT(argv[0])->count);
 }
 
@@ -436,10 +421,7 @@ static KrkValue _dict_contains(int argc, KrkValue argv[]) {
  * dict.capacity()
  */
 static KrkValue _dict_capacity(int argc, KrkValue argv[]) {
-	if (argc < 1) {
-		krk_runtimeError(vm.exceptions.argumentError, "wrong number of arguments");
-		return NONE_VAL();
-	}
+	if (argc < 1) return krk_runtimeError(vm.exceptions.argumentError, "wrong number of arguments");
 	return INTEGER_VAL(AS_DICT(argv[0])->capacity);
 }
 
@@ -447,19 +429,10 @@ static KrkValue _dict_capacity(int argc, KrkValue argv[]) {
  * dict._key_at_index(internalIndex)
  */
 static KrkValue _dict_key_at_index(int argc, KrkValue argv[]) {
-	if (argc < 2) {
-		krk_runtimeError(vm.exceptions.argumentError, "wrong number of arguments");
-		return NONE_VAL();
-	}
-	if (!IS_INTEGER(argv[1])) {
-		krk_runtimeError(vm.exceptions.typeError, "expected integer index but got %s", krk_typeName(argv[1]));
-		return NONE_VAL();
-	}
+	if (argc < 2) return krk_runtimeError(vm.exceptions.argumentError, "wrong number of arguments");
+	if (!IS_INTEGER(argv[1])) return krk_runtimeError(vm.exceptions.typeError, "expected integer index but got %s", krk_typeName(argv[1]));
 	int i = AS_INTEGER(argv[1]);
-	if (i < 0 || i > (int)AS_DICT(argv[0])->capacity) {
-		krk_runtimeError(vm.exceptions.indexError, "hash table index is out of range: %d", i);
-		return NONE_VAL();
-	}
+	if (i < 0 || i > (int)AS_DICT(argv[0])->capacity) return krk_runtimeError(vm.exceptions.indexError, "hash table index is out of range: %d", i);
 	KrkTableEntry entry = AS_DICT(argv[0])->entries[i];
 	KrkTuple * outValue = krk_newTuple(2);
 	krk_push(OBJECT_VAL(outValue));
@@ -527,10 +500,7 @@ static KrkValue _dict_nth_key_fast(size_t capacity, KrkTableEntry * entries, siz
  * list.__init__()
  */
 static KrkValue _list_init(int argc, KrkValue argv[]) {
-	if (argc > 1) {
-		krk_runtimeError(vm.exceptions.argumentError, "Can not initialize list from iterable (unsupported, try again later)");
-		return NONE_VAL();
-	}
+	if (argc > 1) return krk_runtimeError(vm.exceptions.argumentError, "Can not initialize list from iterable (unsupported, try again later)");
 	krk_initValueArray(AS_LIST(argv[0]));
 	return argv[0];
 }
@@ -549,16 +519,10 @@ static void _list_gcsweep(KrkInstance * self) {
  * list.__get__(index)
  */
 static KrkValue _list_get(int argc, KrkValue argv[]) {
-	if (unlikely(argc < 2 || !IS_INTEGER(argv[1]))) {
-		krk_runtimeError(vm.exceptions.argumentError, "wrong number or type of arguments in get %d, (%s, %s)", argc, krk_typeName(argv[0]), krk_typeName(argv[1]));
-		return NONE_VAL();
-	}
+	if (unlikely(argc < 2 || !IS_INTEGER(argv[1]))) return krk_runtimeError(vm.exceptions.argumentError, "wrong number or type of arguments in get %d, (%s, %s)", argc, krk_typeName(argv[0]), krk_typeName(argv[1]));
 	int index = AS_INTEGER(argv[1]);
 	if (index < 0) index += AS_LIST(argv[0])->count;
-	if (unlikely(index < 0 || index >= (int)AS_LIST(argv[0])->count)) {
-		krk_runtimeError(vm.exceptions.indexError, "index is out of range: %d", index);
-		return NONE_VAL();
-	}
+	if (unlikely(index < 0 || index >= (int)AS_LIST(argv[0])->count)) return krk_runtimeError(vm.exceptions.indexError, "index is out of range: %d", index);
 	return AS_LIST(argv[0])->values[index];
 }
 
@@ -566,16 +530,10 @@ static KrkValue _list_get(int argc, KrkValue argv[]) {
  * list.__set__(index, value)
  */
 static KrkValue _list_set(int argc, KrkValue argv[]) {
-	if (unlikely(argc < 3 || !IS_INTEGER(argv[1]))) {
-		krk_runtimeError(vm.exceptions.argumentError, "wrong number or type of arguments in set %d, (%s, %s, %s)", argc, krk_typeName(argv[0]), krk_typeName(argv[1]), krk_typeName(argv[2]));
-		return NONE_VAL();
-	}
+	if (unlikely(argc < 3 || !IS_INTEGER(argv[1]))) return krk_runtimeError(vm.exceptions.argumentError, "wrong number or type of arguments in set %d, (%s, %s, %s)", argc, krk_typeName(argv[0]), krk_typeName(argv[1]), krk_typeName(argv[2]));
 	int index = AS_INTEGER(argv[1]);
 	if (index < 0) index += AS_LIST(argv[0])->count;
-	if (unlikely(index < 0 || index >= (int)AS_LIST(argv[0])->count)) {
-		krk_runtimeError(vm.exceptions.indexError, "index is out of range: %d", index);
-		return NONE_VAL();
-	}
+	if (unlikely(index < 0 || index >= (int)AS_LIST(argv[0])->count)) krk_runtimeError(vm.exceptions.indexError, "index is out of range: %d", index);
 	AS_LIST(argv[0])->values[index] = argv[2];
 	return NONE_VAL();
 }
@@ -584,29 +542,17 @@ static KrkValue _list_set(int argc, KrkValue argv[]) {
  * list.append(value)
  */
 static KrkValue _list_append(int argc, KrkValue argv[]) {
-	if (unlikely(argc < 2)) {
-		krk_runtimeError(vm.exceptions.argumentError, "wrong number or type of arguments");
-		return NONE_VAL();
-	}
+	if (unlikely(argc < 2)) return krk_runtimeError(vm.exceptions.argumentError, "wrong number or type of arguments");
 	krk_writeValueArray(AS_LIST(argv[0]), argv[1]);
 	return NONE_VAL();
 }
 
 static KrkValue _list_insert(int argc, KrkValue argv[]) {
-	if (unlikely(argc < 3)) {
-		krk_runtimeError(vm.exceptions.argumentError, "list.insert() expects two arguments");
-		return NONE_VAL();
-	}
-	if (unlikely(!IS_INTEGER(argv[1]))) {
-		krk_runtimeError(vm.exceptions.typeError, "index must be integer");
-		return NONE_VAL();
-	}
+	if (unlikely(argc < 3)) return krk_runtimeError(vm.exceptions.argumentError, "list.insert() expects two arguments");
+	if (unlikely(!IS_INTEGER(argv[1]))) return krk_runtimeError(vm.exceptions.typeError, "index must be integer");
 	krk_integer_type index = AS_INTEGER(argv[1]);
 	if (index < 0) index += AS_LIST(argv[0])->count;
-	if (index < 0 || index > (long)AS_LIST(argv[0])->count) {
-		krk_runtimeError(vm.exceptions.indexError, "list index out of range: %d", (int)index);
-		return NONE_VAL();
-	}
+	if (index < 0 || index > (long)AS_LIST(argv[0])->count) return krk_runtimeError(vm.exceptions.indexError, "list index out of range: %d", (int)index);
 
 	krk_writeValueArray(AS_LIST(argv[0]), NONE_VAL());
 
@@ -693,7 +639,7 @@ static KrkValue _list_extend(int argc, KrkValue argv[]) {
 				krk_pop();
 			} while (1);
 		} else {
-			krk_runtimeError(vm.exceptions.typeError, "'%s' object is not iterable", krk_typeName(value));
+			return krk_runtimeError(vm.exceptions.typeError, "'%s' object is not iterable", krk_typeName(value));
 		}
 	}
 #undef unpackArray
@@ -701,11 +647,9 @@ static KrkValue _list_extend(int argc, KrkValue argv[]) {
 }
 
 static KrkValue _list_mul(int argc, KrkValue argv[]) {
-	if (!IS_INTEGER(argv[1])) {
-		krk_runtimeError(vm.exceptions.typeError, "unsupported operand types for *: '%s' and '%s'",
+	if (!IS_INTEGER(argv[1]))
+		return krk_runtimeError(vm.exceptions.typeError, "unsupported operand types for *: '%s' and '%s'",
 			"list", krk_typeName(argv[1]));
-		return NONE_VAL();
-	}
 
 	krk_integer_type howMany = AS_INTEGER(argv[1]);
 
@@ -724,10 +668,7 @@ static KrkValue _list_mul(int argc, KrkValue argv[]) {
  * list.__len__
  */
 static KrkValue _list_len(int argc, KrkValue argv[]) {
-	if (argc < 1) {
-		krk_runtimeError(vm.exceptions.argumentError, "wrong number or type of arguments");
-		return NONE_VAL();
-	}
+	if (argc < 1) return krk_runtimeError(vm.exceptions.argumentError, "wrong number or type of arguments");
 	return INTEGER_VAL(AS_LIST(argv[0])->count);
 }
 
@@ -735,30 +676,11 @@ static KrkValue _list_len(int argc, KrkValue argv[]) {
  * list.__contains__
  */
 static KrkValue _list_contains(int argc, KrkValue argv[]) {
-	if (argc < 2) {
-		krk_runtimeError(vm.exceptions.argumentError, "wrong number or type of arguments");
-		return NONE_VAL();
-	}
+	if (argc < 2) return krk_runtimeError(vm.exceptions.argumentError, "wrong number or type of arguments");
 	for (size_t i = 0; i < AS_LIST(argv[0])->count; ++i) {
 		if (krk_valuesEqual(argv[1], AS_LIST(argv[0])->values[i])) return BOOLEAN_VAL(1);
 	}
 	return BOOLEAN_VAL(0);
-}
-
-/**
- * Run the VM until it returns from the current call frame;
- * used by native methods to call into managed methods.
- * Returns the value returned by the RETURN instruction that
- * exited the call frame. Should be nestable so a managed method
- * can call a native method can call a managed can call a native
- * and so on (hopefully).
- */
-KrkValue krk_runNext(void) {
-	size_t oldExit = vm.exitOnFrame;
-	vm.exitOnFrame = vm.frameCount - 1;
-	KrkValue result = run();
-	vm.exitOnFrame = oldExit;
-	return result;
 }
 
 /**
@@ -785,10 +707,7 @@ KrkValue krk_list_of(int argc, KrkValue argv[]) {
  * Presented in the global namespace as dictOf(...). Expects arguments as key,value,key,value...
  */
 KrkValue krk_dict_of(int argc, KrkValue argv[]) {
-	if (argc % 2 != 0) {
-		krk_runtimeError(vm.exceptions.argumentError, "Expected even number of arguments to dictOf");
-		return NONE_VAL();
-	}
+	if (argc % 2 != 0) return krk_runtimeError(vm.exceptions.argumentError, "Expected even number of arguments to dictOf");
 	KrkInstance * outDict = krk_newInstance(vm.baseClasses.dictClass);
 	krk_push(OBJECT_VAL(outDict));
 	krk_initTable(&((KrkDict*)outDict)->entries);
@@ -802,15 +721,11 @@ KrkValue krk_dict_of(int argc, KrkValue argv[]) {
  * list.__getslice__
  */
 static KrkValue _list_slice(int argc, KrkValue argv[]) {
-	if (argc < 3) { /* 3 because first is us */
-		krk_runtimeError(vm.exceptions.argumentError, "slice: expected 2 arguments, got %d", argc-1);
-		return NONE_VAL();
-	}
+	if (argc < 3) return krk_runtimeError(vm.exceptions.argumentError, "slice: expected 2 arguments, got %d", argc-1);
 	if (!IS_INSTANCE(argv[0]) ||
 		!(IS_INTEGER(argv[1]) || IS_NONE(argv[1])) ||
 		!(IS_INTEGER(argv[2]) || IS_NONE(argv[2]))) {
-		krk_runtimeError(vm.exceptions.typeError, "slice: expected two integer arguments");
-		return NONE_VAL();
+		return krk_runtimeError(vm.exceptions.typeError, "slice: expected two integer arguments");
 	}
 
 	int start = IS_NONE(argv[1]) ? 0 : AS_INTEGER(argv[1]);
@@ -830,19 +745,13 @@ static KrkValue _list_slice(int argc, KrkValue argv[]) {
  * list.pop()
  */
 static KrkValue _list_pop(int argc, KrkValue argv[]) {
-	if (!AS_LIST(argv[0])->count) {
-		krk_runtimeError(vm.exceptions.indexError, "pop from empty list");
-		return NONE_VAL();
-	}
+	if (!AS_LIST(argv[0])->count) return krk_runtimeError(vm.exceptions.indexError, "pop from empty list");
 	long index = AS_LIST(argv[0])->count - 1;
 	if (argc > 1) {
 		index = AS_INTEGER(argv[1]);
 	}
 	if (index < 0) index += AS_LIST(argv[0])->count;
-	if (index < 0 || index >= (long)AS_LIST(argv[0])->count) {
-		krk_runtimeError(vm.exceptions.indexError, "list index out of range: %d", (int)index);
-		return NONE_VAL();
-	}
+	if (index < 0 || index >= (long)AS_LIST(argv[0])->count) return krk_runtimeError(vm.exceptions.indexError, "list index out of range: %d", (int)index);
 	KrkValue outItem = AS_LIST(argv[0])->values[index];
 	if (index == (long)AS_LIST(argv[0])->count-1) {
 		AS_LIST(argv[0])->count--;
@@ -888,8 +797,7 @@ static KrkValue krk_set_tracing(int argc, KrkValue argv[], int hasKw) {
 		return BOOLEAN_VAL(1);
 	}
 #else
-	krk_runtimeError(vm.exceptions.typeError,"Debugging is not enabled in this build.");
-	return NONE_VAL();
+	return krk_runtimeError(vm.exceptions.typeError,"Debugging is not enabled in this build.");
 #endif
 }
 
@@ -897,10 +805,7 @@ static KrkValue krk_set_tracing(int argc, KrkValue argv[], int hasKw) {
  * object.__dir__()
  */
 KrkValue krk_dirObject(int argc, KrkValue argv[]) {
-	if (argc != 1) {
-		krk_runtimeError(vm.exceptions.argumentError, "wrong number of arguments or bad type, got %d\n", argc);
-		return NONE_VAL();
-	}
+	if (argc != 1) return krk_runtimeError(vm.exceptions.argumentError, "wrong number of arguments or bad type, got %d\n", argc);
 
 	/* Create a new list instance */
 	KrkValue myList = krk_list_of(0,NULL);
@@ -1004,10 +909,7 @@ KrkValue _type(int argc, KrkValue argv[]) {
 }
 
 static KrkValue _type_init(int argc, KrkValue argv[]) {
-	if (argc != 2) {
-		krk_runtimeError(vm.exceptions.argumentError, "type() takes 1 argument");
-		return NONE_VAL();
-	}
+	if (argc != 2) return krk_runtimeError(vm.exceptions.argumentError, "type() takes 1 argument");
 	return OBJECT_VAL(krk_getType(argv[1]));
 }
 
@@ -1057,15 +959,8 @@ int krk_isInstanceOf(KrkValue obj, KrkClass * type) {
 	return 0;
 }
 static KrkValue _isinstance(int argc, KrkValue argv[]) {
-	if (argc != 2) {
-		krk_runtimeError(vm.exceptions.argumentError, "isinstance expects 2 arguments, got %d", argc);
-		return NONE_VAL();
-	}
-
-	if (!IS_CLASS(argv[1])) {
-		krk_runtimeError(vm.exceptions.typeError, "isinstance() arg 2 must be class");
-		return NONE_VAL();
-	}
+	if (argc != 2) return krk_runtimeError(vm.exceptions.argumentError, "isinstance expects 2 arguments, got %d", argc);
+	if (!IS_CLASS(argv[1])) return krk_runtimeError(vm.exceptions.typeError, "isinstance() arg 2 must be class");
 
 	return BOOLEAN_VAL(krk_isInstanceOf(argv[0], AS_CLASS(argv[1])));
 }
@@ -1482,8 +1377,7 @@ KrkValue krk_callSimple(KrkValue value, int argCount, int isMethod) {
 	} else if (result == 1) {
 		return krk_runNext();
 	}
-	krk_runtimeError(vm.exceptions.typeError, "Invalid internal method call: %d ('%s')", result, krk_typeName(value));
-	return NONE_VAL();
+	return krk_runtimeError(vm.exceptions.typeError, "Invalid internal method call: %d ('%s')", result, krk_typeName(value));
 }
 
 /**
@@ -1641,17 +1535,11 @@ static KrkValue _string_init(int argc, KrkValue argv[]) {
 	if (argc < 2) {
 		return OBJECT_VAL(S(""));
 	}
-	if (argc > 2) {
-		krk_runtimeError(vm.exceptions.argumentError, "str() takes 1 argument");
-		return NONE_VAL();
-	}
+	if (argc > 2) return krk_runtimeError(vm.exceptions.argumentError, "str() takes 1 argument");
 	if (IS_STRING(argv[1])) return argv[1]; /* strings are immutable, so we can just return the arg */
 	/* Find the type of arg */
 	krk_push(argv[1]);
-	if (!krk_getType(argv[1])->_tostr) {
-		krk_runtimeError(vm.exceptions.typeError, "Can not convert %s to str", krk_typeName(argv[1]));
-		return NONE_VAL();
-	}
+	if (!krk_getType(argv[1])->_tostr) return krk_runtimeError(vm.exceptions.typeError, "Can not convert %s to str", krk_typeName(argv[1]));
 	return krk_callSimple(OBJECT_VAL(krk_getType(argv[1])->_tostr), 1, 0);
 }
 
@@ -1670,10 +1558,7 @@ static KrkValue _string_add(int argc, KrkValue argv[]) {
 			KrkValue result = krk_callSimple(OBJECT_VAL(type->_tostr), 1, 0);
 			krk_push(result);
 			needsPop = 1;
-			if (!IS_STRING(result)) {
-				krk_runtimeError(vm.exceptions.typeError, "__str__ produced something that was not a string: '%s'", krk_typeName(result));
-				return NONE_VAL();
-			}
+			if (!IS_STRING(result)) return krk_runtimeError(vm.exceptions.typeError, "__str__ produced something that was not a string: '%s'", krk_typeName(result));
 			b = AS_CSTRING(result);
 			bl = AS_STRING(result)->length;
 		} else {
@@ -1737,11 +1622,9 @@ static KrkValue _int_to_char(int argc, KrkValue argv[]) {
 
 /* str.__ord__() */
 static KrkValue _string_ord(int argc, KrkValue argv[]) {
-	if (AS_STRING(argv[0])->codesLength != 1) {
-		krk_runtimeError(vm.exceptions.typeError, "ord() expected a character, but string of length %d found",
+	if (AS_STRING(argv[0])->codesLength != 1)
+		return krk_runtimeError(vm.exceptions.typeError, "ord() expected a character, but string of length %d found",
 			AS_STRING(argv[0])->codesLength);
-		return NONE_VAL();
-	}
 
 	return INTEGER_VAL(krk_unicodeCodepoint(AS_STRING(argv[0]),0));
 }
@@ -1753,18 +1636,12 @@ static KrkValue _print(int argc, KrkValue argv[], int hasKw) {
 	if (hasKw) {
 		argc--;
 		if (krk_tableGet(AS_DICT(argv[argc]), OBJECT_VAL(S("sep")), &sepVal)) {
-			if (!IS_STRING(sepVal)) {
-				krk_runtimeError(vm.exceptions.typeError, "'sep' should be a string, not '%s'", krk_typeName(sepVal));
-				return NONE_VAL();
-			}
+			if (!IS_STRING(sepVal)) return krk_runtimeError(vm.exceptions.typeError, "'sep' should be a string, not '%s'", krk_typeName(sepVal));
 			sep = AS_CSTRING(sepVal);
 			sepLen = AS_STRING(sepVal)->length;
 		}
 		if (krk_tableGet(AS_DICT(argv[argc]), OBJECT_VAL(S("end")), &endVal)) {
-			if (!IS_STRING(endVal)) {
-				krk_runtimeError(vm.exceptions.typeError, "'end' should be a string, not '%s'", krk_typeName(endVal));
-				return NONE_VAL();
-			}
+			if (!IS_STRING(endVal)) return krk_runtimeError(vm.exceptions.typeError, "'end' should be a string, not '%s'", krk_typeName(endVal));
 			end = AS_CSTRING(endVal);
 			endLen = AS_STRING(endVal)->length;
 		}
@@ -1789,20 +1666,13 @@ static KrkValue _print(int argc, KrkValue argv[], int hasKw) {
 
 /* str.__len__() */
 static KrkValue _string_len(int argc, KrkValue argv[]) {
-	if (argc != 1) {
-		krk_runtimeError(vm.exceptions.attributeError,"Unexpected arguments to str.__len__()");
-		return NONE_VAL();
-	}
-	if (!IS_STRING(argv[0])) {
-		return NONE_VAL();
-	}
+	if (argc != 1 || !IS_STRING(argv[0])) return krk_runtimeError(vm.exceptions.attributeError,"Unexpected arguments to str.__len__()");
 	return INTEGER_VAL(AS_STRING(argv[0])->codesLength);
 }
 
 /* str.__set__(ind,val) - this is invalid, throw a nicer error than 'field does not exist'. */
 static KrkValue _strings_are_immutable(int argc, KrkValue argv[]) {
-	krk_runtimeError(vm.exceptions.typeError, "Strings are not mutable.");
-	return NONE_VAL();
+	return krk_runtimeError(vm.exceptions.typeError, "Strings are not mutable.");
 }
 
 /**
@@ -1813,16 +1683,11 @@ static KrkValue _strings_are_immutable(int argc, KrkValue argv[]) {
  * says not if you call __getslice__ directly...
  */
 static KrkValue _string_getslice(int argc, KrkValue argv[]) {
-	if (argc < 3) { /* 3 because first is us */
-		krk_runtimeError(vm.exceptions.argumentError, "slice: expected 2 arguments, got %d", argc-1);
-		return NONE_VAL();
-	}
+	if (argc < 3) return krk_runtimeError(vm.exceptions.argumentError, "slice: expected 2 arguments, got %d", argc-1);
 	if (!IS_STRING(argv[0]) ||
 		!(IS_INTEGER(argv[1]) || IS_NONE(argv[1])) ||
-		!(IS_INTEGER(argv[2]) || IS_NONE(argv[2]))) {
-		krk_runtimeError(vm.exceptions.typeError, "slice: expected two integer arguments");
-		return NONE_VAL();
-	}
+		!(IS_INTEGER(argv[2]) || IS_NONE(argv[2])))
+		return krk_runtimeError(vm.exceptions.typeError, "slice: expected two integer arguments");
 	/* bounds check */
 	KrkString * me = AS_STRING(argv[0]);
 	long start = IS_NONE(argv[1]) ? 0 : AS_INTEGER(argv[1]);
@@ -1882,38 +1747,24 @@ static KrkValue _string_float(int argc, KrkValue argv[]) {
 
 static KrkValue _float_init(int argc, KrkValue argv[]) {
 	if (argc < 1) return FLOATING_VAL(0.0);
-	if (argc > 2) {
-		krk_runtimeError(vm.exceptions.argumentError, "float() takes at most 1 argument");
-		return NONE_VAL();
-	}
+	if (argc > 2) return krk_runtimeError(vm.exceptions.argumentError, "float() takes at most 1 argument");
 	if (IS_STRING(argv[1])) return _string_float(1,&argv[1]);
 	if (IS_FLOATING(argv[1])) return argv[1];
 	if (IS_INTEGER(argv[1])) return FLOATING_VAL(AS_INTEGER(argv[1]));
 	if (IS_BOOLEAN(argv[1])) return FLOATING_VAL(AS_BOOLEAN(argv[1]));
-	krk_runtimeError(vm.exceptions.typeError, "float() argument must be a string or a number, not '%s'", krk_typeName(argv[1]));
-	return NONE_VAL();
+	return krk_runtimeError(vm.exceptions.typeError, "float() argument must be a string or a number, not '%s'", krk_typeName(argv[1]));
 }
 
 /* str.__get__(index) */
 static KrkValue _string_get(int argc, KrkValue argv[]) {
-	if (argc != 2) {
-		krk_runtimeError(vm.exceptions.argumentError, "Wrong number of arguments to String.__get__");
-		return NONE_VAL();
-	}
-	if (!IS_STRING(argv[0])) {
-		krk_runtimeError(vm.exceptions.typeError, "First argument to __get__ must be String");
-		return NONE_VAL();
-	}
-	if (!IS_INTEGER(argv[1])) {
-		krk_runtimeError(vm.exceptions.typeError, "String can not indexed by %s", krk_typeName(argv[1]));
-		return NONE_VAL();
-	}
+	if (argc != 2) return krk_runtimeError(vm.exceptions.argumentError, "Wrong number of arguments to String.__get__");
+	if (!IS_STRING(argv[0])) return krk_runtimeError(vm.exceptions.typeError, "First argument to __get__ must be String");
+	if (!IS_INTEGER(argv[1])) return krk_runtimeError(vm.exceptions.typeError, "String can not indexed by %s", krk_typeName(argv[1]));
 	KrkString * me = AS_STRING(argv[0]);
 	int asInt = AS_INTEGER(argv[1]);
 	if (asInt < 0) asInt += (int)AS_STRING(argv[0])->codesLength;
 	if (asInt < 0 || asInt >= (int)AS_STRING(argv[0])->codesLength) {
-		krk_runtimeError(vm.exceptions.indexError, "String index out of range: %d", asInt);
-		return NONE_VAL();
+		return krk_runtimeError(vm.exceptions.indexError, "String index out of range: %d", asInt);
 	}
 	if (me->type == KRK_STRING_ASCII) {
 		return OBJECT_VAL(krk_copyString(me->chars + asInt, 1));
@@ -1942,8 +1793,7 @@ static KrkValue _string_get(int argc, KrkValue argv[]) {
 static KrkValue _string_format(int argc, KrkValue argv[], int hasKw) {
 	if (!IS_STRING(argv[0])) return NONE_VAL();
 	if (AS_STRING(argv[0])->type != KRK_STRING_ASCII) {
-		krk_runtimeError(vm.exceptions.notImplementedError, "Unable to call .format() on non-ASCII string.");
-		return NONE_VAL();
+		return krk_runtimeError(vm.exceptions.notImplementedError, "Unable to call .format() on non-ASCII string.");
 	}
 	KrkString * self = AS_STRING(argv[0]);
 	KrkValue kwargs = NONE_VAL();
@@ -2090,9 +1940,8 @@ _freeAndDone:
 
 static KrkValue _string_mul(int argc, KrkValue argv[]) {
 	if (!IS_INTEGER(argv[1])) {
-		krk_runtimeError(vm.exceptions.typeError, "unsupported operand types for *: '%s' and '%s'",
+		return krk_runtimeError(vm.exceptions.typeError, "unsupported operand types for *: '%s' and '%s'",
 			"list", krk_typeName(argv[1]));
-		return NONE_VAL();
 	}
 
 	krk_integer_type howMany = AS_INTEGER(argv[1]);
@@ -2111,21 +1960,11 @@ static KrkValue _string_mul(int argc, KrkValue argv[]) {
 static KrkValue _string_join(int argc, KrkValue argv[], int hasKw) {
 	if (!IS_STRING(argv[0])) return NONE_VAL();
 	KrkString * self = AS_STRING(argv[0]);
-	if (hasKw) {
-		krk_runtimeError(vm.exceptions.argumentError, "str.join() does not take keyword arguments");
-		return NONE_VAL();
-	}
+	if (hasKw) return krk_runtimeError(vm.exceptions.argumentError, "str.join() does not take keyword arguments");
+	if (argc < 2) return krk_runtimeError(vm.exceptions.argumentError, "str.join(): expected exactly one argument");
 
-	if (argc < 2) {
-		krk_runtimeError(vm.exceptions.argumentError, "str.join(): expected exactly one argument");
-		return NONE_VAL();
-	}
-
-	/* TODO: Support any object with an __iter__ - kinda need an internal method to do that well. */
-	if (!IS_INSTANCE(argv[1])) {
-		krk_runtimeError(vm.exceptions.typeError, "str.join(): expected a list");
-		return NONE_VAL();
-	}
+	/* TODO fix this to use unpackArray and support other things than lists */
+	if (!IS_INSTANCE(argv[1])) return krk_runtimeError(vm.exceptions.typeError, "str.join(): expected a list");
 
 	const char * errorStr = NULL;
 
@@ -2175,10 +2014,7 @@ static int substringMatch(const char * haystack, size_t haystackLen, const char 
 
 /* str.__contains__ */
 static KrkValue _string_contains(int argc, KrkValue argv[]) {
-	if (argc < 2) {
-		krk_runtimeError(vm.exceptions.argumentError, "__contains__ expects an argument");
-		return NONE_VAL();
-	}
+	if (argc < 2) return krk_runtimeError(vm.exceptions.argumentError, "__contains__ expects an argument");
 	if (!IS_STRING(argv[0]) || !IS_STRING(argv[1])) return BOOLEAN_VAL(0);
 	for (size_t i = 0; i < AS_STRING(argv[0])->length; ++i) {
 		if (substringMatch(AS_CSTRING(argv[0]) + i, AS_STRING(argv[0])->length - i, AS_CSTRING(argv[1]), AS_STRING(argv[1])->length)) {
@@ -2202,8 +2038,7 @@ static int charIn(char c, const char * str) {
 static KrkValue _string_strip_shared(int argc, KrkValue argv[], int which) {
 	if (!IS_STRING(argv[0])) return NONE_VAL();
 	if (argc > 1 && IS_STRING(argv[1]) && AS_STRING(argv[1])->type != KRK_STRING_ASCII) {
-		krk_runtimeError(vm.exceptions.notImplementedError, "str.strip() not implemented for Unicode strip lists");
-		return NONE_VAL();
+		return krk_runtimeError(vm.exceptions.notImplementedError, "str.strip() not implemented for Unicode strip lists");
 	}
 	size_t start = 0;
 	size_t end   = AS_STRING(argv[0])->length;
@@ -2212,14 +2047,12 @@ static KrkValue _string_strip_shared(int argc, KrkValue argv[], int which) {
 		if (IS_STRING(argv[1])) {
 			subset = AS_CSTRING(argv[1]);
 		} else {
-			krk_runtimeError(vm.exceptions.typeError, "argument to %sstrip() should be a string",
+			return krk_runtimeError(vm.exceptions.typeError, "argument to %sstrip() should be a string",
 				(which == 0 ? "" : (which == 1 ? "l" : "r")));
-			return NONE_VAL();
 		}
 	} else if (argc > 2) {
-		krk_runtimeError(vm.exceptions.typeError, "%sstrip() takes at most one argument",
+		return krk_runtimeError(vm.exceptions.typeError, "%sstrip() takes at most one argument",
 			(which == 0 ? "" : (which == 1 ? "l" : "r")));
-		return NONE_VAL();
 	}
 	if (which < 2) while (start < end && charIn(AS_CSTRING(argv[0])[start], subset)) start++;
 	if (which != 1) while (end > start && charIn(AS_CSTRING(argv[0])[end-1], subset)) end--;
@@ -2276,8 +2109,7 @@ static KrkValue _string_gt(int argc, KrkValue argv[]) {
 
 /** TODO but throw a more descriptive error for now */
 static KrkValue _string_mod(int argc, KrkValue argv[]) {
-	krk_runtimeError(vm.exceptions.notImplementedError, "%%-formatting for strings is not yet available");
-	return NONE_VAL();
+	return krk_runtimeError(vm.exceptions.notImplementedError, "%%-formatting for strings is not yet available");
 }
 
 /* str.split() */
@@ -2286,14 +2118,12 @@ static KrkValue _string_split(int argc, KrkValue argv[], int hasKw) {
 	KrkString * self = AS_STRING(argv[0]);
 	if (argc > 1) {
 		if (!IS_STRING(argv[1])) {
-			krk_runtimeError(vm.exceptions.typeError, "Expected separator to be a string");
-			return NONE_VAL();
+			return krk_runtimeError(vm.exceptions.typeError, "Expected separator to be a string");
 		} else if (AS_STRING(argv[1])->length == 0) {
-			krk_runtimeError(vm.exceptions.valueError, "Empty separator");
-			return NONE_VAL();
+			return krk_runtimeError(vm.exceptions.valueError, "Empty separator");
 		}
 		if (argc > 2 && !IS_INTEGER(argv[2])) {
-			krk_runtimeError(vm.exceptions.typeError, "Expected maxsplit to be an integer.");
+			return krk_runtimeError(vm.exceptions.typeError, "Expected maxsplit to be an integer.");
 		} else if (argc > 2 && AS_INTEGER(argv[2]) == 0) {
 			return argv[0];
 		}
@@ -2463,8 +2293,7 @@ static KrkValue _bytes_init(int argc, KrkValue argv[]) {
 		krk_push(OBJECT_VAL(out));
 		for (size_t i = 0; i < AS_TUPLE(argv[1])->values.count; ++i) {
 			if (!IS_INTEGER(AS_TUPLE(argv[1])->values.values[i])) {
-				krk_runtimeError(vm.exceptions.typeError, "bytes(): expected tuple of ints, not of '%s'", krk_typeName(AS_TUPLE(argv[1])->values.values[i]));
-				return NONE_VAL();
+				return krk_runtimeError(vm.exceptions.typeError, "bytes(): expected tuple of ints, not of '%s'", krk_typeName(AS_TUPLE(argv[1])->values.values[i]));
 			}
 			out->bytes[i] = AS_INTEGER(AS_TUPLE(argv[1])->values.values[i]);
 		}
@@ -2472,8 +2301,7 @@ static KrkValue _bytes_init(int argc, KrkValue argv[]) {
 		return krk_pop();
 	}
 
-	krk_runtimeError(vm.exceptions.typeError, "Can not convert '%s' to bytes", krk_typeName(argv[1]));
-	return NONE_VAL();
+	return krk_runtimeError(vm.exceptions.typeError, "Can not convert '%s' to bytes", krk_typeName(argv[1]));
 }
 
 /* bytes objects are not interned; need to do this the old-fashioned way. */
@@ -2533,17 +2361,13 @@ static KrkValue _bytes_repr(int argc, KrkValue argv[]) {
 }
 
 static KrkValue _bytes_get(int argc, KrkValue argv[]) {
-	if (argc < 2) {
-		krk_runtimeError(vm.exceptions.argumentError, "bytes.__get__(): expected one argument");
-		return NONE_VAL();
-	}
+	if (argc < 2) return krk_runtimeError(vm.exceptions.argumentError, "bytes.__get__(): expected one argument");
 	KrkBytes * self = AS_BYTES(argv[0]);
 	long asInt = AS_INTEGER(argv[1]);
 
 	if (asInt < 0) asInt += (long)self->length;
 	if (asInt < 0 || asInt >= (long)self->length) {
-		krk_runtimeError(vm.exceptions.indexError, "bytes index out of range: %ld", asInt);
-		return NONE_VAL();
+		return krk_runtimeError(vm.exceptions.indexError, "bytes index out of range: %ld", asInt);
 	}
 
 	return INTEGER_VAL(self->bytes[asInt]);
@@ -2554,12 +2378,8 @@ static KrkValue _bytes_len(int argc, KrkValue argv[]) {
 }
 
 static KrkValue _bytes_contains(int argc, KrkValue argv[]) {
-	if (argc < 2) {
-		krk_runtimeError(vm.exceptions.argumentError, "bytes.__contains__(): expected one argument");
-		return NONE_VAL();
-	}
-	krk_runtimeError(vm.exceptions.notImplementedError, "not implemented");
-	return NONE_VAL();
+	if (argc < 2) krk_runtimeError(vm.exceptions.argumentError, "bytes.__contains__(): expected one argument");
+	return krk_runtimeError(vm.exceptions.notImplementedError, "not implemented");
 }
 
 static KrkValue _bytes_decode(int argc, KrkValue argv[]) {
@@ -2575,8 +2395,7 @@ static KrkValue _int_init(int argc, KrkValue argv[]) {
 	if (IS_STRING(argv[1])) return _string_int(argc-1,&argv[1]);
 	if (IS_FLOATING(argv[1])) return INTEGER_VAL(AS_FLOATING(argv[1]));
 	if (IS_BOOLEAN(argv[1])) return INTEGER_VAL(AS_BOOLEAN(argv[1]));
-	krk_runtimeError(vm.exceptions.typeError, "int() argument must be a string or a number, not '%s'", krk_typeName(argv[1]));
-	return NONE_VAL();
+	return krk_runtimeError(vm.exceptions.typeError, "int() argument must be a string or a number, not '%s'", krk_typeName(argv[1]));
 }
 
 /* function.__doc__ */
@@ -2679,8 +2498,7 @@ static KrkValue _bound_get_argnames(int argc, KrkValue argv[]) {
 }
 
 static KrkValue _tuple_init(int argc, KrkValue argv[]) {
-	krk_runtimeError(vm.exceptions.typeError,"tuple() initializier unsupported");
-	return NONE_VAL();
+	return krk_runtimeError(vm.exceptions.typeError,"tuple() initializier unsupported");
 }
 
 /* tuple creator */
@@ -2695,10 +2513,7 @@ static KrkValue _tuple_of(int argc, KrkValue argv[]) {
 }
 
 static KrkValue _tuple_contains(int argc, KrkValue argv[]) {
-	if (argc != 2) {
-		krk_runtimeError(vm.exceptions.argumentError, "tuple.__contains__ expects one argument");
-		return NONE_VAL();
-	}
+	if (argc != 2) return krk_runtimeError(vm.exceptions.argumentError, "tuple.__contains__ expects one argument");
 	KrkTuple * self = AS_TUPLE(argv[0]);
 	for (size_t i = 0; i < self->values.count; ++i) {
 		if (krk_valuesEqual(self->values.values[i], argv[1])) return BOOLEAN_VAL(1);
@@ -2708,29 +2523,20 @@ static KrkValue _tuple_contains(int argc, KrkValue argv[]) {
 
 /* tuple.__len__ */
 static KrkValue _tuple_len(int argc, KrkValue argv[]) {
-	if (argc != 1) {
-		krk_runtimeError(vm.exceptions.argumentError, "tuple.__len__ does not expect arguments");
-		return NONE_VAL();
-	}
+	if (argc != 1) return krk_runtimeError(vm.exceptions.argumentError, "tuple.__len__ does not expect arguments");
 	KrkTuple * self = AS_TUPLE(argv[0]);
 	return INTEGER_VAL(self->values.count);
 }
 
 /* tuple.__get__ */
 static KrkValue _tuple_get(int argc, KrkValue argv[]) {
-	if (argc != 2) {
-		krk_runtimeError(vm.exceptions.argumentError, "tuple.__get__ expects one argument");
-		return NONE_VAL();
-	} else if (!IS_INTEGER(argv[1])) {
-		krk_runtimeError(vm.exceptions.typeError, "can not index by '%s', expected integer", krk_typeName(argv[1]));
-		return NONE_VAL();
-	}
+	if (argc != 2) return krk_runtimeError(vm.exceptions.argumentError, "tuple.__get__ expects one argument");
+	else if (!IS_INTEGER(argv[1])) return krk_runtimeError(vm.exceptions.typeError, "can not index by '%s', expected integer", krk_typeName(argv[1]));
 	KrkTuple * tuple = AS_TUPLE(argv[0]);
 	long index = AS_INTEGER(argv[1]);
 	if (index < 0) index += tuple->values.count;
 	if (index < 0 || index >= (long)tuple->values.count) {
-		krk_runtimeError(vm.exceptions.indexError, "tuple index out of range");
-		return NONE_VAL();
+		return krk_runtimeError(vm.exceptions.indexError, "tuple index out of range");
 	}
 	return tuple->values.values[index];
 }
@@ -2747,10 +2553,7 @@ static KrkValue _tuple_eq(int argc, KrkValue argv[]) {
 }
 
 static KrkValue _tuple_repr(int argc, KrkValue argv[]) {
-	if (argc != 1) {
-		krk_runtimeError(vm.exceptions.argumentError, "tuple.__repr__ does not expect arguments");
-		return NONE_VAL();
-	}
+	if (argc != 1) return krk_runtimeError(vm.exceptions.argumentError, "tuple.__repr__ does not expect arguments");
 	KrkTuple * tuple = AS_TUPLE(argv[0]);
 	if (((KrkObj*)tuple)->inRepr) return OBJECT_VAL(S("(...)"));
 	((KrkObj*)tuple)->inRepr = 1;
@@ -2897,10 +2700,7 @@ static int isFalsey(KrkValue value) {
 
 static KrkValue _bool_init(int argc, KrkValue argv[]) {
 	if (argc < 2) return BOOLEAN_VAL(0);
-	if (argc > 2) {
-		krk_runtimeError(vm.exceptions.argumentError, "bool() takes at most 1 argument");
-		return NONE_VAL();
-	}
+	if (argc > 2) return krk_runtimeError(vm.exceptions.argumentError, "bool() takes at most 1 argument");
 	return BOOLEAN_VAL(!isFalsey(argv[1]));
 }
 
@@ -2912,29 +2712,20 @@ static KrkValue _none_to_str(int argc, KrkValue argv[]) {
 }
 
 static KrkValue _len(int argc, KrkValue argv[]) {
-	if (argc != 1) {
-		krk_runtimeError(vm.exceptions.argumentError, "len() takes exactly one argument");
-		return NONE_VAL();
-	}
+	if (argc != 1) return krk_runtimeError(vm.exceptions.argumentError, "len() takes exactly one argument");
 	/* Shortcuts */
 	if (IS_STRING(argv[0])) return INTEGER_VAL(AS_STRING(argv[0])->codesLength);
 	if (IS_TUPLE(argv[0])) return INTEGER_VAL(AS_TUPLE(argv[0])->values.count);
 
 	KrkClass * type = krk_getType(argv[0]);
-	if (!type->_len) {
-		krk_runtimeError(vm.exceptions.typeError, "object of type '%s' has no len()", krk_typeName(argv[0]));
-		return NONE_VAL();
-	}
+	if (!type->_len) return krk_runtimeError(vm.exceptions.typeError, "object of type '%s' has no len()", krk_typeName(argv[0]));
 	krk_push(argv[0]);
 
 	return krk_callSimple(OBJECT_VAL(type->_len), 1, 0);
 }
 
 static KrkValue _dir(int argc, KrkValue argv[]) {
-	if (argc != 1) {
-		krk_runtimeError(vm.exceptions.argumentError, "dir() takes exactly one argument");
-		return NONE_VAL();
-	}
+	if (argc != 1) return krk_runtimeError(vm.exceptions.argumentError, "dir() takes exactly one argument");
 	KrkClass * type = krk_getType(argv[0]);
 	if (!type->_dir) {
 		return krk_dirObject(argc,argv); /* Fallback */
@@ -2944,10 +2735,7 @@ static KrkValue _dir(int argc, KrkValue argv[]) {
 }
 
 static KrkValue _repr(int argc, KrkValue argv[]) {
-	if (argc != 1) {
-		krk_runtimeError(vm.exceptions.argumentError, "repr() takes exactly one argument");
-		return NONE_VAL();
-	}
+	if (argc != 1) return krk_runtimeError(vm.exceptions.argumentError, "repr() takes exactly one argument");
 
 	/* Everything should have a __repr__ */
 	KrkClass * type = krk_getType(argv[0]);
@@ -2956,44 +2744,31 @@ static KrkValue _repr(int argc, KrkValue argv[]) {
 }
 
 static KrkValue _ord(int argc, KrkValue argv[]) {
-	if (argc != 1) {
-		krk_runtimeError(vm.exceptions.argumentError, "ord() takes exactly one argument");
-		return NONE_VAL();
-	}
+	if (argc != 1) return krk_runtimeError(vm.exceptions.argumentError, "ord() takes exactly one argument");
 
 	KrkClass * type = krk_getType(argv[0]);
 	KrkValue method;
 	if (krk_tableGet(&type->methods, vm.specialMethodNames[METHOD_ORD], &method)) {
 		krk_push(argv[0]);
 		return krk_callSimple(method, 1, 0);
-	} else {
-		krk_runtimeError(vm.exceptions.argumentError, "ord() expected string of length 1, but got %s", krk_typeName(argv[0]));
-		return NONE_VAL();
 	}
+	return krk_runtimeError(vm.exceptions.argumentError, "ord() expected string of length 1, but got %s", krk_typeName(argv[0]));
 }
 
 static KrkValue _chr(int argc, KrkValue argv[]) {
-	if (argc != 1) {
-		krk_runtimeError(vm.exceptions.argumentError, "chr() takes exactly one argument");
-		return NONE_VAL();
-	}
+	if (argc != 1) return krk_runtimeError(vm.exceptions.argumentError, "chr() takes exactly one argument");
 
 	KrkClass * type = krk_getType(argv[0]);
 	KrkValue method;
 	if (krk_tableGet(&type->methods, vm.specialMethodNames[METHOD_CHR], &method)) {
 		krk_push(argv[0]);
 		return krk_callSimple(method, 1, 0);
-	} else {
-		krk_runtimeError(vm.exceptions.argumentError, "chr() expected an integer, but got %s", krk_typeName(argv[0]));
-		return NONE_VAL();
 	}
+	return krk_runtimeError(vm.exceptions.argumentError, "chr() expected an integer, but got %s", krk_typeName(argv[0]));
 }
 
 static KrkValue _hex(int argc, KrkValue argv[]) {
-	if (argc != 1 || !IS_INTEGER(argv[0])) {
-		krk_runtimeError(vm.exceptions.argumentError, "hex() expects one int argument");
-		return NONE_VAL();
-	}
+	if (argc != 1 || !IS_INTEGER(argv[0])) return krk_runtimeError(vm.exceptions.argumentError, "hex() expects one int argument");
 	char tmp[20];
 	krk_integer_type x = AS_INTEGER(argv[0]);
 	size_t len = sprintf(tmp, "%s0x" PRIkrk_hex, x < 0 ? "-" : "", x < 0 ? -x : x);
@@ -3047,10 +2822,10 @@ static KrkValue _tuple_iter(int argc, KrkValue argv[]) {
 
 static KrkValue _striter_init(int argc, KrkValue argv[]) {
 	if (!IS_INSTANCE(argv[0]) || AS_INSTANCE(argv[0])->_class != vm.baseClasses.striteratorClass) {
-		krk_runtimeError(vm.exceptions.typeError, "Tried to call striterator.__init__() on something not a str iterator");
+		return krk_runtimeError(vm.exceptions.typeError, "Tried to call striterator.__init__() on something not a str iterator");
 	}
 	if (argc < 2 || !IS_STRING(argv[1])) {
-		krk_runtimeError(vm.exceptions.argumentError, "Expected a str.");
+		return krk_runtimeError(vm.exceptions.argumentError, "Expected a str.");
 	}
 	KrkInstance * self = AS_INSTANCE(argv[0]);
 
@@ -3064,7 +2839,7 @@ static KrkValue _striter_init(int argc, KrkValue argv[]) {
 
 static KrkValue _striter_call(int argc, KrkValue argv[]) {
 	if (!IS_INSTANCE(argv[0]) || AS_INSTANCE(argv[0])->_class != vm.baseClasses.striteratorClass) {
-		krk_runtimeError(vm.exceptions.typeError, "Tried to call striterator.__call__() on something not a str iterator");
+		return krk_runtimeError(vm.exceptions.typeError, "Tried to call striterator.__call__() on something not a str iterator");
 	}
 	KrkInstance * self = AS_INSTANCE(argv[0]);
 	KrkValue _str;
@@ -3088,8 +2863,7 @@ static KrkValue _striter_call(int argc, KrkValue argv[]) {
 	}
 
 _corrupt:
-	krk_runtimeError(vm.exceptions.typeError, "Corrupt str iterator: %s", errorStr);
-	return NONE_VAL();
+	return krk_runtimeError(vm.exceptions.typeError, "Corrupt str iterator: %s", errorStr);
 }
 
 static KrkValue _string_iter(int argc, KrkValue argv[]) {
@@ -3104,10 +2878,10 @@ static KrkValue _string_iter(int argc, KrkValue argv[]) {
 
 static KrkValue _listiter_init(int argc, KrkValue argv[]) {
 	if (!IS_INSTANCE(argv[0]) || AS_INSTANCE(argv[0])->_class != vm.baseClasses.listiteratorClass) {
-		krk_runtimeError(vm.exceptions.typeError, "Tried to call listiterator.__init__() on something not a list iterator");
+		return krk_runtimeError(vm.exceptions.typeError, "Tried to call listiterator.__init__() on something not a list iterator");
 	}
 	if (argc < 2 || !IS_INSTANCE(argv[1])) {
-		krk_runtimeError(vm.exceptions.argumentError, "Expected a list.");
+		return krk_runtimeError(vm.exceptions.argumentError, "Expected a list.");
 	}
 	KrkInstance * self = AS_INSTANCE(argv[0]);
 	KrkValue _list = argv[1];
@@ -3122,7 +2896,7 @@ static KrkValue _listiter_init(int argc, KrkValue argv[]) {
 
 static KrkValue _listiter_call(int argc, KrkValue argv[]) {
 	if (!IS_INSTANCE(argv[0]) || AS_INSTANCE(argv[0])->_class != vm.baseClasses.listiteratorClass) {
-		krk_runtimeError(vm.exceptions.typeError, "Tried to call listiterator.__call__() on something not a list iterator");
+		return krk_runtimeError(vm.exceptions.typeError, "Tried to call listiterator.__call__() on something not a list iterator");
 	}
 	KrkInstance * self = AS_INSTANCE(argv[0]);
 	KrkValue _list;
@@ -3146,8 +2920,7 @@ static KrkValue _listiter_call(int argc, KrkValue argv[]) {
 	}
 
 _corrupt:
-	krk_runtimeError(vm.exceptions.typeError, "Corrupt list iterator: %s", errorStr);
-	return NONE_VAL();
+	return krk_runtimeError(vm.exceptions.typeError, "Corrupt list iterator: %s", errorStr);
 }
 
 static KrkValue _list_iter(int argc, KrkValue argv[]) {
@@ -3169,8 +2942,7 @@ struct Range {
 static KrkValue _range_init(int argc, KrkValue argv[]) {
 	KrkInstance * self = AS_INSTANCE(argv[0]);
 	if (argc < 2 || argc > 3) {
-		krk_runtimeError(vm.exceptions.argumentError, "range expected at least 1 and and at most 2 arguments");
-		return NONE_VAL();
+		return krk_runtimeError(vm.exceptions.argumentError, "range expected at least 1 and and at most 2 arguments");
 	}
 	KrkValue min = INTEGER_VAL(0);
 	KrkValue max;
@@ -3181,12 +2953,10 @@ static KrkValue _range_init(int argc, KrkValue argv[]) {
 		max = argv[2];
 	}
 	if (!IS_INTEGER(min)) {
-		krk_runtimeError(vm.exceptions.typeError, "range: expected int, but got '%s'", krk_typeName(min));
-		return NONE_VAL();
+		return krk_runtimeError(vm.exceptions.typeError, "range: expected int, but got '%s'", krk_typeName(min));
 	}
 	if (!IS_INTEGER(max)) {
-		krk_runtimeError(vm.exceptions.typeError, "range: expected int, but got '%s'", krk_typeName(max));
-		return NONE_VAL();
+		return krk_runtimeError(vm.exceptions.typeError, "range: expected int, but got '%s'", krk_typeName(max));
 	}
 
 	((struct Range*)self)->min = AS_INTEGER(min);
@@ -3730,8 +3500,7 @@ static KrkValue tryBind(const char * name, KrkValue a, KrkValue b, const char * 
 		value = krk_callSimple(krk_peek(1), 1, 1);
 	}
 	if (IS_KWARGS(value)) {
-		krk_runtimeError(vm.exceptions.typeError, msg, krk_typeName(a), krk_typeName(b));
-		return NONE_VAL();
+		return krk_runtimeError(vm.exceptions.typeError, msg, krk_typeName(a), krk_typeName(b));
 	} else {
 		return value;
 	}
@@ -4764,10 +4533,24 @@ _finishException:
 			return NONE_VAL();
 		}
 	}
-
-
 #undef BINARY_OP
 #undef READ_BYTE
+}
+
+/**
+ * Run the VM until it returns from the current call frame;
+ * used by native methods to call into managed methods.
+ * Returns the value returned by the RETURN instruction that
+ * exited the call frame. Should be nestable so a managed method
+ * can call a native method can call a managed can call a native
+ * and so on (hopefully).
+ */
+KrkValue krk_runNext(void) {
+	size_t oldExit = vm.exitOnFrame;
+	vm.exitOnFrame = vm.frameCount - 1;
+	KrkValue result = run();
+	vm.exitOnFrame = oldExit;
+	return result;
 }
 
 KrkInstance * krk_startModule(const char * name) {

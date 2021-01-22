@@ -143,7 +143,7 @@ extern const char * krk_typeName(KrkValue value);
 extern KrkNative * krk_defineNative(KrkTable * table, const char * name, NativeFn function);
 extern void krk_attachNamedObject(KrkTable * table, const char name[], KrkObj * obj);
 extern void krk_attachNamedValue(KrkTable * table, const char name[], KrkValue obj);
-extern void krk_runtimeError(KrkClass * type, const char * fmt, ...);
+extern KrkValue krk_runtimeError(KrkClass * type, const char * fmt, ...);
 
 #define KRK_PAUSE_GC() do { vm.flags |= KRK_GC_PAUSED; } while (0)
 #define KRK_RESUME_GC() do { vm.flags &= ~(KRK_GC_PAUSED); } while (0)

@@ -28,24 +28,10 @@ KrkValue krk_open(int argc, KrkValue argv[]) {
 	 * For now, let's just pretend it doesn't matter and let the user figure
 	 * figure it out for themselves.
 	 */
-	if (argc < 1) {
-		krk_runtimeError(vm.exceptions.argumentError, "open() takes at least 1 argument.");
-		return NONE_VAL();
-	}
-	if (argc > 2) {
-		krk_runtimeError(vm.exceptions.argumentError, "open() takes at most 2 argument.");
-		return NONE_VAL();
-	}
-
-	if (!IS_STRING(argv[0])) {
-		krk_runtimeError(vm.exceptions.typeError, "open: first argument should be a filename string, not '%s'", krk_typeName(argv[0]));
-		return NONE_VAL();
-	}
-
-	if (argc == 2 && !IS_STRING(argv[1])) {
-		krk_runtimeError(vm.exceptions.typeError, "open: second argument should be a mode string, not '%s'", krk_typeName(argv[1]));
-		return NONE_VAL();
-	}
+	if (argc < 1) return krk_runtimeError(vm.exceptions.argumentError, "open() takes at least 1 argument.");
+	if (argc > 2) return krk_runtimeError(vm.exceptions.argumentError, "open() takes at most 2 argument.");
+	if (!IS_STRING(argv[0])) return krk_runtimeError(vm.exceptions.typeError, "open: first argument should be a filename string, not '%s'", krk_typeName(argv[0]));
+	if (argc == 2 && !IS_STRING(argv[1])) return krk_runtimeError(vm.exceptions.typeError, "open: second argument should be a mode string, not '%s'", krk_typeName(argv[1]));
 
 	KrkValue arg;
 	int isBinary = 0;
@@ -55,14 +41,10 @@ KrkValue krk_open(int argc, KrkValue argv[]) {
 		krk_push(arg); /* Will be peeked to find arg string for fopen */
 	} else {
 		/* Check mode against allowable modes */
-		if (AS_STRING(argv[1])->length == 0) {
-			krk_runtimeError(vm.exceptions.typeError, "open: mode string must not be empty");
-			return NONE_VAL();
-		}
+		if (AS_STRING(argv[1])->length == 0) return krk_runtimeError(vm.exceptions.typeError, "open: mode string must not be empty");
 		for (size_t i = 0; i < AS_STRING(argv[1])->length-1; ++i) {
 			if (AS_CSTRING(argv[1])[i] == 'b') {
-				krk_runtimeError(vm.exceptions.typeError, "open: 'b' mode indicator must appear at end of mode string");
-				return NONE_VAL();
+				return krk_runtimeError(vm.exceptions.typeError, "open: 'b' mode indicator must appear at end of mode string");
 			}
 		}
 		arg = argv[1];
@@ -76,10 +58,7 @@ KrkValue krk_open(int argc, KrkValue argv[]) {
 	}
 
 	FILE * file = fopen(AS_CSTRING(argv[0]), AS_CSTRING(krk_peek(0)));
-	if (!file) {
-		krk_runtimeError(vm.exceptions.ioError, "open: failed to open file; system returned: %s", strerror(errno));
-		return NONE_VAL();
-	}
+	if (!file) return krk_runtimeError(vm.exceptions.ioError, "open: failed to open file; system returned: %s", strerror(errno));
 
 	/* Now let's build an object to hold it */
 	KrkInstance * fileObject = krk_newInstance(isBinary ? BinaryFileClass : FileClass);
@@ -99,10 +78,7 @@ KrkValue krk_open(int argc, KrkValue argv[]) {
 #define BLOCK_SIZE 1024
 
 static KrkValue krk_file_str(int argc, KrkValue argv[]) {
-	if (argc < 1 || !krk_isInstanceOf(argv[0],FileClass)) {
-		krk_runtimeError(vm.exceptions.typeError, "argument must be File");
-		return NONE_VAL();
-	}
+	if (argc < 1 || !krk_isInstanceOf(argv[0],FileClass)) return krk_runtimeError(vm.exceptions.typeError, "argument must be File");
 	KrkInstance * fileObj = AS_INSTANCE(argv[0]);
 	KrkValue filename, modestr;
 	krk_tableGet(&fileObj->fields, OBJECT_VAL(S("filename")), &filename);
@@ -115,11 +91,7 @@ static KrkValue krk_file_str(int argc, KrkValue argv[]) {
 }
 
 static KrkValue krk_file_readline(int argc, KrkValue argv[]) {
-	if (argc < 1 || !krk_isInstanceOf(argv[0],FileClass)) {
-		krk_runtimeError(vm.exceptions.typeError, "argument must be File");
-		return NONE_VAL();
-	}
-
+	if (argc < 1 || !krk_isInstanceOf(argv[0],FileClass)) return krk_runtimeError(vm.exceptions.typeError, "argument must be File");
 
 	FILE * file = ((struct FileObject*)AS_OBJECT(argv[0]))->filePtr;
 
@@ -160,10 +132,7 @@ _finish_line: (void)0;
 }
 
 static KrkValue krk_file_readlines(int argc, KrkValue argv[]) {
-	if (argc < 1 || !krk_isInstanceOf(argv[0],FileClass)) {
-		krk_runtimeError(vm.exceptions.typeError, "argument must be File");
-		return NONE_VAL();
-	}
+	if (argc < 1 || !krk_isInstanceOf(argv[0],FileClass)) return krk_runtimeError(vm.exceptions.typeError, "argument must be File");
 
 	KrkValue myList = krk_list_of(0,NULL);
 	krk_push(myList);
@@ -182,10 +151,7 @@ static KrkValue krk_file_readlines(int argc, KrkValue argv[]) {
 }
 
 static KrkValue krk_file_read(int argc, KrkValue argv[]) {
-	if (argc < 1 || !krk_isInstanceOf(argv[0],FileClass)) {
-		krk_runtimeError(vm.exceptions.typeError, "argument must be File");
-		return NONE_VAL();
-	}
+	if (argc < 1 || !krk_isInstanceOf(argv[0],FileClass)) return krk_runtimeError(vm.exceptions.typeError, "argument must be File");
 
 	/* Get the file ptr reference */
 	FILE * file = ((struct FileObject*)AS_OBJECT(argv[0]))->filePtr;
@@ -211,8 +177,7 @@ static KrkValue krk_file_read(int argc, KrkValue argv[]) {
 		if (newlyRead < BLOCK_SIZE) {
 			if (ferror(file)) {
 				free(buffer);
-				krk_runtimeError(vm.exceptions.ioError, "Read error.");
-				return NONE_VAL();
+				return krk_runtimeError(vm.exceptions.ioError, "Read error.");
 			}
 		}
 
@@ -227,10 +192,8 @@ static KrkValue krk_file_read(int argc, KrkValue argv[]) {
 
 static KrkValue krk_file_write(int argc, KrkValue argv[]) {
 	/* Expect just a string as arg 2 */
-	if (argc < 2 || !krk_isInstanceOf(argv[0], FileClass) || !IS_STRING(argv[1])) {
-		krk_runtimeError(vm.exceptions.typeError, "write: expected string");
-		return NONE_VAL();
-	}
+	if (argc < 2 || !krk_isInstanceOf(argv[0], FileClass) || !IS_STRING(argv[1]))
+		return krk_runtimeError(vm.exceptions.typeError, "write: expected string");
 
 	/* Find the file ptr reference */
 	FILE * file = ((struct FileObject*)AS_OBJECT(argv[0]))->filePtr;
@@ -243,10 +206,8 @@ static KrkValue krk_file_write(int argc, KrkValue argv[]) {
 }
 
 static KrkValue krk_file_close(int argc, KrkValue argv[]) {
-	if (argc < 1 || !krk_isInstanceOf(argv[0],FileClass)) {
-		krk_runtimeError(vm.exceptions.typeError, "argument must be File");
-		return NONE_VAL();
-	}
+	if (argc < 1 || !krk_isInstanceOf(argv[0],FileClass))
+		return krk_runtimeError(vm.exceptions.typeError, "argument must be File");
 
 	FILE * file = ((struct FileObject*)AS_OBJECT(argv[0]))->filePtr;
 
@@ -260,10 +221,8 @@ static KrkValue krk_file_close(int argc, KrkValue argv[]) {
 }
 
 static KrkValue krk_file_flush(int argc, KrkValue argv[]) {
-	if (argc < 1 || !krk_isInstanceOf(argv[0],FileClass)) {
-		krk_runtimeError(vm.exceptions.typeError, "argument must be File");
-		return NONE_VAL();
-	}
+	if (argc < 1 || !krk_isInstanceOf(argv[0],FileClass))
+		return krk_runtimeError(vm.exceptions.typeError, "argument must be File");
 
 	FILE * file = ((struct FileObject*)AS_OBJECT(argv[0]))->filePtr;
 
@@ -275,8 +234,7 @@ static KrkValue krk_file_flush(int argc, KrkValue argv[]) {
 }
 
 static KrkValue krk_file_reject_init(int argc, KrkValue argv[]) {
-	krk_runtimeError(vm.exceptions.typeError, "File objects can not be instantiated; use fileio.open() to obtain File objects.");
-	return NONE_VAL();
+	return krk_runtimeError(vm.exceptions.typeError, "File objects can not be instantiated; use fileio.open() to obtain File objects.");
 }
 
 static KrkValue krk_file_enter(int argc, KrkValue argv[]) {
@@ -305,10 +263,8 @@ static void makeFileInstance(KrkInstance * module, const char name[], FILE * fil
 }
 
 static KrkValue krk_file_readline_b(int argc, KrkValue argv[]) {
-	if (argc < 1 || !krk_isInstanceOf(argv[0],BinaryFileClass)) {
-		krk_runtimeError(vm.exceptions.typeError, "argument must be BinaryFile");
-		return NONE_VAL();
-	}
+	if (argc < 1 || !krk_isInstanceOf(argv[0],BinaryFileClass))
+		return krk_runtimeError(vm.exceptions.typeError, "argument must be BinaryFile");
 
 	FILE * file = ((struct FileObject*)AS_OBJECT(argv[0]))->filePtr;
 
@@ -349,10 +305,8 @@ _finish_line: (void)0;
 }
 
 static KrkValue krk_file_readlines_b(int argc, KrkValue argv[]) {
-	if (argc < 1 || !krk_isInstanceOf(argv[0],BinaryFileClass)) {
-		krk_runtimeError(vm.exceptions.typeError, "argument must be BinaryFile");
-		return NONE_VAL();
-	}
+	if (argc < 1 || !krk_isInstanceOf(argv[0],BinaryFileClass))
+		return krk_runtimeError(vm.exceptions.typeError, "argument must be BinaryFile");
 	KrkValue myList = krk_list_of(0,NULL);
 	krk_push(myList);
 
@@ -371,8 +325,7 @@ static KrkValue krk_file_readlines_b(int argc, KrkValue argv[]) {
 
 static KrkValue krk_file_read_b(int argc, KrkValue argv[]) {
 	if (argc < 1 || !krk_isInstanceOf(argv[0], BinaryFileClass)) {
-		krk_runtimeError(vm.exceptions.typeError, "argument must be BinaryFile");
-		return NONE_VAL();
+		return krk_runtimeError(vm.exceptions.typeError, "argument must be BinaryFile");
 	}
 
 	/* Get the file ptr reference */
@@ -399,8 +352,7 @@ static KrkValue krk_file_read_b(int argc, KrkValue argv[]) {
 		if (newlyRead < BLOCK_SIZE) {
 			if (ferror(file)) {
 				free(buffer);
-				krk_runtimeError(vm.exceptions.ioError, "Read error.");
-				return NONE_VAL();
+				return krk_runtimeError(vm.exceptions.ioError, "Read error.");
 			}
 		}
 
@@ -416,8 +368,7 @@ static KrkValue krk_file_read_b(int argc, KrkValue argv[]) {
 static KrkValue krk_file_write_b(int argc, KrkValue argv[]) {
 	/* Expect just a string as arg 2 */
 	if (argc < 2 || !krk_isInstanceOf(argv[0], BinaryFileClass) || !IS_BYTES(argv[1])) {
-		krk_runtimeError(vm.exceptions.typeError, "write: expected bytes");
-		return NONE_VAL();
+		return krk_runtimeError(vm.exceptions.typeError, "write: expected bytes");
 	}
 
 	/* Find the file ptr reference */

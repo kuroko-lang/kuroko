@@ -93,8 +93,7 @@ static KrkValue krk_uname(int argc, KrkValue argv[]) {
 }
 
 KrkValue krk_os_setenviron(int argc, KrkValue * argv[]) {
-	krk_runtimeError(vm.exceptions.typeError, "(unimplemented)");
-	return NONE_VAL();
+	return krk_runtimeError(vm.exceptions.typeError, "(unimplemented)");
 }
 
 static void _loadEnviron(KrkInstance * module) {
