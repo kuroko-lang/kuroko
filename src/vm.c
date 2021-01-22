@@ -384,6 +384,24 @@ static KrkValue _dict_set(int argc, KrkValue argv[]) {
 	return NONE_VAL();
 }
 
+static KrkValue _dict_or(int argc, KrkValue argv[]) {
+	if (argc < 2) return krk_runtimeError(vm.exceptions.argumentError, "wrong number of arguments");
+	if (!krk_isInstanceOf(argv[0],vm.baseClasses.dictClass) ||
+	    !krk_isInstanceOf(argv[1],vm.baseClasses.dictClass))
+		return krk_runtimeError(vm.exceptions.typeError, "Can not merge '%s' and '%s'.",
+			krk_typeName(argv[0]),
+			krk_typeName(argv[1]));
+
+	KrkValue outDict = krk_dict_of(0,NULL);
+	krk_push(outDict);
+
+	/* Why is this src->dest... Should change that... */
+	krk_tableAddAll(AS_DICT(argv[0]), AS_DICT(outDict));
+	krk_tableAddAll(AS_DICT(argv[1]), AS_DICT(outDict));
+
+	return krk_pop();
+}
+
 /**
  * dict.__delitem__
  */
@@ -3545,6 +3563,7 @@ void krk_initVM(int flags) {
 	krk_defineNative(&vm.baseClasses.dictClass->methods, ".__repr__", _dict_repr);
 	krk_defineNative(&vm.baseClasses.dictClass->methods, ".__get__", _dict_get);
 	krk_defineNative(&vm.baseClasses.dictClass->methods, ".__set__", _dict_set);
+	krk_defineNative(&vm.baseClasses.dictClass->methods, ".__or__", _dict_or);
 	krk_defineNative(&vm.baseClasses.dictClass->methods, ".__delitem__", _dict_delitem);
 	krk_defineNative(&vm.baseClasses.dictClass->methods, ".__len__", _dict_len);
 	krk_defineNative(&vm.baseClasses.dictClass->methods, ".__contains__", _dict_contains);
