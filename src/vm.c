@@ -425,24 +425,6 @@ static KrkValue _dict_capacity(int argc, KrkValue argv[]) {
 	return INTEGER_VAL(AS_DICT(argv[0])->capacity);
 }
 
-/**
- * dict._key_at_index(internalIndex)
- */
-static KrkValue _dict_key_at_index(int argc, KrkValue argv[]) {
-	if (argc < 2) return krk_runtimeError(vm.exceptions.argumentError, "wrong number of arguments");
-	if (!IS_INTEGER(argv[1])) return krk_runtimeError(vm.exceptions.typeError, "expected integer index but got %s", krk_typeName(argv[1]));
-	int i = AS_INTEGER(argv[1]);
-	if (i < 0 || i > (int)AS_DICT(argv[0])->capacity) return krk_runtimeError(vm.exceptions.indexError, "hash table index is out of range: %d", i);
-	KrkTableEntry entry = AS_DICT(argv[0])->entries[i];
-	KrkTuple * outValue = krk_newTuple(2);
-	krk_push(OBJECT_VAL(outValue));
-	outValue->values.values[0] = IS_KWARGS(entry.key) ? BOOLEAN_VAL(0) : BOOLEAN_VAL(1);
-	outValue->values.values[1] = IS_KWARGS(entry.key) ? NONE_VAL() : entry.key;
-	outValue->values.count = 2;
-	krk_pop();
-	return OBJECT_VAL(outValue);
-}
-
 static KrkValue _dict_repr(int argc, KrkValue argv[]) {
 	KrkValue self = argv[0];
 	if (AS_OBJECT(self)->inRepr) return OBJECT_VAL(S("{...}"));
@@ -2871,6 +2853,102 @@ static KrkValue _all(int argc, KrkValue argv[]) {
 	return BOOLEAN_VAL(1);
 }
 
+struct DictItems {
+	KrkInstance inst;
+	KrkValue dict;
+	size_t i;
+};
+
+static void _dictitems_gcscan(KrkInstance * self) {
+	krk_markValue(((struct DictItems*)self)->dict);
+}
+
+static KrkValue _dictitems_init(int argc, KrkValue argv[]) {
+	struct DictItems * self = (struct DictItems*)AS_OBJECT(argv[0]);
+	self->dict = argv[1];
+	self->i = 0;
+	return argv[0];
+}
+
+static KrkValue _dictitems_iter(int argc, KrkValue argv[]) {
+	/* Reset index and return self as iteration object */
+	struct DictItems * self = (struct DictItems*)AS_OBJECT(argv[0]);
+	self->i = 0;
+	return argv[0];
+}
+
+static KrkValue _dictitems_call(int argc, KrkValue argv[]) {
+	struct DictItems * self = (struct DictItems*)AS_OBJECT(argv[0]);
+	do {
+		if (self->i >= AS_DICT(self->dict)->capacity) return argv[0];
+		if (!IS_KWARGS(AS_DICT(self->dict)->entries[self->i].key)) {
+			KrkTuple * outValue = krk_newTuple(2);
+			krk_push(OBJECT_VAL(outValue));
+			outValue->values.values[0] = AS_DICT(self->dict)->entries[self->i].key;
+			outValue->values.values[1] = AS_DICT(self->dict)->entries[self->i].value;
+			outValue->values.count = 2;
+			self->i++;
+			return krk_pop();
+		}
+		self->i++;
+	} while (1);
+}
+
+/* TODO: dictitems could really use a nice repr */
+static KrkValue _dict_items(int argc, KrkValue argv[]) {
+	KrkInstance * output = krk_newInstance(vm.baseClasses.dictitemsClass);
+	krk_push(OBJECT_VAL(output));
+	_dictitems_init(2, (KrkValue[]){krk_peek(0), argv[0]});
+	krk_pop();
+	return OBJECT_VAL(output);
+}
+
+struct DictKeys {
+	KrkInstance inst;
+	KrkValue dict;
+	size_t i;
+};
+
+static void _dictkeys_gcscan(KrkInstance * self) {
+	krk_markValue(((struct DictKeys*)self)->dict);
+}
+
+static KrkValue _dictkeys_init(int argc, KrkValue argv[]) {
+	struct DictKeys * self = (struct DictKeys*)AS_OBJECT(argv[0]);
+	self->dict = argv[1];
+	self->i = 0;
+	return argv[0];
+}
+
+static KrkValue _dictkeys_iter(int argc, KrkValue argv[]) {
+	/* reset indext and return self as iteration object */
+	struct DictKeys * self = (struct DictKeys*)AS_OBJECT(argv[0]);
+	self->i = 0;
+	return argv[0];
+}
+
+static KrkValue _dictkeys_call(int argc, KrkValue argv[]) {
+	struct DictKeys * self = (struct DictKeys*)AS_OBJECT(argv[0]);
+	do {
+		if (self->i >= AS_DICT(self->dict)->capacity) return argv[0];
+		if (!IS_KWARGS(AS_DICT(self->dict)->entries[self->i].key)) {
+			krk_push(AS_DICT(self->dict)->entries[self->i].key);
+			self->i++;
+			return krk_pop();
+		}
+		self->i++;
+	} while (1);
+}
+
+/* TODO: dictkeys could really use a nice repr */
+static KrkValue _dict_keys(int argc, KrkValue argv[]) {
+	KrkInstance * output = krk_newInstance(vm.baseClasses.dictkeysClass);
+	krk_push(OBJECT_VAL(output));
+	_dictkeys_init(2, (KrkValue[]){krk_peek(0), argv[0]});
+	krk_pop();
+	return OBJECT_VAL(output);
+}
+
 struct TupleIter {
 	KrkInstance inst;
 	KrkValue myTuple;
@@ -2878,17 +2956,9 @@ struct TupleIter {
 };
 
 static KrkValue _tuple_iter_init(int argc, KrkValue argv[]) {
-	KrkInstance * self = AS_INSTANCE(argv[0]);
-	krk_push(argv[0]);
-
-	((struct TupleIter*)self)->myTuple = argv[0];
-	((struct TupleIter*)self)->i = 0;
-
-	/* Otherwise we need to bother with a _ongcmark, _ongcsweep */
-	krk_attachNamedValue(&self->fields, "_tuple", argv[0]);
-	krk_pop(); /* myTuple */
-	krk_pop(); /* self */
-
+	struct TupleIter * self = (struct TupleIter *)AS_OBJECT(argv[0]);
+	self->myTuple = argv[0];
+	self->i = 0;
 	return argv[0];
 }
 
@@ -2897,13 +2967,13 @@ static void _tuple_iter_gcscan(KrkInstance * self) {
 }
 
 static KrkValue _tuple_iter_call(int argc, KrkValue argv[]) {
-	KrkInstance * self = AS_INSTANCE(argv[0]);
-	KrkValue t = ((struct TupleIter*)self)->myTuple; /* Tuple to iterate */
-	int i = ((struct TupleIter*)self)->i;
+	struct TupleIter * self = (struct TupleIter *)AS_OBJECT(argv[0]);
+	KrkValue t = self->myTuple; /* Tuple to iterate */
+	int i = self->i;
 	if (i >= (krk_integer_type)AS_TUPLE(t)->values.count) {
 		return argv[0];
 	} else {
-		((struct TupleIter*)self)->i = i+1;
+		self->i = i+1;
 		return AS_TUPLE(t)->values.values[i];
 	}
 }
@@ -3466,6 +3536,23 @@ void krk_initVM(int flags) {
 	krk_defineNative(&vm.baseClasses.listClass->methods, ".insert", _list_insert);
 	krk_finalizeClass(vm.baseClasses.listClass);
 	vm.baseClasses.listClass->docstring = S("Mutable sequence of arbitrary values.");
+	ADD_BASE_CLASS(vm.baseClasses.dictClass, "dict", vm.objectClass);
+	vm.baseClasses.dictClass->allocSize = sizeof(KrkDict);
+	vm.baseClasses.dictClass->_ongcscan = _dict_gcscan;
+	vm.baseClasses.dictClass->_ongcsweep = _dict_gcsweep;
+	krk_defineNative(&vm.baseClasses.dictClass->methods, ".__init__", _dict_init);
+	krk_defineNative(&vm.baseClasses.dictClass->methods, ".__str__", _dict_repr);
+	krk_defineNative(&vm.baseClasses.dictClass->methods, ".__repr__", _dict_repr);
+	krk_defineNative(&vm.baseClasses.dictClass->methods, ".__get__", _dict_get);
+	krk_defineNative(&vm.baseClasses.dictClass->methods, ".__set__", _dict_set);
+	krk_defineNative(&vm.baseClasses.dictClass->methods, ".__delitem__", _dict_delitem);
+	krk_defineNative(&vm.baseClasses.dictClass->methods, ".__len__", _dict_len);
+	krk_defineNative(&vm.baseClasses.dictClass->methods, ".__contains__", _dict_contains);
+	krk_defineNative(&vm.baseClasses.dictClass->methods, ".keys", _dict_keys);
+	krk_defineNative(&vm.baseClasses.dictClass->methods, ".items", _dict_items);
+	krk_defineNative(&vm.baseClasses.dictClass->methods, ".capacity", _dict_capacity);
+	krk_finalizeClass(vm.baseClasses.dictClass);
+	vm.baseClasses.dictClass->docstring = S("Mapping of arbitrary keys to values.");
 
 	/* Build global builtin functions. */
 	BUILTIN_FUNCTION("listOf", krk_list_of, "Convert argument sequence to list object.");
@@ -3523,40 +3610,27 @@ void krk_initVM(int flags) {
 	krk_defineNative(&vm.baseClasses.tupleiteratorClass->methods, ".__call__", _tuple_iter_call);
 	krk_finalizeClass(vm.baseClasses.tupleiteratorClass);
 
-	/**
-	 * Read the managed code builtins module, which contains the base
-	 * definitions for collections so we can pull them into the global
-	 * namespace and attach their __init__/__get__/__set__, etc. methods.
-	 *
-	 * A significant subset of the VM's functionality is lost without
-	 * these classes being available, but it should still work to some degree.
-	 */
+	ADD_BASE_CLASS(vm.baseClasses.dictitemsClass, "dictitems", vm.objectClass);
+	vm.baseClasses.dictitemsClass->allocSize = sizeof(struct DictItems);
+	vm.baseClasses.dictitemsClass->_ongcscan = _dictitems_gcscan;
+	krk_defineNative(&vm.baseClasses.dictitemsClass->methods, ".__init__", _dictitems_init);
+	krk_defineNative(&vm.baseClasses.dictitemsClass->methods, ".__iter__", _dictitems_iter);
+	krk_defineNative(&vm.baseClasses.dictitemsClass->methods, ".__call__", _dictitems_call);
+	krk_finalizeClass(vm.baseClasses.dictitemsClass);
+
+	ADD_BASE_CLASS(vm.baseClasses.dictkeysClass, "dictkeys", vm.objectClass);
+	vm.baseClasses.dictkeysClass->allocSize = sizeof(struct DictKeys);
+	vm.baseClasses.dictkeysClass->_ongcscan = _dictkeys_gcscan;
+	krk_defineNative(&vm.baseClasses.dictkeysClass->methods, ".__init__", _dictkeys_init);
+	krk_defineNative(&vm.baseClasses.dictkeysClass->methods, ".__iter__", _dictkeys_iter);
+	krk_defineNative(&vm.baseClasses.dictkeysClass->methods, ".__call__", _dictkeys_call);
+	krk_finalizeClass(vm.baseClasses.dictkeysClass);
+
+	/* This module is slowly being deprecated. */
 	KrkValue builtinsModule = krk_interpret(krk_builtinsSrc,1,"__builtins__","__builtins__");
 	if (!IS_OBJECT(builtinsModule)) {
 		/* ... hence, this is a warning and not a complete failure. */
 		fprintf(stderr, "VM startup failure: Failed to load __builtins__ module.\n");
-	} else {
-		KrkValue val;
-		/* Now we can attach the native initializers and getters/setters to
-		 * the list and dict types by pulling them out of the global namespace,
-		 * as they were exported by builtins.krk */
-
-		krk_tableGet(&vm.builtins->fields,OBJECT_VAL(S("dict")),&val);
-		vm.baseClasses.dictClass = AS_CLASS(val);
-		vm.baseClasses.dictClass->allocSize = sizeof(KrkDict);
-		vm.baseClasses.dictClass->_ongcscan = _dict_gcscan;
-		vm.baseClasses.dictClass->_ongcsweep = _dict_gcsweep;
-		krk_defineNative(&vm.baseClasses.dictClass->methods, ".__init__", _dict_init);
-		krk_defineNative(&vm.baseClasses.dictClass->methods, ".__str__", _dict_repr);
-		krk_defineNative(&vm.baseClasses.dictClass->methods, ".__repr__", _dict_repr);
-		krk_defineNative(&vm.baseClasses.dictClass->methods, ".__get__", _dict_get);
-		krk_defineNative(&vm.baseClasses.dictClass->methods, ".__set__", _dict_set);
-		krk_defineNative(&vm.baseClasses.dictClass->methods, ".__delitem__", _dict_delitem);
-		krk_defineNative(&vm.baseClasses.dictClass->methods, ".__len__", _dict_len);
-		krk_defineNative(&vm.baseClasses.dictClass->methods, ".__contains__", _dict_contains);
-		krk_defineNative(&vm.baseClasses.dictClass->methods, ".capacity", _dict_capacity);
-		krk_defineNative(&vm.baseClasses.dictClass->methods, "._key_at_index", _dict_key_at_index);
-		krk_finalizeClass(vm.baseClasses.dictClass);
 	}
 
 	/* The VM is now ready to start executing code. */

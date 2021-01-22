@@ -1,28 +1,5 @@
 # Please avoid using double quotes or escape sequences
 # in this file to allow it to be easily converted to C.
-class dict():
- 'Hashmap of arbitrary keys to arbitrary values.'
- def keys(self):
-  'Returns an iterable of the keys in this dictionary.'
-  class KeyIterator():
-   def __init__(self,t):
-    self.t=t
-   def __iter__(self):
-    let i=0
-    let c=self.t.capacity()
-    def _():
-     let o=(False,None)
-     while not o[0] and i<c:
-      o=self.t._key_at_index(i)
-      i++
-     if not o[0]:
-      return _
-     return o[1]
-    return _
-  return KeyIterator(self)
- def items(self):
-  return [(k,self[k]) for k in self.keys()]
-
 class set():
  def __init__(self, iter=[]):
   self._dict = {}
@@ -91,7 +68,6 @@ class LicenseReader():
 
 let license = LicenseReader()
 
-__builtins__.dict = dict
 __builtins__.help = help
 __builtins__.license = license
 

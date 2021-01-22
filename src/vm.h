@@ -109,9 +109,10 @@ typedef struct {
 		KrkClass * striteratorClass;
 		KrkClass * tupleiteratorClass;
 
-		/* These are actually defined in builtins.krk and are real instances */
 		KrkClass * listClass;
 		KrkClass * dictClass;
+		KrkClass * dictitemsClass;
+		KrkClass * dictkeysClass;
 	} baseClasses;
 
 	KrkValue currentException;
