@@ -28,6 +28,8 @@
 
 #define IS_TUPLE(value)    isObjType(value, OBJ_TUPLE)
 #define AS_TUPLE(value)    ((KrkTuple *)AS_OBJECT(value))
+#define IS_PROPERTY(value) isObjType(value, OBJ_PROPERTY)
+#define AS_PROPERTY(value) ((KrkProperty *)AS_OBJECT(value))
 
 typedef enum {
 	OBJ_FUNCTION,
@@ -40,6 +42,7 @@ typedef enum {
 	OBJ_BOUND_METHOD,
 	OBJ_TUPLE,
 	OBJ_BYTES,
+	OBJ_PROPERTY,
 } ObjType;
 
 struct Obj {
@@ -174,6 +177,11 @@ typedef struct {
 } KrkTuple;
 
 typedef struct {
+	KrkObj obj;
+	KrkValue method;
+} KrkProperty;
+
+typedef struct {
 	KrkInstance inst;
 	KrkValueArray values;
 } KrkList;
@@ -200,6 +208,7 @@ extern KrkClass *       krk_newClass(KrkString * name, KrkClass * base);
 extern KrkInstance *    krk_newInstance(KrkClass * _class);
 extern KrkBoundMethod * krk_newBoundMethod(KrkValue receiver, KrkObj * method);
 extern KrkTuple *       krk_newTuple(size_t length);
+extern KrkProperty * krk_newProperty(KrkValue method);
 
 extern void * krk_unicodeString(KrkString * string);
 extern uint32_t krk_unicodeCodepoint(KrkString * string, size_t index);

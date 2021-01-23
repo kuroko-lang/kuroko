@@ -87,6 +87,10 @@ static void freeObject(KrkObj * object) {
 			FREE(KrkBytes, bytes);
 			break;
 		}
+		case OBJ_PROPERTY: {
+			FREE(KrkProperty, object);
+			break;
+		}
 	}
 }
 
@@ -176,6 +180,11 @@ static void blackenObject(KrkObj * object) {
 		case OBJ_TUPLE: {
 			KrkTuple * tuple = (KrkTuple *)object;
 			markArray(&tuple->values);
+			break;
+		}
+		case OBJ_PROPERTY: {
+			KrkProperty * property = (KrkProperty *)object;
+			krk_markValue(property->method);
 			break;
 		}
 		case OBJ_NATIVE:

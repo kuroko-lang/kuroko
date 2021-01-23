@@ -1,0 +1,8 @@
+No args!
+42
+48
+Called as a setter: [102]
+102
+<type 'Foo'> test
+<type 'Foo'> test
+<type 'Bar'> test

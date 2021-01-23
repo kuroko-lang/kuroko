@@ -1411,6 +1411,7 @@ KrkValue krk_callSimple(KrkValue value, int argCount, int isMethod) {
 	} else if (result == 1) {
 		return krk_runNext();
 	}
+	if (!IS_NONE(vm.currentException)) return NONE_VAL();
 	return krk_runtimeError(vm.exceptions.typeError, "Invalid internal method call: %d ('%s')", result, krk_typeName(value));
 }
 
@@ -4133,6 +4134,10 @@ static int valueGetProperty(KrkString * name) {
 	if (IS_INSTANCE(krk_peek(0))) {
 		KrkInstance * instance = AS_INSTANCE(krk_peek(0));
 		if (krk_tableGet(&instance->fields, OBJECT_VAL(name), &value)) {
+			if (IS_PROPERTY(value)) {
+				krk_push(krk_callSimple(AS_PROPERTY(value)->method, 1, 0));
+				return 1;
+			}
 			krk_pop();
 			krk_push(value);
 			return 1;
@@ -4142,6 +4147,10 @@ static int valueGetProperty(KrkString * name) {
 		KrkClass * _class = AS_CLASS(krk_peek(0));
 		if (krk_tableGet(&_class->fields, OBJECT_VAL(name), &value) ||
 			krk_tableGet(&_class->methods, OBJECT_VAL(name), &value)) {
+			if (IS_PROPERTY(value)) {
+				krk_push(krk_callSimple(AS_PROPERTY(value)->method, 1, 0));
+				return 1;
+			}
 			krk_pop();
 			krk_push(value);
 			return 1;
@@ -4584,12 +4593,17 @@ static KrkValue run() {
 			case OP_SET_PROPERTY_LONG:
 			case OP_SET_PROPERTY: {
 				KrkString * name = READ_STRING(operandWidth);
-				if (IS_INSTANCE(krk_peek(1))) {
-					KrkInstance * instance = AS_INSTANCE(krk_peek(1));
-					krk_tableSet(&instance->fields, OBJECT_VAL(name), krk_peek(0));
-				} else if (IS_CLASS(krk_peek(1))) {
-					KrkClass * _class = AS_CLASS(krk_peek(1));
-					krk_tableSet(&_class->fields, OBJECT_VAL(name), krk_peek(0));
+				KrkTable * table = NULL;
+				if (IS_INSTANCE(krk_peek(1))) table = &AS_INSTANCE(krk_peek(1))->fields;
+				else if (IS_CLASS(krk_peek(1))) table = &AS_CLASS(krk_peek(1))->fields;
+				if (table) {
+					KrkValue previous;
+					if (krk_tableGet(table, OBJECT_VAL(name), &previous) && IS_PROPERTY(previous)) {
+						krk_push(krk_callSimple(AS_PROPERTY(previous)->method, 2, 0));
+						break;
+					} else {
+						krk_tableSet(table, OBJECT_VAL(name), krk_peek(0));
+					}
 				} else {
 					krk_runtimeError(vm.exceptions.attributeError, "'%s' object has no attribute '%s'", krk_typeName(krk_peek(0)), name->chars);
 					goto _finishException;
@@ -4752,6 +4766,12 @@ static KrkValue run() {
 				/* Ignore result; don't need to pop */
 				KrkValue handler = HANDLER_VAL(OP_PUSH_WITH, cleanupTarget);
 				krk_push(handler);
+				break;
+			}
+			case OP_CREATE_PROPERTY: {
+				KrkProperty * newProperty = krk_newProperty(krk_peek(0));
+				krk_pop();
+				krk_push(OBJECT_VAL(newProperty));
 				break;
 			}
 		}

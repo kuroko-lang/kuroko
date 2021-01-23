@@ -92,6 +92,8 @@ typedef enum {
 	TYPE_METHOD,
 	TYPE_INIT,
 	TYPE_LAMBDA,
+	TYPE_STATIC,
+	TYPE_PROPERTY,
 } FunctionType;
 
 typedef struct Compiler {
@@ -133,6 +135,10 @@ static KrkChunk * currentChunk() {
 #define EMIT_CONSTANT_OP(opc, arg) do { if (arg < 256) { emitBytes(opc, arg); } \
 	else { emitBytes(opc ## _LONG, arg >> 16); emitBytes(arg >> 8, arg); } } while (0)
 
+static int isMethod(int type) {
+	return type == TYPE_METHOD || type == TYPE_INIT || type == TYPE_PROPERTY;
+}
+
 static void initCompiler(Compiler * compiler, FunctionType type) {
 	compiler->enclosing = current;
 	current = compiler;
@@ -159,7 +165,7 @@ static void initCompiler(Compiler * compiler, FunctionType type) {
 		current->function->name = krk_copyString(parser.previous.start, parser.previous.length);
 	}
 
-	if (type == TYPE_INIT || type == TYPE_METHOD) {
+	if (isMethod(type)) {
 		Local * local = &current->locals[current->localCount++];
 		local->depth = 0;
 		local->isCaptured = 0;
@@ -876,7 +882,7 @@ static void function(FunctionType type, size_t blockWidth) {
 
 	beginScope();
 
-	if (type == TYPE_METHOD || type == TYPE_INIT) current->function->requiredArgs = 1;
+	if (isMethod(type)) current->function->requiredArgs = 1;
 
 	int hasCollectors = 0;
 
@@ -885,7 +891,7 @@ static void function(FunctionType type, size_t blockWidth) {
 	if (!check(TOKEN_RIGHT_PAREN)) {
 		do {
 			if (match(TOKEN_SELF)) {
-				if (type != TYPE_INIT && type != TYPE_METHOD) {
+				if (!isMethod(type)) {
 					error("Invalid use of `self` as a function paramenter.");
 				}
 				continue;
@@ -995,6 +1001,9 @@ static void method(size_t blockWidth) {
 		if (!match(TOKEN_EOL) && !match(TOKEN_EOF)) {
 			errorAtCurrent("Expected end of line after class attribut declaration");
 		}
+	} else if (match(TOKEN_PASS)) {
+		/* bah */
+		consume(TOKEN_EOL, "Expected linefeed after 'pass' in class body.");
 	} else {
 		consume(TOKEN_DEF, "expected a definition, got nothing");
 		consume(TOKEN_IDENTIFIER, "expected method name");
@@ -1134,8 +1143,33 @@ static KrkToken decorator(size_t level, FunctionType type) {
 	size_t blockWidth = (parser.previous.type == TOKEN_INDENTATION) ? parser.previous.length : 0;
 	advance(); /* Collect the `@` */
 
-	/* Collect an identifier */
-	expression();
+	KrkToken funcName = {0};
+	int haveCallable = 0;
+
+	/* hol'up, let's special case some stuff */
+	KrkToken at_staticmethod = syntheticToken("staticmethod");
+	KrkToken at_property = syntheticToken("property");
+	if (identifiersEqual(&at_staticmethod, &parser.current)) {
+		if (level != 0 || type != TYPE_METHOD) {
+			error("Invalid use of @staticmethod, which must be the top decorator of a class method.");
+			return funcName;
+		}
+		advance();
+		type = TYPE_STATIC;
+		emitBytes(OP_DUP, 0); /* SET_PROPERTY will pop class */
+	} else if (identifiersEqual(&at_property, &parser.current)) {
+		if (level != 0 || type != TYPE_METHOD) {
+			error("Invalid use of @property, which must be the top decorator of a class method.");
+			return funcName;
+		}
+		advance();
+		type = TYPE_PROPERTY;
+		emitBytes(OP_DUP, 0);
+	} else {
+		/* Collect an identifier */
+		expression();
+		haveCallable = 1;
+	}
 
 	consume(TOKEN_EOL, "Expected line feed after decorator.");
 	if (blockWidth) {
@@ -1143,7 +1177,6 @@ static KrkToken decorator(size_t level, FunctionType type) {
 		if (parser.previous.length != blockWidth) error("Expected next line after decorator to have same indentation.");
 	}
 
-	KrkToken funcName = {0};
 	if (check(TOKEN_DEF)) {
 		/* We already checked for block level */
 		advance();
@@ -1160,7 +1193,8 @@ static KrkToken decorator(size_t level, FunctionType type) {
 		return funcName;
 	}
 
-	emitBytes(OP_CALL, 1);
+	if (haveCallable)
+		emitBytes(OP_CALL, 1);
 
 	if (level == 0) {
 		if (type == TYPE_FUNCTION) {
@@ -1168,6 +1202,15 @@ static KrkToken decorator(size_t level, FunctionType type) {
 			declareVariable();
 			size_t ind = (current->scopeDepth > 0) ? 0 : identifierConstant(&funcName);
 			defineVariable(ind);
+		} else if (type == TYPE_STATIC) {
+			size_t ind = identifierConstant(&funcName);
+			EMIT_CONSTANT_OP(OP_SET_PROPERTY, ind);
+			emitByte(OP_POP);
+		} else if (type == TYPE_PROPERTY) {
+			emitByte(OP_CREATE_PROPERTY);
+			size_t ind = identifierConstant(&funcName);
+			EMIT_CONSTANT_OP(OP_SET_PROPERTY, ind);
+			emitByte(OP_POP);
 		} else {
 			size_t ind = identifierConstant(&funcName);
 			EMIT_CONSTANT_OP(OP_METHOD, ind);

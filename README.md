@@ -1291,6 +1291,41 @@ print(doesANestedThing())
 
 _**Note:** The implementation of `with` blocks is incomplete; exceptions raised from within a `with` that are not caught within the block will cause `__exit__` to not be called._
 
+### Special Decorators
+
+The compiler implements special handling when the decorators `@staticmethod` and `@property` are used with methods of a class.
+
+`@staticmethod` will mark the decorated method as a regular function - it will not receive an implicit "self" and it will be attached to the `fields` table of the class and instances of that class, rather than the `methods` table.
+
+`@property` will mark the decorated method as a property object. When it is retrieved or assigned to from the class or instance through a dot-accessor (eg. `foo.bar`), the wrapped method will be called intead.
+
+Properties work differently from in Python:
+
+```py
+class Foo():
+    def __init__(self):
+        self._bar = 0
+    @property
+    def bar(self, *setter):
+        if setter:
+            print("Setting bar:", setter[0])
+            self._bar = setter[0]
+        else:
+            print("Getting bar.")
+            return self._bar
+let f = Foo()
+print(f.bar)
+f.bar = 42
+print(f.bar)
+# → Getting bar.
+#   0
+#   Setting bar: 42
+#   Getting bar.
+#   42
+```
+
+_**Note:** Special handling when using `del` on a property is not yet implemented._
+
 ## About the REPL
 
 Kuroko's repl provides an interactive environment for executing code and seeing results.

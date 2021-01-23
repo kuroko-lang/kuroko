@@ -1,0 +1,39 @@
+
+def classmethod(func):
+    def bindClassMethod(callee, *args):
+        if args: raise ValueError("can not reassign class method")
+        let cls = callee if isinstance(callee, type) else callee.__class__
+        def _bound(*args, **kwargs):
+            return func(None, cls, *args, **kwargs)
+        return _bound
+    return bindClassMethod
+
+class Foo(object):
+    myBar = 42
+    @staticmethod
+    def foo():
+        print("No args!")
+    @property
+    def bar(*setter):
+        if setter:
+            print("Called as a setter:", setter)
+            self.myBar = setter[0]
+        return self.myBar
+    @property
+    @classmethod
+    def fromString(cls, string):
+        print(cls, string)
+
+class Bar(Foo):
+
+Foo.foo()
+print(Foo().bar)
+let f = Foo()
+f.myBar = 48
+print(f.bar)
+f.bar = 102
+print(f.bar)
+
+Foo.fromString("test")
+f.fromString("test")
+Bar.fromString("test")
