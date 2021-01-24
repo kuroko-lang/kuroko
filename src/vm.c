@@ -513,13 +513,21 @@ static KrkValue _dict_nth_key_fast(size_t capacity, KrkTableEntry * entries, siz
 	return NONE_VAL();
 }
 
+static KrkValue _list_extend(int argc, KrkValue argv[]);
+
 /**
  * list.__init__()
  */
 static KrkValue _list_init(int argc, KrkValue argv[]) {
 	CHECK_LIST_FAST();
-	if (argc > 1) return krk_runtimeError(vm.exceptions.argumentError, "Can not initialize list from iterable (unsupported, try again later)");
 	krk_initValueArray(AS_LIST(argv[0]));
+
+	if (argc > 2) return krk_runtimeError(vm.exceptions.argumentError, "too many arguments to list.__init__");
+	if (argc == 2) {
+		/* TODO: Why not just initialize it this way... */
+		_list_extend(2,(KrkValue[]){argv[0],argv[1]});
+	}
+
 	return argv[0];
 }
 
