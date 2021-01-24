@@ -1380,7 +1380,8 @@ int krk_callValue(KrkValue callee, int argCount, int extra) {
 			}
 			case OBJ_CLASS: {
 				KrkClass * _class = AS_CLASS(callee);
-				vm.stackTop[-argCount - 1] = OBJECT_VAL(krk_newInstance(_class));
+				KrkInstance * newInstance = krk_newInstance(_class);
+				vm.stackTop[-argCount - 1] = OBJECT_VAL(newInstance);
 				KrkValue initializer;
 				if (_class->_init) {
 					return krk_callValue(OBJECT_VAL(_class->_init), argCount + 1, 0);
