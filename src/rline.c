@@ -552,13 +552,21 @@ char * syn_krk_types[] = {
 	"self", "super", /* implicit in a class method */
 	"len", "str", "int", "float", "dir", "repr", /* global functions from __builtins__ */
 	"list","dict","range", /* builtin classes */
-	"object","exception","isinstance","type",
+	"object","exception","isinstance","type","tuple",
 	"print","set","any","all","bool","ord","chr","hex",
 	NULL
 };
 
 char * syn_krk_special[] = {
 	"True","False","None",
+	/* Exception names */
+	NULL
+};
+
+char * syn_krk_exception[] = {
+	"TypeError","ArgumentError","IndexError","KeyError","AttributeError",
+	"NameError","ImportError","IOError","ValueError","KeyboardInterrupt",
+	"ZeroDivisionError","SyntaxError","Exception",
 	NULL
 };
 
@@ -621,6 +629,8 @@ int syn_krk_calculate(struct syntax_state * state) {
 			} else if (lastchar() != '.' && find_keywords(state, syn_krk_types, FLAG_TYPE, c_keyword_qualifier)) {
 				return 0;
 			} else if (find_keywords(state, syn_krk_special, FLAG_NUMERAL, c_keyword_qualifier)) {
+				return 0;
+			} else if (find_keywords(state, syn_krk_exception, FLAG_PRAGMA, c_keyword_qualifier)) {
 				return 0;
 			} else if (!c_keyword_qualifier(lastchar()) && isdigit(charat())) {
 				paint_krk_numeral(state);
