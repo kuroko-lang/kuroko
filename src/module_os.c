@@ -101,15 +101,10 @@ KrkValue krk_os_setenviron(int argc, KrkValue argv[]) {
 		return krk_runtimeError(vm.exceptions.argumentError, "Invalid arguments to environ.__set__");
 	}
 	/* Set environment variable */
-#ifdef setenv
-	if (setenv(AS_CSTRING(argv[1]), AS_CSTRING(argv[2]), 1) == 0) {
-#else
 	char * tmp = malloc(AS_STRING(argv[1])->length + AS_STRING(argv[2])->length + 2);
 	sprintf(tmp, "%s=%s", AS_CSTRING(argv[1]), AS_CSTRING(argv[2]));
 	int r = putenv(tmp);
-	free(tmp);
 	if (r == 0) {
-#endif
 		/* Make super call */
 		krk_push(argv[0]);
 		krk_push(argv[1]);
@@ -119,6 +114,24 @@ KrkValue krk_os_setenviron(int argc, KrkValue argv[]) {
 		/* OSError? */
 		return krk_runtimeError(vm.exceptions.baseException, strerror(errno));
 	}
+}
+
+KrkValue krk_os_unsetenviron(int argc, KrkValue argv[]) {
+	if (argc < 2 || !krk_isInstanceOf(argv[0], environClass) ||
+		!IS_STRING(argv[1])) {
+		return krk_runtimeError(vm.exceptions.argumentError, "Invalid arguments to environ.__delitem__");
+	}
+#ifndef _WIN32
+	unsetenv(AS_CSTRING(argv[1]));
+#else
+	char * tmp = malloc(AS_STRING(argv[1])->length + 2);
+	sprintf(tmp, "%s=", AS_CSTRING(argv[1]));
+	putenv(tmp);
+	free(tmp);
+#endif
+	krk_push(argv[0]);
+	krk_push(argv[1]);
+	return krk_callSimple(OBJECT_VAL(vm.baseClasses.dictClass->_delitem), 2, 0);
 }
 
 static void _loadEnviron(KrkInstance * module) {
@@ -131,6 +144,7 @@ static void _loadEnviron(KrkInstance * module) {
 
 	/* Add our set method that should also call dict's set method */
 	krk_defineNative(&environClass->methods, ".__set__", krk_os_setenviron);
+	krk_defineNative(&environClass->methods, ".__delitem__", krk_os_unsetenviron);
 	krk_finalizeClass(environClass);
 
 	/* Start with an empty dictionary */
