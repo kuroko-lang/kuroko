@@ -1433,7 +1433,7 @@ Native functions should have a call signature as follows:
 KrkNative my_native_function(int argc, KrkValue argv[], int hasKw);
 ```
 
-If `hasKw` is non-zero, then the value in `argv[argc-1]` will represent a dictionary of keyword and value pairs. Positional arguments will be provided in order in the other indexes of `argv`.
+If `hasKw` is non-zero, then the value in `argv[argc]` will represent a dictionary of keyword and value pairs. Positional arguments will be provided in order in the other indexes of `argv`.
 
 Functions must return a value. If you do not need to return data to callers, return `NONE_VAL()`.
 

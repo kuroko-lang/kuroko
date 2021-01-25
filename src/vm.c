@@ -810,19 +810,20 @@ static KrkValue _list_pop(int argc, KrkValue argv[]) {
  */
 static KrkValue krk_set_tracing(int argc, KrkValue argv[], int hasKw) {
 #ifdef DEBUG
-	if (argc != 1) return NONE_VAL();
 	if (hasKw) {
 		KrkValue test;
-		if (krk_tableGet(AS_DICT(argv[0]), OBJECT_VAL(S("tracing")), &test)) {
+		if (krk_tableGet(AS_DICT(argv[argc]), OBJECT_VAL(S("tracing")), &test) && IS_INTEGER(test)) {
 			if (AS_INTEGER(test) == 1) vm.flags |= KRK_ENABLE_TRACING; else vm.flags &= ~KRK_ENABLE_TRACING; }
-		if (krk_tableGet(AS_DICT(argv[0]), OBJECT_VAL(S("disassembly")), &test)) {
+		if (krk_tableGet(AS_DICT(argv[argc]), OBJECT_VAL(S("disassembly")), &test) && IS_INTEGER(test)) {
 			if (AS_INTEGER(test) == 1) vm.flags |= KRK_ENABLE_DISASSEMBLY; else vm.flags &= ~KRK_ENABLE_DISASSEMBLY; }
-		if (krk_tableGet(AS_DICT(argv[0]), OBJECT_VAL(S("stressgc")), &test)) {
+		if (krk_tableGet(AS_DICT(argv[argc]), OBJECT_VAL(S("stressgc")), &test) && IS_INTEGER(test)) {
 			if (AS_INTEGER(test) == 1) vm.flags |= KRK_ENABLE_STRESS_GC; else vm.flags &= ~KRK_ENABLE_STRESS_GC; }
-		if (krk_tableGet(AS_DICT(argv[0]), OBJECT_VAL(S("scantracing")), &test)) {
+		if (krk_tableGet(AS_DICT(argv[argc]), OBJECT_VAL(S("scantracing")), &test) && IS_INTEGER(test)) {
 			if (AS_INTEGER(test) == 1) vm.flags |= KRK_ENABLE_SCAN_TRACING; else vm.flags &= ~KRK_ENABLE_SCAN_TRACING; }
 		return BOOLEAN_VAL(1);
 	} else {
+		if (argc != 1 || !IS_STRING(argv[0]))
+			return krk_runtimeError(vm.exceptions.typeError, "set_tracing() expects kwargs or one string");
 		if (!strcmp(AS_CSTRING(argv[0]),"tracing=1")) vm.flags |= KRK_ENABLE_TRACING;
 		else if (!strcmp(AS_CSTRING(argv[0]),"disassembly=1")) vm.flags |= KRK_ENABLE_DISASSEMBLY;
 		else if (!strcmp(AS_CSTRING(argv[0]),"scantracing=1")) vm.flags |= KRK_ENABLE_SCAN_TRACING;
@@ -1350,7 +1351,7 @@ int krk_callValue(KrkValue callee, int argCount, int extra) {
 					krk_push(myList);
 					krk_push(myDict);
 					krk_writeValueArray(AS_LIST(myList), myDict);
-					KrkValue result = native(AS_LIST(myList)->count, AS_LIST(myList)->values, 1);
+					KrkValue result = native(AS_LIST(myList)->count-1, AS_LIST(myList)->values, 1);
 					if (vm.stackTop == vm.stack) return 0;
 					krk_pop();
 					krk_pop();
@@ -1683,7 +1684,6 @@ static KrkValue _print(int argc, KrkValue argv[], int hasKw) {
 	char * sep = " "; size_t sepLen = 1;
 	char * end = "\n"; size_t endLen = 1;
 	if (hasKw) {
-		argc--;
 		if (krk_tableGet(AS_DICT(argv[argc]), OBJECT_VAL(S("sep")), &sepVal)) {
 			if (!IS_STRING(sepVal)) return krk_runtimeError(vm.exceptions.typeError, "'sep' should be a string, not '%s'", krk_typeName(sepVal));
 			sep = AS_CSTRING(sepVal);
@@ -1847,7 +1847,6 @@ static KrkValue _string_format(int argc, KrkValue argv[], int hasKw) {
 	KrkString * self = AS_STRING(argv[0]);
 	KrkValue kwargs = NONE_VAL();
 	if (hasKw) {
-		argc--; /* last arg is the keyword dictionary */
 		kwargs = argv[argc];
 	}
 
