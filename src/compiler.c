@@ -736,7 +736,6 @@ _letDone:
 }
 
 static void synchronize() {
-	parser.panicMode = 0;
 	while (parser.current.type != TOKEN_EOF) {
 		if (parser.previous.type == TOKEN_EOL) return;
 
