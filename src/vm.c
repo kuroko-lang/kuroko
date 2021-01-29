@@ -4841,6 +4841,11 @@ KrkValue krk_interpret(const char * src, int newScope, char * fromName, char * f
 	krk_pop();
 
 	krk_push(OBJECT_VAL(closure));
+	if (!newScope) {
+		/* Quick little kludge so that empty statements return None from REPLs */
+		krk_push(NONE_VAL());
+		krk_pop();
+	}
 	krk_callValue(OBJECT_VAL(closure), 0, 1);
 
 	KrkValue result = run();
