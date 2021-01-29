@@ -587,7 +587,7 @@ static KrkValue _list_insert(int argc, KrkValue argv[]) {
 	krk_writeValueArray(AS_LIST(argv[0]), NONE_VAL());
 
 	/* Move everything at and after this index one forward. */
-	memcpy(&AS_LIST(argv[0])->values[index+1],
+	memmove(&AS_LIST(argv[0])->values[index+1],
 	       &AS_LIST(argv[0])->values[index],
 	       sizeof(KrkValue) * (AS_LIST(argv[0])->count - index - 1));
 	/* Stick argv[2] where it belongs */
