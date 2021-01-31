@@ -3028,7 +3028,7 @@ struct TupleIter {
 
 static KrkValue _tuple_iter_init(int argc, KrkValue argv[]) {
 	struct TupleIter * self = (struct TupleIter *)AS_OBJECT(argv[0]);
-	self->myTuple = argv[0];
+	self->myTuple = argv[1];
 	self->i = 0;
 	return argv[0];
 }
