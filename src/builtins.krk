@@ -73,9 +73,15 @@ __builtins__.license = license
 
 # this works because `kuroko` is always a built-in
 import kuroko
-kuroko.module_paths = ['./','./modules/','/usr/local/lib/kuroko/']
+kuroko.module_paths = ['./']
 if 'executable_path' in dir(kuroko):
- let basepath = kuroko.path_sep.join(kuroko.executable_path.split(kuroko.path_sep)[:-1])
- kuroko.module_paths.append(basepath + kuroko.path_sep + 'modules' + kuroko.path_sep)
+ let pathunits = kuroko.executable_path.split(kuroko.path_sep)[:-1]
+ let dirname  = pathunits[-1]
+ if dirname == 'bin':
+  pathunits.pop(-1)
+  pathunits.extend(['lib','kuroko',''])
+ else:
+  pathunits.extend(['modules',''])
+ kuroko.module_paths.append(kuroko.path_sep.join(pathunits))
 
 return object()

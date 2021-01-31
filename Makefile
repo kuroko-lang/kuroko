@@ -85,3 +85,7 @@ test:
 stress-test:
 	@for i in test/*.krk; do echo $$i; KUROKO_TEST_ENV=1 valgrind ./kuroko -g $$i > $$i.expect; done
 	@git diff --exit-code test/*.expect
+
+.PHONY: deb
+deb: kuroko libkuroko.so
+	$(MAKE) -f Makefile.install
