@@ -1,21 +1,21 @@
 Imported foo.__init__ as foo
-<module 'foo' from './modules/foo/__init__.krk'>
+<module 'foo' from ...>
 AttributeError: 'module' object has no attribute 'bar'
 Imported bar.__init__ as foo.bar
 imported baz.krk as foo.bar.baz
-<module 'foo.bar.baz' from './modules/foo/bar/baz.krk'>
-<module 'foo' from './modules/foo/__init__.krk'>
-<module 'foo.bar' from './modules/foo/bar/__init__.krk'>
-<module 'foo.bar.baz' from './modules/foo/bar/baz.krk'>
+<module 'foo.bar.baz' from ...>
+<module 'foo' from ...>
+<module 'foo.bar' from ...>
+<module 'foo.bar.baz' from ...>
 This is it!
-<module 'foo' from './modules/foo/__init__.krk'>
-<module 'foo.bar' from './modules/foo/bar/__init__.krk'>
-<module 'foo.bar.baz' from './modules/foo/bar/baz.krk'>
+<module 'foo' from ...>
+<module 'foo.bar' from ...>
+<module 'foo.bar.baz' from ...>
 This is it!
-<module 'foo.bar.baz' from './modules/foo/bar/baz.krk'>
+<module 'foo.bar.baz' from ...>
 This is it!
 NameError: Undefined variable 'foo'.
-<module 'foo.bar.baz' from './modules/foo/bar/baz.krk'>
+<module 'foo.bar.baz' from ...>
 This is it!
 NameError: Undefined variable 'foo'.
 This is it!

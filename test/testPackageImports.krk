@@ -1,6 +1,11 @@
+def printPackage(p):
+    let s = repr(p)
+    let a,b,c,d = s.split(' ')
+    print(' '.join([a,b,c]),'...>')
+
 def testTop():
     import foo
-    print(foo)
+    printPackage(foo)
     try:
         print(foo.bar, "Fail")
     except:
@@ -8,23 +13,23 @@ def testTop():
 
 def testCaching():
     from foo.bar import baz
-    print(baz)
+    printPackage(baz)
     import foo
-    print(foo)
-    print(foo.bar)
-    print(foo.bar.baz)
+    printPackage(foo)
+    printPackage(foo.bar)
+    printPackage(foo.bar.baz)
     print(foo.bar.baz.qux)
 
 def testDirect():
     import foo.bar.baz
-    print(foo)
-    print(foo.bar)
-    print(foo.bar.baz)
+    printPackage(foo)
+    printPackage(foo.bar)
+    printPackage(foo.bar.baz)
     print(foo.bar.baz.qux)
 
 def testFromImport():
     from foo.bar import baz
-    print(baz)
+    printPackage(baz)
     print(baz.qux)
     try:
         print(foo, "Fail")
@@ -33,7 +38,7 @@ def testFromImport():
 
 def testRenames():
     import foo.bar.baz as blah
-    print(blah)
+    printPackage(blah)
     print(blah.qux)
     try:
         print(foo, "Fail")
