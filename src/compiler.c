@@ -197,7 +197,7 @@ static KrkToken decorator(size_t level, FunctionType type);
 static void call(int canAssign);
 
 static void finishError(KrkToken * token) {
-	size_t i = (token->col - 1);
+	size_t i = 0;
 	while (token->linePtr[i] && token->linePtr[i] != '\n') i++;
 
 	krk_attachNamedObject(&AS_INSTANCE(vm.currentException)->fields, "line",   (KrkObj*)krk_copyString(token->linePtr, i));
@@ -214,7 +214,7 @@ static void finishError(KrkToken * token) {
 		krk_attachNamedValue(&AS_INSTANCE(vm.currentException)->fields, "func", name);
 	}
 
-	parser.panicMode = 1; 
+	parser.panicMode = 1;
 	parser.hadError = 1;
 }
 

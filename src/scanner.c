@@ -39,14 +39,16 @@ static KrkToken makeToken(KrkTokenType type) {
 }
 
 static KrkToken errorToken(const char * errorStr) {
+	ssize_t column = (scanner.linePtr < scanner.start) ? scanner.start - scanner.linePtr : 0;
+	ssize_t width  = (scanner.start   < scanner.cur)   ? scanner.cur - scanner.start : 0;
 	return (KrkToken){
 		.type = TOKEN_ERROR,
 		.start = errorStr,
 		.length = strlen(errorStr),
 		.line = scanner.line,
 		.linePtr = scanner.linePtr,
-		.literalWidth = (size_t)(scanner.cur - scanner.start),
-		.col = (scanner.start - scanner.linePtr) + 1,
+		.literalWidth = (size_t)(width),
+		.col = column + 1,
 	};
 }
 
