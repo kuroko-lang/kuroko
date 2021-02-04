@@ -11,6 +11,7 @@
 #include "compiler.h"
 #include "object.h"
 #include "table.h"
+#include "util.h"
 
 #define KRK_VERSION_MAJOR  "1"
 #define KRK_VERSION_MINOR  "0"
@@ -52,18 +53,8 @@
 # define dlSym(dlRef, handlerName) GetProcAddress(dlRef, handlerName)
 #endif
 
-#define S(c) (krk_copyString(c,sizeof(c)-1))
-
-#define likely(cond)   __builtin_expect(!!(cond), 1)
-#define unlikely(cond) __builtin_expect(!!(cond), 0)
-
 /* This is macro'd to krk_vm for namespacing reasons. */
 KrkVM vm = {0};
-
-/* Some quick forward declarations of string methods we like to call directly... */
-static void addObjects();
-static KrkValue _string_get(int argc, KrkValue argv[]);
-static KrkValue _string_format(int argc, KrkValue argv[], int hasKw);
 
 /* Embedded script for extensions to builtin-ins; see builtins.c/builtins.krk */
 extern const char krk_builtinsSrc[];
@@ -307,6 +298,38 @@ KrkNative * krk_defineNative(KrkTable * table, const char * name, NativeFn funct
 }
 
 /**
+ * Create a new property object that calls a C function; same semantics as defineNative, but
+ * instead of applying the function directly it is applied as a property value, so it should
+ * be used with the "fields" table rather than the methods table. This will eventually replace
+ * the ":field" option for defineNative().
+ */
+KrkProperty * krk_defineNativeProperty(KrkTable * table, const char * name, NativeFn function) {
+	KrkNative * func = krk_newNative(function, name, 1);
+	krk_push(OBJECT_VAL(func));
+	KrkProperty * property = krk_newProperty(krk_peek(0));
+	krk_attachNamedObject(table, name, (KrkObj*)property);
+	krk_pop();
+	return property;
+}
+
+/**
+ * Shortcut for building classes.
+ */
+KrkClass * krk_makeClass(KrkInstance * module, KrkClass ** _class, const char * name, KrkClass * base) {
+	KrkString * str_Name = krk_copyString(name,strlen(name));
+	krk_push(OBJECT_VAL(str_Name));
+	*_class = krk_newClass(str_Name, base);
+	if (module) {
+		krk_push(OBJECT_VAL(*_class));
+		/* Bind it */
+		krk_attachNamedObject(&module->fields,name,(KrkObj*)*_class);
+		krk_pop();
+	}
+	krk_pop();
+	return *_class;
+}
+
+/**
  * For a class built by native code, call this after attaching methods to
  * finalize the attachment of special methods for quicker accessn.
  *
@@ -342,464 +365,6 @@ void krk_finalizeClass(KrkClass * _class) {
 		if (krk_tableGet(&_class->methods, vm.specialMethodNames[entry->index], &tmp)) {
 			*entry->method = AS_OBJECT(tmp);
 		}
-	}
-}
-
-/***************
- * Collections *
-****************/
-
-#define CHECK_DICT_FAST() if (unlikely(argc < 0 || !IS_INSTANCE(argv[0]) || \
-	(AS_INSTANCE(argv[0])->_class != vm.baseClasses.dictClass && !krk_isInstanceOf(argv[0], vm.baseClasses.dictClass)))) \
-		return krk_runtimeError(vm.exceptions.typeError, "expected dict")
-
-#define CHECK_LIST_FAST() if (unlikely(argc < 0 || !IS_INSTANCE(argv[0]) || \
-	(AS_INSTANCE(argv[0])->_class != vm.baseClasses.listClass && !krk_isInstanceOf(argv[0], vm.baseClasses.listClass)))) \
-		return krk_runtimeError(vm.exceptions.typeError, "expected list")
-
-/**
- * dict.__init__()
- */
-static KrkValue _dict_init(int argc, KrkValue argv[]) {
-	CHECK_DICT_FAST();
-	krk_initTable(&((KrkDict *)AS_OBJECT(argv[0]))->entries);
-	return argv[0];
-}
-
-static void _dict_gcscan(KrkInstance * self) {
-	krk_markTable(&((KrkDict*)self)->entries);
-}
-
-static void _dict_gcsweep(KrkInstance * self) {
-	krk_freeTable(&((KrkDict*)self)->entries);
-}
-
-/**
- * dict.__get__(key)
- */
-static KrkValue _dict_get(int argc, KrkValue argv[]) {
-	CHECK_DICT_FAST();
-	if (argc < 2) return krk_runtimeError(vm.exceptions.argumentError, "wrong number of arguments");
-	KrkValue out;
-	if (!krk_tableGet(AS_DICT(argv[0]), argv[1], &out)) return krk_runtimeError(vm.exceptions.keyError, "key error");
-	return out;
-}
-
-/**
- * dict.__set__(key, value)
- */
-static KrkValue _dict_set(int argc, KrkValue argv[]) {
-	CHECK_DICT_FAST();
-	if (argc < 3) return krk_runtimeError(vm.exceptions.argumentError, "wrong number of arguments");
-	krk_tableSet(AS_DICT(argv[0]), argv[1], argv[2]);
-	return NONE_VAL();
-}
-
-static KrkValue _dict_or(int argc, KrkValue argv[]) {
-	CHECK_DICT_FAST();
-	if (argc < 2) return krk_runtimeError(vm.exceptions.argumentError, "wrong number of arguments");
-	if (!krk_isInstanceOf(argv[0],vm.baseClasses.dictClass) ||
-	    !krk_isInstanceOf(argv[1],vm.baseClasses.dictClass))
-		return krk_runtimeError(vm.exceptions.typeError, "Can not merge '%s' and '%s'.",
-			krk_typeName(argv[0]),
-			krk_typeName(argv[1]));
-
-	KrkValue outDict = krk_dict_of(0,NULL);
-	krk_push(outDict);
-
-	/* Why is this src->dest... Should change that... */
-	krk_tableAddAll(AS_DICT(argv[0]), AS_DICT(outDict));
-	krk_tableAddAll(AS_DICT(argv[1]), AS_DICT(outDict));
-
-	return krk_pop();
-}
-
-/**
- * dict.__delitem__
- */
-static KrkValue _dict_delitem(int argc, KrkValue argv[]) {
-	CHECK_DICT_FAST();
-	if (argc < 2) return krk_runtimeError(vm.exceptions.argumentError, "wrong number of arguments");
-	if (!krk_tableDelete(AS_DICT(argv[0]), argv[1])) {
-		KrkClass * type = krk_getType(argv[1]);
-		if (type->_reprer) {
-			krk_push(argv[1]);
-			KrkValue asString = krk_callSimple(OBJECT_VAL(type->_reprer), 1, 0);
-			if (IS_STRING(asString)) return krk_runtimeError(vm.exceptions.keyError, "%s", AS_CSTRING(asString));
-		}
-		return krk_runtimeError(vm.exceptions.keyError, "(Unrepresentable value)");
-	}
-	return NONE_VAL();
-}
-
-/**
- * dict.__len__()
- */
-static KrkValue _dict_len(int argc, KrkValue argv[]) {
-	CHECK_DICT_FAST();
-	if (argc < 1) return krk_runtimeError(vm.exceptions.argumentError, "wrong number of arguments");
-	return INTEGER_VAL(AS_DICT(argv[0])->count);
-}
-
-/**
- * dict.__contains__()
- */
-static KrkValue _dict_contains(int argc, KrkValue argv[]) {
-	CHECK_DICT_FAST();
-	KrkValue _unused;
-	return BOOLEAN_VAL(krk_tableGet(AS_DICT(argv[0]), argv[1], &_unused));
-}
-
-/**
- * dict.capacity()
- */
-static KrkValue _dict_capacity(int argc, KrkValue argv[]) {
-	CHECK_DICT_FAST();
-	if (argc < 1) return krk_runtimeError(vm.exceptions.argumentError, "wrong number of arguments");
-	return INTEGER_VAL(AS_DICT(argv[0])->capacity);
-}
-
-static KrkValue _dict_repr(int argc, KrkValue argv[]) {
-	CHECK_DICT_FAST();
-	KrkValue self = argv[0];
-	if (AS_OBJECT(self)->inRepr) return OBJECT_VAL(S("{...}"));
-	krk_push(OBJECT_VAL(S("{")));
-
-	AS_OBJECT(self)->inRepr = 1;
-
-	size_t c = 0;
-	size_t len = AS_DICT(argv[0])->capacity;
-	for (size_t i = 0; i < len; ++i) {
-		KrkTableEntry * entry = &AS_DICT(argv[0])->entries[i];
-
-		if (IS_KWARGS(entry->key)) continue;
-
-		if (c > 0) {
-			krk_push(OBJECT_VAL(S(", ")));
-			addObjects();
-		}
-
-		c++;
-
-		KrkClass * type = krk_getType(entry->key);
-		krk_push(entry->key);
-		krk_push(krk_callSimple(OBJECT_VAL(type->_reprer), 1, 0));
-		addObjects();
-
-		krk_push(OBJECT_VAL(S(": ")));
-		addObjects();
-
-		type = krk_getType(entry->value);
-		krk_push(entry->value);
-		krk_push(krk_callSimple(OBJECT_VAL(type->_reprer), 1, 0));
-		addObjects();
-	}
-
-	AS_OBJECT(self)->inRepr = 0;
-
-	krk_push(OBJECT_VAL(S("}")));
-	addObjects();
-	return krk_pop();
-
-}
-
-static KrkValue _dict_nth_key_fast(size_t capacity, KrkTableEntry * entries, size_t index) {
-	size_t found = 0;
-	for (size_t i = 0; i < capacity; ++i) {
-		if (IS_KWARGS(entries[i].key)) continue;
-		if (found == index) return entries[i].key;
-		found++;
-	}
-	return NONE_VAL();
-}
-
-static KrkValue _list_extend(int argc, KrkValue argv[]);
-
-/**
- * list.__init__()
- */
-static KrkValue _list_init(int argc, KrkValue argv[]) {
-	CHECK_LIST_FAST();
-	krk_initValueArray(AS_LIST(argv[0]));
-
-	if (argc > 2) return krk_runtimeError(vm.exceptions.argumentError, "too many arguments to list.__init__");
-	if (argc == 2) {
-		/* TODO: Why not just initialize it this way... */
-		_list_extend(2,(KrkValue[]){argv[0],argv[1]});
-	}
-
-	return argv[0];
-}
-
-static void _list_gcscan(KrkInstance * self) {
-	for (size_t i = 0; i < ((KrkList*)self)->values.count; ++i) {
-		krk_markValue(((KrkList*)self)->values.values[i]);
-	}
-}
-
-static void _list_gcsweep(KrkInstance * self) {
-	krk_freeValueArray(&((KrkList*)self)->values);
-}
-
-/**
- * list.__get__(index)
- */
-static KrkValue _list_get(int argc, KrkValue argv[]) {
-	CHECK_LIST_FAST();
-	if (unlikely(argc < 2 || !IS_INTEGER(argv[1]))) return krk_runtimeError(vm.exceptions.argumentError, "wrong number or type of arguments in get %d, (%s, %s)", argc, krk_typeName(argv[0]), krk_typeName(argv[1]));
-	int index = AS_INTEGER(argv[1]);
-	if (index < 0) index += AS_LIST(argv[0])->count;
-	if (unlikely(index < 0 || index >= (int)AS_LIST(argv[0])->count)) return krk_runtimeError(vm.exceptions.indexError, "index is out of range: %d", index);
-	return AS_LIST(argv[0])->values[index];
-}
-
-/**
- * list.__set__(index, value)
- */
-static KrkValue _list_set(int argc, KrkValue argv[]) {
-	CHECK_LIST_FAST();
-	if (unlikely(argc < 3 || !IS_INTEGER(argv[1]))) return krk_runtimeError(vm.exceptions.argumentError, "wrong number or type of arguments in set %d, (%s, %s, %s)", argc, krk_typeName(argv[0]), krk_typeName(argv[1]), krk_typeName(argv[2]));
-	int index = AS_INTEGER(argv[1]);
-	if (index < 0) index += AS_LIST(argv[0])->count;
-	if (unlikely(index < 0 || index >= (int)AS_LIST(argv[0])->count)) krk_runtimeError(vm.exceptions.indexError, "index is out of range: %d", index);
-	AS_LIST(argv[0])->values[index] = argv[2];
-	return NONE_VAL();
-}
-
-/**
- * list.append(value)
- */
-static KrkValue _list_append(int argc, KrkValue argv[]) {
-	CHECK_LIST_FAST();
-	if (unlikely(argc < 2)) return krk_runtimeError(vm.exceptions.argumentError, "wrong number or type of arguments");
-	krk_writeValueArray(AS_LIST(argv[0]), argv[1]);
-	return NONE_VAL();
-}
-
-static KrkValue _list_insert(int argc, KrkValue argv[]) {
-	CHECK_LIST_FAST();
-	if (unlikely(argc < 3)) return krk_runtimeError(vm.exceptions.argumentError, "list.insert() expects two arguments");
-	if (unlikely(!IS_INTEGER(argv[1]))) return krk_runtimeError(vm.exceptions.typeError, "index must be integer");
-	krk_integer_type index = AS_INTEGER(argv[1]);
-	if (index < 0) index += AS_LIST(argv[0])->count;
-	if (index < 0 || index > (long)AS_LIST(argv[0])->count) return krk_runtimeError(vm.exceptions.indexError, "list index out of range: %d", (int)index);
-
-	krk_writeValueArray(AS_LIST(argv[0]), NONE_VAL());
-
-	/* Move everything at and after this index one forward. */
-	memmove(&AS_LIST(argv[0])->values[index+1],
-	       &AS_LIST(argv[0])->values[index],
-	       sizeof(KrkValue) * (AS_LIST(argv[0])->count - index - 1));
-	/* Stick argv[2] where it belongs */
-	AS_LIST(argv[0])->values[index] = argv[2];
-	return NONE_VAL();
-}
-
-/**
- * list.__repr__
- */
-static KrkValue _list_repr(int argc, KrkValue argv[]) {
-	CHECK_LIST_FAST();
-	KrkValue self = argv[0];
-	if (AS_OBJECT(self)->inRepr) return OBJECT_VAL(S("[...]"));
-	krk_push(OBJECT_VAL(S("[")));
-
-	AS_OBJECT(self)->inRepr = 1;
-
-	size_t len = AS_LIST(self)->count;
-	for (size_t i = 0; i < len; ++i) {
-		KrkClass * type = krk_getType(AS_LIST(self)->values[i]);
-		krk_push(AS_LIST(self)->values[i]);
-		krk_push(krk_callSimple(OBJECT_VAL(type->_reprer), 1, 0));
-		addObjects();
-		if (i + 1 < len) {
-			krk_push(OBJECT_VAL(S(", ")));
-			addObjects();
-		}
-	}
-
-	AS_OBJECT(self)->inRepr = 0;
-
-	krk_push(OBJECT_VAL(S("]")));
-	addObjects();
-	return krk_pop();
-}
-
-static KrkValue _list_extend(int argc, KrkValue argv[]) {
-	CHECK_LIST_FAST();
-	KrkValueArray *  positionals = AS_LIST(argv[0]);
-#define unpackArray(counter, indexer) do { \
-			if (positionals->count + counter > positionals->capacity) { \
-				size_t old = positionals->capacity; \
-				positionals->capacity = positionals->count + counter; \
-				positionals->values = GROW_ARRAY(KrkValue,positionals->values,old,positionals->capacity); \
-			} \
-			for (size_t i = 0; i < counter; ++i) { \
-				positionals->values[positionals->count] = indexer; \
-				positionals->count++; \
-			} \
-		} while (0)
-	KrkValue value = argv[1];
-	//UNPACK_ARRAY();  /* This should be a macro that does all of these things. */
-	if (IS_TUPLE(value)) {
-		unpackArray(AS_TUPLE(value)->values.count, AS_TUPLE(value)->values.values[i]);
-	} else if (IS_INSTANCE(value) && AS_INSTANCE(value)->_class == vm.baseClasses.listClass) {
-		unpackArray(AS_LIST(value)->count, AS_LIST(value)->values[i]);
-	} else if (IS_INSTANCE(value) && AS_INSTANCE(value)->_class == vm.baseClasses.dictClass) {
-		unpackArray(AS_DICT(value)->count, _dict_nth_key_fast(AS_DICT(value)->capacity, AS_DICT(value)->entries, i));
-	} else if (IS_STRING(value)) {
-		unpackArray(AS_STRING(value)->codesLength, _string_get(2,(KrkValue[]){value,INTEGER_VAL(i)}));
-	} else {
-		KrkClass * type = krk_getType(argv[1]);
-		if (type->_iter) {
-			/* Create the iterator */
-			size_t stackOffset = vm.stackTop - vm.stack;
-			krk_push(argv[1]);
-			krk_push(krk_callSimple(OBJECT_VAL(type->_iter), 1, 0));
-
-			do {
-				/* Call it until it gives us itself */
-				krk_push(vm.stack[stackOffset]);
-				krk_push(krk_callSimple(krk_peek(0), 0, 1));
-				if (krk_valuesSame(vm.stack[stackOffset], krk_peek(0))) {
-					/* We're done. */
-					krk_pop(); /* The result of iteration */
-					krk_pop(); /* The iterator */
-					break;
-				}
-				_list_append(2, (KrkValue[]){argv[0], krk_peek(0)});
-				krk_pop();
-			} while (1);
-		} else {
-			return krk_runtimeError(vm.exceptions.typeError, "'%s' object is not iterable", krk_typeName(value));
-		}
-	}
-#undef unpackArray
-	return NONE_VAL();
-}
-
-static KrkValue _list_mul(int argc, KrkValue argv[]) {
-	CHECK_LIST_FAST();
-	if (!IS_INTEGER(argv[1]))
-		return krk_runtimeError(vm.exceptions.typeError, "unsupported operand types for *: '%s' and '%s'",
-			"list", krk_typeName(argv[1]));
-
-	krk_integer_type howMany = AS_INTEGER(argv[1]);
-
-	KrkValue out = krk_list_of(0, NULL);
-
-	krk_push(out);
-
-	for (krk_integer_type i = 0; i < howMany; i++) {
-		_list_extend(2, (KrkValue[]){out,argv[0]});
-	}
-
-	return krk_pop();
-}
-
-/**
- * list.__len__
- */
-static KrkValue _list_len(int argc, KrkValue argv[]) {
-	CHECK_LIST_FAST();
-	if (argc < 1) return krk_runtimeError(vm.exceptions.argumentError, "wrong number or type of arguments");
-	return INTEGER_VAL(AS_LIST(argv[0])->count);
-}
-
-/**
- * list.__contains__
- */
-static KrkValue _list_contains(int argc, KrkValue argv[]) {
-	CHECK_LIST_FAST();
-	if (argc < 2) return krk_runtimeError(vm.exceptions.argumentError, "wrong number or type of arguments");
-	for (size_t i = 0; i < AS_LIST(argv[0])->count; ++i) {
-		if (krk_valuesEqual(argv[1], AS_LIST(argv[0])->values[i])) return BOOLEAN_VAL(1);
-	}
-	return BOOLEAN_VAL(0);
-}
-
-/**
- * Exposed method called to produce lists from [expr,...] sequences in managed code.
- * Presented in the global namespace as listOf(...)
- */
-KrkValue krk_list_of(int argc, KrkValue argv[]) {
-	KrkValue outList = OBJECT_VAL(krk_newInstance(vm.baseClasses.listClass));
-	krk_push(outList);
-	krk_initValueArray(AS_LIST(outList));
-
-	if (argc) {
-		AS_LIST(outList)->capacity = argc;
-		AS_LIST(outList)->values = GROW_ARRAY(KrkValue, AS_LIST(outList)->values, 0, argc);
-		memcpy(AS_LIST(outList)->values, argv, sizeof(KrkValue) * argc);
-		AS_LIST(outList)->count = argc;
-	}
-
-	return krk_pop();
-}
-
-/**
- * Exposed method called to produce dictionaries from {expr: expr, ...} sequences in managed code.
- * Presented in the global namespace as dictOf(...). Expects arguments as key,value,key,value...
- */
-KrkValue krk_dict_of(int argc, KrkValue argv[]) {
-	if (argc % 2 != 0) return krk_runtimeError(vm.exceptions.argumentError, "Expected even number of arguments to dictOf");
-	KrkInstance * outDict = krk_newInstance(vm.baseClasses.dictClass);
-	krk_push(OBJECT_VAL(outDict));
-	krk_initTable(&((KrkDict*)outDict)->entries);
-	for (int ind = 0; ind < argc; ind += 2) {
-		krk_tableSet(&((KrkDict*)outDict)->entries, argv[ind], argv[ind+1]);
-	}
-	return krk_pop();
-}
-
-/**
- * list.__getslice__
- */
-static KrkValue _list_slice(int argc, KrkValue argv[]) {
-	CHECK_LIST_FAST();
-	if (argc < 3) return krk_runtimeError(vm.exceptions.argumentError, "slice: expected 2 arguments, got %d", argc-1);
-	if (!IS_INSTANCE(argv[0]) ||
-		!(IS_INTEGER(argv[1]) || IS_NONE(argv[1])) ||
-		!(IS_INTEGER(argv[2]) || IS_NONE(argv[2]))) {
-		return krk_runtimeError(vm.exceptions.typeError, "slice: expected two integer arguments");
-	}
-
-	int start = IS_NONE(argv[1]) ? 0 : AS_INTEGER(argv[1]);
-	int end   = IS_NONE(argv[2]) ? (int)AS_LIST(argv[0])->count : AS_INTEGER(argv[2]);
-	if (start < 0) start = (int)AS_LIST(argv[0])->count + start;
-	if (start < 0) start = 0;
-	if (end < 0) end = (int)AS_LIST(argv[0])->count + end;
-	if (start > (int)AS_LIST(argv[0])->count) start = (int)AS_LIST(argv[0])->count;
-	if (end > (int)AS_LIST(argv[0])->count) end = (int)AS_LIST(argv[0])->count;
-	if (end < start) end = start;
-	int len = end - start;
-
-	return krk_list_of(len, &AS_LIST(argv[0])->values[start]);
-}
-
-/**
- * list.pop()
- */
-static KrkValue _list_pop(int argc, KrkValue argv[]) {
-	CHECK_LIST_FAST();
-	if (!AS_LIST(argv[0])->count) return krk_runtimeError(vm.exceptions.indexError, "pop from empty list");
-	long index = AS_LIST(argv[0])->count - 1;
-	if (argc > 1) {
-		index = AS_INTEGER(argv[1]);
-	}
-	if (index < 0) index += AS_LIST(argv[0])->count;
-	if (index < 0 || index >= (long)AS_LIST(argv[0])->count) return krk_runtimeError(vm.exceptions.indexError, "list index out of range: %d", (int)index);
-	KrkValue outItem = AS_LIST(argv[0])->values[index];
-	if (index == (long)AS_LIST(argv[0])->count-1) {
-		AS_LIST(argv[0])->count--;
-		return outItem;
-	} else {
-		/* Need to move up */
-		size_t remaining = AS_LIST(argv[0])->count - index - 1;
-		memmove(&AS_LIST(argv[0])->values[index], &AS_LIST(argv[0])->values[index+1],
-			sizeof(KrkValue) * remaining);
-		AS_LIST(argv[0])->count--;
-		return outItem;
 	}
 }
 
@@ -1085,9 +650,9 @@ int krk_processComplexArguments(int argCount, KrkValueArray * positionals, KrkTa
 				} else if (IS_INSTANCE(value) && AS_INSTANCE(value)->_class == vm.baseClasses.listClass) {
 					unpackArray(AS_LIST(value)->count, AS_LIST(value)->values[i]);
 				} else if (IS_INSTANCE(value) && AS_INSTANCE(value)->_class == vm.baseClasses.dictClass) {
-					unpackArray(AS_DICT(value)->count, _dict_nth_key_fast(AS_DICT(value)->capacity, AS_DICT(value)->entries, i));
+					unpackArray(AS_DICT(value)->count, krk_dict_nth_key_fast(AS_DICT(value)->capacity, AS_DICT(value)->entries, i));
 				} else if (IS_STRING(value)) {
-					unpackArray(AS_STRING(value)->codesLength, _string_get(2,(KrkValue[]){value,INTEGER_VAL(i)}));
+					unpackArray(AS_STRING(value)->codesLength, krk_string_get(2,(KrkValue[]){value,INTEGER_VAL(i)},0));
 				} else {
 					KrkClass * type = krk_getType(value);
 					if (type->_iter) {
@@ -1530,9 +1095,9 @@ static KrkValue _exception_repr(int argc, KrkValue argv[]) {
 	} else {
 		krk_push(OBJECT_VAL(self->_class->name));
 		krk_push(OBJECT_VAL(S(": ")));
-		addObjects();
+		krk_addObjects();
 		krk_push(arg);
-		addObjects();
+		krk_addObjects();
 		return krk_pop();
 	}
 }
@@ -1559,11 +1124,11 @@ static KrkValue _syntaxerror_repr(int argc, KrkValue argv[]) {
 	if (IS_STRING(func)) {
 		krk_push(OBJECT_VAL(S(" in ")));
 		krk_push(func);
-		addObjects();
+		krk_addObjects();
 	} else {
 		krk_push(OBJECT_VAL(S("")));
 	}
-	KrkValue formattedString = _string_format(8,
+	KrkValue formattedString = krk_string_format(8,
 		(KrkValue[]){krk_peek(3), file, lineno, krk_peek(0), line, krk_peek(2), krk_peek(1), arg}, 0);
 	krk_pop(); /* instr */
 	krk_pop(); /* class */
@@ -1576,79 +1141,14 @@ _badSyntaxError:
 	return OBJECT_VAL(S("SyntaxError: invalid syntax"));
 }
 
-#define CHECK_STRING() if (unlikely(argc < 1 || !IS_STRING(argv[0]))) \
-	return krk_runtimeError(vm.exceptions.typeError, "expected str")
-
-static KrkValue _string_init(int argc, KrkValue argv[]) {
-	/* Ignore argument which would have been an instance */
-	if (argc < 2) {
-		return OBJECT_VAL(S(""));
-	}
-	if (argc > 2) return krk_runtimeError(vm.exceptions.argumentError, "str() takes 1 argument");
-	if (IS_STRING(argv[1])) return argv[1]; /* strings are immutable, so we can just return the arg */
-	/* Find the type of arg */
-	krk_push(argv[1]);
-	if (!krk_getType(argv[1])->_tostr) return krk_runtimeError(vm.exceptions.typeError, "Can not convert %s to str", krk_typeName(argv[1]));
-	return krk_callSimple(OBJECT_VAL(krk_getType(argv[1])->_tostr), 1, 0);
-}
-
-static KrkValue _string_add(int argc, KrkValue argv[]) {
-	CHECK_STRING();
-	const char * a, * b;
-	size_t al, bl;
-	int needsPop = 0;
-
-	a = AS_CSTRING(argv[0]);
-	al = AS_STRING(argv[0])->length;
-
-	if (!IS_STRING(argv[1])) {
-		KrkClass * type = krk_getType(argv[1]);
-		if (type->_tostr) {
-			krk_push(argv[1]);
-			KrkValue result = krk_callSimple(OBJECT_VAL(type->_tostr), 1, 0);
-			krk_push(result);
-			needsPop = 1;
-			if (!IS_STRING(result)) return krk_runtimeError(vm.exceptions.typeError, "__str__ produced something that was not a string: '%s'", krk_typeName(result));
-			b = AS_CSTRING(result);
-			bl = AS_STRING(result)->length;
-		} else {
-			b = krk_typeName(argv[1]);
-			bl = strlen(b);
-		}
-	} else {
-		b = AS_CSTRING(argv[1]);
-		bl = AS_STRING(argv[1])->length;
-	}
-
-	size_t length = al + bl;
-	char * chars = ALLOCATE(char, length + 1);
-	memcpy(chars, a, al);
-	memcpy(chars + al, b, bl);
-	chars[length] = '\0';
-
-	KrkString * result = krk_takeString(chars, length);
-	if (needsPop) krk_pop();
-	return OBJECT_VAL(result);
-}
-
-#define ADD_BASE_CLASS(obj, name, baseClass) do { \
-	obj = krk_newClass(S(name), baseClass); \
-	krk_attachNamedObject(&vm.builtins->fields, name, (KrkObj*)obj); \
-} while (0)
-
 #define ADD_EXCEPTION_CLASS(obj, name, baseClass) do { \
 	obj = krk_newClass(S(name), baseClass); \
 	krk_attachNamedObject(&vm.builtins->fields, name, (KrkObj*)obj); \
 	krk_finalizeClass(obj); \
 } while (0)
 
-#define BUILTIN_FUNCTION(name, func, docStr) do { \
-	krk_defineNative(&vm.builtins->fields, name, func)->doc = docStr; \
-} while (0)
-
-
 /** native method that returns its first arg; useful for int(INT), etc. */
-static KrkValue _noop(int argc, KrkValue argv[]) {
+KrkValue _noop(int argc, KrkValue argv[]) {
 	return argv[0];
 }
 
@@ -1668,16 +1168,6 @@ static KrkValue _int_to_char(int argc, KrkValue argv[]) {
 	unsigned char bytes[5] = {0};
 	size_t len = krk_codepointToBytes(value, bytes);
 	return OBJECT_VAL(krk_copyString((char*)bytes,len));
-}
-
-/* str.__ord__() */
-static KrkValue _string_ord(int argc, KrkValue argv[]) {
-	CHECK_STRING();
-	if (AS_STRING(argv[0])->codesLength != 1)
-		return krk_runtimeError(vm.exceptions.typeError, "ord() expected a character, but string of length %d found",
-			AS_STRING(argv[0])->codesLength);
-
-	return INTEGER_VAL(krk_unicodeCodepoint(AS_STRING(argv[0]),0));
 }
 
 static KrkValue _print(int argc, KrkValue argv[], int hasKw) {
@@ -1714,925 +1204,23 @@ static KrkValue _print(int argc, KrkValue argv[], int hasKw) {
 	return NONE_VAL();
 }
 
-/* str.__len__() */
-static KrkValue _string_len(int argc, KrkValue argv[]) {
-	if (argc != 1 || !IS_STRING(argv[0])) return krk_runtimeError(vm.exceptions.attributeError,"Unexpected arguments to str.__len__()");
-	return INTEGER_VAL(AS_STRING(argv[0])->codesLength);
-}
-
-/* str.__set__(ind,val) - this is invalid, throw a nicer error than 'field does not exist'. */
-static KrkValue _strings_are_immutable(int argc, KrkValue argv[]) {
-	return krk_runtimeError(vm.exceptions.typeError, "Strings are not mutable.");
-}
-
-/**
- * str.__getslice__(start,end)
- *
- * Unlike in Python, we actually handle negative values here rather than
- * somewhere else? I'm not even sure where Python does do it, but a quick
- * says not if you call __getslice__ directly...
- */
-static KrkValue _string_getslice(int argc, KrkValue argv[]) {
-	if (argc < 3) return krk_runtimeError(vm.exceptions.argumentError, "slice: expected 2 arguments, got %d", argc-1);
-	if (!IS_STRING(argv[0]) ||
-		!(IS_INTEGER(argv[1]) || IS_NONE(argv[1])) ||
-		!(IS_INTEGER(argv[2]) || IS_NONE(argv[2])))
-		return krk_runtimeError(vm.exceptions.typeError, "slice: expected two integer arguments");
-	/* bounds check */
-	KrkString * me = AS_STRING(argv[0]);
-	long start = IS_NONE(argv[1]) ? 0 : AS_INTEGER(argv[1]);
-	long end   = IS_NONE(argv[2]) ? (long)me->codesLength : AS_INTEGER(argv[2]);
-	if (start < 0) start = me->codesLength + start;
-	if (start < 0) start = 0;
-	if (end < 0) end = me->codesLength + end;
-	if (start > (long)me->codesLength) start = me->codesLength;
-	if (end > (long)me->codesLength) end = me->codesLength;
-	if (end < start) end = start;
-	long len = end - start;
-	if (me->type == KRK_STRING_ASCII) {
-		return OBJECT_VAL(krk_copyString(me->chars + start, len));
-	} else {
-		size_t offset = 0;
-		size_t length = 0;
-		/* Figure out where the UTF8 for this string starts. */
-		krk_unicodeString(me);
-		for (long i = 0; i < start; ++i) {
-			uint32_t cp = KRK_STRING_FAST(me,i);
-			offset += CODEPOINT_BYTES(cp);
-		}
-		for (long i = start; i < end; ++i) {
-			uint32_t cp = KRK_STRING_FAST(me,i);
-			length += CODEPOINT_BYTES(cp);
-		}
-		return OBJECT_VAL(krk_copyString(me->chars + offset, length));
-	}
-}
-
-/* str.__int__(base=10) */
-static KrkValue _string_int(int argc, KrkValue argv[]) {
-	if (argc < 1 || argc > 2 || !IS_STRING(argv[0])) return NONE_VAL();
-	int base = (argc == 1) ? 10 : (int)AS_INTEGER(argv[1]);
-	char * start = AS_CSTRING(argv[0]);
-
-	/*  These special cases for hexadecimal, binary, octal values. */
-	if (start[0] == '0' && (start[1] == 'x' || start[1] == 'X')) {
-		base = 16;
-		start += 2;
-	} else if (start[0] == '0' && (start[1] == 'b' || start[1] == 'B')) {
-		base = 2;
-		start += 2;
-	} else if (start[0] == '0' && (start[1] == 'o' || start[1] == 'O')) {
-		base = 8;
-		start += 2;
-	}
-	krk_integer_type value = parseStrInt(start, NULL, base);
-	return INTEGER_VAL(value);
-}
-
-/* str.__float__() */
-static KrkValue _string_float(int argc, KrkValue argv[]) {
-	if (argc != 1 || !IS_STRING(argv[0])) return NONE_VAL();
-	return FLOATING_VAL(strtod(AS_CSTRING(argv[0]),NULL));
-}
-
-static KrkValue _float_init(int argc, KrkValue argv[]) {
-	if (argc < 1) return FLOATING_VAL(0.0);
-	if (argc > 2) return krk_runtimeError(vm.exceptions.argumentError, "float() takes at most 1 argument");
-	if (IS_STRING(argv[1])) return _string_float(1,&argv[1]);
-	if (IS_FLOATING(argv[1])) return argv[1];
-	if (IS_INTEGER(argv[1])) return FLOATING_VAL(AS_INTEGER(argv[1]));
-	if (IS_BOOLEAN(argv[1])) return FLOATING_VAL(AS_BOOLEAN(argv[1]));
-	return krk_runtimeError(vm.exceptions.typeError, "float() argument must be a string or a number, not '%s'", krk_typeName(argv[1]));
-}
-
-/* str.__get__(index) */
-static KrkValue _string_get(int argc, KrkValue argv[]) {
-	if (argc != 2) return krk_runtimeError(vm.exceptions.argumentError, "Wrong number of arguments to String.__get__");
-	if (!IS_STRING(argv[0])) return krk_runtimeError(vm.exceptions.typeError, "First argument to __get__ must be String");
-	if (!IS_INTEGER(argv[1])) return krk_runtimeError(vm.exceptions.typeError, "String can not indexed by %s", krk_typeName(argv[1]));
-	KrkString * me = AS_STRING(argv[0]);
-	int asInt = AS_INTEGER(argv[1]);
-	if (asInt < 0) asInt += (int)AS_STRING(argv[0])->codesLength;
-	if (asInt < 0 || asInt >= (int)AS_STRING(argv[0])->codesLength) {
-		return krk_runtimeError(vm.exceptions.indexError, "String index out of range: %d", asInt);
-	}
-	if (me->type == KRK_STRING_ASCII) {
-		return OBJECT_VAL(krk_copyString(me->chars + asInt, 1));
-	} else {
-		size_t offset = 0;
-		size_t length = 0;
-		/* Figure out where the UTF8 for this string starts. */
-		krk_unicodeString(me);
-		for (long i = 0; i < asInt; ++i) {
-			uint32_t cp = KRK_STRING_FAST(me,i);
-			offset += CODEPOINT_BYTES(cp);
-		}
-		uint32_t cp = KRK_STRING_FAST(me,asInt);
-		length = CODEPOINT_BYTES(cp);
-		return OBJECT_VAL(krk_copyString(me->chars + offset, length));
-	}
-}
-
-#define PUSH_CHAR(c) do { if (stringCapacity < stringLength + 1) { \
-		size_t old = stringCapacity; stringCapacity = GROW_CAPACITY(old); \
-		stringBytes = GROW_ARRAY(char, stringBytes, old, stringCapacity); \
-	} stringBytes[stringLength++] = c; } while (0)
-#define AT_END() (self->length == 0 || i == self->length - 1)
-
-/* str.format(**kwargs) */
-static KrkValue _string_format(int argc, KrkValue argv[], int hasKw) {
-	CHECK_STRING();
-	if (AS_STRING(argv[0])->type != KRK_STRING_ASCII) {
-		return krk_runtimeError(vm.exceptions.notImplementedError, "Unable to call .format() on non-ASCII string.");
-	}
-	KrkString * self = AS_STRING(argv[0]);
-	KrkValue kwargs = NONE_VAL();
-	if (hasKw) {
-		kwargs = argv[argc];
-	}
-
-	/* Read through `self` until we find a field specifier. */
-	size_t stringCapacity = 0;
-	size_t stringLength   = 0;
-	char * stringBytes    = 0;
-
-	int counterOffset = 0;
-	char * erroneousField = NULL;
-	int erroneousIndex = -1;
-	const char * errorStr = "";
-
-	char * workSpace = strdup(self->chars);
-	char * c = workSpace;
-	for (size_t i = 0; i < self->length; i++, c++) {
-		if (*c == '{') {
-			if (!AT_END() && c[1] == '{') {
-				PUSH_CHAR('{');
-				i++; c++; /* Skip both */
-				continue;
-			} else {
-				/* Start field specifier */
-				i++; c++; /* Skip the { */
-				char * fieldStart = c;
-				char * fieldStop = NULL;
-				for (; i < self->length; i++, c++) {
-					if (*c == '}') {
-						fieldStop = c;
-						break;
-					}
-				}
-				if (!fieldStop) {
-					errorStr = "Unclosed { found.";
-					goto _formatError;
-				}
-				size_t fieldLength = fieldStop - fieldStart;
-				*fieldStop = '\0';
-				/* fieldStart is now a nice little C string... */
-				int isDigits = 1;
-				for (char * field = fieldStart; *field; ++field) {
-					if (!(*field >= '0' && *field <= '9')) {
-						isDigits = 0;
-						break;
-					}
-				}
-				KrkValue value;
-				if (isDigits) {
-					/* Must be positional */
-					int positionalOffset;
-					if (fieldLength == 0) {
-						positionalOffset = counterOffset++;
-					} else if (counterOffset) {
-						goto _formatSwitchedNumbering;
-					} else {
-						positionalOffset = atoi(fieldStart);
-					}
-					if (positionalOffset >= argc - 1) {
-						erroneousIndex = positionalOffset;
-						goto _formatOutOfRange;
-					}
-					value = argv[1 + positionalOffset];
-				} else if (hasKw) {
-					KrkValue fieldAsString = OBJECT_VAL(krk_copyString(fieldStart, fieldLength));
-					krk_push(fieldAsString);
-					if (!krk_tableGet(AS_DICT(kwargs), fieldAsString, &value)) {
-						erroneousField = fieldStart;
-						goto _formatKeyError;
-					}
-					krk_pop(); /* fieldAsString */
-				} else {
-					erroneousField = fieldStart;
-					goto _formatKeyError;
-				}
-				KrkValue asString;
-				if (IS_STRING(value)) {
-					asString = value;
-				} else {
-					krk_push(value);
-					KrkClass * type = krk_getType(value);
-					if (type->_tostr) {
-						asString = krk_callSimple(OBJECT_VAL(type->_tostr), 1, 0);
-					} else {
-						if (!krk_bindMethod(type, AS_STRING(vm.specialMethodNames[METHOD_STR]))) {
-							errorStr = "Failed to convert field to string.";
-							goto _formatError;
-						}
-						asString = krk_callSimple(krk_peek(0), 0, 1);
-					}
-					if (!IS_STRING(asString)) goto _freeAndDone;
-				}
-				krk_push(asString);
-				for (size_t i = 0; i < AS_STRING(asString)->length; ++i) {
-					PUSH_CHAR(AS_CSTRING(asString)[i]);
-				}
-				krk_pop();
-			}
-		} else if (*c == '}') {
-			if (!AT_END() && c[1] == '}') {
-				PUSH_CHAR('}');
-				i++; c++; /* Skip both */
-				continue;
-			} else {
-				errorStr = "Single } found.";
-				goto _formatError;
-			}
-		} else {
-			PUSH_CHAR(*c);
-		}
-	}
-
-	KrkValue out = OBJECT_VAL(krk_copyString(stringBytes, stringLength));
-	free(workSpace);
-	FREE_ARRAY(char,stringBytes,stringCapacity);
-	return out;
-
-_formatError:
-	krk_runtimeError(vm.exceptions.typeError, "Error parsing format string: %s", errorStr);
-	goto _freeAndDone;
-
-_formatSwitchedNumbering:
-	krk_runtimeError(vm.exceptions.valueError, "Can not switch from automatic indexing to manual indexing");
-	goto _freeAndDone;
-
-_formatOutOfRange:
-	krk_runtimeError(vm.exceptions.indexError, "Positional index out of range: %d", erroneousIndex);
-	goto _freeAndDone;
-
-_formatKeyError:
-	/* which one? */
-	krk_runtimeError(vm.exceptions.keyError, "'%s'", erroneousField);
-	goto _freeAndDone;
-
-_freeAndDone:
-	FREE_ARRAY(char,stringBytes,stringCapacity);
-	free(workSpace);
-	return NONE_VAL();
-}
-
-static KrkValue _string_mul(int argc, KrkValue argv[]) {
-	CHECK_STRING();
-	if (!IS_INTEGER(argv[1])) {
-		return krk_runtimeError(vm.exceptions.typeError, "unsupported operand types for *: '%s' and '%s'",
-			"list", krk_typeName(argv[1]));
-	}
-
-	krk_integer_type howMany = AS_INTEGER(argv[1]);
-
-	krk_push(OBJECT_VAL(S("")));
-
-	for (krk_integer_type i = 0; i < howMany; ++i) {
-		krk_push(argv[0]);
-		addObjects();
-	}
-
-	return krk_pop();
-}
-
-/* str.join(list) */
-static KrkValue _string_join(int argc, KrkValue argv[], int hasKw) {
-	CHECK_STRING();
-	KrkString * self = AS_STRING(argv[0]);
-	if (hasKw) return krk_runtimeError(vm.exceptions.argumentError, "str.join() does not take keyword arguments");
-	if (argc < 2) return krk_runtimeError(vm.exceptions.argumentError, "str.join(): expected exactly one argument");
-
-	/* TODO fix this to use unpackArray and support other things than lists */
-	if (!IS_INSTANCE(argv[1])) return krk_runtimeError(vm.exceptions.typeError, "str.join(): expected a list");
-
-	const char * errorStr = NULL;
-
-	size_t stringCapacity = 0;
-	size_t stringLength   = 0;
-	char * stringBytes    = 0;
-
-	for (size_t i = 0; i < AS_LIST(argv[1])->count; ++i) {
-		KrkValue value = AS_LIST(argv[1])->values[i];
-		if (!IS_STRING(AS_LIST(argv[1])->values[i])) {
-			errorStr = krk_typeName(value);
-			goto _expectedString;
-		}
-		krk_push(value);
-		if (i > 0) {
-			for (size_t j = 0; j < self->length; ++j) {
-				PUSH_CHAR(self->chars[j]);
-			}
-		}
-		for (size_t j = 0; j < AS_STRING(value)->length; ++j) {
-			PUSH_CHAR(AS_STRING(value)->chars[j]);
-		}
-		krk_pop();
-	}
-
-	KrkValue out = OBJECT_VAL(krk_copyString(stringBytes, stringLength));
-	FREE_ARRAY(char,stringBytes,stringCapacity);
-	return out;
-
-_expectedString:
-	krk_runtimeError(vm.exceptions.typeError, "Expected string, got %s.", errorStr);
-	FREE_ARRAY(char,stringBytes,stringCapacity);
-	return NONE_VAL();
-}
-
-static int isWhitespace(char c) {
-	return (c == ' ' || c == '\t' || c == '\n' || c == '\r');
-}
-
-static int substringMatch(const char * haystack, size_t haystackLen, const char * needle, size_t needleLength) {
-	if (haystackLen < needleLength) return 0;
-	for (size_t i = 0; i < needleLength; ++i) {
-		if (haystack[i] != needle[i]) return 0;
-	}
-	return 1;
-}
-
-/* str.__contains__ */
-static KrkValue _string_contains(int argc, KrkValue argv[]) {
-	if (argc < 2) return krk_runtimeError(vm.exceptions.argumentError, "__contains__ expects an argument");
-	if (!IS_STRING(argv[0]) || !IS_STRING(argv[1])) return BOOLEAN_VAL(0);
-	for (size_t i = 0; i < AS_STRING(argv[0])->length; ++i) {
-		if (substringMatch(AS_CSTRING(argv[0]) + i, AS_STRING(argv[0])->length - i, AS_CSTRING(argv[1]), AS_STRING(argv[1])->length)) {
-			return BOOLEAN_VAL(1);
-		}
-	}
-	return BOOLEAN_VAL(0);
-}
-
-static int charIn(char c, const char * str) {
-	for (const char * s = str; *s; s++) {
-		if (c == *s) return 1;
-	}
-	return 0;
-}
-
-/**
- * Implements all three of strip, lstrip, rstrip.
- * Set which = 0, 1, 2 respectively
- */
-static KrkValue _string_strip_shared(int argc, KrkValue argv[], int which) {
-	CHECK_STRING();
-	if (argc > 1 && IS_STRING(argv[1]) && AS_STRING(argv[1])->type != KRK_STRING_ASCII) {
-		return krk_runtimeError(vm.exceptions.notImplementedError, "str.strip() not implemented for Unicode strip lists");
-	}
-	size_t start = 0;
-	size_t end   = AS_STRING(argv[0])->length;
-	const char * subset = " \t\n\r";
-	if (argc > 1) {
-		if (IS_STRING(argv[1])) {
-			subset = AS_CSTRING(argv[1]);
-		} else {
-			return krk_runtimeError(vm.exceptions.typeError, "argument to %sstrip() should be a string",
-				(which == 0 ? "" : (which == 1 ? "l" : "r")));
-		}
-	} else if (argc > 2) {
-		return krk_runtimeError(vm.exceptions.typeError, "%sstrip() takes at most one argument",
-			(which == 0 ? "" : (which == 1 ? "l" : "r")));
-	}
-	if (which < 2) while (start < end && charIn(AS_CSTRING(argv[0])[start], subset)) start++;
-	if (which != 1) while (end > start && charIn(AS_CSTRING(argv[0])[end-1], subset)) end--;
-	return OBJECT_VAL(krk_copyString(&AS_CSTRING(argv[0])[start], end-start));
-}
-
-static KrkValue _string_strip(int argc, KrkValue argv[]) {
-	return _string_strip_shared(argc,argv,0);
-}
-
-static KrkValue _string_lstrip(int argc, KrkValue argv[]) {
-	return _string_strip_shared(argc,argv,1);
-}
-
-static KrkValue _string_rstrip(int argc, KrkValue argv[]) {
-	return _string_strip_shared(argc,argv,2);
-}
-
-static KrkValue _string_lt(int argc, KrkValue argv[]) {
-	CHECK_STRING();
-	if (argc < 2 || !IS_STRING(argv[1])) {
-		return KWARGS_VAL(0); /* represents 'not implemented' */
-	}
-
-	size_t aLen = AS_STRING(argv[0])->length;
-	size_t bLen = AS_STRING(argv[1])->length;
-	const char * a = AS_CSTRING(argv[0]);
-	const char * b = AS_CSTRING(argv[1]);
-
-	for (size_t i = 0; i < (aLen < bLen) ? aLen : bLen; i++) {
-		if (a[i] < b[i]) return BOOLEAN_VAL(1);
-		if (a[i] > b[i]) return BOOLEAN_VAL(0);
-	}
-
-	return BOOLEAN_VAL((aLen < bLen));
-}
-
-static KrkValue _string_gt(int argc, KrkValue argv[]) {
-	CHECK_STRING();
-	if (argc < 2 || !IS_STRING(argv[1])) {
-		return KWARGS_VAL(0); /* represents 'not implemented' */
-	}
-
-	size_t aLen = AS_STRING(argv[0])->length;
-	size_t bLen = AS_STRING(argv[1])->length;
-	const char * a = AS_CSTRING(argv[0]);
-	const char * b = AS_CSTRING(argv[1]);
-
-	for (size_t i = 0; i < (aLen < bLen) ? aLen : bLen; i++) {
-		if (a[i] < b[i]) return BOOLEAN_VAL(0);
-		if (a[i] > b[i]) return BOOLEAN_VAL(1);
-	}
-
-	return BOOLEAN_VAL((aLen > bLen));
-}
-
-/** TODO but throw a more descriptive error for now */
-static KrkValue _string_mod(int argc, KrkValue argv[]) {
-	return krk_runtimeError(vm.exceptions.notImplementedError, "%%-formatting for strings is not yet available");
-}
-
-/* str.split() */
-static KrkValue _string_split(int argc, KrkValue argv[], int hasKw) {
-	CHECK_STRING();
-	KrkString * self = AS_STRING(argv[0]);
-	if (argc > 1) {
-		if (!IS_STRING(argv[1])) {
-			return krk_runtimeError(vm.exceptions.typeError, "Expected separator to be a string");
-		} else if (AS_STRING(argv[1])->length == 0) {
-			return krk_runtimeError(vm.exceptions.valueError, "Empty separator");
-		}
-		if (argc > 2 && !IS_INTEGER(argv[2])) {
-			return krk_runtimeError(vm.exceptions.typeError, "Expected maxsplit to be an integer.");
-		} else if (argc > 2 && AS_INTEGER(argv[2]) == 0) {
-			return argv[0];
-		}
-	}
-
-	KrkValue myList = krk_list_of(0,NULL);
-	krk_push(myList);
-
-	size_t i = 0;
-	char * c = self->chars;
-	size_t count = 0;
-
-	if (argc < 2) {
-		while (i != self->length) {
-			while (i != self->length && isWhitespace(*c)) {
-				i++; c++;
-			}
-			if (i != self->length) {
-				size_t stringCapacity = 0;
-				size_t stringLength   = 0;
-				char * stringBytes    = NULL;
-				while (i != self->length && !isWhitespace(*c)) {
-					PUSH_CHAR(*c);
-					i++; c++;
-				}
-				KrkValue tmp = OBJECT_VAL(krk_copyString(stringBytes, stringLength));
-				FREE_ARRAY(char,stringBytes,stringCapacity);
-				krk_push(tmp);
-				krk_writeValueArray(AS_LIST(myList), tmp);
-				krk_pop();
-				#if 0
-				/* Need to parse kwargs to support this */
-				if (argc > 2 && i != self->length && count >= (size_t)AS_INTEGER(argv[2])) {
-					size_t stringCapacity = 0;
-					size_t stringLength   = 0;
-					char * stringBytes    = NULL;
-					while (i != self->length) {
-						PUSH_CHAR(*c);
-						i++; c++;
-					}
-					krk_writeValueArray(AS_LIST(myList), OBJECT_VAL(krk_copyString(stringBytes, stringLength)));
-					if (stringBytes) FREE_ARRAY(char,stringBytes,stringCapacity);
-					break;
-				}
-				#endif
-			}
-		}
-	} else {
-		while (i != self->length) {
-			size_t stringCapacity = 0;
-			size_t stringLength   = 0;
-			char * stringBytes    = NULL;
-			while (i != self->length && !substringMatch(c, self->length - i, AS_STRING(argv[1])->chars, AS_STRING(argv[1])->length)) {
-				PUSH_CHAR(*c);
-				i++; c++;
-			}
-			KrkValue tmp = OBJECT_VAL(krk_copyString(stringBytes, stringLength));
-			if (stringBytes) FREE_ARRAY(char,stringBytes,stringCapacity);
-			krk_push(tmp);
-			krk_writeValueArray(AS_LIST(myList), tmp);
-			krk_pop();
-			if (substringMatch(c, self->length - i, AS_STRING(argv[1])->chars, AS_STRING(argv[1])->length)) {
-				i += AS_STRING(argv[1])->length;
-				c += AS_STRING(argv[1])->length;
-				count++;
-				if (argc > 2 && count == (size_t)AS_INTEGER(argv[2])) {
-					size_t stringCapacity = 0;
-					size_t stringLength   = 0;
-					char * stringBytes    = NULL;
-					while (i != self->length) {
-						PUSH_CHAR(*c);
-						i++; c++;
-					}
-					KrkValue tmp = OBJECT_VAL(krk_copyString(stringBytes, stringLength));
-					if (stringBytes) FREE_ARRAY(char,stringBytes,stringCapacity);
-					krk_push(tmp);
-					krk_writeValueArray(AS_LIST(myList), tmp);
-					krk_pop();
-					break;
-				}
-				if (i == self->length) {
-					KrkValue tmp = OBJECT_VAL(S(""));
-					krk_push(tmp);
-					krk_writeValueArray(AS_LIST(myList), tmp);
-					krk_pop();
-				}
-			}
-		}
-	}
-
-	krk_pop();
-	return myList;
-}
-
-/**
- * str.__repr__()
- *
- * Strings are special because __str__ should do nothing but __repr__
- * should escape characters like quotes.
- */
-static KrkValue _string_repr(int argc, KrkValue argv[]) {
-	CHECK_STRING();
-	size_t stringCapacity = 0;
-	size_t stringLength   = 0;
-	char * stringBytes    = NULL;
-
-	char * end = AS_CSTRING(argv[0]) + AS_STRING(argv[0])->length;
-
-	/* First count quotes */
-	size_t singles = 0;
-	size_t doubles = 0;
-	for (char * c = AS_CSTRING(argv[0]); c < end; ++c) {
-		if (*c == '\'') singles++;
-		if (*c == '\"') doubles++;
-	}
-
-	char quote = (singles > doubles) ? '\"' : '\'';
-
-	PUSH_CHAR(quote);
-
-	for (char * c = AS_CSTRING(argv[0]); c < end; ++c) {
-		switch (*c) {
-			/* XXX: Other non-printables should probably be escaped as well. */
-			case '\\': PUSH_CHAR('\\'); PUSH_CHAR('\\'); break;
-			case '\'': if (quote == *c) { PUSH_CHAR('\\'); } PUSH_CHAR('\''); break;
-			case '\"': if (quote == *c) { PUSH_CHAR('\\'); } PUSH_CHAR('\"'); break;
-			case '\a': PUSH_CHAR('\\'); PUSH_CHAR('a'); break;
-			case '\b': PUSH_CHAR('\\'); PUSH_CHAR('b'); break;
-			case '\f': PUSH_CHAR('\\'); PUSH_CHAR('f'); break;
-			case '\n': PUSH_CHAR('\\'); PUSH_CHAR('n'); break;
-			case '\r': PUSH_CHAR('\\'); PUSH_CHAR('r'); break;
-			case '\t': PUSH_CHAR('\\'); PUSH_CHAR('t'); break;
-			case '\v': PUSH_CHAR('\\'); PUSH_CHAR('v'); break;
-			case 27:   PUSH_CHAR('\\'); PUSH_CHAR('['); break;
-			default: {
-				if ((unsigned char)*c < ' ' || (unsigned char)*c == 0x7F) {
-					PUSH_CHAR('\\');
-					PUSH_CHAR('x');
-					char hex[3];
-					sprintf(hex,"%02x", (unsigned char)*c);
-					PUSH_CHAR(hex[0]);
-					PUSH_CHAR(hex[1]);
-				} else {
-					PUSH_CHAR(*c);
-				}
-				break;
-			}
-		}
-	}
-
-	PUSH_CHAR(quote);
-	KrkValue tmp = OBJECT_VAL(krk_copyString(stringBytes, stringLength));
-	if (stringBytes) FREE_ARRAY(char,stringBytes,stringCapacity);
-	return tmp;
-}
-
-static KrkValue _string_encode(int argc, KrkValue argv[]) {
-	CHECK_STRING();
-	return OBJECT_VAL(krk_newBytes(AS_STRING(argv[0])->length, (uint8_t*)AS_CSTRING(argv[0])));
-}
-
-static KrkValue _bytes_init(int argc, KrkValue argv[]) {
-	if (argc == 1) {
-		return OBJECT_VAL(krk_newBytes(0,NULL));
-	}
-
-	if (IS_TUPLE(argv[1])) {
-		KrkBytes * out = krk_newBytes(AS_TUPLE(argv[1])->values.count, NULL);
-		krk_push(OBJECT_VAL(out));
-		for (size_t i = 0; i < AS_TUPLE(argv[1])->values.count; ++i) {
-			if (!IS_INTEGER(AS_TUPLE(argv[1])->values.values[i])) {
-				return krk_runtimeError(vm.exceptions.typeError, "bytes(): expected tuple of ints, not of '%s'", krk_typeName(AS_TUPLE(argv[1])->values.values[i]));
-			}
-			out->bytes[i] = AS_INTEGER(AS_TUPLE(argv[1])->values.values[i]);
-		}
-		krk_bytesUpdateHash(out);
-		return krk_pop();
-	}
-
-	return krk_runtimeError(vm.exceptions.typeError, "Can not convert '%s' to bytes", krk_typeName(argv[1]));
-}
-
-/* bytes objects are not interned; need to do this the old-fashioned way. */
-static KrkValue _bytes_eq(int argc, KrkValue argv[]) {
-	if (!IS_BYTES(argv[1])) return BOOLEAN_VAL(0);
-	KrkBytes * self = AS_BYTES(argv[0]);
-	KrkBytes * them = AS_BYTES(argv[1]);
-	if (self->length != them->length) return BOOLEAN_VAL(0);
-	if (self->hash != them->hash) return BOOLEAN_VAL(0);
-	for (size_t i = 0; i < self->length; ++i) {
-		if (self->bytes[i] != them->bytes[i]) return BOOLEAN_VAL(0);
-	}
-	return BOOLEAN_VAL(1);
-}
-
-static KrkValue _bytes_repr(int argc, KrkValue argv[]) {
-	size_t stringCapacity = 0;
-	size_t stringLength   = 0;
-	char * stringBytes    = NULL;
-
-	PUSH_CHAR('b');
-	PUSH_CHAR('\'');
-
-	for (size_t i = 0; i < AS_BYTES(argv[0])->length; ++i) {
-		uint8_t ch = AS_BYTES(argv[0])->bytes[i];
-		switch (ch) {
-			case '\\': PUSH_CHAR('\\'); PUSH_CHAR('\\'); break;
-			case '\'': PUSH_CHAR('\\'); PUSH_CHAR('\''); break;
-			case '\a': PUSH_CHAR('\\'); PUSH_CHAR('a'); break;
-			case '\b': PUSH_CHAR('\\'); PUSH_CHAR('b'); break;
-			case '\f': PUSH_CHAR('\\'); PUSH_CHAR('f'); break;
-			case '\n': PUSH_CHAR('\\'); PUSH_CHAR('n'); break;
-			case '\r': PUSH_CHAR('\\'); PUSH_CHAR('r'); break;
-			case '\t': PUSH_CHAR('\\'); PUSH_CHAR('t'); break;
-			case '\v': PUSH_CHAR('\\'); PUSH_CHAR('v'); break;
-			default: {
-				if (ch < ' ' || ch >= 0x7F) {
-					PUSH_CHAR('\\');
-					PUSH_CHAR('x');
-					char hex[3];
-					sprintf(hex,"%02x", ch);
-					PUSH_CHAR(hex[0]);
-					PUSH_CHAR(hex[1]);
-				} else {
-					PUSH_CHAR(ch);
-				}
-				break;
-			}
-		}
-	}
-
-	PUSH_CHAR('\'');
-
-	KrkValue tmp = OBJECT_VAL(krk_copyString(stringBytes, stringLength));
-	if (stringBytes) FREE_ARRAY(char,stringBytes,stringCapacity);
-	return tmp;
-}
-
-static KrkValue _bytes_get(int argc, KrkValue argv[]) {
-	if (argc < 2) return krk_runtimeError(vm.exceptions.argumentError, "bytes.__get__(): expected one argument");
-	KrkBytes * self = AS_BYTES(argv[0]);
-	long asInt = AS_INTEGER(argv[1]);
-
-	if (asInt < 0) asInt += (long)self->length;
-	if (asInt < 0 || asInt >= (long)self->length) {
-		return krk_runtimeError(vm.exceptions.indexError, "bytes index out of range: %ld", asInt);
-	}
-
-	return INTEGER_VAL(self->bytes[asInt]);
-}
-
-static KrkValue _bytes_len(int argc, KrkValue argv[]) {
-	return INTEGER_VAL(AS_BYTES(argv[0])->length);
-}
-
-static KrkValue _bytes_contains(int argc, KrkValue argv[]) {
-	if (argc < 2) krk_runtimeError(vm.exceptions.argumentError, "bytes.__contains__(): expected one argument");
-	return krk_runtimeError(vm.exceptions.notImplementedError, "not implemented");
-}
-
-static KrkValue _bytes_decode(int argc, KrkValue argv[]) {
-	/* TODO: Actually bother checking if this explodes, or support other encodings... */
-	return OBJECT_VAL(krk_copyString((char*)AS_BYTES(argv[0])->bytes, AS_BYTES(argv[0])->length));
-}
-
-#undef PUSH_CHAR
-
 static KrkValue _int_init(int argc, KrkValue argv[]) {
 	if (argc < 2) return INTEGER_VAL(0);
 	if (IS_INTEGER(argv[1])) return argv[1];
-	if (IS_STRING(argv[1])) return _string_int(argc-1,&argv[1]);
+	if (IS_STRING(argv[1])) return krk_string_int(argc-1,&argv[1],0);
 	if (IS_FLOATING(argv[1])) return INTEGER_VAL(AS_FLOATING(argv[1]));
 	if (IS_BOOLEAN(argv[1])) return INTEGER_VAL(AS_BOOLEAN(argv[1]));
 	return krk_runtimeError(vm.exceptions.typeError, "int() argument must be a string or a number, not '%s'", krk_typeName(argv[1]));
 }
 
-/* function.__doc__ */
-static KrkValue _closure_get_doc(int argc, KrkValue argv[]) {
-	if (IS_NATIVE(argv[0]) && AS_NATIVE(argv[0])->doc) {
-		return OBJECT_VAL(krk_copyString(AS_NATIVE(argv[0])->doc, strlen(AS_NATIVE(argv[0])->doc)));
-	} else if (IS_CLOSURE(argv[0]) && AS_CLOSURE(argv[0])->function->docstring) {
-		return  OBJECT_VAL(AS_CLOSURE(argv[0])->function->docstring);
-	} else {
-		return NONE_VAL();
-	}
-}
-
-/* method.__doc__ */
-static KrkValue _bound_get_doc(int argc, KrkValue argv[]) {
-	KrkBoundMethod * boundMethod = AS_BOUND_METHOD(argv[0]);
-	return _closure_get_doc(1, (KrkValue[]){OBJECT_VAL(boundMethod->method)});
-}
-
-/* Check for and return the name of a native function as a string object */
-static KrkValue nativeFunctionName(KrkValue func) {
-	const char * string = ((KrkNative*)AS_OBJECT(func))->name;
-	size_t len = strlen(string);
-	return OBJECT_VAL(krk_copyString(string,len));
-}
-
-/* function.__name__ */
-static KrkValue _closure_get_name(int argc, KrkValue argv[]) {
-	if (!IS_CLOSURE(argv[0])) return nativeFunctionName(argv[0]);
-	return AS_CLOSURE(argv[0])->function->name ? OBJECT_VAL(AS_CLOSURE(argv[0])->function->name) : OBJECT_VAL(S(""));
-}
-
-/* method.__name__ */
-static KrkValue _bound_get_name(int argc, KrkValue argv[]) {
-	KrkBoundMethod * boundMethod = AS_BOUND_METHOD(argv[0]);
-	return _closure_get_name(1, (KrkValue[]){OBJECT_VAL(boundMethod->method)});
-}
-
-/* function.__str__ / function.__repr__ */
-static KrkValue _closure_str(int argc, KrkValue argv[]) {
-	KrkValue s = _closure_get_name(argc, argv);
-	krk_push(s);
-
-	size_t len = AS_STRING(s)->length + sizeof("<function >");
-	char * tmp = malloc(len);
-	sprintf(tmp, "<function %s>", AS_CSTRING(s));
-	s = OBJECT_VAL(krk_copyString(tmp,len-1));
-	free(tmp);
-	krk_pop();
-	return s;
-}
-
-/* method.__str__ / method.__repr__ */
-static KrkValue _bound_str(int argc, KrkValue argv[]) {
-	KrkValue s = _bound_get_name(argc, argv);
-	krk_push(s);
-
-	const char * typeName = krk_typeName(AS_BOUND_METHOD(argv[0])->receiver);
-
-	size_t len = AS_STRING(s)->length + sizeof("<method >") + strlen(typeName) + 1;
-	char * tmp = malloc(len);
-	sprintf(tmp, "<method %s.%s>", typeName, AS_CSTRING(s));
-	s = OBJECT_VAL(krk_copyString(tmp,len-1));
-	free(tmp);
-	krk_pop();
-	return s;
-}
-
-/* function.__file__ */
-static KrkValue _closure_get_file(int argc, KrkValue argv[]) {
-	if (!IS_CLOSURE(argv[0])) return OBJECT_VAL(S("<builtin>"));
-	return AS_CLOSURE(argv[0])->function->chunk.filename ? OBJECT_VAL(AS_CLOSURE(argv[0])->function->chunk.filename) : OBJECT_VAL(S(""));
-}
-
-/* method.__file__ */
-static KrkValue _bound_get_file(int argc, KrkValue argv[]) {
-	KrkBoundMethod * boundMethod = AS_BOUND_METHOD(argv[0]);
-	return _closure_get_file(1, (KrkValue[]){OBJECT_VAL(boundMethod->method)});
-}
-
-/* function.__args__ */
-static KrkValue _closure_get_argnames(int argc, KrkValue argv[]) {
-	if (!IS_CLOSURE(argv[0])) return OBJECT_VAL(krk_newTuple(0));
-	KrkFunction * self = AS_CLOSURE(argv[0])->function;
-	KrkTuple * tuple = krk_newTuple(self->requiredArgs + self->keywordArgs);
-	krk_push(OBJECT_VAL(tuple));
-	for (short i = 0; i < self->requiredArgs; ++i) {
-		tuple->values.values[tuple->values.count++] = self->requiredArgNames.values[i];
-	}
-	for (short i = 0; i < self->keywordArgs; ++i) {
-		tuple->values.values[tuple->values.count++] = self->keywordArgNames.values[i];
-	}
-	krk_pop();
-	return OBJECT_VAL(tuple);
-}
-
-static KrkValue _bound_get_argnames(int argc, KrkValue argv[]) {
-	KrkBoundMethod * boundMethod = AS_BOUND_METHOD(argv[0]);
-	return _closure_get_argnames(1, (KrkValue[]){OBJECT_VAL(boundMethod->method)});
-}
-
-static KrkValue _tuple_init(int argc, KrkValue argv[]) {
-	return krk_runtimeError(vm.exceptions.typeError,"tuple() initializier unsupported");
-}
-
-/* tuple creator */
-static KrkValue _tuple_of(int argc, KrkValue argv[]) {
-	KrkTuple * self = krk_newTuple(argc);
-	krk_push(OBJECT_VAL(self));
-	for (size_t i = 0; i < (size_t)argc; ++i) {
-		self->values.values[self->values.count++] = argv[i];
-	}
-	krk_pop();
-	return OBJECT_VAL(self);
-}
-
-static KrkValue _tuple_contains(int argc, KrkValue argv[]) {
-	if (argc != 2) return krk_runtimeError(vm.exceptions.argumentError, "tuple.__contains__ expects one argument");
-	KrkTuple * self = AS_TUPLE(argv[0]);
-	for (size_t i = 0; i < self->values.count; ++i) {
-		if (krk_valuesEqual(self->values.values[i], argv[1])) return BOOLEAN_VAL(1);
-	}
-	return BOOLEAN_VAL(0);
-}
-
-/* tuple.__len__ */
-static KrkValue _tuple_len(int argc, KrkValue argv[]) {
-	if (argc != 1) return krk_runtimeError(vm.exceptions.argumentError, "tuple.__len__ does not expect arguments");
-	KrkTuple * self = AS_TUPLE(argv[0]);
-	return INTEGER_VAL(self->values.count);
-}
-
-/* tuple.__get__ */
-static KrkValue _tuple_get(int argc, KrkValue argv[]) {
-	if (argc != 2) return krk_runtimeError(vm.exceptions.argumentError, "tuple.__get__ expects one argument");
-	else if (!IS_INTEGER(argv[1])) return krk_runtimeError(vm.exceptions.typeError, "can not index by '%s', expected integer", krk_typeName(argv[1]));
-	KrkTuple * tuple = AS_TUPLE(argv[0]);
-	long index = AS_INTEGER(argv[1]);
-	if (index < 0) index += tuple->values.count;
-	if (index < 0 || index >= (long)tuple->values.count) {
-		return krk_runtimeError(vm.exceptions.indexError, "tuple index out of range");
-	}
-	return tuple->values.values[index];
-}
-
-static KrkValue _tuple_eq(int argc, KrkValue argv[]) {
-	if (!IS_TUPLE(argv[1])) return BOOLEAN_VAL(0);
-	KrkTuple * self = AS_TUPLE(argv[0]);
-	KrkTuple * them = AS_TUPLE(argv[1]);
-	if (self->values.count != them->values.count) return BOOLEAN_VAL(0);
-	for (size_t i = 0; i < self->values.count; ++i) {
-		if (!krk_valuesEqual(self->values.values[i], them->values.values[i])) return BOOLEAN_VAL(0);
-	}
-	return BOOLEAN_VAL(1);
-}
-
-static KrkValue _tuple_repr(int argc, KrkValue argv[]) {
-	if (argc != 1) return krk_runtimeError(vm.exceptions.argumentError, "tuple.__repr__ does not expect arguments");
-	KrkTuple * tuple = AS_TUPLE(argv[0]);
-	if (((KrkObj*)tuple)->inRepr) return OBJECT_VAL(S("(...)"));
-	((KrkObj*)tuple)->inRepr = 1;
-	/* String building time. */
-	krk_push(OBJECT_VAL(S("(")));
-
-	for (size_t i = 0; i < tuple->values.count; ++i) {
-		krk_push(tuple->values.values[i]);
-		krk_push(krk_callSimple(OBJECT_VAL(krk_getType(tuple->values.values[i])->_reprer), 1, 0));
-		addObjects(); /* pops both, pushes result */
-		if (i != tuple->values.count - 1) {
-			krk_push(OBJECT_VAL(S(", ")));
-			addObjects();
-		}
-	}
-
-	if (tuple->values.count == 1) {
-		krk_push(OBJECT_VAL(S(",")));
-		addObjects();
-	}
-
-	krk_push(OBJECT_VAL(S(")")));
-	addObjects();
-	((KrkObj*)tuple)->inRepr = 0;
-	return krk_pop();
+static KrkValue _float_init(int argc, KrkValue argv[]) {
+	if (argc < 1) return FLOATING_VAL(0.0);
+	if (argc > 2) return krk_runtimeError(vm.exceptions.argumentError, "float() takes at most 1 argument");
+	if (IS_STRING(argv[1])) return krk_string_float(1,&argv[1],0);
+	if (IS_FLOATING(argv[1])) return argv[1];
+	if (IS_INTEGER(argv[1])) return FLOATING_VAL(AS_INTEGER(argv[1]));
+	if (IS_BOOLEAN(argv[1])) return FLOATING_VAL(AS_BOOLEAN(argv[1]));
+	return krk_runtimeError(vm.exceptions.typeError, "float() argument must be a string or a number, not '%s'", krk_typeName(argv[1]));
 }
 
 /**
@@ -2841,9 +1429,9 @@ static KrkValue _any(int argc, KrkValue argv[]) {
 	} else if (IS_INSTANCE(value) && AS_INSTANCE(value)->_class == vm.baseClasses.listClass) {
 		unpackArray(AS_LIST(value)->count, AS_LIST(value)->values[i]);
 	} else if (IS_INSTANCE(value) && AS_INSTANCE(value)->_class == vm.baseClasses.dictClass) {
-		unpackArray(AS_DICT(value)->count, _dict_nth_key_fast(AS_DICT(value)->capacity, AS_DICT(value)->entries, i));
+		unpackArray(AS_DICT(value)->count, krk_dict_nth_key_fast(AS_DICT(value)->capacity, AS_DICT(value)->entries, i));
 	} else if (IS_STRING(value)) {
-		unpackArray(AS_STRING(value)->codesLength, _string_get(2,(KrkValue[]){value,INTEGER_VAL(i)}));
+		unpackArray(AS_STRING(value)->codesLength, krk_string_get(2,(KrkValue[]){value,INTEGER_VAL(i)},0));
 	} else {
 		KrkClass * type = krk_getType(argv[0]);
 		if (type->_iter) {
@@ -2889,9 +1477,9 @@ static KrkValue _all(int argc, KrkValue argv[]) {
 	} else if (IS_INSTANCE(value) && AS_INSTANCE(value)->_class == vm.baseClasses.listClass) {
 		unpackArray(AS_LIST(value)->count, AS_LIST(value)->values[i]);
 	} else if (IS_INSTANCE(value) && AS_INSTANCE(value)->_class == vm.baseClasses.dictClass) {
-		unpackArray(AS_DICT(value)->count, _dict_nth_key_fast(AS_DICT(value)->capacity, AS_DICT(value)->entries, i));
+		unpackArray(AS_DICT(value)->count, krk_dict_nth_key_fast(AS_DICT(value)->capacity, AS_DICT(value)->entries, i));
 	} else if (IS_STRING(value)) {
-		unpackArray(AS_STRING(value)->codesLength, _string_get(2,(KrkValue[]){value,INTEGER_VAL(i)}));
+		unpackArray(AS_STRING(value)->codesLength, krk_string_get(2,(KrkValue[]){value,INTEGER_VAL(i)},0));
 	} else {
 		KrkClass * type = krk_getType(argv[0]);
 		if (type->_iter) {
@@ -2923,340 +1511,6 @@ static KrkValue _all(int argc, KrkValue argv[]) {
 	}
 #undef unpackArray
 	return BOOLEAN_VAL(1);
-}
-
-struct DictItems {
-	KrkInstance inst;
-	KrkValue dict;
-	size_t i;
-};
-
-static void _dictitems_gcscan(KrkInstance * self) {
-	krk_markValue(((struct DictItems*)self)->dict);
-}
-
-static KrkValue _dictitems_init(int argc, KrkValue argv[]) {
-	struct DictItems * self = (struct DictItems*)AS_OBJECT(argv[0]);
-	self->dict = argv[1];
-	self->i = 0;
-	return argv[0];
-}
-
-static KrkValue _dictitems_iter(int argc, KrkValue argv[]) {
-	/* Reset index and return self as iteration object */
-	struct DictItems * self = (struct DictItems*)AS_OBJECT(argv[0]);
-	self->i = 0;
-	return argv[0];
-}
-
-static KrkValue _dictitems_call(int argc, KrkValue argv[]) {
-	struct DictItems * self = (struct DictItems*)AS_OBJECT(argv[0]);
-	do {
-		if (self->i >= AS_DICT(self->dict)->capacity) return argv[0];
-		if (!IS_KWARGS(AS_DICT(self->dict)->entries[self->i].key)) {
-			KrkTuple * outValue = krk_newTuple(2);
-			krk_push(OBJECT_VAL(outValue));
-			outValue->values.values[0] = AS_DICT(self->dict)->entries[self->i].key;
-			outValue->values.values[1] = AS_DICT(self->dict)->entries[self->i].value;
-			outValue->values.count = 2;
-			self->i++;
-			return krk_pop();
-		}
-		self->i++;
-	} while (1);
-}
-
-/* TODO: dictitems could really use a nice repr */
-static KrkValue _dict_items(int argc, KrkValue argv[]) {
-	KrkInstance * output = krk_newInstance(vm.baseClasses.dictitemsClass);
-	krk_push(OBJECT_VAL(output));
-	_dictitems_init(2, (KrkValue[]){krk_peek(0), argv[0]});
-	krk_pop();
-	return OBJECT_VAL(output);
-}
-
-struct DictKeys {
-	KrkInstance inst;
-	KrkValue dict;
-	size_t i;
-};
-
-static void _dictkeys_gcscan(KrkInstance * self) {
-	krk_markValue(((struct DictKeys*)self)->dict);
-}
-
-static KrkValue _dictkeys_init(int argc, KrkValue argv[]) {
-	struct DictKeys * self = (struct DictKeys*)AS_OBJECT(argv[0]);
-	self->dict = argv[1];
-	self->i = 0;
-	return argv[0];
-}
-
-static KrkValue _dictkeys_iter(int argc, KrkValue argv[]) {
-	/* reset indext and return self as iteration object */
-	struct DictKeys * self = (struct DictKeys*)AS_OBJECT(argv[0]);
-	self->i = 0;
-	return argv[0];
-}
-
-static KrkValue _dictkeys_call(int argc, KrkValue argv[]) {
-	struct DictKeys * self = (struct DictKeys*)AS_OBJECT(argv[0]);
-	do {
-		if (self->i >= AS_DICT(self->dict)->capacity) return argv[0];
-		if (!IS_KWARGS(AS_DICT(self->dict)->entries[self->i].key)) {
-			krk_push(AS_DICT(self->dict)->entries[self->i].key);
-			self->i++;
-			return krk_pop();
-		}
-		self->i++;
-	} while (1);
-}
-
-/* TODO: dictkeys could really use a nice repr */
-static KrkValue _dict_keys(int argc, KrkValue argv[]) {
-	KrkInstance * output = krk_newInstance(vm.baseClasses.dictkeysClass);
-	krk_push(OBJECT_VAL(output));
-	_dictkeys_init(2, (KrkValue[]){krk_peek(0), argv[0]});
-	krk_pop();
-	return OBJECT_VAL(output);
-}
-
-struct TupleIter {
-	KrkInstance inst;
-	KrkValue myTuple;
-	int i;
-};
-
-static KrkValue _tuple_iter_init(int argc, KrkValue argv[]) {
-	struct TupleIter * self = (struct TupleIter *)AS_OBJECT(argv[0]);
-	self->myTuple = argv[1];
-	self->i = 0;
-	return argv[0];
-}
-
-static void _tuple_iter_gcscan(KrkInstance * self) {
-	krk_markValue(((struct TupleIter*)self)->myTuple);
-}
-
-static KrkValue _tuple_iter_call(int argc, KrkValue argv[]) {
-	struct TupleIter * self = (struct TupleIter *)AS_OBJECT(argv[0]);
-	KrkValue t = self->myTuple; /* Tuple to iterate */
-	int i = self->i;
-	if (i >= (krk_integer_type)AS_TUPLE(t)->values.count) {
-		return argv[0];
-	} else {
-		self->i = i+1;
-		return AS_TUPLE(t)->values.values[i];
-	}
-}
-
-static KrkValue _tuple_iter(int argc, KrkValue argv[]) {
-	KrkInstance * output = krk_newInstance(vm.baseClasses.tupleiteratorClass);
-	krk_push(OBJECT_VAL(output));
-	_tuple_iter_init(2, (KrkValue[]){krk_peek(0), argv[0]});
-	krk_pop();
-	return OBJECT_VAL(output);
-}
-
-static KrkValue _striter_init(int argc, KrkValue argv[]) {
-	if (!IS_INSTANCE(argv[0]) || AS_INSTANCE(argv[0])->_class != vm.baseClasses.striteratorClass) {
-		return krk_runtimeError(vm.exceptions.typeError, "Tried to call striterator.__init__() on something not a str iterator");
-	}
-	if (argc < 2 || !IS_STRING(argv[1])) {
-		return krk_runtimeError(vm.exceptions.argumentError, "Expected a str.");
-	}
-	KrkInstance * self = AS_INSTANCE(argv[0]);
-
-	krk_push(argv[0]);
-	krk_attachNamedValue(&self->fields, "s", argv[1]);
-	krk_attachNamedValue(&self->fields, "i", INTEGER_VAL(0));
-	krk_pop();
-
-	return argv[0];
-}
-
-static KrkValue _striter_call(int argc, KrkValue argv[]) {
-	if (!IS_INSTANCE(argv[0]) || AS_INSTANCE(argv[0])->_class != vm.baseClasses.striteratorClass) {
-		return krk_runtimeError(vm.exceptions.typeError, "Tried to call striterator.__call__() on something not a str iterator");
-	}
-	KrkInstance * self = AS_INSTANCE(argv[0]);
-	KrkValue _str;
-	KrkValue _counter;
-	const char * errorStr = NULL;
-
-	if (!krk_tableGet(&self->fields, OBJECT_VAL(S("s")), &_str)) {
-		errorStr = "no str pointer";
-		goto _corrupt;
-	}
-	if (!krk_tableGet(&self->fields, OBJECT_VAL(S("i")), &_counter)) {
-		errorStr = "no index";
-		goto _corrupt;
-	}
-
-	if ((size_t)AS_INTEGER(_counter) >= AS_STRING(_str)->codesLength) {
-		return argv[0];
-	} else {
-		krk_attachNamedValue(&self->fields, "i", INTEGER_VAL(AS_INTEGER(_counter)+1));
-		return _string_get(2,(KrkValue[]){_str,_counter});
-	}
-
-_corrupt:
-	return krk_runtimeError(vm.exceptions.typeError, "Corrupt str iterator: %s", errorStr);
-}
-
-static KrkValue _string_iter(int argc, KrkValue argv[]) {
-	KrkInstance * output = krk_newInstance(vm.baseClasses.striteratorClass);
-
-	krk_push(OBJECT_VAL(output));
-	_striter_init(3, (KrkValue[]){krk_peek(0), argv[0]});
-	krk_pop();
-
-	return OBJECT_VAL(output);
-}
-
-static KrkValue _listiter_init(int argc, KrkValue argv[]) {
-	if (!IS_INSTANCE(argv[0]) || AS_INSTANCE(argv[0])->_class != vm.baseClasses.listiteratorClass) {
-		return krk_runtimeError(vm.exceptions.typeError, "Tried to call listiterator.__init__() on something not a list iterator");
-	}
-	if (argc < 2 || !IS_INSTANCE(argv[1])) {
-		return krk_runtimeError(vm.exceptions.argumentError, "Expected a list.");
-	}
-	KrkInstance * self = AS_INSTANCE(argv[0]);
-	KrkValue _list = argv[1];
-
-	krk_push(argv[0]);
-	krk_attachNamedValue(&self->fields, "l", _list);
-	krk_attachNamedValue(&self->fields, "i", INTEGER_VAL(0));
-	krk_pop();
-
-	return argv[0];
-}
-
-static KrkValue _listiter_call(int argc, KrkValue argv[]) {
-	if (!IS_INSTANCE(argv[0]) || AS_INSTANCE(argv[0])->_class != vm.baseClasses.listiteratorClass) {
-		return krk_runtimeError(vm.exceptions.typeError, "Tried to call listiterator.__call__() on something not a list iterator");
-	}
-	KrkInstance * self = AS_INSTANCE(argv[0]);
-	KrkValue _list;
-	KrkValue _counter;
-	const char * errorStr = NULL;
-
-	if (!krk_tableGet(&self->fields, OBJECT_VAL(S("l")), &_list)) {
-		errorStr = "no list pointer";
-		goto _corrupt;
-	}
-	if (!krk_tableGet(&self->fields, OBJECT_VAL(S("i")), &_counter)) {
-		errorStr = "no index";
-		goto _corrupt;
-	}
-
-	if ((size_t)AS_INTEGER(_counter) >= AS_LIST(_list)->count) {
-		return argv[0];
-	} else {
-		krk_attachNamedValue(&self->fields, "i", INTEGER_VAL(AS_INTEGER(_counter)+1));
-		return AS_LIST(_list)->values[AS_INTEGER(_counter)];
-	}
-
-_corrupt:
-	return krk_runtimeError(vm.exceptions.typeError, "Corrupt list iterator: %s", errorStr);
-}
-
-static KrkValue _list_iter(int argc, KrkValue argv[]) {
-	KrkInstance * output = krk_newInstance(vm.baseClasses.listiteratorClass);
-
-	krk_push(OBJECT_VAL(output));
-	_listiter_init(2, (KrkValue[]){krk_peek(0), argv[0]});
-	krk_pop();
-
-	return OBJECT_VAL(output);
-}
-
-struct Range {
-	KrkInstance inst;
-	krk_integer_type min;
-	krk_integer_type max;
-};
-
-static KrkValue _range_init(int argc, KrkValue argv[]) {
-	KrkInstance * self = AS_INSTANCE(argv[0]);
-	if (argc < 2 || argc > 3) {
-		return krk_runtimeError(vm.exceptions.argumentError, "range expected at least 1 and and at most 2 arguments");
-	}
-	KrkValue min = INTEGER_VAL(0);
-	KrkValue max;
-	if (argc == 2) {
-		max = argv[1];
-	} else {
-		min = argv[1];
-		max = argv[2];
-	}
-	if (!IS_INTEGER(min)) {
-		return krk_runtimeError(vm.exceptions.typeError, "range: expected int, but got '%s'", krk_typeName(min));
-	}
-	if (!IS_INTEGER(max)) {
-		return krk_runtimeError(vm.exceptions.typeError, "range: expected int, but got '%s'", krk_typeName(max));
-	}
-
-	((struct Range*)self)->min = AS_INTEGER(min);
-	((struct Range*)self)->max = AS_INTEGER(max);
-
-	return argv[0];
-}
-
-static KrkValue _range_repr(int argc, KrkValue argv[]) {
-	KrkInstance * self = AS_INSTANCE(argv[0]);
-
-	krk_integer_type min = ((struct Range*)self)->min;
-	krk_integer_type max = ((struct Range*)self)->max;
-
-	krk_push(OBJECT_VAL(S("range({},{})")));
-	KrkValue output = _string_format(3, (KrkValue[]){krk_peek(0), INTEGER_VAL(min), INTEGER_VAL(max)}, 0);
-	krk_pop();
-	return output;
-}
-
-struct RangeIterator {
-	KrkInstance inst;
-	krk_integer_type i;
-	krk_integer_type max;
-};
-
-static KrkValue _rangeiterator_init(int argc, KrkValue argv[]) {
-	KrkInstance * self = AS_INSTANCE(argv[0]);
-
-	((struct RangeIterator*)self)->i = AS_INTEGER(argv[1]);
-	((struct RangeIterator*)self)->max = AS_INTEGER(argv[2]);
-
-	return argv[0];
-}
-
-static KrkValue _rangeiterator_call(int argc, KrkValue argv[]) {
-	KrkInstance * self = AS_INSTANCE(argv[0]);
-
-	krk_integer_type i, max;
-	i = ((struct RangeIterator*)self)->i;
-	max = ((struct RangeIterator*)self)->max;
-
-	if (i >= max) {
-		return argv[0];
-	} else {
-		((struct RangeIterator*)self)->i = i + 1;
-		return INTEGER_VAL(i);
-	}
-}
-
-static KrkValue _range_iter(int argc, KrkValue argv[]) {
-	KrkInstance * self = AS_INSTANCE(argv[0]);
-
-	KrkInstance * output = krk_newInstance(vm.baseClasses.rangeiteratorClass);
-	krk_integer_type min = ((struct Range*)self)->min;
-	krk_integer_type max = ((struct Range*)self)->max;
-
-	krk_push(OBJECT_VAL(output));
-	_rangeiterator_init(3, (KrkValue[]){krk_peek(0), INTEGER_VAL(min), INTEGER_VAL(max)});
-	krk_pop();
-
-	return OBJECT_VAL(output);
 }
 
 static KrkValue krk_collectGarbage_wrapper(int argc, KrkValue argv[]) {
@@ -3523,115 +1777,18 @@ void krk_initVM(int flags) {
 	krk_defineNative(&vm.baseClasses.noneTypeClass->methods, ".__str__", _none_to_str);
 	krk_defineNative(&vm.baseClasses.noneTypeClass->methods, ".__repr__", _none_to_str);
 	krk_finalizeClass(vm.baseClasses.noneTypeClass);
-	ADD_BASE_CLASS(vm.baseClasses.strClass, "str", vm.objectClass);
-	krk_defineNative(&vm.baseClasses.strClass->methods, ".__init__", _string_init);
-	krk_defineNative(&vm.baseClasses.strClass->methods, ".__str__", _noop);
-	krk_defineNative(&vm.baseClasses.strClass->methods, ".__repr__", _string_repr);
-	krk_defineNative(&vm.baseClasses.strClass->methods, ".__len__", _string_len);
-	krk_defineNative(&vm.baseClasses.strClass->methods, ".__get__", _string_get);
-	krk_defineNative(&vm.baseClasses.strClass->methods, ".__set__", _strings_are_immutable);
-	krk_defineNative(&vm.baseClasses.strClass->methods, ".__int__", _string_int);
-	krk_defineNative(&vm.baseClasses.strClass->methods, ".__float__", _string_float);
-	krk_defineNative(&vm.baseClasses.strClass->methods, ".__getslice__", _string_getslice);
-	krk_defineNative(&vm.baseClasses.strClass->methods, ".__ord__", _string_ord);
-	krk_defineNative(&vm.baseClasses.strClass->methods, ".__contains__", _string_contains);
-	krk_defineNative(&vm.baseClasses.strClass->methods, ".__iter__", _string_iter);
-	krk_defineNative(&vm.baseClasses.strClass->methods, ".format", _string_format);
-	krk_defineNative(&vm.baseClasses.strClass->methods, ".join", _string_join);
-	krk_defineNative(&vm.baseClasses.strClass->methods, ".split", _string_split);
-	krk_defineNative(&vm.baseClasses.strClass->methods, ".strip", _string_strip);
-	krk_defineNative(&vm.baseClasses.strClass->methods, ".lstrip", _string_lstrip);
-	krk_defineNative(&vm.baseClasses.strClass->methods, ".rstrip", _string_rstrip);
-	krk_defineNative(&vm.baseClasses.strClass->methods, ".__lt__", _string_lt);
-	krk_defineNative(&vm.baseClasses.strClass->methods, ".__gt__", _string_gt);
-	krk_defineNative(&vm.baseClasses.strClass->methods, ".__mod__", _string_mod);
-	krk_defineNative(&vm.baseClasses.strClass->methods, ".__add__", _string_add);
-	krk_defineNative(&vm.baseClasses.strClass->methods, ".__mul__", _string_mul);
-	krk_defineNative(&vm.baseClasses.strClass->methods, ".encode", _string_encode);
-	krk_finalizeClass(vm.baseClasses.strClass);
-	vm.baseClasses.strClass->docstring = S("Obtain a string representation of an object.");
-	/* TODO: Don't attach */
-	ADD_BASE_CLASS(vm.baseClasses.functionClass, "function", vm.objectClass);
-	krk_defineNative(&vm.baseClasses.functionClass->methods, ".__str__", _closure_str);
-	krk_defineNative(&vm.baseClasses.functionClass->methods, ".__repr__", _closure_str);
-	krk_defineNative(&vm.baseClasses.functionClass->methods, ":__doc__", _closure_get_doc);
-	krk_defineNative(&vm.baseClasses.functionClass->methods, ":__name__", _closure_get_name);
-	krk_defineNative(&vm.baseClasses.functionClass->methods, ":__file__", _closure_get_file);
-	krk_defineNative(&vm.baseClasses.functionClass->methods, ":__args__", _closure_get_argnames);
-	krk_finalizeClass(vm.baseClasses.functionClass);
-	/* TODO: Don't attach */
-	ADD_BASE_CLASS(vm.baseClasses.methodClass, "method", vm.objectClass);
-	krk_defineNative(&vm.baseClasses.methodClass->methods, ".__str__", _bound_str);
-	krk_defineNative(&vm.baseClasses.methodClass->methods, ".__repr__", _bound_str);
-	krk_defineNative(&vm.baseClasses.methodClass->methods, ".__doc__", _bound_get_doc);
-	krk_defineNative(&vm.baseClasses.methodClass->methods, ":__name__", _bound_get_name);
-	krk_defineNative(&vm.baseClasses.methodClass->methods, ":__file__", _bound_get_file);
-	krk_defineNative(&vm.baseClasses.methodClass->methods, ":__args__", _bound_get_argnames);
-	krk_finalizeClass(vm.baseClasses.methodClass);
-	ADD_BASE_CLASS(vm.baseClasses.tupleClass, "tuple", vm.objectClass);
-	krk_defineNative(&vm.baseClasses.tupleClass->methods, ".__init__", _tuple_init);
-	krk_defineNative(&vm.baseClasses.tupleClass->methods, ".__str__", _tuple_repr);
-	krk_defineNative(&vm.baseClasses.tupleClass->methods, ".__repr__", _tuple_repr);
-	krk_defineNative(&vm.baseClasses.tupleClass->methods, ".__get__", _tuple_get);
-	krk_defineNative(&vm.baseClasses.tupleClass->methods, ".__len__", _tuple_len);
-	krk_defineNative(&vm.baseClasses.tupleClass->methods, ".__contains__", _tuple_contains);
-	krk_defineNative(&vm.baseClasses.tupleClass->methods, ".__iter__", _tuple_iter);
-	krk_defineNative(&vm.baseClasses.tupleClass->methods, ".__eq__", _tuple_eq);
-	krk_finalizeClass(vm.baseClasses.tupleClass);
-	ADD_BASE_CLASS(vm.baseClasses.bytesClass, "bytes", vm.objectClass);
-	krk_defineNative(&vm.baseClasses.bytesClass->methods, ".__init__",  _bytes_init);
-	krk_defineNative(&vm.baseClasses.bytesClass->methods, ".__str__",  _bytes_repr);
-	krk_defineNative(&vm.baseClasses.bytesClass->methods, ".__repr__", _bytes_repr);
-	krk_defineNative(&vm.baseClasses.bytesClass->methods, ".decode", _bytes_decode);
-	krk_defineNative(&vm.baseClasses.bytesClass->methods, ".__len__", _bytes_len);
-	krk_defineNative(&vm.baseClasses.bytesClass->methods, ".__contains__", _bytes_contains);
-	krk_defineNative(&vm.baseClasses.bytesClass->methods, ".__get__", _bytes_get);
-	krk_defineNative(&vm.baseClasses.bytesClass->methods, ".__eq__", _bytes_eq);
-	krk_finalizeClass(vm.baseClasses.bytesClass);
-	ADD_BASE_CLASS(vm.baseClasses.listClass, "list", vm.objectClass);
-	vm.baseClasses.listClass->allocSize = sizeof(KrkList);
-	vm.baseClasses.listClass->_ongcscan = _list_gcscan;
-	vm.baseClasses.listClass->_ongcsweep = _list_gcsweep;
-	krk_defineNative(&vm.baseClasses.listClass->methods, ".__init__", _list_init);
-	krk_defineNative(&vm.baseClasses.listClass->methods, ".__get__", _list_get);
-	krk_defineNative(&vm.baseClasses.listClass->methods, ".__set__", _list_set);
-	krk_defineNative(&vm.baseClasses.listClass->methods, ".__delitem__", _list_pop);
-	krk_defineNative(&vm.baseClasses.listClass->methods, ".__len__", _list_len);
-	krk_defineNative(&vm.baseClasses.listClass->methods, ".__str__", _list_repr);
-	krk_defineNative(&vm.baseClasses.listClass->methods, ".__repr__", _list_repr);
-	krk_defineNative(&vm.baseClasses.listClass->methods, ".__contains__", _list_contains);
-	krk_defineNative(&vm.baseClasses.listClass->methods, ".__getslice__", _list_slice);
-	krk_defineNative(&vm.baseClasses.listClass->methods, ".__iter__", _list_iter);
-	krk_defineNative(&vm.baseClasses.listClass->methods, ".__mul__", _list_mul);
-	krk_defineNative(&vm.baseClasses.listClass->methods, ".append", _list_append);
-	krk_defineNative(&vm.baseClasses.listClass->methods, ".extend", _list_extend);
-	krk_defineNative(&vm.baseClasses.listClass->methods, ".pop", _list_pop);
-	krk_defineNative(&vm.baseClasses.listClass->methods, ".insert", _list_insert);
-	krk_finalizeClass(vm.baseClasses.listClass);
-	vm.baseClasses.listClass->docstring = S("Mutable sequence of arbitrary values.");
-	ADD_BASE_CLASS(vm.baseClasses.dictClass, "dict", vm.objectClass);
-	vm.baseClasses.dictClass->allocSize = sizeof(KrkDict);
-	vm.baseClasses.dictClass->_ongcscan = _dict_gcscan;
-	vm.baseClasses.dictClass->_ongcsweep = _dict_gcsweep;
-	krk_defineNative(&vm.baseClasses.dictClass->methods, ".__init__", _dict_init);
-	krk_defineNative(&vm.baseClasses.dictClass->methods, ".__str__", _dict_repr);
-	krk_defineNative(&vm.baseClasses.dictClass->methods, ".__repr__", _dict_repr);
-	krk_defineNative(&vm.baseClasses.dictClass->methods, ".__get__", _dict_get);
-	krk_defineNative(&vm.baseClasses.dictClass->methods, ".__set__", _dict_set);
-	krk_defineNative(&vm.baseClasses.dictClass->methods, ".__or__", _dict_or);
-	krk_defineNative(&vm.baseClasses.dictClass->methods, ".__delitem__", _dict_delitem);
-	krk_defineNative(&vm.baseClasses.dictClass->methods, ".__len__", _dict_len);
-	krk_defineNative(&vm.baseClasses.dictClass->methods, ".__contains__", _dict_contains);
-	krk_defineNative(&vm.baseClasses.dictClass->methods, ".keys", _dict_keys);
-	krk_defineNative(&vm.baseClasses.dictClass->methods, ".items", _dict_items);
-	krk_defineNative(&vm.baseClasses.dictClass->methods, ".capacity", _dict_capacity);
-	krk_finalizeClass(vm.baseClasses.dictClass);
-	vm.baseClasses.dictClass->docstring = S("Mapping of arbitrary keys to values.");
+	_createAndBind_strClass();
+	_createAndBind_listClass();
+	_createAndBind_tupleClass();
+	_createAndBind_bytesClass();
+	_createAndBind_dictClass();
+	_createAndBind_functionClass();
+	_createAndBind_rangeClass();
 
 	/* Build global builtin functions. */
 	BUILTIN_FUNCTION("listOf", krk_list_of, "Convert argument sequence to list object.");
 	BUILTIN_FUNCTION("dictOf", krk_dict_of, "Convert argument sequence to dict object.");
-	BUILTIN_FUNCTION("tupleOf", _tuple_of,  "Convert argument sequence to tuple object.");
+	BUILTIN_FUNCTION("tupleOf",krk_tuple_of,"Convert argument sequence to tuple object.");
 	BUILTIN_FUNCTION("isinstance", _isinstance, "Determine if an object is an instance of the given class or one if its subclasses.");
 	BUILTIN_FUNCTION("globals", krk_globals, "Return a mapping of names in the current global namespace.");
 	BUILTIN_FUNCTION("dir", _dir, "Return a list of known property names for a given object.");
@@ -3643,59 +1800,6 @@ void krk_initVM(int flags) {
 	BUILTIN_FUNCTION("hex", _hex, "Convert an integer value to a hexadecimal string.");
 	BUILTIN_FUNCTION("any", _any, "Returns True if at least one element in the given iterable is truthy, False otherwise.");
 	BUILTIN_FUNCTION("all", _all, "Returns True if every element in the given iterable is truthy, False otherwise.");
-
-	/* TODO: Don't attach */
-	ADD_BASE_CLASS(vm.baseClasses.listiteratorClass, "listiterator", vm.objectClass);
-	krk_defineNative(&vm.baseClasses.listiteratorClass->methods, ".__init__", _listiter_init);
-	krk_defineNative(&vm.baseClasses.listiteratorClass->methods, ".__call__", _listiter_call);
-	krk_finalizeClass(vm.baseClasses.listiteratorClass);
-
-	/* TODO: Don't attach */
-	ADD_BASE_CLASS(vm.baseClasses.striteratorClass, "striterator", vm.objectClass);
-	krk_defineNative(&vm.baseClasses.striteratorClass->methods, ".__init__", _striter_init);
-	krk_defineNative(&vm.baseClasses.striteratorClass->methods, ".__call__", _striter_call);
-	krk_finalizeClass(vm.baseClasses.striteratorClass);
-
-	ADD_BASE_CLASS(vm.baseClasses.rangeClass, "range", vm.objectClass);
-	vm.baseClasses.rangeClass->allocSize = sizeof(struct Range);
-	krk_defineNative(&vm.baseClasses.rangeClass->methods, ".__init__", _range_init);
-	krk_defineNative(&vm.baseClasses.rangeClass->methods, ".__iter__", _range_iter);
-	krk_defineNative(&vm.baseClasses.rangeClass->methods, ".__repr__", _range_repr);
-	krk_finalizeClass(vm.baseClasses.rangeClass);
-	vm.baseClasses.rangeClass->docstring = S("range(max), range(min, max[, step]): "
-		"An iterable object that produces numeric values. "
-		"'min' is inclusive, 'max' is exclusive.");
-
-	/* TODO: Don't attach */
-	ADD_BASE_CLASS(vm.baseClasses.rangeiteratorClass, "rangeiterator", vm.objectClass);
-	vm.baseClasses.rangeiteratorClass->allocSize = sizeof(struct RangeIterator);
-	krk_defineNative(&vm.baseClasses.rangeiteratorClass->methods, ".__init__", _rangeiterator_init);
-	krk_defineNative(&vm.baseClasses.rangeiteratorClass->methods, ".__call__", _rangeiterator_call);
-	krk_finalizeClass(vm.baseClasses.rangeiteratorClass);
-
-	/* TODO: Don't attach */
-	ADD_BASE_CLASS(vm.baseClasses.tupleiteratorClass, "tupleiterator", vm.objectClass);
-	vm.baseClasses.tupleiteratorClass->allocSize = sizeof(struct TupleIter);
-	vm.baseClasses.tupleiteratorClass->_ongcscan = _tuple_iter_gcscan;
-	krk_defineNative(&vm.baseClasses.tupleiteratorClass->methods, ".__init__", _tuple_iter_init);
-	krk_defineNative(&vm.baseClasses.tupleiteratorClass->methods, ".__call__", _tuple_iter_call);
-	krk_finalizeClass(vm.baseClasses.tupleiteratorClass);
-
-	ADD_BASE_CLASS(vm.baseClasses.dictitemsClass, "dictitems", vm.objectClass);
-	vm.baseClasses.dictitemsClass->allocSize = sizeof(struct DictItems);
-	vm.baseClasses.dictitemsClass->_ongcscan = _dictitems_gcscan;
-	krk_defineNative(&vm.baseClasses.dictitemsClass->methods, ".__init__", _dictitems_init);
-	krk_defineNative(&vm.baseClasses.dictitemsClass->methods, ".__iter__", _dictitems_iter);
-	krk_defineNative(&vm.baseClasses.dictitemsClass->methods, ".__call__", _dictitems_call);
-	krk_finalizeClass(vm.baseClasses.dictitemsClass);
-
-	ADD_BASE_CLASS(vm.baseClasses.dictkeysClass, "dictkeys", vm.objectClass);
-	vm.baseClasses.dictkeysClass->allocSize = sizeof(struct DictKeys);
-	vm.baseClasses.dictkeysClass->_ongcscan = _dictkeys_gcscan;
-	krk_defineNative(&vm.baseClasses.dictkeysClass->methods, ".__init__", _dictkeys_init);
-	krk_defineNative(&vm.baseClasses.dictkeysClass->methods, ".__iter__", _dictkeys_iter);
-	krk_defineNative(&vm.baseClasses.dictkeysClass->methods, ".__call__", _dictkeys_call);
-	krk_finalizeClass(vm.baseClasses.dictkeysClass);
 
 	/* This module is slowly being deprecated. */
 	KrkValue builtinsModule = krk_interpret(krk_builtinsSrc,1,"__builtins__","__builtins__");
@@ -3812,12 +1916,6 @@ MAKE_BIT_OP(mod,%) /* not a bit op, but doesn't work on floating point */
 MAKE_COMPARATOR(lt, <)
 MAKE_COMPARATOR(gt, >)
 
-static void addObjects() {
-	KrkValue tmp = _string_add(2, (KrkValue[]){krk_peek(1), krk_peek(0)});
-	krk_pop(); krk_pop();
-	krk_push(tmp);
-}
-
 /**
  * At the end of each instruction cycle, we check the exception flag to see
  * if an error was raised during execution. If there is an exception, this
@@ -3916,9 +2014,9 @@ int krk_loadModule(KrkString * path, KrkValue * moduleOut, KrkString * runAs) {
 			return 0;
 		}
 		krk_push(OBJECT_VAL(path));
-		addObjects(); /* Concatenate path... */
+		krk_addObjects(); /* Concatenate path... */
 		krk_push(OBJECT_VAL(S(".krk")));
-		addObjects(); /* and file extension */
+		krk_addObjects(); /* and file extension */
 		int isPackage = 0;
 
 		char * fileName = AS_CSTRING(krk_peek(0));
@@ -3927,9 +2025,9 @@ int krk_loadModule(KrkString * path, KrkValue * moduleOut, KrkString * runAs) {
 			/* try /__init__.krk */
 			krk_push(AS_LIST(modulePaths)->values[i]);
 			krk_push(OBJECT_VAL(path));
-			addObjects();
+			krk_addObjects();
 			krk_push(OBJECT_VAL(S(PATH_SEP "__init__.krk")));
-			addObjects();
+			krk_addObjects();
 			fileName = AS_CSTRING(krk_peek(0));
 			if (stat(fileName,&statbuf) < 0) {
 				continue;
@@ -3967,9 +2065,9 @@ int krk_loadModule(KrkString * path, KrkValue * moduleOut, KrkString * runAs) {
 		/* Assume things haven't changed and all of these are strings. */
 		krk_push(AS_LIST(modulePaths)->values[i]);
 		krk_push(OBJECT_VAL(path));
-		addObjects(); /* this should just be basic concatenation */
+		krk_addObjects(); /* this should just be basic concatenation */
 		krk_push(OBJECT_VAL(S(".so")));
-		addObjects();
+		krk_addObjects();
 
 		char * fileName = AS_CSTRING(krk_peek(0));
 		if (stat(fileName,&statbuf) < 0) continue;
@@ -3989,7 +2087,7 @@ int krk_loadModule(KrkString * path, KrkValue * moduleOut, KrkString * runAs) {
 
 		krk_push(OBJECT_VAL(S("krk_module_onload_")));
 		krk_push(OBJECT_VAL(krk_copyString(start,strlen(start))));
-		addObjects();
+		krk_addObjects();
 
 		char * handlerName = AS_CSTRING(krk_peek(0));
 
@@ -4063,7 +2161,7 @@ int krk_doRecursiveModuleLoad(KrkString * name) {
 	krk_push(OBJECT_VAL(name));   // 3: remaining path to process
 	krk_push(OBJECT_VAL(S("."))); // 4: string "." to search for
 	do {
-		KrkValue listOut = _string_split(3,(KrkValue[]){vm.stack[argBase+3], vm.stack[argBase+4], INTEGER_VAL(1)}, 0);
+		KrkValue listOut = krk_string_split(3,(KrkValue[]){vm.stack[argBase+3], vm.stack[argBase+4], INTEGER_VAL(1)}, 0);
 		if (!IS_INSTANCE(listOut)) return 0;
 
 		/* Set node */
@@ -4079,12 +2177,12 @@ int krk_doRecursiveModuleLoad(KrkString * name) {
 		/* First is /-path */
 		krk_push(vm.stack[argBase+1]);
 		krk_push(vm.stack[argBase+0]);
-		addObjects();
+		krk_addObjects();
 		vm.stack[argBase+1] = krk_pop();
 		/* Second is .-path */
 		krk_push(vm.stack[argBase+2]);
 		krk_push(vm.stack[argBase+0]);
-		addObjects();
+		krk_addObjects();
 		vm.stack[argBase+2] = krk_pop();
 
 		if (IS_NONE(vm.stack[argBase+3])) {
@@ -4117,12 +2215,12 @@ int krk_doRecursiveModuleLoad(KrkString * name) {
 			/* Now concatenate forward slash... */
 			krk_push(vm.stack[argBase+1]); /* Slash path */
 			krk_push(OBJECT_VAL(S(PATH_SEP)));
-			addObjects();
+			krk_addObjects();
 			vm.stack[argBase+1] = krk_pop();
 			/* And now for the dot... */
 			krk_push(vm.stack[argBase+2]);
 			krk_push(vm.stack[argBase+4]);
-			addObjects();
+			krk_addObjects();
 			vm.stack[argBase+2] = krk_pop();
 		}
 	} while (1);
@@ -4318,7 +2416,7 @@ static KrkValue run() {
 			case OP_LESS: BINARY_OP(lt);
 			case OP_GREATER: BINARY_OP(gt)
 			case OP_ADD:
-				if (IS_STRING(krk_peek(1))) addObjects(); /* Shortcut for strings */
+				if (IS_STRING(krk_peek(1))) krk_addObjects(); /* Shortcut for strings */
 				else BINARY_OP(add)
 				break;
 			case OP_SUBTRACT: BINARY_OP(sub)
@@ -4524,9 +2622,9 @@ static KrkValue run() {
 					}
 					krk_push(moduleName);
 					krk_push(OBJECT_VAL(S(".")));
-					addObjects();
+					krk_addObjects();
 					krk_push(OBJECT_VAL(name));
-					addObjects();
+					krk_addObjects();
 					if (!krk_doRecursiveModuleLoad(AS_STRING(krk_peek(0)))) {
 						krk_runtimeError(vm.exceptions.importError, "Can not import '%s' from '%s'", name->chars, AS_CSTRING(moduleName));
 						goto _finishException;
@@ -4683,7 +2781,7 @@ static KrkValue run() {
 			case OP_TUPLE: {
 				size_t count = readBytes(frame, operandWidth);
 				krk_reserve_stack(4);
-				KrkValue tuple = _tuple_of(count,&vm.stackTop[-count]);
+				KrkValue tuple = krk_tuple_of(count,&vm.stackTop[-count]);
 				if (count) {
 					vm.stackTop[-count] = tuple;
 					while (count > 1) {
@@ -4715,9 +2813,9 @@ static KrkValue run() {
 				} else if (IS_INSTANCE(sequence) && AS_INSTANCE(sequence)->_class == vm.baseClasses.listClass) {
 					unpackArray(AS_LIST(sequence)->count, AS_LIST(sequence)->values[i]);
 				} else if (IS_INSTANCE(sequence) && AS_INSTANCE(sequence)->_class == vm.baseClasses.dictClass) {
-					unpackArray(AS_DICT(sequence)->count, _dict_nth_key_fast(AS_DICT(sequence)->capacity, AS_DICT(sequence)->entries, i));
+					unpackArray(AS_DICT(sequence)->count, krk_dict_nth_key_fast(AS_DICT(sequence)->capacity, AS_DICT(sequence)->entries, i));
 				} else if (IS_STRING(sequence)) {
-					unpackArray(AS_STRING(sequence)->codesLength, _string_get(2,(KrkValue[]){sequence,INTEGER_VAL(i)}));
+					unpackArray(AS_STRING(sequence)->codesLength, krk_string_get(2,(KrkValue[]){sequence,INTEGER_VAL(i)},0));
 				} else {
 					KrkClass * type = krk_getType(sequence);
 					if (!type->_iter) {

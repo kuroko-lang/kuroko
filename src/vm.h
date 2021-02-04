@@ -143,6 +143,7 @@ extern KrkValue krk_pop(void);
 extern KrkValue krk_peek(int distance);
 extern const char * krk_typeName(KrkValue value);
 extern KrkNative * krk_defineNative(KrkTable * table, const char * name, NativeFn function);
+extern KrkProperty * krk_defineNativeProperty(KrkTable * table, const char * name, NativeFn func);
 extern void krk_attachNamedObject(KrkTable * table, const char name[], KrkObj * obj);
 extern void krk_attachNamedValue(KrkTable * table, const char name[], KrkValue obj);
 extern KrkValue krk_runtimeError(KrkClass * type, const char * fmt, ...);
@@ -160,8 +161,32 @@ extern int krk_callValue(KrkValue callee, int argCount, int extra);
 extern KrkValue krk_list_of(int argc, KrkValue argv[]);
 extern KrkValue krk_dict_of(int argc, KrkValue argv[]);
 extern KrkValue krk_callSimple(KrkValue value, int argCount, int isMethod);
+extern KrkClass * krk_makeClass(KrkInstance * module, KrkClass ** _class, const char * name, KrkClass * base);
 extern void krk_finalizeClass(KrkClass * _class);
 extern void krk_dumpTraceback();
 extern KrkInstance * krk_startModule(const char * name);
 extern KrkValue krk_dirObject(int argc, KrkValue argv[]);
 extern int krk_loadModule(KrkString * name, KrkValue * moduleOut, KrkString * runAs);
+
+/* obj_str.h */
+extern void krk_addObjects(void);
+extern KrkValue krk_string_get(int argc, KrkValue argv[], int hasKw);
+extern KrkValue krk_string_int(int argc, KrkValue argv[], int hasKw);
+extern KrkValue krk_string_float(int argc, KrkValue argv[], int hasKw);
+extern KrkValue krk_string_split(int argc, KrkValue argv[], int hasKw);
+extern KrkValue krk_string_format(int argc, KrkValue argv[], int hasKw);
+
+/* obj_dict.h */
+extern KrkValue krk_dict_nth_key_fast(size_t capacity, KrkTableEntry * entries, size_t index);
+
+extern KrkValue krk_tuple_of(int argc, KrkValue argv[]);
+
+extern KrkValue _noop(int argc, KrkValue argv[]);
+
+extern void _createAndBind_strClass(void);
+extern void _createAndBind_listClass(void);
+extern void _createAndBind_tupleClass(void);
+extern void _createAndBind_bytesClass(void);
+extern void _createAndBind_dictClass(void);
+extern void _createAndBind_functionClass(void);
+extern void _createAndBind_rangeClass(void);
