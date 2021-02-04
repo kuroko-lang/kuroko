@@ -21,6 +21,39 @@ static KrkValue FUNC_NAME(striterator,__init__)(int,KrkValue[],int);
 #define CURRENT_CTYPE KrkString *
 #define CURRENT_NAME  self
 
+#define AT_END() (self->length == 0 || i == self->length - 1)
+
+#define PUSH_CHAR(c) do { if (stringCapacity < stringLength + 1) { \
+		size_t old = stringCapacity; stringCapacity = GROW_CAPACITY(old); \
+		stringBytes = GROW_ARRAY(char, stringBytes, old, stringCapacity); \
+	} stringBytes[stringLength++] = c; } while (0)
+
+struct StringBuilder {
+	size_t capacity;
+	size_t length;
+	char * bytes;
+};
+
+static inline void pushStringBuilder(struct StringBuilder * sb, char c) {
+	if (sb->capacity < sb->length + 1) {
+		size_t old = sb->capacity;
+		sb->capacity = GROW_CAPACITY(old);
+		sb->bytes = GROW_ARRAY(char, sb->bytes, old, sb->capacity);
+	}
+	sb->bytes[sb->length++] = c;
+}
+
+static inline KrkValue finishStringBuilder(struct StringBuilder * sb) {
+	KrkValue out = OBJECT_VAL(krk_copyString(sb->bytes, sb->length));
+	FREE_ARRAY(char,sb->bytes, sb->capacity);
+	return out;
+}
+
+static inline KrkValue discardStringBuilder(struct StringBuilder * sb) {
+	FREE_ARRAY(char,sb->bytes, sb->capacity);
+	return NONE_VAL();
+}
+
 KRK_METHOD(str,__ord__,{
 	METHOD_TAKES_NONE();
 	if (self->codesLength != 1)
@@ -179,12 +212,6 @@ KRK_METHOD(str,__get__,{
 	}
 })
 
-#define PUSH_CHAR(c) do { if (stringCapacity < stringLength + 1) { \
-		size_t old = stringCapacity; stringCapacity = GROW_CAPACITY(old); \
-		stringBytes = GROW_ARRAY(char, stringBytes, old, stringCapacity); \
-	} stringBytes[stringLength++] = c; } while (0)
-#define AT_END() (self->length == 0 || i == self->length - 1)
-
 /* str.format(**kwargs) */
 KRK_METHOD(str,format,{
 	KrkValue kwargs = NONE_VAL();
@@ -331,14 +358,20 @@ _freeAndDone:
 KRK_METHOD(str,__mul__,{
 	METHOD_TAKES_EXACTLY(1);
 	CHECK_ARG(1,int,krk_integer_type,howMany);
-	krk_push(OBJECT_VAL(S("")));
+	if (howMany < 0) howMany = 0;
+
+	size_t totalLength = self->length * howMany;
+	char * out = malloc(totalLength + 1);
+	char * c = out;
 
 	for (krk_integer_type i = 0; i < howMany; ++i) {
-		krk_push(argv[0]);
-		krk_addObjects();
+		for (size_t j = 0; j < self->length; ++j) {
+			*(c++) = self->chars[j];
+		}
 	}
 
-	return krk_pop();
+	*c = '\0';
+	return OBJECT_VAL(krk_copyString(out, totalLength));
 })
 
 /* str.join(list) */
@@ -347,10 +380,7 @@ KRK_METHOD(str,join,{
 	CHECK_ARG(1,list,KrkList*,iterable);
 
 	const char * errorStr = NULL;
-
-	size_t stringCapacity = 0;
-	size_t stringLength   = 0;
-	char * stringBytes    = 0;
+	struct StringBuilder sb = {0};
 
 	for (size_t i = 0; i < iterable->values.count; ++i) {
 		KrkValue value = iterable->values.values[i];
@@ -361,23 +391,20 @@ KRK_METHOD(str,join,{
 		krk_push(value);
 		if (i > 0) {
 			for (size_t j = 0; j < self->length; ++j) {
-				PUSH_CHAR(self->chars[j]);
+				pushStringBuilder(&sb, self->chars[j]);
 			}
 		}
 		for (size_t j = 0; j < AS_STRING(value)->length; ++j) {
-			PUSH_CHAR(AS_STRING(value)->chars[j]);
+			pushStringBuilder(&sb, AS_STRING(value)->chars[j]);
 		}
 		krk_pop();
 	}
 
-	KrkValue out = OBJECT_VAL(krk_copyString(stringBytes, stringLength));
-	FREE_ARRAY(char,stringBytes,stringCapacity);
-	return out;
+	return finishStringBuilder(&sb);
 
 _expectedString:
 	krk_runtimeError(vm.exceptions.typeError, "Expected string, got %s.", errorStr);
-	FREE_ARRAY(char,stringBytes,stringCapacity);
-	return NONE_VAL();
+	discardStringBuilder(&sb);
 })
 
 static int isWhitespace(char c) {
