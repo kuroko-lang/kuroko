@@ -4,10 +4,6 @@
 #include "memory.h"
 #include "util.h"
 
-#define CHECK_DICT_FAST() if (unlikely(argc < 0 || !IS_INSTANCE(argv[0]) || \
-	(AS_INSTANCE(argv[0])->_class != vm.baseClasses.dictClass && !krk_isInstanceOf(argv[0], vm.baseClasses.dictClass)))) \
-		return krk_runtimeError(vm.exceptions.typeError, "expected dict")
-
 #define KEY_ERROR(value) {\
 	KrkClass * type = krk_getType(value); \
 	krk_push(value); \

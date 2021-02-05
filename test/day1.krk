@@ -4,9 +4,7 @@ let lines = [int(x) for x in f.read().split("\n")][:-1] # because that split inc
 f.close()
 
 # Make a bad set
-let data = {}
-for l in lines:
-    data[l] = 1
+let data = set(lines)
 
 for line in lines:
     if (2020 - line) in data:

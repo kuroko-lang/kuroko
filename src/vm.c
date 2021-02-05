@@ -1784,6 +1784,7 @@ void krk_initVM(int flags) {
 	_createAndBind_dictClass();
 	_createAndBind_functionClass();
 	_createAndBind_rangeClass();
+	_createAndBind_setClass();
 
 	/* Build global builtin functions. */
 	BUILTIN_FUNCTION("listOf", krk_list_of, "Convert argument sequence to list object.");

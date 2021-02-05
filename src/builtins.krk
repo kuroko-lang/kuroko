@@ -1,45 +1,5 @@
 # Please avoid using double quotes or escape sequences
 # in this file to allow it to be easily converted to C.
-class set():
- def __init__(self, iter=[]):
-  self._dict = {}
-  self.__inrepr = 0
-  for v in iter:
-   self._dict[v] = 1
- def __contains__(self, v):
-  return v in self._dict
- def __str__(self): return self.__repr__()
- def __repr__(self):
-  if self.__inrepr: return '{}'
-  let b='{'+', '.join([repr(k) for k in self._dict.keys()])+'}'
-  self.__inrepr = 0
-  return b
- def add(self,v):
-  self._dict[v] = 1
- def __len__(self):
-  return self._dict.__len__()
- def __iter__(self):
-  return self._dict.keys().__iter__()
- def __or__(self, o):
-  if not isinstance(o, set):
-   raise TypeError()
-  let b = set()
-  for k in self:
-   b.add(k)
-  for k in o:
-   b.add(k)
-  return b
- def __and__(self, o):
-  if not isinstance(o, set):
-   raise TypeError()
-  let b = set()
-  for k in self:
-   if k in o:
-    b.add(k)
-  return b
-
-__builtins__.set = set
-
 class Helper():
  '''You seem to already know how to use this.'''
  def __call__(self,obj=None):

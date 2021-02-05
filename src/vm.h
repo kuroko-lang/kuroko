@@ -190,3 +190,4 @@ extern void _createAndBind_bytesClass(void);
 extern void _createAndBind_dictClass(void);
 extern void _createAndBind_functionClass(void);
 extern void _createAndBind_rangeClass(void);
+extern void _createAndBind_setClass(void);
