@@ -1944,6 +1944,7 @@ static KrkValue run() {
 				KrkClass * _class = krk_newClass(name, vm.objectClass);
 				krk_push(OBJECT_VAL(_class));
 				_class->filename = frame->closure->function->chunk.filename;
+				krk_attachNamedObject(&_class->fields, "__func__", (KrkObj*)frame->closure);
 				break;
 			}
 			case OP_IMPORT_FROM_LONG:
