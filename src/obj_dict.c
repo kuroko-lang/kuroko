@@ -335,6 +335,8 @@ void _createAndBind_dictClass(void) {
 	krk_finalizeClass(dict);
 	dict->docstring = S("Mapping of arbitrary keys to values.");
 
+	BUILTIN_FUNCTION("dictOf", krk_dict_of, "Convert argument sequence to dict object.");
+
 	KrkClass * dictitems = ADD_BASE_CLASS(vm.baseClasses.dictitemsClass, "dictitems", vm.objectClass);
 	dictitems->allocSize = sizeof(struct DictItems);
 	dictitems->_ongcscan = _dictitems_gcscan;

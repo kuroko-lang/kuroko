@@ -446,6 +446,7 @@ KRK_METHOD(str,__lt__,{
 	if (!IS_STRING(argv[1])) {
 		return KWARGS_VAL(0); /* represents 'not implemented' */
 	}
+	if (AS_STRING(argv[0]) == AS_STRING(argv[1])) return BOOLEAN_VAL(0);
 
 	size_t aLen = AS_STRING(argv[0])->length;
 	size_t bLen = AS_STRING(argv[1])->length;
@@ -465,6 +466,7 @@ KRK_METHOD(str,__gt__,{
 	if (!IS_STRING(argv[1])) {
 		return KWARGS_VAL(0); /* represents 'not implemented' */
 	}
+	if (AS_STRING(argv[0]) == AS_STRING(argv[1])) return BOOLEAN_VAL(0);
 
 	size_t aLen = AS_STRING(argv[0])->length;
 	size_t bLen = AS_STRING(argv[1])->length;

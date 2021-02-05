@@ -1199,7 +1199,7 @@ static KrkValue tryBind(const char * name, KrkValue a, KrkValue b, const char * 
  */
 
 #define MAKE_BIN_OP(name,operator) \
-	static KrkValue operator_ ## name (KrkValue a, KrkValue b) { \
+	KrkValue krk_operator_ ## name (KrkValue a, KrkValue b) { \
 		if (IS_INTEGER(a) && IS_INTEGER(b)) return INTEGER_VAL(AS_INTEGER(a) operator AS_INTEGER(b)); \
 		if (IS_FLOATING(a)) { \
 			if (IS_INTEGER(b)) return FLOATING_VAL(AS_FLOATING(a) operator (double)AS_INTEGER(b)); \
@@ -1216,7 +1216,7 @@ MAKE_BIN_OP(mul,*)
 MAKE_BIN_OP(div,/)
 
 #define MAKE_UNOPTIMIZED_BIN_OP(name,operator) \
-	static KrkValue operator_ ## name (KrkValue a, KrkValue b) { \
+	KrkValue krk_operator_ ## name (KrkValue a, KrkValue b) { \
 		return tryBind("__" #name "__", a, b, "unsupported operand types for " #operator ": '%s' and '%s'"); \
 	}
 
@@ -1225,7 +1225,7 @@ MAKE_UNOPTIMIZED_BIN_OP(pow,**)
 /* Bit ops are invalid on doubles in C, so we can't use the same set of macros for them;
  * they should be invalid in Kuroko as well. */
 #define MAKE_BIT_OP(name,operator) \
-	static KrkValue operator_ ## name (KrkValue a, KrkValue b) { \
+	KrkValue krk_operator_ ## name (KrkValue a, KrkValue b) { \
 		if (IS_INTEGER(a) && IS_INTEGER(b)) return INTEGER_VAL(AS_INTEGER(a) operator AS_INTEGER(b)); \
 		return tryBind("__" #name "__", a, b, "unsupported operand types for " #operator ": '%s' and '%s'"); \
 	}
@@ -1238,7 +1238,7 @@ MAKE_BIT_OP(rshift,>>)
 MAKE_BIT_OP(mod,%) /* not a bit op, but doesn't work on floating point */
 
 #define MAKE_COMPARATOR(name, operator) \
-	static KrkValue operator_ ## name (KrkValue a, KrkValue b) { \
+	KrkValue krk_operator_ ## name (KrkValue a, KrkValue b) { \
 		if (IS_INTEGER(a) && IS_INTEGER(b)) return BOOLEAN_VAL(AS_INTEGER(a) operator AS_INTEGER(b)); \
 		if (IS_FLOATING(a)) { \
 			if (IS_INTEGER(b)) return BOOLEAN_VAL(AS_FLOATING(a) operator AS_INTEGER(b)); \
@@ -1636,11 +1636,11 @@ static int valueDelProperty(KrkString * name) {
 }
 
 #define READ_BYTE() (*frame->ip++)
-#define BINARY_OP(op) { KrkValue b = krk_pop(); KrkValue a = krk_pop(); krk_push(operator_ ## op (a,b)); break; }
+#define BINARY_OP(op) { KrkValue b = krk_pop(); KrkValue a = krk_pop(); krk_push(krk_operator_ ## op (a,b)); break; }
 #define BINARY_OP_CHECK_ZERO(op) { KrkValue b = krk_pop(); KrkValue a = krk_pop(); \
 	if ((IS_INTEGER(b) && AS_INTEGER(b) == 0)) { krk_runtimeError(vm.exceptions.zeroDivisionError, "integer division or modulo by zero"); goto _finishException; } \
 	else if ((IS_FLOATING(b) && AS_FLOATING(b) == 0.0)) { krk_runtimeError(vm.exceptions.zeroDivisionError, "float division by zero"); goto _finishException; } \
-	krk_push(operator_ ## op (a,b)); break; }
+	krk_push(krk_operator_ ## op (a,b)); break; }
 #define READ_CONSTANT(s) (frame->closure->function->chunk.constants.values[readBytes(frame,s)])
 #define READ_STRING(s) AS_STRING(READ_CONSTANT(s))
 

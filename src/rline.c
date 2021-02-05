@@ -554,6 +554,7 @@ char * syn_krk_types[] = {
 	"list","dict","range", /* builtin classes */
 	"object","exception","isinstance","type","tuple",
 	"print","set","any","all","bool","ord","chr","hex",
+	"sorted","bytes",
 	NULL
 };
 

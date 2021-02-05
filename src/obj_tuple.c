@@ -141,6 +141,8 @@ void _createAndBind_tupleClass(void) {
 	krk_defineNative(&vm.baseClasses.tupleClass->methods, ".__eq__", _tuple_eq);
 	krk_finalizeClass(vm.baseClasses.tupleClass);
 
+	BUILTIN_FUNCTION("tupleOf",krk_tuple_of,"Convert argument sequence to tuple object.");
+
 	ADD_BASE_CLASS(vm.baseClasses.tupleiteratorClass, "tupleiterator", vm.objectClass);
 	vm.baseClasses.tupleiteratorClass->allocSize = sizeof(struct TupleIter);
 	vm.baseClasses.tupleiteratorClass->_ongcscan = _tuple_iter_gcscan;

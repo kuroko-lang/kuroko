@@ -198,3 +198,6 @@ extern void _createAndBind_exceptions(void);
 extern void _createAndBind_gcMod(void);
 
 extern int krk_doRecursiveModuleLoad(KrkString * name);
+
+extern KrkValue krk_operator_lt(KrkValue,KrkValue);
+extern KrkValue krk_operator_gt(KrkValue,KrkValue);

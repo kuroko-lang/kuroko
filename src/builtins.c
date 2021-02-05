@@ -426,10 +426,6 @@ void _createAndBind_builtins(void) {
 	krk_finalizeClass(LicenseReader);
 	krk_attachNamedObject(&vm.builtins->fields, "license", (KrkObj*)krk_newInstance(LicenseReader));
 
-	BUILTIN_FUNCTION("listOf", krk_list_of, "Convert argument sequence to list object.");
-	BUILTIN_FUNCTION("dictOf", krk_dict_of, "Convert argument sequence to dict object.");
-	BUILTIN_FUNCTION("tupleOf",krk_tuple_of,"Convert argument sequence to tuple object.");
-
 	BUILTIN_FUNCTION("isinstance", _isinstance, "Determine if an object is an instance of the given class or one if its subclasses.");
 	BUILTIN_FUNCTION("globals", _globals, "Return a mapping of names in the current global namespace.");
 	BUILTIN_FUNCTION("dir", _dir, "Return a list of known property names for a given object.");

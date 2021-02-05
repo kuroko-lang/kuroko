@@ -8,6 +8,11 @@
 	if (index < 0) index += self->values.count; \
 	if (index < 0 || index >= (krk_integer_type)self->values.count) return krk_runtimeError(vm.exceptions.indexError, "list index out of range: " PRIkrk_int, index)
 
+#define LIST_WRAP_SOFT(val) \
+	if (val < 0) val += self->values.count; \
+	if (val < 0) val = 0; \
+	if (val > (krk_integer_type)self->values.count) val = self->values.count
+
 static void _list_gcscan(KrkInstance * self) {
 	for (size_t i = 0; i < ((KrkList*)self)->values.count; ++i) {
 		krk_markValue(((KrkList*)self)->values.values[i]);
@@ -227,6 +232,95 @@ KRK_METHOD(list,pop,{
 	}
 })
 
+KRK_METHOD(list,remove,{
+	METHOD_TAKES_EXACTLY(1);
+	for (size_t i = 0; i < self->values.count; ++i) {
+		if (krk_valuesEqual(self->values.values[i], argv[1])) {
+			return FUNC_NAME(list,pop)(2,(KrkValue[]){argv[0], INTEGER_VAL(i)},0);
+		}
+	}
+	return krk_runtimeError(vm.exceptions.valueError, "not found");
+})
+
+KRK_METHOD(list,clear,{
+	METHOD_TAKES_NONE();
+	krk_freeValueArray(&self->values);
+})
+
+KRK_METHOD(list,index,{
+	METHOD_TAKES_AT_LEAST(1);
+	METHOD_TAKES_AT_MOST(3);
+
+	krk_integer_type min = 0;
+	krk_integer_type max = self->values.count;
+
+	if (argc > 2) {
+		if (IS_INTEGER(argv[2]))
+			min = AS_INTEGER(argv[2]);
+		else
+			return krk_runtimeError(vm.exceptions.typeError, "min must be int, not '%s'", krk_typeName(argv[2]));
+	}
+
+	if (argc > 3) {
+		if (IS_INTEGER(argv[3]))
+			max = AS_INTEGER(argv[3]);
+		else
+			return krk_runtimeError(vm.exceptions.typeError, "max must be int, not '%s'", krk_typeName(argv[3]));
+	}
+
+	LIST_WRAP_SOFT(min);
+	LIST_WRAP_SOFT(max);
+
+	for (krk_integer_type i = min; i < max; ++i) {
+		if (krk_valuesEqual(self->values.values[i], argv[1])) return INTEGER_VAL(i);
+	}
+
+	return krk_runtimeError(vm.exceptions.valueError, "not found");
+})
+
+KRK_METHOD(list,count,{
+	METHOD_TAKES_EXACTLY(1);
+	krk_integer_type count = 0;
+
+	for (size_t i = 0; i < self->values.count; ++i) {
+		if (krk_valuesEqual(self->values.values[i], argv[1])) count++;
+	}
+
+	return INTEGER_VAL(count);
+})
+
+KRK_METHOD(list,copy,{
+	METHOD_TAKES_NONE();
+	return krk_list_of(self->values.count, self->values.values);
+})
+
+KRK_METHOD(list,reverse,{
+	METHOD_TAKES_NONE();
+	for (size_t i = 0; i < (self->values.count) / 2; i++) {
+		KrkValue tmp = self->values.values[i];
+		self->values.values[i] = self->values.values[self->values.count-i-1];
+		self->values.values[self->values.count-i-1] = tmp;
+	}
+	return NONE_VAL();
+})
+
+static int _list_sorter(const void * _a, const void * _b) {
+	KrkValue a = *(KrkValue*)_a;
+	KrkValue b = *(KrkValue*)_b;
+
+	KrkValue ltComp = krk_operator_lt(a,b);
+	if (IS_NONE(ltComp) || (IS_BOOLEAN(ltComp) && AS_BOOLEAN(ltComp))) return -1;
+	KrkValue gtComp = krk_operator_gt(a,b);
+	if (IS_NONE(gtComp) || (IS_BOOLEAN(gtComp) && AS_BOOLEAN(gtComp))) return 1;
+	return 0;
+}
+
+KRK_METHOD(list,sort,{
+	METHOD_TAKES_NONE();
+
+	qsort(self->values.values, self->values.count, sizeof(KrkValue), _list_sorter);
+})
+
 FUNC_SIG(listiterator,__init__);
 
 KRK_METHOD(list,__iter__,{
@@ -280,6 +374,18 @@ _corrupt:
 	return krk_runtimeError(vm.exceptions.typeError, "Corrupt list iterator: %s", errorStr);
 })
 
+
+static KrkValue _sorted(int argc, KrkValue argv[], int hasKw) {
+	if (argc != 1) return krk_runtimeError(vm.exceptions.argumentError,"%s() takes %s %d argument%s (%d given)","sorted","exactly",1,argc);
+	KrkValue listOut = krk_list_of(0,NULL);
+	krk_push(listOut);
+	FUNC_NAME(list,extend)(2,(KrkValue[]){listOut,argv[0]},0);
+	if (!IS_NONE(vm.currentException)) return NONE_VAL();
+	FUNC_NAME(list,sort)(1,&listOut,0);
+	if (!IS_NONE(vm.currentException)) return NONE_VAL();
+	return krk_pop();
+}
+
 _noexport
 void _createAndBind_listClass(void) {
 	KrkClass * list = ADD_BASE_CLASS(vm.baseClasses.listClass, "list", vm.objectClass);
@@ -299,10 +405,20 @@ void _createAndBind_listClass(void) {
 	BIND_METHOD(list,extend);
 	BIND_METHOD(list,pop);
 	BIND_METHOD(list,insert);
+	BIND_METHOD(list,clear);
+	BIND_METHOD(list,index);
+	BIND_METHOD(list,count);
+	BIND_METHOD(list,copy);
+	BIND_METHOD(list,remove);
+	BIND_METHOD(list,reverse);
+	BIND_METHOD(list,sort);
 	krk_defineNative(&list->methods, ".__delitem__", FUNC_NAME(list,pop));
 	krk_defineNative(&list->methods, ".__str__", FUNC_NAME(list,__repr__));
 	krk_finalizeClass(list);
 	list->docstring = S("Mutable sequence of arbitrary values.");
+
+	BUILTIN_FUNCTION("listOf", krk_list_of, "Convert argument sequence to list object.");
+	BUILTIN_FUNCTION("sorted", _sorted, "Return a sorted representation of an iterable.");
 
 	KrkClass * listiterator = ADD_BASE_CLASS(vm.baseClasses.listiteratorClass, "listiterator", vm.objectClass);
 	BIND_METHOD(listiterator,__init__);
