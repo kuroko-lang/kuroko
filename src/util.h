@@ -114,6 +114,12 @@ static inline KrkValue discardStringBuilder(struct StringBuilder * sb) {
 #define IS_int(o)     (IS_INTEGER(o))
 #define AS_int(o)     (AS_INTEGER(o))
 
+#define IS_bool(o)    (IS_BOOLEAN(o))
+#define AS_bool(o)    (AS_BOOLEAN(o))
+
+#define IS_float(o)   (IS_FLOATING(o))
+#define AS_float(o)   (AS_FLOATING(o))
+
 #define IS_list(o)    krk_isInstanceOf(o,vm.baseClasses.listClass)
 #define AS_list(o)    (KrkList*)AS_OBJECT(o)
 

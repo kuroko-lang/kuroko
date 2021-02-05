@@ -40,8 +40,6 @@ The interpreter binary is a thin wrapper and lives in `kuroko.c`; `rline.c` prov
 
 C module sources are found in `src/` and provide optional added functionality. Each module source file corresponds to a resulting shared object of the same name that will be built to the `modules/` directory, which itself also contains modules written in Kuroko.
 
-The core builtins, `builtins.krk` are embedded in `builtins.c` so they are always available to the interpreter; `builtins.c` is provided in the repository, but can be updated by the Makefile when changes to `builtins.krk` are made.
-
 ### Building as a Single Static Binary
 
 Configuration options are available in the Makefile to build Kuroko as a static binary.

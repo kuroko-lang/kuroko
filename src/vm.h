@@ -181,8 +181,9 @@ extern KrkValue krk_dict_nth_key_fast(size_t capacity, KrkTableEntry * entries, 
 
 extern KrkValue krk_tuple_of(int argc, KrkValue argv[]);
 
-extern KrkValue _noop(int argc, KrkValue argv[]);
+extern int krk_isFalsey(KrkValue value);
 
+extern void _createAndBind_numericClasses(void);
 extern void _createAndBind_strClass(void);
 extern void _createAndBind_listClass(void);
 extern void _createAndBind_tupleClass(void);
@@ -191,3 +192,7 @@ extern void _createAndBind_dictClass(void);
 extern void _createAndBind_functionClass(void);
 extern void _createAndBind_rangeClass(void);
 extern void _createAndBind_setClass(void);
+extern void _createAndBind_builtins(void);
+extern void _createAndBind_type(void);
+
+extern int krk_doRecursiveModuleLoad(KrkString * name);

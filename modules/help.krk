@@ -21,6 +21,15 @@ def interactive():
     '''Runs the detailed help tool. Currently that means just printing a longer help string.'''
     print(__introText)
 
+def simple(obj):
+    try:
+        print(obj.__doc__)
+    except:
+        try:
+            print(obj.__class__.__doc__)
+        except:
+            print('No docstring avaialble for', obj)
+
 let __licenseText = '''
 Copyright (c) 2020-2021 K. Lange <klange@toaruos.org>
 

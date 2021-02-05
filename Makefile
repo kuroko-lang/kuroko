@@ -64,11 +64,6 @@ modules/math.so: src/module_math.c libkuroko.so
 libkuroko.so: ${OBJS}
 	${CC} ${CFLAGS} ${LDFLAGS} -shared -o $@ ${OBJS}
 
-src/builtins.c: src/builtins.krk
-	echo "const char krk_builtinsSrc[] = " > $@
-	cat $< | sed s'/\(.*\)/\"\0\\n\"/' >> $@
-	echo ";" >> $@
-
 .PHONY: clean
 clean:
 	@rm -f ${OBJS} ${TARGET} ${MODULES} libkuroko.so src/*.o kuroko.exe
