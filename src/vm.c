@@ -14,10 +14,10 @@
 #include "util.h"
 
 #define KRK_VERSION_MAJOR  "1"
-#define KRK_VERSION_MINOR  "0"
-#define KRK_VERSION_PATCH  "1"
+#define KRK_VERSION_MINOR  "1"
+#define KRK_VERSION_PATCH  "0"
 
-#define KRK_VERSION_EXTRA_BASE  ""
+#define KRK_VERSION_EXTRA_BASE  "-preview"
 
 #ifndef STATIC_ONLY
 #define KRK_VERSION_EXTRA KRK_VERSION_EXTRA_BASE
