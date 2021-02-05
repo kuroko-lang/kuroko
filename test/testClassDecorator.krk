@@ -1,0 +1,18 @@
+def classDecorator(cls):
+    class NewClass(cls):
+        def extraMethod(self):
+            print("decorator-added method",self.__class__.__name__)
+    return NewClass
+
+
+@classDecorator
+class FooBar(object):
+    def __init__(self):
+        self.bar = "baz"
+    def myMethod(self):
+        print(self.bar)
+
+
+let l = FooBar()
+l.extraMethod()
+l.myMethod()

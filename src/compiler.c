@@ -188,7 +188,7 @@ static void declaration();
 static void or_(int canAssign);
 static void ternary(int canAssign);
 static void and_(int canAssign);
-static void classDeclaration();
+static KrkToken classDeclaration();
 static void declareVariable();
 static void namedVariable(KrkToken name, int canAssign);
 static void addLocal(KrkToken name);
@@ -761,7 +761,11 @@ static void declaration() {
 	} else if (match(TOKEN_LET)) {
 		letDeclaration();
 	} else if (check(TOKEN_CLASS)) {
-		classDeclaration();
+		KrkToken className = classDeclaration();
+		size_t classConst = identifierConstant(&className);
+		parser.previous = className;
+		declareVariable();
+		defineVariable(classConst);
 	} else if (check(TOKEN_AT)) {
 		decorator(0, TYPE_FUNCTION);
 	} else if (match(TOKEN_EOL) || match(TOKEN_EOF)) {
@@ -1018,11 +1022,17 @@ static void method(size_t blockWidth) {
 	}
 }
 
-static void classDeclaration() {
+static KrkToken classDeclaration() {
 	size_t blockWidth = (parser.previous.type == TOKEN_INDENTATION) ? parser.previous.length : 0;
 	advance(); /* Collect the `class` */
 
 	consume(TOKEN_IDENTIFIER, "Expected class name.");
+	Compiler subcompiler;
+	initCompiler(&subcompiler, TYPE_LAMBDA);
+	subcompiler.function->chunk.filename = subcompiler.enclosing->function->chunk.filename;
+
+	beginScope();
+
 	KrkToken className = parser.previous;
 	size_t constInd = identifierConstant(&parser.previous);
 	declareVariable();
@@ -1094,8 +1104,15 @@ static void classDeclaration() {
 	} /* else empty class (and at end of file?) we'll allow it for now... */
 _pop_class:
 	emitByte(OP_FINALIZE);
-	endScope();
 	currentClass = currentClass->enclosing;
+	KrkFunction * makeclass = endCompiler();
+	size_t indFunc = krk_addConstant(currentChunk(), OBJECT_VAL(makeclass));
+	EMIT_CONSTANT_OP(OP_CLOSURE, indFunc);
+	doUpvalues(&subcompiler, makeclass);
+	freeCompiler(&subcompiler);
+	emitBytes(OP_CALL, 0);
+
+	return className;
 }
 
 static void markInitialized() {
@@ -1187,6 +1204,12 @@ static KrkToken decorator(size_t level, FunctionType type) {
 		function(type, blockWidth);
 	} else if (check(TOKEN_AT)) {
 		funcName = decorator(level+1, type);
+	} else if (check(TOKEN_CLASS)) {
+		if (type != TYPE_FUNCTION) {
+			error("Invalid decorator applied to class");
+			return funcName;
+		}
+		funcName = classDeclaration();
 	} else {
 		error("Expected a function declaration or another decorator.");
 		return funcName;

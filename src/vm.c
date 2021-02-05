@@ -2066,7 +2066,6 @@ static KrkValue run() {
 				KrkClass * _class = AS_CLASS(krk_peek(0));
 				/* Store special methods for quick access */
 				krk_finalizeClass(_class);
-				krk_pop(); /* Pop the class as we're done attaching methods */
 				break;
 			}
 			case OP_INHERIT: {
