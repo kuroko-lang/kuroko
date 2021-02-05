@@ -922,9 +922,9 @@ static void closeUpvalues(int last) {
  * a native module's export object.
  */
 void krk_attachNamedObject(KrkTable * table, const char name[], KrkObj * obj) {
-	krk_push(OBJECT_VAL(krk_copyString(name,strlen(name))));
 	krk_push(OBJECT_VAL(obj));
-	krk_tableSet(table, krk_peek(1), krk_peek(0));
+	krk_push(OBJECT_VAL(krk_copyString(name,strlen(name))));
+	krk_tableSet(table, krk_peek(0), krk_peek(1));
 	krk_pop();
 	krk_pop();
 }
@@ -933,9 +933,9 @@ void krk_attachNamedObject(KrkTable * table, const char name[], KrkObj * obj) {
  * Same as above, but the object has already been wrapped in a value.
  */
 void krk_attachNamedValue(KrkTable * table, const char name[], KrkValue obj) {
-	krk_push(OBJECT_VAL(krk_copyString(name,strlen(name))));
 	krk_push(obj);
-	krk_tableSet(table, krk_peek(1), krk_peek(0));
+	krk_push(OBJECT_VAL(krk_copyString(name,strlen(name))));
+	krk_tableSet(table, krk_peek(0), krk_peek(1));
 	krk_pop();
 	krk_pop();
 }
