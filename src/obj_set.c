@@ -225,6 +225,19 @@ KRK_METHOD(setiterator,__call__,{
 	} while (1);
 })
 
+KrkValue krk_set_of(int argc, KrkValue argv[]) {
+	KrkValue outSet = OBJECT_VAL(krk_newInstance(set));
+	krk_push(outSet);
+	krk_initTable(&AS_set(outSet)->entries);
+
+	while (argc) {
+		krk_tableSet(&AS_set(outSet)->entries, argv[argc-1], BOOLEAN_VAL(1));
+		argc--;
+	}
+
+	return krk_pop();
+}
+
 _noexport
 void _createAndBind_setClass(void) {
 	krk_makeClass(vm.builtins, &set, "set", vm.objectClass);
@@ -244,6 +257,8 @@ void _createAndBind_setClass(void) {
 	BIND_METHOD(set,clear);
 	krk_defineNative(&set->methods, ".__str__", FUNC_NAME(set,__repr__));
 	krk_finalizeClass(set);
+
+	BUILTIN_FUNCTION("setOf", krk_set_of, "Convert argument sequence to set object.");
 
 	krk_makeClass(vm.builtins, &setiterator, "setiterator", vm.objectClass);
 	setiterator->allocSize = sizeof(struct SetIterator);

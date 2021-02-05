@@ -1,0 +1,2 @@
+print({1,2,3,object,True,None,"test"})
+print({str(i) for i in [1,2,3,object,print]})

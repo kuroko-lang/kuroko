@@ -2238,23 +2238,41 @@ static void dict(int canAssign) {
 		Parser  parserBefore = parser;
 
 		expression();
-		consume(TOKEN_COLON, "Expect colon after dict key.");
-		expression();
-
-		if (match(TOKEN_FOR)) {
-			/* Roll back the earlier compiler */
+		if (match(TOKEN_COMMA) || match(TOKEN_RIGHT_BRACE)) {
+			krk_rewindScanner(scannerBefore);
+			parser = parserBefore;
 			currentChunk()->count = chunkBefore;
-
-			comprehension(scannerBefore, parserBefore, "dictOf", dictInner);
-		} else {
-			size_t argCount = 2;
-			while (match(TOKEN_COMMA) && !check(TOKEN_RIGHT_BRACE)) {
+			KrkToken setOf = syntheticToken("setOf");
+			size_t ind = identifierConstant(&setOf);
+			EMIT_CONSTANT_OP(OP_GET_GLOBAL, ind);
+			size_t argCount = 0;
+			do {
 				expression();
-				consume(TOKEN_COLON, "Expect colon after dict key.");
-				expression();
-				argCount += 2;
-			}
+				argCount++;
+			} while (match(TOKEN_COMMA));
 			EMIT_CONSTANT_OP(OP_CALL, argCount);
+		} else if (match(TOKEN_FOR)) {
+			currentChunk()->count = chunkBefore;
+			comprehension(scannerBefore, parserBefore, "setOf", singleInner);
+		} else {
+			consume(TOKEN_COLON, "Expect colon after dict key.");
+			expression();
+
+			if (match(TOKEN_FOR)) {
+				/* Roll back the earlier compiler */
+				currentChunk()->count = chunkBefore;
+
+				comprehension(scannerBefore, parserBefore, "dictOf", dictInner);
+			} else {
+				size_t argCount = 2;
+				while (match(TOKEN_COMMA) && !check(TOKEN_RIGHT_BRACE)) {
+					expression();
+					consume(TOKEN_COLON, "Expect colon after dict key.");
+					expression();
+					argCount += 2;
+				}
+				EMIT_CONSTANT_OP(OP_CALL, argCount);
+			}
 		}
 	} else {
 		emitBytes(OP_CALL, 0);
