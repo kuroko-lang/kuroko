@@ -3,6 +3,7 @@
 #include "object.h"
 #include "compiler.h"
 #include "table.h"
+#include "util.h"
 
 void * krk_reallocate(void * ptr, size_t old, size_t new) {
 	vm.bytesAllocated += new - old;
@@ -268,4 +269,24 @@ size_t krk_collectGarbage(void) {
 	size_t out = sweep();
 	vm.nextGC = vm.bytesAllocated * 2;
 	return out;
+}
+
+static KrkValue krk_collectGarbage_wrapper(int argc, KrkValue argv[]) {
+	return INTEGER_VAL(krk_collectGarbage());
+}
+
+_noexport
+void _createAndBind_gcMod(void) {
+	/**
+	 * gc = module()
+	 *
+	 * Namespace for methods for controlling the garbage collector.
+	 */
+	KrkInstance * gcModule = krk_newInstance(vm.moduleClass);
+	krk_attachNamedObject(&vm.modules, "gc", (KrkObj*)gcModule);
+	krk_attachNamedObject(&gcModule->fields, "__name__", (KrkObj*)S("gc"));
+	krk_attachNamedValue(&gcModule->fields, "__file__", NONE_VAL());
+	krk_defineNative(&gcModule->fields, "collect", krk_collectGarbage_wrapper);
+	krk_attachNamedObject(&gcModule->fields, "__doc__",
+		(KrkObj*)S("Namespace containing methods for controlling the garbge collector."));
 }

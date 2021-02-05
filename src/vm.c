@@ -941,82 +941,6 @@ void krk_attachNamedValue(KrkTable * table, const char name[], KrkValue obj) {
 }
 
 /**
- * Exception.__init__(arg)
- */
-static KrkValue krk_initException(int argc, KrkValue argv[]) {
-	KrkInstance * self = AS_INSTANCE(argv[0]);
-
-	if (argc > 0) {
-		krk_attachNamedValue(&self->fields, "arg", argv[1]);
-	} else {
-		krk_attachNamedValue(&self->fields, "arg", NONE_VAL());
-	}
-
-	return argv[0];
-}
-
-static KrkValue _exception_repr(int argc, KrkValue argv[]) {
-	KrkInstance * self = AS_INSTANCE(argv[0]);
-	/* .arg */
-	KrkValue arg;
-	if (!krk_tableGet(&self->fields, OBJECT_VAL(S("arg")), &arg) || IS_NONE(arg)) {
-		return OBJECT_VAL(self->_class->name);
-	} else {
-		krk_push(OBJECT_VAL(self->_class->name));
-		krk_push(OBJECT_VAL(S(": ")));
-		krk_addObjects();
-		krk_push(arg);
-		krk_addObjects();
-		return krk_pop();
-	}
-}
-
-static KrkValue _syntaxerror_repr(int argc, KrkValue argv[]) {
-	KrkInstance * self = AS_INSTANCE(argv[0]);
-	/* .arg */
-	KrkValue file, line, lineno, colno, arg, func;
-	if (!krk_tableGet(&self->fields, OBJECT_VAL(S("file")), &file) || !IS_STRING(file)) goto _badSyntaxError;
-	if (!krk_tableGet(&self->fields, OBJECT_VAL(S("line")), &line) || !IS_STRING(line)) goto _badSyntaxError;
-	if (!krk_tableGet(&self->fields, OBJECT_VAL(S("lineno")), &lineno) || !IS_INTEGER(lineno)) goto _badSyntaxError;
-	if (!krk_tableGet(&self->fields, OBJECT_VAL(S("colno")), &colno) || !IS_INTEGER(colno)) goto _badSyntaxError;
-	if (!krk_tableGet(&self->fields, OBJECT_VAL(S("arg")), &arg) || !IS_STRING(arg)) goto _badSyntaxError;
-	if (!krk_tableGet(&self->fields, OBJECT_VAL(S("func")), &func)) goto _badSyntaxError;
-
-	if (AS_INTEGER(colno) <= 0) colno = INTEGER_VAL(1);
-
-	krk_push(OBJECT_VAL(S("  File \"{}\", line {}{}\n    {}\n    {}^\n{}: {}")));
-	char * tmp = malloc(AS_INTEGER(colno));
-	memset(tmp,' ',AS_INTEGER(colno));
-	tmp[AS_INTEGER(colno)-1] = '\0';
-	krk_push(OBJECT_VAL(krk_takeString(tmp,AS_INTEGER(colno)-1)));
-	krk_push(OBJECT_VAL(self->_class->name));
-	if (IS_STRING(func)) {
-		krk_push(OBJECT_VAL(S(" in ")));
-		krk_push(func);
-		krk_addObjects();
-	} else {
-		krk_push(OBJECT_VAL(S("")));
-	}
-	KrkValue formattedString = krk_string_format(8,
-		(KrkValue[]){krk_peek(3), file, lineno, krk_peek(0), line, krk_peek(2), krk_peek(1), arg}, 0);
-	krk_pop(); /* instr */
-	krk_pop(); /* class */
-	krk_pop(); /* spaces */
-	krk_pop(); /* format string */
-
-	return formattedString;
-
-_badSyntaxError:
-	return OBJECT_VAL(S("SyntaxError: invalid syntax"));
-}
-
-#define ADD_EXCEPTION_CLASS(obj, name, baseClass) do { \
-	obj = krk_newClass(S(name), baseClass); \
-	krk_attachNamedObject(&vm.builtins->fields, name, (KrkObj*)obj); \
-	krk_finalizeClass(obj); \
-} while (0)
-
-/**
  * Inverse of truthiness.
  *
  * None, False, and 0 are all "falsey", meaning they will trip JUMP_IF_FALSE
@@ -1048,10 +972,6 @@ int krk_isFalsey(KrkValue value) {
 		return !AS_INTEGER(krk_callSimple(OBJECT_VAL(type->_len),1,0));
 	}
 	return 0; /* Assume anything else is truthy */
-}
-
-static KrkValue krk_collectGarbage_wrapper(int argc, KrkValue argv[]) {
-	return INTEGER_VAL(krk_collectGarbage());
 }
 
 static KrkValue krk_getsize(int argc, KrkValue argv[]) {
@@ -1185,6 +1105,8 @@ void krk_initVM(int flags) {
 	_createAndBind_functionClass();
 	_createAndBind_rangeClass();
 	_createAndBind_setClass();
+	_createAndBind_exceptions();
+	_createAndBind_gcMod();
 
 	/**
 	 * kuroko = module()
@@ -1226,42 +1148,6 @@ void krk_initVM(int flags) {
 		}
 		free(dir);
 	}
-
-
-	/**
-	 * gc = module()
-	 *
-	 * Namespace for methods for controlling the garbage collector.
-	 */
-	KrkInstance * gcModule = krk_newInstance(vm.moduleClass);
-	krk_attachNamedObject(&vm.modules, "gc", (KrkObj*)gcModule);
-	krk_attachNamedObject(&gcModule->fields, "__name__", (KrkObj*)S("gc"));
-	krk_attachNamedValue(&gcModule->fields, "__file__", NONE_VAL());
-	krk_defineNative(&gcModule->fields, "collect", krk_collectGarbage_wrapper);
-	krk_attachNamedObject(&gcModule->fields, "__doc__",
-		(KrkObj*)S("Namespace containing methods for controlling the garbge collector."));
-
-	/* Add exception classes */
-	ADD_EXCEPTION_CLASS(vm.exceptions.baseException, "Exception", vm.objectClass);
-	/* base exception class gets an init that takes an optional string */
-	krk_defineNative(&vm.exceptions.baseException->methods, ".__init__", krk_initException);
-	krk_defineNative(&vm.exceptions.baseException->methods, ".__repr__", _exception_repr);
-	krk_finalizeClass(vm.exceptions.baseException);
-	ADD_EXCEPTION_CLASS(vm.exceptions.typeError, "TypeError", vm.exceptions.baseException);
-	ADD_EXCEPTION_CLASS(vm.exceptions.argumentError, "ArgumentError", vm.exceptions.baseException);
-	ADD_EXCEPTION_CLASS(vm.exceptions.indexError, "IndexError", vm.exceptions.baseException);
-	ADD_EXCEPTION_CLASS(vm.exceptions.keyError, "KeyError", vm.exceptions.baseException);
-	ADD_EXCEPTION_CLASS(vm.exceptions.attributeError, "AttributeError", vm.exceptions.baseException);
-	ADD_EXCEPTION_CLASS(vm.exceptions.nameError, "NameError", vm.exceptions.baseException);
-	ADD_EXCEPTION_CLASS(vm.exceptions.importError, "ImportError", vm.exceptions.baseException);
-	ADD_EXCEPTION_CLASS(vm.exceptions.ioError, "IOError", vm.exceptions.baseException);
-	ADD_EXCEPTION_CLASS(vm.exceptions.valueError, "ValueError", vm.exceptions.baseException);
-	ADD_EXCEPTION_CLASS(vm.exceptions.keyboardInterrupt, "KeyboardInterrupt", vm.exceptions.baseException);
-	ADD_EXCEPTION_CLASS(vm.exceptions.zeroDivisionError, "ZeroDivisionError", vm.exceptions.baseException);
-	ADD_EXCEPTION_CLASS(vm.exceptions.notImplementedError, "NotImplementedError", vm.exceptions.baseException);
-	ADD_EXCEPTION_CLASS(vm.exceptions.syntaxError, "SyntaxError", vm.exceptions.baseException);
-	krk_defineNative(&vm.exceptions.syntaxError->methods, ".__repr__", _syntaxerror_repr);
-	krk_finalizeClass(vm.exceptions.syntaxError);
 
 	/* The VM is now ready to start executing code. */
 	krk_resetStack();
@@ -1310,11 +1196,6 @@ static KrkValue tryBind(const char * name, KrkValue a, KrkValue b, const char * 
 
 /**
  * Basic arithmetic and string functions follow.
- *
- * BIG TODO: All of these need corresponding __methods__ so that classes
- *           can override / implement them.
- * __add__, __sub__, __mult__, __div__,
- * __or__, __and__, __xor__, __lshift__, __rshift__, __remainder__?
  */
 
 #define MAKE_BIN_OP(name,operator) \
