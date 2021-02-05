@@ -5,29 +5,29 @@
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
+#include <dirent.h>
 
 #include "vm.h"
 #include "value.h"
 #include "object.h"
-
-#define S(c) (krk_copyString(c,sizeof(c)-1))
+#include "memory.h"
+#include "util.h"
 
 static KrkClass * FileClass = NULL;
 static KrkClass * BinaryFileClass = NULL;
+static KrkClass * Directory = NULL;
 
 struct FileObject {
 	KrkInstance inst;
 	FILE * filePtr;
 };
 
+struct Directory {
+	KrkInstance inst;
+	DIR * dirPtr;
+};
+
 KrkValue krk_open(int argc, KrkValue argv[]) {
-	/* How are we going to store files if we need to delete them at runtime
-	 * when the GC finishes... maybe we could add a new object type that
-	 * native modules can use that calls free() on an arbitrary pointer,
-	 * or has a callback function that can do other things like closing...
-	 * For now, let's just pretend it doesn't matter and let the user figure
-	 * figure it out for themselves.
-	 */
 	if (argc < 1) return krk_runtimeError(vm.exceptions.argumentError, "open() takes at least 1 argument.");
 	if (argc > 2) return krk_runtimeError(vm.exceptions.argumentError, "open() takes at most 2 argument.");
 	if (!IS_STRING(argv[0])) return krk_runtimeError(vm.exceptions.typeError, "open: first argument should be a filename string, not '%s'", krk_typeName(argv[0]));
@@ -382,17 +382,6 @@ static KrkValue krk_file_write_b(int argc, KrkValue argv[]) {
 	return INTEGER_VAL(fwrite(AS_BYTES(argv[1])->bytes, 1, AS_BYTES(argv[1])->length, file));
 }
 
-static void makeClass(KrkInstance * module, KrkClass ** _class, const char * name, KrkClass * base) {
-	KrkString * str_Name = krk_copyString(name,strlen(name));
-	krk_push(OBJECT_VAL(str_Name));
-	*_class = krk_newClass(str_Name, base);
-	krk_push(OBJECT_VAL(*_class));
-	/* Bind it */
-	krk_attachNamedObject(&module->fields,name,(KrkObj*)*_class);
-	krk_pop();
-	krk_pop();
-}
-
 static void _file_sweep(KrkInstance * self) {
 	struct FileObject * me = (void *)self;
 	if (me->filePtr) {
@@ -401,6 +390,77 @@ static void _file_sweep(KrkInstance * self) {
 	}
 }
 
+static void _dir_sweep(KrkInstance * self) {
+	struct Directory * me = (void *)self;
+	if (me->dirPtr) {
+		closedir(me->dirPtr);
+		me->dirPtr = NULL;
+	}
+}
+
+static KrkValue _opendir(int argc, KrkValue argv[], int hasKw) {
+	if (argc != 1) return krk_runtimeError(vm.exceptions.argumentError, "opendir() expects exactly one argument");
+	if (!IS_STRING(argv[0])) return krk_runtimeError(vm.exceptions.typeError, "expected str, not '%s'", krk_typeName(argv[0]));
+	char * path = AS_CSTRING(argv[0]);
+
+	DIR * dir = opendir(path);
+	if (!dir) return krk_runtimeError(vm.exceptions.ioError, "opendir: %s", strerror(errno));
+
+	struct Directory * dirObj = (void *)krk_newInstance(Directory);
+	krk_push(OBJECT_VAL(dirObj));
+
+	krk_attachNamedValue(&dirObj->inst.fields, "path", argv[0]);
+	dirObj->dirPtr = dir;
+
+	return krk_pop();
+}
+
+#define IS_Directory(o) (krk_isInstanceOf(o,Directory))
+#define AS_Directory(o) ((struct Directory*)AS_OBJECT(o))
+#define CURRENT_CTYPE struct Directory *
+#define CURRENT_NAME  self
+
+KRK_METHOD(Directory,__call__,{
+	METHOD_TAKES_NONE();
+	if (!self->dirPtr) return argv[0];
+	struct dirent * entry = readdir(self->dirPtr);
+	if (!entry) return argv[0];
+
+	KrkValue outDict = krk_dict_of(0, NULL);
+	krk_push(outDict);
+
+	krk_attachNamedValue(AS_DICT(outDict), "name", OBJECT_VAL(krk_copyString(entry->d_name,strlen(entry->d_name))));
+	krk_attachNamedValue(AS_DICT(outDict), "inode", INTEGER_VAL(entry->d_ino));
+
+	return krk_pop();
+})
+
+KRK_METHOD(Directory,__iter__,{
+	METHOD_TAKES_NONE();
+	return argv[0];
+})
+
+KRK_METHOD(Directory,close,{
+	METHOD_TAKES_NONE();
+	if (self->dirPtr) {
+		closedir(self->dirPtr);
+		self->dirPtr = NULL;
+	}
+})
+
+KRK_METHOD(Directory,__repr__,{
+	METHOD_TAKES_NONE();
+	KrkValue path;
+	if (!krk_tableGet(&self->inst.fields, OBJECT_VAL(S("path")), &path) || !IS_STRING(path))
+		return krk_runtimeError(vm.exceptions.valueError, "corrupt Directory");
+
+	char * tmp = malloc(AS_STRING(path)->length + 100);
+	size_t len = sprintf(tmp, "<%s directory '%s' at %p>", self->dirPtr ? "open" : "closed", AS_CSTRING(path), (void*)self);
+	KrkString * out = krk_copyString(tmp, len);
+	free(tmp);
+	return OBJECT_VAL(out);
+})
+
 KrkValue krk_module_onload_fileio(void) {
 	KrkInstance * module = krk_newInstance(vm.moduleClass);
 	/* Store it on the stack for now so we can do stuff that may trip GC
@@ -408,7 +468,7 @@ KrkValue krk_module_onload_fileio(void) {
 	krk_push(OBJECT_VAL(module));
 
 	/* Define a class to represent files. (Should this be a helper method?) */
-	makeClass(module, &FileClass, "File", vm.objectClass);
+	krk_makeClass(module, &FileClass, "File", vm.objectClass);
 	FileClass->allocSize = sizeof(struct FileObject);
 	FileClass->_ongcsweep = _file_sweep;
 
@@ -426,12 +486,21 @@ KrkValue krk_module_onload_fileio(void) {
 	krk_defineNative(&FileClass->methods, ".__exit__", krk_file_exit);
 	krk_finalizeClass(FileClass);
 
-	makeClass(module, &BinaryFileClass, "BinaryFile", FileClass);
+	krk_makeClass(module, &BinaryFileClass, "BinaryFile", FileClass);
 	krk_defineNative(&BinaryFileClass->methods, ".read", krk_file_read_b);
 	krk_defineNative(&BinaryFileClass->methods, ".readline", krk_file_readline_b);
 	krk_defineNative(&BinaryFileClass->methods, ".readlines", krk_file_readlines_b);
 	krk_defineNative(&BinaryFileClass->methods, ".write", krk_file_write_b);
 	krk_finalizeClass(BinaryFileClass);
+
+	krk_makeClass(module, &Directory, "Directory", vm.objectClass);
+	Directory->allocSize = sizeof(struct Directory);
+	Directory->_ongcsweep = _dir_sweep;
+	BIND_METHOD(Directory,__repr__);
+	BIND_METHOD(Directory,__iter__);
+	BIND_METHOD(Directory,__call__);
+	BIND_METHOD(Directory,close);
+	krk_finalizeClass(Directory);
 
 	/* Make an instance for stdout, stderr, and stdin */
 	makeFileInstance(module, "stdin", stdin);
@@ -440,6 +509,7 @@ KrkValue krk_module_onload_fileio(void) {
 
 	/* Our base will be the open method */
 	krk_defineNative(&module->fields, "open", krk_open);
+	krk_defineNative(&module->fields, "opendir", _opendir);
 
 	/* Pop the module object before returning; it'll get pushed again
 	 * by the VM before the GC has a chance to run, so it's safe. */
