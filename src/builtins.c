@@ -353,10 +353,7 @@ KRK_METHOD(Helper,__repr__,{
 KRK_METHOD(Helper,__call__,{
 	METHOD_TAKES_AT_MOST(1);
 	if (!krk_doRecursiveModuleLoad(S("help"))) return NONE_VAL();
-	KrkValue helpModule;
-	if (!krk_tableGet(&vm.modules, OBJECT_VAL(S("help")), &helpModule) || !IS_INSTANCE(helpModule))
-		return krk_runtimeError(vm.exceptions.importError, "Could not import help module");
-
+	KrkValue helpModule = krk_pop();
 	KrkValue callable = NONE_VAL();
 
 	if (argc == 2) {
@@ -380,9 +377,7 @@ KRK_METHOD(LicenseReader,__repr__,{
 KRK_METHOD(LicenseReader,__call__,{
 	METHOD_TAKES_NONE();
 	if (!krk_doRecursiveModuleLoad(S("help"))) return NONE_VAL();
-	KrkValue helpModule;
-	if (!krk_tableGet(&vm.modules, OBJECT_VAL(S("help")), &helpModule) || !IS_INSTANCE(helpModule))
-		return krk_runtimeError(vm.exceptions.importError, "Could not import help module");
+	KrkValue helpModule = krk_pop();
 
 	KrkValue text = NONE_VAL();
 	krk_tableGet(&AS_INSTANCE(helpModule)->fields, OBJECT_VAL(S("__licenseText")), &text);
