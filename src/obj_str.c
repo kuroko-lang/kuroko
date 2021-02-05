@@ -6,18 +6,6 @@
 
 static KrkValue FUNC_NAME(striterator,__init__)(int,KrkValue[],int);
 
-#define IS_str(o)     (IS_STRING(o)||krk_isInstanceOf(o,vm.baseClasses.strClass))
-#define AS_str(o)     (KrkString*)AS_OBJECT(o)
-
-#define IS_list(o)    krk_isInstanceOf(o,vm.baseClasses.listClass)
-#define AS_list(o)    (KrkList*)AS_OBJECT(o)
-
-#define IS_int(o)     (IS_INTEGER(o))
-#define AS_int(o)     (AS_INTEGER(o))
-
-#define IS_striterator(o) (krk_isInstanceOf(o,vm.baseClasses.striteratorClass))
-#define AS_striterator(o) (AS_INSTANCE(o))
-
 #define CURRENT_CTYPE KrkString *
 #define CURRENT_NAME  self
 
@@ -27,32 +15,6 @@ static KrkValue FUNC_NAME(striterator,__init__)(int,KrkValue[],int);
 		size_t old = stringCapacity; stringCapacity = GROW_CAPACITY(old); \
 		stringBytes = GROW_ARRAY(char, stringBytes, old, stringCapacity); \
 	} stringBytes[stringLength++] = c; } while (0)
-
-struct StringBuilder {
-	size_t capacity;
-	size_t length;
-	char * bytes;
-};
-
-static inline void pushStringBuilder(struct StringBuilder * sb, char c) {
-	if (sb->capacity < sb->length + 1) {
-		size_t old = sb->capacity;
-		sb->capacity = GROW_CAPACITY(old);
-		sb->bytes = GROW_ARRAY(char, sb->bytes, old, sb->capacity);
-	}
-	sb->bytes[sb->length++] = c;
-}
-
-static inline KrkValue finishStringBuilder(struct StringBuilder * sb) {
-	KrkValue out = OBJECT_VAL(krk_copyString(sb->bytes, sb->length));
-	FREE_ARRAY(char,sb->bytes, sb->capacity);
-	return out;
-}
-
-static inline KrkValue discardStringBuilder(struct StringBuilder * sb) {
-	FREE_ARRAY(char,sb->bytes, sb->capacity);
-	return NONE_VAL();
-}
 
 KRK_METHOD(str,__ord__,{
 	METHOD_TAKES_NONE();

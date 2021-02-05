@@ -37,7 +37,7 @@ static inline const char * _method_name(const char * func) {
 } while (0)
 
 #define METHOD_TAKES_NONE() do { if (argc != 1) return krk_runtimeError(vm.exceptions.argumentError, "%s() takes no arguments (%d given)", \
-	_method_name(__func__), "exactly", (argc-1)); } while (0)
+	_method_name(__func__), (argc-1)); } while (0)
 
 #define METHOD_TAKES_EXACTLY(n) do { if (argc != (n+1)) return krk_runtimeError(vm.exceptions.argumentError, "%s() takes %s %d argument%s (%d given)", \
 	_method_name(__func__), "exactly", n, (n != 1) ? "s" : "", (argc-1)); } while (0)
@@ -60,8 +60,8 @@ static inline const char * _method_name(const char * func) {
 	ctype name __attribute__((unused)) = AS_ ## type (argv[i])
 
 #define FUNC_NAME(klass, name) _ ## klass ## _ ## name
-
-#define KRK_METHOD(klass, name, body) static KrkValue _ ## klass ## _ ## name (int argc, KrkValue argv[], int hasKw) { \
+#define FUNC_SIG(klass, name) static KrkValue FUNC_NAME(klass,name) (int argc, KrkValue argv[], int hasKw)
+#define KRK_METHOD(klass, name, body) FUNC_SIG(klass, name) { \
 	CHECK_ARG(0,klass,CURRENT_CTYPE,CURRENT_NAME); \
 	body; return NONE_VAL(); }
 
@@ -73,3 +73,65 @@ static inline const char * _method_name(const char * func) {
 #define BIND_METHOD(klass,method) do { krk_defineNative(&klass->methods, "." #method, _ ## klass ## _ ## method); } while (0)
 #define BIND_FIELD(klass,method) do { krk_defineNative(&klass->methods, ":" #method, _ ## klass ## _ ## method); } while (0)
 #define BIND_PROP(klass,method) do { krk_defineNativeProperty(&klass->fields, #method, _ ## klass ## _ ## method); } while (0)
+
+struct StringBuilder {
+	size_t capacity;
+	size_t length;
+	char * bytes;
+};
+
+static inline void pushStringBuilder(struct StringBuilder * sb, char c) {
+	if (sb->capacity < sb->length + 1) {
+		size_t old = sb->capacity;
+		sb->capacity = GROW_CAPACITY(old);
+		sb->bytes = GROW_ARRAY(char, sb->bytes, old, sb->capacity);
+	}
+	sb->bytes[sb->length++] = c;
+}
+
+static inline void pushStringBuilderStr(struct StringBuilder * sb, char *str, size_t len) {
+	while (sb->capacity < sb->length + len) {
+		size_t old = sb->capacity;
+		sb->capacity = GROW_CAPACITY(old);
+		sb->bytes = GROW_ARRAY(char, sb->bytes, old, sb->capacity);
+	}
+	for (size_t i = 0; i < len; ++i) {
+		sb->bytes[sb->length++] = *(str++);
+	}
+}
+
+static inline KrkValue finishStringBuilder(struct StringBuilder * sb) {
+	KrkValue out = OBJECT_VAL(krk_copyString(sb->bytes, sb->length));
+	FREE_ARRAY(char,sb->bytes, sb->capacity);
+	return out;
+}
+
+static inline KrkValue discardStringBuilder(struct StringBuilder * sb) {
+	FREE_ARRAY(char,sb->bytes, sb->capacity);
+	return NONE_VAL();
+}
+
+#define IS_int(o)     (IS_INTEGER(o))
+#define AS_int(o)     (AS_INTEGER(o))
+
+#define IS_list(o)    krk_isInstanceOf(o,vm.baseClasses.listClass)
+#define AS_list(o)    (KrkList*)AS_OBJECT(o)
+
+#define IS_listiterator(o) krk_isInstanceOf(o,vm.baseClasses.listiteratorClass)
+#define AS_listiterator(o) AS_INSTANCE(o)
+
+#define IS_str(o)     (IS_STRING(o)||krk_isInstanceOf(o,vm.baseClasses.strClass))
+#define AS_str(o)     (KrkString*)AS_OBJECT(o)
+
+#define IS_striterator(o) (krk_isInstanceOf(o,vm.baseClasses.striteratorClass))
+#define AS_striterator(o) (AS_INSTANCE(o))
+
+#define IS_dict(o)    krk_isInstanceOf(o,vm.baseClasses.dictClass)
+#define AS_dict(o)    (KrkDict*)AS_OBJECT(o)
+
+#define IS_dictitems(o) krk_isInstanceOf(o,vm.baseClasses.dictitemsClass)
+#define AS_dictitems(o) ((struct DictItems*)AS_OBJECT(o))
+
+#define IS_dictkeys(o) krk_isInstanceOf(o,vm.baseClasses.dictkeysClass)
+#define AS_dictkeys(o) ((struct DictKeys*)AS_OBJECT(o))
+

@@ -8,6 +8,13 @@
 	(AS_INSTANCE(argv[0])->_class != vm.baseClasses.dictClass && !krk_isInstanceOf(argv[0], vm.baseClasses.dictClass)))) \
 		return krk_runtimeError(vm.exceptions.typeError, "expected dict")
 
+#define KEY_ERROR(value) {\
+	KrkClass * type = krk_getType(value); \
+	krk_push(value); \
+	KrkValue asString = krk_callSimple(OBJECT_VAL(type->_reprer), 1, 0); \
+	if (IS_STRING(asString)) return krk_runtimeError(vm.exceptions.keyError, "%s", AS_CSTRING(asString)); \
+	return krk_runtimeError(vm.exceptions.keyError, "key error"); }
+
 /**
  * Exposed method called to produce dictionaries from {expr: expr, ...} sequences in managed code.
  * Presented in the global namespace as dictOf(...). Expects arguments as key,value,key,value...
@@ -23,15 +30,6 @@ KrkValue krk_dict_of(int argc, KrkValue argv[]) {
 	return krk_pop();
 }
 
-/**
- * dict.__init__()
- */
-static KrkValue _dict_init(int argc, KrkValue argv[]) {
-	CHECK_DICT_FAST();
-	krk_initTable(&((KrkDict *)AS_OBJECT(argv[0]))->entries);
-	return argv[0];
-}
-
 static void _dict_gcscan(KrkInstance * self) {
 	krk_markTable(&((KrkDict*)self)->entries);
 }
@@ -40,134 +38,125 @@ static void _dict_gcsweep(KrkInstance * self) {
 	krk_freeTable(&((KrkDict*)self)->entries);
 }
 
-/**
- * dict.__get__(key)
- */
-static KrkValue _dict_get(int argc, KrkValue argv[]) {
-	CHECK_DICT_FAST();
-	if (argc < 2) return krk_runtimeError(vm.exceptions.argumentError, "wrong number of arguments");
+#define CURRENT_CTYPE KrkDict *
+#define CURRENT_NAME  self
+
+KRK_METHOD(dict,__init__,{
+	METHOD_TAKES_NONE();
+	krk_initTable(&self->entries);
+	return argv[0];
+})
+
+KRK_METHOD(dict,__get__,{
+	METHOD_TAKES_EXACTLY(1);
 	KrkValue out;
-	if (!krk_tableGet(AS_DICT(argv[0]), argv[1], &out)) return krk_runtimeError(vm.exceptions.keyError, "key error");
+	if (!krk_tableGet(&self->entries, argv[1], &out))
+		KEY_ERROR(argv[1]);
 	return out;
-}
+})
 
-/**
- * dict.__set__(key, value)
- */
-static KrkValue _dict_set(int argc, KrkValue argv[]) {
-	CHECK_DICT_FAST();
-	if (argc < 3) return krk_runtimeError(vm.exceptions.argumentError, "wrong number of arguments");
-	krk_tableSet(AS_DICT(argv[0]), argv[1], argv[2]);
-	return NONE_VAL();
-}
+KRK_METHOD(dict,__set__,{
+	METHOD_TAKES_EXACTLY(2);
+	krk_tableSet(&self->entries, argv[1], argv[2]);
+})
 
-static KrkValue _dict_or(int argc, KrkValue argv[]) {
-	CHECK_DICT_FAST();
-	if (argc < 2) return krk_runtimeError(vm.exceptions.argumentError, "wrong number of arguments");
-	if (!krk_isInstanceOf(argv[0],vm.baseClasses.dictClass) ||
-	    !krk_isInstanceOf(argv[1],vm.baseClasses.dictClass))
-		return krk_runtimeError(vm.exceptions.typeError, "Can not merge '%s' and '%s'.",
-			krk_typeName(argv[0]),
-			krk_typeName(argv[1]));
-
+KRK_METHOD(dict,__or__,{
+	METHOD_TAKES_EXACTLY(1);
+	CHECK_ARG(1,dict,KrkDict*,them);
 	KrkValue outDict = krk_dict_of(0,NULL);
 	krk_push(outDict);
-
-	/* Why is this src->dest... Should change that... */
-	krk_tableAddAll(AS_DICT(argv[0]), AS_DICT(outDict));
-	krk_tableAddAll(AS_DICT(argv[1]), AS_DICT(outDict));
-
+	krk_tableAddAll(&self->entries, AS_DICT(outDict));
+	krk_tableAddAll(&them->entries, AS_DICT(outDict));
 	return krk_pop();
-}
+})
 
-/**
- * dict.__delitem__
- */
-static KrkValue _dict_delitem(int argc, KrkValue argv[]) {
-	CHECK_DICT_FAST();
-	if (argc < 2) return krk_runtimeError(vm.exceptions.argumentError, "wrong number of arguments");
-	if (!krk_tableDelete(AS_DICT(argv[0]), argv[1])) {
-		KrkClass * type = krk_getType(argv[1]);
-		if (type->_reprer) {
-			krk_push(argv[1]);
-			KrkValue asString = krk_callSimple(OBJECT_VAL(type->_reprer), 1, 0);
-			if (IS_STRING(asString)) return krk_runtimeError(vm.exceptions.keyError, "%s", AS_CSTRING(asString));
-		}
-		return krk_runtimeError(vm.exceptions.keyError, "(Unrepresentable value)");
+KRK_METHOD(dict,__delitem__,{
+	METHOD_TAKES_EXACTLY(1);
+	if (!krk_tableDelete(&self->entries, argv[1])) {
+		KEY_ERROR(argv[1]);
 	}
-	return NONE_VAL();
-}
+})
 
-/**
- * dict.__len__()
- */
-static KrkValue _dict_len(int argc, KrkValue argv[]) {
-	CHECK_DICT_FAST();
-	if (argc < 1) return krk_runtimeError(vm.exceptions.argumentError, "wrong number of arguments");
-	return INTEGER_VAL(AS_DICT(argv[0])->count);
-}
+KRK_METHOD(dict,__len__,{
+	METHOD_TAKES_NONE();
+	return INTEGER_VAL(self->entries.count);
+})
 
-/**
- * dict.__contains__()
- */
-static KrkValue _dict_contains(int argc, KrkValue argv[]) {
-	CHECK_DICT_FAST();
+KRK_METHOD(dict,__contains__,{
+	METHOD_TAKES_EXACTLY(1);
 	KrkValue _unused;
-	return BOOLEAN_VAL(krk_tableGet(AS_DICT(argv[0]), argv[1], &_unused));
-}
+	return BOOLEAN_VAL(krk_tableGet(&self->entries, argv[1], &_unused));
+})
 
-/**
- * dict.capacity()
- */
-static KrkValue _dict_capacity(int argc, KrkValue argv[]) {
-	CHECK_DICT_FAST();
-	if (argc < 1) return krk_runtimeError(vm.exceptions.argumentError, "wrong number of arguments");
-	return INTEGER_VAL(AS_DICT(argv[0])->capacity);
-}
+KRK_METHOD(dict,capacity,{
+	METHOD_TAKES_EXACTLY(1);
+	return INTEGER_VAL(self->entries.capacity);
+})
 
-static KrkValue _dict_repr(int argc, KrkValue argv[]) {
-	CHECK_DICT_FAST();
-	KrkValue self = argv[0];
-	if (AS_OBJECT(self)->inRepr) return OBJECT_VAL(S("{...}"));
-	krk_push(OBJECT_VAL(S("{")));
-
-	AS_OBJECT(self)->inRepr = 1;
+KRK_METHOD(dict,__repr__,{
+	METHOD_TAKES_NONE();
+	if (((KrkObj*)self)->inRepr) return OBJECT_VAL(S("{...}"));
+	((KrkObj*)self)->inRepr = 1;
+	struct StringBuilder sb = {0};
+	pushStringBuilder(&sb,'{');
 
 	size_t c = 0;
-	size_t len = AS_DICT(argv[0])->capacity;
+	size_t len = self->entries.capacity;
 	for (size_t i = 0; i < len; ++i) {
-		KrkTableEntry * entry = &AS_DICT(argv[0])->entries[i];
-
+		KrkTableEntry * entry = &self->entries.entries[i];
 		if (IS_KWARGS(entry->key)) continue;
-
 		if (c > 0) {
-			krk_push(OBJECT_VAL(S(", ")));
-			krk_addObjects();
+			pushStringBuilderStr(&sb, ", ", 2);
 		}
-
 		c++;
 
-		KrkClass * type = krk_getType(entry->key);
-		krk_push(entry->key);
-		krk_push(krk_callSimple(OBJECT_VAL(type->_reprer), 1, 0));
-		krk_addObjects();
+		{
+			KrkClass * type = krk_getType(entry->key);
+			krk_push(entry->key);
+			KrkValue result = krk_callSimple(OBJECT_VAL(type->_reprer), 1, 0);
+			if (IS_STRING(result)) {
+				pushStringBuilderStr(&sb, AS_CSTRING(result), AS_STRING(result)->length);
+			}
+		}
 
-		krk_push(OBJECT_VAL(S(": ")));
-		krk_addObjects();
+		pushStringBuilderStr(&sb, ": ", 2);
 
-		type = krk_getType(entry->value);
-		krk_push(entry->value);
-		krk_push(krk_callSimple(OBJECT_VAL(type->_reprer), 1, 0));
-		krk_addObjects();
+		{
+			KrkClass * type = krk_getType(entry->value);
+			krk_push(entry->value);
+			KrkValue result = krk_callSimple(OBJECT_VAL(type->_reprer), 1, 0);
+			if (IS_STRING(result)) {
+				pushStringBuilderStr(&sb, AS_CSTRING(result), AS_STRING(result)->length);
+			}
+		}
 	}
 
-	AS_OBJECT(self)->inRepr = 0;
+	pushStringBuilder(&sb,'}');
+	((KrkObj*)self)->inRepr = 0;
+	return finishStringBuilder(&sb);
+})
 
-	krk_push(OBJECT_VAL(S("}")));
-	krk_addObjects();
-	return krk_pop();
+FUNC_SIG(dictkeys,__init__);
 
-}
+KRK_METHOD(dict,keys,{
+	METHOD_TAKES_NONE();
+	KrkInstance * output = krk_newInstance(vm.baseClasses.dictkeysClass);
+	krk_push(OBJECT_VAL(output));
+	FUNC_NAME(dictkeys,__init__)(2, (KrkValue[]){krk_peek(0), argv[0]},0);
+	krk_pop();
+	return OBJECT_VAL(output);
+})
+
+FUNC_SIG(dictitems,__init__);
+
+KRK_METHOD(dict,items,{
+	METHOD_TAKES_NONE();
+	KrkInstance * output = krk_newInstance(vm.baseClasses.dictitemsClass);
+	krk_push(OBJECT_VAL(output));
+	FUNC_NAME(dictitems,__init__)(2, (KrkValue[]){krk_peek(0), argv[0]},0);
+	krk_pop();
+	return OBJECT_VAL(output);
+})
 
 KrkValue krk_dict_nth_key_fast(size_t capacity, KrkTableEntry * entries, size_t index) {
 	size_t found = 0;
@@ -179,33 +168,28 @@ KrkValue krk_dict_nth_key_fast(size_t capacity, KrkTableEntry * entries, size_t 
 	return NONE_VAL();
 }
 
-
-struct DictItems {
-	KrkInstance inst;
-	KrkValue dict;
-	size_t i;
-};
+#undef CURRENT_CTYPE
+#define CURRENT_CTYPE struct DictItems *
 
 static void _dictitems_gcscan(KrkInstance * self) {
 	krk_markValue(((struct DictItems*)self)->dict);
 }
 
-static KrkValue _dictitems_init(int argc, KrkValue argv[]) {
-	struct DictItems * self = (struct DictItems*)AS_OBJECT(argv[0]);
+KRK_METHOD(dictitems,__init__,{
+	METHOD_TAKES_EXACTLY(1);
+	CHECK_ARG(1,dict,KrkDict*,source);
 	self->dict = argv[1];
 	self->i = 0;
 	return argv[0];
-}
+})
 
-static KrkValue _dictitems_iter(int argc, KrkValue argv[]) {
-	/* Reset index and return self as iteration object */
-	struct DictItems * self = (struct DictItems*)AS_OBJECT(argv[0]);
+KRK_METHOD(dictitems,__iter__,{
+	METHOD_TAKES_NONE();
 	self->i = 0;
 	return argv[0];
-}
+})
 
-static KrkValue _dictitems_call(int argc, KrkValue argv[]) {
-	struct DictItems * self = (struct DictItems*)AS_OBJECT(argv[0]);
+KRK_METHOD(dictitems,__call__,{
 	do {
 		if (self->i >= AS_DICT(self->dict)->capacity) return argv[0];
 		if (!IS_KWARGS(AS_DICT(self->dict)->entries[self->i].key)) {
@@ -219,43 +203,78 @@ static KrkValue _dictitems_call(int argc, KrkValue argv[]) {
 		}
 		self->i++;
 	} while (1);
-}
+})
 
-/* TODO: dictitems could really use a nice repr */
-static KrkValue _dict_items(int argc, KrkValue argv[]) {
-	KrkInstance * output = krk_newInstance(vm.baseClasses.dictitemsClass);
-	krk_push(OBJECT_VAL(output));
-	_dictitems_init(2, (KrkValue[]){krk_peek(0), argv[0]});
-	krk_pop();
-	return OBJECT_VAL(output);
-}
+KRK_METHOD(dictitems,__repr__,{
+	METHOD_TAKES_NONE();
+	if (((KrkObj*)self)->inRepr) return OBJECT_VAL(S("dictitems([...])"));
+	((KrkObj*)self)->inRepr = 1;
+	struct StringBuilder sb = {0};
+	pushStringBuilderStr(&sb,"dictitems([",11);
 
-struct DictKeys {
-	KrkInstance inst;
-	KrkValue dict;
-	size_t i;
-};
+	size_t c = 0;
+	size_t len = AS_DICT(self->dict)->capacity;
+	for (size_t i = 0; i < len; ++i) {
+		KrkTableEntry * entry = &AS_DICT(self->dict)->entries[i];
+		if (IS_KWARGS(entry->key)) continue;
+		if (c > 0) {
+			pushStringBuilderStr(&sb, ", ", 2);
+		}
+		c++;
+
+		pushStringBuilder(&sb,'(');
+
+		{
+			KrkClass * type = krk_getType(entry->key);
+			krk_push(entry->key);
+			KrkValue result = krk_callSimple(OBJECT_VAL(type->_reprer), 1, 0);
+			if (IS_STRING(result)) {
+				pushStringBuilderStr(&sb, AS_CSTRING(result), AS_STRING(result)->length);
+			}
+		}
+
+		pushStringBuilderStr(&sb, ", ", 2);
+
+		{
+			KrkClass * type = krk_getType(entry->value);
+			krk_push(entry->value);
+			KrkValue result = krk_callSimple(OBJECT_VAL(type->_reprer), 1, 0);
+			if (IS_STRING(result)) {
+				pushStringBuilderStr(&sb, AS_CSTRING(result), AS_STRING(result)->length);
+			}
+		}
+
+		pushStringBuilder(&sb,')');
+	}
+
+	pushStringBuilderStr(&sb,"])",2);
+	((KrkObj*)self)->inRepr = 0;
+	return finishStringBuilder(&sb);
+})
+
+#undef CURRENT_CTYPE
+#define CURRENT_CTYPE struct DictKeys *
 
 static void _dictkeys_gcscan(KrkInstance * self) {
 	krk_markValue(((struct DictKeys*)self)->dict);
 }
 
-static KrkValue _dictkeys_init(int argc, KrkValue argv[]) {
-	struct DictKeys * self = (struct DictKeys*)AS_OBJECT(argv[0]);
+KRK_METHOD(dictkeys,__init__,{
+	METHOD_TAKES_EXACTLY(1);
+	CHECK_ARG(1,dict,KrkDict*,source);
 	self->dict = argv[1];
 	self->i = 0;
 	return argv[0];
-}
+})
 
-static KrkValue _dictkeys_iter(int argc, KrkValue argv[]) {
-	/* reset indext and return self as iteration object */
-	struct DictKeys * self = (struct DictKeys*)AS_OBJECT(argv[0]);
+KRK_METHOD(dictkeys,__iter__,{
+	METHOD_TAKES_NONE();
 	self->i = 0;
 	return argv[0];
-}
+})
 
-static KrkValue _dictkeys_call(int argc, KrkValue argv[]) {
-	struct DictKeys * self = (struct DictKeys*)AS_OBJECT(argv[0]);
+KRK_METHOD(dictkeys,__call__,{
+	METHOD_TAKES_NONE();
 	do {
 		if (self->i >= AS_DICT(self->dict)->capacity) return argv[0];
 		if (!IS_KWARGS(AS_DICT(self->dict)->entries[self->i].key)) {
@@ -265,51 +284,76 @@ static KrkValue _dictkeys_call(int argc, KrkValue argv[]) {
 		}
 		self->i++;
 	} while (1);
-}
+})
 
-/* TODO: dictkeys could really use a nice repr */
-static KrkValue _dict_keys(int argc, KrkValue argv[]) {
-	KrkInstance * output = krk_newInstance(vm.baseClasses.dictkeysClass);
-	krk_push(OBJECT_VAL(output));
-	_dictkeys_init(2, (KrkValue[]){krk_peek(0), argv[0]});
-	krk_pop();
-	return OBJECT_VAL(output);
-}
+KRK_METHOD(dictkeys,__repr__,{
+	METHOD_TAKES_NONE();
+	if (((KrkObj*)self)->inRepr) return OBJECT_VAL(S("dictkeys([...])"));
+	((KrkObj*)self)->inRepr = 1;
+	struct StringBuilder sb = {0};
+	pushStringBuilderStr(&sb,"dictkeys([",10);
+
+	size_t c = 0;
+	size_t len = AS_DICT(self->dict)->capacity;
+	for (size_t i = 0; i < len; ++i) {
+		KrkTableEntry * entry = &AS_DICT(self->dict)->entries[i];
+		if (IS_KWARGS(entry->key)) continue;
+		if (c > 0) {
+			pushStringBuilderStr(&sb, ", ", 2);
+		}
+		c++;
+
+		{
+			KrkClass * type = krk_getType(entry->key);
+			krk_push(entry->key);
+			KrkValue result = krk_callSimple(OBJECT_VAL(type->_reprer), 1, 0);
+			if (IS_STRING(result)) {
+				pushStringBuilderStr(&sb, AS_CSTRING(result), AS_STRING(result)->length);
+			}
+		}
+	}
+
+	pushStringBuilderStr(&sb,"])",2);
+	((KrkObj*)self)->inRepr = 0;
+	return finishStringBuilder(&sb);
+})
 
 _noexport
 void _createAndBind_dictClass(void) {
-	ADD_BASE_CLASS(vm.baseClasses.dictClass, "dict", vm.objectClass);
-	vm.baseClasses.dictClass->allocSize = sizeof(KrkDict);
-	vm.baseClasses.dictClass->_ongcscan = _dict_gcscan;
-	vm.baseClasses.dictClass->_ongcsweep = _dict_gcsweep;
-	krk_defineNative(&vm.baseClasses.dictClass->methods, ".__init__", _dict_init);
-	krk_defineNative(&vm.baseClasses.dictClass->methods, ".__str__", _dict_repr);
-	krk_defineNative(&vm.baseClasses.dictClass->methods, ".__repr__", _dict_repr);
-	krk_defineNative(&vm.baseClasses.dictClass->methods, ".__get__", _dict_get);
-	krk_defineNative(&vm.baseClasses.dictClass->methods, ".__set__", _dict_set);
-	krk_defineNative(&vm.baseClasses.dictClass->methods, ".__or__", _dict_or);
-	krk_defineNative(&vm.baseClasses.dictClass->methods, ".__delitem__", _dict_delitem);
-	krk_defineNative(&vm.baseClasses.dictClass->methods, ".__len__", _dict_len);
-	krk_defineNative(&vm.baseClasses.dictClass->methods, ".__contains__", _dict_contains);
-	krk_defineNative(&vm.baseClasses.dictClass->methods, ".keys", _dict_keys);
-	krk_defineNative(&vm.baseClasses.dictClass->methods, ".items", _dict_items);
-	krk_defineNative(&vm.baseClasses.dictClass->methods, ".capacity", _dict_capacity);
-	krk_finalizeClass(vm.baseClasses.dictClass);
-	vm.baseClasses.dictClass->docstring = S("Mapping of arbitrary keys to values.");
+	KrkClass * dict = ADD_BASE_CLASS(vm.baseClasses.dictClass, "dict", vm.objectClass);
+	dict->allocSize = sizeof(KrkDict);
+	dict->_ongcscan = _dict_gcscan;
+	dict->_ongcsweep = _dict_gcsweep;
+	BIND_METHOD(dict,__init__);
+	BIND_METHOD(dict,__repr__);
+	BIND_METHOD(dict,__get__);
+	BIND_METHOD(dict,__set__);
+	BIND_METHOD(dict,__or__);
+	BIND_METHOD(dict,__delitem__);
+	BIND_METHOD(dict,__len__);
+	BIND_METHOD(dict,__contains__);
+	BIND_METHOD(dict,keys);
+	BIND_METHOD(dict,items);
+	BIND_METHOD(dict,capacity);
+	krk_defineNative(&dict->methods, ".__str__", FUNC_NAME(dict,__repr__));
+	krk_finalizeClass(dict);
+	dict->docstring = S("Mapping of arbitrary keys to values.");
 
-	ADD_BASE_CLASS(vm.baseClasses.dictitemsClass, "dictitems", vm.objectClass);
-	vm.baseClasses.dictitemsClass->allocSize = sizeof(struct DictItems);
-	vm.baseClasses.dictitemsClass->_ongcscan = _dictitems_gcscan;
-	krk_defineNative(&vm.baseClasses.dictitemsClass->methods, ".__init__", _dictitems_init);
-	krk_defineNative(&vm.baseClasses.dictitemsClass->methods, ".__iter__", _dictitems_iter);
-	krk_defineNative(&vm.baseClasses.dictitemsClass->methods, ".__call__", _dictitems_call);
-	krk_finalizeClass(vm.baseClasses.dictitemsClass);
+	KrkClass * dictitems = ADD_BASE_CLASS(vm.baseClasses.dictitemsClass, "dictitems", vm.objectClass);
+	dictitems->allocSize = sizeof(struct DictItems);
+	dictitems->_ongcscan = _dictitems_gcscan;
+	BIND_METHOD(dictitems,__init__);
+	BIND_METHOD(dictitems,__iter__);
+	BIND_METHOD(dictitems,__call__);
+	BIND_METHOD(dictitems,__repr__);
+	krk_finalizeClass(dictitems);
 
-	ADD_BASE_CLASS(vm.baseClasses.dictkeysClass, "dictkeys", vm.objectClass);
-	vm.baseClasses.dictkeysClass->allocSize = sizeof(struct DictKeys);
-	vm.baseClasses.dictkeysClass->_ongcscan = _dictkeys_gcscan;
-	krk_defineNative(&vm.baseClasses.dictkeysClass->methods, ".__init__", _dictkeys_init);
-	krk_defineNative(&vm.baseClasses.dictkeysClass->methods, ".__iter__", _dictkeys_iter);
-	krk_defineNative(&vm.baseClasses.dictkeysClass->methods, ".__call__", _dictkeys_call);
-	krk_finalizeClass(vm.baseClasses.dictkeysClass);
+	KrkClass * dictkeys = ADD_BASE_CLASS(vm.baseClasses.dictkeysClass, "dictkeys", vm.objectClass);
+	dictkeys->allocSize = sizeof(struct DictKeys);
+	dictkeys->_ongcscan = _dictkeys_gcscan;
+	BIND_METHOD(dictkeys,__init__);
+	BIND_METHOD(dictkeys,__iter__);
+	BIND_METHOD(dictkeys,__call__);
+	BIND_METHOD(dictkeys,__repr__);
+	krk_finalizeClass(dictkeys);
 }

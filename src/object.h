@@ -191,6 +191,18 @@ typedef struct {
 	KrkTable entries;
 } KrkDict;
 
+struct DictItems {
+	KrkInstance inst;
+	KrkValue dict;
+	size_t i;
+};
+
+struct DictKeys {
+	KrkInstance inst;
+	KrkValue dict;
+	size_t i;
+};
+
 #define AS_LIST(value) (&((KrkList *)AS_OBJECT(value))->values)
 #define AS_DICT(value) (&((KrkDict *)AS_OBJECT(value))->entries)
 
