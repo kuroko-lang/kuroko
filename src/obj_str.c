@@ -613,6 +613,75 @@ KRK_METHOD(str,replace,{
 	return tmp;
 })
 
+#define WRAP_INDEX(index) \
+	if (index < 0) index += self->codesLength; \
+	if (index < 0) index = 0; \
+	if (index >= (krk_integer_type)self->codesLength) index = self->codesLength
+
+KRK_METHOD(str,find,{
+	METHOD_TAKES_AT_LEAST(1);
+	METHOD_TAKES_AT_MOST(3);
+	CHECK_ARG(1,str,KrkString*,substr);
+
+	krk_integer_type start = 0;
+	krk_integer_type end = self->codesLength;
+
+	if (argc > 2) {
+		if (IS_INTEGER(argv[2])) {
+			start = AS_INTEGER(argv[2]);
+		} else {
+			return TYPE_ERROR(int,argv[2]);
+		}
+	}
+
+	if (argc > 3) {
+		if (IS_INTEGER(argv[3])) {
+			end = AS_INTEGER(argv[3]);
+		} else {
+			return TYPE_ERROR(int,argv[3]);
+		}
+	}
+
+	WRAP_INDEX(start);
+	WRAP_INDEX(end);
+
+	/* Make sure both strings have code representations */
+	krk_unicodeString(self);
+	krk_unicodeString(substr);
+
+	for (krk_integer_type i = start; i < end; ++i) {
+		krk_integer_type j;
+		for (j = 0; j < (krk_integer_type)substr->codesLength && (i + j < end); ++j) {
+			if (KRK_STRING_FAST(self,i+j) != KRK_STRING_FAST(substr,j)) break;
+		}
+		if (j == (krk_integer_type)substr->codesLength) return INTEGER_VAL(i);
+	}
+
+	return INTEGER_VAL(-1);
+})
+
+KRK_METHOD(str,index,{
+	KrkValue result = FUNC_NAME(str,find)(argc,argv,hasKw);
+	if (IS_INTEGER(result) && AS_INTEGER(result) == -1) {
+		return krk_runtimeError(vm.exceptions.valueError, "substring not found");
+	}
+	return result;
+})
+
+KRK_METHOD(str,startswith,{
+	METHOD_TAKES_EXACTLY(1); /* I know the Python versions of these take optional start, end... */
+	CHECK_ARG(1,str,KrkString*,prefix);
+	return BOOLEAN_VAL(substringMatch(self->chars,self->length,prefix->chars,prefix->length));
+})
+
+KRK_METHOD(str,endswith,{
+	METHOD_TAKES_EXACTLY(1); /* I know the Python versions of these take optional start, end... */
+	CHECK_ARG(1,str,KrkString*,suffix);
+	if (suffix->length > self->length) return BOOLEAN_VAL(0);
+	return BOOLEAN_VAL(substringMatch(self->chars + (self->length - suffix->length),
+		suffix->length, suffix->chars, suffix->length));
+})
+
 /**
  * str.__repr__()
  *
@@ -765,6 +834,10 @@ void _createAndBind_strClass(void) {
 	BIND_METHOD(str,join);
 	BIND_METHOD(str,format);
 	BIND_METHOD(str,replace);
+	BIND_METHOD(str,find);
+	BIND_METHOD(str,index);
+	BIND_METHOD(str,startswith);
+	BIND_METHOD(str,endswith);
 	krk_finalizeClass(str);
 	str->docstring = S("Obtain a string representation of an object.");
 

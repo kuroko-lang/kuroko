@@ -226,7 +226,7 @@ extern void * krk_unicodeString(KrkString * string);
 extern uint32_t krk_unicodeCodepoint(KrkString * string, size_t index);
 
 #define KRK_STRING_FAST(string,offset)  (uint32_t)\
-	(string->type == 1 ? ((uint8_t*)string->codes)[offset] : \
+	(string->type <= 1 ? ((uint8_t*)string->codes)[offset] : \
 	(string->type == 2 ? ((uint16_t*)string->codes)[offset] : \
 	((uint32_t*)string->codes)[offset]))
 
