@@ -1133,6 +1133,7 @@ void krk_initVM(int flags) {
 	if (vm.binpath) {
 		krk_attachNamedObject(&vm.system->fields, "executable_path", (KrkObj*)krk_takeString(vm.binpath, strlen(vm.binpath)));
 		char * dir = strdup(vm.binpath);
+#ifndef _WIN32
 		char * slash = strrchr(dir,'/');
 		if (slash) *slash = '\0';
 		if (strstr(dir,"/bin") == (dir + strlen(dir) - 4)) {
@@ -1146,6 +1147,13 @@ void krk_initVM(int flags) {
 			size_t len = sprintf(out,"%s/modules/", dir);
 			krk_writeValueArray(AS_LIST(module_paths), OBJECT_VAL(krk_takeString(out, len)));
 		}
+#else
+		char * backslash = strrchr(dir,'\\');
+		if (backslash) *backslash = '\0';
+		char * out = malloc(sizeof("\\modules\\") + strlen(dir));
+		size_t len = sprintf(out,"%s\\modules\\", dir);
+		krk_writeValueArray(AS_LIST(module_paths), OBJECT_VAL(krk_takeString(out,len)));
+#endif
 		free(dir);
 	}
 

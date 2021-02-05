@@ -15,7 +15,11 @@
 
 #define likely(cond)   __builtin_expect(!!(cond), 1)
 #define unlikely(cond) __builtin_expect(!!(cond), 0)
+#ifndef _WIN32
 #define _noexport __attribute__((visibility("hidden")))
+#else
+#define _noexport
+#endif
 
 /**
  * Binding macros.
