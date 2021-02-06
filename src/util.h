@@ -97,7 +97,7 @@ static inline void pushStringBuilderStr(struct StringBuilder * sb, char *str, si
 	while (sb->capacity < sb->length + len) {
 		size_t old = sb->capacity;
 		sb->capacity = GROW_CAPACITY(old);
-		sb->bytes = GROW_ARRAY(char, sb->bytes, old, sb->capacity);
+		sb->bytes = realloc(sb->bytes, sb->capacity);
 	}
 	for (size_t i = 0; i < len; ++i) {
 		sb->bytes[sb->length++] = *(str++);
