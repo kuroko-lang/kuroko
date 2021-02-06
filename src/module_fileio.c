@@ -13,29 +13,39 @@
 #include "memory.h"
 #include "util.h"
 
-static KrkClass * FileClass = NULL;
-static KrkClass * BinaryFileClass = NULL;
-static KrkClass * Directory = NULL;
-
-struct FileObject {
+static KrkClass * File = NULL;
+static KrkClass * BinaryFile = NULL;
+struct File {
 	KrkInstance inst;
 	FILE * filePtr;
 };
 
+#define IS_File(o) (krk_isInstanceOf(o, File))
+#define AS_File(o) ((struct File*)AS_OBJECT(o))
+
+#define IS_BinaryFile(o) (krk_isInstanceOf(o, BinaryFile))
+#define AS_BinaryFile(o) ((struct File*)AS_OBJECT(o))
+
+static KrkClass * Directory = NULL;
 struct Directory {
 	KrkInstance inst;
 	DIR * dirPtr;
 };
 
-KrkValue krk_open(int argc, KrkValue argv[]) {
-	if (argc < 1) return krk_runtimeError(vm.exceptions.argumentError, "open() takes at least 1 argument.");
-	if (argc > 2) return krk_runtimeError(vm.exceptions.argumentError, "open() takes at most 2 argument.");
-	if (!IS_STRING(argv[0])) return krk_runtimeError(vm.exceptions.typeError, "open: first argument should be a filename string, not '%s'", krk_typeName(argv[0]));
-	if (argc == 2 && !IS_STRING(argv[1])) return krk_runtimeError(vm.exceptions.typeError, "open: second argument should be a mode string, not '%s'", krk_typeName(argv[1]));
+#define IS_Directory(o) (krk_isInstanceOf(o,Directory))
+#define AS_Directory(o) ((struct Directory*)AS_OBJECT(o))
 
+
+#define CURRENT_CTYPE struct File *
+#define CURRENT_NAME  self
+
+KRK_FUNC(open,{
+	FUNCTION_TAKES_AT_LEAST(1);
+	FUNCTION_TAKES_AT_MOST(2);
+	CHECK_ARG(0,str,KrkString*,filename);
+	if (argc == 2 && !IS_STRING(argv[1])) return TYPE_ERROR(str,argv[1]);
 	KrkValue arg;
 	int isBinary = 0;
-
 	if (argc == 1) {
 		arg = OBJECT_VAL(S("r"));
 		krk_push(arg); /* Will be peeked to find arg string for fopen */
@@ -57,44 +67,42 @@ KrkValue krk_open(int argc, KrkValue argv[]) {
 		}
 	}
 
-	FILE * file = fopen(AS_CSTRING(argv[0]), AS_CSTRING(krk_peek(0)));
+	FILE * file = fopen(filename->chars, AS_CSTRING(krk_peek(0)));
 	if (!file) return krk_runtimeError(vm.exceptions.ioError, "open: failed to open file; system returned: %s", strerror(errno));
 
 	/* Now let's build an object to hold it */
-	KrkInstance * fileObject = krk_newInstance(isBinary ? BinaryFileClass : FileClass);
+	KrkInstance * fileObject = krk_newInstance(isBinary ? BinaryFile : File);
 	krk_push(OBJECT_VAL(fileObject));
 
 	/* Let's put the filename in there somewhere... */
-	krk_attachNamedValue(&fileObject->fields, "filename", argv[0]);
+	krk_attachNamedValue(&fileObject->fields, "filename", OBJECT_VAL(filename));
 	krk_attachNamedValue(&fileObject->fields, "modestr", arg);
 
-	((struct FileObject*)fileObject)->filePtr = file;
+	((struct File*)fileObject)->filePtr = file;
 
 	krk_pop();
 	krk_pop();
 	return OBJECT_VAL(fileObject);
-}
+})
 
 #define BLOCK_SIZE 1024
 
-static KrkValue krk_file_str(int argc, KrkValue argv[]) {
-	if (argc < 1 || !krk_isInstanceOf(argv[0],FileClass)) return krk_runtimeError(vm.exceptions.typeError, "argument must be File");
-	KrkInstance * fileObj = AS_INSTANCE(argv[0]);
-	KrkValue filename, modestr;
-	if (!krk_tableGet(&fileObj->fields, OBJECT_VAL(S("filename")), &filename) || !IS_STRING(filename)) return krk_runtimeError(vm.exceptions.baseException, "Corrupt File");
-	if (!krk_tableGet(&fileObj->fields, OBJECT_VAL(S("modestr")), &modestr) || !IS_STRING(modestr)) return krk_runtimeError(vm.exceptions.baseException, "Corrupt File");
-
+KRK_METHOD(File,__str__,{
+	METHOD_TAKES_NONE();
+	KrkValue filename;
+	KrkValue modestr;
+	if (!krk_tableGet(&self->inst.fields, OBJECT_VAL(S("filename")), &filename) || !IS_STRING(filename)) return krk_runtimeError(vm.exceptions.baseException, "Corrupt File");
+	if (!krk_tableGet(&self->inst.fields, OBJECT_VAL(S("modestr")), &modestr) || !IS_STRING(modestr)) return krk_runtimeError(vm.exceptions.baseException, "Corrupt File");
 	char * tmp = malloc(AS_STRING(filename)->length + AS_STRING(modestr)->length + 100); /* safety */
-	sprintf(tmp, "<%s file '%s', mode '%s' at %p>", ((struct FileObject*)fileObj)->filePtr ? "open" : "closed", AS_CSTRING(filename), AS_CSTRING(modestr), (void*)fileObj);
+	sprintf(tmp, "<%s file '%s', mode '%s' at %p>", self->filePtr ? "open" : "closed", AS_CSTRING(filename), AS_CSTRING(modestr), (void*)self);
 	KrkString * out = krk_copyString(tmp, strlen(tmp));
 	free(tmp);
 	return OBJECT_VAL(out);
-}
+})
 
-static KrkValue krk_file_readline(int argc, KrkValue argv[]) {
-	if (argc < 1 || !krk_isInstanceOf(argv[0],FileClass)) return krk_runtimeError(vm.exceptions.typeError, "argument must be File");
-
-	FILE * file = ((struct FileObject*)AS_OBJECT(argv[0]))->filePtr;
+KRK_METHOD(File,readline,{
+	METHOD_TAKES_NONE();
+	FILE * file = self->filePtr;
 
 	if (!file || feof(file)) {
 		return NONE_VAL();
@@ -130,16 +138,15 @@ _finish_line: (void)0;
 	KrkString * out = krk_copyString(buffer,sizeRead);
 	free(buffer);
 	return OBJECT_VAL(out);
-}
+})
 
-static KrkValue krk_file_readlines(int argc, KrkValue argv[]) {
-	if (argc < 1 || !krk_isInstanceOf(argv[0],FileClass)) return krk_runtimeError(vm.exceptions.typeError, "argument must be File");
-
+KRK_METHOD(File,readlines,{
+	METHOD_TAKES_NONE();
 	KrkValue myList = krk_list_of(0,NULL);
 	krk_push(myList);
 
 	for (;;) {
-		KrkValue line = krk_file_readline(1, argv);
+		KrkValue line = FUNC_NAME(File,readline)(1, argv, 0);
 		if (IS_NONE(line)) break;
 
 		krk_push(line);
@@ -149,13 +156,12 @@ static KrkValue krk_file_readlines(int argc, KrkValue argv[]) {
 
 	krk_pop(); /* myList */
 	return myList;
-}
+})
 
-static KrkValue krk_file_read(int argc, KrkValue argv[]) {
-	if (argc < 1 || !krk_isInstanceOf(argv[0],FileClass)) return krk_runtimeError(vm.exceptions.typeError, "argument must be File");
-
+KRK_METHOD(File,read,{
+	METHOD_TAKES_NONE();
 	/* Get the file ptr reference */
-	FILE * file = ((struct FileObject*)AS_OBJECT(argv[0]))->filePtr;
+	FILE * file = self->filePtr;
 
 	if (!file || feof(file)) {
 		return NONE_VAL();
@@ -189,73 +195,51 @@ static KrkValue krk_file_read(int argc, KrkValue argv[]) {
 	KrkString * out = krk_copyString(buffer,sizeRead);
 	free(buffer);
 	return OBJECT_VAL(out);
-}
+})
 
-static KrkValue krk_file_write(int argc, KrkValue argv[]) {
-	/* Expect just a string as arg 2 */
-	if (argc < 2 || !krk_isInstanceOf(argv[0], FileClass) || !IS_STRING(argv[1]))
-		return krk_runtimeError(vm.exceptions.typeError, "write: expected string");
-
+KRK_METHOD(File,write,{
+	METHOD_TAKES_EXACTLY(1);
+	if (!IS_STRING(argv[1])) return TYPE_ERROR(str,argv[1]);
 	/* Find the file ptr reference */
-	FILE * file = ((struct FileObject*)AS_OBJECT(argv[0]))->filePtr;
+	FILE * file = self->filePtr;
 
 	if (!file || feof(file)) {
 		return NONE_VAL();
 	}
 
 	return INTEGER_VAL(fwrite(AS_CSTRING(argv[1]), 1, AS_STRING(argv[1])->length, file));
-}
+})
 
-static KrkValue krk_file_close(int argc, KrkValue argv[]) {
-	if (argc < 1 || !krk_isInstanceOf(argv[0],FileClass))
-		return krk_runtimeError(vm.exceptions.typeError, "argument must be File");
+KRK_METHOD(File,close,{
+	METHOD_TAKES_NONE();
+	FILE * file = self->filePtr;
+	if (file) fclose(file);
+	self->filePtr = NULL;
+})
 
-	FILE * file = ((struct FileObject*)AS_OBJECT(argv[0]))->filePtr;
+KRK_METHOD(File,flush,{
+	METHOD_TAKES_NONE();
+	FILE * file = self->filePtr;
+	if (file) fflush(file);
+})
 
-	if (!file) return NONE_VAL();
-
-	fclose(file);
-
-	((struct FileObject*)AS_OBJECT(argv[0]))->filePtr = NULL;
-
-	return NONE_VAL();
-}
-
-static KrkValue krk_file_flush(int argc, KrkValue argv[]) {
-	if (argc < 1 || !krk_isInstanceOf(argv[0],FileClass))
-		return krk_runtimeError(vm.exceptions.typeError, "argument must be File");
-
-	FILE * file = ((struct FileObject*)AS_OBJECT(argv[0]))->filePtr;
-
-	if (!file) return NONE_VAL();
-
-	fflush(file);
-
-	return NONE_VAL();
-}
-
-static KrkValue krk_file_reject_init(int argc, KrkValue argv[]) {
+KRK_METHOD(File,__init__,{
 	return krk_runtimeError(vm.exceptions.typeError, "File objects can not be instantiated; use fileio.open() to obtain File objects.");
-}
+})
 
-static KrkValue krk_file_enter(int argc, KrkValue argv[]) {
-	/* Does nothing. */
-	return NONE_VAL();
-}
-
-static KrkValue krk_file_exit(int argc, KrkValue argv[]) {
-	/* Just an alias to close that triggers when a context manager is exited */
-	return krk_file_close(argc,argv);
-}
+KRK_METHOD(File,__enter__,{})
+KRK_METHOD(File,__exit__,{
+	return FUNC_NAME(File,close)(argc,argv,0);
+})
 
 static void makeFileInstance(KrkInstance * module, const char name[], FILE * file) {
-	KrkInstance * fileObject = krk_newInstance(FileClass);
+	KrkInstance * fileObject = krk_newInstance(File);
 	krk_push(OBJECT_VAL(fileObject));
 	KrkValue filename = OBJECT_VAL(krk_copyString(name,strlen(name)));
 	krk_push(filename);
 
 	krk_attachNamedValue(&fileObject->fields, "filename", filename);
-	((struct FileObject*)fileObject)->filePtr = file;
+	((struct File*)fileObject)->filePtr = file;
 
 	krk_attachNamedObject(&module->fields, name, (KrkObj*)fileObject);
 
@@ -263,11 +247,9 @@ static void makeFileInstance(KrkInstance * module, const char name[], FILE * fil
 	krk_pop(); /* fileObject */
 }
 
-static KrkValue krk_file_readline_b(int argc, KrkValue argv[]) {
-	if (argc < 1 || !krk_isInstanceOf(argv[0],BinaryFileClass))
-		return krk_runtimeError(vm.exceptions.typeError, "argument must be BinaryFile");
-
-	FILE * file = ((struct FileObject*)AS_OBJECT(argv[0]))->filePtr;
+KRK_METHOD(BinaryFile,readline,{
+	METHOD_TAKES_NONE();
+	FILE * file = self->filePtr;
 
 	if (!file || feof(file)) {
 		return NONE_VAL();
@@ -303,16 +285,15 @@ _finish_line: (void)0;
 	KrkBytes * out = krk_newBytes(sizeRead, (unsigned char*)buffer);
 	free(buffer);
 	return OBJECT_VAL(out);
-}
+})
 
-static KrkValue krk_file_readlines_b(int argc, KrkValue argv[]) {
-	if (argc < 1 || !krk_isInstanceOf(argv[0],BinaryFileClass))
-		return krk_runtimeError(vm.exceptions.typeError, "argument must be BinaryFile");
+KRK_METHOD(BinaryFile,readlines,{
+	METHOD_TAKES_NONE();
 	KrkValue myList = krk_list_of(0,NULL);
 	krk_push(myList);
 
 	for (;;) {
-		KrkValue line = krk_file_readline_b(1, argv);
+		KrkValue line = FUNC_NAME(BinaryFile,readline)(1, argv, 0);
 		if (IS_NONE(line)) break;
 
 		krk_push(line);
@@ -322,15 +303,12 @@ static KrkValue krk_file_readlines_b(int argc, KrkValue argv[]) {
 
 	krk_pop(); /* myList */
 	return myList;
-}
+})
 
-static KrkValue krk_file_read_b(int argc, KrkValue argv[]) {
-	if (argc < 1 || !krk_isInstanceOf(argv[0], BinaryFileClass)) {
-		return krk_runtimeError(vm.exceptions.typeError, "argument must be BinaryFile");
-	}
-
+KRK_METHOD(BinaryFile,read,{
+	METHOD_TAKES_NONE();
 	/* Get the file ptr reference */
-	FILE * file = ((struct FileObject*)AS_OBJECT(argv[0]))->filePtr;
+	FILE * file = self->filePtr;
 
 	if (!file || feof(file)) {
 		return NONE_VAL();
@@ -364,26 +342,25 @@ static KrkValue krk_file_read_b(int argc, KrkValue argv[]) {
 	KrkBytes * out = krk_newBytes(sizeRead, (unsigned char*)buffer);
 	free(buffer);
 	return OBJECT_VAL(out);
-}
+})
 
-static KrkValue krk_file_write_b(int argc, KrkValue argv[]) {
-	/* Expect just a string as arg 2 */
-	if (argc < 2 || !krk_isInstanceOf(argv[0], BinaryFileClass) || !IS_BYTES(argv[1])) {
-		return krk_runtimeError(vm.exceptions.typeError, "write: expected bytes");
-	}
-
+KRK_METHOD(BinaryFile,write,{
+	METHOD_TAKES_EXACTLY(1);
+	if (!IS_BYTES(argv[1])) return TYPE_ERROR(bytes,argv[1]);
 	/* Find the file ptr reference */
-	FILE * file = ((struct FileObject*)AS_OBJECT(argv[0]))->filePtr;
+	FILE * file = self->filePtr;
 
 	if (!file || feof(file)) {
 		return NONE_VAL();
 	}
 
 	return INTEGER_VAL(fwrite(AS_BYTES(argv[1])->bytes, 1, AS_BYTES(argv[1])->length, file));
-}
+})
+
+#undef CURRENT_CTYPE
 
 static void _file_sweep(KrkInstance * self) {
-	struct FileObject * me = (void *)self;
+	struct File * me = (void *)self;
 	if (me->filePtr) {
 		fclose(me->filePtr);
 		me->filePtr = NULL;
@@ -398,27 +375,23 @@ static void _dir_sweep(KrkInstance * self) {
 	}
 }
 
-static KrkValue _opendir(int argc, KrkValue argv[], int hasKw) {
-	if (argc != 1) return krk_runtimeError(vm.exceptions.argumentError, "opendir() expects exactly one argument");
-	if (!IS_STRING(argv[0])) return krk_runtimeError(vm.exceptions.typeError, "expected str, not '%s'", krk_typeName(argv[0]));
-	char * path = AS_CSTRING(argv[0]);
+KRK_FUNC(opendir,{
+	FUNCTION_TAKES_EXACTLY(1);
+	CHECK_ARG(0,str,KrkString*,path);
 
-	DIR * dir = opendir(path);
+	DIR * dir = opendir(path->chars);
 	if (!dir) return krk_runtimeError(vm.exceptions.ioError, "opendir: %s", strerror(errno));
 
 	struct Directory * dirObj = (void *)krk_newInstance(Directory);
 	krk_push(OBJECT_VAL(dirObj));
 
-	krk_attachNamedValue(&dirObj->inst.fields, "path", argv[0]);
+	krk_attachNamedValue(&dirObj->inst.fields, "path", OBJECT_VAL(path));
 	dirObj->dirPtr = dir;
 
 	return krk_pop();
-}
+})
 
-#define IS_Directory(o) (krk_isInstanceOf(o,Directory))
-#define AS_Directory(o) ((struct Directory*)AS_OBJECT(o))
 #define CURRENT_CTYPE struct Directory *
-#define CURRENT_NAME  self
 
 KRK_METHOD(Directory,__call__,{
 	METHOD_TAKES_NONE();
@@ -468,30 +441,30 @@ KrkValue krk_module_onload_fileio(void) {
 	krk_push(OBJECT_VAL(module));
 
 	/* Define a class to represent files. (Should this be a helper method?) */
-	krk_makeClass(module, &FileClass, "File", vm.objectClass);
-	FileClass->allocSize = sizeof(struct FileObject);
-	FileClass->_ongcsweep = _file_sweep;
+	krk_makeClass(module, &File, "File", vm.objectClass);
+	File->allocSize = sizeof(struct File);
+	File->_ongcsweep = _file_sweep;
 
 	/* Add methods to it... */
-	krk_defineNative(&FileClass->methods, ".read", krk_file_read);
-	krk_defineNative(&FileClass->methods, ".readline", krk_file_readline);
-	krk_defineNative(&FileClass->methods, ".readlines", krk_file_readlines);
-	krk_defineNative(&FileClass->methods, ".write", krk_file_write);
-	krk_defineNative(&FileClass->methods, ".close", krk_file_close);
-	krk_defineNative(&FileClass->methods, ".flush", krk_file_flush);
-	krk_defineNative(&FileClass->methods, ".__str__", krk_file_str);
-	krk_defineNative(&FileClass->methods, ".__repr__", krk_file_str);
-	krk_defineNative(&FileClass->methods, ".__init__", krk_file_reject_init);
-	krk_defineNative(&FileClass->methods, ".__enter__", krk_file_enter);
-	krk_defineNative(&FileClass->methods, ".__exit__", krk_file_exit);
-	krk_finalizeClass(FileClass);
+	BIND_METHOD(File,read);
+	BIND_METHOD(File,readline);
+	BIND_METHOD(File,readlines);
+	BIND_METHOD(File,write);
+	BIND_METHOD(File,close);
+	BIND_METHOD(File,flush);
+	BIND_METHOD(File,__str__);
+	BIND_METHOD(File,__init__);
+	BIND_METHOD(File,__enter__);
+	BIND_METHOD(File,__exit__);
+	krk_defineNative(&File->methods, ".__repr__", FUNC_NAME(File,__str__));
+	krk_finalizeClass(File);
 
-	krk_makeClass(module, &BinaryFileClass, "BinaryFile", FileClass);
-	krk_defineNative(&BinaryFileClass->methods, ".read", krk_file_read_b);
-	krk_defineNative(&BinaryFileClass->methods, ".readline", krk_file_readline_b);
-	krk_defineNative(&BinaryFileClass->methods, ".readlines", krk_file_readlines_b);
-	krk_defineNative(&BinaryFileClass->methods, ".write", krk_file_write_b);
-	krk_finalizeClass(BinaryFileClass);
+	krk_makeClass(module, &BinaryFile, "BinaryFile", File);
+	BIND_METHOD(BinaryFile,read);
+	BIND_METHOD(BinaryFile,readline);
+	BIND_METHOD(BinaryFile,readlines);
+	BIND_METHOD(BinaryFile,write);
+	krk_finalizeClass(BinaryFile);
 
 	krk_makeClass(module, &Directory, "Directory", vm.objectClass);
 	Directory->allocSize = sizeof(struct Directory);
@@ -508,8 +481,8 @@ KrkValue krk_module_onload_fileio(void) {
 	makeFileInstance(module, "stderr", stderr);
 
 	/* Our base will be the open method */
-	krk_defineNative(&module->fields, "open", krk_open);
-	krk_defineNative(&module->fields, "opendir", _opendir);
+	BIND_FUNC(module,open);
+	BIND_FUNC(module,opendir);
 
 	/* Pop the module object before returning; it'll get pushed again
 	 * by the VM before the GC has a chance to run, so it's safe. */
