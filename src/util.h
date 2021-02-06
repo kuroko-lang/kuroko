@@ -40,6 +40,9 @@ static inline const char * _method_name(const char * func) {
 	krk_defineNative(&vm.builtins->fields, name, func)->doc = docStr; \
 } while (0)
 
+/* _method_name works for this, but let's skip the inlined function call where possible */
+#define _function_name(f) (f+5)
+
 #define METHOD_TAKES_NONE() do { if (argc != 1) return krk_runtimeError(vm.exceptions.argumentError, "%s() takes no arguments (%d given)", \
 	_method_name(__func__), (argc-1)); } while (0)
 
@@ -51,6 +54,18 @@ static inline const char * _method_name(const char * func) {
 
 #define METHOD_TAKES_AT_MOST(n) do { if (argc > (n+1)) return krk_runtimeError(vm.exceptions.argumentError, "%s() takes %s %d argument%s (%d given)", \
 	_method_name(__func__), "at most", n, (n != 1) ? "s" : "", (argc-1)); } while (0)
+
+#define FUNCTION_TAKES_NONE() do { if (argc != 0) return krk_runtimeError(vm.exceptions.argumentError, "%s() takes no arguments (%d given)", \
+	_function_name(__func__), (argc)); } while (0)
+
+#define FUNCTION_TAKES_EXACTLY(n) do { if (argc != n) return krk_runtimeError(vm.exceptions.argumentError, "%s() takes %s %d argument%s (%d given)", \
+	_function_name(__func__), "exactly", n, (n != 1) ? "s" : "", (argc)); } while (0)
+
+#define FUNCTION_TAKES_AT_LEAST(n) do { if (argc < n) return krk_runtimeError(vm.exceptions.argumentError, "%s() takes %s %d argument%s (%d given)", \
+	_function_name(__func__), "at least", n, (n != 1) ? "s" : "", (argc)); } while (0)
+
+#define FUNCTION_TAKES_AT_MOST(n) do { if (argc > n) return krk_runtimeError(vm.exceptions.argumentError, "%s() takes %s %d argument%s (%d given)", \
+	_function_name(__func__), "at most", n, (n != 1) ? "s" : "", (argc)); } while (0)
 
 #define TYPE_ERROR(expected,value) krk_runtimeError(vm.exceptions.typeError, "%s() expects %s, not '%s'", \
 		/* Function name */ _method_name(__func__), /* expected type */ #expected, krk_typeName(value))
@@ -77,6 +92,7 @@ static inline const char * _method_name(const char * func) {
 #define BIND_METHOD(klass,method) do { krk_defineNative(&klass->methods, "." #method, _ ## klass ## _ ## method); } while (0)
 #define BIND_FIELD(klass,method) do { krk_defineNative(&klass->methods, ":" #method, _ ## klass ## _ ## method); } while (0)
 #define BIND_PROP(klass,method) do { krk_defineNativeProperty(&klass->fields, #method, _ ## klass ## _ ## method); } while (0)
+#define BIND_FUNC(module,func) do { krk_defineNative(&module->fields, #func, _krk_ ## func); } while (0)
 
 struct StringBuilder {
 	size_t capacity;
