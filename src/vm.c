@@ -980,7 +980,18 @@ static KrkValue krk_getsize(int argc, KrkValue argv[]) {
 		}
 		case OBJ_INSTANCE: {
 			KrkInstance * self = AS_INSTANCE(argv[0]);
-			mySize += sizeof(KrkInstance) + sizeof(KrkTableEntry) * self->fields.capacity;
+			mySize += sizeof(KrkTableEntry) * self->fields.capacity;
+			KrkClass * type = krk_getType(argv[0]);
+			if (type->allocSize) {
+				mySize += type->allocSize;
+			} else {
+				mySize += sizeof(KrkInstance);
+			}
+			if (krk_isInstanceOf(argv[0], vm.baseClasses.listClass)) {
+				mySize += sizeof(KrkValue) * AS_LIST(argv[0])->capacity;
+			} else if (krk_isInstanceOf(argv[0], vm.baseClasses.dictClass)) {
+				mySize += sizeof(KrkTableEntry) * AS_DICT(argv[0])->capacity;
+			}
 			break;
 		}
 		case OBJ_CLASS: {
