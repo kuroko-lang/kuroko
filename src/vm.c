@@ -382,20 +382,8 @@ static KrkValue krk_set_tracing(int argc, KrkValue argv[], int hasKw) {
 			if (AS_INTEGER(test) == 1) vm.flags |= KRK_ENABLE_STRESS_GC; else vm.flags &= ~KRK_ENABLE_STRESS_GC; }
 		if (krk_tableGet(AS_DICT(argv[argc]), OBJECT_VAL(S("scantracing")), &test) && IS_INTEGER(test)) {
 			if (AS_INTEGER(test) == 1) vm.flags |= KRK_ENABLE_SCAN_TRACING; else vm.flags &= ~KRK_ENABLE_SCAN_TRACING; }
-		return BOOLEAN_VAL(1);
-	} else {
-		if (argc != 1 || !IS_STRING(argv[0]))
-			return krk_runtimeError(vm.exceptions.typeError, "set_tracing() expects kwargs or one string");
-		if (!strcmp(AS_CSTRING(argv[0]),"tracing=1")) vm.flags |= KRK_ENABLE_TRACING;
-		else if (!strcmp(AS_CSTRING(argv[0]),"disassembly=1")) vm.flags |= KRK_ENABLE_DISASSEMBLY;
-		else if (!strcmp(AS_CSTRING(argv[0]),"scantracing=1")) vm.flags |= KRK_ENABLE_SCAN_TRACING;
-		else if (!strcmp(AS_CSTRING(argv[0]),"stressgc=1")) vm.flags |= KRK_ENABLE_STRESS_GC;
-		else if (!strcmp(AS_CSTRING(argv[0]),"tracing=0")) vm.flags &= ~KRK_ENABLE_TRACING;
-		else if (!strcmp(AS_CSTRING(argv[0]),"disassembly=0")) vm.flags &= ~KRK_ENABLE_DISASSEMBLY;
-		else if (!strcmp(AS_CSTRING(argv[0]),"scantracing=0")) vm.flags &= ~KRK_ENABLE_SCAN_TRACING;
-		else if (!strcmp(AS_CSTRING(argv[0]),"stressgc=0")) vm.flags &= ~KRK_ENABLE_STRESS_GC;
-		return BOOLEAN_VAL(1);
 	}
+	return BOOLEAN_VAL(1);
 #else
 	return krk_runtimeError(vm.exceptions.typeError,"Debugging is not enabled in this build.");
 #endif
