@@ -132,6 +132,54 @@ KRK_METHOD(dict,__repr__,{
 	return finishStringBuilder(&sb);
 })
 
+KRK_METHOD(dict,copy,{
+	METHOD_TAKES_NONE();
+	KrkValue dictOut = krk_dict_of(0,NULL);
+	krk_push(dictOut);
+	krk_tableAddAll(&self->entries, AS_DICT(dictOut));
+	return krk_pop();
+})
+
+KRK_METHOD(dict,clear,{
+	METHOD_TAKES_NONE();
+	krk_freeTable(&self->entries);
+})
+
+KRK_METHOD(dict,get,{
+	METHOD_TAKES_AT_LEAST(1);
+	METHOD_TAKES_AT_MOST(2);
+	KrkValue out = NONE_VAL();
+	if (argc > 2) out = argv[2];
+	krk_tableGet(&self->entries, argv[1], &out);
+	return out;
+})
+
+KRK_METHOD(dict,setdefault,{
+	METHOD_TAKES_AT_LEAST(1);
+	METHOD_TAKES_AT_MOST(2);
+	KrkValue out = NONE_VAL();
+	if (argc > 2) out = argv[2];
+
+	/* TODO this is slow; use findEntry instead! */
+	if (!krk_tableGet(&self->entries, argv[1], &out)) {
+		krk_tableSet(&self->entries, argv[1], out);
+	}
+
+	return out;
+})
+
+KRK_METHOD(dict,update,{
+	METHOD_TAKES_AT_MOST(1);
+	if (argc > 1) {
+		/* TODO sequence */
+		CHECK_ARG(1,dict,KrkDict*,other);
+		krk_tableAddAll(&other->entries, &self->entries);
+	}
+	if (hasKw) {
+		krk_tableAddAll(AS_DICT(argv[argc]), &self->entries);
+	}
+})
+
 FUNC_SIG(dictkeys,__init__);
 
 KRK_METHOD(dict,keys,{
@@ -331,6 +379,11 @@ void _createAndBind_dictClass(void) {
 	BIND_METHOD(dict,keys);
 	BIND_METHOD(dict,items);
 	BIND_METHOD(dict,capacity);
+	BIND_METHOD(dict,copy);
+	BIND_METHOD(dict,clear);
+	BIND_METHOD(dict,get);
+	BIND_METHOD(dict,setdefault);
+	BIND_METHOD(dict,update);
 	krk_defineNative(&dict->methods, ".__str__", FUNC_NAME(dict,__repr__));
 	krk_finalizeClass(dict);
 	dict->docstring = S("Mapping of arbitrary keys to values.");
