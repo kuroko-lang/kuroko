@@ -1,2 +1,8 @@
-{None, 1, 'test', <type 'object'>, 3, 2}
-{'1', '2', "<type 'object'>", '3', '<function print>'}
+True
+True
+True
+True
+True
+True
+True
+['1', '2', '3', "<type 'object'>", 'None', 'True', 'test']

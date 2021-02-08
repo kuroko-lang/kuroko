@@ -1,2 +1,12 @@
-print({1,2,3,object,True,None,"test"})
-print({str(i) for i in [1,2,3,object,print]})
+let s1 = {1,2,3,object,True,None,"test"}
+print(1 in s1)
+print(2 in s1)
+print(3 in s1)
+print(object in s1)
+print(True in s1)
+print(None in s1)
+print("test" in s1)
+
+let l2 = [x for x in {str(i) for i in [1,2,3,object,True,None,"test"]}]
+l2.sort()
+print(l2)
