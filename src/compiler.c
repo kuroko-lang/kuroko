@@ -528,7 +528,13 @@ static void get_(int canAssign) {
 			expression();
 			emitByte(OP_INVOKE_SETSLICE);
 		} else if (canAssign && matchAssignment()) {
-			error("operator-assignment not supported on slice");
+			/* o s e */
+			emitBytes(OP_DUP, 2); /* o s e o */
+			emitBytes(OP_DUP, 2); /* o s e o s */
+			emitBytes(OP_DUP, 2); /* o s e o s e */
+			emitByte(OP_INVOKE_GETSLICE); /* o s e v */
+			assignmentValue();
+			emitByte(OP_INVOKE_SETSLICE);
 		} else if (inDel && matchEndOfDel()) {
 			emitByte(OP_INVOKE_DELSLICE);
 			inDel = 2;

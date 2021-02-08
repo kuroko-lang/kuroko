@@ -355,6 +355,15 @@ KRK_METHOD(list,sort,{
 	qsort(self->values.values, self->values.count, sizeof(KrkValue), _list_sorter);
 })
 
+KRK_METHOD(list,__add__,{
+	METHOD_TAKES_EXACTLY(1);
+	if (!IS_list(argv[1])) return TYPE_ERROR(list,argv[1]);
+
+	KrkValue outList = krk_list_of(self->values.count, self->values.values); /* copy */
+	FUNC_NAME(list,extend)(2,(KrkValue[]){outList,argv[1]},0); /* extend */
+	return outList;
+})
+
 FUNC_SIG(listiterator,__init__);
 
 KRK_METHOD(list,__iter__,{
@@ -437,6 +446,7 @@ void _createAndBind_listClass(void) {
 	BIND_METHOD(list,__setslice__);
 	BIND_METHOD(list,__iter__);
 	BIND_METHOD(list,__mul__);
+	BIND_METHOD(list,__add__);
 	BIND_METHOD(list,append);
 	BIND_METHOD(list,extend);
 	BIND_METHOD(list,pop);
