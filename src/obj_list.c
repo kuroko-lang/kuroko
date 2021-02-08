@@ -193,21 +193,55 @@ KRK_METHOD(list,__contains__,{
 
 KRK_METHOD(list,__getslice__,{
 	METHOD_TAKES_EXACTLY(2);
-
-	if (!(IS_INTEGER(argv[1]) || IS_NONE(argv[1])) || !(IS_INTEGER(argv[2]) || IS_NONE(argv[2])))
-		return krk_runtimeError(vm.exceptions.typeError, "%s() expects two integer arguments", "__getslice__");
-
-	int start = IS_NONE(argv[1]) ? 0 : AS_INTEGER(argv[1]);
-	int end   = IS_NONE(argv[2]) ? (int)AS_LIST(argv[0])->count : AS_INTEGER(argv[2]);
-	if (start < 0) start = (int)AS_LIST(argv[0])->count + start;
-	if (start < 0) start = 0;
-	if (end < 0) end = (int)AS_LIST(argv[0])->count + end;
-	if (start > (int)AS_LIST(argv[0])->count) start = (int)AS_LIST(argv[0])->count;
-	if (end > (int)AS_LIST(argv[0])->count) end = (int)AS_LIST(argv[0])->count;
+	if (!(IS_INTEGER(argv[1]) || IS_NONE(argv[1]))) return TYPE_ERROR(int or None, argv[1]);
+	if (!(IS_INTEGER(argv[2]) || IS_NONE(argv[2]))) return TYPE_ERROR(int or None, argv[2]);
+	krk_integer_type start = IS_NONE(argv[1]) ? 0 : AS_INTEGER(argv[1]);
+	krk_integer_type end   = IS_NONE(argv[2]) ? (krk_integer_type)self->values.count : AS_INTEGER(argv[2]);
+	LIST_WRAP_SOFT(start);
+	LIST_WRAP_SOFT(end);
 	if (end < start) end = start;
-	int len = end - start;
+	krk_integer_type len = end - start;
 
 	return krk_list_of(len, &AS_LIST(argv[0])->values[start]);
+})
+
+FUNC_SIG(list,pop);
+KRK_METHOD(list,__delslice__,{
+	METHOD_TAKES_EXACTLY(2);
+	if (!(IS_INTEGER(argv[1]) || IS_NONE(argv[1]))) return TYPE_ERROR(int or None, argv[1]);
+	if (!(IS_INTEGER(argv[2]) || IS_NONE(argv[2]))) return TYPE_ERROR(int or None, argv[2]);
+	krk_integer_type start = IS_NONE(argv[1]) ? 0 : AS_INTEGER(argv[1]);
+	krk_integer_type end   = IS_NONE(argv[2]) ? (krk_integer_type)self->values.count : AS_INTEGER(argv[2]);
+	LIST_WRAP_SOFT(start);
+	LIST_WRAP_SOFT(end);
+	if (end < start) end = start;
+	krk_integer_type len = end - start;
+
+	while (len > 0) {
+		FUNC_NAME(list,pop)(2,(KrkValue[]){argv[0],INTEGER_VAL(start)},0);
+		len--;
+	}
+})
+
+KRK_METHOD(list,__setslice__,{
+	METHOD_TAKES_EXACTLY(3);
+	if (!(IS_INTEGER(argv[1]) || IS_NONE(argv[1]))) return TYPE_ERROR(int or None, argv[1]);
+	if (!(IS_INTEGER(argv[2]) || IS_NONE(argv[2]))) return TYPE_ERROR(int or None, argv[2]);
+	if (!IS_list(argv[3])) return TYPE_ERROR(list,argv[3]); /* TODO other sequence types */
+	krk_integer_type start = IS_NONE(argv[1]) ? 0 : AS_INTEGER(argv[1]);
+	krk_integer_type end   = IS_NONE(argv[2]) ? (krk_integer_type)self->values.count : AS_INTEGER(argv[2]);
+	LIST_WRAP_SOFT(start);
+	LIST_WRAP_SOFT(end);
+	if (end < start) end = start;
+	krk_integer_type len = end - start;
+
+	if ((krk_integer_type)AS_LIST(argv[3])->count != len)
+		return krk_runtimeError(vm.exceptions.indexError, "slice set source has wrong length (expected %d, got %d)",
+			(int)len, (int)AS_LIST(argv[3])->count);
+
+	for (krk_integer_type i = 0; i < len; ++i) {
+		AS_LIST(argv[0])->values[start+i] = AS_LIST(argv[3])->values[i];
+	}
 })
 
 KRK_METHOD(list,pop,{
@@ -399,6 +433,8 @@ void _createAndBind_listClass(void) {
 	BIND_METHOD(list,__repr__);
 	BIND_METHOD(list,__contains__);
 	BIND_METHOD(list,__getslice__);
+	BIND_METHOD(list,__delslice__);
+	BIND_METHOD(list,__setslice__);
 	BIND_METHOD(list,__iter__);
 	BIND_METHOD(list,__mul__);
 	BIND_METHOD(list,append);

@@ -257,31 +257,9 @@ KrkProperty * krk_newProperty(KrkValue method) {
 KrkClass * krk_newClass(KrkString * name, KrkClass * baseClass) {
 	KrkClass * _class = ALLOCATE_OBJECT(KrkClass, OBJ_CLASS);
 	_class->name = name;
-	_class->filename = NULL;
-	_class->docstring = NULL;
-	_class->base = NULL;
 	_class->allocSize = sizeof(KrkInstance);
 	krk_initTable(&_class->methods);
 	krk_initTable(&_class->fields);
-
-	_class->_ongcscan = NULL;
-	_class->_ongcsweep = NULL;
-
-	_class->_getter = NULL;
-	_class->_setter = NULL;
-	_class->_slicer = NULL;
-	_class->_reprer = NULL;
-	_class->_tostr = NULL;
-	_class->_call = NULL;
-	_class->_init = NULL;
-	_class->_eq = NULL;
-	_class->_len = NULL;
-	_class->_enter = NULL;
-	_class->_exit = NULL;
-	_class->_delitem = NULL;
-	_class->_iter = NULL;
-	_class->_getattr = NULL;
-	_class->_dir = NULL;
 
 	if (baseClass) {
 		krk_push(OBJECT_VAL(_class));

@@ -838,6 +838,9 @@ void _createAndBind_strClass(void) {
 	BIND_METHOD(str,index);
 	BIND_METHOD(str,startswith);
 	BIND_METHOD(str,endswith);
+	krk_defineNative(&str->methods,".__setslice__",FUNC_NAME(str,__set__));
+	krk_defineNative(&str->methods,".__delslice__",FUNC_NAME(str,__set__));
+	krk_defineNative(&str->methods,".__delitem__",FUNC_NAME(str,__set__));
 	krk_finalizeClass(str);
 	str->docstring = S("Obtain a string representation of an object.");
 

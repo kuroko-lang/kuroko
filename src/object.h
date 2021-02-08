@@ -134,7 +134,7 @@ typedef struct KrkClass {
 	/* Quick access for common stuff */
 	KrkObj * _getter;
 	KrkObj * _setter;
-	KrkObj * _slicer;
+	KrkObj * _getslice;
 	KrkObj * _reprer;
 	KrkObj * _tostr;
 	KrkObj * _call;
@@ -147,6 +147,8 @@ typedef struct KrkClass {
 	KrkObj * _iter;
 	KrkObj * _getattr;
 	KrkObj * _dir;
+	KrkObj * _setslice;
+	KrkObj * _delslice;
 } KrkClass;
 
 typedef struct KrkInstance {

@@ -45,6 +45,8 @@ typedef enum {
 	METHOD_ITER,
 	METHOD_GETATTR,
 	METHOD_DIR,
+	METHOD_SETSLICE,
+	METHOD_DELSLICE,
 
 	METHOD__MAX,
 } KrkSpecialMethods;

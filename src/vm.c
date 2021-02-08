@@ -342,7 +342,9 @@ void krk_finalizeClass(KrkClass * _class) {
 	struct TypeMap specials[] = {
 		{&_class->_getter, METHOD_GET},
 		{&_class->_setter, METHOD_SET},
-		{&_class->_slicer, METHOD_GETSLICE},
+		{&_class->_getslice, METHOD_GETSLICE},
+		{&_class->_setslice, METHOD_SETSLICE},
+		{&_class->_delslice, METHOD_DELSLICE},
 		{&_class->_reprer, METHOD_REPR},
 		{&_class->_tostr, METHOD_STR},
 		{&_class->_call, METHOD_CALL},
@@ -1076,6 +1078,8 @@ void krk_initVM(int flags) {
 		_(METHOD_BASE, "__base__"),
 		_(METHOD_CALL, "__call__"),
 		_(METHOD_GETSLICE, "__getslice__"),
+		_(METHOD_SETSLICE, "__setslice__"),
+		_(METHOD_DELSLICE, "__delslice__"),
 		_(METHOD_LIST_INT, "__list"),
 		_(METHOD_DICT_INT, "__dict"),
 		_(METHOD_INREPR, "__inrepr"),
@@ -2019,8 +2023,26 @@ static KrkValue run() {
 			}
 			case OP_INVOKE_GETSLICE: {
 				KrkClass * type = krk_getType(krk_peek(2));
-				if (likely(type->_slicer)) {
-					krk_push(krk_callSimple(OBJECT_VAL(type->_slicer), 3, 0));
+				if (likely(type->_getslice)) {
+					krk_push(krk_callSimple(OBJECT_VAL(type->_getslice), 3, 0));
+				} else {
+					krk_runtimeError(vm.exceptions.attributeError, "'%s' object is not sliceable", krk_typeName(krk_peek(2)));
+				}
+				break;
+			}
+			case OP_INVOKE_SETSLICE: {
+				KrkClass * type = krk_getType(krk_peek(3));
+				if (likely(type->_setslice)) {
+					krk_push(krk_callSimple(OBJECT_VAL(type->_setslice), 4, 0));
+				} else {
+					krk_runtimeError(vm.exceptions.attributeError, "'%s' object is not sliceable", krk_typeName(krk_peek(3)));
+				}
+				break;
+			}
+			case OP_INVOKE_DELSLICE: {
+				KrkClass * type = krk_getType(krk_peek(2));
+				if (likely(type->_delslice)) {
+					krk_push(krk_callSimple(OBJECT_VAL(type->_delslice), 3, 0));
 				} else {
 					krk_runtimeError(vm.exceptions.attributeError, "'%s' object is not sliceable", krk_typeName(krk_peek(2)));
 				}

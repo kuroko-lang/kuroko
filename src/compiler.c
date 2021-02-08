@@ -524,10 +524,14 @@ static void get_(int canAssign) {
 			expression();
 			consume(TOKEN_RIGHT_SQUARE, "Expected ending square bracket after slice.");
 		}
-		if (canAssign && matchAssignment()) {
-			error("Slice assignment not implemented.");
+		if (canAssign && match(TOKEN_EQUAL)) {
+			expression();
+			emitByte(OP_INVOKE_SETSLICE);
+		} else if (canAssign && matchAssignment()) {
+			error("operator-assignment not supported on slice");
 		} else if (inDel && matchEndOfDel()) {
-			error("Slice deletion not implemented.");
+			emitByte(OP_INVOKE_DELSLICE);
+			inDel = 2;
 		} else {
 			emitByte(OP_INVOKE_GETSLICE);
 		}
