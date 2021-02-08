@@ -235,13 +235,22 @@ KRK_METHOD(list,__setslice__,{
 	if (end < start) end = start;
 	krk_integer_type len = end - start;
 
-	if ((krk_integer_type)AS_LIST(argv[3])->count != len)
-		return krk_runtimeError(vm.exceptions.indexError, "slice set source has wrong length (expected %d, got %d)",
-			(int)len, (int)AS_LIST(argv[3])->count);
+	krk_integer_type newLen = (krk_integer_type)AS_LIST(argv[3])->count;
 
-	for (krk_integer_type i = 0; i < len; ++i) {
+	for (krk_integer_type i = 0; (i < len && i < newLen); ++i) {
 		AS_LIST(argv[0])->values[start+i] = AS_LIST(argv[3])->values[i];
 	}
+
+	while (len < newLen) {
+		FUNC_NAME(list,insert)(3, (KrkValue[]){argv[0], INTEGER_VAL(start + len), AS_LIST(argv[3])->values[len]}, 0);
+		len++;
+	}
+
+	while (newLen < len) {
+		FUNC_NAME(list,pop)(2, (KrkValue[]){argv[0], INTEGER_VAL(start + len - 1)}, 0);
+		len--;
+	}
+
 })
 
 KRK_METHOD(list,pop,{
