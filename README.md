@@ -1,13 +1,11 @@
 ![logo](.github/kuroko.png)
 # Kuroko - A bytecode-compiled scripting language
 
-Kuroko is a bytecode-interpreted, dynamic, strongly-typed language with syntax similar to Python.
+Kuroko is a bytecode-compiled, dynamic, interpreted programming language with familiar Python-like syntax and a small, embeddable core
 
 The bytecode VM / compiler is substantially based on Robert Nystrom's [_Crafting Interpreters_](https://craftinginterpreters.com/).
 
-At the moment, the intent for this project is to add a proper scripting language to [Bim](https://github.com/klange/bim), to which both configuration scripts and syntax highlighting will be ported.
-
-Kuroko, [as its name should imply](https://toarumajutsunoindex.fandom.com/wiki/Shirai_Kuroko), will also be made available in [ToaruOS](https://github.com/klange/toaruos) as a general-purpose user language, and some utilities may end up being written in it.
+This project was originally started to add a proper scripting language to [Bim](https://github.com/klange/bim) to support syntax highlighting and plugins, as well as to give [ToaruOS](https://github.com/klange/toaruos) a general-purpose user language for applications and utilities.
 
 ## Features
 
@@ -16,10 +14,10 @@ Kuroko inherits some core features by virtue of following _Crafting Interpreters
 On top of this, Kuroko adds a number of features inspired by Python, such as:
 
 - Indentation-based block syntax.
-- Collection types: `list`, `dict`, `tuple`, with compiler literal syntax (`[]`,`{}`,`(,)`).
+- Collection types: `list`, `dict`, `tuple`, `set`, with compiler literal syntax (`[]`,`{}`,`(,)`).
+- List, dict, tuple, and set comprehensions (`[foo(x) for x in [1,2,3,4]]` and similar expressions).
 - Iterable types, with `for ... in ...` syntax.
-- List and dict comprehensions (`[foo(x) for x in [1,2,3,4]]` and similar expressions).
-- Pseudo-classes for basic values (eg. strings are pseudo-instances of a `str` class providing methods like `.format()`)
+- Class methods for basic types (eg. strings are instances of a `str` class providing methods like `.format()`)
 - Exception handling, with `try`/`except`/`raise`.
 - Modules, both for native C code and managed Kuroko code.
 - Unicode strings and identifiers.
