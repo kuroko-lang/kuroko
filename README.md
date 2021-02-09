@@ -58,7 +58,7 @@ Experimental support is available for building Kuroko to run on Windows using Mi
 
     CC=x86_64-w64-mingw32-gcc make
 
-A capable terminal, such as Windows Terminal, is required to run the interpreter's REPL correctly. The older "Command Prompt" (cmd.exe) is specifically known to _not_ work.
+A capable terminal, such as Windows Terminal, is required to run the interpreter's REPL correctly; CMD.exe has also been tested successfully.
 
 ## Code Samples
 
