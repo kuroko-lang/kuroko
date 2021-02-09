@@ -16,17 +16,15 @@
 #include "vm.h"
 #include "value.h"
 #include "object.h"
+#include "util.h"
 
 /* Did you know this is actually specified to not exist in a header? */
 extern char ** environ;
 
-#define S(c) (krk_copyString(c,sizeof(c)-1))
+KrkClass * OSError = NULL;
 
-/**
- * system.uname()
- */
-static KrkValue _os_uname(int argc, KrkValue argv[]) {
 #ifndef _WIN32
+KRK_FUNC(uname,{
 	struct utsname buf;
 	if (uname(&buf) < 0) return NONE_VAL();
 
@@ -42,7 +40,9 @@ static KrkValue _os_uname(int argc, KrkValue argv[]) {
 
 	KRK_RESUME_GC();
 	return result;
+})
 #else
+KRK_FUNC(uname,{
 	KRK_PAUSE_GC();
 
 	TCHAR buffer[256] = TEXT("");
@@ -90,8 +90,8 @@ static KrkValue _os_uname(int argc, KrkValue argv[]) {
 
 	KRK_RESUME_GC();
 	return result;
+})
 #endif
-}
 
 KrkClass * environClass;
 
@@ -182,61 +182,56 @@ static void _loadEnviron(KrkInstance * module) {
 
 }
 
-static KrkValue _os_system(int argc, KrkValue argv[]) {
-	if (argc != 1 || !IS_STRING(argv[0])) return krk_runtimeError(vm.exceptions.typeError, "system() expects one string argument");
+KRK_FUNC(system,{
+	FUNCTION_TAKES_EXACTLY(1);
+	CHECK_ARG(0,str,KrkString*,cmd);
+	return INTEGER_VAL(system(cmd->chars));
+})
 
-	return INTEGER_VAL(system(AS_CSTRING(argv[0])));
-}
+KRK_FUNC(getcwd,{
+	FUNCTION_TAKES_NONE();
+	char buf[4096]; /* TODO PATH_MAX? */
+	if (!getcwd(buf, 4096)) return krk_runtimeError(OSError, strerror(errno));
+	return OBJECT_VAL(krk_copyString(buf, strlen(buf)));
+})
 
-static KrkValue _os_getcwd(int argc, KrkValue argv[]) {
-	if (argc != 0) return krk_runtimeError(vm.exceptions.argumentError, "getcwd() does not expect arguments");
-	char buf[4096];
-	if (!getcwd(buf, 4096)) return krk_runtimeError(vm.exceptions.baseException, strerror(errno));
-	return OBJECT_VAL(krk_copyString(buf,strlen(buf)));
-}
+KRK_FUNC(chdir,{
+	FUNCTION_TAKES_EXACTLY(1);
+	CHECK_ARG(0,str,KrkString*,newDir);
+	if (chdir(newDir->chars)) return krk_runtimeError(OSError, strerror(errno));
+})
 
-static KrkValue _os_chdir(int argc, KrkValue argv[]) {
-	if (argc != 1 || !IS_STRING(argv[0])) return krk_runtimeError(vm.exceptions.typeError, "chdir() expects one string argument");
-
-	if (chdir(AS_CSTRING(argv[0]))) return krk_runtimeError(vm.exceptions.baseException, strerror(errno));
-	return NONE_VAL();
-}
-
-static KrkValue _os_getpid(int argc, KrkValue argv[]) {
-	if (argc != 0) return krk_runtimeError(vm.exceptions.argumentError, "getpid() does not expect arguments");
+KRK_FUNC(getpid,{
+	FUNCTION_TAKES_NONE();
 	return INTEGER_VAL(getpid());
-}
+})
 
-static KrkValue _os_strerror(int argc, KrkValue argv[]) {
-	if (argc != 1 || !IS_INTEGER(argv[0])) return krk_runtimeError(vm.exceptions.typeError, "strerror() expects one integer argument");
-
-	char * s = strerror(AS_INTEGER(argv[0]));
-	if (!s) return krk_runtimeError(vm.exceptions.valueError, "strerror() returned NULL");
+KRK_FUNC(strerror,{
+	FUNCTION_TAKES_EXACTLY(1);
+	CHECK_ARG(0,int,krk_integer_type,errorNo);
+	char *s = strerror(errorNo);
+	if (!s) return NONE_VAL();
 	return OBJECT_VAL(krk_copyString(s,strlen(s)));
-}
+})
 
-static KrkValue _os_access(int argc, KrkValue argv[]) {
-	if (argc != 2) return krk_runtimeError(vm.exceptions.argumentError, "access() expects exactly two arguments");
-	if (!IS_STRING(argv[0])) return krk_runtimeError(vm.exceptions.typeError, "first argument to access() should be a string");
-	if (!IS_INTEGER(argv[1])) return krk_runtimeError(vm.exceptions.typeError, "second argument to access() should be an integer");
-
-	if (access(AS_CSTRING(argv[0]), AS_INTEGER(argv[1])) == 0) return BOOLEAN_VAL(1);
+KRK_FUNC(access,{
+	FUNCTION_TAKES_EXACTLY(2);
+	CHECK_ARG(0,str,KrkString*,path);
+	CHECK_ARG(1,int,krk_integer_type,mask);
+	if (access(path->chars, mask) == 0) return BOOLEAN_VAL(1);
 	return BOOLEAN_VAL(0);
-}
+})
 
 #ifndef _WIN32
-static KrkValue _os_kill(int argc, KrkValue argv[]) {
-	if (argc != 2 || !IS_INTEGER(argv[0]) || !IS_INTEGER(argv[1]))
-		return krk_runtimeError(vm.exceptions.typeError, "kill() expects two integer arguments");
-
+KRK_FUNC(kill,{
+	FUNCTION_TAKES_EXACTLY(2);
 	return INTEGER_VAL(kill(AS_INTEGER(argv[0]), AS_INTEGER(argv[1])));
-}
+})
 
-static KrkValue _os_fork(int argc, KrkValue argv[]) {
-	if (argc != 0) return krk_runtimeError(vm.exceptions.argumentError, "fork() takes no arguments");
-
+KRK_FUNC(fork,{
+	FUNCTION_TAKES_NONE();
 	return INTEGER_VAL(fork());
-}
+})
 #endif
 
 KrkValue krk_module_onload_os(void) {
@@ -245,22 +240,32 @@ KrkValue krk_module_onload_os(void) {
 	 * and not lose it to garbage colletion... */
 	krk_push(OBJECT_VAL(module));
 
-	krk_defineNative(&module->fields, "uname", _os_uname);
-	krk_defineNative(&module->fields, "system", _os_system);
-	krk_defineNative(&module->fields, "getcwd", _os_getcwd);
-	krk_defineNative(&module->fields, "chdir", _os_chdir);
-	krk_defineNative(&module->fields, "getpid", _os_getpid);
-	krk_defineNative(&module->fields, "strerror", _os_strerror);
+#ifdef _WIN32
+	krk_attachNamedObject(&module->fields, "name", (KrkObj*)S("nt"));
+#else
+	krk_attachNamedObject(&module->fields, "name", (KrkObj*)S("posix"));
+#endif
+
+	OSError = krk_newClass(S("OSError"), vm.exceptions.baseException);
+	krk_attachNamedObject(&module->fields, "OSError", (KrkObj*)OSError);
+	krk_finalizeClass(OSError);
+
+	BIND_FUNC(module,uname);
+	BIND_FUNC(module,system);
+	BIND_FUNC(module,getcwd);
+	BIND_FUNC(module,chdir);
+	BIND_FUNC(module,getpid);
+	BIND_FUNC(module,strerror);
 #ifndef _WIN32
-	krk_defineNative(&module->fields, "kill", _os_kill);
-	krk_defineNative(&module->fields, "fork", _os_fork);
+	BIND_FUNC(module,kill);
+	BIND_FUNC(module,fork);
 #endif
 
 	krk_attachNamedValue(&module->fields, "F_OK", INTEGER_VAL(F_OK));
 	krk_attachNamedValue(&module->fields, "R_OK", INTEGER_VAL(R_OK));
 	krk_attachNamedValue(&module->fields, "W_OK", INTEGER_VAL(W_OK));
 	krk_attachNamedValue(&module->fields, "X_OK", INTEGER_VAL(X_OK));
-	krk_defineNative(&module->fields, "access", _os_access);
+	BIND_FUNC(module,access);
 
 	_loadEnviron(module);
 

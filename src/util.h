@@ -9,6 +9,7 @@
 
 #include "object.h"
 #include "vm.h"
+#include "memory.h"
 
 /* Quick macro for turning string constants into KrkString*s */
 #define S(c) (krk_copyString(c,sizeof(c)-1))
