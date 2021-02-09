@@ -126,7 +126,7 @@ deb: kuroko libkuroko.so
 		--url         "https://kuroko-lang.github.io/" \
 		--license     "ISC" \
 		--category    "devel" \
-		-d 'libc6 (>= 2.14)' \
+		-d            "libc6 (>= 2.29)" \
 		--version     $(VERSION) \
 		--iteration   0 \
 		--directories $(libdir)/kuroko
