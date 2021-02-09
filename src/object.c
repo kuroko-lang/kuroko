@@ -16,6 +16,7 @@ static KrkObj * allocateObject(size_t size, ObjType type) {
 	memset(object,0,size);
 	object->type = type;
 	object->next = vm.objects;
+	krk_currentThread.scratchSpace[2] = OBJECT_VAL(object);
 	vm.objects = object;
 	return object;
 }

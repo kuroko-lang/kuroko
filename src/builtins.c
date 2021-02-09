@@ -393,6 +393,8 @@ KRK_METHOD(LicenseReader,__call__,{
 _noexport
 void _createAndBind_builtins(void) {
 	vm.baseClasses->objectClass = krk_newClass(S("object"), NULL);
+	krk_push(OBJECT_VAL(vm.baseClasses->objectClass));
+
 	krk_defineNative(&vm.baseClasses->objectClass->methods, ":__class__", _type);
 	krk_defineNative(&vm.baseClasses->objectClass->methods, ".__dir__", krk_dirObject);
 	krk_defineNative(&vm.baseClasses->objectClass->methods, ".__str__", _strBase);
@@ -401,6 +403,7 @@ void _createAndBind_builtins(void) {
 	vm.baseClasses->objectClass->docstring = S("Base class for all types.");
 
 	vm.baseClasses->moduleClass = krk_newClass(S("module"), vm.baseClasses->objectClass);
+	krk_push(OBJECT_VAL(vm.baseClasses->moduleClass));
 	krk_defineNative(&vm.baseClasses->moduleClass->methods, ".__repr__", _module_repr);
 	krk_defineNative(&vm.baseClasses->moduleClass->methods, ".__str__", _module_repr);
 	krk_finalizeClass(vm.baseClasses->moduleClass);
@@ -409,6 +412,9 @@ void _createAndBind_builtins(void) {
 	vm.builtins = krk_newInstance(vm.baseClasses->moduleClass);
 	krk_attachNamedObject(&vm.modules, "__builtins__", (KrkObj*)vm.builtins);
 	krk_attachNamedObject(&vm.builtins->fields, "object", (KrkObj*)vm.baseClasses->objectClass);
+	krk_pop();
+	krk_pop();
+
 	krk_attachNamedObject(&vm.builtins->fields, "__name__", (KrkObj*)S("__builtins__"));
 	krk_attachNamedValue(&vm.builtins->fields, "__file__", NONE_VAL());
 	krk_attachNamedObject(&vm.builtins->fields, "__doc__",

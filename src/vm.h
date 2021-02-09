@@ -118,6 +118,9 @@ typedef struct ThreadState {
 	KrkValue currentException;
 	int flags;
 	long watchdog;
+
+#define THREAD_SCRATCH_SIZE 16
+	KrkValue scratchSpace[THREAD_SCRATCH_SIZE];
 } KrkThreadState;
 
 typedef struct {
@@ -179,9 +182,6 @@ extern void krk_attachNamedObject(KrkTable * table, const char name[], KrkObj * 
 extern void krk_attachNamedValue(KrkTable * table, const char name[], KrkValue obj);
 extern KrkValue krk_runtimeError(KrkClass * type, const char * fmt, ...);
 extern KrkThreadState * krk_getCurrentThread(void);
-
-#define KRK_PAUSE_GC() do { vm.globalFlags |= KRK_GC_PAUSED; } while (0)
-#define KRK_RESUME_GC() do { vm.globalFlags &= ~(KRK_GC_PAUSED); } while (0)
 
 extern KrkInstance * krk_dictCreate(void);
 extern KrkValue  krk_runNext(void);

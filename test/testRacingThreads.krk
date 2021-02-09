@@ -1,0 +1,40 @@
+####
+# Demonstration of how container access is currently broken
+# by threads and needs reader/writer locks.
+####
+import os
+if 'KUROKO_TEST_ENV' in os.environ:
+    return 0
+
+from fileio import open, stdin
+from threading import Thread
+
+let l = []
+let stop = False
+
+class Racer(Thread):
+    def run(self):
+        let myRando = open('/dev/urandom','rb')
+        while not stop:
+            let choice = myRando.read(1)[0]
+            if choice > 127:
+                l.append('test')
+            else if l:
+                l[choice % len(l)] += choice
+
+let racerA = Racer()
+let racerB = Racer()
+
+racerA.start()
+racerB.start()
+
+print("Press enter to stop.")
+stdin.readline()
+
+stop = True
+
+print("Waiting for threads...")
+racerA.join()
+racerB.join()
+print("Here's l:")
+print(l)

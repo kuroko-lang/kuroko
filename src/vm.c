@@ -623,19 +623,25 @@ static int call(KrkClosure * closure, int argCount, int extra) {
 	size_t totalArguments = closure->function->requiredArgs + closure->function->keywordArgs + closure->function->collectsArguments + closure->function->collectsKeywords;
 	size_t offsetOfExtraArgs = closure->function->requiredArgs + closure->function->keywordArgs;
 	size_t argCountX = argCount;
-	KrkValueArray positionals;
-	KrkTable keywords;
+	KrkValueArray * positionals;
+	KrkTable * keywords;
 
 	if (argCount && IS_KWARGS(krk_currentThread.stackTop[-1])) {
-		KRK_PAUSE_GC();
+
+		KrkValue myList = krk_list_of(0,NULL);
+		krk_currentThread.scratchSpace[0] = myList;
+		KrkValue myDict = krk_dict_of(0,NULL);
+		krk_currentThread.scratchSpace[1] = myDict;
+		positionals = AS_LIST(myList);
+		keywords = AS_DICT(myDict);
 
 		/* This processes the existing argument list into a ValueArray and a Table with the args and keywords */
-		if (!krk_processComplexArguments(argCount, &positionals, &keywords)) goto _errorDuringPositionals;
+		if (!krk_processComplexArguments(argCount, positionals, keywords)) goto _errorDuringPositionals;
 		argCount--; /* It popped the KWARGS value from the top, so we have one less argument */
 
 		/* Do we already know we have too many arguments? Let's bail before doing a bunch of work. */
-		if ((positionals.count > potentialPositionalArgs) && (!closure->function->collectsArguments)) {
-			checkArgumentCount(closure,positionals.count);
+		if ((positionals->count > potentialPositionalArgs) && (!closure->function->collectsArguments)) {
+			checkArgumentCount(closure,positionals->count);
 			goto _errorDuringPositionals;
 		}
 
@@ -657,22 +663,23 @@ static int call(KrkClosure * closure, int argCount, int extra) {
 		}
 
 		/* Place positional arguments */
-		for (size_t i = 0; i < potentialPositionalArgs && i < positionals.count; ++i) {
-			krk_currentThread.stackTop[-argCount + i] = positionals.values[i];
+		for (size_t i = 0; i < potentialPositionalArgs && i < positionals->count; ++i) {
+			krk_currentThread.stackTop[-argCount + i] = positionals->values[i];
 		}
 
 		if (closure->function->collectsArguments) {
-			size_t count  = (positionals.count > potentialPositionalArgs) ? (positionals.count - potentialPositionalArgs) : 0;
-			KrkValue * offset = (count == 0) ? NULL : &positionals.values[potentialPositionalArgs];
+			size_t count  = (positionals->count > potentialPositionalArgs) ? (positionals->count - potentialPositionalArgs) : 0;
+			KrkValue * offset = (count == 0) ? NULL : &positionals->values[potentialPositionalArgs];
 			krk_push(krk_list_of(count, offset));
 			argCount++;
 		}
 
-		krk_freeValueArray(&positionals);
+		krk_freeValueArray(positionals);
+		krk_currentThread.scratchSpace[0] = NONE_VAL();
 
 		/* Now place keyword arguments */
-		for (size_t i = 0; i < keywords.capacity; ++i) {
-			KrkTableEntry * entry = &keywords.entries[i];
+		for (size_t i = 0; i < keywords->capacity; ++i) {
+			KrkTableEntry * entry = &keywords->entries[i];
 			if (entry->key.type != VAL_KWARGS) {
 				KrkValue name = entry->key;
 				KrkValue value = entry->value;
@@ -716,10 +723,11 @@ _finishKwarg:
 		if (closure->function->collectsKeywords) {
 			krk_push(krk_dict_of(0,NULL));
 			argCount++;
-			krk_tableAddAll(&keywords, AS_DICT(krk_peek(0)));
+			krk_tableAddAll(keywords, AS_DICT(krk_peek(0)));
 		}
 
-		krk_freeTable(&keywords);
+		krk_freeTable(keywords);
+		krk_currentThread.scratchSpace[1] = NONE_VAL();
 
 		for (size_t i = 0; i < (size_t)closure->function->requiredArgs; ++i) {
 			if (IS_KWARGS(krk_currentThread.stackTop[-argCount + i])) {
@@ -730,7 +738,6 @@ _finishKwarg:
 			}
 		}
 
-		KRK_RESUME_GC();
 		argCountX = argCount - (closure->function->collectsArguments + closure->function->collectsKeywords);
 	} else {
 		/* We can't have had any kwargs. */
@@ -763,11 +770,12 @@ _finishKwarg:
 	return 1;
 
 _errorDuringPositionals:
-	krk_freeValueArray(&positionals);
+	krk_freeValueArray(positionals);
+	krk_currentThread.scratchSpace[0] = NONE_VAL();
 _errorAfterPositionals:
-	krk_freeTable(&keywords);
+	krk_freeTable(keywords);
+	krk_currentThread.scratchSpace[1] = NONE_VAL();
 _errorAfterKeywords:
-	KRK_RESUME_GC();
 	return 0;
 }
 
@@ -798,18 +806,19 @@ int krk_callValue(KrkValue callee, int argCount, int extra) {
 			case OBJ_NATIVE: {
 				NativeFnKw native = (NativeFnKw)AS_NATIVE(callee)->function;
 				if (argCount && IS_KWARGS(krk_currentThread.stackTop[-1])) {
-					KRK_PAUSE_GC();
 					KrkValue myList = krk_list_of(0,NULL);
+					krk_currentThread.scratchSpace[0] = myList;
 					KrkValue myDict = krk_dict_of(0,NULL);
+					krk_currentThread.scratchSpace[1] = myDict;
 					if (!krk_processComplexArguments(argCount, AS_LIST(myList), AS_DICT(myDict))) {
-						KRK_RESUME_GC();
 						return 0;
 					}
-					KRK_RESUME_GC();
 					argCount--; /* Because that popped the kwargs value */
 					krk_currentThread.stackTop -= argCount + extra; /* We can just put the stack back to normal */
 					krk_push(myList);
 					krk_push(myDict);
+					krk_currentThread.scratchSpace[0] = NONE_VAL();
+					krk_currentThread.scratchSpace[1] = NONE_VAL();
 					krk_writeValueArray(AS_LIST(myList), myDict);
 					KrkValue result = native(AS_LIST(myList)->count-1, AS_LIST(myList)->values, 1);
 					if (krk_currentThread.stackTop == krk_currentThread.stack) return 0;
@@ -1073,7 +1082,6 @@ static KrkValue krk_setclean(int argc, KrkValue argv[]) {
 
 void krk_initVM(int flags) {
 	vm.globalFlags = flags & 0xFF00;
-	KRK_PAUSE_GC();
 
 	/* Reset current thread */
 	krk_resetStack();
@@ -1208,7 +1216,6 @@ void krk_initVM(int flags) {
 
 	/* The VM is now ready to start executing code. */
 	krk_resetStack();
-	KRK_RESUME_GC();
 }
 
 /**

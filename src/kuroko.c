@@ -148,10 +148,10 @@ static void tab_complete_func(rline_context_t * c) {
 			int matchCount = 0;
 
 			/* Take the last symbol name from the chain and get its member list from dir() */
-			KRK_PAUSE_GC();
 
 			for (;;) {
 				KrkValue dirList = krk_dirObject(1,(KrkValue[]){root});
+				krk_push(dirList);
 				if (!IS_INSTANCE(dirList)) {
 					fprintf(stderr,"\nInternal error while tab completting.\n");
 					goto _cleanup;
@@ -159,13 +159,17 @@ static void tab_complete_func(rline_context_t * c) {
 
 				for (size_t i = 0; i < AS_LIST(dirList)->count; ++i) {
 					KrkString * s = AS_STRING(AS_LIST(dirList)->values[i]);
+					krk_push(OBJECT_VAL(s));
 					KrkToken asToken = {.start = s->chars, .literalWidth = s->length};
 					KrkValue thisValue = findFromProperty(root, asToken);
+					krk_push(thisValue);
 					if (IS_CLOSURE(thisValue) || IS_BOUND_METHOD(thisValue) ||
 						(IS_NATIVE(thisValue) && ((KrkNative*)AS_OBJECT(thisValue))->isMethod != 2)) {
 						char * tmp = malloc(s->length + 2);
 						sprintf(tmp, "%s(", s->chars);
 						s = krk_takeString(tmp, strlen(tmp));
+						krk_pop();
+						krk_push(OBJECT_VAL(s));
 					}
 
 					/* If this symbol is shorter than the current submatch, skip it. */
@@ -198,10 +202,11 @@ static void tab_complete_func(rline_context_t * c) {
 				} else if (isGlobal && AS_OBJECT(root) == (KrkObj*)vm.builtins) {
 					extern char * syn_krk_keywords[];
 					KrkInstance * fakeKeywordsObject = krk_newInstance(vm.baseClasses->objectClass);
+					root = OBJECT_VAL(fakeKeywordsObject);
+					krk_push(root);
 					for (char ** keyword = syn_krk_keywords; *keyword; keyword++) {
 						krk_attachNamedValue(&fakeKeywordsObject->fields, *keyword, NONE_VAL());
 					}
-					root = OBJECT_VAL(fakeKeywordsObject);
 					continue;
 				} else {
 					break;
@@ -262,7 +267,7 @@ _toomany:
 _cleanup:
 		free(tmp);
 		free(space);
-		KRK_RESUME_GC();
+		krk_resetStack();
 		return;
 	}
 }

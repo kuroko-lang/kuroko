@@ -49,7 +49,8 @@ struct Obj {
 	ObjType type;
 	unsigned char isMarked:1;
 	unsigned char inRepr:1;
-	unsigned char isProtected:1;
+	unsigned char generation:2;
+	unsigned char isImmortal:1;
 	struct Obj * next;
 };
 

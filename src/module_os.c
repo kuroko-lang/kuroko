@@ -23,27 +23,29 @@ extern char ** environ;
 
 KrkClass * OSError = NULL;
 
+#define DO_KEY(key) krk_attachNamedObject(AS_DICT(result), #key, (KrkObj*)krk_copyString(buf. key, strlen(buf .key)))
+#define S_KEY(key,val) krk_attachNamedObject(AS_DICT(result), #key, (KrkObj*)val);
+
 #ifndef _WIN32
 KRK_FUNC(uname,{
 	struct utsname buf;
 	if (uname(&buf) < 0) return NONE_VAL();
 
-	KRK_PAUSE_GC();
+	KrkValue result = krk_dict_of(0, NULL);
+	krk_push(result);
 
-	KrkValue result = krk_dict_of(5 * 2, (KrkValue[]) {
-		OBJECT_VAL(S("sysname")), OBJECT_VAL(krk_copyString(buf.sysname,strlen(buf.sysname))),
-		OBJECT_VAL(S("nodename")), OBJECT_VAL(krk_copyString(buf.nodename,strlen(buf.nodename))),
-		OBJECT_VAL(S("release")), OBJECT_VAL(krk_copyString(buf.release,strlen(buf.release))),
-		OBJECT_VAL(S("version")), OBJECT_VAL(krk_copyString(buf.version,strlen(buf.version))),
-		OBJECT_VAL(S("machine")), OBJECT_VAL(krk_copyString(buf.machine,strlen(buf.machine)))
-	});
+	DO_KEY(sysname);
+	DO_KEY(nodename);
+	DO_KEY(release);
+	DO_KEY(version);
+	DO_KEY(machine);
 
-	KRK_RESUME_GC();
-	return result;
+	return krk_pop();;
 })
 #else
 KRK_FUNC(uname,{
-	KRK_PAUSE_GC();
+	KrkValue result = krk_dict_of(0, NULL);
+	krk_push(result);
 
 	TCHAR buffer[256] = TEXT("");
 	DWORD dwSize = sizeof(buffer);
@@ -52,44 +54,37 @@ KRK_FUNC(uname,{
 	OSVERSIONINFOA versionInfo = {0};
 	versionInfo.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
 	GetVersionExA(&versionInfo);
-	KrkValue release;
+
 	if (versionInfo.dwMajorVersion == 10) {
-		release = OBJECT_VAL(S("10"));
+		S_KEY(release,S("10"));
 	} else if (versionInfo.dwMajorVersion == 6) {
 		if (versionInfo.dwMinorVersion == 3) {
-			release = OBJECT_VAL(S("8.1"));
+			S_KEY(release,S("8.1"));
 		} else if (versionInfo.dwMinorVersion == 2) {
-			release = OBJECT_VAL(S("8.0"));
+			S_KEY(release,S("8.0"));
 		} else if (versionInfo.dwMinorVersion == 1) {
-			release = OBJECT_VAL(S("7"));
+			S_KEY(release,S("7"));
 		} else if (versionInfo.dwMinorVersion == 0) {
-			release = OBJECT_VAL(S("Vista"));
+			S_KEY(release,S("Vista"));
 		}
 	} else {
-		release = OBJECT_VAL(S("XP or earlier"));
+		S_KEY(release,S("XP or earlier"));
 	}
 
 	char tmp[256];
 	sprintf(tmp, "%ld", versionInfo.dwBuildNumber);
 
-	KrkValue version = OBJECT_VAL(krk_copyString(tmp,strlen(tmp)));
-	KrkValue machine;
+	S_KEY(version, krk_copyString(tmp,strlen(tmp)));
 	if (sizeof(void *) == 8) {
-		machine = OBJECT_VAL(S("x64"));
+		S_KEY(machine,S("x64"));
 	} else {
-		machine = OBJECT_VAL(S("x86"));
+		S_KEY(machine,S("x86"));
 	}
 
-	KrkValue result = krk_dict_of(5 * 2, (KrkValue[]) {
-		OBJECT_VAL(S("sysname")), OBJECT_VAL(S("Windows")),
-		OBJECT_VAL(S("nodename")), OBJECT_VAL(krk_copyString(buffer,dwSize)),
-		OBJECT_VAL(S("release")), release,
-		OBJECT_VAL(S("version")), version,
-		OBJECT_VAL(S("machine")), machine
-	});
+	S_KEY(sysname,S("Windows"));
+	S_KEY(nodename,krk_copyString(buffer,dwSize));
 
-	KRK_RESUME_GC();
-	return result;
+	return krk_pop();
 })
 #endif
 

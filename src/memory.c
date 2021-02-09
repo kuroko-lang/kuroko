@@ -207,12 +207,12 @@ static size_t sweep() {
 	KrkObj * object = vm.objects;
 	size_t count = 0;
 	while (object) {
-		if (object->isMarked || object->isProtected) {
+		if (object->isMarked || object->isImmortal) {
 			object->isMarked = 0;
-			object->isProtected = 0;
+			object->generation = 0;
 			previous = object;
 			object = object->next;
-		} else {
+		} else if (object->generation == 3) {
 			KrkObj * unreached = object;
 			object = object->next;
 			if (previous != NULL) {
@@ -222,6 +222,10 @@ static size_t sweep() {
 			}
 			freeObject(unreached);
 			count++;
+		} else {
+			object->generation++;
+			previous = object;
+			object = object->next;
 		}
 	}
 	return count;
@@ -254,6 +258,10 @@ static void markThreadRoots(KrkThreadState * thread) {
 	krk_markValue(thread->currentException);
 
 	if (thread->module)  krk_markObject((KrkObj*)thread->module);
+
+	for (int i = 0; i < THREAD_SCRATCH_SIZE; ++i) {
+		krk_markValue(thread->scratchSpace[i]);
+	}
 }
 
 static void markRoots() {
@@ -290,6 +298,34 @@ static KrkValue krk_collectGarbage_wrapper(int argc, KrkValue argv[]) {
 	return INTEGER_VAL(krk_collectGarbage());
 }
 
+static KrkValue krk_generations(int argc, KrkValue argv[]) {
+#define MAX_GEN 4
+	krk_integer_type generations[MAX_GEN] = {0,0,0,0};
+	KrkObj * object = vm.objects;
+	while (object) {
+		generations[object->generation]++;
+		object = object->next;
+	}
+
+	/* Create a four-tuple */
+	KrkTuple * outTuple = krk_newTuple(MAX_GEN);
+	for (int i = 0; i < MAX_GEN; ++i) {
+		outTuple->values.values[i] = INTEGER_VAL(generations[i]);
+	}
+	outTuple->values.count = MAX_GEN;
+	return OBJECT_VAL(outTuple);
+}
+
+static KrkValue _gc_pause(int argc, KrkValue argv[]) {
+	vm.globalFlags |= (KRK_GC_PAUSED);
+	return NONE_VAL();
+}
+
+static KrkValue _gc_resume(int argc, KrkValue argv[]) {
+	vm.globalFlags &= ~(KRK_GC_PAUSED);
+	return NONE_VAL();
+}
+
 _noexport
 void _createAndBind_gcMod(void) {
 	/**
@@ -302,6 +338,9 @@ void _createAndBind_gcMod(void) {
 	krk_attachNamedObject(&gcModule->fields, "__name__", (KrkObj*)S("gc"));
 	krk_attachNamedValue(&gcModule->fields, "__file__", NONE_VAL());
 	krk_defineNative(&gcModule->fields, "collect", krk_collectGarbage_wrapper);
+	krk_defineNative(&gcModule->fields, "generations", krk_generations);
+	krk_defineNative(&gcModule->fields, "pause", _gc_pause);
+	krk_defineNative(&gcModule->fields, "resume", _gc_resume);
 	krk_attachNamedObject(&gcModule->fields, "__doc__",
 		(KrkObj*)S("Namespace containing methods for controlling the garbge collector."));
 }
