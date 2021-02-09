@@ -771,6 +771,41 @@ KRK_METHOD(str,__iter__,{
 	return OBJECT_VAL(output);
 })
 
+#define CHECK_ALL(test) do { \
+	krk_unicodeString(self); \
+	for (size_t i = 0; i < self->codesLength; ++i) { \
+		uint32_t c = KRK_STRING_FAST(self,i); \
+		if (!(test)) { return BOOLEAN_VAL(0); } \
+	} return BOOLEAN_VAL(1); } while (0)
+
+KRK_METHOD(str,isalnum,{
+	CHECK_ALL( (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') );
+})
+
+KRK_METHOD(str,isalpha,{
+	CHECK_ALL( (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') );
+})
+
+KRK_METHOD(str,isdigit,{
+	CHECK_ALL( (c >= '0' && c <= '9') );
+})
+
+KRK_METHOD(str,isxdigit,{
+	CHECK_ALL( (c >= 'A' && c <= 'F') || (c >= 'a' && c <= 'f') || (c >= '0' && c <= '9') );
+})
+
+KRK_METHOD(str,isspace, {
+	CHECK_ALL( (c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\v') );
+})
+
+KRK_METHOD(str,islower, {
+	CHECK_ALL( (c >= 'a' && c <= 'z') );
+})
+
+KRK_METHOD(str,isupper, {
+	CHECK_ALL( (c >= 'A' && c <= 'Z') );
+})
+
 #undef CURRENT_CTYPE
 #define CURRENT_CTYPE KrkInstance *
 KRK_METHOD(striterator,__init__,{
@@ -838,6 +873,16 @@ void _createAndBind_strClass(void) {
 	BIND_METHOD(str,index);
 	BIND_METHOD(str,startswith);
 	BIND_METHOD(str,endswith);
+
+	/* TODO these are not properly Unicode-aware */
+	BIND_METHOD(str,isalnum);
+	BIND_METHOD(str,isalpha);
+	BIND_METHOD(str,isdigit);
+	BIND_METHOD(str,isxdigit);
+	BIND_METHOD(str,isspace);
+	BIND_METHOD(str,islower);
+	BIND_METHOD(str,isupper);
+
 	krk_defineNative(&str->methods,".__setslice__",FUNC_NAME(str,__set__));
 	krk_defineNative(&str->methods,".__delslice__",FUNC_NAME(str,__set__));
 	krk_defineNative(&str->methods,".__delitem__",FUNC_NAME(str,__set__));
