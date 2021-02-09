@@ -159,7 +159,15 @@ KRK_METHOD(File,readlines,{
 })
 
 KRK_METHOD(File,read,{
-	METHOD_TAKES_NONE();
+	METHOD_TAKES_AT_MOST(1);
+
+	krk_integer_type sizeToRead = -1;
+	if (argc > 1) {
+		CHECK_ARG(1,int,krk_integer_type,sizeFromArg);
+		if (sizeFromArg < -1) return krk_runtimeError(vm.exceptions->valueError, "size must be >= -1");
+		sizeToRead = sizeFromArg;
+	}
+
 	/* Get the file ptr reference */
 	FILE * file = self->filePtr;
 
@@ -172,24 +180,30 @@ KRK_METHOD(File,read,{
 	size_t spaceAvailable = 0;
 	char * buffer = NULL;
 
-	do {
-		if (spaceAvailable < sizeRead + BLOCK_SIZE) {
-			spaceAvailable = (spaceAvailable ? spaceAvailable * 2 : (2 * BLOCK_SIZE));
-			buffer = realloc(buffer, spaceAvailable);
-		}
-
-		char * target = &buffer[sizeRead];
-		size_t newlyRead = fread(target, 1, BLOCK_SIZE, file);
-
-		if (newlyRead < BLOCK_SIZE) {
-			if (ferror(file)) {
-				free(buffer);
-				return krk_runtimeError(vm.exceptions->ioError, "Read error.");
+	if (sizeToRead == -1) {
+		do {
+			if (spaceAvailable < sizeRead + BLOCK_SIZE) {
+				spaceAvailable = (spaceAvailable ? spaceAvailable * 2 : (2 * BLOCK_SIZE));
+				buffer = realloc(buffer, spaceAvailable);
 			}
-		}
 
-		sizeRead += newlyRead;
-	} while (!feof(file));
+			char * target = &buffer[sizeRead];
+			size_t newlyRead = fread(target, 1, BLOCK_SIZE, file);
+
+			if (newlyRead < BLOCK_SIZE) {
+				if (ferror(file)) {
+					free(buffer);
+					return krk_runtimeError(vm.exceptions->ioError, "Read error.");
+				}
+			}
+
+			sizeRead += newlyRead;
+		} while (!feof(file));
+	} else {
+		spaceAvailable = sizeToRead;
+		buffer = realloc(buffer, spaceAvailable);
+		sizeRead = fread(buffer, 1, sizeToRead, file);
+	}
 
 	/* Make a new string to fit our output. */
 	KrkString * out = krk_copyString(buffer,sizeRead);
@@ -306,7 +320,15 @@ KRK_METHOD(BinaryFile,readlines,{
 })
 
 KRK_METHOD(BinaryFile,read,{
-	METHOD_TAKES_NONE();
+	METHOD_TAKES_AT_MOST(1);
+
+	krk_integer_type sizeToRead = -1;
+	if (argc > 1) {
+		CHECK_ARG(1,int,krk_integer_type,sizeFromArg);
+		if (sizeFromArg < -1) return krk_runtimeError(vm.exceptions->valueError, "size must be >= -1");
+		sizeToRead = sizeFromArg;
+	}
+
 	/* Get the file ptr reference */
 	FILE * file = self->filePtr;
 
@@ -319,24 +341,30 @@ KRK_METHOD(BinaryFile,read,{
 	size_t spaceAvailable = 0;
 	char * buffer = NULL;
 
-	do {
-		if (spaceAvailable < sizeRead + BLOCK_SIZE) {
-			spaceAvailable = (spaceAvailable ? spaceAvailable * 2 : (2 * BLOCK_SIZE));
-			buffer = realloc(buffer, spaceAvailable);
-		}
-
-		char * target = &buffer[sizeRead];
-		size_t newlyRead = fread(target, 1, BLOCK_SIZE, file);
-
-		if (newlyRead < BLOCK_SIZE) {
-			if (ferror(file)) {
-				free(buffer);
-				return krk_runtimeError(vm.exceptions->ioError, "Read error.");
+	if (sizeToRead == -1) {
+		do {
+			if (spaceAvailable < sizeRead + BLOCK_SIZE) {
+				spaceAvailable = (spaceAvailable ? spaceAvailable * 2 : (2 * BLOCK_SIZE));
+				buffer = realloc(buffer, spaceAvailable);
 			}
-		}
 
-		sizeRead += newlyRead;
-	} while (!feof(file));
+			char * target = &buffer[sizeRead];
+			size_t newlyRead = fread(target, 1, BLOCK_SIZE, file);
+
+			if (newlyRead < BLOCK_SIZE) {
+				if (ferror(file)) {
+					free(buffer);
+					return krk_runtimeError(vm.exceptions->ioError, "Read error.");
+				}
+			}
+
+			sizeRead += newlyRead;
+		} while (!feof(file));
+	} else {
+		spaceAvailable = sizeToRead;
+		buffer = realloc(buffer, spaceAvailable);
+		sizeRead = fread(buffer, 1, sizeToRead, file);
+	}
 
 	/* Make a new string to fit our output. */
 	KrkBytes * out = krk_newBytes(sizeRead, (unsigned char*)buffer);
