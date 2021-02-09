@@ -2612,23 +2612,7 @@ static ParseRule * getRule(KrkTokenType type) {
 }
 
 #ifdef ENABLE_THREADING
-#include <sched.h>
-static void spin_lock(int volatile * lock) {
-	while(__sync_lock_test_and_set(lock, 0x01)) {
-		sched_yield();
-	}
-}
-
-static void spin_unlock(int volatile * lock) {
-	__sync_lock_release(lock);
-}
-
 static volatile int _compilerLock = 0;
-#define _obtain_lock(v) spin_lock(&v);
-#define _release_lock(v) spin_unlock(&v);
-#else
-#define _obtain_lock(v)
-#define _release_lock(v)
 #endif
 
 KrkFunction * krk_compile(const char * src, int newScope, char * fileName) {

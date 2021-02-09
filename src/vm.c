@@ -1072,12 +1072,12 @@ static KrkValue krk_setclean(int argc, KrkValue argv[]) {
 }
 
 void krk_initVM(int flags) {
-	vm.globalFlags = flags & 0xF0;
+	vm.globalFlags = flags & 0xFF00;
 	KRK_PAUSE_GC();
 
 	/* Reset current thread */
 	krk_resetStack();
-	krk_currentThread.flags    = flags & 0x0F;
+	krk_currentThread.flags    = flags & 0x00FF;
 	krk_currentThread.module   = NULL;
 	krk_currentThread.watchdog = 0;
 	vm.threads = &krk_currentThread;

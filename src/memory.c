@@ -245,7 +245,7 @@ void krk_tableRemoveWhite(KrkTable * table) {
 }
 
 static void markThreadRoots(KrkThreadState * thread) {
-	for (KrkValue * slot = thread->stack; slot < thread->stackTop; ++slot) {
+	for (KrkValue * slot = thread->stack; slot && slot < thread->stackTop; ++slot) {
 		krk_markValue(*slot);
 	}
 	for (KrkUpvalue * upvalue = thread->openUpvalues; upvalue; upvalue = upvalue->next) {

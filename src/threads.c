@@ -38,13 +38,16 @@ KRK_FUNC(current_thread,{
 #define CURRENT_CTYPE struct Thread *
 #define CURRENT_NAME  self
 
+static volatile int _threadLock = 0;
 static void * _startthread(void * _threadObj) {
 	memset(&krk_currentThread, 0, sizeof(KrkThreadState));
-	/* TODO: Wrap this in a mutex */
+
+	_obtain_lock(_threadLock);
 	if (vm.threads->next) {
 		krk_currentThread.next = vm.threads->next;
 	}
 	vm.threads->next = &krk_currentThread;
+	_release_lock(_threadLock);
 
 	/* Get our run function */
 	struct Thread * self = _threadObj;
@@ -62,6 +65,19 @@ static void * _startthread(void * _threadObj) {
 	}
 
 	self->alive = 0;
+
+	/* Remove this thread from the thread pool, its stack is garbage anyway */
+	_obtain_lock(_threadLock);
+	krk_resetStack();
+	KrkThreadState * previous = vm.threads;
+	while (previous) {
+		if (previous->next == &krk_currentThread) {
+			previous->next = krk_currentThread.next;
+			break;
+		}
+		previous = previous->next;
+	}
+	_release_lock(_threadLock);
 
 	return NULL;
 }

@@ -294,8 +294,7 @@ KrkValue krk_module_onload_os(void) {
 	krk_attachNamedObject(&module->fields, "pardir", (KrkObj*)S(".."));
 	krk_attachNamedObject(&module->fields, "extsep", (KrkObj*)S("."));
 
-	OSError = krk_newClass(S("OSError"), vm.exceptions->baseException);
-	krk_attachNamedObject(&module->fields, "OSError", (KrkObj*)OSError);
+	krk_makeClass(module, &OSError, "OSError", vm.exceptions->baseException);
 	krk_finalizeClass(OSError);
 
 	BIND_FUNC(module,uname);
