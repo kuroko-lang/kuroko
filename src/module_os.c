@@ -222,6 +222,32 @@ KRK_FUNC(access,{
 	return BOOLEAN_VAL(0);
 })
 
+KRK_FUNC(abort,{
+	abort();
+})
+
+KRK_FUNC(sync,{
+	FUNCTION_TAKES_NONE();
+	sync();
+})
+
+KRK_FUNC(remove,{
+	FUNCTION_TAKES_EXACTLY(1);
+	CHECK_ARG(0,str,KrkString*,path);
+	if (remove(path->chars) != 0) {
+		return krk_runtimeError(OSError, strerror(errno));
+	}
+})
+
+KRK_FUNC(truncate,{
+	FUNCTION_TAKES_EXACTLY(2);
+	CHECK_ARG(0,str,KrkString*,path);
+	CHECK_ARG(1,int,krk_integer_type,length);
+	if (truncate(path->chars, length) != 0) {
+		return krk_runtimeError(OSError, strerror(errno));
+	}
+})
+
 #ifndef _WIN32
 KRK_FUNC(kill,{
 	FUNCTION_TAKES_EXACTLY(2);
@@ -231,6 +257,15 @@ KRK_FUNC(kill,{
 KRK_FUNC(fork,{
 	FUNCTION_TAKES_NONE();
 	return INTEGER_VAL(fork());
+})
+
+KRK_FUNC(symlink,{
+	FUNCTION_TAKES_EXACTLY(2);
+	CHECK_ARG(0,str,KrkString*,src);
+	CHECK_ARG(1,str,KrkString*,dst);
+	if (symlink(src->chars, dst->chars) != 0) {
+		return krk_runtimeError(OSError, strerror(errno));
+	}
 })
 #endif
 
@@ -242,9 +277,23 @@ KrkValue krk_module_onload_os(void) {
 
 #ifdef _WIN32
 	krk_attachNamedObject(&module->fields, "name", (KrkObj*)S("nt"));
+	krk_attachNamedObject(&module->fields, "sep", (KrkObj*)S("\\"));
+	krk_attachNamedObject(&module->fields, "altsep", (KrkObj*)S("/"));
+	krk_attachNamedObject(&module->fields, "pathsep", (KrkObj*)S(";"));
+	krk_attachNamedObject(&module->fields, "linesep", (KrkObj*)S("\r\n"));
+	krk_attachNamedObject(&module->fields, "devnull", (KrkObj*)S("nul"));
 #else
 	krk_attachNamedObject(&module->fields, "name", (KrkObj*)S("posix"));
+	krk_attachNamedObject(&module->fields, "sep", (KrkObj*)S("/"));
+	krk_attachNamedValue(&module->fields, "altsep", NONE_VAL());
+	krk_attachNamedObject(&module->fields, "pathsep", (KrkObj*)S(":"));
+	krk_attachNamedObject(&module->fields, "linesep", (KrkObj*)S("\n"));
+	krk_attachNamedObject(&module->fields, "devnull", (KrkObj*)S("/dev/null"));
 #endif
+
+	krk_attachNamedObject(&module->fields, "curdir", (KrkObj*)S("."));
+	krk_attachNamedObject(&module->fields, "pardir", (KrkObj*)S(".."));
+	krk_attachNamedObject(&module->fields, "extsep", (KrkObj*)S("."));
 
 	OSError = krk_newClass(S("OSError"), vm.exceptions.baseException);
 	krk_attachNamedObject(&module->fields, "OSError", (KrkObj*)OSError);
@@ -256,9 +305,15 @@ KrkValue krk_module_onload_os(void) {
 	BIND_FUNC(module,chdir);
 	BIND_FUNC(module,getpid);
 	BIND_FUNC(module,strerror);
+	BIND_FUNC(module,abort);
+	BIND_FUNC(module,sync);
+	BIND_FUNC(module,remove);
+	BIND_FUNC(module,truncate);
+
 #ifndef _WIN32
 	BIND_FUNC(module,kill);
 	BIND_FUNC(module,fork);
+	BIND_FUNC(module,symlink);
 #endif
 
 	krk_attachNamedValue(&module->fields, "F_OK", INTEGER_VAL(F_OK));
