@@ -8,9 +8,9 @@
 void * krk_reallocate(void * ptr, size_t old, size_t new) {
 	vm.bytesAllocated += new - old;
 
-	if (new > old && ptr != vm.stack && !(vm.flags & KRK_GC_PAUSED)) {
+	if (new > old && ptr != krk_currentThread.stack && &krk_currentThread == vm.threads && !(vm.globalFlags & KRK_GC_PAUSED)) {
 #ifdef ENABLE_STRESS_GC
-		if (vm.flags & KRK_ENABLE_STRESS_GC) {
+		if (vm.globalFlags & KRK_ENABLE_STRESS_GC) {
 			krk_collectGarbage();
 		}
 #endif
@@ -207,8 +207,9 @@ static size_t sweep() {
 	KrkObj * object = vm.objects;
 	size_t count = 0;
 	while (object) {
-		if (object->isMarked) {
+		if (object->isMarked || object->isProtected) {
 			object->isMarked = 0;
+			object->isProtected = 0;
 			previous = object;
 			object = object->next;
 		} else {
@@ -243,23 +244,36 @@ void krk_tableRemoveWhite(KrkTable * table) {
 	}
 }
 
-static void markRoots() {
-	for (KrkValue * slot = vm.stack; slot < vm.stackTop; ++slot) {
+static void markThreadRoots(KrkThreadState * thread) {
+	for (KrkValue * slot = thread->stack; slot < thread->stackTop; ++slot) {
 		krk_markValue(*slot);
 	}
-	for (KrkUpvalue * upvalue = vm.openUpvalues; upvalue; upvalue = upvalue->next) {
+	for (KrkUpvalue * upvalue = thread->openUpvalues; upvalue; upvalue = upvalue->next) {
 		krk_markObject((KrkObj*)upvalue);
 	}
-	krk_markObject((KrkObj*)vm.builtins);
-	krk_markObject((KrkObj*)vm.objectClass);
-	krk_markObject((KrkObj*)vm.moduleClass);
-	if (vm.module)  krk_markObject((KrkObj*)vm.module);
-	krk_markTable(&vm.modules);
-	krk_markCompilerRoots();
-	for (int i = 0; i < METHOD__MAX; ++i) {
-		krk_markValue(vm.specialMethodNames[i]);
+	krk_markValue(thread->currentException);
+
+	if (thread->module)  krk_markObject((KrkObj*)thread->module);
+}
+
+static void markRoots() {
+	/* TODO all threads */
+	KrkThreadState * thread = vm.threads;
+	while (thread) {
+		markThreadRoots(thread);
+		thread = thread->next;
 	}
-	krk_markValue(vm.currentException);
+
+	krk_markCompilerRoots();
+
+	krk_markObject((KrkObj*)vm.builtins);
+	krk_markTable(&vm.modules);
+
+	if (vm.specialMethodNames) {
+		for (int i = 0; i < METHOD__MAX; ++i) {
+			krk_markValue(vm.specialMethodNames[i]);
+		}
+	}
 }
 
 size_t krk_collectGarbage(void) {
@@ -272,6 +286,7 @@ size_t krk_collectGarbage(void) {
 }
 
 static KrkValue krk_collectGarbage_wrapper(int argc, KrkValue argv[]) {
+	if (&krk_currentThread != vm.threads) return krk_runtimeError(vm.exceptions->valueError, "only the main thread can do that");
 	return INTEGER_VAL(krk_collectGarbage());
 }
 
@@ -282,7 +297,7 @@ void _createAndBind_gcMod(void) {
 	 *
 	 * Namespace for methods for controlling the garbage collector.
 	 */
-	KrkInstance * gcModule = krk_newInstance(vm.moduleClass);
+	KrkInstance * gcModule = krk_newInstance(vm.baseClasses->moduleClass);
 	krk_attachNamedObject(&vm.modules, "gc", (KrkObj*)gcModule);
 	krk_attachNamedObject(&gcModule->fields, "__name__", (KrkObj*)S("gc"));
 	krk_attachNamedValue(&gcModule->fields, "__file__", NONE_VAL());

@@ -14,7 +14,7 @@ static KrkValue _bytes_init(int argc, KrkValue argv[]) {
 		krk_push(OBJECT_VAL(out));
 		for (size_t i = 0; i < AS_TUPLE(argv[1])->values.count; ++i) {
 			if (!IS_INTEGER(AS_TUPLE(argv[1])->values.values[i])) {
-				return krk_runtimeError(vm.exceptions.typeError, "bytes(): expected tuple of ints, not of '%s'", krk_typeName(AS_TUPLE(argv[1])->values.values[i]));
+				return krk_runtimeError(vm.exceptions->typeError, "bytes(): expected tuple of ints, not of '%s'", krk_typeName(AS_TUPLE(argv[1])->values.values[i]));
 			}
 			out->bytes[i] = AS_INTEGER(AS_TUPLE(argv[1])->values.values[i]);
 		}
@@ -22,7 +22,7 @@ static KrkValue _bytes_init(int argc, KrkValue argv[]) {
 		return krk_pop();
 	}
 
-	return krk_runtimeError(vm.exceptions.typeError, "Can not convert '%s' to bytes", krk_typeName(argv[1]));
+	return krk_runtimeError(vm.exceptions->typeError, "Can not convert '%s' to bytes", krk_typeName(argv[1]));
 }
 
 /* bytes objects are not interned; need to do this the old-fashioned way. */
@@ -88,13 +88,13 @@ static KrkValue _bytes_repr(int argc, KrkValue argv[]) {
 }
 
 static KrkValue _bytes_get(int argc, KrkValue argv[]) {
-	if (argc < 2) return krk_runtimeError(vm.exceptions.argumentError, "bytes.__get__(): expected one argument");
+	if (argc < 2) return krk_runtimeError(vm.exceptions->argumentError, "bytes.__get__(): expected one argument");
 	KrkBytes * self = AS_BYTES(argv[0]);
 	long asInt = AS_INTEGER(argv[1]);
 
 	if (asInt < 0) asInt += (long)self->length;
 	if (asInt < 0 || asInt >= (long)self->length) {
-		return krk_runtimeError(vm.exceptions.indexError, "bytes index out of range: %ld", asInt);
+		return krk_runtimeError(vm.exceptions->indexError, "bytes index out of range: %ld", asInt);
 	}
 
 	return INTEGER_VAL(self->bytes[asInt]);
@@ -105,8 +105,8 @@ static KrkValue _bytes_len(int argc, KrkValue argv[]) {
 }
 
 static KrkValue _bytes_contains(int argc, KrkValue argv[]) {
-	if (argc < 2) krk_runtimeError(vm.exceptions.argumentError, "bytes.__contains__(): expected one argument");
-	return krk_runtimeError(vm.exceptions.notImplementedError, "not implemented");
+	if (argc < 2) krk_runtimeError(vm.exceptions->argumentError, "bytes.__contains__(): expected one argument");
+	return krk_runtimeError(vm.exceptions->notImplementedError, "not implemented");
 }
 
 static KrkValue _bytes_decode(int argc, KrkValue argv[]) {
@@ -118,14 +118,14 @@ static KrkValue _bytes_decode(int argc, KrkValue argv[]) {
 
 _noexport
 void _createAndBind_bytesClass(void) {
-	ADD_BASE_CLASS(vm.baseClasses.bytesClass, "bytes", vm.objectClass);
-	krk_defineNative(&vm.baseClasses.bytesClass->methods, ".__init__",  _bytes_init);
-	krk_defineNative(&vm.baseClasses.bytesClass->methods, ".__str__",  _bytes_repr);
-	krk_defineNative(&vm.baseClasses.bytesClass->methods, ".__repr__", _bytes_repr);
-	krk_defineNative(&vm.baseClasses.bytesClass->methods, ".decode", _bytes_decode);
-	krk_defineNative(&vm.baseClasses.bytesClass->methods, ".__len__", _bytes_len);
-	krk_defineNative(&vm.baseClasses.bytesClass->methods, ".__contains__", _bytes_contains);
-	krk_defineNative(&vm.baseClasses.bytesClass->methods, ".__get__", _bytes_get);
-	krk_defineNative(&vm.baseClasses.bytesClass->methods, ".__eq__", _bytes_eq);
-	krk_finalizeClass(vm.baseClasses.bytesClass);
+	ADD_BASE_CLASS(vm.baseClasses->bytesClass, "bytes", vm.baseClasses->objectClass);
+	krk_defineNative(&vm.baseClasses->bytesClass->methods, ".__init__",  _bytes_init);
+	krk_defineNative(&vm.baseClasses->bytesClass->methods, ".__str__",  _bytes_repr);
+	krk_defineNative(&vm.baseClasses->bytesClass->methods, ".__repr__", _bytes_repr);
+	krk_defineNative(&vm.baseClasses->bytesClass->methods, ".decode", _bytes_decode);
+	krk_defineNative(&vm.baseClasses->bytesClass->methods, ".__len__", _bytes_len);
+	krk_defineNative(&vm.baseClasses->bytesClass->methods, ".__contains__", _bytes_contains);
+	krk_defineNative(&vm.baseClasses->bytesClass->methods, ".__get__", _bytes_get);
+	krk_defineNative(&vm.baseClasses->bytesClass->methods, ".__eq__", _bytes_eq);
+	krk_finalizeClass(vm.baseClasses->bytesClass);
 }

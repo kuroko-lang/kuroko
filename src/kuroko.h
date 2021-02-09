@@ -27,3 +27,4 @@ typedef long krk_integer_type;
 #define ENABLE_SCAN_TRACING
 #define ENABLE_STRESS_GC
 #endif
+

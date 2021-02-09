@@ -9,12 +9,12 @@
 #define S(c) (krk_copyString(c,sizeof(c)-1))
 
 #define ONE_ARGUMENT(name) if (argc != 1) { \
-	krk_runtimeError(vm.exceptions.argumentError, "%s() expects one argument", #name); \
+	krk_runtimeError(vm.exceptions->argumentError, "%s() expects one argument", #name); \
 	return NONE_VAL(); \
 }
 
 #define TWO_ARGUMENTS(name) if (argc != 2) { \
-	krk_runtimeError(vm.exceptions.argumentError, "%s() expects two arguments", #name); \
+	krk_runtimeError(vm.exceptions->argumentError, "%s() expects two arguments", #name); \
 	return NONE_VAL(); \
 }
 
@@ -34,7 +34,7 @@
 	} }
 
 #define REAL_NUMBER_NOT(name, garbage) { \
-	krk_runtimeError(vm.exceptions.typeError, "%s() argument must be real number, not %s", #name, krk_typeName(garbage)); \
+	krk_runtimeError(vm.exceptions->typeError, "%s() argument must be real number, not %s", #name, krk_typeName(garbage)); \
 	return NONE_VAL(); \
 }
 
@@ -151,7 +151,7 @@ MATH_IS(isnan)
 #define bind(name) krk_defineNative(&module->fields, #name, _math_ ## name)
 
 KrkValue krk_module_onload_math(void) {
-	KrkInstance * module = krk_newInstance(vm.moduleClass);
+	KrkInstance * module = krk_newInstance(vm.baseClasses->moduleClass);
 	krk_push(OBJECT_VAL(module));
 
 	bind(ceil);
@@ -210,7 +210,7 @@ KrkValue krk_module_onload_math(void) {
 	 * to have to depend on -lm in the main interpreter, so instead if we have
 	 * imported math, we'll just quietly give floats a __pow__ method...
 	 */
-	krk_defineNative(&vm.baseClasses.floatClass->methods, "__pow__", _math_pow);
+	krk_defineNative(&vm.baseClasses->floatClass->methods, "__pow__", _math_pow);
 
 	krk_attachNamedValue(&module->fields, "pi",  FLOATING_VAL(M_PI));
 #ifndef __toaru__

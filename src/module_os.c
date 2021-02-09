@@ -98,7 +98,7 @@ KrkClass * environClass;
 KrkValue krk_os_setenviron(int argc, KrkValue argv[]) {
 	if (argc < 3 || !krk_isInstanceOf(argv[0], environClass) ||
 		!IS_STRING(argv[1]) || !IS_STRING(argv[2])) {
-		return krk_runtimeError(vm.exceptions.argumentError, "Invalid arguments to environ.__set__");
+		return krk_runtimeError(vm.exceptions->argumentError, "Invalid arguments to environ.__set__");
 	}
 	/* Set environment variable */
 	char * tmp = malloc(AS_STRING(argv[1])->length + AS_STRING(argv[2])->length + 2);
@@ -109,17 +109,16 @@ KrkValue krk_os_setenviron(int argc, KrkValue argv[]) {
 		krk_push(argv[0]);
 		krk_push(argv[1]);
 		krk_push(argv[2]);
-		return krk_callSimple(OBJECT_VAL(vm.baseClasses.dictClass->_setter), 3, 0);
+		return krk_callSimple(OBJECT_VAL(vm.baseClasses->dictClass->_setter), 3, 0);
 	} else {
-		/* OSError? */
-		return krk_runtimeError(vm.exceptions.baseException, strerror(errno));
+		return krk_runtimeError(OSError, strerror(errno));
 	}
 }
 
 KrkValue krk_os_unsetenviron(int argc, KrkValue argv[]) {
 	if (argc < 2 || !krk_isInstanceOf(argv[0], environClass) ||
 		!IS_STRING(argv[1])) {
-		return krk_runtimeError(vm.exceptions.argumentError, "Invalid arguments to environ.__delitem__");
+		return krk_runtimeError(vm.exceptions->argumentError, "Invalid arguments to environ.__delitem__");
 	}
 #ifndef _WIN32
 	unsetenv(AS_CSTRING(argv[1]));
@@ -131,14 +130,14 @@ KrkValue krk_os_unsetenviron(int argc, KrkValue argv[]) {
 #endif
 	krk_push(argv[0]);
 	krk_push(argv[1]);
-	return krk_callSimple(OBJECT_VAL(vm.baseClasses.dictClass->_delitem), 2, 0);
+	return krk_callSimple(OBJECT_VAL(vm.baseClasses->dictClass->_delitem), 2, 0);
 }
 
 static void _loadEnviron(KrkInstance * module) {
 	/* Create a new class to subclass `dict` */
 	KrkString * className = S("_Environ");
 	krk_push(OBJECT_VAL(className));
-	environClass = krk_newClass(className, vm.baseClasses.dictClass);
+	environClass = krk_newClass(className, vm.baseClasses->dictClass);
 	krk_attachNamedObject(&module->fields, "_Environ", (KrkObj*)environClass);
 	krk_pop(); /* className */
 
@@ -226,11 +225,6 @@ KRK_FUNC(abort,{
 	abort();
 })
 
-KRK_FUNC(sync,{
-	FUNCTION_TAKES_NONE();
-	sync();
-})
-
 KRK_FUNC(remove,{
 	FUNCTION_TAKES_EXACTLY(1);
 	CHECK_ARG(0,str,KrkString*,path);
@@ -249,6 +243,11 @@ KRK_FUNC(truncate,{
 })
 
 #ifndef _WIN32
+KRK_FUNC(sync,{
+	FUNCTION_TAKES_NONE();
+	sync();
+})
+
 KRK_FUNC(kill,{
 	FUNCTION_TAKES_EXACTLY(2);
 	return INTEGER_VAL(kill(AS_INTEGER(argv[0]), AS_INTEGER(argv[1])));
@@ -270,7 +269,7 @@ KRK_FUNC(symlink,{
 #endif
 
 KrkValue krk_module_onload_os(void) {
-	KrkInstance * module = krk_newInstance(vm.moduleClass);
+	KrkInstance * module = krk_newInstance(vm.baseClasses->moduleClass);
 	/* Store it on the stack for now so we can do stuff that may trip GC
 	 * and not lose it to garbage colletion... */
 	krk_push(OBJECT_VAL(module));
@@ -295,7 +294,7 @@ KrkValue krk_module_onload_os(void) {
 	krk_attachNamedObject(&module->fields, "pardir", (KrkObj*)S(".."));
 	krk_attachNamedObject(&module->fields, "extsep", (KrkObj*)S("."));
 
-	OSError = krk_newClass(S("OSError"), vm.exceptions.baseException);
+	OSError = krk_newClass(S("OSError"), vm.exceptions->baseException);
 	krk_attachNamedObject(&module->fields, "OSError", (KrkObj*)OSError);
 	krk_finalizeClass(OSError);
 
@@ -306,7 +305,6 @@ KrkValue krk_module_onload_os(void) {
 	BIND_FUNC(module,getpid);
 	BIND_FUNC(module,strerror);
 	BIND_FUNC(module,abort);
-	BIND_FUNC(module,sync);
 	BIND_FUNC(module,remove);
 	BIND_FUNC(module,truncate);
 
@@ -314,6 +312,7 @@ KrkValue krk_module_onload_os(void) {
 	BIND_FUNC(module,kill);
 	BIND_FUNC(module,fork);
 	BIND_FUNC(module,symlink);
+	BIND_FUNC(module,sync);
 #endif
 
 	krk_attachNamedValue(&module->fields, "F_OK", INTEGER_VAL(F_OK));

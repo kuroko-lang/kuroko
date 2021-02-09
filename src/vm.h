@@ -51,86 +51,114 @@ typedef enum {
 	METHOD__MAX,
 } KrkSpecialMethods;
 
-typedef struct {
+struct Exceptions {
+	KrkClass * baseException;
+	KrkClass * typeError;
+	KrkClass * argumentError;
+	KrkClass * indexError;
+	KrkClass * keyError;
+	KrkClass * attributeError;
+	KrkClass * nameError;
+	KrkClass * importError;
+	KrkClass * ioError;
+	KrkClass * valueError;
+	KrkClass * keyboardInterrupt;
+	KrkClass * zeroDivisionError;
+	KrkClass * notImplementedError;
+	KrkClass * syntaxError;
+};
+
+/**
+ * Be sure not to reorder this, even if it looks better, to maintain
+ * ABI compatibility with existing binaries.
+ */
+struct BaseClasses {
+	KrkClass * objectClass; /* Root of everything */
+	KrkClass * moduleClass; /* Simple class mostly to provide __repr__ for modules */
+
+	KrkClass * typeClass; /* Class */
+	KrkClass * intClass; /* Integer */
+	KrkClass * floatClass; /* Floating */
+	KrkClass * boolClass; /* Boolean */
+	KrkClass * noneTypeClass; /* None */
+	KrkClass * strClass; /* String */
+	KrkClass * functionClass; /* Functions, Closures */
+	KrkClass * methodClass; /* BoundMethod */
+	KrkClass * tupleClass; /* Tuple */
+	KrkClass * bytesClass; /* Bytes */
+
+	KrkClass * listiteratorClass;
+	KrkClass * rangeClass;
+	KrkClass * rangeiteratorClass;
+	KrkClass * striteratorClass;
+	KrkClass * tupleiteratorClass;
+
+	KrkClass * listClass;
+	KrkClass * dictClass;
+	KrkClass * dictitemsClass;
+	KrkClass * dictkeysClass;
+};
+
+/**
+ * Thread state represents everything that changes during execution
+ * and isn't a global property of the shared garbage collector.
+ */
+typedef struct ThreadState {
+	struct ThreadState * next;
+
 	CallFrame frames[FRAMES_MAX];
 	size_t frameCount;
 	size_t stackSize;
 	KrkValue * stack;
 	KrkValue * stackTop;
-	KrkInstance * module;
-	KrkTable strings;
-	KrkTable modules;
 	KrkUpvalue * openUpvalues;
-	KrkObj * objects;
-	size_t bytesAllocated;
-	size_t nextGC;
-	size_t grayCount;
-	size_t grayCapacity;
 	ssize_t exitOnFrame;
-	KrkObj** grayStack;
-	KrkValue specialMethodNames[METHOD__MAX];
 
-	char * binpath;
-	KrkClass * objectClass;
-	KrkClass * moduleClass;
-	KrkInstance * builtins;
-	KrkInstance * system;
-
-	struct {
-		KrkClass * baseException;
-		KrkClass * typeError;
-		KrkClass * argumentError;
-		KrkClass * indexError;
-		KrkClass * keyError;
-		KrkClass * attributeError;
-		KrkClass * nameError;
-		KrkClass * importError;
-		KrkClass * ioError;
-		KrkClass * valueError;
-		KrkClass * keyboardInterrupt;
-		KrkClass * zeroDivisionError;
-		KrkClass * notImplementedError;
-		KrkClass * syntaxError;
-	} exceptions;
-
-	struct {
-		KrkClass * typeClass; /* Class */
-		KrkClass * intClass; /* Integer */
-		KrkClass * floatClass; /* Floating */
-		KrkClass * boolClass; /* Boolean */
-		KrkClass * noneTypeClass; /* None */
-		KrkClass * strClass; /* String */
-		KrkClass * functionClass; /* Functions, Closures */
-		KrkClass * methodClass; /* BoundMethod */
-		KrkClass * tupleClass; /* Tuple */
-		KrkClass * bytesClass; /* Bytes */
-
-		/* Other useful stuff */
-		KrkClass * listiteratorClass;
-		KrkClass * rangeClass;
-		KrkClass * rangeiteratorClass;
-		KrkClass * striteratorClass;
-		KrkClass * tupleiteratorClass;
-
-		KrkClass * listClass;
-		KrkClass * dictClass;
-		KrkClass * dictitemsClass;
-		KrkClass * dictkeysClass;
-	} baseClasses;
-
+	KrkInstance * module;
 	KrkValue currentException;
 	int flags;
 	long watchdog;
+} KrkThreadState;
+
+typedef struct {
+	int globalFlags;                        /* Global VM state flags */
+	char * binpath;                   /* A string representing the name of the interpreter binary. */
+	KrkTable strings;                 /* Strings table */
+	KrkTable modules;                 /* Module cache */
+	KrkInstance * builtins;           /* '__builtins__' module */
+	KrkInstance * system;             /* 'kuroko' module */
+	KrkValue * specialMethodNames;     /* Cached strings of important method and function names */
+	struct BaseClasses * baseClasses; /* Pointer to a (static) namespacing struct for the KrkClass*'s of built-in object types */
+	struct Exceptions * exceptions;   /* Pointer to a (static) namespacing struct for the KrkClass*'s of basic exception types */
+
+	/* Garbage collector state */
+	KrkObj * objects;                 /* Linked list of all objects in the GC */
+	size_t bytesAllocated;            /* Running total of bytes allocated */
+	size_t nextGC;                    /* Point at which we should sweep again */
+	size_t grayCount;                 /* Count of objects marked by scan. */
+	size_t grayCapacity;              /* How many objects we can fit in the scan list. */
+	KrkObj** grayStack;               /* Scan list */
+
+	KrkThreadState * threads;         /* All the threads. */
 } KrkVM;
 
+/* Thread-specific flags */
 #define KRK_ENABLE_TRACING      (1 << 0)
 #define KRK_ENABLE_DISASSEMBLY  (1 << 1)
 #define KRK_ENABLE_SCAN_TRACING (1 << 2)
-#define KRK_ENABLE_STRESS_GC    (1 << 3)
-#define KRK_NO_ESCAPE           (1 << 4)
+#define KRK_HAS_EXCEPTION       (1 << 3)
 
-#define KRK_GC_PAUSED           (1 << 10)
-#define KRK_HAS_EXCEPTION       (1 << 11)
+/* Global flags */
+#define KRK_ENABLE_STRESS_GC    (1 << 8)
+#define KRK_GC_PAUSED           (1 << 9)
+#define KRK_CLEAN_OUTPUT        (1 << 10)
+
+#ifdef ENABLE_THREADING
+#define krk_currentThread (*(krk_getCurrentThread()))
+extern void _createAndBind_threadsMod(void);
+#else
+extern KrkThreadState krk_currentThread;
+#endif
 
 extern KrkVM krk_vm;
 #define vm krk_vm
@@ -140,6 +168,7 @@ extern void krk_freeVM(void);
 extern void krk_resetStack(void);
 extern KrkValue krk_interpret(const char * src, int newScope, char *, char *);
 extern KrkValue krk_runfile(const char * fileName, int newScope, char *, char *);
+extern KrkValue krk_callfile(const char * fileName, char * fromName, char * fromFile);
 extern void krk_push(KrkValue value);
 extern KrkValue krk_pop(void);
 extern KrkValue krk_peek(int distance);
@@ -149,9 +178,10 @@ extern KrkProperty * krk_defineNativeProperty(KrkTable * table, const char * nam
 extern void krk_attachNamedObject(KrkTable * table, const char name[], KrkObj * obj);
 extern void krk_attachNamedValue(KrkTable * table, const char name[], KrkValue obj);
 extern KrkValue krk_runtimeError(KrkClass * type, const char * fmt, ...);
+extern KrkThreadState * krk_getCurrentThread(void);
 
-#define KRK_PAUSE_GC() do { vm.flags |= KRK_GC_PAUSED; } while (0)
-#define KRK_RESUME_GC() do { vm.flags &= ~(KRK_GC_PAUSED); } while (0)
+#define KRK_PAUSE_GC() do { vm.globalFlags |= KRK_GC_PAUSED; } while (0)
+#define KRK_RESUME_GC() do { vm.globalFlags &= ~(KRK_GC_PAUSED); } while (0)
 
 extern KrkInstance * krk_dictCreate(void);
 extern KrkValue  krk_runNext(void);

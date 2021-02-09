@@ -19,7 +19,7 @@
  */
 static KrkValue _time_sleep(int argc, KrkValue argv[]) {
 	if (argc < 1) {
-		krk_runtimeError(vm.exceptions.argumentError, "sleep: expect at least one argument.");
+		krk_runtimeError(vm.exceptions->argumentError, "sleep: expect at least one argument.");
 		return BOOLEAN_VAL(0);
 	}
 
@@ -39,7 +39,7 @@ static KrkValue _time_time(int argc, KrkValue argv[]) {
 }
 
 KrkValue krk_module_onload_time(void) {
-	KrkInstance * module = krk_newInstance(vm.moduleClass);
+	KrkInstance * module = krk_newInstance(vm.baseClasses->moduleClass);
 	/* Store it on the stack for now so we can do stuff that may trip GC
 	 * and not lose it to garbage colletion... */
 	krk_push(OBJECT_VAL(module));

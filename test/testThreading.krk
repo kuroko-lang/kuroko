@@ -1,0 +1,48 @@
+import os
+if 'KUROKO_TEST_ENV' in os.environ:
+    return 0
+
+let Thread
+try:
+    from threading import Thread as _Thread
+    Thread = _Thread
+except:
+    print("Threading is not available.")
+    return 0
+
+class Summer(Thread):
+    def __init__(self, lst, min, max):
+        self.lst = lst
+        self.min = min
+        self.max = max
+        self.result = None
+    def run(self):
+        self.result = 0
+        for i = self.min; i < self.max; i++:
+            self.result += self.lst[i]
+
+if __name__ == '__main__':
+    import kuroko
+    let numThreads = 10
+    if len(kuroko.argv) > 1:
+        numThreads = int(kuroko.argv[1])
+    print("Starting {} threads.".format(numThreads))
+    let threads = []
+    let totalCount = 5000000
+    let chunkSize  = totalCount / numThreads
+    let numbers    = list(range(totalCount))
+    let cnt        = 0
+    if totalCount > chunkSize * numThreads:
+        chunkSize += 1
+    for i in range(numThreads):
+        let newThread = Summer(numbers, cnt, (cnt + chunkSize) if (cnt + chunkSize < totalCount) else totalCount)
+        threads.append(newThread)
+        newThread.start()
+        cnt += chunkSize
+
+    let total = 0
+    for thread in threads:
+        thread.join()
+        total += thread.result
+
+    print("Got",total)

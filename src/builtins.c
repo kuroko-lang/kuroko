@@ -8,7 +8,7 @@ KrkClass * Helper;
 KrkClass * LicenseReader;
 
 KrkValue krk_dirObject(int argc, KrkValue argv[]) {
-	if (argc != 1) return krk_runtimeError(vm.exceptions.argumentError, "wrong number of arguments or bad type, got %d\n", argc);
+	if (argc != 1) return krk_runtimeError(vm.exceptions->argumentError, "wrong number of arguments or bad type, got %d\n", argc);
 
 	/* Create a new list instance */
 	KrkValue myList = krk_list_of(0,NULL);
@@ -66,20 +66,20 @@ KrkValue krk_dirObject(int argc, KrkValue argv[]) {
 
 
 static KrkValue _len(int argc, KrkValue argv[]) {
-	if (argc != 1) return krk_runtimeError(vm.exceptions.argumentError, "len() takes exactly one argument");
+	if (argc != 1) return krk_runtimeError(vm.exceptions->argumentError, "len() takes exactly one argument");
 	/* Shortcuts */
 	if (IS_STRING(argv[0])) return INTEGER_VAL(AS_STRING(argv[0])->codesLength);
 	if (IS_TUPLE(argv[0])) return INTEGER_VAL(AS_TUPLE(argv[0])->values.count);
 
 	KrkClass * type = krk_getType(argv[0]);
-	if (!type->_len) return krk_runtimeError(vm.exceptions.typeError, "object of type '%s' has no len()", krk_typeName(argv[0]));
+	if (!type->_len) return krk_runtimeError(vm.exceptions->typeError, "object of type '%s' has no len()", krk_typeName(argv[0]));
 	krk_push(argv[0]);
 
 	return krk_callSimple(OBJECT_VAL(type->_len), 1, 0);
 }
 
 static KrkValue _dir(int argc, KrkValue argv[]) {
-	if (argc != 1) return krk_runtimeError(vm.exceptions.argumentError, "dir() takes exactly one argument");
+	if (argc != 1) return krk_runtimeError(vm.exceptions->argumentError, "dir() takes exactly one argument");
 	KrkClass * type = krk_getType(argv[0]);
 	if (!type->_dir) {
 		return krk_dirObject(argc,argv); /* Fallback */
@@ -89,7 +89,7 @@ static KrkValue _dir(int argc, KrkValue argv[]) {
 }
 
 static KrkValue _repr(int argc, KrkValue argv[]) {
-	if (argc != 1) return krk_runtimeError(vm.exceptions.argumentError, "repr() takes exactly one argument");
+	if (argc != 1) return krk_runtimeError(vm.exceptions->argumentError, "repr() takes exactly one argument");
 
 	/* Everything should have a __repr__ */
 	KrkClass * type = krk_getType(argv[0]);
@@ -98,7 +98,7 @@ static KrkValue _repr(int argc, KrkValue argv[]) {
 }
 
 static KrkValue _ord(int argc, KrkValue argv[]) {
-	if (argc != 1) return krk_runtimeError(vm.exceptions.argumentError, "ord() takes exactly one argument");
+	if (argc != 1) return krk_runtimeError(vm.exceptions->argumentError, "ord() takes exactly one argument");
 
 	KrkClass * type = krk_getType(argv[0]);
 	KrkValue method;
@@ -106,11 +106,11 @@ static KrkValue _ord(int argc, KrkValue argv[]) {
 		krk_push(argv[0]);
 		return krk_callSimple(method, 1, 0);
 	}
-	return krk_runtimeError(vm.exceptions.argumentError, "ord() expected string of length 1, but got %s", krk_typeName(argv[0]));
+	return krk_runtimeError(vm.exceptions->argumentError, "ord() expected string of length 1, but got %s", krk_typeName(argv[0]));
 }
 
 static KrkValue _chr(int argc, KrkValue argv[]) {
-	if (argc != 1) return krk_runtimeError(vm.exceptions.argumentError, "chr() takes exactly one argument");
+	if (argc != 1) return krk_runtimeError(vm.exceptions->argumentError, "chr() takes exactly one argument");
 
 	KrkClass * type = krk_getType(argv[0]);
 	KrkValue method;
@@ -118,11 +118,11 @@ static KrkValue _chr(int argc, KrkValue argv[]) {
 		krk_push(argv[0]);
 		return krk_callSimple(method, 1, 0);
 	}
-	return krk_runtimeError(vm.exceptions.argumentError, "chr() expected an integer, but got %s", krk_typeName(argv[0]));
+	return krk_runtimeError(vm.exceptions->argumentError, "chr() expected an integer, but got %s", krk_typeName(argv[0]));
 }
 
 static KrkValue _hex(int argc, KrkValue argv[]) {
-	if (argc != 1 || !IS_INTEGER(argv[0])) return krk_runtimeError(vm.exceptions.argumentError, "hex() expects one int argument");
+	if (argc != 1 || !IS_INTEGER(argv[0])) return krk_runtimeError(vm.exceptions->argumentError, "hex() expects one int argument");
 	char tmp[20];
 	krk_integer_type x = AS_INTEGER(argv[0]);
 	size_t len = sprintf(tmp, "%s0x" PRIkrk_hex, x < 0 ? "-" : "", x < 0 ? -x : x);
@@ -138,9 +138,9 @@ static KrkValue _any(int argc, KrkValue argv[]) {
 	KrkValue value = argv[0];
 	if (IS_TUPLE(value)) {
 		unpackArray(AS_TUPLE(value)->values.count, AS_TUPLE(value)->values.values[i]);
-	} else if (IS_INSTANCE(value) && AS_INSTANCE(value)->_class == vm.baseClasses.listClass) {
+	} else if (IS_INSTANCE(value) && AS_INSTANCE(value)->_class == vm.baseClasses->listClass) {
 		unpackArray(AS_LIST(value)->count, AS_LIST(value)->values[i]);
-	} else if (IS_INSTANCE(value) && AS_INSTANCE(value)->_class == vm.baseClasses.dictClass) {
+	} else if (IS_INSTANCE(value) && AS_INSTANCE(value)->_class == vm.baseClasses->dictClass) {
 		unpackArray(AS_DICT(value)->count, krk_dict_nth_key_fast(AS_DICT(value)->capacity, AS_DICT(value)->entries, i));
 	} else if (IS_STRING(value)) {
 		unpackArray(AS_STRING(value)->codesLength, krk_string_get(2,(KrkValue[]){value,INTEGER_VAL(i)},0));
@@ -148,15 +148,15 @@ static KrkValue _any(int argc, KrkValue argv[]) {
 		KrkClass * type = krk_getType(argv[0]);
 		if (type->_iter) {
 			/* Create the iterator */
-			size_t stackOffset = vm.stackTop - vm.stack;
+			size_t stackOffset = krk_currentThread.stackTop - krk_currentThread.stack;
 			krk_push(argv[1]);
 			krk_push(krk_callSimple(OBJECT_VAL(type->_iter), 1, 0));
 
 			do {
 				/* Call it until it gives us itself */
-				krk_push(vm.stack[stackOffset]);
+				krk_push(krk_currentThread.stack[stackOffset]);
 				krk_push(krk_callSimple(krk_peek(0), 0, 1));
-				if (krk_valuesSame(vm.stack[stackOffset], krk_peek(0))) {
+				if (krk_valuesSame(krk_currentThread.stack[stackOffset], krk_peek(0))) {
 					/* We're done. */
 					krk_pop(); /* The result of iteration */
 					krk_pop(); /* The iterator */
@@ -170,7 +170,7 @@ static KrkValue _any(int argc, KrkValue argv[]) {
 				krk_pop();
 			} while (1);
 		} else {
-			return krk_runtimeError(vm.exceptions.typeError, "'%s' object is not iterable", krk_typeName(value));
+			return krk_runtimeError(vm.exceptions->typeError, "'%s' object is not iterable", krk_typeName(value));
 		}
 	}
 #undef unpackArray
@@ -186,9 +186,9 @@ static KrkValue _all(int argc, KrkValue argv[]) {
 	KrkValue value = argv[0];
 	if (IS_TUPLE(value)) {
 		unpackArray(AS_TUPLE(value)->values.count, AS_TUPLE(value)->values.values[i]);
-	} else if (IS_INSTANCE(value) && AS_INSTANCE(value)->_class == vm.baseClasses.listClass) {
+	} else if (IS_INSTANCE(value) && AS_INSTANCE(value)->_class == vm.baseClasses->listClass) {
 		unpackArray(AS_LIST(value)->count, AS_LIST(value)->values[i]);
-	} else if (IS_INSTANCE(value) && AS_INSTANCE(value)->_class == vm.baseClasses.dictClass) {
+	} else if (IS_INSTANCE(value) && AS_INSTANCE(value)->_class == vm.baseClasses->dictClass) {
 		unpackArray(AS_DICT(value)->count, krk_dict_nth_key_fast(AS_DICT(value)->capacity, AS_DICT(value)->entries, i));
 	} else if (IS_STRING(value)) {
 		unpackArray(AS_STRING(value)->codesLength, krk_string_get(2,(KrkValue[]){value,INTEGER_VAL(i)},0));
@@ -196,15 +196,15 @@ static KrkValue _all(int argc, KrkValue argv[]) {
 		KrkClass * type = krk_getType(argv[0]);
 		if (type->_iter) {
 			/* Create the iterator */
-			size_t stackOffset = vm.stackTop - vm.stack;
+			size_t stackOffset = krk_currentThread.stackTop - krk_currentThread.stack;
 			krk_push(argv[1]);
 			krk_push(krk_callSimple(OBJECT_VAL(type->_iter), 1, 0));
 
 			do {
 				/* Call it until it gives us itself */
-				krk_push(vm.stack[stackOffset]);
+				krk_push(krk_currentThread.stack[stackOffset]);
 				krk_push(krk_callSimple(krk_peek(0), 0, 1));
-				if (krk_valuesSame(vm.stack[stackOffset], krk_peek(0))) {
+				if (krk_valuesSame(krk_currentThread.stack[stackOffset], krk_peek(0))) {
 					/* We're done. */
 					krk_pop(); /* The result of iteration */
 					krk_pop(); /* The iterator */
@@ -218,7 +218,7 @@ static KrkValue _all(int argc, KrkValue argv[]) {
 				krk_pop();
 			} while (1);
 		} else {
-			return krk_runtimeError(vm.exceptions.typeError, "'%s' object is not iterable", krk_typeName(value));
+			return krk_runtimeError(vm.exceptions->typeError, "'%s' object is not iterable", krk_typeName(value));
 		}
 	}
 #undef unpackArray
@@ -231,12 +231,12 @@ static KrkValue _print(int argc, KrkValue argv[], int hasKw) {
 	char * end = "\n"; size_t endLen = 1;
 	if (hasKw) {
 		if (krk_tableGet(AS_DICT(argv[argc]), OBJECT_VAL(S("sep")), &sepVal)) {
-			if (!IS_STRING(sepVal)) return krk_runtimeError(vm.exceptions.typeError, "'sep' should be a string, not '%s'", krk_typeName(sepVal));
+			if (!IS_STRING(sepVal)) return krk_runtimeError(vm.exceptions->typeError, "'sep' should be a string, not '%s'", krk_typeName(sepVal));
 			sep = AS_CSTRING(sepVal);
 			sepLen = AS_STRING(sepVal)->length;
 		}
 		if (krk_tableGet(AS_DICT(argv[argc]), OBJECT_VAL(S("end")), &endVal)) {
-			if (!IS_STRING(endVal)) return krk_runtimeError(vm.exceptions.typeError, "'end' should be a string, not '%s'", krk_typeName(endVal));
+			if (!IS_STRING(endVal)) return krk_runtimeError(vm.exceptions->typeError, "'end' should be a string, not '%s'", krk_typeName(endVal));
 			end = AS_CSTRING(endVal);
 			endLen = AS_STRING(endVal)->length;
 		}
@@ -269,15 +269,15 @@ static KrkValue _globals(int argc, KrkValue argv[]) {
 	KrkValue dict = krk_dict_of(0, NULL);
 	krk_push(dict);
 	/* Copy the globals table into it */
-	krk_tableAddAll(vm.frames[vm.frameCount-1].globals, AS_DICT(dict));
+	krk_tableAddAll(krk_currentThread.frames[krk_currentThread.frameCount-1].globals, AS_DICT(dict));
 	krk_pop();
 
 	return dict;
 }
 
 static KrkValue _isinstance(int argc, KrkValue argv[]) {
-	if (argc != 2) return krk_runtimeError(vm.exceptions.argumentError, "isinstance expects 2 arguments, got %d", argc);
-	if (!IS_CLASS(argv[1])) return krk_runtimeError(vm.exceptions.typeError, "isinstance() arg 2 must be class");
+	if (argc != 2) return krk_runtimeError(vm.exceptions->argumentError, "isinstance expects 2 arguments, got %d", argc);
+	if (!IS_CLASS(argv[1])) return krk_runtimeError(vm.exceptions->typeError, "isinstance() arg 2 must be class");
 
 	return BOOLEAN_VAL(krk_isInstanceOf(argv[0], AS_CLASS(argv[1])));
 }
@@ -367,7 +367,7 @@ KRK_METHOD(Helper,__call__,{
 		return krk_callSimple(callable, argc == 2, 0);
 	}
 
-	return krk_runtimeError(vm.exceptions.typeError, "unexpected error");
+	return krk_runtimeError(vm.exceptions->typeError, "unexpected error");
 })
 
 KRK_METHOD(LicenseReader,__repr__,{
@@ -387,40 +387,40 @@ KRK_METHOD(LicenseReader,__call__,{
 		return NONE_VAL();
 	}
 
-	return krk_runtimeError(vm.exceptions.typeError, "unexpected error");
+	return krk_runtimeError(vm.exceptions->typeError, "unexpected error");
 })
 
 _noexport
 void _createAndBind_builtins(void) {
-	vm.objectClass = krk_newClass(S("object"), NULL);
-	krk_defineNative(&vm.objectClass->methods, ":__class__", _type);
-	krk_defineNative(&vm.objectClass->methods, ".__dir__", krk_dirObject);
-	krk_defineNative(&vm.objectClass->methods, ".__str__", _strBase);
-	krk_defineNative(&vm.objectClass->methods, ".__repr__", _strBase); /* Override if necesary */
-	krk_finalizeClass(vm.objectClass);
-	vm.objectClass->docstring = S("Base class for all types.");
+	vm.baseClasses->objectClass = krk_newClass(S("object"), NULL);
+	krk_defineNative(&vm.baseClasses->objectClass->methods, ":__class__", _type);
+	krk_defineNative(&vm.baseClasses->objectClass->methods, ".__dir__", krk_dirObject);
+	krk_defineNative(&vm.baseClasses->objectClass->methods, ".__str__", _strBase);
+	krk_defineNative(&vm.baseClasses->objectClass->methods, ".__repr__", _strBase); /* Override if necesary */
+	krk_finalizeClass(vm.baseClasses->objectClass);
+	vm.baseClasses->objectClass->docstring = S("Base class for all types.");
 
-	vm.moduleClass = krk_newClass(S("module"), vm.objectClass);
-	krk_defineNative(&vm.moduleClass->methods, ".__repr__", _module_repr);
-	krk_defineNative(&vm.moduleClass->methods, ".__str__", _module_repr);
-	krk_finalizeClass(vm.moduleClass);
-	vm.moduleClass->docstring = S("");
+	vm.baseClasses->moduleClass = krk_newClass(S("module"), vm.baseClasses->objectClass);
+	krk_defineNative(&vm.baseClasses->moduleClass->methods, ".__repr__", _module_repr);
+	krk_defineNative(&vm.baseClasses->moduleClass->methods, ".__str__", _module_repr);
+	krk_finalizeClass(vm.baseClasses->moduleClass);
+	vm.baseClasses->moduleClass->docstring = S("");
 
-	vm.builtins = krk_newInstance(vm.moduleClass);
+	vm.builtins = krk_newInstance(vm.baseClasses->moduleClass);
 	krk_attachNamedObject(&vm.modules, "__builtins__", (KrkObj*)vm.builtins);
-	krk_attachNamedObject(&vm.builtins->fields, "object", (KrkObj*)vm.objectClass);
+	krk_attachNamedObject(&vm.builtins->fields, "object", (KrkObj*)vm.baseClasses->objectClass);
 	krk_attachNamedObject(&vm.builtins->fields, "__name__", (KrkObj*)S("__builtins__"));
 	krk_attachNamedValue(&vm.builtins->fields, "__file__", NONE_VAL());
 	krk_attachNamedObject(&vm.builtins->fields, "__doc__",
 		(KrkObj*)S("Internal module containing built-in functions and classes."));
 
-	krk_makeClass(vm.builtins, &Helper, "Helper", vm.objectClass);
+	krk_makeClass(vm.builtins, &Helper, "Helper", vm.baseClasses->objectClass);
 	BIND_METHOD(Helper,__call__);
 	BIND_METHOD(Helper,__repr__);
 	krk_finalizeClass(Helper);
 	krk_attachNamedObject(&vm.builtins->fields, "help", (KrkObj*)krk_newInstance(Helper));
 
-	krk_makeClass(vm.builtins, &LicenseReader, "LicenseReader", vm.objectClass);
+	krk_makeClass(vm.builtins, &LicenseReader, "LicenseReader", vm.baseClasses->objectClass);
 	BIND_METHOD(LicenseReader,__call__);
 	BIND_METHOD(LicenseReader,__repr__);
 	krk_finalizeClass(LicenseReader);

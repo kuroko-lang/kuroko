@@ -8,9 +8,9 @@
 #undef IS_bool
 #undef IS_float
 
-#define IS_int(o) (IS_INTEGER(o) || krk_isInstanceOf(o,vm.baseClasses.intClass))
-#define IS_bool(o) (IS_BOOLEAN(o) || krk_isInstanceOf(o,vm.baseClasses.boolClass))
-#define IS_float(o) (IS_FLOATING(o) || krk_isInstanceOf(o,vm.baseClasses.floatClass))
+#define IS_int(o) (IS_INTEGER(o) || krk_isInstanceOf(o,vm.baseClasses->intClass))
+#define IS_bool(o) (IS_BOOLEAN(o) || krk_isInstanceOf(o,vm.baseClasses->boolClass))
+#define IS_float(o) (IS_FLOATING(o) || krk_isInstanceOf(o,vm.baseClasses->floatClass))
 
 #define IS_NoneType(o) (IS_NONE(o))
 #define AS_NoneType(o) ((char)0)
@@ -25,7 +25,7 @@ KRK_METHOD(int,__init__,{
 	if (IS_STRING(argv[1])) return krk_string_int(argc-1,&argv[1],0);
 	if (IS_FLOATING(argv[1])) return INTEGER_VAL(AS_FLOATING(argv[1]));
 	if (IS_BOOLEAN(argv[1])) return INTEGER_VAL(AS_BOOLEAN(argv[1]));
-	return krk_runtimeError(vm.exceptions.typeError, "int() argument must be a string or a number, not '%s'", krk_typeName(argv[1]));
+	return krk_runtimeError(vm.exceptions->typeError, "int() argument must be a string or a number, not '%s'", krk_typeName(argv[1]));
 })
 
 KRK_METHOD(int,__str__,{
@@ -49,12 +49,12 @@ KRK_METHOD(int,__chr__,{
 KRK_METHOD(float,__init__,{
 	METHOD_TAKES_AT_MOST(1);
 	if (argc < 2) return FLOATING_VAL(0.0);
-	if (argc > 2) return krk_runtimeError(vm.exceptions.argumentError, "float() takes at most 1 argument");
+	if (argc > 2) return krk_runtimeError(vm.exceptions->argumentError, "float() takes at most 1 argument");
 	if (IS_STRING(argv[1])) return krk_string_float(1,&argv[1],0);
 	if (IS_FLOATING(argv[1])) return argv[1];
 	if (IS_INTEGER(argv[1])) return FLOATING_VAL(AS_INTEGER(argv[1]));
 	if (IS_BOOLEAN(argv[1])) return FLOATING_VAL(AS_BOOLEAN(argv[1]));
-	return krk_runtimeError(vm.exceptions.typeError, "float() argument must be a string or a number, not '%s'", krk_typeName(argv[1]));
+	return krk_runtimeError(vm.exceptions->typeError, "float() argument must be a string or a number, not '%s'", krk_typeName(argv[1]));
 })
 
 KRK_METHOD(float,__int__,{ return INTEGER_VAL(self); })
@@ -87,7 +87,7 @@ KRK_METHOD(NoneType,__str__,{
 #define BIND_METHOD(klass,method) do { krk_defineNative(& _ ## klass->methods, "." #method, _ ## klass ## _ ## method); } while (0)
 _noexport
 void _createAndBind_numericClasses(void) {
-	KrkClass * _int = ADD_BASE_CLASS(vm.baseClasses.intClass, "int", vm.objectClass);
+	KrkClass * _int = ADD_BASE_CLASS(vm.baseClasses->intClass, "int", vm.baseClasses->objectClass);
 	BIND_METHOD(int,__init__);
 	BIND_METHOD(int,__str__);
 	BIND_METHOD(int,__int__);
@@ -97,7 +97,7 @@ void _createAndBind_numericClasses(void) {
 	krk_finalizeClass(_int);
 	_int->docstring = S("Convert a number or string type to an integer representation.");
 
-	KrkClass * _float = ADD_BASE_CLASS(vm.baseClasses.floatClass, "float", vm.objectClass);
+	KrkClass * _float = ADD_BASE_CLASS(vm.baseClasses->floatClass, "float", vm.baseClasses->objectClass);
 	BIND_METHOD(float,__init__);
 	BIND_METHOD(float,__int__);
 	BIND_METHOD(float,__float__);
@@ -106,14 +106,14 @@ void _createAndBind_numericClasses(void) {
 	krk_finalizeClass(_float);
 	_float->docstring = S("Convert a number or string type to a float representation.");
 
-	KrkClass * _bool = ADD_BASE_CLASS(vm.baseClasses.boolClass, "bool", vm.objectClass);
+	KrkClass * _bool = ADD_BASE_CLASS(vm.baseClasses->boolClass, "bool", vm.baseClasses->objectClass);
 	BIND_METHOD(bool,__init__);
 	BIND_METHOD(bool,__str__);
 	krk_defineNative(&_bool->methods, ".__repr__", FUNC_NAME(bool,__str__));
 	krk_finalizeClass(_bool);
 	_bool->docstring = S("Returns False if the argument is 'falsey', otherwise True.");
 
-	KrkClass * _NoneType = ADD_BASE_CLASS(vm.baseClasses.noneTypeClass, "NoneType", vm.objectClass);
+	KrkClass * _NoneType = ADD_BASE_CLASS(vm.baseClasses->noneTypeClass, "NoneType", vm.baseClasses->objectClass);
 	BIND_METHOD(NoneType, __str__);
 	krk_defineNative(&_NoneType->methods, ".__repr__", FUNC_NAME(NoneType,__str__));
 	krk_finalizeClass(_NoneType);

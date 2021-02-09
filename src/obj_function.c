@@ -106,21 +106,21 @@ static KrkValue _bound_get_argnames(int argc, KrkValue argv[]) {
 
 _noexport
 void _createAndBind_functionClass(void) {
-	ADD_BASE_CLASS(vm.baseClasses.functionClass, "function", vm.objectClass);
-	krk_defineNative(&vm.baseClasses.functionClass->methods, ".__str__", _closure_str);
-	krk_defineNative(&vm.baseClasses.functionClass->methods, ".__repr__", _closure_str);
-	krk_defineNative(&vm.baseClasses.functionClass->methods, ":__doc__", _closure_get_doc);
-	krk_defineNative(&vm.baseClasses.functionClass->methods, ":__name__", _closure_get_name);
-	krk_defineNative(&vm.baseClasses.functionClass->methods, ":__file__", _closure_get_file);
-	krk_defineNative(&vm.baseClasses.functionClass->methods, ":__args__", _closure_get_argnames);
-	krk_finalizeClass(vm.baseClasses.functionClass);
+	ADD_BASE_CLASS(vm.baseClasses->functionClass, "function", vm.baseClasses->objectClass);
+	krk_defineNative(&vm.baseClasses->functionClass->methods, ".__str__", _closure_str);
+	krk_defineNative(&vm.baseClasses->functionClass->methods, ".__repr__", _closure_str);
+	krk_defineNative(&vm.baseClasses->functionClass->methods, ":__doc__", _closure_get_doc);
+	krk_defineNative(&vm.baseClasses->functionClass->methods, ":__name__", _closure_get_name);
+	krk_defineNative(&vm.baseClasses->functionClass->methods, ":__file__", _closure_get_file);
+	krk_defineNative(&vm.baseClasses->functionClass->methods, ":__args__", _closure_get_argnames);
+	krk_finalizeClass(vm.baseClasses->functionClass);
 
-	ADD_BASE_CLASS(vm.baseClasses.methodClass, "method", vm.objectClass);
-	krk_defineNative(&vm.baseClasses.methodClass->methods, ".__str__", _bound_str);
-	krk_defineNative(&vm.baseClasses.methodClass->methods, ".__repr__", _bound_str);
-	krk_defineNative(&vm.baseClasses.methodClass->methods, ".__doc__", _bound_get_doc);
-	krk_defineNative(&vm.baseClasses.methodClass->methods, ":__name__", _bound_get_name);
-	krk_defineNative(&vm.baseClasses.methodClass->methods, ":__file__", _bound_get_file);
-	krk_defineNative(&vm.baseClasses.methodClass->methods, ":__args__", _bound_get_argnames);
-	krk_finalizeClass(vm.baseClasses.methodClass);
+	ADD_BASE_CLASS(vm.baseClasses->methodClass, "method", vm.baseClasses->objectClass);
+	krk_defineNative(&vm.baseClasses->methodClass->methods, ".__str__", _bound_str);
+	krk_defineNative(&vm.baseClasses->methodClass->methods, ".__repr__", _bound_str);
+	krk_defineNative(&vm.baseClasses->methodClass->methods, ".__doc__", _bound_get_doc);
+	krk_defineNative(&vm.baseClasses->methodClass->methods, ":__name__", _bound_get_name);
+	krk_defineNative(&vm.baseClasses->methodClass->methods, ":__file__", _bound_get_file);
+	krk_defineNative(&vm.baseClasses->methodClass->methods, ":__args__", _bound_get_argnames);
+	krk_finalizeClass(vm.baseClasses->methodClass);
 }

@@ -4,22 +4,36 @@ TARGET   = kuroko
 OBJS     = $(patsubst %.c, %.o, $(filter-out src/module_% src/rline.c src/kuroko.c,$(sort $(wildcard src/*.c))))
 MODULES  = $(patsubst src/module_%.c, modules/%.so, $(sort $(wildcard src/module_*.c)))
 HEADERS  = $(wildcard src/*.h)
+
+# These are used by the install target. We call the local kuroko to get the
+# version string to use for the final library, so, uh, probably don't
+# try to do that in a cross-compile environment...
 VERSION  = $(shell ./kuroko --version | sed 's/.* //')
 SONAME   = libkuroko-$(VERSION).so
 KRKMODS  = $(wildcard modules/*.krk modules/*/*.krk modules/*/*/*.krk)
 
 ifndef KRK_ENABLE_STATIC
+  # The normal build configuration is as a shared library or DLL (on Windows)
   CFLAGS  += -fPIC
   ifeq (,$(findstring mingw,$(CC)))
+    # We set rpath here mostly so you can run the locally-built interpreter
+    # with the correct library; it shouldn't be needed in a real installation.
     LDFLAGS += -Wl,-rpath -Wl,'$$ORIGIN' -L.
+    # On POSIX-like platforms, link with libdl and assume -lkuroko gives us
+    # our own library.
     LDLIBS  += -ldl -lkuroko
   else
+    # For Windows, disable format string warnings because gcc will get mad
+    # about non-portable Windows format specifiers...
     CFLAGS  += -Wno-format
+    # And we need to link this by name with extension because I don't want
+    # to actually rename it to kuroko.dll or whatever.
     LDLIBS  += libkuroko.so
   endif
   all: ${TARGET} ${MODULES}
   KUROKO_LIBS = libkuroko.so
 else
+  # Static builds are a little different...
   CFLAGS +=-DSTATIC_ONLY
   LDFLAGS += -static
   all: ${TARGET}
@@ -27,20 +41,49 @@ else
   KUROKO_LIBS = ${OBJS}
 endif
 
+ifeq ($(shell uname -s),Linux)
+  ifeq (,$(findstring mingw,$(CC)))
+    # Enable threading by default on Linux,
+    # but make sure we're not cross-building
+    # with ming first...
+    KRK_ENABLE_THREAD ?= 1
+  endif
+endif
+
+ifeq (1,$(KRK_ENABLE_THREAD))
+  # Thread support is EXPERIMENTAL
+  # and downright known to be broken
+  # (but only if you actually use it)
+  CFLAGS += -DENABLE_THREADING
+  LDLIBS += -lpthread
+endif
+
 ifndef KRK_DISABLE_RLINE
+  # Normally, we link the rich line editor into the
+  # interpreter (and not the main library!)
   KUROKO_LIBS += src/rline.o
 else
+  # ... but it can be disabled if you want a more "pure" build,
+  # or if you don't have solid support for the escape sequences
+  # it requires on your target platform.
   CFLAGS  += -DNO_RLINE
 endif
 
 ifndef KRK_DISABLE_DEBUG
+  # Disabling debug functions doesn't really do much; it may result in a smaller
+  # library when stripped as there's a lot of debug text, but no performance
+  # difference has ever been noted from disabling, eg., instruction tracing.
   CFLAGS  += -DDEBUG
 endif
 
 ifdef KRK_ENABLE_BUNDLE
+  # When bundling, disable shared object modules.
   MODULES =
+  # Add the sources from the shared object modules as regular sources.
   KUROKO_LIBS += $(patsubst %.c,%.o,$(sort $(wildcard src/module_*.c)))
+  # Enable the build flag so the interpreter binary knows to run startup functions
   CFLAGS += -DBUNDLE_LIBS=1
+  # And link anything our core modules would have needed
   LDLIBS += -lm
 endif
 
@@ -52,20 +95,28 @@ help:
 	@echo "   KRK_DISABLE_DEBUG=1    Disable debugging features (might be faster)."
 	@echo "   KRK_ENABLE_STATIC=1    Build a single static binary."
 	@echo "   KRK_ENABLE_BUNDLE=1    Link C modules directly into the interpreter."
+	@echo "   KRK_ENABLE_THREAD=1    Enable EXPERIMENTAL threading support. (* enabled by default on Linux)"
 
 kuroko: src/kuroko.o ${KUROKO_LIBS}
 	${CC} ${CFLAGS} ${LDFLAGS} -o $@ src/kuroko.o ${KUROKO_LIBS} ${LDLIBS}
 
+libkuroko.so: ${OBJS}
+	${CC} ${CFLAGS} ${LDFLAGS} -shared -o $@ ${OBJS}
+
+# Make sure we rebuild things when headers change as we have a lot of
+# headers that define build flags...
 %.o: ${HEADERS}
 
+# Modules are built as shared objects. We link them with LDLIBS
+# as well, but this probably isn't necessary?
 modules/%.so: src/module_%.c libkuroko.so
 	${CC} ${CFLAGS} ${LDFLAGS} -shared -o $@ $< ${LDLIBS}
 
+# A module can have dependencies that didn't exist in the main lib,
+# like how the math library pulls in libm but we kept references
+# to that out of the main interpreter.
 modules/math.so: src/module_math.c libkuroko.so
 	${CC} ${CFLAGS} ${LDFLAGS} -shared -o $@ $< -lm ${LDLIBS}
-
-libkuroko.so: ${OBJS}
-	${CC} ${CFLAGS} ${LDFLAGS} -shared -o $@ ${OBJS}
 
 .PHONY: clean
 clean:
@@ -74,16 +125,20 @@ clean:
 tags: $(wildcard src/*.c) $(wildcard src/*.h)
 	@ctags --c-kinds=+lx src/*.c src/*.h
 
-.PHONY: test
-
+# Test targets run against all .krk files in the test/ directory, writing
+# stdout to `.expect` files, and then comparing with `git`.
+# To update the tests if changes are expected, run `make test` and commit the result.
+.PHONY: test stress-test
 test:
-	@for i in test/*.krk; do echo $$i; KUROKO_TEST_ENV=1 ./kuroko $$i > $$i.expect; done
+	@for i in test/*.krk; do echo $$i; KUROKO_TEST_ENV=1 $(TESTWRAPPER) ./kuroko $$i > $$i.expect; done
 	@git diff --exit-code test/*.expect
 
+# You can also set TESTWRAPPER to other things to run the tests in other tools.
 stress-test:
-	@for i in test/*.krk; do echo $$i; KUROKO_TEST_ENV=1 valgrind ./kuroko -g $$i > $$i.expect; done
-	@git diff --exit-code test/*.expect
+	$(MAKE) TESTWRAPPER='valgrind' test
 
+# The install target is set up for modern multiarch Linux environments,
+# and you may need to do extra work for it to make sense on other targets.
 LIBCARCH    ?= $(shell gcc -print-multiarch)
 prefix      ?= /usr/local
 exec_prefix ?= $(prefix)
@@ -115,6 +170,8 @@ install: kuroko libkuroko.so ${HEADERS} $(KRKMODS) $(MODULES)
 install-strip: all
 	$(MAKE) INSTALL_PROGRAM='$(INSTALL_PROGRAM) -s' install
 
+# The deb target piggybacks off the install target, creating a temporary DESTDIR
+# to install into with 'prefix' as /usr, packages that with fpm, and removes DESTDIR
 .PHONY: deb
 deb: kuroko libkuroko.so
 	$(eval DESTDIR := $(shell mktemp -d))

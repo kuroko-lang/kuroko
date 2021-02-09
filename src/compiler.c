@@ -146,7 +146,7 @@ static void initCompiler(Compiler * compiler, FunctionType type) {
 	compiler->type = type;
 	compiler->scopeDepth = 0;
 	compiler->function = krk_newFunction();
-	compiler->function->globalsContext = (KrkInstance*)vm.module;
+	compiler->function->globalsContext = (KrkInstance*)krk_currentThread.module;
 	compiler->localCount = 0;
 	compiler->localsSpace = 8;
 	compiler->locals = GROW_ARRAY(Local,NULL,0,8);
@@ -200,26 +200,26 @@ static void finishError(KrkToken * token) {
 	size_t i = 0;
 	while (token->linePtr[i] && token->linePtr[i] != '\n') i++;
 
-	krk_attachNamedObject(&AS_INSTANCE(vm.currentException)->fields, "line",   (KrkObj*)krk_copyString(token->linePtr, i));
-	krk_attachNamedObject(&AS_INSTANCE(vm.currentException)->fields, "file",   (KrkObj*)currentChunk()->filename);
-	krk_attachNamedValue (&AS_INSTANCE(vm.currentException)->fields, "lineno", INTEGER_VAL(token->line));
-	krk_attachNamedValue (&AS_INSTANCE(vm.currentException)->fields, "colno",  INTEGER_VAL(token->col));
-	krk_attachNamedValue (&AS_INSTANCE(vm.currentException)->fields, "width",  INTEGER_VAL(token->literalWidth));
+	krk_attachNamedObject(&AS_INSTANCE(krk_currentThread.currentException)->fields, "line",   (KrkObj*)krk_copyString(token->linePtr, i));
+	krk_attachNamedObject(&AS_INSTANCE(krk_currentThread.currentException)->fields, "file",   (KrkObj*)currentChunk()->filename);
+	krk_attachNamedValue (&AS_INSTANCE(krk_currentThread.currentException)->fields, "lineno", INTEGER_VAL(token->line));
+	krk_attachNamedValue (&AS_INSTANCE(krk_currentThread.currentException)->fields, "colno",  INTEGER_VAL(token->col));
+	krk_attachNamedValue (&AS_INSTANCE(krk_currentThread.currentException)->fields, "width",  INTEGER_VAL(token->literalWidth));
 
 	if (current->function->name) {
-		krk_attachNamedObject(&AS_INSTANCE(vm.currentException)->fields, "func", (KrkObj*)current->function->name);
+		krk_attachNamedObject(&AS_INSTANCE(krk_currentThread.currentException)->fields, "func", (KrkObj*)current->function->name);
 	} else {
 		KrkValue name = NONE_VAL();
-		krk_tableGet(&vm.module->fields, vm.specialMethodNames[METHOD_NAME], &name);
-		krk_attachNamedValue(&AS_INSTANCE(vm.currentException)->fields, "func", name);
+		krk_tableGet(&krk_currentThread.module->fields, vm.specialMethodNames[METHOD_NAME], &name);
+		krk_attachNamedValue(&AS_INSTANCE(krk_currentThread.currentException)->fields, "func", name);
 	}
 
 	parser.panicMode = 1;
 	parser.hadError = 1;
 }
 
-#define error(...) do { if (parser.panicMode) break; krk_runtimeError(vm.exceptions.syntaxError, __VA_ARGS__); finishError(&parser.previous); } while (0)
-#define errorAtCurrent(...) do { if (parser.panicMode) break; krk_runtimeError(vm.exceptions.syntaxError, __VA_ARGS__); finishError(&parser.current); } while (0)
+#define error(...) do { if (parser.panicMode) break; krk_runtimeError(vm.exceptions->syntaxError, __VA_ARGS__); finishError(&parser.previous); } while (0)
+#define errorAtCurrent(...) do { if (parser.panicMode) break; krk_runtimeError(vm.exceptions->syntaxError, __VA_ARGS__); finishError(&parser.current); } while (0)
 
 static void advance() {
 	parser.previous = parser.current;
@@ -231,7 +231,7 @@ static void advance() {
 			(parser.current.type == TOKEN_INDENTATION || parser.current.type == TOKEN_EOL)) continue;
 
 #ifdef ENABLE_SCAN_TRACING
-		if (vm.flags & KRK_ENABLE_SCAN_TRACING) {
+		if (krk_currentThread.flags & KRK_ENABLE_SCAN_TRACING) {
 			fprintf(stderr, "[%s<%d> %d:%d '%.*s'] ",
 				getRule(parser.current.type)->name,
 				(int)parser.current.type,
@@ -358,7 +358,7 @@ static KrkFunction * endCompiler() {
 	}
 
 #ifdef ENABLE_DISASSEMBLY
-	if ((vm.flags & KRK_ENABLE_DISASSEMBLY) && !parser.hadError) {
+	if ((krk_currentThread.flags & KRK_ENABLE_DISASSEMBLY) && !parser.hadError) {
 		krk_disassembleChunk(stderr, function, function->name ? function->name->chars : "<module>");
 		fprintf(stderr, "Function metadata: requiredArgs=%d keywordArgs=%d upvalueCount=%d\n",
 			function->requiredArgs, function->keywordArgs, (int)function->upvalueCount);
@@ -864,7 +864,7 @@ static void block(size_t indentation, const char * blockName) {
 				}
 			};
 #ifdef ENABLE_SCAN_TRACING
-			if (vm.flags & KRK_ENABLE_SCAN_TRACING) {
+			if (krk_currentThread.flags & KRK_ENABLE_SCAN_TRACING) {
 				fprintf(stderr, "\n\nfinished with block %s (ind=%d) on line %d, sitting on a %s (len=%d)\n\n",
 					blockName, (int)indentation, (int)parser.current.line,
 					getRule(parser.current.type)->name, (int)parser.current.length);
@@ -1107,7 +1107,7 @@ static KrkToken classDeclaration() {
 				method(currentIndentation);
 			}
 #ifdef ENABLE_SCAN_TRACING
-			if (vm.flags & KRK_ENABLE_SCAN_TRACING) fprintf(stderr, "Exiting from class definition on %s\n", getRule(parser.current.type)->name);
+			if (krk_currentThread.flags & KRK_ENABLE_SCAN_TRACING) fprintf(stderr, "Exiting from class definition on %s\n", getRule(parser.current.type)->name);
 #endif
 			/* Exit from block */
 		}
@@ -2611,7 +2611,29 @@ static ParseRule * getRule(KrkTokenType type) {
 	return &krk_parseRules[type];
 }
 
+#ifdef ENABLE_THREADING
+#include <sched.h>
+static void spin_lock(int volatile * lock) {
+	while(__sync_lock_test_and_set(lock, 0x01)) {
+		sched_yield();
+	}
+}
+
+static void spin_unlock(int volatile * lock) {
+	__sync_lock_release(lock);
+}
+
+static volatile int _compilerLock = 0;
+#define _obtain_lock(v) spin_lock(&v);
+#define _release_lock(v) spin_unlock(&v);
+#else
+#define _obtain_lock(v)
+#define _release_lock(v)
+#endif
+
 KrkFunction * krk_compile(const char * src, int newScope, char * fileName) {
+	_obtain_lock(_compilerLock);
+
 	krk_initScanner(src);
 	Compiler compiler;
 	initCompiler(&compiler, TYPE_MODULE);
@@ -2624,17 +2646,17 @@ KrkFunction * krk_compile(const char * src, int newScope, char * fileName) {
 
 	advance();
 
-	if (vm.module) {
+	if (krk_currentThread.module) {
 		KrkValue doc;
-		if (!krk_tableGet(&vm.module->fields, OBJECT_VAL(krk_copyString("__doc__", 7)), &doc)) {
+		if (!krk_tableGet(&krk_currentThread.module->fields, OBJECT_VAL(krk_copyString("__doc__", 7)), &doc)) {
 			if (match(TOKEN_STRING) || match(TOKEN_BIG_STRING)) {
 				string(parser.previous.type == TOKEN_BIG_STRING);
-				krk_attachNamedObject(&vm.module->fields, "__doc__",
+				krk_attachNamedObject(&krk_currentThread.module->fields, "__doc__",
 					(KrkObj*)AS_STRING(currentChunk()->constants.values[currentChunk()->constants.count-1]));
 				emitByte(OP_POP); /* string() actually put an instruction for that, pop its result */
 				consume(TOKEN_EOL,"Garbage after docstring");
 			} else {
-				krk_attachNamedValue(&vm.module->fields, "__doc__", NONE_VAL());
+				krk_attachNamedValue(&krk_currentThread.module->fields, "__doc__", NONE_VAL());
 			}
 		}
 	}
@@ -2649,7 +2671,10 @@ KrkFunction * krk_compile(const char * src, int newScope, char * fileName) {
 
 	KrkFunction * function = endCompiler();
 	freeCompiler(&compiler);
-	return parser.hadError ? NULL : function;
+	if (parser.hadError) function = NULL;
+
+	_release_lock(_compilerLock);
+	return function;
 }
 
 void krk_markCompilerRoots() {

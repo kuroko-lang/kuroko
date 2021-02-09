@@ -19,7 +19,7 @@ static KrkValue FUNC_NAME(striterator,__init__)(int,KrkValue[],int);
 KRK_METHOD(str,__ord__,{
 	METHOD_TAKES_NONE();
 	if (self->codesLength != 1)
-		return krk_runtimeError(vm.exceptions.typeError, "ord() expected a character, but string of length %d found", self->codesLength);
+		return krk_runtimeError(vm.exceptions->typeError, "ord() expected a character, but string of length %d found", self->codesLength);
 	return INTEGER_VAL(krk_unicodeCodepoint(self,0));
 })
 
@@ -32,7 +32,7 @@ KRK_METHOD(str,__init__,{
 	if (IS_STRING(argv[1])) return argv[1]; /* strings are immutable, so we can just return the arg */
 	/* Find the type of arg */
 	krk_push(argv[1]);
-	if (!krk_getType(argv[1])->_tostr) return krk_runtimeError(vm.exceptions.typeError, "Can not convert %s to str", krk_typeName(argv[1]));
+	if (!krk_getType(argv[1])->_tostr) return krk_runtimeError(vm.exceptions->typeError, "Can not convert %s to str", krk_typeName(argv[1]));
 	return krk_callSimple(OBJECT_VAL(krk_getType(argv[1])->_tostr), 1, 0);
 })
 
@@ -54,7 +54,7 @@ KRK_METHOD(str,__add__,{
 			KrkValue result = krk_callSimple(OBJECT_VAL(type->_tostr), 1, 0);
 			krk_push(result);
 			needsPop = 1;
-			if (!IS_STRING(result)) return krk_runtimeError(vm.exceptions.typeError, "__str__ produced something that was not a string: '%s'", krk_typeName(result));
+			if (!IS_STRING(result)) return krk_runtimeError(vm.exceptions->typeError, "__str__ produced something that was not a string: '%s'", krk_typeName(result));
 			b = AS_CSTRING(result);
 			bl = AS_STRING(result)->length;
 		} else {
@@ -82,7 +82,7 @@ KRK_METHOD(str,__len__,{
 })
 
 KRK_METHOD(str,__set__,{
-	return krk_runtimeError(vm.exceptions.typeError, "Strings are not mutable.");
+	return krk_runtimeError(vm.exceptions->typeError, "Strings are not mutable.");
 })
 
 /**
@@ -93,7 +93,7 @@ KRK_METHOD(str,__set__,{
 KRK_METHOD(str,__getslice__,{
 	METHOD_TAKES_EXACTLY(2);
 	if (!(IS_INTEGER(argv[1]) || IS_NONE(argv[1])) || !(IS_INTEGER(argv[2]) || IS_NONE(argv[2])))
-		return krk_runtimeError(vm.exceptions.typeError, "slice: expected two integer arguments");
+		return krk_runtimeError(vm.exceptions->typeError, "slice: expected two integer arguments");
 	/* bounds check */
 	long start = IS_NONE(argv[1]) ? 0 : AS_INTEGER(argv[1]);
 	long end   = IS_NONE(argv[2]) ? (long)self->codesLength : AS_INTEGER(argv[2]);
@@ -155,7 +155,7 @@ KRK_METHOD(str,__get__,{
 	CHECK_ARG(1,int,krk_integer_type,asInt);
 	if (asInt < 0) asInt += (int)AS_STRING(argv[0])->codesLength;
 	if (asInt < 0 || asInt >= (int)AS_STRING(argv[0])->codesLength) {
-		return krk_runtimeError(vm.exceptions.indexError, "String index out of range: %d", asInt);
+		return krk_runtimeError(vm.exceptions->indexError, "String index out of range: %d", asInt);
 	}
 	if (self->type == KRK_STRING_ASCII) {
 		return OBJECT_VAL(krk_copyString(self->chars + asInt, 1));
@@ -295,20 +295,20 @@ KRK_METHOD(str,format,{
 	return out;
 
 _formatError:
-	krk_runtimeError(vm.exceptions.typeError, "Error parsing format string: %s", errorStr);
+	krk_runtimeError(vm.exceptions->typeError, "Error parsing format string: %s", errorStr);
 	goto _freeAndDone;
 
 _formatSwitchedNumbering:
-	krk_runtimeError(vm.exceptions.valueError, "Can not switch from automatic indexing to manual indexing");
+	krk_runtimeError(vm.exceptions->valueError, "Can not switch from automatic indexing to manual indexing");
 	goto _freeAndDone;
 
 _formatOutOfRange:
-	krk_runtimeError(vm.exceptions.indexError, "Positional index out of range: %d", erroneousIndex);
+	krk_runtimeError(vm.exceptions->indexError, "Positional index out of range: %d", erroneousIndex);
 	goto _freeAndDone;
 
 _formatKeyError:
 	/* which one? */
-	krk_runtimeError(vm.exceptions.keyError, "'%s'", erroneousField);
+	krk_runtimeError(vm.exceptions->keyError, "'%s'", erroneousField);
 	goto _freeAndDone;
 
 _freeAndDone:
@@ -365,7 +365,7 @@ KRK_METHOD(str,join,{
 	return finishStringBuilder(&sb);
 
 _expectedString:
-	krk_runtimeError(vm.exceptions.typeError, "Expected string, got %s.", errorStr);
+	krk_runtimeError(vm.exceptions->typeError, "Expected string, got %s.", errorStr);
 	discardStringBuilder(&sb);
 })
 
@@ -407,7 +407,7 @@ static int charIn(char c, const char * str) {
  */
 static KrkValue _string_strip_shared(int argc, KrkValue argv[], int which) {
 	if (argc > 1 && IS_STRING(argv[1]) && AS_STRING(argv[1])->type != KRK_STRING_ASCII) {
-		return krk_runtimeError(vm.exceptions.notImplementedError, "str.strip() not implemented for Unicode strip lists");
+		return krk_runtimeError(vm.exceptions->notImplementedError, "str.strip() not implemented for Unicode strip lists");
 	}
 	size_t start = 0;
 	size_t end   = AS_STRING(argv[0])->length;
@@ -416,11 +416,11 @@ static KrkValue _string_strip_shared(int argc, KrkValue argv[], int which) {
 		if (IS_STRING(argv[1])) {
 			subset = AS_CSTRING(argv[1]);
 		} else {
-			return krk_runtimeError(vm.exceptions.typeError, "argument to %sstrip() should be a string",
+			return krk_runtimeError(vm.exceptions->typeError, "argument to %sstrip() should be a string",
 				(which == 0 ? "" : (which == 1 ? "l" : "r")));
 		}
 	} else if (argc > 2) {
-		return krk_runtimeError(vm.exceptions.typeError, "%sstrip() takes at most one argument",
+		return krk_runtimeError(vm.exceptions->typeError, "%sstrip() takes at most one argument",
 			(which == 0 ? "" : (which == 1 ? "l" : "r")));
 	}
 	if (which < 2) while (start < end && charIn(AS_CSTRING(argv[0])[start], subset)) start++;
@@ -483,7 +483,7 @@ KRK_METHOD(str,__gt__,{
 
 /** TODO but throw a more descriptive error for now */
 KRK_METHOD(str,__mod__,{
-	return krk_runtimeError(vm.exceptions.notImplementedError, "%%-formatting for strings is not yet available");
+	return krk_runtimeError(vm.exceptions->notImplementedError, "%%-formatting for strings is not yet available");
 })
 
 /* str.split() */
@@ -491,12 +491,12 @@ KRK_METHOD(str,split,{
 	METHOD_TAKES_AT_MOST(2);
 	if (argc > 1) {
 		if (!IS_STRING(argv[1])) {
-			return krk_runtimeError(vm.exceptions.typeError, "Expected separator to be a string");
+			return krk_runtimeError(vm.exceptions->typeError, "Expected separator to be a string");
 		} else if (AS_STRING(argv[1])->length == 0) {
-			return krk_runtimeError(vm.exceptions.valueError, "Empty separator");
+			return krk_runtimeError(vm.exceptions->valueError, "Empty separator");
 		}
 		if (argc > 2 && !IS_INTEGER(argv[2])) {
-			return krk_runtimeError(vm.exceptions.typeError, "Expected maxsplit to be an integer.");
+			return krk_runtimeError(vm.exceptions->typeError, "Expected maxsplit to be an integer.");
 		} else if (argc > 2 && AS_INTEGER(argv[2]) == 0) {
 			return argv[0];
 		}
@@ -663,7 +663,7 @@ KRK_METHOD(str,find,{
 KRK_METHOD(str,index,{
 	KrkValue result = FUNC_NAME(str,find)(argc,argv,hasKw);
 	if (IS_INTEGER(result) && AS_INTEGER(result) == -1) {
-		return krk_runtimeError(vm.exceptions.valueError, "substring not found");
+		return krk_runtimeError(vm.exceptions->valueError, "substring not found");
 	}
 	return result;
 })
@@ -762,7 +762,7 @@ void krk_addObjects(void) {
 
 KRK_METHOD(str,__iter__,{
 	METHOD_TAKES_NONE();
-	KrkInstance * output = krk_newInstance(vm.baseClasses.striteratorClass);
+	KrkInstance * output = krk_newInstance(vm.baseClasses->striteratorClass);
 
 	krk_push(OBJECT_VAL(output));
 	FUNC_NAME(striterator,__init__)(2, (KrkValue[]){krk_peek(0), argv[0]},0);
@@ -838,12 +838,12 @@ KRK_METHOD(striterator,__call__,{
 		return FUNC_NAME(str,__get__)(2,(KrkValue[]){_str,_counter},3);
 	}
 _corrupt:
-	return krk_runtimeError(vm.exceptions.typeError, "Corrupt str iterator: %s", errorStr);
+	return krk_runtimeError(vm.exceptions->typeError, "Corrupt str iterator: %s", errorStr);
 })
 
 _noexport
 void _createAndBind_strClass(void) {
-	KrkClass * str = ADD_BASE_CLASS(vm.baseClasses.strClass, "str", vm.objectClass);
+	KrkClass * str = ADD_BASE_CLASS(vm.baseClasses->strClass, "str", vm.baseClasses->objectClass);
 	BIND_METHOD(str,__init__);
 	BIND_METHOD(str,__iter__);
 	BIND_METHOD(str,__ord__);
@@ -889,7 +889,7 @@ void _createAndBind_strClass(void) {
 	krk_finalizeClass(str);
 	str->docstring = S("Obtain a string representation of an object.");
 
-	KrkClass * striterator = ADD_BASE_CLASS(vm.baseClasses.striteratorClass, "striterator", vm.objectClass);
+	KrkClass * striterator = ADD_BASE_CLASS(vm.baseClasses->striteratorClass, "striterator", vm.baseClasses->objectClass);
 	BIND_METHOD(striterator,__init__);
 	BIND_METHOD(striterator,__call__);
 	krk_finalizeClass(striterator);

@@ -8,16 +8,16 @@
 	KrkClass * type = krk_getType(value); \
 	krk_push(value); \
 	KrkValue asString = krk_callSimple(OBJECT_VAL(type->_reprer), 1, 0); \
-	if (IS_STRING(asString)) return krk_runtimeError(vm.exceptions.keyError, "%s", AS_CSTRING(asString)); \
-	return krk_runtimeError(vm.exceptions.keyError, "key error"); }
+	if (IS_STRING(asString)) return krk_runtimeError(vm.exceptions->keyError, "%s", AS_CSTRING(asString)); \
+	return krk_runtimeError(vm.exceptions->keyError, "key error"); }
 
 /**
  * Exposed method called to produce dictionaries from {expr: expr, ...} sequences in managed code.
  * Presented in the global namespace as dictOf(...). Expects arguments as key,value,key,value...
  */
 KrkValue krk_dict_of(int argc, KrkValue argv[]) {
-	if (argc % 2 != 0) return krk_runtimeError(vm.exceptions.argumentError, "Expected even number of arguments to dictOf");
-	KrkInstance * outDict = krk_newInstance(vm.baseClasses.dictClass);
+	if (argc % 2 != 0) return krk_runtimeError(vm.exceptions->argumentError, "Expected even number of arguments to dictOf");
+	KrkInstance * outDict = krk_newInstance(vm.baseClasses->dictClass);
 	krk_push(OBJECT_VAL(outDict));
 	krk_initTable(&((KrkDict*)outDict)->entries);
 	for (int ind = 0; ind < argc; ind += 2) {
@@ -184,7 +184,7 @@ FUNC_SIG(dictkeys,__init__);
 
 KRK_METHOD(dict,keys,{
 	METHOD_TAKES_NONE();
-	KrkInstance * output = krk_newInstance(vm.baseClasses.dictkeysClass);
+	KrkInstance * output = krk_newInstance(vm.baseClasses->dictkeysClass);
 	krk_push(OBJECT_VAL(output));
 	FUNC_NAME(dictkeys,__init__)(2, (KrkValue[]){krk_peek(0), argv[0]},0);
 	krk_pop();
@@ -195,7 +195,7 @@ FUNC_SIG(dictitems,__init__);
 
 KRK_METHOD(dict,items,{
 	METHOD_TAKES_NONE();
-	KrkInstance * output = krk_newInstance(vm.baseClasses.dictitemsClass);
+	KrkInstance * output = krk_newInstance(vm.baseClasses->dictitemsClass);
 	krk_push(OBJECT_VAL(output));
 	FUNC_NAME(dictitems,__init__)(2, (KrkValue[]){krk_peek(0), argv[0]},0);
 	krk_pop();
@@ -364,7 +364,7 @@ KRK_METHOD(dictkeys,__repr__,{
 
 _noexport
 void _createAndBind_dictClass(void) {
-	KrkClass * dict = ADD_BASE_CLASS(vm.baseClasses.dictClass, "dict", vm.objectClass);
+	KrkClass * dict = ADD_BASE_CLASS(vm.baseClasses->dictClass, "dict", vm.baseClasses->objectClass);
 	dict->allocSize = sizeof(KrkDict);
 	dict->_ongcscan = _dict_gcscan;
 	dict->_ongcsweep = _dict_gcsweep;
@@ -390,7 +390,7 @@ void _createAndBind_dictClass(void) {
 
 	BUILTIN_FUNCTION("dictOf", krk_dict_of, "Convert argument sequence to dict object.");
 
-	KrkClass * dictitems = ADD_BASE_CLASS(vm.baseClasses.dictitemsClass, "dictitems", vm.objectClass);
+	KrkClass * dictitems = ADD_BASE_CLASS(vm.baseClasses->dictitemsClass, "dictitems", vm.baseClasses->objectClass);
 	dictitems->allocSize = sizeof(struct DictItems);
 	dictitems->_ongcscan = _dictitems_gcscan;
 	BIND_METHOD(dictitems,__init__);
@@ -399,7 +399,7 @@ void _createAndBind_dictClass(void) {
 	BIND_METHOD(dictitems,__repr__);
 	krk_finalizeClass(dictitems);
 
-	KrkClass * dictkeys = ADD_BASE_CLASS(vm.baseClasses.dictkeysClass, "dictkeys", vm.objectClass);
+	KrkClass * dictkeys = ADD_BASE_CLASS(vm.baseClasses->dictkeysClass, "dictkeys", vm.baseClasses->objectClass);
 	dictkeys->allocSize = sizeof(struct DictKeys);
 	dictkeys->_ongcscan = _dictkeys_gcscan;
 	BIND_METHOD(dictkeys,__init__);

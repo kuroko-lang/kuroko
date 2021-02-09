@@ -83,25 +83,25 @@ _badSyntaxError:
 _noexport
 void _createAndBind_exceptions(void) {
 	/* Add exception classes */
-	ADD_EXCEPTION_CLASS(vm.exceptions.baseException, "Exception", vm.objectClass);
+	ADD_EXCEPTION_CLASS(vm.exceptions->baseException, "Exception", vm.baseClasses->objectClass);
 	/* base exception class gets an init that takes an optional string */
-	krk_defineNative(&vm.exceptions.baseException->methods, ".__init__", krk_initException);
-	krk_defineNative(&vm.exceptions.baseException->methods, ".__repr__", _exception_repr);
-	krk_finalizeClass(vm.exceptions.baseException);
-	ADD_EXCEPTION_CLASS(vm.exceptions.typeError, "TypeError", vm.exceptions.baseException);
-	ADD_EXCEPTION_CLASS(vm.exceptions.argumentError, "ArgumentError", vm.exceptions.baseException);
-	ADD_EXCEPTION_CLASS(vm.exceptions.indexError, "IndexError", vm.exceptions.baseException);
-	ADD_EXCEPTION_CLASS(vm.exceptions.keyError, "KeyError", vm.exceptions.baseException);
-	ADD_EXCEPTION_CLASS(vm.exceptions.attributeError, "AttributeError", vm.exceptions.baseException);
-	ADD_EXCEPTION_CLASS(vm.exceptions.nameError, "NameError", vm.exceptions.baseException);
-	ADD_EXCEPTION_CLASS(vm.exceptions.importError, "ImportError", vm.exceptions.baseException);
-	ADD_EXCEPTION_CLASS(vm.exceptions.ioError, "IOError", vm.exceptions.baseException);
-	ADD_EXCEPTION_CLASS(vm.exceptions.valueError, "ValueError", vm.exceptions.baseException);
-	ADD_EXCEPTION_CLASS(vm.exceptions.keyboardInterrupt, "KeyboardInterrupt", vm.exceptions.baseException);
-	ADD_EXCEPTION_CLASS(vm.exceptions.zeroDivisionError, "ZeroDivisionError", vm.exceptions.baseException);
-	ADD_EXCEPTION_CLASS(vm.exceptions.notImplementedError, "NotImplementedError", vm.exceptions.baseException);
-	ADD_EXCEPTION_CLASS(vm.exceptions.syntaxError, "SyntaxError", vm.exceptions.baseException);
-	krk_defineNative(&vm.exceptions.syntaxError->methods, ".__repr__", _syntaxerror_repr);
-	krk_finalizeClass(vm.exceptions.syntaxError);
+	krk_defineNative(&vm.exceptions->baseException->methods, ".__init__", krk_initException);
+	krk_defineNative(&vm.exceptions->baseException->methods, ".__repr__", _exception_repr);
+	krk_finalizeClass(vm.exceptions->baseException);
+	ADD_EXCEPTION_CLASS(vm.exceptions->typeError, "TypeError", vm.exceptions->baseException);
+	ADD_EXCEPTION_CLASS(vm.exceptions->argumentError, "ArgumentError", vm.exceptions->baseException);
+	ADD_EXCEPTION_CLASS(vm.exceptions->indexError, "IndexError", vm.exceptions->baseException);
+	ADD_EXCEPTION_CLASS(vm.exceptions->keyError, "KeyError", vm.exceptions->baseException);
+	ADD_EXCEPTION_CLASS(vm.exceptions->attributeError, "AttributeError", vm.exceptions->baseException);
+	ADD_EXCEPTION_CLASS(vm.exceptions->nameError, "NameError", vm.exceptions->baseException);
+	ADD_EXCEPTION_CLASS(vm.exceptions->importError, "ImportError", vm.exceptions->baseException);
+	ADD_EXCEPTION_CLASS(vm.exceptions->ioError, "IOError", vm.exceptions->baseException);
+	ADD_EXCEPTION_CLASS(vm.exceptions->valueError, "ValueError", vm.exceptions->baseException);
+	ADD_EXCEPTION_CLASS(vm.exceptions->keyboardInterrupt, "KeyboardInterrupt", vm.exceptions->baseException);
+	ADD_EXCEPTION_CLASS(vm.exceptions->zeroDivisionError, "ZeroDivisionError", vm.exceptions->baseException);
+	ADD_EXCEPTION_CLASS(vm.exceptions->notImplementedError, "NotImplementedError", vm.exceptions->baseException);
+	ADD_EXCEPTION_CLASS(vm.exceptions->syntaxError, "SyntaxError", vm.exceptions->baseException);
+	krk_defineNative(&vm.exceptions->syntaxError->methods, ".__repr__", _syntaxerror_repr);
+	krk_finalizeClass(vm.exceptions->syntaxError);
 }
 

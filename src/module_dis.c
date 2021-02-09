@@ -19,7 +19,7 @@
  */
 static KrkValue krk_dis(int argc, KrkValue argv[]) {
 	if (argc < 1) {
-		krk_runtimeError(vm.exceptions.argumentError, "dis() takes ");
+		krk_runtimeError(vm.exceptions->argumentError, "dis() takes ");
 		return BOOLEAN_VAL(0);
 	}
 
@@ -37,22 +37,22 @@ static KrkValue krk_dis(int argc, KrkValue argv[]) {
 			krk_disassembleChunk(stdout, func, tmp);
 			free(tmp);
 		} else {
-			krk_runtimeError(vm.exceptions.typeError, "Can not disassemble built-in method of '%s'", krk_typeName(AS_BOUND_METHOD(argv[0])->receiver));
+			krk_runtimeError(vm.exceptions->typeError, "Can not disassemble built-in method of '%s'", krk_typeName(AS_BOUND_METHOD(argv[0])->receiver));
 		}
 	} else if (IS_CLASS(argv[0])) {
-		krk_runtimeError(vm.exceptions.typeError, "todo: class disassembly");
+		krk_runtimeError(vm.exceptions->typeError, "todo: class disassembly");
 	} else {
-		krk_runtimeError(vm.exceptions.typeError, "Don't know how to disassemble '%s'", krk_typeName(argv[0]));
+		krk_runtimeError(vm.exceptions->typeError, "Don't know how to disassemble '%s'", krk_typeName(argv[0]));
 	}
 #else
-	krk_runtimeError(vm.exceptions.typeError, "Kuroko was built with debug methods stripped; disassembly is not available.");
+	krk_runtimeError(vm.exceptions->typeError, "Kuroko was built with debug methods stripped; disassembly is not available.");
 #endif
 
 	return NONE_VAL();
 }
 
 KrkValue krk_module_onload_dis(void) {
-	KrkInstance * module = krk_newInstance(vm.moduleClass);
+	KrkInstance * module = krk_newInstance(vm.baseClasses->moduleClass);
 	krk_push(OBJECT_VAL(module));
 	krk_defineNative(&module->fields, "dis", krk_dis);
 	assert(AS_INSTANCE(krk_pop()) == module);

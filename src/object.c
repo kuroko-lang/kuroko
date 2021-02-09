@@ -98,7 +98,7 @@ static int checkString(const char * chars, size_t length, size_t *codepointCount
 			if (codepoint > maxCodepoint) maxCodepoint = codepoint;
 			(*codepointCount)++;
 		} else if (state == UTF8_REJECT) {
-			krk_runtimeError(vm.exceptions.valueError, "Invalid UTF-8 sequence in string.");
+			krk_runtimeError(vm.exceptions->valueError, "Invalid UTF-8 sequence in string.");
 			fprintf(stderr, "Invalid sequence detected.\n");
 			*codepointCount = 0;
 			return KRK_STRING_ASCII;
@@ -140,7 +140,7 @@ void * krk_unicodeString(KrkString * string) {
 	if (string->type == KRK_STRING_UCS1) _readyUCS1(string);
 	else if (string->type == KRK_STRING_UCS2) _readyUCS2(string);
 	else if (string->type == KRK_STRING_UCS4) _readyUCS4(string);
-	else krk_runtimeError(vm.exceptions.valueError, "Internal string error.");
+	else krk_runtimeError(vm.exceptions->valueError, "Internal string error.");
 	return string->codes;
 }
 
@@ -152,7 +152,7 @@ uint32_t krk_unicodeCodepoint(KrkString * string, size_t index) {
 		case KRK_STRING_UCS2: return ((uint16_t*)string->codes)[index];
 		case KRK_STRING_UCS4: return ((uint32_t*)string->codes)[index];
 	}
-	krk_runtimeError(vm.exceptions.valueError, "Invalid string.");
+	krk_runtimeError(vm.exceptions->valueError, "Invalid string.");
 	return 0;
 }
 

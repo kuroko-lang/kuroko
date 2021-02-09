@@ -48,9 +48,9 @@ KRK_METHOD(set,__init__,{
 		KrkValue value = argv[1];
 		if (IS_TUPLE(value)) {
 			unpackArray(AS_TUPLE(value)->values.count, AS_TUPLE(value)->values.values[i]);
-		} else if (IS_INSTANCE(value) && AS_INSTANCE(value)->_class == vm.baseClasses.listClass) {
+		} else if (IS_INSTANCE(value) && AS_INSTANCE(value)->_class == vm.baseClasses->listClass) {
 			unpackArray(AS_LIST(value)->count, AS_LIST(value)->values[i]);
-		} else if (IS_INSTANCE(value) && AS_INSTANCE(value)->_class == vm.baseClasses.dictClass) {
+		} else if (IS_INSTANCE(value) && AS_INSTANCE(value)->_class == vm.baseClasses->dictClass) {
 			unpackArray(AS_DICT(value)->count, krk_dict_nth_key_fast(AS_DICT(value)->capacity, AS_DICT(value)->entries, i));
 		} else if (IS_STRING(value)) {
 			unpackArray(AS_STRING(value)->codesLength, krk_string_get(2,(KrkValue[]){value,INTEGER_VAL(i)},0));
@@ -58,15 +58,15 @@ KRK_METHOD(set,__init__,{
 			KrkClass * type = krk_getType(argv[1]);
 			if (type->_iter) {
 				/* Create the iterator */
-				size_t stackOffset = vm.stackTop - vm.stack;
+				size_t stackOffset = krk_currentThread.stackTop - krk_currentThread.stack;
 				krk_push(argv[1]);
 				krk_push(krk_callSimple(OBJECT_VAL(type->_iter), 1, 0));
 
 				do {
 					/* Call it until it gives us itself */
-					krk_push(vm.stack[stackOffset]);
+					krk_push(krk_currentThread.stack[stackOffset]);
 					krk_push(krk_callSimple(krk_peek(0), 0, 1));
-					if (krk_valuesSame(vm.stack[stackOffset], krk_peek(0))) {
+					if (krk_valuesSame(krk_currentThread.stack[stackOffset], krk_peek(0))) {
 						/* We're done. */
 						krk_pop(); /* The result of iteration */
 						krk_pop(); /* The iterator */
@@ -76,7 +76,7 @@ KRK_METHOD(set,__init__,{
 					krk_pop();
 				} while (1);
 			} else {
-				return krk_runtimeError(vm.exceptions.typeError, "'%s' object is not iterable", krk_typeName(value));
+				return krk_runtimeError(vm.exceptions->typeError, "'%s' object is not iterable", krk_typeName(value));
 			}
 		}
 	}
@@ -131,7 +131,7 @@ KRK_METHOD(set,__and__,{
 	KrkClass * type = krk_getType(argv[1]);
 	KrkValue contains;
 	if (!krk_tableGet(&type->methods, OBJECT_VAL(S("__contains__")), &contains))
-		return krk_runtimeError(vm.exceptions.typeError, "unsupported operand type for &");
+		return krk_runtimeError(vm.exceptions->typeError, "unsupported operand type for &");
 
 	size_t len = self->entries.capacity;
 	for (size_t i = 0; i < len; ++i) {
@@ -177,7 +177,7 @@ KRK_METHOD(set,add,{
 KRK_METHOD(set,remove,{
 	METHOD_TAKES_EXACTLY(1);
 	if (!krk_tableDelete(&self->entries, argv[1]))
-		return krk_runtimeError(vm.exceptions.keyError, "key error");
+		return krk_runtimeError(vm.exceptions->keyError, "key error");
 })
 
 KRK_METHOD(set,discard,{
@@ -240,7 +240,7 @@ KrkValue krk_set_of(int argc, KrkValue argv[]) {
 
 _noexport
 void _createAndBind_setClass(void) {
-	krk_makeClass(vm.builtins, &set, "set", vm.objectClass);
+	krk_makeClass(vm.builtins, &set, "set", vm.baseClasses->objectClass);
 	set->allocSize = sizeof(struct Set);
 	set->_ongcscan = _set_gcscan;
 	set->_ongcsweep = _set_gcsweep;
@@ -260,7 +260,7 @@ void _createAndBind_setClass(void) {
 
 	BUILTIN_FUNCTION("setOf", krk_set_of, "Convert argument sequence to set object.");
 
-	krk_makeClass(vm.builtins, &setiterator, "setiterator", vm.objectClass);
+	krk_makeClass(vm.builtins, &setiterator, "setiterator", vm.baseClasses->objectClass);
 	setiterator->allocSize = sizeof(struct SetIterator);
 	setiterator->_ongcscan = _setiterator_gcscan;
 	BIND_METHOD(setiterator,__init__);

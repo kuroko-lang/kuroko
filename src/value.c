@@ -114,7 +114,7 @@ int krk_valuesEqual(KrkValue a, KrkValue b) {
 			case VAL_KWARGS:   /* Equal if same number of args; may be useful for comparing sentinels (0) to arg lists. */
 			case VAL_INTEGER:  return AS_INTEGER(a) == AS_INTEGER(b);
 			case VAL_FLOATING: return AS_FLOATING(a) == AS_FLOATING(b);
-			case VAL_HANDLER:  krk_runtimeError(vm.exceptions.valueError,"Invalid value"); return 0;
+			case VAL_HANDLER:  krk_runtimeError(vm.exceptions->valueError,"Invalid value"); return 0;
 			case VAL_OBJECT: {
 				if (AS_OBJECT(a) == AS_OBJECT(b)) return 1;
 			} break;

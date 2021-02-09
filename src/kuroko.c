@@ -123,7 +123,7 @@ static void tab_complete_func(rline_context_t * c) {
 
 		if (n <= count) {
 			/* Now work forwards, starting from the current globals. */
-			KrkValue root = OBJECT_VAL(vm.module);
+			KrkValue root = OBJECT_VAL(krk_currentThread.module);
 			int isGlobal = 1;
 			while (n > base) {
 				/* And look at the potential fields for instances/classes */
@@ -192,12 +192,12 @@ static void tab_complete_func(rline_context_t * c) {
 				 * If the object we were scanning was the current module,
 				 * then we should also throw the builtins into the ring.
 				 */
-				if (isGlobal && AS_OBJECT(root) == (KrkObj*)vm.module) {
+				if (isGlobal && AS_OBJECT(root) == (KrkObj*)krk_currentThread.module) {
 					root = OBJECT_VAL(vm.builtins);
 					continue;
 				} else if (isGlobal && AS_OBJECT(root) == (KrkObj*)vm.builtins) {
 					extern char * syn_krk_keywords[];
-					KrkInstance * fakeKeywordsObject = krk_newInstance(vm.objectClass);
+					KrkInstance * fakeKeywordsObject = krk_newInstance(vm.baseClasses->objectClass);
 					for (char ** keyword = syn_krk_keywords; *keyword; keyword++) {
 						krk_attachNamedValue(&fakeKeywordsObject->fields, *keyword, NONE_VAL());
 					}
@@ -269,8 +269,8 @@ _cleanup:
 #endif
 
 static void handleSigint(int sigNum) {
-	if (vm.frameCount) {
-		krk_runtimeError(vm.exceptions.keyboardInterrupt, "Keyboard interrupt.");
+	if (krk_currentThread.frameCount) {
+		krk_runtimeError(vm.exceptions->keyboardInterrupt, "Keyboard interrupt.");
 	}
 
 	signal(sigNum, handleSigint);
@@ -322,7 +322,7 @@ static int runString(char * argv[], char * string) {
 #define BUNDLED(name) do { \
 	extern KrkValue krk_module_onload_ ## name (); \
 	KrkValue moduleOut = krk_module_onload_ ## name (); \
-	krk_attachNamedValue(&vm.modules, # name, moduleOut); \
+	krk_attachNamedValue(&krk_currentThread.modules, # name, moduleOut); \
 	krk_attachNamedObject(&AS_INSTANCE(moduleOut)->fields, "__name__", (KrkObj*)krk_copyString(#name, sizeof(#name)-1)); \
 	krk_attachNamedValue(&AS_INSTANCE(moduleOut)->fields, "__file__", NONE_VAL()); \
 } while (0)
@@ -401,7 +401,7 @@ _finishArgs:
 	for (int arg = optind; arg < argc; ++arg) {
 		krk_push(OBJECT_VAL(krk_copyString(argv[arg],strlen(argv[arg]))));
 	}
-	KrkValue argList = krk_list_of(argc - optind + (optind == argc), &vm.stackTop[-(argc - optind + (optind == argc))]);
+	KrkValue argList = krk_list_of(argc - optind + (optind == argc), &krk_currentThread.stackTop[-(argc - optind + (optind == argc))]);
 	krk_push(argList);
 	krk_attachNamedValue(&vm.system->fields, "argv", argList);
 	krk_pop();
@@ -432,7 +432,7 @@ _finishArgs:
 			AS_STRING(AS_LIST(argList)->values[0]),
 			&module,
 			AS_STRING(krk_peek(0)));
-		if (vm.flags & KRK_HAS_EXCEPTION) {
+		if (krk_currentThread.flags & KRK_HAS_EXCEPTION) {
 			krk_dumpTraceback();
 			krk_resetStack();
 		}
@@ -445,7 +445,7 @@ _finishArgs:
 		/* The repl runs in the context of a top-level module so each input
 		 * line can share a globals state with the others. */
 		krk_startModule("<module>");
-		krk_attachNamedValue(&vm.module->fields,"__doc__", NONE_VAL());
+		krk_attachNamedValue(&krk_currentThread.module->fields,"__doc__", NONE_VAL());
 
 #ifndef NO_RLINE
 		/* Set ^D to send EOF */

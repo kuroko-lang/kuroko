@@ -44,34 +44,34 @@ static inline const char * _method_name(const char * func) {
 /* _method_name works for this, but let's skip the inlined function call where possible */
 #define _function_name(f) (f+5)
 
-#define METHOD_TAKES_NONE() do { if (argc != 1) return krk_runtimeError(vm.exceptions.argumentError, "%s() takes no arguments (%d given)", \
+#define METHOD_TAKES_NONE() do { if (argc != 1) return krk_runtimeError(vm.exceptions->argumentError, "%s() takes no arguments (%d given)", \
 	_method_name(__func__), (argc-1)); } while (0)
 
-#define METHOD_TAKES_EXACTLY(n) do { if (argc != (n+1)) return krk_runtimeError(vm.exceptions.argumentError, "%s() takes %s %d argument%s (%d given)", \
+#define METHOD_TAKES_EXACTLY(n) do { if (argc != (n+1)) return krk_runtimeError(vm.exceptions->argumentError, "%s() takes %s %d argument%s (%d given)", \
 	_method_name(__func__), "exactly", n, (n != 1) ? "s" : "", (argc-1)); } while (0)
 
-#define METHOD_TAKES_AT_LEAST(n) do { if (argc < (n+1)) return krk_runtimeError(vm.exceptions.argumentError, "%s() takes %s %d argument%s (%d given)", \
+#define METHOD_TAKES_AT_LEAST(n) do { if (argc < (n+1)) return krk_runtimeError(vm.exceptions->argumentError, "%s() takes %s %d argument%s (%d given)", \
 	_method_name(__func__), "at least", n, (n != 1) ? "s" : "", (argc-1)); } while (0)
 
-#define METHOD_TAKES_AT_MOST(n) do { if (argc > (n+1)) return krk_runtimeError(vm.exceptions.argumentError, "%s() takes %s %d argument%s (%d given)", \
+#define METHOD_TAKES_AT_MOST(n) do { if (argc > (n+1)) return krk_runtimeError(vm.exceptions->argumentError, "%s() takes %s %d argument%s (%d given)", \
 	_method_name(__func__), "at most", n, (n != 1) ? "s" : "", (argc-1)); } while (0)
 
-#define FUNCTION_TAKES_NONE() do { if (argc != 0) return krk_runtimeError(vm.exceptions.argumentError, "%s() takes no arguments (%d given)", \
+#define FUNCTION_TAKES_NONE() do { if (argc != 0) return krk_runtimeError(vm.exceptions->argumentError, "%s() takes no arguments (%d given)", \
 	_function_name(__func__), (argc)); } while (0)
 
-#define FUNCTION_TAKES_EXACTLY(n) do { if (argc != n) return krk_runtimeError(vm.exceptions.argumentError, "%s() takes %s %d argument%s (%d given)", \
+#define FUNCTION_TAKES_EXACTLY(n) do { if (argc != n) return krk_runtimeError(vm.exceptions->argumentError, "%s() takes %s %d argument%s (%d given)", \
 	_function_name(__func__), "exactly", n, (n != 1) ? "s" : "", (argc)); } while (0)
 
-#define FUNCTION_TAKES_AT_LEAST(n) do { if (argc < n) return krk_runtimeError(vm.exceptions.argumentError, "%s() takes %s %d argument%s (%d given)", \
+#define FUNCTION_TAKES_AT_LEAST(n) do { if (argc < n) return krk_runtimeError(vm.exceptions->argumentError, "%s() takes %s %d argument%s (%d given)", \
 	_function_name(__func__), "at least", n, (n != 1) ? "s" : "", (argc)); } while (0)
 
-#define FUNCTION_TAKES_AT_MOST(n) do { if (argc > n) return krk_runtimeError(vm.exceptions.argumentError, "%s() takes %s %d argument%s (%d given)", \
+#define FUNCTION_TAKES_AT_MOST(n) do { if (argc > n) return krk_runtimeError(vm.exceptions->argumentError, "%s() takes %s %d argument%s (%d given)", \
 	_function_name(__func__), "at most", n, (n != 1) ? "s" : "", (argc)); } while (0)
 
-#define TYPE_ERROR(expected,value) krk_runtimeError(vm.exceptions.typeError, "%s() expects %s, not '%s'", \
+#define TYPE_ERROR(expected,value) krk_runtimeError(vm.exceptions->typeError, "%s() expects %s, not '%s'", \
 		/* Function name */ _method_name(__func__), /* expected type */ #expected, krk_typeName(value))
 
-#define NOT_ENOUGH_ARGS() krk_runtimeError(vm.exceptions.argumentError, "%s() missing required positional argument", \
+#define NOT_ENOUGH_ARGS() krk_runtimeError(vm.exceptions->argumentError, "%s() missing required positional argument", \
 		/* Function name */ _method_name(__func__))
 
 #define CHECK_ARG(i, type, ctype, name) \
@@ -89,7 +89,7 @@ static inline const char * _method_name(const char * func) {
 	body; return NONE_VAL(); }
 
 /* This assumes you have a KrkInstance called `module` in the current scope. */
-#define MAKE_CLASS(klass) do { krk_makeClass(module,&klass,#klass,vm.objectClass); klass ->allocSize = sizeof(struct klass); } while (0)
+#define MAKE_CLASS(klass) do { krk_makeClass(module,&klass,#klass,vm.baseClasses->objectClass); klass ->allocSize = sizeof(struct klass); } while (0)
 #define BIND_METHOD(klass,method) do { krk_defineNative(&klass->methods, "." #method, _ ## klass ## _ ## method); } while (0)
 #define BIND_FIELD(klass,method) do { krk_defineNative(&klass->methods, ":" #method, _ ## klass ## _ ## method); } while (0)
 #define BIND_PROP(klass,method) do { krk_defineNativeProperty(&klass->fields, #method, _ ## klass ## _ ## method); } while (0)
@@ -141,24 +141,24 @@ static inline KrkValue discardStringBuilder(struct StringBuilder * sb) {
 #define IS_float(o)   (IS_FLOATING(o))
 #define AS_float(o)   (AS_FLOATING(o))
 
-#define IS_list(o)    krk_isInstanceOf(o,vm.baseClasses.listClass)
+#define IS_list(o)    krk_isInstanceOf(o,vm.baseClasses->listClass)
 #define AS_list(o)    (KrkList*)AS_OBJECT(o)
 
-#define IS_listiterator(o) krk_isInstanceOf(o,vm.baseClasses.listiteratorClass)
+#define IS_listiterator(o) krk_isInstanceOf(o,vm.baseClasses->listiteratorClass)
 #define AS_listiterator(o) AS_INSTANCE(o)
 
-#define IS_str(o)     (IS_STRING(o)||krk_isInstanceOf(o,vm.baseClasses.strClass))
+#define IS_str(o)     (IS_STRING(o)||krk_isInstanceOf(o,vm.baseClasses->strClass))
 #define AS_str(o)     (KrkString*)AS_OBJECT(o)
 
-#define IS_striterator(o) (krk_isInstanceOf(o,vm.baseClasses.striteratorClass))
+#define IS_striterator(o) (krk_isInstanceOf(o,vm.baseClasses->striteratorClass))
 #define AS_striterator(o) (AS_INSTANCE(o))
 
-#define IS_dict(o)    krk_isInstanceOf(o,vm.baseClasses.dictClass)
+#define IS_dict(o)    krk_isInstanceOf(o,vm.baseClasses->dictClass)
 #define AS_dict(o)    (KrkDict*)AS_OBJECT(o)
 
-#define IS_dictitems(o) krk_isInstanceOf(o,vm.baseClasses.dictitemsClass)
+#define IS_dictitems(o) krk_isInstanceOf(o,vm.baseClasses->dictitemsClass)
 #define AS_dictitems(o) ((struct DictItems*)AS_OBJECT(o))
 
-#define IS_dictkeys(o) krk_isInstanceOf(o,vm.baseClasses.dictkeysClass)
+#define IS_dictkeys(o) krk_isInstanceOf(o,vm.baseClasses->dictkeysClass)
 #define AS_dictkeys(o) ((struct DictKeys*)AS_OBJECT(o))
 

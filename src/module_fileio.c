@@ -51,10 +51,10 @@ KRK_FUNC(open,{
 		krk_push(arg); /* Will be peeked to find arg string for fopen */
 	} else {
 		/* Check mode against allowable modes */
-		if (AS_STRING(argv[1])->length == 0) return krk_runtimeError(vm.exceptions.typeError, "open: mode string must not be empty");
+		if (AS_STRING(argv[1])->length == 0) return krk_runtimeError(vm.exceptions->typeError, "open: mode string must not be empty");
 		for (size_t i = 0; i < AS_STRING(argv[1])->length-1; ++i) {
 			if (AS_CSTRING(argv[1])[i] == 'b') {
-				return krk_runtimeError(vm.exceptions.typeError, "open: 'b' mode indicator must appear at end of mode string");
+				return krk_runtimeError(vm.exceptions->typeError, "open: 'b' mode indicator must appear at end of mode string");
 			}
 		}
 		arg = argv[1];
@@ -68,7 +68,7 @@ KRK_FUNC(open,{
 	}
 
 	FILE * file = fopen(filename->chars, AS_CSTRING(krk_peek(0)));
-	if (!file) return krk_runtimeError(vm.exceptions.ioError, "open: failed to open file; system returned: %s", strerror(errno));
+	if (!file) return krk_runtimeError(vm.exceptions->ioError, "open: failed to open file; system returned: %s", strerror(errno));
 
 	/* Now let's build an object to hold it */
 	KrkInstance * fileObject = krk_newInstance(isBinary ? BinaryFile : File);
@@ -91,8 +91,8 @@ KRK_METHOD(File,__str__,{
 	METHOD_TAKES_NONE();
 	KrkValue filename;
 	KrkValue modestr;
-	if (!krk_tableGet(&self->inst.fields, OBJECT_VAL(S("filename")), &filename) || !IS_STRING(filename)) return krk_runtimeError(vm.exceptions.baseException, "Corrupt File");
-	if (!krk_tableGet(&self->inst.fields, OBJECT_VAL(S("modestr")), &modestr) || !IS_STRING(modestr)) return krk_runtimeError(vm.exceptions.baseException, "Corrupt File");
+	if (!krk_tableGet(&self->inst.fields, OBJECT_VAL(S("filename")), &filename) || !IS_STRING(filename)) return krk_runtimeError(vm.exceptions->baseException, "Corrupt File");
+	if (!krk_tableGet(&self->inst.fields, OBJECT_VAL(S("modestr")), &modestr) || !IS_STRING(modestr)) return krk_runtimeError(vm.exceptions->baseException, "Corrupt File");
 	char * tmp = malloc(AS_STRING(filename)->length + AS_STRING(modestr)->length + 100); /* safety */
 	sprintf(tmp, "<%s file '%s', mode '%s' at %p>", self->filePtr ? "open" : "closed", AS_CSTRING(filename), AS_CSTRING(modestr), (void*)self);
 	KrkString * out = krk_copyString(tmp, strlen(tmp));
@@ -184,7 +184,7 @@ KRK_METHOD(File,read,{
 		if (newlyRead < BLOCK_SIZE) {
 			if (ferror(file)) {
 				free(buffer);
-				return krk_runtimeError(vm.exceptions.ioError, "Read error.");
+				return krk_runtimeError(vm.exceptions->ioError, "Read error.");
 			}
 		}
 
@@ -224,7 +224,7 @@ KRK_METHOD(File,flush,{
 })
 
 KRK_METHOD(File,__init__,{
-	return krk_runtimeError(vm.exceptions.typeError, "File objects can not be instantiated; use fileio.open() to obtain File objects.");
+	return krk_runtimeError(vm.exceptions->typeError, "File objects can not be instantiated; use fileio.open() to obtain File objects.");
 })
 
 KRK_METHOD(File,__enter__,{})
@@ -331,7 +331,7 @@ KRK_METHOD(BinaryFile,read,{
 		if (newlyRead < BLOCK_SIZE) {
 			if (ferror(file)) {
 				free(buffer);
-				return krk_runtimeError(vm.exceptions.ioError, "Read error.");
+				return krk_runtimeError(vm.exceptions->ioError, "Read error.");
 			}
 		}
 
@@ -380,7 +380,7 @@ KRK_FUNC(opendir,{
 	CHECK_ARG(0,str,KrkString*,path);
 
 	DIR * dir = opendir(path->chars);
-	if (!dir) return krk_runtimeError(vm.exceptions.ioError, "opendir: %s", strerror(errno));
+	if (!dir) return krk_runtimeError(vm.exceptions->ioError, "opendir: %s", strerror(errno));
 
 	struct Directory * dirObj = (void *)krk_newInstance(Directory);
 	krk_push(OBJECT_VAL(dirObj));
@@ -425,7 +425,7 @@ KRK_METHOD(Directory,__repr__,{
 	METHOD_TAKES_NONE();
 	KrkValue path;
 	if (!krk_tableGet(&self->inst.fields, OBJECT_VAL(S("path")), &path) || !IS_STRING(path))
-		return krk_runtimeError(vm.exceptions.valueError, "corrupt Directory");
+		return krk_runtimeError(vm.exceptions->valueError, "corrupt Directory");
 
 	char * tmp = malloc(AS_STRING(path)->length + 100);
 	size_t len = sprintf(tmp, "<%s directory '%s' at %p>", self->dirPtr ? "open" : "closed", AS_CSTRING(path), (void*)self);
@@ -435,13 +435,13 @@ KRK_METHOD(Directory,__repr__,{
 })
 
 KrkValue krk_module_onload_fileio(void) {
-	KrkInstance * module = krk_newInstance(vm.moduleClass);
+	KrkInstance * module = krk_newInstance(vm.baseClasses->moduleClass);
 	/* Store it on the stack for now so we can do stuff that may trip GC
 	 * and not lose it to garbage colletion... */
 	krk_push(OBJECT_VAL(module));
 
 	/* Define a class to represent files. (Should this be a helper method?) */
-	krk_makeClass(module, &File, "File", vm.objectClass);
+	krk_makeClass(module, &File, "File", vm.baseClasses->objectClass);
 	File->allocSize = sizeof(struct File);
 	File->_ongcsweep = _file_sweep;
 
@@ -466,7 +466,7 @@ KrkValue krk_module_onload_fileio(void) {
 	BIND_METHOD(BinaryFile,write);
 	krk_finalizeClass(BinaryFile);
 
-	krk_makeClass(module, &Directory, "Directory", vm.objectClass);
+	krk_makeClass(module, &Directory, "Directory", vm.baseClasses->objectClass);
 	Directory->allocSize = sizeof(struct Directory);
 	Directory->_ongcsweep = _dir_sweep;
 	BIND_METHOD(Directory,__repr__);

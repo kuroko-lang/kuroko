@@ -13,7 +13,7 @@ struct Range {
 static KrkValue _range_init(int argc, KrkValue argv[]) {
 	KrkInstance * self = AS_INSTANCE(argv[0]);
 	if (argc < 2 || argc > 3) {
-		return krk_runtimeError(vm.exceptions.argumentError, "range expected at least 1 and and at most 2 arguments");
+		return krk_runtimeError(vm.exceptions->argumentError, "range expected at least 1 and and at most 2 arguments");
 	}
 	KrkValue min = INTEGER_VAL(0);
 	KrkValue max;
@@ -24,10 +24,10 @@ static KrkValue _range_init(int argc, KrkValue argv[]) {
 		max = argv[2];
 	}
 	if (!IS_INTEGER(min)) {
-		return krk_runtimeError(vm.exceptions.typeError, "range: expected int, but got '%s'", krk_typeName(min));
+		return krk_runtimeError(vm.exceptions->typeError, "range: expected int, but got '%s'", krk_typeName(min));
 	}
 	if (!IS_INTEGER(max)) {
-		return krk_runtimeError(vm.exceptions.typeError, "range: expected int, but got '%s'", krk_typeName(max));
+		return krk_runtimeError(vm.exceptions->typeError, "range: expected int, but got '%s'", krk_typeName(max));
 	}
 
 	((struct Range*)self)->min = AS_INTEGER(min);
@@ -81,7 +81,7 @@ static KrkValue _rangeiterator_call(int argc, KrkValue argv[]) {
 static KrkValue _range_iter(int argc, KrkValue argv[]) {
 	KrkInstance * self = AS_INSTANCE(argv[0]);
 
-	KrkInstance * output = krk_newInstance(vm.baseClasses.rangeiteratorClass);
+	KrkInstance * output = krk_newInstance(vm.baseClasses->rangeiteratorClass);
 	krk_integer_type min = ((struct Range*)self)->min;
 	krk_integer_type max = ((struct Range*)self)->max;
 
@@ -95,19 +95,19 @@ static KrkValue _range_iter(int argc, KrkValue argv[]) {
 
 _noexport
 void _createAndBind_rangeClass(void) {
-	ADD_BASE_CLASS(vm.baseClasses.rangeClass, "range", vm.objectClass);
-	vm.baseClasses.rangeClass->allocSize = sizeof(struct Range);
-	krk_defineNative(&vm.baseClasses.rangeClass->methods, ".__init__", _range_init);
-	krk_defineNative(&vm.baseClasses.rangeClass->methods, ".__iter__", _range_iter);
-	krk_defineNative(&vm.baseClasses.rangeClass->methods, ".__repr__", _range_repr);
-	krk_finalizeClass(vm.baseClasses.rangeClass);
-	vm.baseClasses.rangeClass->docstring = S("range(max), range(min, max[, step]): "
+	ADD_BASE_CLASS(vm.baseClasses->rangeClass, "range", vm.baseClasses->objectClass);
+	vm.baseClasses->rangeClass->allocSize = sizeof(struct Range);
+	krk_defineNative(&vm.baseClasses->rangeClass->methods, ".__init__", _range_init);
+	krk_defineNative(&vm.baseClasses->rangeClass->methods, ".__iter__", _range_iter);
+	krk_defineNative(&vm.baseClasses->rangeClass->methods, ".__repr__", _range_repr);
+	krk_finalizeClass(vm.baseClasses->rangeClass);
+	vm.baseClasses->rangeClass->docstring = S("range(max), range(min, max[, step]): "
 		"An iterable object that produces numeric values. "
 		"'min' is inclusive, 'max' is exclusive.");
 
-	ADD_BASE_CLASS(vm.baseClasses.rangeiteratorClass, "rangeiterator", vm.objectClass);
-	vm.baseClasses.rangeiteratorClass->allocSize = sizeof(struct RangeIterator);
-	krk_defineNative(&vm.baseClasses.rangeiteratorClass->methods, ".__init__", _rangeiterator_init);
-	krk_defineNative(&vm.baseClasses.rangeiteratorClass->methods, ".__call__", _rangeiterator_call);
-	krk_finalizeClass(vm.baseClasses.rangeiteratorClass);
+	ADD_BASE_CLASS(vm.baseClasses->rangeiteratorClass, "rangeiterator", vm.baseClasses->objectClass);
+	vm.baseClasses->rangeiteratorClass->allocSize = sizeof(struct RangeIterator);
+	krk_defineNative(&vm.baseClasses->rangeiteratorClass->methods, ".__init__", _rangeiterator_init);
+	krk_defineNative(&vm.baseClasses->rangeiteratorClass->methods, ".__call__", _rangeiterator_call);
+	krk_finalizeClass(vm.baseClasses->rangeiteratorClass);
 }
