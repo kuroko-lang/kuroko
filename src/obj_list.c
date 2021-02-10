@@ -3,6 +3,7 @@
 #include "value.h"
 #include "memory.h"
 #include "util.h"
+#include "threads.h"
 
 #define LIST_WRAP_INDEX() \
 	if (index < 0) index += self->values.count; \

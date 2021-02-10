@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include "kuroko.h"
 #include "value.h"
+#include "threads.h"
 
 typedef struct {
 	KrkValue key;
@@ -20,6 +21,7 @@ typedef struct {
 	size_t count;
 	size_t capacity;
 	KrkTableEntry * entries;
+	pthread_rwlock_t lock;
 } KrkTable;
 
 extern void krk_initTable(KrkTable * table);

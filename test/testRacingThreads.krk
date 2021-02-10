@@ -10,6 +10,7 @@ from fileio import open, stdin
 from threading import Thread
 
 let l = []
+let d = {}
 let stop = False
 
 class Racer(Thread):
@@ -22,6 +23,7 @@ class Racer(Thread):
                 l.append('test')
             else if l:
                 l[choice % len(l)] += choice
+            d[choice] = str(choice)
 
 let racers = [Racer() for i in range(5)]
 
@@ -38,3 +40,5 @@ for racer in racers:
     racer.join()
 print("Here's l:")
 print(l)
+print("Here's d:")
+print(d)

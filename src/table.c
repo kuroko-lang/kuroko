@@ -6,6 +6,7 @@
 #include "memory.h"
 #include "table.h"
 #include "vm.h"
+#include "threads.h"
 
 #define TABLE_MAX_LOAD 0.75
 
@@ -13,6 +14,7 @@ void krk_initTable(KrkTable * table) {
 	table->count = 0;
 	table->capacity = 0;
 	table->entries = NULL;
+	pthread_rwlock_init(&table->lock, NULL);
 }
 
 void krk_freeTable(KrkTable * table) {
@@ -82,6 +84,7 @@ static void adjustCapacity(KrkTable * table, size_t capacity) {
 }
 
 int krk_tableSet(KrkTable * table, KrkValue key, KrkValue value) {
+	pthread_rwlock_wrlock(&table->lock);
 	if (table->count + 1 > table->capacity * TABLE_MAX_LOAD) {
 		size_t capacity = GROW_CAPACITY(table->capacity);
 		adjustCapacity(table, capacity);
@@ -91,6 +94,7 @@ int krk_tableSet(KrkTable * table, KrkValue key, KrkValue value) {
 	if (isNewKey && IS_NONE(entry->value)) table->count++;
 	entry->key = key;
 	entry->value = value;
+	pthread_rwlock_unlock(&table->lock);
 	return isNewKey;
 }
 
@@ -105,32 +109,48 @@ void krk_tableAddAll(KrkTable * from, KrkTable * to) {
 
 int krk_tableGet(KrkTable * table, KrkValue key, KrkValue * value) {
 	if (table->count == 0) return 0;
+	pthread_rwlock_rdlock(&table->lock);
 	KrkTableEntry * entry = krk_findEntry(table->entries, table->capacity, key);
-	if (entry->key.type == VAL_KWARGS) return 0;
-	*value = entry->value;
-	return 1;
+	if (entry->key.type == VAL_KWARGS) {
+		pthread_rwlock_unlock(&table->lock);
+		return 0;
+	} else {
+		*value = entry->value;
+		pthread_rwlock_unlock(&table->lock);
+		return 1;
+	}
 }
 
 int krk_tableDelete(KrkTable * table, KrkValue key) {
 	if (table->count == 0) return 0;
+	pthread_rwlock_rdlock(&table->lock);
 	KrkTableEntry * entry = krk_findEntry(table->entries, table->capacity, key);
-	if (entry->key.type == VAL_KWARGS) return 0;
+	if (entry->key.type == VAL_KWARGS) {
+		pthread_rwlock_unlock(&table->lock);
+		return 0;
+	}
 	entry->key = KWARGS_VAL(0);
 	entry->value = BOOLEAN_VAL(1);
+	pthread_rwlock_unlock(&table->lock);
 	return 1;
 }
 
 KrkString * krk_tableFindString(KrkTable * table, const char * chars, size_t length, uint32_t hash) {
 	if (table->count == 0) return NULL;
 
+	pthread_rwlock_rdlock(&table->lock);
 	uint32_t index = hash % table->capacity;
 	for (;;) {
 		KrkTableEntry * entry = &table->entries[index];
 		if (entry->key.type == VAL_KWARGS) {
-			if (IS_NONE(entry->value)) return NULL;
+			if (IS_NONE(entry->value)) {
+				pthread_rwlock_unlock(&table->lock);
+				return NULL;
+			}
 		} else if (AS_STRING(entry->key)->length == length &&
 		           AS_STRING(entry->key)->hash == hash &&
 		           memcmp(AS_STRING(entry->key)->chars, chars, length) == 0) {
+			pthread_rwlock_unlock(&table->lock);
 			return AS_STRING(entry->key);
 		}
 		index = (index + 1) % table->capacity;
