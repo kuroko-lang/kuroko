@@ -11,13 +11,22 @@
 #define ALLOCATE_OBJECT(type, objectType) \
 	(type*)allocateObject(sizeof(type), objectType)
 
+#ifdef ENABLE_THREADING
+static volatile int _stringLock = 0;
+static volatile int _objectLock = 0;
+#endif
+
 static KrkObj * allocateObject(size_t size, ObjType type) {
 	KrkObj * object = (KrkObj*)krk_reallocate(NULL, 0, size);
 	memset(object,0,size);
 	object->type = type;
+
+	_obtain_lock(_objectLock);
 	object->next = vm.objects;
 	krk_currentThread.scratchSpace[2] = OBJECT_VAL(object);
 	vm.objects = object;
+	_release_lock(_objectLock);
+
 	return object;
 }
 
@@ -184,22 +193,32 @@ static uint32_t hashString(const char * key, size_t length) {
 
 KrkString * krk_takeString(char * chars, size_t length) {
 	uint32_t hash = hashString(chars, length);
+	_obtain_lock(_stringLock);
 	KrkString * interned = krk_tableFindString(&vm.strings, chars, length, hash);
 	if (interned != NULL) {
 		FREE_ARRAY(char, chars, length + 1);
+		_release_lock(_stringLock);
 		return interned;
 	}
-	return allocateString(chars, length, hash);
+	KrkString * result = allocateString(chars, length, hash);
+	_release_lock(_stringLock);
+	return result;
 }
 
 KrkString * krk_copyString(const char * chars, size_t length) {
 	uint32_t hash = hashString(chars, length);
+	_obtain_lock(_stringLock);
 	KrkString * interned = krk_tableFindString(&vm.strings, chars, length, hash);
-	if (interned) return interned;
+	if (interned) {
+		_release_lock(_stringLock);
+		return interned;
+	}
 	char * heapChars = ALLOCATE(char, length + 1);
 	memcpy(heapChars, chars, length);
 	heapChars[length] = '\0';
-	return allocateString(heapChars, length, hash);
+	KrkString * result = allocateString(heapChars, length, hash);
+	_release_lock(_stringLock);
+	return result;
 }
 
 KrkFunction * krk_newFunction(void) {

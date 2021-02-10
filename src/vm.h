@@ -251,5 +251,10 @@ static inline void _krk_internal_spin_unlock(int volatile * lock) {
 #else
 #define _obtain_lock(v)
 #define _release_lock(v)
+
+#define pthread_rwlock_init(a,b)
+#define pthread_rwlock_wrlock(a)
+#define pthread_rwlock_rdlock(a)
+#define pthread_rwlock_unlock(a)
 #endif
 

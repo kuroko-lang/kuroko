@@ -7,6 +7,10 @@
 #include "chunk.h"
 #include "table.h"
 
+#ifdef ENABLE_THREADING
+#include <pthread.h>
+#endif
+
 #define OBJECT_TYPE(value) (AS_OBJECT(value)->type)
 #define IS_STRING(value)   isObjType(value, OBJ_STRING)
 #define AS_STRING(value)   ((KrkString *)AS_OBJECT(value))
@@ -188,6 +192,9 @@ typedef struct {
 typedef struct {
 	KrkInstance inst;
 	KrkValueArray values;
+#ifdef ENABLE_THREADING
+	pthread_rwlock_t rwlock;
+#endif
 } KrkList;
 
 typedef struct {

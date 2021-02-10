@@ -16,17 +16,17 @@ class Racer(Thread):
     def run(self):
         let myRando = open('/dev/urandom','rb')
         while not stop:
-            let choice = myRando.read(1)[0]
-            if choice > 127:
+            let bytes = myRando.read(4)
+            let choice = (bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | (bytes[3])
+            if choice > 2147483647:
                 l.append('test')
             else if l:
                 l[choice % len(l)] += choice
 
-let racerA = Racer()
-let racerB = Racer()
+let racers = [Racer() for i in range(5)]
 
-racerA.start()
-racerB.start()
+for racer in racers:
+    racer.start()
 
 print("Press enter to stop.")
 stdin.readline()
@@ -34,7 +34,7 @@ stdin.readline()
 stop = True
 
 print("Waiting for threads...")
-racerA.join()
-racerB.join()
+for racer in racers:
+    racer.join()
 print("Here's l:")
 print(l)
