@@ -21,7 +21,6 @@ typedef struct {
 	size_t count;
 	size_t capacity;
 	KrkTableEntry * entries;
-	pthread_rwlock_t lock;
 } KrkTable;
 
 extern void krk_initTable(KrkTable * table);
