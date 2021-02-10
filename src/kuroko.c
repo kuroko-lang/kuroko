@@ -287,7 +287,7 @@ static void findInterpreter(char * argv[]) {
 #else
 	/* Try asking /proc */
 	char * binpath = realpath("/proc/self/exe", NULL);
-	if (!binpath) {
+	if (!binpath || (access(binpath, X_OK) != 0)) {
 		if (strchr(argv[0], '/')) {
 			binpath = realpath(argv[0], NULL);
 		} else {
@@ -300,7 +300,7 @@ static void findInterpreter(char * argv[]) {
 
 				char tmp[4096];
 				sprintf(tmp, "%s/%s", path, argv[0]);
-				if (access(tmp, X_OK)) {
+				if (access(tmp, X_OK) == 0) {
 					binpath = strdup(tmp);
 					break;
 				}
