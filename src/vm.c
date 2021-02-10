@@ -1085,6 +1085,7 @@ void krk_initVM(int flags) {
 
 	/* Reset current thread */
 	krk_resetStack();
+	krk_currentThread.frames   = calloc(FRAMES_MAX,sizeof(CallFrame));
 	krk_currentThread.flags    = flags & 0x00FF;
 	krk_currentThread.module   = NULL;
 	krk_currentThread.watchdog = 0;

@@ -106,7 +106,7 @@ struct BaseClasses {
 typedef struct ThreadState {
 	struct ThreadState * next;
 
-	CallFrame frames[FRAMES_MAX];
+	CallFrame * frames;
 	size_t frameCount;
 	size_t stackSize;
 	KrkValue * stack;
@@ -119,7 +119,7 @@ typedef struct ThreadState {
 	int flags;
 	long watchdog;
 
-#define THREAD_SCRATCH_SIZE 16
+#define THREAD_SCRATCH_SIZE 3
 	KrkValue scratchSpace[THREAD_SCRATCH_SIZE];
 } KrkThreadState;
 
