@@ -11,7 +11,7 @@ let stop = False
 
 for y in range(0x40):
     for x in range(0x40):
-        d[(x,y)] = 0
+        d[(x << 16) | y] = 0
 
 class NoisePainter(Thread):
     def run(self):
@@ -20,7 +20,7 @@ class NoisePainter(Thread):
             let bytes = myRando.read(3)
             let x = bytes[0] & 0x3F
             let y = bytes[1] & 0x3F
-            d[(x,y)] = bytes[2]
+            d[(x << 16) | y] = bytes[2]
 
 let painters = [NoisePainter() for i in range(5)]
 
@@ -31,9 +31,9 @@ def drawScreen():
     print("\[[H",end="")
     for y in range(0x20):
         for x in range(0x40):
-            let top = d[(x,y*2)]
-            let bottom = d[(x,y*2+1)]
-            print("\[[38;2;{};{};{};48;2;{};{};{}m▀".format(top,top,top,bottom,bottom,bottom),end="")
+            let top = d[(x << 16) | (y*2)]
+            let bottom = d[(x << 16) | (y*2+1)]
+            print("\[[38","2",top,top,top,"48","2",bottom,bottom,bottom,sep=";",end="m▀")
         print("\[[0m")
 
 for i in range(5):
