@@ -28,6 +28,12 @@ struct Thread {
 	unsigned int    alive:1;
 };
 
+KrkClass * Lock;
+struct Lock {
+	KrkInstance inst;
+	pthread_mutex_t mutex;
+};
+
 KRK_FUNC(current_thread,{
 	if (&krk_currentThread == vm.threads) return NONE_VAL();
 	return krk_currentThread.stack[0];
@@ -115,6 +121,61 @@ KRK_METHOD(Thread,is_alive,{
 	return BOOLEAN_VAL(self->alive);
 })
 
+#undef CURRENT_CTYPE
+
+#define IS_Lock(o)  (krk_isInstanceOf(o, Lock))
+#define AS_Lock(o)  ((struct Lock *)AS_OBJECT(o))
+#define CURRENT_CTYPE struct Lock *
+
+KRK_METHOD(Lock,__init__,{
+	METHOD_TAKES_NONE(); /* TODO lock options, like recursive or error-checked? */
+	pthread_mutex_init(&self->mutex, NULL);
+	return argv[0];
+})
+
+static inline void _pushLockStatus(struct Lock * self, struct StringBuilder * sb) {
+#ifdef __GLIBC__
+	{
+		if (self->mutex.__data.__owner) {
+			pushStringBuilderStr(sb, " (locked)", 9);
+		} else {
+			pushStringBuilderStr(sb, " (unlocked)", 11);
+		}
+	}
+#else
+	(void)self;
+	(void)sb;
+#endif
+}
+
+KRK_METHOD(Lock,__repr__,{
+	METHOD_TAKES_NONE();
+	struct StringBuilder sb = {0};
+	pushStringBuilderStr(&sb, "<Lock ", 6);
+
+	/* Address of lock object */
+	{
+		char tmp[100];
+		size_t len = sprintf(tmp, "%p", (void*)self);
+		pushStringBuilderStr(&sb, tmp, len);
+	}
+
+	_pushLockStatus(self,&sb);
+
+	pushStringBuilder(&sb,'>');
+	return finishStringBuilder(&sb);
+})
+
+KRK_METHOD(Lock,__enter__,{
+	METHOD_TAKES_NONE();
+	pthread_mutex_lock(&self->mutex);
+})
+
+KRK_METHOD(Lock,__exit__,{
+	METHOD_TAKES_NONE();
+	pthread_mutex_unlock(&self->mutex);
+})
+
 KrkInstance * threadsModule;
 
 _noexport
@@ -144,6 +205,14 @@ void _createAndBind_threadsMod(void) {
 	BIND_METHOD(Thread,is_alive);
 	BIND_PROP(Thread,tid);
 	krk_finalizeClass(Thread);
+
+	krk_makeClass(threadsModule, &Lock, "Lock", vm.baseClasses->objectClass);
+	Lock->allocSize = sizeof(struct Lock);
+	BIND_METHOD(Lock,__init__);
+	BIND_METHOD(Lock,__enter__);
+	BIND_METHOD(Lock,__exit__);
+	BIND_METHOD(Lock,__repr__);
+	krk_finalizeClass(Lock);
 }
 
 
