@@ -157,8 +157,8 @@ typedef struct {
 #define KRK_CLEAN_OUTPUT        (1 << 10)
 
 #ifdef ENABLE_THREADING
-#define krk_currentThread (*(krk_getCurrentThread()))
 extern void _createAndBind_threadsMod(void);
+extern __thread KrkThreadState krk_currentThread;
 #else
 extern KrkThreadState krk_currentThread;
 #endif

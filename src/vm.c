@@ -71,7 +71,7 @@ KrkVM vm = {0};
  * not guaranteed.
  */
 __attribute__((tls_model("initial-exec")))
-static __thread KrkThreadState krk_currentThread;
+__thread KrkThreadState krk_currentThread;
 #else
 /* There is only one thread, so don't store it as TLS... */
 KrkThreadState krk_currentThread;
@@ -264,7 +264,7 @@ void krk_reserve_stack(size_t space) {
  * the stack to grow - eg. if you are calling into managed code
  * to do anything, or if you are pushing anything.
  */
-void krk_push(KrkValue value) {
+inline void krk_push(KrkValue value) {
 	if (unlikely((size_t)(krk_currentThread.stackTop - krk_currentThread.stack) + 1 > krk_currentThread.stackSize)) {
 		size_t old = krk_currentThread.stackSize;
 		size_t old_offset = krk_currentThread.stackTop - krk_currentThread.stack;
@@ -284,7 +284,7 @@ void krk_push(KrkValue value) {
  * the repl relies on this it expects to be able to get the last
  * pushed value and display it (if it's not None).
  */
-KrkValue krk_pop() {
+inline KrkValue krk_pop() {
 	krk_currentThread.stackTop--;
 	if (unlikely(krk_currentThread.stackTop < krk_currentThread.stack)) {
 		fprintf(stderr, "Fatal error: stack underflow detected in VM, issuing breakpoint.\n");
@@ -294,13 +294,13 @@ KrkValue krk_pop() {
 }
 
 /* Read a value `distance` units from the top of the stack without poping it. */
-KrkValue krk_peek(int distance) {
+inline KrkValue krk_peek(int distance) {
 	return krk_currentThread.stackTop[-1 - distance];
 }
 
 /* Exchange the value `distance` units down from the top of the stack with
  * the value at the top of the stack. */
-void krk_swap(int distance) {
+inline void krk_swap(int distance) {
 	KrkValue top = krk_currentThread.stackTop[-1];
 	krk_currentThread.stackTop[-1] = krk_currentThread.stackTop[-1 - distance];
 	krk_currentThread.stackTop[-1 - distance] = top;
