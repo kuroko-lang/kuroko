@@ -87,6 +87,7 @@ typedef struct KrkUpvalue {
 	int location;
 	KrkValue   closed;
 	struct KrkUpvalue * next;
+	struct ThreadState * owner;
 } KrkUpvalue;
 
 typedef struct {

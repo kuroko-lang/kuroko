@@ -265,6 +265,7 @@ KrkUpvalue * krk_newUpvalue(int slot) {
 	upvalue->location = slot;
 	upvalue->next = NULL;
 	upvalue->closed = NONE_VAL();
+	upvalue->owner = &krk_currentThread;
 	return upvalue;
 }
 

@@ -935,7 +935,7 @@ static KrkUpvalue * captureUpvalue(int index) {
 	return createdUpvalue;
 }
 
-#define UPVALUE_LOCATION(upvalue) (upvalue->location == -1 ? &upvalue->closed : &krk_currentThread.stack[upvalue->location])
+#define UPVALUE_LOCATION(upvalue) (upvalue->location == -1 ? &upvalue->closed : &upvalue->owner->stack[upvalue->location])
 
 /**
  * Close upvalues by moving them out of the stack and into the heap.
