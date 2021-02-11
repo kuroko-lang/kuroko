@@ -5,7 +5,7 @@
 #include "util.h"
 
 /* function.__doc__ */
-static KrkValue _closure_get_doc(int argc, KrkValue argv[]) {
+static KrkValue _closure_get_doc(int argc, KrkValue argv[], int hasKw) {
 	if (IS_NATIVE(argv[0]) && AS_NATIVE(argv[0])->doc) {
 		return OBJECT_VAL(krk_copyString(AS_NATIVE(argv[0])->doc, strlen(AS_NATIVE(argv[0])->doc)));
 	} else if (IS_CLOSURE(argv[0]) && AS_CLOSURE(argv[0])->function->docstring) {
@@ -16,9 +16,9 @@ static KrkValue _closure_get_doc(int argc, KrkValue argv[]) {
 }
 
 /* method.__doc__ */
-static KrkValue _bound_get_doc(int argc, KrkValue argv[]) {
+static KrkValue _bound_get_doc(int argc, KrkValue argv[], int hasKw) {
 	KrkBoundMethod * boundMethod = AS_BOUND_METHOD(argv[0]);
-	return _closure_get_doc(1, (KrkValue[]){OBJECT_VAL(boundMethod->method)});
+	return _closure_get_doc(1, (KrkValue[]){OBJECT_VAL(boundMethod->method)}, 0);
 }
 
 /* Check for and return the name of a native function as a string object */
@@ -29,20 +29,20 @@ static KrkValue nativeFunctionName(KrkValue func) {
 }
 
 /* function.__name__ */
-static KrkValue _closure_get_name(int argc, KrkValue argv[]) {
+static KrkValue _closure_get_name(int argc, KrkValue argv[], int hasKw) {
 	if (!IS_CLOSURE(argv[0])) return nativeFunctionName(argv[0]);
 	return AS_CLOSURE(argv[0])->function->name ? OBJECT_VAL(AS_CLOSURE(argv[0])->function->name) : OBJECT_VAL(S(""));
 }
 
 /* method.__name__ */
-static KrkValue _bound_get_name(int argc, KrkValue argv[]) {
+static KrkValue _bound_get_name(int argc, KrkValue argv[], int hasKw) {
 	KrkBoundMethod * boundMethod = AS_BOUND_METHOD(argv[0]);
-	return _closure_get_name(1, (KrkValue[]){OBJECT_VAL(boundMethod->method)});
+	return _closure_get_name(1, (KrkValue[]){OBJECT_VAL(boundMethod->method)}, hasKw);
 }
 
 /* function.__str__ / function.__repr__ */
-static KrkValue _closure_str(int argc, KrkValue argv[]) {
-	KrkValue s = _closure_get_name(argc, argv);
+static KrkValue _closure_str(int argc, KrkValue argv[], int hasKw) {
+	KrkValue s = _closure_get_name(argc, argv, hasKw);
 	krk_push(s);
 
 	size_t len = AS_STRING(s)->length + sizeof("<function >");
@@ -55,8 +55,8 @@ static KrkValue _closure_str(int argc, KrkValue argv[]) {
 }
 
 /* method.__str__ / method.__repr__ */
-static KrkValue _bound_str(int argc, KrkValue argv[]) {
-	KrkValue s = _bound_get_name(argc, argv);
+static KrkValue _bound_str(int argc, KrkValue argv[], int hasKw) {
+	KrkValue s = _bound_get_name(argc, argv, hasKw);
 	krk_push(s);
 
 	const char * typeName = krk_typeName(AS_BOUND_METHOD(argv[0])->receiver);
@@ -71,19 +71,19 @@ static KrkValue _bound_str(int argc, KrkValue argv[]) {
 }
 
 /* function.__file__ */
-static KrkValue _closure_get_file(int argc, KrkValue argv[]) {
+static KrkValue _closure_get_file(int argc, KrkValue argv[], int hasKw) {
 	if (!IS_CLOSURE(argv[0])) return OBJECT_VAL(S("<builtin>"));
 	return AS_CLOSURE(argv[0])->function->chunk.filename ? OBJECT_VAL(AS_CLOSURE(argv[0])->function->chunk.filename) : OBJECT_VAL(S(""));
 }
 
 /* method.__file__ */
-static KrkValue _bound_get_file(int argc, KrkValue argv[]) {
+static KrkValue _bound_get_file(int argc, KrkValue argv[], int hasKw) {
 	KrkBoundMethod * boundMethod = AS_BOUND_METHOD(argv[0]);
-	return _closure_get_file(1, (KrkValue[]){OBJECT_VAL(boundMethod->method)});
+	return _closure_get_file(1, (KrkValue[]){OBJECT_VAL(boundMethod->method)}, 0);
 }
 
 /* function.__args__ */
-static KrkValue _closure_get_argnames(int argc, KrkValue argv[]) {
+static KrkValue _closure_get_argnames(int argc, KrkValue argv[], int hasKw) {
 	if (!IS_CLOSURE(argv[0])) return OBJECT_VAL(krk_newTuple(0));
 	KrkFunction * self = AS_CLOSURE(argv[0])->function;
 	KrkTuple * tuple = krk_newTuple(self->requiredArgs + self->keywordArgs);
@@ -98,9 +98,9 @@ static KrkValue _closure_get_argnames(int argc, KrkValue argv[]) {
 	return OBJECT_VAL(tuple);
 }
 
-static KrkValue _bound_get_argnames(int argc, KrkValue argv[]) {
+static KrkValue _bound_get_argnames(int argc, KrkValue argv[], int hasKw) {
 	KrkBoundMethod * boundMethod = AS_BOUND_METHOD(argv[0]);
-	return _closure_get_argnames(1, (KrkValue[]){OBJECT_VAL(boundMethod->method)});
+	return _closure_get_argnames(1, (KrkValue[]){OBJECT_VAL(boundMethod->method)}, 0);
 }
 
 

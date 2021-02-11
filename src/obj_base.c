@@ -4,37 +4,37 @@
 #include "memory.h"
 #include "util.h"
 
-static KrkValue _type_init(int argc, KrkValue argv[]) {
+static KrkValue _type_init(int argc, KrkValue argv[], int hasKw) {
 	if (argc != 2) return krk_runtimeError(vm.exceptions->argumentError, "type() takes 1 argument");
 	return OBJECT_VAL(krk_getType(argv[1]));
 }
 
 /* Class.__base__ */
-static KrkValue krk_baseOfClass(int argc, KrkValue argv[]) {
+static KrkValue krk_baseOfClass(int argc, KrkValue argv[], int hasKw) {
 	if (!IS_CLASS(argv[0])) return krk_runtimeError(vm.exceptions->typeError, "expected class");
 	return AS_CLASS(argv[0])->base ? OBJECT_VAL(AS_CLASS(argv[0])->base) : NONE_VAL();
 }
 
 /* Class.__name */
-static KrkValue krk_nameOfClass(int argc, KrkValue argv[]) {
+static KrkValue krk_nameOfClass(int argc, KrkValue argv[], int hasKw) {
 	if (!IS_CLASS(argv[0])) return krk_runtimeError(vm.exceptions->typeError, "expected class");
 	return AS_CLASS(argv[0])->name ? OBJECT_VAL(AS_CLASS(argv[0])->name) : NONE_VAL();
 }
 
 /* Class.__file__ */
-static KrkValue krk_fileOfClass(int argc, KrkValue argv[]) {
+static KrkValue krk_fileOfClass(int argc, KrkValue argv[], int hasKw) {
 	if (!IS_CLASS(argv[0])) return krk_runtimeError(vm.exceptions->typeError, "expected class");
 	return AS_CLASS(argv[0])->filename ? OBJECT_VAL(AS_CLASS(argv[0])->filename) : NONE_VAL();
 }
 
 /* Class.__doc__ */
-static KrkValue krk_docOfClass(int argc, KrkValue argv[]) {
+static KrkValue krk_docOfClass(int argc, KrkValue argv[], int hasKw) {
 	if (!IS_CLASS(argv[0])) return krk_runtimeError(vm.exceptions->typeError, "expected class");
 	return AS_CLASS(argv[0])->docstring ? OBJECT_VAL(AS_CLASS(argv[0])->docstring) : NONE_VAL();
 }
 
 /* Class.__str__() (and Class.__repr__) */
-static KrkValue _class_to_str(int argc, KrkValue argv[]) {
+static KrkValue _class_to_str(int argc, KrkValue argv[], int hasKw) {
 	if (!IS_CLASS(argv[0])) return krk_runtimeError(vm.exceptions->typeError, "expected class");
 	char * tmp = malloc(sizeof("<type ''>") + AS_CLASS(argv[0])->name->length);
 	size_t l = sprintf(tmp, "<type '%s'>", AS_CLASS(argv[0])->name->chars);

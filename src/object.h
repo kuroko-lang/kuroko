@@ -170,8 +170,7 @@ typedef struct {
 	KrkObj * method;
 } KrkBoundMethod;
 
-typedef KrkValue (*NativeFn)();
-typedef KrkValue (*NativeFnKw)(int argCount, KrkValue* args, int hasKwargs);
+typedef KrkValue (*NativeFn)(int argCount, KrkValue* args, int hasKwargs);
 typedef struct {
 	KrkObj obj;
 	NativeFn function;

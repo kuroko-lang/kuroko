@@ -17,7 +17,7 @@
 /**
  * dis.dis(object)
  */
-static KrkValue krk_dis(int argc, KrkValue argv[]) {
+static KrkValue krk_dis(int argc, KrkValue argv[], int hasKw) {
 	if (argc < 1) {
 		krk_runtimeError(vm.exceptions->argumentError, "dis() takes ");
 		return BOOLEAN_VAL(0);

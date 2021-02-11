@@ -17,7 +17,7 @@
 /**
  * system.sleep(seconds)
  */
-static KrkValue _time_sleep(int argc, KrkValue argv[]) {
+static KrkValue _time_sleep(int argc, KrkValue argv[], int hasKw) {
 	if (argc < 1) {
 		krk_runtimeError(vm.exceptions->argumentError, "sleep: expect at least one argument.");
 		return BOOLEAN_VAL(0);
@@ -33,7 +33,7 @@ static KrkValue _time_sleep(int argc, KrkValue argv[]) {
 	return BOOLEAN_VAL(1);
 }
 
-static KrkValue _time_time(int argc, KrkValue argv[]) {
+static KrkValue _time_time(int argc, KrkValue argv[], int hasKw) {
 	time_t out = time(NULL);
 	return FLOATING_VAL(out); /* TODO actually support subsecond values */
 }

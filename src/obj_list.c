@@ -28,7 +28,7 @@ static void _list_gcsweep(KrkInstance * self) {
  * Exposed method called to produce lists from [expr,...] sequences in managed code.
  * Presented in the global namespace as listOf(...)
  */
-KrkValue krk_list_of(int argc, KrkValue argv[]) {
+KrkValue krk_list_of(int argc, KrkValue argv[], int hasKw) {
 	KrkValue outList = OBJECT_VAL(krk_newInstance(vm.baseClasses->listClass));
 	krk_push(outList);
 	krk_initValueArray(AS_LIST(outList));
@@ -184,7 +184,7 @@ KRK_METHOD(list,__mul__,{
 	METHOD_TAKES_EXACTLY(1);
 	CHECK_ARG(1,int,krk_integer_type,howMany);
 
-	KrkValue out = krk_list_of(0, NULL);
+	KrkValue out = krk_list_of(0, NULL, 0);
 
 	krk_push(out);
 
@@ -225,7 +225,7 @@ KRK_METHOD(list,__getslice__,{
 	if (end < start) end = start;
 	krk_integer_type len = end - start;
 
-	KrkValue result = krk_list_of(len, &AS_LIST(argv[0])->values[start]);
+	KrkValue result = krk_list_of(len, &AS_LIST(argv[0])->values[start], 0);
 	pthread_rwlock_unlock(&self->rwlock);
 	return result;
 })
@@ -379,7 +379,7 @@ KRK_METHOD(list,count,{
 KRK_METHOD(list,copy,{
 	METHOD_TAKES_NONE();
 	pthread_rwlock_rdlock(&self->rwlock);
-	KrkValue result = krk_list_of(self->values.count, self->values.values);
+	KrkValue result = krk_list_of(self->values.count, self->values.values, 0);
 	pthread_rwlock_unlock(&self->rwlock);
 	return result;
 })
@@ -420,7 +420,7 @@ KRK_METHOD(list,__add__,{
 	if (!IS_list(argv[1])) return TYPE_ERROR(list,argv[1]);
 
 	pthread_rwlock_rdlock(&self->rwlock);
-	KrkValue outList = krk_list_of(self->values.count, self->values.values); /* copy */
+	KrkValue outList = krk_list_of(self->values.count, self->values.values, 0); /* copy */
 	pthread_rwlock_unlock(&self->rwlock);
 	FUNC_NAME(list,extend)(2,(KrkValue[]){outList,argv[1]},0); /* extend */
 	return outList;
@@ -482,7 +482,7 @@ _corrupt:
 
 static KrkValue _sorted(int argc, KrkValue argv[], int hasKw) {
 	if (argc != 1) return krk_runtimeError(vm.exceptions->argumentError,"%s() takes %s %d argument%s (%d given)","sorted","exactly",1,argc);
-	KrkValue listOut = krk_list_of(0,NULL);
+	KrkValue listOut = krk_list_of(0,NULL,0);
 	krk_push(listOut);
 	FUNC_NAME(list,extend)(2,(KrkValue[]){listOut,argv[0]},0);
 	if (!IS_NONE(krk_currentThread.currentException)) return NONE_VAL();

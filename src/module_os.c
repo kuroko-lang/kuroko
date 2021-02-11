@@ -31,7 +31,7 @@ KRK_FUNC(uname,{
 	struct utsname buf;
 	if (uname(&buf) < 0) return NONE_VAL();
 
-	KrkValue result = krk_dict_of(0, NULL);
+	KrkValue result = krk_dict_of(0, NULL, 0);
 	krk_push(result);
 
 	DO_KEY(sysname);
@@ -44,7 +44,7 @@ KRK_FUNC(uname,{
 })
 #else
 KRK_FUNC(uname,{
-	KrkValue result = krk_dict_of(0, NULL);
+	KrkValue result = krk_dict_of(0, NULL, 0);
 	krk_push(result);
 
 	TCHAR buffer[256] = TEXT("");
@@ -90,7 +90,7 @@ KRK_FUNC(uname,{
 
 KrkClass * environClass;
 
-KrkValue krk_os_setenviron(int argc, KrkValue argv[]) {
+KrkValue krk_os_setenviron(int argc, KrkValue argv[], int hasKw) {
 	if (argc < 3 || !krk_isInstanceOf(argv[0], environClass) ||
 		!IS_STRING(argv[1]) || !IS_STRING(argv[2])) {
 		return krk_runtimeError(vm.exceptions->argumentError, "Invalid arguments to environ.__set__");
@@ -110,7 +110,7 @@ KrkValue krk_os_setenviron(int argc, KrkValue argv[]) {
 	}
 }
 
-KrkValue krk_os_unsetenviron(int argc, KrkValue argv[]) {
+KrkValue krk_os_unsetenviron(int argc, KrkValue argv[], int hasKw) {
 	if (argc < 2 || !krk_isInstanceOf(argv[0], environClass) ||
 		!IS_STRING(argv[1])) {
 		return krk_runtimeError(vm.exceptions->argumentError, "Invalid arguments to environ.__delitem__");
@@ -142,7 +142,7 @@ static void _loadEnviron(KrkInstance * module) {
 	krk_finalizeClass(environClass);
 
 	/* Start with an empty dictionary */
-	KrkInstance * environObj = AS_INSTANCE(krk_dict_of(0,NULL));
+	KrkInstance * environObj = AS_INSTANCE(krk_dict_of(0,NULL,0));
 	krk_push(OBJECT_VAL(environObj));
 
 	/* Transform it into an _Environ */

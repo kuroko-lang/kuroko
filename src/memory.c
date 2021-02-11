@@ -293,12 +293,12 @@ size_t krk_collectGarbage(void) {
 	return out;
 }
 
-static KrkValue krk_collectGarbage_wrapper(int argc, KrkValue argv[]) {
+static KrkValue krk_collectGarbage_wrapper(int argc, KrkValue argv[], int hasKw) {
 	if (&krk_currentThread != vm.threads) return krk_runtimeError(vm.exceptions->valueError, "only the main thread can do that");
 	return INTEGER_VAL(krk_collectGarbage());
 }
 
-static KrkValue krk_generations(int argc, KrkValue argv[]) {
+static KrkValue krk_generations(int argc, KrkValue argv[], int hasKw) {
 #define MAX_GEN 4
 	krk_integer_type generations[MAX_GEN] = {0,0,0,0};
 	KrkObj * object = vm.objects;
@@ -316,12 +316,12 @@ static KrkValue krk_generations(int argc, KrkValue argv[]) {
 	return OBJECT_VAL(outTuple);
 }
 
-static KrkValue _gc_pause(int argc, KrkValue argv[]) {
+static KrkValue _gc_pause(int argc, KrkValue argv[], int hasKw) {
 	vm.globalFlags |= (KRK_GC_PAUSED);
 	return NONE_VAL();
 }
 
-static KrkValue _gc_resume(int argc, KrkValue argv[]) {
+static KrkValue _gc_resume(int argc, KrkValue argv[], int hasKw) {
 	vm.globalFlags &= ~(KRK_GC_PAUSED);
 	return NONE_VAL();
 }

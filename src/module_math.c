@@ -39,7 +39,7 @@
 }
 
 #define MATH_DELEGATE(func) \
-static KrkValue _math_ ## func(int argc, KrkValue argv[]) { \
+static KrkValue _math_ ## func(int argc, KrkValue argv[], int hasKw) { \
 	ONE_ARGUMENT(func) \
 	if (IS_FLOATING(argv[0])) { \
 		return INTEGER_VAL(func(AS_FLOATING(argv[0]))); \
@@ -60,7 +60,7 @@ MATH_DELEGATE(trunc)
 #endif
 
 #define MATH_ONE_NAME(func,name) \
-static KrkValue _math_ ## name(int argc, KrkValue argv[]) { \
+static KrkValue _math_ ## name(int argc, KrkValue argv[], int hasKw) { \
 	ONE_ARGUMENT(name) \
 	FORCE_FLOAT(argv[0]) \
 	if (IS_FLOATING(argv[0])) { \
@@ -101,7 +101,7 @@ MATH_ONE(lgamma)
 MATH_ONE_NAME(log,log1p)
 
 #define MATH_TWO(func) \
-static KrkValue _math_ ## func(int argc, KrkValue argv[]) { \
+static KrkValue _math_ ## func(int argc, KrkValue argv[], int hasKw) { \
 	TWO_ARGUMENTS(func) \
 	FORCE_FLOAT(argv[0]) \
 	FORCE_FLOAT(argv[1]) \
@@ -120,7 +120,7 @@ MATH_TWO(remainder)
 MATH_TWO(pow)
 MATH_TWO(atan2)
 
-static KrkValue _math_frexp(int argc, KrkValue argv[]) {
+static KrkValue _math_frexp(int argc, KrkValue argv[], int hasKw) {
 	ONE_ARGUMENT(frexp)
 	FORCE_FLOAT(argv[0])
 	if (!IS_FLOATING(argv[0])) {
@@ -136,7 +136,7 @@ static KrkValue _math_frexp(int argc, KrkValue argv[]) {
 }
 
 #define MATH_IS(func) \
-static KrkValue _math_ ## func(int argc, KrkValue argv[]) { \
+static KrkValue _math_ ## func(int argc, KrkValue argv[], int hasKw) { \
 	ONE_ARGUMENT(func) \
 	if (!IS_FLOATING(argv[0])) REAL_NUMBER_NOT(func,argv[0]) \
 	return BOOLEAN_VAL(func(AS_FLOATING(argv[0]))); \

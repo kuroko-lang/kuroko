@@ -190,14 +190,15 @@ extern int krk_isInstanceOf(KrkValue obj, KrkClass * type);
 extern int krk_bindMethod(KrkClass * _class, KrkString * name);
 extern int krk_callValue(KrkValue callee, int argCount, int extra);
 
-extern KrkValue krk_list_of(int argc, KrkValue argv[]);
-extern KrkValue krk_dict_of(int argc, KrkValue argv[]);
+extern KrkValue krk_list_of(int argc, KrkValue argv[], int hasKw);
+extern KrkValue krk_dict_of(int argc, KrkValue argv[], int hasKw);
+extern KrkValue krk_tuple_of(int argc, KrkValue argv[], int hasKw);
 extern KrkValue krk_callSimple(KrkValue value, int argCount, int isMethod);
 extern KrkClass * krk_makeClass(KrkInstance * module, KrkClass ** _class, const char * name, KrkClass * base);
 extern void krk_finalizeClass(KrkClass * _class);
 extern void krk_dumpTraceback();
 extern KrkInstance * krk_startModule(const char * name);
-extern KrkValue krk_dirObject(int argc, KrkValue argv[]);
+extern KrkValue krk_dirObject(int argc, KrkValue argv[], int hasKw);
 extern int krk_loadModule(KrkString * name, KrkValue * moduleOut, KrkString * runAs);
 
 /* obj_str.h */
@@ -210,8 +211,6 @@ extern KrkValue krk_string_format(int argc, KrkValue argv[], int hasKw);
 
 /* obj_dict.h */
 extern KrkValue krk_dict_nth_key_fast(size_t capacity, KrkTableEntry * entries, size_t index);
-
-extern KrkValue krk_tuple_of(int argc, KrkValue argv[]);
 
 extern int krk_isFalsey(KrkValue value);
 

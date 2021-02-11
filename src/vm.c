@@ -628,9 +628,9 @@ static int call(KrkClosure * closure, int argCount, int extra) {
 
 	if (argCount && IS_KWARGS(krk_currentThread.stackTop[-1])) {
 
-		KrkValue myList = krk_list_of(0,NULL);
+		KrkValue myList = krk_list_of(0,NULL,0);
 		krk_currentThread.scratchSpace[0] = myList;
-		KrkValue myDict = krk_dict_of(0,NULL);
+		KrkValue myDict = krk_dict_of(0,NULL,0);
 		krk_currentThread.scratchSpace[1] = myDict;
 		positionals = AS_LIST(myList);
 		keywords = AS_DICT(myDict);
@@ -670,7 +670,7 @@ static int call(KrkClosure * closure, int argCount, int extra) {
 		if (closure->function->collectsArguments) {
 			size_t count  = (positionals->count > potentialPositionalArgs) ? (positionals->count - potentialPositionalArgs) : 0;
 			KrkValue * offset = (count == 0) ? NULL : &positionals->values[potentialPositionalArgs];
-			krk_push(krk_list_of(count, offset));
+			krk_push(krk_list_of(count, offset, 0));
 			argCount++;
 		}
 
@@ -721,7 +721,7 @@ _finishKwarg:
 
 		/* If this function takes a **kwargs, we need to provide it as a dict */
 		if (closure->function->collectsKeywords) {
-			krk_push(krk_dict_of(0,NULL));
+			krk_push(krk_dict_of(0,NULL,0));
 			argCount++;
 			krk_tableAddAll(keywords, AS_DICT(krk_peek(0)));
 		}
@@ -744,7 +744,7 @@ _finishKwarg:
 		if ((size_t)argCount > potentialPositionalArgs && closure->function->collectsArguments) {
 			krk_push(NONE_VAL()); krk_push(NONE_VAL()); krk_pop(); krk_pop();
 			startOfPositionals[offsetOfExtraArgs] = krk_list_of(argCount - potentialPositionalArgs,
-				&startOfPositionals[potentialPositionalArgs]);
+				&startOfPositionals[potentialPositionalArgs], 0);
 			argCount = closure->function->requiredArgs + 1;
 			argCountX = argCount - 1;
 			while (krk_currentThread.stackTop > startOfPositionals + argCount) krk_pop();
@@ -804,11 +804,11 @@ int krk_callValue(KrkValue callee, int argCount, int extra) {
 			case OBJ_CLOSURE:
 				return call(AS_CLOSURE(callee), argCount, extra);
 			case OBJ_NATIVE: {
-				NativeFnKw native = (NativeFnKw)AS_NATIVE(callee)->function;
+				NativeFn native = (NativeFn)AS_NATIVE(callee)->function;
 				if (argCount && IS_KWARGS(krk_currentThread.stackTop[-1])) {
-					KrkValue myList = krk_list_of(0,NULL);
+					KrkValue myList = krk_list_of(0,NULL,0);
 					krk_currentThread.scratchSpace[0] = myList;
-					KrkValue myDict = krk_dict_of(0,NULL);
+					KrkValue myDict = krk_dict_of(0,NULL,0);
 					krk_currentThread.scratchSpace[1] = myDict;
 					if (!krk_processComplexArguments(argCount, AS_LIST(myList), AS_DICT(myDict))) {
 						return 0;
@@ -902,7 +902,7 @@ int krk_bindMethod(KrkClass * _class, KrkString * name) {
 	KrkValue method, out;
 	if (!krk_tableGet(&_class->methods, OBJECT_VAL(name), &method)) return 0;
 	if (IS_NATIVE(method) && ((KrkNative*)AS_OBJECT(method))->isMethod == 2) {
-		out = AS_NATIVE(method)->function(1, (KrkValue[]){krk_peek(0)});
+		out = AS_NATIVE(method)->function(1, (KrkValue[]){krk_peek(0)}, 0);
 	} else {
 		out = OBJECT_VAL(krk_newBoundMethod(krk_peek(0), AS_OBJECT(method)));
 	}
@@ -1009,7 +1009,7 @@ int krk_isFalsey(KrkValue value) {
 	return 0; /* Assume anything else is truthy */
 }
 
-static KrkValue krk_getsize(int argc, KrkValue argv[]) {
+static KrkValue krk_getsize(int argc, KrkValue argv[], int hasKw) {
 	if (argc < 1) return INTEGER_VAL(0);
 	if (!IS_OBJECT(argv[0])) return INTEGER_VAL(sizeof(KrkValue));
 	size_t mySize = sizeof(KrkValue);
@@ -1071,7 +1071,7 @@ static KrkValue krk_getsize(int argc, KrkValue argv[]) {
 	return INTEGER_VAL(mySize);
 }
 
-static KrkValue krk_setclean(int argc, KrkValue argv[]) {
+static KrkValue krk_setclean(int argc, KrkValue argv[], int hasKw) {
 	if (!argc || (IS_BOOLEAN(argv[0]) && AS_BOOLEAN(argv[0]))) {
 		vm.globalFlags |= KRK_CLEAN_OUTPUT;
 	} else {
@@ -1185,7 +1185,7 @@ void krk_initVM(int flags) {
 	krk_defineNative(&vm.system->fields, "set_clean_output", krk_setclean);
 	krk_defineNative(&vm.system->fields, "set_tracing", krk_set_tracing)->doc = "Toggle debugging modes.";
 	krk_attachNamedObject(&vm.system->fields, "path_sep", (KrkObj*)S(PATH_SEP));
-	KrkValue module_paths = krk_list_of(0,NULL);
+	KrkValue module_paths = krk_list_of(0,NULL,0);
 	krk_attachNamedValue(&vm.system->fields, "module_paths", module_paths);
 	krk_writeValueArray(AS_LIST(module_paths), OBJECT_VAL(S("./")));
 	if (vm.binpath) {
@@ -2199,7 +2199,7 @@ static KrkValue run() {
 			case OP_TUPLE: {
 				size_t count = readBytes(frame, operandWidth);
 				krk_reserve_stack(4);
-				KrkValue tuple = krk_tuple_of(count,&krk_currentThread.stackTop[-count]);
+				KrkValue tuple = krk_tuple_of(count,&krk_currentThread.stackTop[-count],0);
 				if (count) {
 					krk_currentThread.stackTop[-count] = tuple;
 					while (count > 1) {

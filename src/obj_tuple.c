@@ -8,12 +8,12 @@
 	if (index < 0) index += self->values.count; \
 	if (index < 0 || index >= (krk_integer_type)self->values.count) return krk_runtimeError(vm.exceptions->indexError, "tuple index out of range: " PRIkrk_int, index)
 
-static KrkValue _tuple_init(int argc, KrkValue argv[]) {
+static KrkValue _tuple_init(int argc, KrkValue argv[], int hasKw) {
 	return krk_runtimeError(vm.exceptions->typeError,"tuple() initializier unsupported");
 }
 
 /* tuple creator */
-static KrkValue _tuple_of(int argc, KrkValue argv[]) {
+static KrkValue _tuple_of(int argc, KrkValue argv[], int hasKw) {
 	KrkTuple * self = krk_newTuple(argc);
 	krk_push(OBJECT_VAL(self));
 	for (size_t i = 0; i < (size_t)argc; ++i) {
@@ -23,7 +23,7 @@ static KrkValue _tuple_of(int argc, KrkValue argv[]) {
 	return OBJECT_VAL(self);
 }
 
-KrkValue krk_tuple_of(int argc, KrkValue argv[]) __attribute__((alias("_tuple_of")));
+KrkValue krk_tuple_of(int argc, KrkValue argv[], int hasKw) __attribute__((alias("_tuple_of")));
 
 #define IS_tuple(o) IS_TUPLE(o)
 #define AS_tuple(o) AS_TUPLE(o)
@@ -96,7 +96,7 @@ struct TupleIter {
 	int i;
 };
 
-static KrkValue _tuple_iter_init(int argc, KrkValue argv[]) {
+static KrkValue _tuple_iter_init(int argc, KrkValue argv[], int hasKw) {
 	struct TupleIter * self = (struct TupleIter *)AS_OBJECT(argv[0]);
 	self->myTuple = argv[1];
 	self->i = 0;
@@ -107,7 +107,7 @@ static void _tuple_iter_gcscan(KrkInstance * self) {
 	krk_markValue(((struct TupleIter*)self)->myTuple);
 }
 
-static KrkValue _tuple_iter_call(int argc, KrkValue argv[]) {
+static KrkValue _tuple_iter_call(int argc, KrkValue argv[], int hasKw) {
 	struct TupleIter * self = (struct TupleIter *)AS_OBJECT(argv[0]);
 	KrkValue t = self->myTuple; /* Tuple to iterate */
 	int i = self->i;
@@ -122,7 +122,7 @@ static KrkValue _tuple_iter_call(int argc, KrkValue argv[]) {
 KRK_METHOD(tuple,__iter__,{
 	KrkInstance * output = krk_newInstance(vm.baseClasses->tupleiteratorClass);
 	krk_push(OBJECT_VAL(output));
-	_tuple_iter_init(2, (KrkValue[]){krk_peek(0), argv[0]});
+	_tuple_iter_init(2, (KrkValue[]){krk_peek(0), argv[0]}, 0);
 	krk_pop();
 	return OBJECT_VAL(output);
 })

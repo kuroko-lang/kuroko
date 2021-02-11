@@ -142,7 +142,7 @@ _finish_line: (void)0;
 
 KRK_METHOD(File,readlines,{
 	METHOD_TAKES_NONE();
-	KrkValue myList = krk_list_of(0,NULL);
+	KrkValue myList = krk_list_of(0,NULL,0);
 	krk_push(myList);
 
 	for (;;) {
@@ -303,7 +303,7 @@ _finish_line: (void)0;
 
 KRK_METHOD(BinaryFile,readlines,{
 	METHOD_TAKES_NONE();
-	KrkValue myList = krk_list_of(0,NULL);
+	KrkValue myList = krk_list_of(0,NULL,0);
 	krk_push(myList);
 
 	for (;;) {
@@ -427,7 +427,7 @@ KRK_METHOD(Directory,__call__,{
 	struct dirent * entry = readdir(self->dirPtr);
 	if (!entry) return argv[0];
 
-	KrkValue outDict = krk_dict_of(0, NULL);
+	KrkValue outDict = krk_dict_of(0, NULL, 0);
 	krk_push(outDict);
 
 	krk_attachNamedValue(AS_DICT(outDict), "name", OBJECT_VAL(krk_copyString(entry->d_name,strlen(entry->d_name))));

@@ -10,7 +10,7 @@ struct Range {
 	krk_integer_type max;
 };
 
-static KrkValue _range_init(int argc, KrkValue argv[]) {
+static KrkValue _range_init(int argc, KrkValue argv[], int hasKw) {
 	KrkInstance * self = AS_INSTANCE(argv[0]);
 	if (argc < 2 || argc > 3) {
 		return krk_runtimeError(vm.exceptions->argumentError, "range expected at least 1 and and at most 2 arguments");
@@ -36,7 +36,7 @@ static KrkValue _range_init(int argc, KrkValue argv[]) {
 	return argv[0];
 }
 
-static KrkValue _range_repr(int argc, KrkValue argv[]) {
+static KrkValue _range_repr(int argc, KrkValue argv[], int hasKw) {
 	KrkInstance * self = AS_INSTANCE(argv[0]);
 
 	krk_integer_type min = ((struct Range*)self)->min;
@@ -54,7 +54,7 @@ struct RangeIterator {
 	krk_integer_type max;
 };
 
-static KrkValue _rangeiterator_init(int argc, KrkValue argv[]) {
+static KrkValue _rangeiterator_init(int argc, KrkValue argv[], int hasKw) {
 	KrkInstance * self = AS_INSTANCE(argv[0]);
 
 	((struct RangeIterator*)self)->i = AS_INTEGER(argv[1]);
@@ -63,7 +63,7 @@ static KrkValue _rangeiterator_init(int argc, KrkValue argv[]) {
 	return argv[0];
 }
 
-static KrkValue _rangeiterator_call(int argc, KrkValue argv[]) {
+static KrkValue _rangeiterator_call(int argc, KrkValue argv[], int hasKw) {
 	KrkInstance * self = AS_INSTANCE(argv[0]);
 
 	krk_integer_type i, max;
@@ -78,7 +78,7 @@ static KrkValue _rangeiterator_call(int argc, KrkValue argv[]) {
 	}
 }
 
-static KrkValue _range_iter(int argc, KrkValue argv[]) {
+static KrkValue _range_iter(int argc, KrkValue argv[], int hasKw) {
 	KrkInstance * self = AS_INSTANCE(argv[0]);
 
 	KrkInstance * output = krk_newInstance(vm.baseClasses->rangeiteratorClass);
@@ -86,7 +86,7 @@ static KrkValue _range_iter(int argc, KrkValue argv[]) {
 	krk_integer_type max = ((struct Range*)self)->max;
 
 	krk_push(OBJECT_VAL(output));
-	_rangeiterator_init(3, (KrkValue[]){krk_peek(0), INTEGER_VAL(min), INTEGER_VAL(max)});
+	_rangeiterator_init(3, (KrkValue[]){krk_peek(0), INTEGER_VAL(min), INTEGER_VAL(max)},0);
 	krk_pop();
 
 	return OBJECT_VAL(output);

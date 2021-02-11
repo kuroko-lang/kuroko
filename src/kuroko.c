@@ -34,13 +34,13 @@
 
 static int enableRline = 1;
 static int exitRepl = 0;
-static KrkValue exitFunc(int argc, KrkValue argv[]) {
+static KrkValue exitFunc(int argc, KrkValue argv[], int hasKw) {
 	exitRepl = 1;
 	return NONE_VAL();
 }
 
 static int pasteEnabled = 0;
-static KrkValue paste(int argc, KrkValue argv[]) {
+static KrkValue paste(int argc, KrkValue argv[], int hasKw) {
 	pasteEnabled = !pasteEnabled;
 	fprintf(stderr, "Pasting is %s.\n", pasteEnabled ? "enabled" : "disabled");
 	return NONE_VAL();
@@ -151,7 +151,7 @@ static void tab_complete_func(rline_context_t * c) {
 			/* Take the last symbol name from the chain and get its member list from dir() */
 
 			for (;;) {
-				KrkValue dirList = krk_dirObject(1,(KrkValue[]){root});
+				KrkValue dirList = krk_dirObject(1,(KrkValue[]){root},0);
 				krk_push(dirList);
 				if (!IS_INSTANCE(dirList)) {
 					fprintf(stderr,"\nInternal error while tab completting.\n");
@@ -453,7 +453,7 @@ _finishArgs:
 	for (int arg = optind; arg < argc; ++arg) {
 		krk_push(OBJECT_VAL(krk_copyString(argv[arg],strlen(argv[arg]))));
 	}
-	KrkValue argList = krk_list_of(argc - optind + (optind == argc), &krk_currentThread.stackTop[-(argc - optind + (optind == argc))]);
+	KrkValue argList = krk_list_of(argc - optind + (optind == argc), &krk_currentThread.stackTop[-(argc - optind + (optind == argc))],0);
 	krk_push(argList);
 	krk_attachNamedValue(&vm.system->fields, "argv", argList);
 	krk_pop();

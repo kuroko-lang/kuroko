@@ -225,7 +225,7 @@ KRK_METHOD(setiterator,__call__,{
 	} while (1);
 })
 
-KrkValue krk_set_of(int argc, KrkValue argv[]) {
+KrkValue krk_set_of(int argc, KrkValue argv[], int hasKw) {
 	KrkValue outSet = OBJECT_VAL(krk_newInstance(set));
 	krk_push(outSet);
 	krk_initTable(&AS_set(outSet)->entries);

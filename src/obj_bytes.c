@@ -4,7 +4,7 @@
 #include "memory.h"
 #include "util.h"
 
-static KrkValue _bytes_init(int argc, KrkValue argv[]) {
+static KrkValue _bytes_init(int argc, KrkValue argv[], int hasKw) {
 	if (argc == 1) {
 		return OBJECT_VAL(krk_newBytes(0,NULL));
 	}
@@ -26,7 +26,7 @@ static KrkValue _bytes_init(int argc, KrkValue argv[]) {
 }
 
 /* bytes objects are not interned; need to do this the old-fashioned way. */
-static KrkValue _bytes_eq(int argc, KrkValue argv[]) {
+static KrkValue _bytes_eq(int argc, KrkValue argv[], int hasKw) {
 	if (!IS_BYTES(argv[1])) return BOOLEAN_VAL(0);
 	KrkBytes * self = AS_BYTES(argv[0]);
 	KrkBytes * them = AS_BYTES(argv[1]);
@@ -44,7 +44,7 @@ static KrkValue _bytes_eq(int argc, KrkValue argv[]) {
 	} stringBytes[stringLength++] = c; } while (0)
 #define AT_END() (self->length == 0 || i == self->length - 1)
 
-static KrkValue _bytes_repr(int argc, KrkValue argv[]) {
+static KrkValue _bytes_repr(int argc, KrkValue argv[], int hasKw) {
 	size_t stringCapacity = 0;
 	size_t stringLength   = 0;
 	char * stringBytes    = NULL;
@@ -87,7 +87,7 @@ static KrkValue _bytes_repr(int argc, KrkValue argv[]) {
 	return tmp;
 }
 
-static KrkValue _bytes_get(int argc, KrkValue argv[]) {
+static KrkValue _bytes_get(int argc, KrkValue argv[], int hasKw) {
 	if (argc < 2) return krk_runtimeError(vm.exceptions->argumentError, "bytes.__get__(): expected one argument");
 	KrkBytes * self = AS_BYTES(argv[0]);
 	long asInt = AS_INTEGER(argv[1]);
@@ -100,16 +100,16 @@ static KrkValue _bytes_get(int argc, KrkValue argv[]) {
 	return INTEGER_VAL(self->bytes[asInt]);
 }
 
-static KrkValue _bytes_len(int argc, KrkValue argv[]) {
+static KrkValue _bytes_len(int argc, KrkValue argv[], int hasKw) {
 	return INTEGER_VAL(AS_BYTES(argv[0])->length);
 }
 
-static KrkValue _bytes_contains(int argc, KrkValue argv[]) {
+static KrkValue _bytes_contains(int argc, KrkValue argv[], int hasKw) {
 	if (argc < 2) krk_runtimeError(vm.exceptions->argumentError, "bytes.__contains__(): expected one argument");
 	return krk_runtimeError(vm.exceptions->notImplementedError, "not implemented");
 }
 
-static KrkValue _bytes_decode(int argc, KrkValue argv[]) {
+static KrkValue _bytes_decode(int argc, KrkValue argv[], int hasKw) {
 	/* TODO: Actually bother checking if this explodes, or support other encodings... */
 	return OBJECT_VAL(krk_copyString((char*)AS_BYTES(argv[0])->bytes, AS_BYTES(argv[0])->length));
 }

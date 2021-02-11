@@ -13,7 +13,7 @@
 /**
  * Exception.__init__(arg)
  */
-static KrkValue krk_initException(int argc, KrkValue argv[]) {
+static KrkValue krk_initException(int argc, KrkValue argv[], int hasKw) {
 	KrkInstance * self = AS_INSTANCE(argv[0]);
 
 	if (argc > 0) {
@@ -25,7 +25,7 @@ static KrkValue krk_initException(int argc, KrkValue argv[]) {
 	return argv[0];
 }
 
-static KrkValue _exception_repr(int argc, KrkValue argv[]) {
+static KrkValue _exception_repr(int argc, KrkValue argv[], int hasKw) {
 	KrkInstance * self = AS_INSTANCE(argv[0]);
 	/* .arg */
 	KrkValue arg;
@@ -41,7 +41,7 @@ static KrkValue _exception_repr(int argc, KrkValue argv[]) {
 	}
 }
 
-static KrkValue _syntaxerror_repr(int argc, KrkValue argv[]) {
+static KrkValue _syntaxerror_repr(int argc, KrkValue argv[], int hasKw) {
 	KrkInstance * self = AS_INSTANCE(argv[0]);
 	/* .arg */
 	KrkValue file, line, lineno, colno, arg, func;

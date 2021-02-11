@@ -7,11 +7,11 @@
 KrkClass * Helper;
 KrkClass * LicenseReader;
 
-KrkValue krk_dirObject(int argc, KrkValue argv[]) {
+KrkValue krk_dirObject(int argc, KrkValue argv[], int hasKw) {
 	if (argc != 1) return krk_runtimeError(vm.exceptions->argumentError, "wrong number of arguments or bad type, got %d\n", argc);
 
 	/* Create a new list instance */
-	KrkValue myList = krk_list_of(0,NULL);
+	KrkValue myList = krk_list_of(0,NULL,0);
 	krk_push(myList);
 
 	if (IS_INSTANCE(argv[0])) {
@@ -65,7 +65,7 @@ KrkValue krk_dirObject(int argc, KrkValue argv[]) {
 }
 
 
-static KrkValue _len(int argc, KrkValue argv[]) {
+static KrkValue _len(int argc, KrkValue argv[], int hasKw) {
 	if (argc != 1) return krk_runtimeError(vm.exceptions->argumentError, "len() takes exactly one argument");
 	/* Shortcuts */
 	if (IS_STRING(argv[0])) return INTEGER_VAL(AS_STRING(argv[0])->codesLength);
@@ -78,17 +78,17 @@ static KrkValue _len(int argc, KrkValue argv[]) {
 	return krk_callSimple(OBJECT_VAL(type->_len), 1, 0);
 }
 
-static KrkValue _dir(int argc, KrkValue argv[]) {
+static KrkValue _dir(int argc, KrkValue argv[], int hasKw) {
 	if (argc != 1) return krk_runtimeError(vm.exceptions->argumentError, "dir() takes exactly one argument");
 	KrkClass * type = krk_getType(argv[0]);
 	if (!type->_dir) {
-		return krk_dirObject(argc,argv); /* Fallback */
+		return krk_dirObject(argc,argv,hasKw); /* Fallback */
 	}
 	krk_push(argv[0]);
 	return krk_callSimple(OBJECT_VAL(type->_dir), 1, 0);
 }
 
-static KrkValue _repr(int argc, KrkValue argv[]) {
+static KrkValue _repr(int argc, KrkValue argv[], int hasKw) {
 	if (argc != 1) return krk_runtimeError(vm.exceptions->argumentError, "repr() takes exactly one argument");
 
 	/* Everything should have a __repr__ */
@@ -97,7 +97,7 @@ static KrkValue _repr(int argc, KrkValue argv[]) {
 	return krk_callSimple(OBJECT_VAL(type->_reprer), 1, 0);
 }
 
-static KrkValue _ord(int argc, KrkValue argv[]) {
+static KrkValue _ord(int argc, KrkValue argv[], int hasKw) {
 	if (argc != 1) return krk_runtimeError(vm.exceptions->argumentError, "ord() takes exactly one argument");
 
 	KrkClass * type = krk_getType(argv[0]);
@@ -109,7 +109,7 @@ static KrkValue _ord(int argc, KrkValue argv[]) {
 	return krk_runtimeError(vm.exceptions->argumentError, "ord() expected string of length 1, but got %s", krk_typeName(argv[0]));
 }
 
-static KrkValue _chr(int argc, KrkValue argv[]) {
+static KrkValue _chr(int argc, KrkValue argv[], int hasKw) {
 	if (argc != 1) return krk_runtimeError(vm.exceptions->argumentError, "chr() takes exactly one argument");
 
 	KrkClass * type = krk_getType(argv[0]);
@@ -121,7 +121,7 @@ static KrkValue _chr(int argc, KrkValue argv[]) {
 	return krk_runtimeError(vm.exceptions->argumentError, "chr() expected an integer, but got %s", krk_typeName(argv[0]));
 }
 
-static KrkValue _hex(int argc, KrkValue argv[]) {
+static KrkValue _hex(int argc, KrkValue argv[], int hasKw) {
 	if (argc != 1 || !IS_INTEGER(argv[0])) return krk_runtimeError(vm.exceptions->argumentError, "hex() expects one int argument");
 	char tmp[20];
 	krk_integer_type x = AS_INTEGER(argv[0]);
@@ -129,7 +129,7 @@ static KrkValue _hex(int argc, KrkValue argv[]) {
 	return OBJECT_VAL(krk_copyString(tmp,len));
 }
 
-static KrkValue _any(int argc, KrkValue argv[]) {
+static KrkValue _any(int argc, KrkValue argv[], int hasKw) {
 #define unpackArray(counter, indexer) do { \
 	for (size_t i = 0; i < counter; ++i) { \
 		if (!krk_isFalsey(indexer)) return BOOLEAN_VAL(1); \
@@ -177,7 +177,7 @@ static KrkValue _any(int argc, KrkValue argv[]) {
 	return BOOLEAN_VAL(0);
 }
 
-static KrkValue _all(int argc, KrkValue argv[]) {
+static KrkValue _all(int argc, KrkValue argv[], int hasKw) {
 #define unpackArray(counter, indexer) do { \
 	for (size_t i = 0; i < counter; ++i) { \
 		if (krk_isFalsey(indexer)) return BOOLEAN_VAL(0); \
@@ -264,9 +264,9 @@ static KrkValue _print(int argc, KrkValue argv[], int hasKw) {
  *
  * Returns a dict of names -> values for all the globals.
  */
-static KrkValue _globals(int argc, KrkValue argv[]) {
+static KrkValue _globals(int argc, KrkValue argv[], int hasKw) {
 	/* Make a new empty dict */
-	KrkValue dict = krk_dict_of(0, NULL);
+	KrkValue dict = krk_dict_of(0, NULL, 0);
 	krk_push(dict);
 	/* Copy the globals table into it */
 	krk_tableAddAll(krk_currentThread.frames[krk_currentThread.frameCount-1].globals, AS_DICT(dict));
@@ -275,14 +275,14 @@ static KrkValue _globals(int argc, KrkValue argv[]) {
 	return dict;
 }
 
-static KrkValue _isinstance(int argc, KrkValue argv[]) {
+static KrkValue _isinstance(int argc, KrkValue argv[], int hasKw) {
 	if (argc != 2) return krk_runtimeError(vm.exceptions->argumentError, "isinstance expects 2 arguments, got %d", argc);
 	if (!IS_CLASS(argv[1])) return krk_runtimeError(vm.exceptions->typeError, "isinstance() arg 2 must be class");
 
 	return BOOLEAN_VAL(krk_isInstanceOf(argv[0], AS_CLASS(argv[1])));
 }
 
-static KrkValue _module_repr(int argc, KrkValue argv[]) {
+static KrkValue _module_repr(int argc, KrkValue argv[], int hasKw) {
 	KrkInstance * self = AS_INSTANCE(argv[0]);
 
 	KrkValue name = NONE_VAL();
@@ -320,7 +320,7 @@ static KrkValue _module_repr(int argc, KrkValue argv[]) {
  * all types should have a string representation available through
  * those methods.
  */
-static KrkValue _strBase(int argc, KrkValue argv[]) {
+static KrkValue _strBase(int argc, KrkValue argv[], int hasKw) {
 	KrkClass * type = krk_getType(argv[0]);
 	size_t len = sizeof("<instance of . at 0x1234567812345678>") + type->name->length;
 	char * tmp = malloc(len);
@@ -334,7 +334,7 @@ static KrkValue _strBase(int argc, KrkValue argv[]) {
 	return out;
 }
 
-static KrkValue _type(int argc, KrkValue argv[]) {
+static KrkValue _type(int argc, KrkValue argv[], int hasKw) {
 	return OBJECT_VAL(krk_getType(argv[0]));
 }
 

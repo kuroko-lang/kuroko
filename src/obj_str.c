@@ -502,7 +502,7 @@ KRK_METHOD(str,split,{
 		}
 	}
 
-	KrkValue myList = krk_list_of(0,NULL);
+	KrkValue myList = krk_list_of(0,NULL,0);
 	krk_push(myList);
 
 	size_t i = 0;
