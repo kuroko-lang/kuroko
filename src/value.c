@@ -71,11 +71,39 @@ void krk_printValue(FILE * f, KrkValue printable) {
 	}
 }
 
+#define STRING_DEBUG_TRUNCATE 50
+
 void krk_printValueSafe(FILE * f, KrkValue printable) {
 	if (!IS_OBJECT(printable)) {
 		krk_printValue(f,printable);
 	} else if (IS_STRING(printable)) {
-		fprintf(f, "\"%s\"", AS_CSTRING(printable));
+		fprintf(f, "'");
+		/*
+		 * Print at most STRING_DEBUG_TRUNCATE characters, as bytes, escaping anything not ASCII.
+		 * See also str.__repr__ which does something similar with escape sequences, but this
+		 * is a dumber, safer, and slightly faster approach.
+		 */
+		for (size_t c = 0; c < AS_STRING(printable)->length && c < STRING_DEBUG_TRUNCATE; ++c) {
+			unsigned char byte = (unsigned char)AS_CSTRING(printable)[c];
+			switch (byte) {
+				case '\\': fprintf(f, "\\\\"); break;
+				case '\n': fprintf(f, "\\n"); break;
+				case '\r': fprintf(f, "\\r"); break;
+				case '\'': fprintf(f, "\\'"); break;
+				default: {
+					if (byte < ' ' || byte > '~') {
+						fprintf(f, "\\x%02x", byte);
+					} else {
+						fprintf(f, "%c", byte);
+					}
+					break;
+				}
+			}
+		}
+		if (AS_STRING(printable)->length > STRING_DEBUG_TRUNCATE) {
+			fprintf(f,"...");
+		}
+		fprintf(f,"'");
 	} else {
 		switch (AS_OBJECT(printable)->type) {
 			case OBJ_FUNCTION: fprintf(f, "<function %s>", AS_FUNCTION(printable)->name ? AS_FUNCTION(printable)->name->chars : "?"); break;
