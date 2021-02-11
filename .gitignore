@@ -6,3 +6,4 @@ kuroko
 wasm/
 jupyter/
 *.deb
+*.dSYM
