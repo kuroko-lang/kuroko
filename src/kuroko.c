@@ -11,6 +11,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <signal.h>
+#include <errno.h>
 
 #ifdef __toaru__
 #include <toaru/rline.h>
@@ -315,12 +316,54 @@ static void findInterpreter(char * argv[]) {
 #endif
 }
 
-static int runString(char * argv[], char * string) {
+static int runString(char * argv[], int flags, char * string) {
 	findInterpreter(argv);
-	krk_initVM(0);
+	krk_initVM(flags);
 	krk_interpret(string, 1, "<stdin>","<stdin>");
 	krk_freeVM();
 	return 0;
+}
+
+/* This isn't normally exposed. */
+extern KrkFunction * krk_compile(const char * src, int newScope, char * fileName);
+static int compileFile(char * argv[], int flags, char * fileName) {
+	findInterpreter(argv);
+	krk_initVM(flags);
+
+	/* Open the file. */
+	FILE * f = fopen(fileName,"r");
+	if (!f) {
+		fprintf(stderr, "%s: could not read file '%s': %s\n", argv[0], fileName, strerror(errno));
+		return 1;
+	}
+
+	/* Read it like we normally do... */
+	fseek(f, 0, SEEK_END);
+	size_t size = ftell(f);
+	fseek(f, 0, SEEK_SET);
+	char * buf = malloc(size+1);
+	if (fread(buf, 1, size, f) != size) return 2;
+	fclose(f);
+	buf[size] = '\0';
+
+	/* Set up a module scope */
+	krk_startModule("__main__");
+
+	/* Call the compiler directly. */
+	KrkFunction * func = krk_compile(buf, 0, fileName);
+
+	/* See if there was an exception. */
+	if (krk_currentThread.flags & KRK_HAS_EXCEPTION) {
+		krk_dumpTraceback();
+	}
+
+	/* Free the source string */
+	free(buf);
+
+	/* Close out the compiler */
+	krk_freeVM();
+
+	return func == NULL;
 }
 
 #ifdef BUNDLE_LIBS
@@ -337,10 +380,10 @@ int main(int argc, char * argv[]) {
 	int flags = 0;
 	int moduleAsMain = 0;
 	int opt;
-	while ((opt = getopt(argc, argv, "+c:dgm:rstMV-:")) != -1) {
+	while ((opt = getopt(argc, argv, "+c:C:dgm:rstMV-:")) != -1) {
 		switch (opt) {
 			case 'c':
-				return runString(argv, optarg);
+				return runString(argv, flags, optarg);
 			case 'd':
 				/* Disassemble code blocks after compilation. */
 				flags |= KRK_ENABLE_DISASSEMBLY;
@@ -365,12 +408,14 @@ int main(int argc, char * argv[]) {
 				enableRline = 0;
 				break;
 			case 'M':
-				return runString(argv,"import kuroko; print(kuroko.module_paths)\n");
+				return runString(argv,0,"import kuroko; print(kuroko.module_paths)\n");
 			case 'V':
-				return runString(argv,"import kuroko; print('Kuroko',kuroko.version)\n");
+				return runString(argv,0,"import kuroko; print('Kuroko',kuroko.version)\n");
+			case 'C':
+				return compileFile(argv,flags,optarg);
 			case '-':
 				if (!strcmp(optarg,"version")) {
-					return runString(argv,"import kuroko; print('Kuroko',kuroko.version)\n");
+					return runString(argv,0,"import kuroko; print('Kuroko',kuroko.version)\n");
 				} else if (!strcmp(optarg,"help")) {
 					fprintf(stderr,"usage: %s [flags] [FILE...]\n"
 						"\n"
@@ -381,6 +426,8 @@ int main(int argc, char * argv[]) {
 						" -r          Disable complex line editing in the REPL.\n"
 						" -s          Debug output from the scanner/tokenizer.\n"
 						" -t          Disassemble instructions as they are exceuted.\n"
+						" -C file     Compile 'file', but do not execute it.\n"
+						" -M          Print the default module import paths.\n"
 						" -V          Print version information.\n"
 						"\n"
 						" --version   Print version information.\n"
