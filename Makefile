@@ -50,6 +50,12 @@ ifeq ($(shell uname -s),Linux)
   endif
 endif
 
+ifeq ($(shell uname -s),Darwin)
+  # Assume we're not using ming to build for Windows on macOS
+  # and enable threads for Darwin, as they've been tested there.
+  KRK_ENABLE_THREAD ?= 1
+endif
+
 ifeq (1,$(KRK_ENABLE_THREAD))
   # Thread support is EXPERIMENTAL
   # and downright known to be broken

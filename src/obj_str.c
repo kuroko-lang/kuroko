@@ -895,8 +895,3 @@ void _createAndBind_strClass(void) {
 	krk_finalizeClass(striterator);
 }
 
-KrkValue krk_string_get(int argc, KrkValue argv[], int hasKw) __attribute__((alias("_str___get__")));
-KrkValue krk_string_int(int argc, KrkValue argv[], int hasKw) __attribute__((alias("_str___int__")));
-KrkValue krk_string_float(int argc, KrkValue argv[], int hasKw) __attribute__((alias("_str___float__")));
-KrkValue krk_string_split(int argc, KrkValue argv[], int hasKw) __attribute__((alias("_str_split")));
-KrkValue krk_string_format(int argc, KrkValue argv[], int hasKw) __attribute__((alias("_str_format")));

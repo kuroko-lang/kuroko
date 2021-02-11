@@ -80,7 +80,7 @@ static inline const char * _method_name(const char * func) {
 	ctype name __attribute__((unused)) = AS_ ## type (argv[i])
 
 #define FUNC_NAME(klass, name) _ ## klass ## _ ## name
-#define FUNC_SIG(klass, name) static KrkValue FUNC_NAME(klass,name) (int argc, KrkValue argv[], int hasKw)
+#define FUNC_SIG(klass, name) _noexport KrkValue FUNC_NAME(klass,name) (int argc, KrkValue argv[], int hasKw)
 #define KRK_METHOD(klass, name, body) FUNC_SIG(klass, name) { \
 	CHECK_ARG(0,klass,CURRENT_CTYPE,CURRENT_NAME); \
 	body; return NONE_VAL(); }

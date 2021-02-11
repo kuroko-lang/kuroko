@@ -203,11 +203,17 @@ extern int krk_loadModule(KrkString * name, KrkValue * moduleOut, KrkString * ru
 
 /* obj_str.h */
 extern void krk_addObjects(void);
-extern KrkValue krk_string_get(int argc, KrkValue argv[], int hasKw);
-extern KrkValue krk_string_int(int argc, KrkValue argv[], int hasKw);
-extern KrkValue krk_string_float(int argc, KrkValue argv[], int hasKw);
-extern KrkValue krk_string_split(int argc, KrkValue argv[], int hasKw);
-extern KrkValue krk_string_format(int argc, KrkValue argv[], int hasKw);
+
+extern KrkValue _str___get__(int argc, KrkValue argv[], int hasKw);
+#define krk_string_get _str___get__
+extern KrkValue _str___int__(int argc, KrkValue argv[], int hasKw);
+#define krk_string_int _str___int__
+extern KrkValue _str___float__(int argc, KrkValue argv[], int hasKw);
+#define krk_string_float _str___float__
+extern KrkValue _str_split(int argc, KrkValue argv[], int hasKw);
+#define krk_string_split _str_split
+extern KrkValue _str_format(int argc, KrkValue argv[], int hasKw);
+#define krk_string_format _str_format
 
 /* obj_dict.h */
 extern KrkValue krk_dict_nth_key_fast(size_t capacity, KrkTableEntry * entries, size_t index);

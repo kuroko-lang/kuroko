@@ -13,7 +13,7 @@ static KrkValue _tuple_init(int argc, KrkValue argv[], int hasKw) {
 }
 
 /* tuple creator */
-static KrkValue _tuple_of(int argc, KrkValue argv[], int hasKw) {
+KrkValue krk_tuple_of(int argc, KrkValue argv[], int hasKw) {
 	KrkTuple * self = krk_newTuple(argc);
 	krk_push(OBJECT_VAL(self));
 	for (size_t i = 0; i < (size_t)argc; ++i) {
@@ -22,8 +22,6 @@ static KrkValue _tuple_of(int argc, KrkValue argv[], int hasKw) {
 	krk_pop();
 	return OBJECT_VAL(self);
 }
-
-KrkValue krk_tuple_of(int argc, KrkValue argv[], int hasKw) __attribute__((alias("_tuple_of")));
 
 #define IS_tuple(o) IS_TUPLE(o)
 #define AS_tuple(o) AS_TUPLE(o)

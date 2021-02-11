@@ -87,8 +87,8 @@ KrkThreadState * krk_getCurrentThread(void) {
 	return &krk_currentThread;
 }
 
-static struct Exceptions _exceptions = {NULL};
-static struct BaseClasses _baseClasses = {NULL};
+static struct Exceptions _exceptions = {0};
+static struct BaseClasses _baseClasses = {0};
 static KrkValue _specialMethodNames[METHOD__MAX];
 
 /**
@@ -264,7 +264,7 @@ void krk_reserve_stack(size_t space) {
  * the stack to grow - eg. if you are calling into managed code
  * to do anything, or if you are pushing anything.
  */
-inline void krk_push(KrkValue value) {
+void krk_push(KrkValue value) {
 	if (unlikely((size_t)(krk_currentThread.stackTop - krk_currentThread.stack) + 1 > krk_currentThread.stackSize)) {
 		size_t old = krk_currentThread.stackSize;
 		size_t old_offset = krk_currentThread.stackTop - krk_currentThread.stack;
@@ -284,7 +284,7 @@ inline void krk_push(KrkValue value) {
  * the repl relies on this it expects to be able to get the last
  * pushed value and display it (if it's not None).
  */
-inline KrkValue krk_pop() {
+KrkValue krk_pop() {
 	krk_currentThread.stackTop--;
 	if (unlikely(krk_currentThread.stackTop < krk_currentThread.stack)) {
 		fprintf(stderr, "Fatal error: stack underflow detected in VM, issuing breakpoint.\n");
@@ -294,7 +294,7 @@ inline KrkValue krk_pop() {
 }
 
 /* Read a value `distance` units from the top of the stack without poping it. */
-inline KrkValue krk_peek(int distance) {
+KrkValue krk_peek(int distance) {
 	return krk_currentThread.stackTop[-1 - distance];
 }
 
