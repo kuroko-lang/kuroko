@@ -1,0 +1,26 @@
+# Stripped down version of a more flexible example
+from threading import Thread, Lock
+
+def __main__():
+
+    let threadcount = 10
+    let i = 0
+    let lock = Lock()
+
+    class Incrementer(Thread):
+        def run():
+            for c in range(1000):
+                with lock:
+                    i += 1
+
+    let threads = [Incrementer() for j in range(threadcount)]
+    for thread in threads: thread.start()
+    for thread in threads: thread.join()
+
+    print(i)
+
+    return 0
+
+if __name__ == '__main__':
+    return __main__()
+
