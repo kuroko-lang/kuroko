@@ -4,6 +4,10 @@
 #include "memory.h"
 #include "util.h"
 
+#define TUPLE_WRAP_INDEX() \
+	if (index < 0) index += self->values.count; \
+	if (index < 0 || index >= (krk_integer_type)self->values.count) return krk_runtimeError(vm.exceptions->indexError, "tuple index out of range: " PRIkrk_int, index)
+
 static KrkValue _tuple_init(int argc, KrkValue argv[]) {
 	return krk_runtimeError(vm.exceptions->typeError,"tuple() initializier unsupported");
 }
@@ -21,75 +25,70 @@ static KrkValue _tuple_of(int argc, KrkValue argv[]) {
 
 KrkValue krk_tuple_of(int argc, KrkValue argv[]) __attribute__((alias("_tuple_of")));
 
+#define IS_tuple(o) IS_TUPLE(o)
+#define AS_tuple(o) AS_TUPLE(o)
 
-static KrkValue _tuple_contains(int argc, KrkValue argv[]) {
-	if (argc != 2) return krk_runtimeError(vm.exceptions->argumentError, "tuple.__contains__ expects one argument");
-	KrkTuple * self = AS_TUPLE(argv[0]);
+#define CURRENT_CTYPE KrkTuple *
+#define CURRENT_NAME  self
+
+KRK_METHOD(tuple,__contains__,{
+	METHOD_TAKES_EXACTLY(1);
 	for (size_t i = 0; i < self->values.count; ++i) {
 		if (krk_valuesEqual(self->values.values[i], argv[1])) return BOOLEAN_VAL(1);
 	}
 	return BOOLEAN_VAL(0);
-}
+})
 
-/* tuple.__len__ */
-static KrkValue _tuple_len(int argc, KrkValue argv[]) {
-	if (argc != 1) return krk_runtimeError(vm.exceptions->argumentError, "tuple.__len__ does not expect arguments");
-	KrkTuple * self = AS_TUPLE(argv[0]);
+KRK_METHOD(tuple,__len__,{
+	METHOD_TAKES_NONE();
 	return INTEGER_VAL(self->values.count);
-}
+})
 
-/* tuple.__get__ */
-static KrkValue _tuple_get(int argc, KrkValue argv[]) {
-	if (argc != 2) return krk_runtimeError(vm.exceptions->argumentError, "tuple.__get__ expects one argument");
-	else if (!IS_INTEGER(argv[1])) return krk_runtimeError(vm.exceptions->typeError, "can not index by '%s', expected integer", krk_typeName(argv[1]));
-	KrkTuple * tuple = AS_TUPLE(argv[0]);
-	long index = AS_INTEGER(argv[1]);
-	if (index < 0) index += tuple->values.count;
-	if (index < 0 || index >= (long)tuple->values.count) {
-		return krk_runtimeError(vm.exceptions->indexError, "tuple index out of range");
-	}
-	return tuple->values.values[index];
-}
+KRK_METHOD(tuple,__get__,{
+	METHOD_TAKES_EXACTLY(1);
+	CHECK_ARG(1,int,krk_integer_type,index);
+	TUPLE_WRAP_INDEX();
+	return self->values.values[index];
+})
 
-static KrkValue _tuple_eq(int argc, KrkValue argv[]) {
-	if (!IS_TUPLE(argv[1])) return BOOLEAN_VAL(0);
-	KrkTuple * self = AS_TUPLE(argv[0]);
-	KrkTuple * them = AS_TUPLE(argv[1]);
+KRK_METHOD(tuple,__eq__,{
+	METHOD_TAKES_EXACTLY(1);
+	if (!IS_tuple(argv[1])) return BOOLEAN_VAL(0);
+	KrkTuple * them = AS_tuple(argv[1]);
 	if (self->values.count != them->values.count) return BOOLEAN_VAL(0);
 	for (size_t i = 0; i < self->values.count; ++i) {
 		if (!krk_valuesEqual(self->values.values[i], them->values.values[i])) return BOOLEAN_VAL(0);
 	}
 	return BOOLEAN_VAL(1);
-}
+})
 
-static KrkValue _tuple_repr(int argc, KrkValue argv[]) {
-	if (argc != 1) return krk_runtimeError(vm.exceptions->argumentError, "tuple.__repr__ does not expect arguments");
-	KrkTuple * tuple = AS_TUPLE(argv[0]);
-	if (((KrkObj*)tuple)->inRepr) return OBJECT_VAL(S("(...)"));
-	((KrkObj*)tuple)->inRepr = 1;
+KRK_METHOD(tuple,__repr__,{
+	if (((KrkObj*)self)->inRepr) return OBJECT_VAL(S("(...)"));
+	((KrkObj*)self)->inRepr = 1;
 	/* String building time. */
-	krk_push(OBJECT_VAL(S("(")));
+	struct StringBuilder sb = {0};
+	pushStringBuilder(&sb, '(');
 
-	for (size_t i = 0; i < tuple->values.count; ++i) {
-		krk_push(tuple->values.values[i]);
-		krk_push(krk_callSimple(OBJECT_VAL(krk_getType(tuple->values.values[i])->_reprer), 1, 0));
-		krk_addObjects(); /* pops both, pushes result */
-		if (i != tuple->values.count - 1) {
-			krk_push(OBJECT_VAL(S(", ")));
-			krk_addObjects();
+	for (size_t i = 0; i < self->values.count; ++i) {
+		KrkClass * type = krk_getType(self->values.values[i]);
+		krk_push(self->values.values[i]);
+		KrkValue result = krk_callSimple(OBJECT_VAL(type->_reprer), 1, 0);
+		if (IS_STRING(result)) {
+			pushStringBuilderStr(&sb, AS_STRING(result)->chars, AS_STRING(result)->length);
+		}
+		if (i != self->values.count - 1) {
+			pushStringBuilderStr(&sb, ", ", 2);
 		}
 	}
 
-	if (tuple->values.count == 1) {
-		krk_push(OBJECT_VAL(S(",")));
-		krk_addObjects();
+	if (self->values.count == 1) {
+		pushStringBuilder(&sb, ',');
 	}
 
-	krk_push(OBJECT_VAL(S(")")));
-	krk_addObjects();
-	((KrkObj*)tuple)->inRepr = 0;
-	return krk_pop();
-}
+	pushStringBuilder(&sb, ')');
+	((KrkObj*)self)->inRepr = 0;
+	return finishStringBuilder(&sb);
+})
 
 struct TupleIter {
 	KrkInstance inst;
@@ -120,26 +119,26 @@ static KrkValue _tuple_iter_call(int argc, KrkValue argv[]) {
 	}
 }
 
-static KrkValue _tuple_iter(int argc, KrkValue argv[]) {
+KRK_METHOD(tuple,__iter__,{
 	KrkInstance * output = krk_newInstance(vm.baseClasses->tupleiteratorClass);
 	krk_push(OBJECT_VAL(output));
 	_tuple_iter_init(2, (KrkValue[]){krk_peek(0), argv[0]});
 	krk_pop();
 	return OBJECT_VAL(output);
-}
+})
 
 _noexport
 void _createAndBind_tupleClass(void) {
-	ADD_BASE_CLASS(vm.baseClasses->tupleClass, "tuple", vm.baseClasses->objectClass);
-	krk_defineNative(&vm.baseClasses->tupleClass->methods, ".__init__", _tuple_init);
-	krk_defineNative(&vm.baseClasses->tupleClass->methods, ".__str__", _tuple_repr);
-	krk_defineNative(&vm.baseClasses->tupleClass->methods, ".__repr__", _tuple_repr);
-	krk_defineNative(&vm.baseClasses->tupleClass->methods, ".__get__", _tuple_get);
-	krk_defineNative(&vm.baseClasses->tupleClass->methods, ".__len__", _tuple_len);
-	krk_defineNative(&vm.baseClasses->tupleClass->methods, ".__contains__", _tuple_contains);
-	krk_defineNative(&vm.baseClasses->tupleClass->methods, ".__iter__", _tuple_iter);
-	krk_defineNative(&vm.baseClasses->tupleClass->methods, ".__eq__", _tuple_eq);
-	krk_finalizeClass(vm.baseClasses->tupleClass);
+	KrkClass * tuple = ADD_BASE_CLASS(vm.baseClasses->tupleClass, "tuple", vm.baseClasses->objectClass);
+	BIND_METHOD(tuple,__repr__);
+	BIND_METHOD(tuple,__get__);
+	BIND_METHOD(tuple,__len__);
+	BIND_METHOD(tuple,__contains__);
+	BIND_METHOD(tuple,__iter__);
+	BIND_METHOD(tuple,__eq__);
+	krk_defineNative(&tuple->methods, ".__init__", _tuple_init);
+	krk_defineNative(&tuple->methods, ".__str__", FUNC_NAME(tuple,__repr__));
+	krk_finalizeClass(tuple);
 
 	BUILTIN_FUNCTION("tupleOf",krk_tuple_of,"Convert argument sequence to tuple object.");
 
