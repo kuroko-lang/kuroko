@@ -337,7 +337,7 @@ int main(int argc, char * argv[]) {
 	int flags = 0;
 	int moduleAsMain = 0;
 	int opt;
-	while ((opt = getopt(argc, argv, "c:dgm:rstMV-:")) != -1) {
+	while ((opt = getopt(argc, argv, "+c:dgm:rstMV-:")) != -1) {
 		switch (opt) {
 			case 'c':
 				return runString(argv, optarg);
