@@ -490,8 +490,9 @@ static int readFile(char * fileName) {
 		uint32_t strLen;
 		assert(fread(&strLen, 1, sizeof(uint32_t), inFile) == sizeof(uint32_t));
 
-		char * strVal = malloc(strLen);
+		char * strVal = malloc(strLen+1);
 		assert(fread(strVal, 1, strLen, inFile) == strLen);
+		strVal[strLen] = '\0';
 
 		/* Create a string */
 		krk_push(OBJECT_VAL(krk_takeString(strVal,strLen)));
