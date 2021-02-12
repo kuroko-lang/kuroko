@@ -132,7 +132,7 @@ modules/math.so: src/module_math.c libkuroko.so
 
 .PHONY: clean
 clean:
-	@rm -f ${OBJS} ${TARGET} ${MODULES} libkuroko.so src/*.o kuroko.exe
+	@rm -f ${OBJS} ${TARGET} ${MODULES} libkuroko.so src/*.o kuroko.exe ${TOOLS}
 
 tags: $(wildcard src/*.c) $(wildcard src/*.h)
 	@ctags --c-kinds=+lx src/*.c src/*.h
