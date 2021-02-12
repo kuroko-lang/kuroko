@@ -46,23 +46,6 @@ struct LineMapEntry {
 	uint16_t line;
 } __attribute__((packed));
 
-struct BigConstantEntry {
-	union {
-		int64_t asInt;
-		double  asFloat;
-	} data;
-} __attribute__((packed));
-
-const char * ValueTypes[] = {
-	"None",
-	"bool",
-	"int",
-	"float",
-	"exc",
-	"obj",
-	"kwargs",
-};
-
 NativeFn ListPop;
 NativeFn ListAppend;
 NativeFn ListContains;
@@ -349,7 +332,7 @@ static int doSecondPass(FILE * out) {
 					fprintf(stderr,
 						"Invalid value found in constants table,"
 						"this marashal format can not store '%s'\n",
-						ValueTypes[val->type]);
+						krk_typeName(*val));
 					return 1;
 			}
 		}
