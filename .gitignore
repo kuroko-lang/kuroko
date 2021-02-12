@@ -1,9 +1,13 @@
+# Ignore executables in the root
+/kuroko
+/*.exe
+/*.deb
+/krk-*
+# I typically clone these subprojects in the root as well.
+/wasm/
+/jupyter/
+# Match library files anywhere.
 *.o
 *.so
-kuroko
-*.exe
 *.dll
-wasm/
-jupyter/
-*.deb
 *.dSYM

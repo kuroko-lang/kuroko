@@ -4,6 +4,7 @@ TARGET   = kuroko
 OBJS     = $(patsubst %.c, %.o, $(filter-out src/module_% src/rline.c src/kuroko.c,$(sort $(wildcard src/*.c))))
 MODULES  = $(patsubst src/module_%.c, modules/%.so, $(sort $(wildcard src/module_*.c)))
 HEADERS  = $(wildcard src/*.h)
+TOOLS    = $(patsubst tools/%.c, krk-%, $(sort $(wildcard tools/*.c)))
 
 # These are used by the install target. We call the local kuroko to get the
 # version string to use for the final library, so, uh, probably don't
@@ -30,7 +31,7 @@ ifndef KRK_ENABLE_STATIC
     # to actually rename it to kuroko.dll or whatever.
     LDLIBS  += libkuroko.so
   endif
-  all: ${TARGET} ${MODULES}
+  all: ${TARGET} ${MODULES} ${TOOLS}
   KUROKO_LIBS = libkuroko.so
 else
   # Static builds are a little different...
@@ -102,9 +103,14 @@ help:
 	@echo "   KRK_ENABLE_STATIC=1    Build a single static binary."
 	@echo "   KRK_ENABLE_BUNDLE=1    Link C modules directly into the interpreter."
 	@echo "   KRK_ENABLE_THREAD=1    Enable EXPERIMENTAL threading support. (* enabled by default on Linux)"
+	@echo ""
+	@echo "Available tools: ${TOOLS}"
 
 kuroko: src/kuroko.o ${KUROKO_LIBS}
 	${CC} ${CFLAGS} ${LDFLAGS} -o $@ src/kuroko.o ${KUROKO_LIBS} ${LDLIBS}
+
+krk-%: tools/%.c ${KUROKO_LIBS}
+	${CC} -Itools ${CFLAGS} ${LDFLAGS} -o $@ $< ${KUROKO_LIBS} ${LDLIBS}
 
 libkuroko.so: ${OBJS}
 	${CC} ${CFLAGS} ${LDFLAGS} -shared -o $@ ${OBJS}
