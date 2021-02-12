@@ -46,3 +46,4 @@ for painter in painters:
     painter.join()
 
 drawScreen()
+return 0
