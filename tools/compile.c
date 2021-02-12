@@ -70,6 +70,9 @@ static void _initListFunctions(void) {
 }
 
 static void findInterpreter(char * argv[]) {
+#ifdef _WIN32
+	vm.binpath = strdup(_pgmptr);
+#else
 	/* Try asking /proc */
 	char * binpath = realpath("/proc/self/exe", NULL);
 	if (!binpath || (access(binpath, X_OK) != 0)) {
@@ -97,6 +100,7 @@ static void findInterpreter(char * argv[]) {
 	if (binpath) {
 		vm.binpath = binpath;
 	} /* Else, give up at this point and just don't attach it at all. */
+#endif
 }
 
 static KrkString ** myStrings = NULL;
