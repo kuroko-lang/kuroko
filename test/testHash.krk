@@ -9,4 +9,4 @@ for v in h.keys():
     print(v)
 
 for v in h.keys():
-    print("" + v + ": " + h[v])
+    print(str(v) + ": " + str(h[v]))

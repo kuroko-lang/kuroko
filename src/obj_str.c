@@ -38,6 +38,7 @@ KRK_METHOD(str,__init__,{
 
 KRK_METHOD(str,__add__,{
 	METHOD_TAKES_EXACTLY(1);
+	CHECK_ARG(1,str,KrkString*,them);
 	const char * a;
 	const char * b;
 	size_t al;
@@ -47,24 +48,8 @@ KRK_METHOD(str,__add__,{
 	a = AS_CSTRING(argv[0]);
 	al = self->length;
 
-	if (!IS_STRING(argv[1])) {
-		KrkClass * type = krk_getType(argv[1]);
-		if (type->_tostr) {
-			krk_push(argv[1]);
-			KrkValue result = krk_callSimple(OBJECT_VAL(type->_tostr), 1, 0);
-			krk_push(result);
-			needsPop = 1;
-			if (!IS_STRING(result)) return krk_runtimeError(vm.exceptions->typeError, "__str__ produced something that was not a string: '%s'", krk_typeName(result));
-			b = AS_CSTRING(result);
-			bl = AS_STRING(result)->length;
-		} else {
-			b = krk_typeName(argv[1]);
-			bl = strlen(b);
-		}
-	} else {
-		b = AS_CSTRING(argv[1]);
-		bl = AS_STRING(argv[1])->length;
-	}
+	b = AS_CSTRING(argv[1]);
+	bl = them->length;
 
 	size_t length = al + bl;
 	char * chars = ALLOCATE(char, length + 1);

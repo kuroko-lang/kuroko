@@ -1814,11 +1814,8 @@ static KrkValue run() {
 				break;
 			}
 			case OP_LESS: BINARY_OP(lt);
-			case OP_GREATER: BINARY_OP(gt)
-			case OP_ADD:
-				if (IS_STRING(krk_peek(1))) krk_addObjects(); /* Shortcut for strings */
-				else BINARY_OP(add)
-				break;
+			case OP_GREATER: BINARY_OP(gt);
+			case OP_ADD: BINARY_OP(add);
 			case OP_SUBTRACT: BINARY_OP(sub)
 			case OP_MULTIPLY: BINARY_OP(mul)
 			case OP_DIVIDE: BINARY_OP_CHECK_ZERO(div)
