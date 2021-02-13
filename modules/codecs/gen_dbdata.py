@@ -27,6 +27,7 @@ class {idname}IncrementalDecoder(infrastructure.AsciiIncrementalDecoder):
     decoding_map = {decmap!r}
     dbrange = {dbrange!r}
     tbrange = {tbrange!r}
+    trailrange = {trailrange!r}
 
 infrastructure.register_kuroko_codec(
     {labels!r}, 
@@ -42,8 +43,10 @@ encode_shiftjis = {}
 encode_jis7 = {}
 dbrange_eucjp = (0x8E, *range(0xA1, 0xFE + 1))
 tbrange_eucjp = (0x8F,)
+trailrange_eucjp = (*range(0xA1, 0xFE + 1),)
 dbrange_shiftjis = (*range(0x81, 0x9F + 1), *range(0xE0, 0xFC + 1))
 tbrange_shiftjis = ()
+trailrange_shiftjis = (*range(0x40, 0x7E + 1), *range(0x80, 0xFC + 1))
 
 # "JIS X 0208" (actually follows _de facto_ Windows-31J)
 for pointer, ucs in enumerate(indices["jis0208"]):
@@ -117,11 +120,13 @@ for data, ucs in decode_shiftjis.items():
 
 print(template.format(mainlabel="windows-31j", weblabel="shift_jis", labels=aliases["shift_jis"],
                         encmap=encode_shiftjis, decmap=decode_shiftjis, idname="Windows31J",
-                        dbrange=dbrange_shiftjis, tbrange=tbrange_shiftjis))
+                        dbrange=dbrange_shiftjis, tbrange=tbrange_shiftjis, 
+                        trailrange=trailrange_shiftjis))
 
 print(template.format(mainlabel="x-euc-jp", weblabel="euc-jp", labels=aliases["euc-jp"],
                         encmap=encode_eucjp, decmap=decode_eucjp, idname="XEucJp",
-                        dbrange=dbrange_eucjp, tbrange=tbrange_eucjp))
+                        dbrange=dbrange_eucjp, tbrange=tbrange_eucjp, 
+                        trailrange=trailrange_eucjp))
 
 
 

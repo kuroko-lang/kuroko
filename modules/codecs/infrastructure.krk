@@ -159,6 +159,7 @@ class AsciiIncrementalDecoder:
     decoding_map = {}
     dbrange = ()
     tbrange = ()
+    trailrange = ()
     def __init__(errors):
         self.errors = errors
     def decode(data, final = False):
@@ -187,7 +188,7 @@ class AsciiIncrementalDecoder:
                 bytemode = 3
                 leader.append(i)
                 offset += 1
-            else if bytemode == 3 and len(leader) == 1:
+            else if bytemode == 3 and len(leader) == 1 and i in trailrange:
                 leader.append(i)
                 offset += 1
             else if bytemode == 1 and i in self.decoding_map:
@@ -206,12 +207,13 @@ class AsciiIncrementalDecoder:
             else:
                 let errorstart = offset + 1 - bytemode
                 let errorend = errorstart + bytemode
-                # Per WHATWG behaviour, if an invalid multi-byte code contains an ASCII byte,
+                # Note: per WHATWG behaviour, if an invalid multi-byte code contains an ASCII byte,
                 #   parsing shall resume at that byte.
-                if len(leader) > 1 and leader[1] < 0x80:
-                    errorend -= 2
-                else if i < 0x80:
-                    errorend -= 1
+                if bytemode > 1:
+                    if len(leader) > 1 and leader[1] < 0x80:
+                        errorend -= 2
+                    else if i not in trailrange or i < 0x80:
+                        errorend -= 1
                 let error = UnicodeDecodeError(self.name, data, errorstart, errorend, "")
                 bytemode = 1
                 leader = []
