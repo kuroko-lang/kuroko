@@ -21,10 +21,12 @@ def build_sbmap(name):
 template = """
 class {idname}IncrementalEncoder(infrastructure.AsciiIncrementalEncoder):
     name = {mainlabel!r}
+    webname = {weblabel!r}
     encoding_map = {encmap!r}
 
 class {idname}IncrementalDecoder(infrastructure.AsciiIncrementalDecoder):
     name = {mainlabel!r}
+    webname = {weblabel!r}
     decoding_map = {decmap!r}
 
 infrastructure.register_kuroko_codec(
@@ -49,7 +51,7 @@ with open("encodings.json") as f:
                 labels = enc["labels"]
                 encoding_map, decoding_map = build_sbmap(whatwgname)
                 idname = name.title().replace("-", "")
-                print(template.format(mainlabel=name, encmap=encoding_map,
+                print(template.format(mainlabel=name, encmap=encoding_map, weblabel=whatwgname,
                         decmap=decoding_map, labels=labels, idname=idname))
 
 
