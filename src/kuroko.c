@@ -319,6 +319,7 @@ static void findInterpreter(char * argv[]) {
 static int runString(char * argv[], int flags, char * string) {
 	findInterpreter(argv);
 	krk_initVM(flags);
+	krk_startModule("__main__");
 	krk_interpret(string, 1, "<stdin>","<stdin>");
 	krk_freeVM();
 	return 0;
@@ -698,6 +699,7 @@ _finishArgs:
 			(void)blockWidth;
 		}
 	} else {
+		krk_startModule("__main__");
 		result = krk_runfile(argv[optind],1,"__main__",argv[optind]);
 	}
 

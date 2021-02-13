@@ -1,1 +1,2 @@
+from foo.extra import exportablething
 print("Imported foo.__init__ as", __name__)

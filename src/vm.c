@@ -1440,7 +1440,12 @@ int krk_loadModule(KrkString * path, KrkValue * moduleOut, KrkString * runAs) {
 
 		/* Compile and run the module in a new context and exit the VM when it
 		 * returns to the current call frame; modules should return objects. */
+		KrkInstance * enclosing = krk_currentThread.module;
+		krk_startModule(runAs->chars);
+		krk_tableSet(&vm.modules, OBJECT_VAL(runAs), OBJECT_VAL(krk_currentThread.module));
+		if (isPackage) krk_attachNamedValue(&krk_currentThread.module->fields,"__ispackage__",BOOLEAN_VAL(1));
 		*moduleOut = krk_callfile(fileName,runAs->chars,fileName);
+		krk_currentThread.module = enclosing;
 		if (!IS_OBJECT(*moduleOut)) {
 			if (!(krk_currentThread.flags & KRK_HAS_EXCEPTION)) {
 				krk_runtimeError(vm.exceptions->importError,
@@ -1451,11 +1456,6 @@ int krk_loadModule(KrkString * path, KrkValue * moduleOut, KrkString * runAs) {
 
 		krk_pop(); /* concatenated filename on stack */
 		krk_push(*moduleOut);
-		krk_tableSet(&vm.modules, OBJECT_VAL(runAs), *moduleOut);
-		/* Was this a package? */
-		if (isPackage) {
-			krk_attachNamedValue(&AS_INSTANCE(*moduleOut)->fields,"__ispackage__",BOOLEAN_VAL(1));
-		}
 		return 1;
 	}
 
@@ -2340,9 +2340,6 @@ KrkInstance * krk_startModule(const char * name) {
 }
 
 KrkValue krk_interpret(const char * src, int newScope, char * fromName, char * fromFile) {
-	KrkInstance * enclosing = krk_currentThread.module;
-	if (newScope) krk_startModule(fromName);
-
 	KrkFunction * function = krk_compile(src, 0, fromFile);
 	if (!function) {
 		if (!krk_currentThread.frameCount) handleException();
@@ -2368,9 +2365,7 @@ KrkValue krk_interpret(const char * src, int newScope, char * fromName, char * f
 	KrkValue result = run();
 
 	if (newScope) {
-		KrkValue out = OBJECT_VAL(krk_currentThread.module);
-		krk_currentThread.module = enclosing;
-		return out;
+		return OBJECT_VAL(krk_currentThread.module);
 	} else {
 		return result;
 	}
