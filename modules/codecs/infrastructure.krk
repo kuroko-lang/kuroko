@@ -44,7 +44,8 @@ def lookup_error(name):
     return _error_registry[name]
 
 def strict_errors(exc):
-    raise exc
+    # Raising exc (i.e. a ValueError subclass instance) directly is somehow a segfault atm.
+    raise ValueError(exc)
 register_error("strict", strict_errors)
 
 def ignore_errors(exc):
@@ -68,19 +69,19 @@ def backslashreplace_errors(exc):
         let myhex = hex(ord(exc.object[exc.start])).split("x", 1)[1]
         let outhex
         if len(myhex) <= 2:
-            outhex = "\\x" + ("0" * (2 - len(outhex))) + myhex
+            outhex = "\\x" + ("0" * (2 - len(myhex))) + myhex
         else if len(myhex) <= 4:
-            outhex = "\\u" + ("0" * (4 - len(outhex))) + myhex
+            outhex = "\\u" + ("0" * (4 - len(myhex))) + myhex
         else:
-            outhex = "\\U" + ("0" * (8 - len(outhex))) + myhex
-        return (outhex, exc.end)
+            outhex = "\\U" + ("0" * (8 - len(myhex))) + myhex
+        return (outhex.encode(), exc.end)
     else:
         raise TypeError("'backslashreplace' handler is only for encoding")
 register_error("backslashreplace", backslashreplace_errors)
 
 def xmlcharrefreplace_errors(exc):
     if isinstance(exc, UnicodeEncodeError):
-        return ("&#" + str(ord(exc.object[exc.start])) + ";", exc.end)
+        return (b"&#" + str(ord(exc.object[exc.start])).encode() + b";", exc.end)
     else:
         raise TypeError("'xmlcharrefreplace' handler is only for encoding")
 register_error("xmlcharrefreplace", xmlcharrefreplace_errors)
@@ -132,7 +133,7 @@ class AsciiIncrementalEncoder:
                 offset += 1
             else:
                 let error = UnicodeEncodeError(self.name, string, offset, offset + 1, "")
-                let errorret = lookup_error(error)
+                let errorret = lookup_error(self.errors)(error)
                 out.add(errorret[0])
                 offset = errorret[1]
                 if offset < 0:
@@ -164,7 +165,7 @@ class AsciiIncrementalDecoder:
                 offset += 1
             else:
                 let error = UnicodeDecodeError(self.name, string, offset, offset + 1, "")
-                let errorret = lookup_error(error)
+                let errorret = lookup_error(self.errors)(error)
                 out.add(errorret[0])
                 offset = errorret[1]
                 if offset < 0:
