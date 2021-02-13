@@ -114,6 +114,33 @@ static KrkValue _bytes_decode(int argc, KrkValue argv[], int hasKw) {
 	return OBJECT_VAL(krk_copyString((char*)AS_BYTES(argv[0])->bytes, AS_BYTES(argv[0])->length));
 }
 
+static KrkValue _bytes_add(int argc, KrkValue argv[], int hasKw) {
+	const uint8_t * a;
+	const uint8_t * b;
+	size_t al;
+	size_t bl;
+
+    if (argc != 2) {
+	    return krk_runtimeError(vm.exceptions->typeError, "calling __add__ with too many or few arguments");
+	} else if (!IS_BYTES(argv[1])) {
+	    return krk_runtimeError(vm.exceptions->typeError, "can only catenate bytes to bytes, not '%s'", krk_typeName(argv[1]));
+	}
+
+	a = AS_BYTES(argv[0])->bytes;
+	al = AS_BYTES(argv[0])->length;
+	b = AS_BYTES(argv[1])->bytes;
+	bl = AS_BYTES(argv[1])->length;
+
+	size_t length = al + bl;
+	uint8_t * chars = ALLOCATE(char, length + 1);
+	memcpy(chars, a, al);
+	memcpy(chars + al, b, bl);
+	chars[length] = '\0';
+
+	KrkBytes * result = krk_newBytes(length, chars);
+	return OBJECT_VAL(result);
+}
+
 #undef PUSH_CHAR
 
 _noexport
@@ -127,5 +154,6 @@ void _createAndBind_bytesClass(void) {
 	krk_defineNative(&vm.baseClasses->bytesClass->methods, ".__contains__", _bytes_contains);
 	krk_defineNative(&vm.baseClasses->bytesClass->methods, ".__get__", _bytes_get);
 	krk_defineNative(&vm.baseClasses->bytesClass->methods, ".__eq__", _bytes_eq);
+	krk_defineNative(&vm.baseClasses->bytesClass->methods, ".__add__", _bytes_add);
 	krk_finalizeClass(vm.baseClasses->bytesClass);
 }
