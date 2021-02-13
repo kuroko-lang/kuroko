@@ -38,7 +38,6 @@ else
   CFLAGS +=-DSTATIC_ONLY
   LDFLAGS += -static
   all: ${TARGET}
-  OBJS += src/kuroko.o
   KUROKO_LIBS = ${OBJS}
 endif
 
