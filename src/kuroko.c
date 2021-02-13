@@ -370,7 +370,7 @@ static int compileFile(char * argv[], int flags, char * fileName) {
 #define BUNDLED(name) do { \
 	extern KrkValue krk_module_onload_ ## name (); \
 	KrkValue moduleOut = krk_module_onload_ ## name (); \
-	krk_attachNamedValue(&krk_currentThread.modules, # name, moduleOut); \
+	krk_attachNamedValue(&vm.modules, # name, moduleOut); \
 	krk_attachNamedObject(&AS_INSTANCE(moduleOut)->fields, "__name__", (KrkObj*)krk_copyString(#name, sizeof(#name)-1)); \
 	krk_attachNamedValue(&AS_INSTANCE(moduleOut)->fields, "__file__", NONE_VAL()); \
 } while (0)
