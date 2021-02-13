@@ -63,6 +63,7 @@ typedef enum {
 	KRK_STRING_UCS1  = 1,
 	KRK_STRING_UCS2  = 2,
 	KRK_STRING_UCS4  = 4,
+	KRK_STRING_INVALID = 5,
 } KrkStringType;
 
 struct ObjString {

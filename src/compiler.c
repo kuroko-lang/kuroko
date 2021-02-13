@@ -1865,10 +1865,10 @@ static void string(int type) {
 				krk_rewindScanner(beforeExpression); /* To get us back to where we were with a string token */
 				parser = parserBefore;
 				c = inner.start;
+				KrkToken which = syntheticToken("str");
 				if (*c == '!') {
 					c++;
 					/* Conversion specifiers, must only be one */
-					KrkToken which;
 					if (*c == 'r') {
 						which = syntheticToken("repr");
 					} else if (*c == 's') {
@@ -1877,12 +1877,12 @@ static void string(int type) {
 						error("Unsupported conversion flag for f-string expression");
 						goto _cleanupError;
 					}
-					size_t ind = identifierConstant(&which);
-					EMIT_CONSTANT_OP(OP_GET_GLOBAL, ind);
-					emitByte(OP_SWAP);
-					emitBytes(OP_CALL, 1);
 					c++;
 				}
+				size_t ind = identifierConstant(&which);
+				EMIT_CONSTANT_OP(OP_GET_GLOBAL, ind);
+				emitByte(OP_SWAP);
+				emitBytes(OP_CALL, 1);
 				if (*c == ':') {
 					/* TODO format specs */
 					error("Format spec not supported in f-string");

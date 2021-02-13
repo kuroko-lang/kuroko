@@ -13,9 +13,8 @@ if False:
 
 print("This is the first line that should print.")
 
-# Concatenation currently requires the first argument be a string.
-# Other values then get converted to strings as you go.
-print("We can do simple concatenation " + 123 + ".")
+# Only str can be concatenated with str
+print("We can do simple concatenation " + str(123) + ".")
 
 # Lox only has a 'Number' type for numerical values, but we have
 # Integer and Floating to separate the two.
@@ -23,13 +22,13 @@ print(4.2 * 9.7) # Should be 40.74
 print(1 + 2 + 3)
 
 # Other bases:
-print("Hex: " + 0xFF + " Octal: " + 0o123 + " Binary: " + 0b1010)
+print("Hex:", 0xFF, "Octal:", 0o123, "Binary:", 0b1010)
 
 # This `for init, cond, step:` syntax is possibly temporary? I do intend to
 # implement iterators and `for VAR in ITER:` like in Python, but C-style for
 # loops are also useful...
 for i = 0; i < 10; i = i + 1:
-    print("i = " + i)
+    print("i =", i)
 
 # Functions work like in Python, though currently no default values.
 def function(arg): # And of course the parser will handle comments here...
@@ -49,7 +48,7 @@ print("This code is after the function definition")
 # now we're following traditional scoping rules, and a simple `let foo` at
 # the head of the appropriate block should work okay.
 let result = function("demo")
-print("The function call returned: " + result)
+print("The function call returned:", result)
 
 # `sleep()` is a native function bind. Lox has `clock` as an example, but I
 # figured something with arguments would be more useful? The purpose of this
@@ -57,7 +56,7 @@ print("The function call returned: " + result)
 # plugins for bim, so native bindings are going to be very important.
 result = time.sleep(0.1)
 
-print("Call to sleep returned: " + result)
+print("Call to sleep returned:", result)
 
 function("something else")
 
@@ -125,9 +124,9 @@ class SuperClass():
     def __str__(self):
         return "(I am a " + self.a + ")"
     def __get__(self, ind):
-        return "(get[" + ind + "])"
+        return "(get[" + str(ind) + "])"
     def __set__(self, ind, val):
-        print("(set[" + ind + "] = " + val + ")")
+        print("(set[" + str(ind) + "] = " + val + ")")
 
 class SubClass(SuperClass):
     def __init__(self):
@@ -145,7 +144,7 @@ subclass.aMethod()
 #def notAMethoDeither(self):
 #    print(self)
 
-print("Subclass says: " + subclass)
+print("Subclass says:", subclass)
 
 subclass.__get__(123)
 print(subclass[123])
@@ -158,13 +157,13 @@ print(hash["hello"])
 
 print("Let's make some lists:")
 let l = list()
-print("Length before: " + len(l))
+print("Length before:", len(l))
 l.append(1)
 l.append(2)
 l.append(3)
-print("Length after: " + len(l))
+print("Length after:", len(l))
 for j = 0; j < len(l); j = j + 1:
-    print("j=" + j + ", list[j]=" + l[j])
+    print("j=" + str(j) + ", list[j]=" + str(l[j]))
 
 print("Can we call properties of strings?".__len__()) # Of course we can.
 

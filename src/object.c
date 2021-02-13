@@ -108,10 +108,11 @@ static int checkString(const char * chars, size_t length, size_t *codepointCount
 			if (codepoint > maxCodepoint) maxCodepoint = codepoint;
 			(*codepointCount)++;
 		} else if (state == UTF8_REJECT) {
+			_release_lock(_stringLock);
 			krk_runtimeError(vm.exceptions->valueError, "Invalid UTF-8 sequence in string.");
 			fprintf(stderr, "Invalid sequence detected.\n");
 			*codepointCount = 0;
-			return KRK_STRING_ASCII;
+			return KRK_STRING_INVALID;
 		}
 	}
 	if (maxCodepoint > 0xFFFF) {
@@ -161,23 +162,30 @@ uint32_t krk_unicodeCodepoint(KrkString * string, size_t index) {
 		case KRK_STRING_UCS1: return ((uint8_t*)string->codes)[index];
 		case KRK_STRING_UCS2: return ((uint16_t*)string->codes)[index];
 		case KRK_STRING_UCS4: return ((uint32_t*)string->codes)[index];
+		default:
+			krk_runtimeError(vm.exceptions->valueError, "Invalid string.");
+			return 0;
 	}
-	krk_runtimeError(vm.exceptions->valueError, "Invalid string.");
-	return 0;
 }
 
 static KrkString * allocateString(char * chars, size_t length, uint32_t hash) {
+	size_t codesLength = 0;
+	int type = checkString(chars,length,&codesLength);
+	if (type == KRK_STRING_INVALID) {
+		return krk_copyString("",0);
+	}
 	KrkString * string = ALLOCATE_OBJECT(KrkString, OBJ_STRING);
 	string->length = length;
 	string->chars = chars;
 	string->hash = hash;
-	string->codesLength = 0;
-	string->type = checkString(chars,length,&string->codesLength);
+	string->codesLength = codesLength;
+	string->type = type;
 	string->codes = NULL;
 	if (string->type == KRK_STRING_ASCII) string->codes = string->chars;
 	krk_push(OBJECT_VAL(string));
 	krk_tableSet(&vm.strings, OBJECT_VAL(string), NONE_VAL());
 	krk_pop();
+	_release_lock(_stringLock);
 	return string;
 }
 
@@ -201,7 +209,6 @@ KrkString * krk_takeString(char * chars, size_t length) {
 		return interned;
 	}
 	KrkString * result = allocateString(chars, length, hash);
-	_release_lock(_stringLock);
 	return result;
 }
 
