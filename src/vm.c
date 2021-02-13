@@ -1676,7 +1676,7 @@ static int valueDelProperty(KrkString * name) {
 	if ((IS_INTEGER(b) && AS_INTEGER(b) == 0)) { krk_runtimeError(vm.exceptions->zeroDivisionError, "integer division or modulo by zero"); goto _finishException; } \
 	else if ((IS_FLOATING(b) && AS_FLOATING(b) == 0.0)) { krk_runtimeError(vm.exceptions->zeroDivisionError, "float division by zero"); goto _finishException; } \
 	krk_push(krk_operator_ ## op (a,b)); break; }
-#define READ_CONSTANT(s) (frame->closure->function->chunk.constants.values[readBytes(frame,s)])
+#define READ_CONSTANT(s) (frame->closure->function->chunk.constants.values[OPERAND])
 #define READ_STRING(s) AS_STRING(READ_CONSTANT(s))
 
 /**
@@ -1684,10 +1684,12 @@ static int valueDelProperty(KrkString * name) {
  * operand referring to a local slot, constant slot, or offset.
  */
 static inline size_t readBytes(CallFrame * frame, int num) {
-	size_t out = READ_BYTE();
-	while (--num) {
-		out <<= 8;
-		out |= (READ_BYTE() & 0xFF);
+	size_t out = 0;
+	switch (num) {
+		case 3: out = READ_BYTE(); /* fallthrough*/
+		case 2: out <<= 8; out |= READ_BYTE(); /* fallthrough */
+		case 1: out <<= 8; out |= READ_BYTE(); /* fallthrough */
+		case 0: return out;
 	}
 	return out;
 }
@@ -1721,15 +1723,12 @@ static KrkValue run() {
 		}
 #endif
 
+		/* Each instruction begins with one opcode byte */
 		uint8_t opcode = READ_BYTE();
 
-		/* We split the instruction opcode table in half and use the top bit
-		 * to mark instructions as "long" as we can quickly determine operand
-		 * widths. The standard opereand width is 1 byte. If operands need
-		 * to use more than 256 possible values, such as when the stack
-		 * is very large or there are a lot of constants in a single chunk of
-		 * bytecode, the long opcodes provide 24 bits of operand space. */
-		int operandWidth = (opcode & (1 << 7)) ? 3 : 1;
+		/* The top two bits of the opcode indicate how many bytes
+		 * of operands it takes: 0, 1, 2, or 3 (naturally) */
+		size_t OPERAND = readBytes(frame, opcode >> 6);
 
 		switch (opcode) {
 			case OP_CLEANUP_WITH: {
@@ -1810,120 +1809,15 @@ static KrkValue run() {
 				else { krk_runtimeError(vm.exceptions->typeError, "Incompatible operand type for prefix negation."); goto _finishException; }
 				break;
 			}
-			case OP_CONSTANT_LONG:
-			case OP_CONSTANT: {
-				size_t index = readBytes(frame, operandWidth);
-				KrkValue constant = frame->closure->function->chunk.constants.values[index];
-				krk_push(constant);
-				break;
-			}
 			case OP_NONE:  krk_push(NONE_VAL()); break;
 			case OP_TRUE:  krk_push(BOOLEAN_VAL(1)); break;
 			case OP_FALSE: krk_push(BOOLEAN_VAL(0)); break;
 			case OP_NOT:   krk_push(BOOLEAN_VAL(krk_isFalsey(krk_pop()))); break;
 			case OP_POP:   krk_pop(); break;
-			case OP_DEFINE_GLOBAL_LONG:
-			case OP_DEFINE_GLOBAL: {
-				KrkString * name = READ_STRING(operandWidth);
-				krk_tableSet(frame->globals, OBJECT_VAL(name), krk_peek(0));
-				krk_pop();
-				break;
-			}
-			case OP_GET_GLOBAL_LONG:
-			case OP_GET_GLOBAL: {
-				KrkString * name = READ_STRING(operandWidth);
-				KrkValue value;
-				if (!krk_tableGet(frame->globals, OBJECT_VAL(name), &value)) {
-					if (!krk_tableGet(&vm.builtins->fields, OBJECT_VAL(name), &value)) {
-						krk_runtimeError(vm.exceptions->nameError, "Undefined variable '%s'.", name->chars);
-						goto _finishException;
-					}
-				}
-				krk_push(value);
-				break;
-			}
-			case OP_SET_GLOBAL_LONG:
-			case OP_SET_GLOBAL: {
-				KrkString * name = READ_STRING(operandWidth);
-				if (krk_tableSet(frame->globals, OBJECT_VAL(name), krk_peek(0))) {
-					krk_tableDelete(frame->globals, OBJECT_VAL(name));
-					krk_runtimeError(vm.exceptions->nameError, "Undefined variable '%s'.", name->chars);
-					goto _finishException;
-				}
-				break;
-			}
-			case OP_DEL_GLOBAL_LONG:
-			case OP_DEL_GLOBAL: {
-				KrkString * name = READ_STRING(operandWidth);
-				if (!krk_tableDelete(frame->globals, OBJECT_VAL(name))) {
-					krk_runtimeError(vm.exceptions->nameError, "Undefined variable '%s'.", name->chars);
-					goto _finishException;
-				}
-				break;
-			}
-			case OP_IMPORT_LONG:
-			case OP_IMPORT: {
-				KrkString * name = READ_STRING(operandWidth);
-				if (!krk_doRecursiveModuleLoad(name)) {
-					goto _finishException;
-				}
-				break;
-			}
-			case OP_GET_LOCAL_LONG:
-			case OP_GET_LOCAL: {
-				uint32_t slot = readBytes(frame, operandWidth);
-				krk_push(krk_currentThread.stack[frame->slots + slot]);
-				break;
-			}
-			case OP_SET_LOCAL_LONG:
-			case OP_SET_LOCAL: {
-				uint32_t slot = readBytes(frame, operandWidth);
-				krk_currentThread.stack[frame->slots + slot] = krk_peek(0);
-				break;
-			}
-			case OP_JUMP_IF_FALSE: {
-				uint16_t offset = readBytes(frame, 2);
-				if (krk_isFalsey(krk_peek(0))) frame->ip += offset;
-				break;
-			}
-			case OP_JUMP_IF_TRUE: {
-				uint16_t offset = readBytes(frame, 2);
-				if (!krk_isFalsey(krk_peek(0))) frame->ip += offset;
-				break;
-			}
-			case OP_JUMP: {
-				frame->ip += readBytes(frame, 2);
-				break;
-			}
-			case OP_LOOP: {
-				uint16_t offset = readBytes(frame, 2);
-				frame->ip -= offset;
-				break;
-			}
-			case OP_PUSH_TRY: {
-				uint16_t tryTarget = readBytes(frame, 2) + (frame->ip - frame->closure->function->chunk.code);
-				KrkValue handler = HANDLER_VAL(OP_PUSH_TRY, tryTarget);
-				krk_push(handler);
-				break;
-			}
 			case OP_RAISE: {
 				krk_currentThread.currentException = krk_pop();
 				krk_currentThread.flags |= KRK_HAS_EXCEPTION;
 				goto _finishException;
-			}
-			/* Sometimes you just want to increment a stack-local integer quickly. */
-			case OP_INC_LONG:
-			case OP_INC: {
-				uint32_t slot = readBytes(frame, operandWidth);
-				krk_currentThread.stack[frame->slots + slot] = INTEGER_VAL(AS_INTEGER(krk_currentThread.stack[frame->slots+slot])+1);
-				break;
-			}
-			case OP_CALL_LONG:
-			case OP_CALL: {
-				int argCount = readBytes(frame, operandWidth);
-				if (unlikely(!krk_callValue(krk_peek(argCount), argCount, 1))) goto _finishException;
-				frame = &krk_currentThread.frames[krk_currentThread.frameCount - 1];
-				break;
 			}
 			/* This version of the call instruction takes its arity from the
 			 * top of the stack, so we don't have to calculate arity at compile time. */
@@ -1933,93 +1827,10 @@ static KrkValue run() {
 				frame = &krk_currentThread.frames[krk_currentThread.frameCount - 1];
 				break;
 			}
-			case OP_EXPAND_ARGS: {
-				int type = READ_BYTE();
-				krk_push(KWARGS_VAL(LONG_MAX-type));
-				break;
-			}
-			case OP_CLOSURE_LONG:
-			case OP_CLOSURE: {
-				KrkFunction * function = AS_FUNCTION(READ_CONSTANT(operandWidth));
-				KrkClosure * closure = krk_newClosure(function);
-				krk_push(OBJECT_VAL(closure));
-				for (size_t i = 0; i < closure->upvalueCount; ++i) {
-					int isLocal = READ_BYTE();
-					int index = readBytes(frame,(i > 255) ? 3 : 1);
-					if (isLocal) {
-						closure->upvalues[i] = captureUpvalue(frame->slots + index);
-					} else {
-						closure->upvalues[i] = frame->closure->upvalues[index];
-					}
-				}
-				break;
-			}
-			case OP_GET_UPVALUE_LONG:
-			case OP_GET_UPVALUE: {
-				int slot = readBytes(frame, operandWidth);
-				krk_push(*UPVALUE_LOCATION(frame->closure->upvalues[slot]));
-				break;
-			}
-			case OP_SET_UPVALUE_LONG:
-			case OP_SET_UPVALUE: {
-				int slot = readBytes(frame, operandWidth);
-				*UPVALUE_LOCATION(frame->closure->upvalues[slot]) = krk_peek(0);
-				break;
-			}
 			case OP_CLOSE_UPVALUE:
 				closeUpvalues((krk_currentThread.stackTop - krk_currentThread.stack)-1);
 				krk_pop();
 				break;
-			case OP_CLASS_LONG:
-			case OP_CLASS: {
-				KrkString * name = READ_STRING(operandWidth);
-				KrkClass * _class = krk_newClass(name, vm.baseClasses->objectClass);
-				krk_push(OBJECT_VAL(_class));
-				_class->filename = frame->closure->function->chunk.filename;
-				krk_attachNamedObject(&_class->fields, "__func__", (KrkObj*)frame->closure);
-				break;
-			}
-			case OP_IMPORT_FROM_LONG:
-			case OP_IMPORT_FROM: {
-				KrkString * name = READ_STRING(operandWidth);
-				if (unlikely(!valueGetProperty(name))) {
-					/* Try to import... */
-					KrkValue moduleName;
-					if (!krk_tableGet(&AS_INSTANCE(krk_peek(0))->fields, vm.specialMethodNames[METHOD_NAME], &moduleName)) {
-						krk_runtimeError(vm.exceptions->importError, "Can not import '%s' from non-module '%s' object", name->chars, krk_typeName(krk_peek(0)));
-						goto _finishException;
-					}
-					krk_push(moduleName);
-					krk_push(OBJECT_VAL(S(".")));
-					krk_addObjects();
-					krk_push(OBJECT_VAL(name));
-					krk_addObjects();
-					if (!krk_doRecursiveModuleLoad(AS_STRING(krk_peek(0)))) {
-						krk_runtimeError(vm.exceptions->importError, "Can not import '%s' from '%s'", name->chars, AS_CSTRING(moduleName));
-						goto _finishException;
-					}
-					krk_currentThread.stackTop[-3] = krk_currentThread.stackTop[-1];
-					krk_currentThread.stackTop -= 2;
-				}
-			} break;
-			case OP_GET_PROPERTY_LONG:
-			case OP_GET_PROPERTY: {
-				KrkString * name = READ_STRING(operandWidth);
-				if (unlikely(!valueGetProperty(name))) {
-					krk_runtimeError(vm.exceptions->attributeError, "'%s' object has no attribute '%s'", krk_typeName(krk_peek(0)), name->chars);
-					goto _finishException;
-				}
-				break;
-			}
-			case OP_DEL_PROPERTY_LONG:
-			case OP_DEL_PROPERTY: {
-				KrkString * name = READ_STRING(operandWidth);
-				if (unlikely(!valueDelProperty(name))) {
-					krk_runtimeError(vm.exceptions->attributeError, "'%s' object has no attribute '%s'", krk_typeName(krk_peek(0)), name->chars);
-					goto _finishException;
-				}
-				break;
-			}
 			case OP_INVOKE_GETTER: {
 				KrkClass * type = krk_getType(krk_peek(1));
 				if (likely(type->_getter)) {
@@ -2082,37 +1893,6 @@ static KrkValue run() {
 				}
 				break;
 			}
-			case OP_SET_PROPERTY_LONG:
-			case OP_SET_PROPERTY: {
-				KrkString * name = READ_STRING(operandWidth);
-				KrkTable * table = NULL;
-				if (IS_INSTANCE(krk_peek(1))) table = &AS_INSTANCE(krk_peek(1))->fields;
-				else if (IS_CLASS(krk_peek(1))) table = &AS_CLASS(krk_peek(1))->fields;
-				if (table) {
-					KrkValue previous;
-					if (krk_tableGet(table, OBJECT_VAL(name), &previous) && IS_PROPERTY(previous)) {
-						krk_push(krk_callSimple(AS_PROPERTY(previous)->method, 2, 0));
-						break;
-					} else {
-						krk_tableSet(table, OBJECT_VAL(name), krk_peek(0));
-					}
-				} else {
-					krk_runtimeError(vm.exceptions->attributeError, "'%s' object has no attribute '%s'", krk_typeName(krk_peek(0)), name->chars);
-					goto _finishException;
-				}
-				krk_swap(1);
-				krk_pop();
-				break;
-			}
-			case OP_METHOD_LONG:
-			case OP_METHOD: {
-				KrkValue method = krk_peek(0);
-				KrkClass * _class = AS_CLASS(krk_peek(1));
-				KrkValue name = OBJECT_VAL(READ_STRING(operandWidth));
-				krk_tableSet(&_class->methods, name, method);
-				krk_pop();
-				break;
-			}
 			case OP_FINALIZE: {
 				KrkClass * _class = AS_CLASS(krk_peek(0));
 				/* Store special methods for quick access */
@@ -2141,9 +1921,259 @@ static KrkValue run() {
 				me->docstring = AS_STRING(krk_pop());
 				break;
 			}
+			case OP_SWAP:
+				krk_swap(1);
+				break;
+			case OP_CREATE_PROPERTY: {
+				KrkProperty * newProperty = krk_newProperty(krk_peek(0));
+				krk_pop();
+				krk_push(OBJECT_VAL(newProperty));
+				break;
+			}
+
+			/*
+			 * Two-byte operands
+			 */
+
+			case OP_JUMP_IF_FALSE: {
+				uint16_t offset = OPERAND;
+				if (krk_isFalsey(krk_peek(0))) frame->ip += offset;
+				break;
+			}
+			case OP_JUMP_IF_TRUE: {
+				uint16_t offset = OPERAND;
+				if (!krk_isFalsey(krk_peek(0))) frame->ip += offset;
+				break;
+			}
+			case OP_JUMP: {
+				frame->ip += OPERAND;
+				break;
+			}
+			case OP_LOOP: {
+				uint16_t offset = OPERAND;
+				frame->ip -= offset;
+				break;
+			}
+			case OP_PUSH_TRY: {
+				uint16_t tryTarget = OPERAND + (frame->ip - frame->closure->function->chunk.code);
+				KrkValue handler = HANDLER_VAL(OP_PUSH_TRY, tryTarget);
+				krk_push(handler);
+				break;
+			}
+			case OP_PUSH_WITH: {
+				uint16_t cleanupTarget = OPERAND + (frame->ip - frame->closure->function->chunk.code);
+				KrkValue contextManager = krk_peek(0);
+				KrkClass * type = krk_getType(contextManager);
+				if (unlikely(!type->_enter || !type->_exit)) {
+					krk_runtimeError(vm.exceptions->attributeError, "Can not use '%s' as context manager", krk_typeName(contextManager));
+					goto _finishException;
+				}
+				krk_push(contextManager);
+				krk_callSimple(OBJECT_VAL(type->_enter), 1, 0);
+				/* Ignore result; don't need to pop */
+				KrkValue handler = HANDLER_VAL(OP_PUSH_WITH, cleanupTarget);
+				krk_push(handler);
+				break;
+			}
+
+			case OP_CONSTANT_LONG:
+			case OP_CONSTANT: {
+				size_t index = OPERAND;
+				KrkValue constant = frame->closure->function->chunk.constants.values[index];
+				krk_push(constant);
+				break;
+			}
+			case OP_DEFINE_GLOBAL_LONG:
+			case OP_DEFINE_GLOBAL: {
+				KrkString * name = READ_STRING(OPERAND);
+				krk_tableSet(frame->globals, OBJECT_VAL(name), krk_peek(0));
+				krk_pop();
+				break;
+			}
+			case OP_GET_GLOBAL_LONG:
+			case OP_GET_GLOBAL: {
+				KrkString * name = READ_STRING(OPERAND);
+				KrkValue value;
+				if (!krk_tableGet(frame->globals, OBJECT_VAL(name), &value)) {
+					if (!krk_tableGet(&vm.builtins->fields, OBJECT_VAL(name), &value)) {
+						krk_runtimeError(vm.exceptions->nameError, "Undefined variable '%s'.", name->chars);
+						goto _finishException;
+					}
+				}
+				krk_push(value);
+				break;
+			}
+			case OP_SET_GLOBAL_LONG:
+			case OP_SET_GLOBAL: {
+				KrkString * name = READ_STRING(OPERAND);
+				if (krk_tableSet(frame->globals, OBJECT_VAL(name), krk_peek(0))) {
+					krk_tableDelete(frame->globals, OBJECT_VAL(name));
+					krk_runtimeError(vm.exceptions->nameError, "Undefined variable '%s'.", name->chars);
+					goto _finishException;
+				}
+				break;
+			}
+			case OP_DEL_GLOBAL_LONG:
+			case OP_DEL_GLOBAL: {
+				KrkString * name = READ_STRING(OPERAND);
+				if (!krk_tableDelete(frame->globals, OBJECT_VAL(name))) {
+					krk_runtimeError(vm.exceptions->nameError, "Undefined variable '%s'.", name->chars);
+					goto _finishException;
+				}
+				break;
+			}
+			case OP_IMPORT_LONG:
+			case OP_IMPORT: {
+				KrkString * name = READ_STRING(OPERAND);
+				if (!krk_doRecursiveModuleLoad(name)) {
+					goto _finishException;
+				}
+				break;
+			}
+			case OP_GET_LOCAL_LONG:
+			case OP_GET_LOCAL: {
+				uint32_t slot = OPERAND;
+				krk_push(krk_currentThread.stack[frame->slots + slot]);
+				break;
+			}
+			case OP_SET_LOCAL_LONG:
+			case OP_SET_LOCAL: {
+				uint32_t slot = OPERAND;
+				krk_currentThread.stack[frame->slots + slot] = krk_peek(0);
+				break;
+			}
+			/* Sometimes you just want to increment a stack-local integer quickly. */
+			case OP_INC_LONG:
+			case OP_INC: {
+				uint32_t slot = OPERAND;
+				krk_currentThread.stack[frame->slots + slot] = INTEGER_VAL(AS_INTEGER(krk_currentThread.stack[frame->slots+slot])+1);
+				break;
+			}
+			case OP_CALL_LONG:
+			case OP_CALL: {
+				int argCount = OPERAND;
+				if (unlikely(!krk_callValue(krk_peek(argCount), argCount, 1))) goto _finishException;
+				frame = &krk_currentThread.frames[krk_currentThread.frameCount - 1];
+				break;
+			}
+			/* EXPAND_ARGS_LONG? */
+			case OP_EXPAND_ARGS: {
+				int type = OPERAND;
+				krk_push(KWARGS_VAL(LONG_MAX-type));
+				break;
+			}
+			case OP_CLOSURE_LONG:
+			case OP_CLOSURE: {
+				KrkFunction * function = AS_FUNCTION(READ_CONSTANT(OPERAND));
+				KrkClosure * closure = krk_newClosure(function);
+				krk_push(OBJECT_VAL(closure));
+				for (size_t i = 0; i < closure->upvalueCount; ++i) {
+					int isLocal = READ_BYTE();
+					int index = readBytes(frame,(i > 255) ? 3 : 1);
+					if (isLocal) {
+						closure->upvalues[i] = captureUpvalue(frame->slots + index);
+					} else {
+						closure->upvalues[i] = frame->closure->upvalues[index];
+					}
+				}
+				break;
+			}
+			case OP_GET_UPVALUE_LONG:
+			case OP_GET_UPVALUE: {
+				int slot = OPERAND;
+				krk_push(*UPVALUE_LOCATION(frame->closure->upvalues[slot]));
+				break;
+			}
+			case OP_SET_UPVALUE_LONG:
+			case OP_SET_UPVALUE: {
+				int slot = OPERAND;
+				*UPVALUE_LOCATION(frame->closure->upvalues[slot]) = krk_peek(0);
+				break;
+			}
+			case OP_CLASS_LONG:
+			case OP_CLASS: {
+				KrkString * name = READ_STRING(OPERAND);
+				KrkClass * _class = krk_newClass(name, vm.baseClasses->objectClass);
+				krk_push(OBJECT_VAL(_class));
+				_class->filename = frame->closure->function->chunk.filename;
+				krk_attachNamedObject(&_class->fields, "__func__", (KrkObj*)frame->closure);
+				break;
+			}
+			case OP_IMPORT_FROM_LONG:
+			case OP_IMPORT_FROM: {
+				KrkString * name = READ_STRING(OPERAND);
+				if (unlikely(!valueGetProperty(name))) {
+					/* Try to import... */
+					KrkValue moduleName;
+					if (!krk_tableGet(&AS_INSTANCE(krk_peek(0))->fields, vm.specialMethodNames[METHOD_NAME], &moduleName)) {
+						krk_runtimeError(vm.exceptions->importError, "Can not import '%s' from non-module '%s' object", name->chars, krk_typeName(krk_peek(0)));
+						goto _finishException;
+					}
+					krk_push(moduleName);
+					krk_push(OBJECT_VAL(S(".")));
+					krk_addObjects();
+					krk_push(OBJECT_VAL(name));
+					krk_addObjects();
+					if (!krk_doRecursiveModuleLoad(AS_STRING(krk_peek(0)))) {
+						krk_runtimeError(vm.exceptions->importError, "Can not import '%s' from '%s'", name->chars, AS_CSTRING(moduleName));
+						goto _finishException;
+					}
+					krk_currentThread.stackTop[-3] = krk_currentThread.stackTop[-1];
+					krk_currentThread.stackTop -= 2;
+				}
+			} break;
+			case OP_GET_PROPERTY_LONG:
+			case OP_GET_PROPERTY: {
+				KrkString * name = READ_STRING(OPERAND);
+				if (unlikely(!valueGetProperty(name))) {
+					krk_runtimeError(vm.exceptions->attributeError, "'%s' object has no attribute '%s'", krk_typeName(krk_peek(0)), name->chars);
+					goto _finishException;
+				}
+				break;
+			}
+			case OP_DEL_PROPERTY_LONG:
+			case OP_DEL_PROPERTY: {
+				KrkString * name = READ_STRING(OPERAND);
+				if (unlikely(!valueDelProperty(name))) {
+					krk_runtimeError(vm.exceptions->attributeError, "'%s' object has no attribute '%s'", krk_typeName(krk_peek(0)), name->chars);
+					goto _finishException;
+				}
+				break;
+			}
+			case OP_SET_PROPERTY_LONG:
+			case OP_SET_PROPERTY: {
+				KrkString * name = READ_STRING(OPERAND);
+				KrkTable * table = NULL;
+				if (IS_INSTANCE(krk_peek(1))) table = &AS_INSTANCE(krk_peek(1))->fields;
+				else if (IS_CLASS(krk_peek(1))) table = &AS_CLASS(krk_peek(1))->fields;
+				if (table) {
+					KrkValue previous;
+					if (krk_tableGet(table, OBJECT_VAL(name), &previous) && IS_PROPERTY(previous)) {
+						krk_push(krk_callSimple(AS_PROPERTY(previous)->method, 2, 0));
+						break;
+					} else {
+						krk_tableSet(table, OBJECT_VAL(name), krk_peek(0));
+					}
+				} else {
+					krk_runtimeError(vm.exceptions->attributeError, "'%s' object has no attribute '%s'", krk_typeName(krk_peek(0)), name->chars);
+					goto _finishException;
+				}
+				krk_swap(1);
+				krk_pop();
+				break;
+			}
+			case OP_METHOD_LONG:
+			case OP_METHOD: {
+				KrkValue method = krk_peek(0);
+				KrkClass * _class = AS_CLASS(krk_peek(1));
+				KrkValue name = OBJECT_VAL(READ_STRING(OPERAND));
+				krk_tableSet(&_class->methods, name, method);
+				krk_pop();
+				break;
+			}
 			case OP_GET_SUPER_LONG:
 			case OP_GET_SUPER: {
-				KrkString * name = READ_STRING(operandWidth);
+				KrkString * name = READ_STRING(OPERAND);
 				KrkClass * superclass = AS_CLASS(krk_pop());
 				if (!krk_bindMethod(superclass, name)) {
 					krk_runtimeError(vm.exceptions->attributeError, "super(%s) has no attribute '%s'",
@@ -2152,20 +2182,18 @@ static KrkValue run() {
 				}
 				break;
 			}
+			case OP_DUP_LONG:
 			case OP_DUP:
-				krk_push(krk_peek(READ_BYTE()));
-				break;
-			case OP_SWAP:
-				krk_swap(1);
+				krk_push(krk_peek(OPERAND));
 				break;
 			case OP_KWARGS_LONG:
 			case OP_KWARGS: {
-				krk_push(KWARGS_VAL(readBytes(frame,operandWidth)));
+				krk_push(KWARGS_VAL(OPERAND));
 				break;
 			}
 			case OP_TUPLE_LONG:
 			case OP_TUPLE: {
-				size_t count = readBytes(frame, operandWidth);
+				size_t count = OPERAND;
 				krk_reserve_stack(4);
 				KrkValue tuple = krk_tuple_of(count,&krk_currentThread.stackTop[-count],0);
 				if (count) {
@@ -2181,7 +2209,7 @@ static KrkValue run() {
 			}
 			case OP_UNPACK_LONG:
 			case OP_UNPACK: {
-				size_t count = readBytes(frame, operandWidth);
+				size_t count = OPERAND;
 				KrkValue sequence = krk_peek(0);
 				/* First figure out what it is and if we can unpack it. */
 #define unpackArray(counter, indexer) do { \
@@ -2242,27 +2270,6 @@ static KrkValue run() {
 					}
 				}
 #undef unpackArray
-				break;
-			}
-			case OP_PUSH_WITH: {
-				uint16_t cleanupTarget = readBytes(frame, 2) + (frame->ip - frame->closure->function->chunk.code);
-				KrkValue contextManager = krk_peek(0);
-				KrkClass * type = krk_getType(contextManager);
-				if (unlikely(!type->_enter || !type->_exit)) {
-					krk_runtimeError(vm.exceptions->attributeError, "Can not use '%s' as context manager", krk_typeName(contextManager));
-					goto _finishException;
-				}
-				krk_push(contextManager);
-				krk_callSimple(OBJECT_VAL(type->_enter), 1, 0);
-				/* Ignore result; don't need to pop */
-				KrkValue handler = HANDLER_VAL(OP_PUSH_WITH, cleanupTarget);
-				krk_push(handler);
-				break;
-			}
-			case OP_CREATE_PROPERTY: {
-				KrkProperty * newProperty = krk_newProperty(krk_peek(0));
-				krk_pop();
-				krk_push(OBJECT_VAL(newProperty));
 				break;
 			}
 		}
