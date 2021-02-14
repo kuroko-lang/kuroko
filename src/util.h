@@ -127,6 +127,12 @@ static inline KrkValue finishStringBuilder(struct StringBuilder * sb) {
 	return out;
 }
 
+static inline KrkValue finishStringBuilderBytes(struct StringBuilder * sb) {
+	KrkValue out = OBJECT_VAL(krk_newBytes(sb->length, (uint8_t*)sb->bytes));
+	FREE_ARRAY(char,sb->bytes, sb->capacity);
+	return out;
+}
+
 static inline KrkValue discardStringBuilder(struct StringBuilder * sb) {
 	FREE_ARRAY(char,sb->bytes, sb->capacity);
 	return NONE_VAL();
