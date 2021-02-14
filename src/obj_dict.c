@@ -242,6 +242,7 @@ KRK_METHOD(dictitems,__call__,{
 			outValue->values.values[0] = AS_DICT(self->dict)->entries[self->i].key;
 			outValue->values.values[1] = AS_DICT(self->dict)->entries[self->i].value;
 			outValue->values.count = 2;
+			krk_tupleUpdateHash(outValue);
 			self->i++;
 			return krk_pop();
 		}

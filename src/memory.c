@@ -313,6 +313,7 @@ static KrkValue krk_generations(int argc, KrkValue argv[], int hasKw) {
 		outTuple->values.values[i] = INTEGER_VAL(generations[i]);
 	}
 	outTuple->values.count = MAX_GEN;
+	krk_tupleUpdateHash(outTuple);
 	return OBJECT_VAL(outTuple);
 }
 

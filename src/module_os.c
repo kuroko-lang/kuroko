@@ -345,6 +345,7 @@ KRK_FUNC(pipe,{
 	AS_TUPLE(krk_peek(0))->values.values[0] = INTEGER_VAL(fds[0]);
 	AS_TUPLE(krk_peek(0))->values.values[1] = INTEGER_VAL(fds[1]);
 	AS_TUPLE(krk_peek(0))->values.count = 2;
+	krk_tupleUpdateHash(AS_TUPLE(krk_peek(0)));
 	return krk_pop();
 })
 

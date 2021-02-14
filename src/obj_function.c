@@ -94,6 +94,7 @@ static KrkValue _closure_get_argnames(int argc, KrkValue argv[], int hasKw) {
 	for (short i = 0; i < self->keywordArgs; ++i) {
 		tuple->values.values[tuple->values.count++] = self->keywordArgNames.values[i];
 	}
+	krk_tupleUpdateHash(tuple);
 	krk_pop();
 	return OBJECT_VAL(tuple);
 }
