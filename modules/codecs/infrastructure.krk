@@ -195,7 +195,12 @@ class AsciiIncrementalDecoder:
                 out.add(chr(self.decoding_map[i]))
                 offset += 1
             else if bytemode == 2 and (leader[0], i) in self.decoding_map:
-                out.add(chr(self.decoding_map[(leader[0], i)]))
+                let decoded = self.decoding_map[(leader[0], i)]
+                if isinstance(decoded, tuple):
+                    for codepoint in decoded:
+                        out.add(chr(codepoint))
+                else:
+                    out.add(chr(decoded))
                 offset += 1
                 bytemode = 1
                 leader = []

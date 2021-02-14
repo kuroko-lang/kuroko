@@ -33,5 +33,7 @@ print(decoded4)
 let encoded4 = codecs.encode(decoded4, "big5")
 if encoded4 != data4:
     print("Didn't roundtrip")
+if codecs.decode(b"\x88\x62\x88\x63\x88\x64\x88\x65\x88\x66", "big5", errors="replace") != "Ê̄ẾÊ̌ỀÊ":
+    print("Didn't decode the combining-sequence-mapped codes")
 
 
