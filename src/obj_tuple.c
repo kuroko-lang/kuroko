@@ -12,6 +12,14 @@ static KrkValue _tuple_init(int argc, KrkValue argv[], int hasKw) {
 	return krk_runtimeError(vm.exceptions->typeError,"tuple() initializier unsupported");
 }
 
+inline void krk_tupleUpdateHash(KrkTuple * self) {
+	self->obj.hash = self->values.count;
+	for (size_t i = 0; i < (size_t)self->values.count; ++i) {
+		self->obj.hash <<= 4;
+		self->obj.hash ^= krk_hashValue(self->values.values[i]);
+	}
+}
+
 /* tuple creator */
 KrkValue krk_tuple_of(int argc, KrkValue argv[], int hasKw) {
 	KrkTuple * self = krk_newTuple(argc);
@@ -19,7 +27,9 @@ KrkValue krk_tuple_of(int argc, KrkValue argv[], int hasKw) {
 	for (size_t i = 0; i < (size_t)argc; ++i) {
 		self->values.values[self->values.count++] = argv[i];
 	}
+	krk_tupleUpdateHash(self);
 	krk_pop();
+
 	return OBJECT_VAL(self);
 }
 

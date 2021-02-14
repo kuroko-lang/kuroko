@@ -52,7 +52,7 @@ KRK_METHOD(bytes,__eq__,{
 	KrkBytes * self = AS_BYTES(argv[0]);
 	KrkBytes * them = AS_BYTES(argv[1]);
 	if (self->length != them->length) return BOOLEAN_VAL(0);
-	if (self->hash != them->hash) return BOOLEAN_VAL(0);
+	if (self->obj.hash != them->obj.hash) return BOOLEAN_VAL(0);
 	for (size_t i = 0; i < self->length; ++i) {
 		if (self->bytes[i] != them->bytes[i]) return BOOLEAN_VAL(0);
 	}
