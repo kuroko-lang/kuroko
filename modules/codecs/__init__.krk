@@ -1,1 +1,3 @@
-let foo = 5
+from codecs.infrastructure import encode, decode
+import codecs.sbencs
+import codecs.dbdata

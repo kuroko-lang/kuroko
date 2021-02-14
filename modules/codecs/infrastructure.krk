@@ -231,7 +231,49 @@ class AsciiIncrementalDecoder:
 
 register_kuroko_codec(["ecma-43-dv", "iso-4873-dv"], AsciiIncrementalEncoder, AsciiIncrementalDecoder)
 
+class UndefinedIncrementalDecoder:
+    name = "undefined"
+    webname = "replacement"
+    def __init__(errors):
+        self.errors = errors
+    def decode(data, final = False):
+        if len(data) == 0:
+            return "" # per WHATWG, contra Python
+        let error = UnicodeDecodeError(self.name, data, 0, len(data), "undefined encoding")
+        let errorret = lookup_error(self.errors)(error) # per WHATWG, contra Python
+        return errorret[0]
+    def reset():
+    def getstate():
+        return 0
+    def setstate(state):
+        if state != 0:
+            raise ValueError("undefined decoder being set to nonzero state")
 
+class UndefinedIncrementalEncoder:
+    name = "undefined"
+    webname = "replacement"
+    # WHATWG doesn't specify an encoder for "replacement" so follow Python "undefined" here.
+    # i.e. ignore the errors specifier and always use strict, and fail on even empty strings.
+    def __init__(errors):
+    def encode(string, final = False):
+        let error = UnicodeEncodeError(self.name, string, 0, len(string), "undefined encoding")
+        strict_errors(error)
+    def reset():
+    def getstate():
+        return 0
+    def setstate(state):
+        if state != 0:
+            raise ValueError("undefined encoder being set to nonzero state")
+
+register_kuroko_codec(
+    ["undefined", "replacement", # "undefined" is Python's label, "replacement" is WHATWG's.
+    # WHATWG aliases the following to replacement to prevent their use in injection/XSS attacks.
+    # Whether they ought to be so aliased here may warrant evaluation:
+     "csiso2022kr", "iso-2022-kr", 
+     "hz-gb-2312", 
+     "iso-2022-cn", "iso-2022-cn-ext"], 
+    UndefinedIncrementalEncoder,
+    UndefinedIncrementalDecoder)
 
 
 
