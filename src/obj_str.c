@@ -836,7 +836,7 @@ KRK_METHOD(str,title, {
 			lastWasWhitespace = 0;
 		} else {
 			pushStringBuilder(&sb, self->chars[i]);
-			lastWasWhitespace = isWhitespace(self->chars[i]);
+			lastWasWhitespace = !((self->chars[i] >= 'A' && self->chars[i] <= 'Z') || (self->chars[i] >= 'a' && self->chars[i] <= 'z'));
 		}
 	}
 
