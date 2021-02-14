@@ -60,6 +60,14 @@ from codecs.infrastructure import AsciiIncrementalEncoder, AsciiIncrementalDecod
 #   codecs (e.g. Windows-31J is an alias of "Shift JIS" which is actually Windows-31J).
 let realname = {"koi8-u": "koi8-ru"}
 
+let encode_xudef = {}
+let decode_xudef = {}
+for i in range(128):
+    let codepoint = 0xF780 + i
+    let byte = 0x80 + i
+    encode_xudef[codepoint] = byte
+    decode_xudef[byte] = codepoint
+
 with fileio.open("modules/codecs/sbencs.krk", "w") as outf:
     outf.write(boilerplate)
     with fileio.open("tools/codecs/encodings.json") as f:
@@ -76,6 +84,9 @@ with fileio.open("modules/codecs/sbencs.krk", "w") as outf:
                     outf.write(template.format(mainlabel=repr(name), encmap=repr(encoding_map),
                             weblabel=repr(whatwgname),
                             decmap=repr(decoding_map), labels=repr(labels), idname=idname))
+    outf.write(template.format(mainlabel="x-user-defined", encmap=repr(encode_xudef),
+            weblabel="x-user-defined",
+            decmap=repr(decode_xudef), labels=repr(["x-user-defined"]), idname="XUserDefined"))
 
 
 
