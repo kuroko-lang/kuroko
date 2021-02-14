@@ -12,7 +12,7 @@
 #include <sys/syscall.h>
 #define gettid() syscall(SYS_gettid)
 #elif defined(__toaru__)
-##include <pthread.h>
+#include <pthread.h>
 #else
 #define gettid() -1
 #endif
