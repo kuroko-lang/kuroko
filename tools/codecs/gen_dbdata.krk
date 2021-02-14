@@ -75,6 +75,7 @@ let decode_jis7katakana = {}
 let decode_uhc = {}
 let decode_big5eten = {}
 let decode_big5hkscs = {}
+let decode_gbk = {}
 let encode_eucjp = {}
 let encode_shiftjis = {}
 let encode_jis7 = {}
@@ -82,6 +83,7 @@ let encode_uhc = {}
 let encode_big5eten = {}
 let encode_big5web = {}
 let encode_big5hkscs = {}
+let encode_gbk = {}
 let dbrange_eucjp = tupleOf(0x8E, *range(0xA1, 0xFE + 1))
 let dbrange_shiftjis = tupleOf(*range(0x81, 0x9F + 1), *range(0xE0, 0xFC + 1))
 let dbrange_uhc = tupleOf(*range(0x81, 0xFE + 1))
@@ -155,6 +157,16 @@ for pointer, ucs in enumerate(indices['euc-kr']):
     decode_uhc[(first,second)] = ucs
     encode_uhc[ucs] = (first,second)
 
+for pointer, ucs in enumerate(indices['gb18030']):
+    if ucs == None: continue
+    let uku  = (pointer / 190) + 1
+    let uten = (pointer % 190) + 1
+    let first  = 0x80 + uku
+    let second = 0x3F + uten
+    if second >= 0x7F: second += 1
+    decode_gbk[(first,second)] = ucs
+    encode_gbk[ucs] = (first,second)
+
 for pointer, ucs in enumerate(indices['big5']):
     if ucs == None: continue
     let bku  = (pointer / 157) + 1
@@ -219,5 +231,16 @@ with fileio.open('modules/codecs/dbdata.krk', 'w') as f:
         decmap=repr(decode_big5hkscs), idnamedec="Big5HKSCS",
         dbrange=repr(dbrange_big5), tbrange=repr(tbrange_big5), 
         trailrange=repr(trailrange_big5)))
+    f.write("\n# Additional data for bespoke codecs")
+    f.write("\nlet encode_jis7 = {}".format(repr(encode_jis7)))
+    f.write("\nlet decode_jis7 = {}".format(repr(decode_jis7)))
+    f.write("\nlet decode_jis7katakana = {}".format(repr(decode_jis7katakana)))
+    f.write("\nlet encode_gbk = {}".format(repr(encode_gbk)))
+    f.write("\nlet decode_gbk = {}".format(repr(decode_gbk)))
+    let ranges = indices["gb18030-ranges"]
+    let rangesout = []
+    for i in ranges:
+        rangesout.append((i[0], i[1]))
+    f.write("\nlet gb_surrogate_ranges = {}".format(repr(rangesout)))
 
 
