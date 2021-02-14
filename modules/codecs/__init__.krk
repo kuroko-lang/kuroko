@@ -1,2 +1,2 @@
 from codecs.infrastructure import encode, decode
-import codecs.sbencs, codecs.big5, codecs.shiftjis, codecs.eucjp, codecs.unifiedhangul
+import codecs.sbencs, codecs.dbdata

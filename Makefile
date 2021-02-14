@@ -105,6 +105,8 @@ help:
 	@echo ""
 	@echo "Available tools: ${TOOLS}"
 
+all: kuroko modules/codecs/sbencs.krk modules/codecs/dbdata.krk
+
 kuroko: src/kuroko.o ${KUROKO_LIBS}
 	${CC} ${CFLAGS} ${LDFLAGS} -o $@ src/kuroko.o ${KUROKO_LIBS} ${LDLIBS}
 
@@ -128,6 +130,12 @@ modules/%.so: src/module_%.c libkuroko.so
 # to that out of the main interpreter.
 modules/math.so: src/module_math.c libkuroko.so
 	${CC} ${CFLAGS} ${LDFLAGS} -shared -o $@ $< -lm ${LDLIBS}
+
+modules/codecs/sbencs.krk: kuroko tools/codecs/gen_sbencs.krk tools/codecs/encodings.json tools/codecs/indexes.json
+	./kuroko tools/codecs/gen_sbencs.krk
+
+modules/codecs/dbdata.krk: kuroko tools/codecs/gen_dbdata.krk tools/codecs/encodings.json tools/codecs/indexes.json
+	./kuroko tools/codecs/gen_dbdata.krk
 
 .PHONY: clean
 clean:
@@ -161,7 +169,7 @@ INSTALL_PROGRAM=$(INSTALL)
 INSTALL_DATA=$(INSTALL) -m 644
 
 .PHONY: install
-install: kuroko libkuroko.so ${HEADERS} $(KRKMODS) $(MODULES)
+install: all libkuroko.so ${HEADERS} $(KRKMODS) $(MODULES)
 	$(INSTALL) -d $(DESTDIR)$(includedir)/kuroko
 	$(INSTALL) -d $(DESTDIR)$(bindir)
 	$(INSTALL) -d $(DESTDIR)$(libdir)
@@ -176,6 +184,7 @@ install: kuroko libkuroko.so ${HEADERS} $(KRKMODS) $(MODULES)
 	$(INSTALL_DATA) modules/foo/*.krk     $(DESTDIR)$(bindir)/../lib/kuroko/foo/
 	$(INSTALL_DATA) modules/foo/bar/*.krk $(DESTDIR)$(bindir)/../lib/kuroko/foo/bar/
 	$(INSTALL_DATA) modules/syntax/*.krk  $(DESTDIR)$(bindir)/../lib/kuroko/syntax/
+	$(INSTALL_DATA) modules/codecs/*.krk  $(DESTDIR)$(bindir)/../lib/kuroko/codecs/
 	$(INSTALL_PROGRAM) $(MODULES)         $(DESTDIR)$(bindir)/../lib/kuroko/
 
 install-strip: all
