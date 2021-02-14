@@ -45,7 +45,7 @@ def lookup_error(name):
 
 def strict_errors(exc):
     # Raising exc (i.e. a ValueError subclass instance) directly is somehow a segfault atm.
-    raise ValueError(exc)
+    raise ValueError(repr(exc))
 register_error("strict", strict_errors)
 
 def ignore_errors(exc):
@@ -188,7 +188,7 @@ class AsciiIncrementalDecoder:
                 bytemode = 3
                 leader.append(i)
                 offset += 1
-            else if bytemode == 3 and len(leader) == 1 and i in trailrange:
+            else if bytemode == 3 and len(leader) == 1 and i in self.trailrange:
                 leader.append(i)
                 offset += 1
             else if bytemode == 1 and i in self.decoding_map:
@@ -212,7 +212,7 @@ class AsciiIncrementalDecoder:
                 if bytemode > 1:
                     if len(leader) > 1 and leader[1] < 0x80:
                         errorend -= 2
-                    else if i not in trailrange or i < 0x80:
+                    else if i not in self.trailrange or i < 0x80:
                         errorend -= 1
                 let error = UnicodeDecodeError(self.name, data, errorstart, errorend, "")
                 bytemode = 1

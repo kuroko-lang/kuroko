@@ -38,15 +38,21 @@ infrastructure.register_kuroko_codec(
 decode_eucjp = {}
 decode_shiftjis = {}
 decode_jis7 = {}
+decode_jis7katakana = {}
+decode_uhc = {}
 encode_eucjp = {}
 encode_shiftjis = {}
 encode_jis7 = {}
+encode_uhc = {}
 dbrange_eucjp = (0x8E, *range(0xA1, 0xFE + 1))
-tbrange_eucjp = (0x8F,)
-trailrange_eucjp = (*range(0xA1, 0xFE + 1),)
 dbrange_shiftjis = (*range(0x81, 0x9F + 1), *range(0xE0, 0xFC + 1))
+dbrange_uhc = (*range(0x81, 0xFE + 1),)
+tbrange_eucjp = (0x8F,)
 tbrange_shiftjis = ()
+tbrange_uhc = ()
+trailrange_eucjp = (*range(0xA1, 0xFE + 1),)
 trailrange_shiftjis = (*range(0x40, 0x7E + 1), *range(0x80, 0xFC + 1))
+trailrange_uhc = (*range(0x41, 0xFE + 1),) # As WHATWG define it (a superset of the actual range)
 
 # "JIS X 0208" (actually follows _de facto_ Windows-31J)
 for pointer, ucs in enumerate(indices["jis0208"]):
@@ -93,6 +99,8 @@ for i in range(63):
     encode_shiftjis[ucs] = byte
     decode_eucjp[(0x8E, byte,)] = ucs
     encode_eucjp[ucs] = (0x8E, byte,)
+    decode_jis7katakana[0x21 + i] = ucs
+    encode_jis7[ucs] = encode_jis7[indices["iso-2022-jp-katakana"][i]]
 
 # Windows-31J's IBM-designated private use area
 for i in range(94 * 20):
@@ -105,6 +113,17 @@ for i in range(94 * 20):
     if second >= 0x7F:
         second += 1
     decode_shiftjis[(first, second)] = ucs
+
+# Unified Hangul Code
+for pointer, ucs in enumerate(indices["euc-kr"]):
+    if ucs == None:
+        continue
+    uku = (pointer // 190) + 1
+    uten = (pointer % 190) + 1
+    first = 0x80 + uku
+    second = 0x40 + uten
+    decode_uhc[(first, second)] = ucs
+    encode_uhc[ucs] = (first, second)
 
 # Special exceptions listed by WHATWG
 encode_shiftjis[0xA5] = encode_eucjp[0xA5] = 0x5C
@@ -127,6 +146,11 @@ print(template.format(mainlabel="x-euc-jp", weblabel="euc-jp", labels=aliases["e
                         encmap=encode_eucjp, decmap=decode_eucjp, idname="XEucJp",
                         dbrange=dbrange_eucjp, tbrange=tbrange_eucjp, 
                         trailrange=trailrange_eucjp))
+
+print(template.format(mainlabel="windows-949", weblabel="euc-kr", labels=aliases["euc-kr"],
+                        encmap=encode_uhc, decmap=decode_uhc, idname="Windows949",
+                        dbrange=dbrange_uhc, tbrange=tbrange_uhc, 
+                        trailrange=trailrange_uhc))
 
 
 
