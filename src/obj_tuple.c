@@ -15,7 +15,7 @@ static KrkValue _tuple_init(int argc, KrkValue argv[], int hasKw) {
 inline void krk_tupleUpdateHash(KrkTuple * self) {
 	self->obj.hash = self->values.count;
 	for (size_t i = 0; i < (size_t)self->values.count; ++i) {
-		self->obj.hash <<= 4;
+		self->obj.hash <<= 8;
 		self->obj.hash ^= krk_hashValue(self->values.values[i]);
 	}
 }
