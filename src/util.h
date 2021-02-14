@@ -111,9 +111,11 @@ static inline void pushStringBuilder(struct StringBuilder * sb, char c) {
 }
 
 static inline void pushStringBuilderStr(struct StringBuilder * sb, char *str, size_t len) {
-	while (sb->capacity < sb->length + len) {
-		size_t old = sb->capacity;
-		sb->capacity = GROW_CAPACITY(old);
+	if (sb->capacity < sb->length + len) {
+		while (sb->capacity < sb->length + len) {
+			size_t old = sb->capacity;
+			sb->capacity = GROW_CAPACITY(old);
+		}
 		sb->bytes = realloc(sb->bytes, sb->capacity);
 	}
 	for (size_t i = 0; i < len; ++i) {
@@ -123,6 +125,12 @@ static inline void pushStringBuilderStr(struct StringBuilder * sb, char *str, si
 
 static inline KrkValue finishStringBuilder(struct StringBuilder * sb) {
 	KrkValue out = OBJECT_VAL(krk_copyString(sb->bytes, sb->length));
+	FREE_ARRAY(char,sb->bytes, sb->capacity);
+	return out;
+}
+
+static inline KrkValue finishStringBuilderBytes(struct StringBuilder * sb) {
+	KrkValue out = OBJECT_VAL(krk_newBytes(sb->length, (uint8_t*)sb->bytes));
 	FREE_ARRAY(char,sb->bytes, sb->capacity);
 	return out;
 }

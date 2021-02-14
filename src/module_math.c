@@ -132,6 +132,7 @@ static KrkValue _math_frexp(int argc, KrkValue argv[], int hasKw) {
 	outValue->values.values[0] = FLOATING_VAL(result);
 	outValue->values.values[1] = INTEGER_VAL(exp);
 	outValue->values.count = 2;
+	krk_tupleUpdateHash(outValue);
 	return OBJECT_VAL(outValue);
 }
 

@@ -16,7 +16,7 @@
 static KrkValue krk_initException(int argc, KrkValue argv[], int hasKw) {
 	KrkInstance * self = AS_INSTANCE(argv[0]);
 
-	if (argc > 0) {
+	if (argc > 1) {
 		krk_attachNamedValue(&self->fields, "arg", argv[1]);
 	} else {
 		krk_attachNamedValue(&self->fields, "arg", NONE_VAL());

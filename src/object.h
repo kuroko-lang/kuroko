@@ -55,6 +55,7 @@ struct Obj {
 	unsigned char inRepr:1;
 	unsigned char generation:2;
 	unsigned char isImmortal:1;
+	uint32_t hash;
 	struct Obj * next;
 };
 
@@ -69,7 +70,6 @@ typedef enum {
 struct ObjString {
 	KrkObj obj;
 	KrkStringType type;
-	uint32_t hash;
 	size_t length;
 	size_t codesLength;
 	char * chars;
@@ -78,7 +78,6 @@ struct ObjString {
 
 typedef struct {
 	KrkObj obj;
-	uint32_t hash;
 	size_t length;
 	uint8_t * bytes;
 } KrkBytes;
@@ -247,3 +246,5 @@ extern uint32_t krk_unicodeCodepoint(KrkString * string, size_t index);
 extern KrkBytes * krk_newBytes(size_t length, uint8_t * source);
 extern void krk_bytesUpdateHash(KrkBytes * bytes);
 extern size_t krk_codepointToBytes(krk_integer_type value, unsigned char * out);
+
+extern void krk_tupleUpdateHash(KrkTuple * self);

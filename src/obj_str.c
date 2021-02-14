@@ -791,6 +791,58 @@ KRK_METHOD(str,isupper, {
 	CHECK_ALL( (c >= 'A' && c <= 'Z') );
 })
 
+KRK_METHOD(str,lower, {
+	METHOD_TAKES_NONE();
+	struct StringBuilder sb = {0};
+
+	for (size_t i = 0; i < self->length; ++i) {
+		if (self->chars[i] >= 'A' && self->chars[i] <= 'Z') {
+			pushStringBuilder(&sb, self->chars[i] + ('a' - 'A'));
+		} else {
+			pushStringBuilder(&sb, self->chars[i]);
+		}
+	}
+
+	return finishStringBuilder(&sb);
+})
+
+KRK_METHOD(str,upper, {
+	METHOD_TAKES_NONE();
+	struct StringBuilder sb = {0};
+
+	for (size_t i = 0; i < self->length; ++i) {
+		if (self->chars[i] >= 'a' && self->chars[i] <= 'z') {
+			pushStringBuilder(&sb, self->chars[i] - ('a' - 'A'));
+		} else {
+			pushStringBuilder(&sb, self->chars[i]);
+		}
+	}
+
+	return finishStringBuilder(&sb);
+})
+
+KRK_METHOD(str,title, {
+	METHOD_TAKES_NONE();
+	struct StringBuilder sb = {0};
+
+	int lastWasWhitespace = 1;
+
+	for (size_t i = 0; i < self->length; ++i) {
+		if (lastWasWhitespace && self->chars[i] >= 'a' && self->chars[i] <= 'z') {
+			pushStringBuilder(&sb, self->chars[i] - ('a' - 'A'));
+			lastWasWhitespace = 0;
+		} else if (!lastWasWhitespace && self->chars[i] >= 'A' && self->chars[i] <= 'Z') {
+			pushStringBuilder(&sb, self->chars[i] + ('a' - 'A'));
+			lastWasWhitespace = 0;
+		} else {
+			pushStringBuilder(&sb, self->chars[i]);
+			lastWasWhitespace = !((self->chars[i] >= 'A' && self->chars[i] <= 'Z') || (self->chars[i] >= 'a' && self->chars[i] <= 'z'));
+		}
+	}
+
+	return finishStringBuilder(&sb);
+})
+
 #undef CURRENT_CTYPE
 #define CURRENT_CTYPE KrkInstance *
 KRK_METHOD(striterator,__init__,{
@@ -867,6 +919,11 @@ void _createAndBind_strClass(void) {
 	BIND_METHOD(str,isspace);
 	BIND_METHOD(str,islower);
 	BIND_METHOD(str,isupper);
+
+	/* Not recommended in their current forms, but here for some Python compatibility */
+	BIND_METHOD(str,lower);
+	BIND_METHOD(str,upper);
+	BIND_METHOD(str,title);
 
 	krk_defineNative(&str->methods,".__setslice__",FUNC_NAME(str,__set__));
 	krk_defineNative(&str->methods,".__delslice__",FUNC_NAME(str,__set__));

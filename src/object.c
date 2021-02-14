@@ -27,6 +27,8 @@ static KrkObj * allocateObject(size_t size, ObjType type) {
 	vm.objects = object;
 	_release_lock(_objectLock);
 
+	object->hash = (uint32_t)((intptr_t)(object) >> 4 | (intptr_t)(object) << 28);
+
 	return object;
 }
 
@@ -177,7 +179,7 @@ static KrkString * allocateString(char * chars, size_t length, uint32_t hash) {
 	KrkString * string = ALLOCATE_OBJECT(KrkString, OBJ_STRING);
 	string->length = length;
 	string->chars = chars;
-	string->hash = hash;
+	string->obj.hash = hash;
 	string->codesLength = codesLength;
 	string->type = type;
 	string->codes = NULL;
@@ -335,7 +337,7 @@ KrkTuple * krk_newTuple(size_t length) {
 }
 
 void krk_bytesUpdateHash(KrkBytes * bytes) {
-	bytes->hash = hashString((char*)bytes->bytes, bytes->length);
+	bytes->obj.hash = hashString((char*)bytes->bytes, bytes->length);
 }
 
 KrkBytes * krk_newBytes(size_t length, uint8_t * source) {
@@ -344,7 +346,7 @@ KrkBytes * krk_newBytes(size_t length, uint8_t * source) {
 	bytes->bytes  = NULL;
 	krk_push(OBJECT_VAL(bytes));
 	bytes->bytes  = ALLOCATE(uint8_t, length);
-	bytes->hash = -1;
+	bytes->obj.hash = -1;
 	if (source) {
 		memcpy(bytes->bytes, source, length);
 		krk_bytesUpdateHash(bytes);

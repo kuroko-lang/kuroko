@@ -134,6 +134,8 @@ int krk_valuesSame(KrkValue a, KrkValue b) {
 	return krk_valuesEqual(a,b);
 }
 
+__attribute__((hot))
+inline
 int krk_valuesEqual(KrkValue a, KrkValue b) {
 	if (a.type == b.type) {
 		switch (a.type) {
@@ -177,6 +179,16 @@ int krk_valuesEqual(KrkValue a, KrkValue b) {
 			} break;
 			default: return 0;
 		}
+	}
+
+	if (IS_TUPLE(a) && IS_TUPLE(b)) {
+		KrkTuple * self = AS_TUPLE(a);
+		KrkTuple * them = AS_TUPLE(b);
+		if (self->values.count != them->values.count || self->obj.hash != them->obj.hash) return 0;
+		for (size_t i = 0; i < self->values.count; ++i) {
+			if (!krk_valuesEqual(self->values.values[i], them->values.values[i])) return 0;
+		}
+		return 1;
 	}
 
 	KrkClass * type = krk_getType(a);

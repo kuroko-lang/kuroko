@@ -307,6 +307,10 @@ static KrkValue _module_repr(int argc, KrkValue argv[], int hasKw) {
 	return out;
 }
 
+static KrkValue obj_hash(int argc, KrkValue argv[], int hasKw) {
+	return INTEGER_VAL(krk_hashValue(argv[0]));
+}
+
 /**
  * object.__str__() / object.__repr__()
  *
@@ -399,6 +403,7 @@ void _createAndBind_builtins(void) {
 	krk_defineNative(&vm.baseClasses->objectClass->methods, ".__dir__", krk_dirObject);
 	krk_defineNative(&vm.baseClasses->objectClass->methods, ".__str__", _strBase);
 	krk_defineNative(&vm.baseClasses->objectClass->methods, ".__repr__", _strBase); /* Override if necesary */
+	krk_defineNative(&vm.baseClasses->objectClass->methods, ".__hash__", obj_hash);
 	krk_finalizeClass(vm.baseClasses->objectClass);
 	vm.baseClasses->objectClass->docstring = S("Base class for all types.");
 
