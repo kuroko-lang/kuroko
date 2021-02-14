@@ -1,3 +1,2 @@
 from codecs.infrastructure import encode, decode
-import codecs.sbencs
-# The multi-byte ones take ages to import so don't do so by default.
+import codecs.sbencs, codecs.big5, codecs.shiftjis, codecs.eucjp, codecs.unifiedhangul
