@@ -165,7 +165,8 @@ for pointer, ucs in enumerate(indices['gb18030']):
     let second = 0x3F + uten
     if second >= 0x7F: second += 1
     decode_gbk[(first,second)] = ucs
-    encode_gbk[ucs] = (first,second)
+    if ucs not in encode_gbk:
+        encode_gbk[ucs] = (first,second)
 
 for pointer, ucs in enumerate(indices['big5']):
     if ucs == None: continue
@@ -198,6 +199,7 @@ decode_big5hkscs[(0x88, 0x62)] = (0xCA, 0x304)
 decode_big5hkscs[(0x88, 0x64)] = (0xCA, 0x30C)
 decode_big5hkscs[(0x88, 0xA3)] = (0xEA, 0x304)
 decode_big5hkscs[(0x88, 0xA5)] = (0xEA, 0x30C)
+decode_gbk[0x80] = 0x20AC
 
 with fileio.open('modules/codecs/dbdata.krk', 'w') as f:
     f.write(boilerplate)

@@ -213,7 +213,8 @@ class AsciiIncrementalDecoder:
                 let errorstart = offset + 1 - bytemode
                 let errorend = errorstart + bytemode
                 # Note: per WHATWG behaviour, if an invalid multi-byte code contains an ASCII byte,
-                #   parsing shall resume at that byte.
+                #   parsing shall resume at that byte. Also doing so for bytes outside of the
+                #   trail byte range is technically a deviation from WHATWG, but seems sensible.
                 if bytemode > 1:
                     if len(leader) > 1 and leader[1] < 0x80:
                         errorend -= 2

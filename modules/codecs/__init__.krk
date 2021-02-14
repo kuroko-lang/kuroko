@@ -1,2 +1,2 @@
 from codecs.infrastructure import encode, decode
-import codecs.sbencs, codecs.dbdata
+import codecs.sbencs, codecs.dbdata, codecs.bespokecodecs
