@@ -1,3 +1,7 @@
+Importing codecs.shiftjis
+Importing codecs.eucjp
+Importing codecs.unifiedhangul
+Done importing multi-byte codecs
 b'  Brko'
 b'? ? Br?ko'
 b'\\U0001f3e3 \\xed Br\\u010dko'

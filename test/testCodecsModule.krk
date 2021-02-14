@@ -1,4 +1,11 @@
 import codecs
+print("Importing codecs.shiftjis")
+import codecs.shiftjis
+print("Importing codecs.eucjp")
+import codecs.eucjp
+print("Importing codecs.unifiedhangul")
+import codecs.unifiedhangul
+print("Done importing multi-byte codecs")
 print(codecs.encode("🏣 í Brčko", "windows-1251", errors="ignore"))
 print(codecs.encode("🏣 í Brčko", "windows-1251", errors="replace"))
 print(codecs.encode("🏣 í Brčko", "windows-1251", errors="backslashreplace"))
