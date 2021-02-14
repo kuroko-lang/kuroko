@@ -229,6 +229,7 @@ KRK_FUNC(remove,{
 	}
 })
 
+#ifndef __toaru__
 KRK_FUNC(truncate,{
 	FUNCTION_TAKES_EXACTLY(2);
 	CHECK_ARG(0,str,KrkString*,path);
@@ -237,6 +238,7 @@ KRK_FUNC(truncate,{
 		return krk_runtimeError(OSError, strerror(errno));
 	}
 })
+#endif
 
 KRK_FUNC(dup,{
 	FUNCTION_TAKES_EXACTLY(1);
@@ -334,7 +336,7 @@ KRK_FUNC(write,{
 	return INTEGER_VAL(result);
 })
 
-#ifndef _WIN32
+#if !defined(_WIN32)
 KRK_FUNC(pipe,{
 	FUNCTION_TAKES_NONE();
 	int fds[2];
@@ -348,10 +350,12 @@ KRK_FUNC(pipe,{
 	return krk_pop();
 })
 
+#if !defined(__toaru__)
 KRK_FUNC(sync,{
 	FUNCTION_TAKES_NONE();
 	sync();
 })
+#endif
 
 KRK_FUNC(kill,{
 	FUNCTION_TAKES_EXACTLY(2);
@@ -553,7 +557,9 @@ KrkValue krk_module_onload_os(void) {
 	BIND_FUNC(module,strerror);
 	BIND_FUNC(module,abort);
 	BIND_FUNC(module,remove);
+#ifndef __toaru__
 	BIND_FUNC(module,truncate);
+#endif
 	BIND_FUNC(module,dup);
 	BIND_FUNC(module,dup2);
 	BIND_FUNC(module,isatty);
@@ -580,7 +586,9 @@ KrkValue krk_module_onload_os(void) {
 	BIND_FUNC(module,kill);
 	BIND_FUNC(module,fork);
 	BIND_FUNC(module,symlink);
+#ifndef __toaru__
 	BIND_FUNC(module,sync);
+#endif
 
 	BIND_FUNC(module,tcgetpgrp);
 	BIND_FUNC(module,tcsetpgrp);
