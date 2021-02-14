@@ -159,7 +159,7 @@ for pointer, ucs in enumerate(indices['euc-kr']):
 for pointer, ucs in enumerate(indices['big5']):
     if ucs == None: continue
     let bku  = (pointer / 157) + 1
-    let bten = (pointer % 167) + 1
+    let bten = (pointer % 157) + 1
     let first  = 0x80 + bku
     let second = 0x3F + bten
     if second >= 0x7F: second += 0x22
