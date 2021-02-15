@@ -462,6 +462,11 @@ KRK_METHOD(Directory,__repr__,{
 	return OBJECT_VAL(out);
 })
 
+KRK_METHOD(Directory,__enter__,{})
+KRK_METHOD(Directory,__exit__,{
+	return FUNC_NAME(Directory,close)(argc,argv,0);
+})
+
 _noexport
 void _createAndBind_fileioMod(void) {
 	KrkInstance * module = krk_newInstance(vm.baseClasses->moduleClass);
@@ -503,6 +508,8 @@ void _createAndBind_fileioMod(void) {
 	BIND_METHOD(Directory,__repr__);
 	BIND_METHOD(Directory,__iter__);
 	BIND_METHOD(Directory,__call__);
+	BIND_METHOD(Directory,__enter__);
+	BIND_METHOD(Directory,__exit__);
 	BIND_METHOD(Directory,close);
 	krk_finalizeClass(Directory);
 
