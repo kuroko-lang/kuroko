@@ -1,2 +1,2 @@
-oh no! sleep: expect at least one argument.
+oh no! sleep() takes exactly 1 argument (0 given)
 Back from try/except

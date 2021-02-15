@@ -1,6 +1,3 @@
-/**
- * Currently just uname().
- */
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
@@ -480,11 +477,14 @@ KRK_FUNC(execvp,{
 	return krk_runtimeError(OSError, "Expected to not return from exec, but did.");
 })
 
-KrkValue krk_module_onload_os(void) {
+_noexport
+void _createAndBind_osMod(void) {
 	KrkInstance * module = krk_newInstance(vm.baseClasses->moduleClass);
-	/* Store it on the stack for now so we can do stuff that may trip GC
-	 * and not lose it to garbage colletion... */
-	krk_push(OBJECT_VAL(module));
+	krk_attachNamedObject(&vm.modules, "os", (KrkObj*)module);
+	krk_attachNamedObject(&module->fields, "__name__", (KrkObj*)S("os"));
+	krk_attachNamedValue(&module->fields, "__file__", NONE_VAL());
+	krk_attachNamedObject(&module->fields, "__doc__",
+		(KrkObj*)S("Provides access to low-level system operations."));
 
 #ifdef _WIN32
 	krk_attachNamedObject(&module->fields, "name", (KrkObj*)S("nt"));
@@ -590,11 +590,6 @@ KrkValue krk_module_onload_os(void) {
 
 
 	_loadEnviron(module);
-
-	/* Pop the module object before returning; it'll get pushed again
-	 * by the VM before the GC has a chance to run, so it's safe. */
-	assert(AS_INSTANCE(krk_pop()) == module);
-	return OBJECT_VAL(module);
 }
 
 

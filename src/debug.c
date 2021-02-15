@@ -1,7 +1,9 @@
 #include <stdio.h>
+#include <string.h>
 
 #include "debug.h"
 #include "vm.h"
+#include "util.h"
 
 void krk_disassembleChunk(FILE * f, KrkFunction * func, const char * name) {
 	KrkChunk * chunk = &func->chunk;
@@ -180,3 +182,46 @@ size_t krk_disassembleInstruction(FILE * f, KrkFunction * func, size_t offset) {
 	return offset + size;
 }
 
+/**
+ * dis.dis(object)
+ */
+KRK_FUNC(dis,{
+	if (argc < 1) {
+		krk_runtimeError(vm.exceptions->argumentError, "dis() takes ");
+		return BOOLEAN_VAL(0);
+	}
+
+	if (IS_CLOSURE(argv[0])) {
+		KrkFunction * func = AS_CLOSURE(argv[0])->function;
+		krk_disassembleChunk(stdout, func, func->name ? func->name->chars : "(unnamed)");
+	} else if (IS_BOUND_METHOD(argv[0])) {
+		if (AS_BOUND_METHOD(argv[0])->method->type == OBJ_CLOSURE) {
+			KrkFunction * func = ((KrkClosure*)AS_BOUND_METHOD(argv[0])->method)->function;
+			const char * methodName = func->name ? func->name->chars : "(unnamed)";
+			const char * typeName = IS_CLASS(AS_BOUND_METHOD(argv[0])->receiver) ? AS_CLASS(AS_BOUND_METHOD(argv[0])->receiver)->name->chars : krk_typeName(AS_BOUND_METHOD(argv[0])->receiver);
+			char * tmp = malloc(strlen(methodName) + strlen(typeName) + 2);
+			sprintf(tmp, "%s.%s", typeName, methodName);
+			krk_disassembleChunk(stdout, func, tmp);
+			free(tmp);
+		} else {
+			krk_runtimeError(vm.exceptions->typeError, "Can not disassemble built-in method of '%s'", krk_typeName(AS_BOUND_METHOD(argv[0])->receiver));
+		}
+	} else if (IS_CLASS(argv[0])) {
+		krk_runtimeError(vm.exceptions->typeError, "todo: class disassembly");
+	} else {
+		krk_runtimeError(vm.exceptions->typeError, "Don't know how to disassemble '%s'", krk_typeName(argv[0]));
+	}
+
+	return NONE_VAL();
+})
+
+_noexport
+void _createAndBind_disMod(void) {
+	KrkInstance * module = krk_newInstance(vm.baseClasses->moduleClass);
+	krk_attachNamedObject(&vm.modules, "dis", (KrkObj*)module);
+	krk_attachNamedObject(&module->fields, "__name__", (KrkObj*)S("dis"));
+	krk_attachNamedValue(&module->fields, "__file__", NONE_VAL());
+	krk_attachNamedObject(&module->fields, "__doc__",
+		(KrkObj*)S("Provides tools for disassembling bytecode."));
+	BIND_FUNC(module, dis);
+}
