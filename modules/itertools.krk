@@ -1,0 +1,16 @@
+class enumerate():
+    def __init__(iterable):
+        if '__iter__' not in dir(iterable):
+            raise TypeError(f'{iterable} is not iterable')
+        self.i = 0
+        self.iterable = iterable
+    def __iter__():
+        let i = self.i
+        let iter = self.iterable.__iter__()
+        def _():
+            let next = iter()
+            let out = (i, next) if next is not iter else _
+            i++
+            return out
+        return _
+

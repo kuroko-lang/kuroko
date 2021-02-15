@@ -1,5 +1,6 @@
 from codecs.infrastructure import register_kuroko_codec, ByteCatenator, StringCatenator, UnicodeEncodeError, UnicodeDecodeError, lookup_error
 from codecs.dbdata import encode_jis7, decode_jis7, decode_jis7katakana, encode_gbk, decode_gbk, gb_surrogate_ranges
+from itertools import enumerate
 
 class Gb18030IncrementalEncoder:
     name = "gb18030"
@@ -169,13 +170,88 @@ class Gb18030IncrementalDecoder:
 register_kuroko_codec(
     ["gb18030", "chinese", "csgb2312", "csiso58gb231280", "gb2312", "gb_2312", "gb_2312-80",
      "gbk", "iso-ir-58", "x-gbk"], None, Gb18030IncrementalDecoder)
-
 register_kuroko_codec(["gb18030"], Gb18030IncrementalEncoder, None)
 register_kuroko_codec(
     ["chinese", "csgb2312", "csiso58gb231280", "gb2312", "gb_2312", "gb_2312-80",
      "gbk", "iso-ir-58", "x-gbk"], GbkIncrementalEncoder, None)
 
+class Iso2022JpIncrementalEncoder:
+    name = "iso-2022-jp" # arguably should call it summat else since it's not exactly RFC 1468
+    webname = "iso-2022-jp"
+    encmap_jis7 = encode_jis7
+    # eager: switch to a lower numbered state when possible (à la Python)
+    # lazy: switch state only when necessary (à la WHATWG)
+    attitude = "lazy"
+    # state values:
+    # — 0: ASCII
+    # — 1: JIS-Roman
+    # — 2: JIS-Kanji
+    state = None
+    def __init__(errors):
+        self.errors = errors
+        self.state = 0
+    def ensure_state_number(state, out):
+        if self.state == state:
+        else if state == 0:
+            out.add(b"\x1B(B")
+        else if state == 1:
+            out.add(b"\x1B(J")
+        else if state == 2:
+            out.add(b"\x1B$B")
+        else:
+            raise ValueError("set to invalid state: " + repr(state))
+        self.state = state
+    def encode(string, final = False):
+        let out = ByteCatenator()
+        let offset = 0
+        while 1: # offset can be arbitrarily changed by the error handler, so not a for
+            if offset >= len(string):
+                if final:
+                    self.ensure_state_number(0, out)
+                return out.getvalue()
+            let i = string[offset]
+            let is_ascii = ord(i) < 0x80
+            let is_jiscii = (is_ascii and i not in "\\~") or (i in "¥\u203E")
+            let is_jis7 = ord(i) in self.encmap_jis7
+            let is_sets = [is_ascii, is_jiscii, is_jis7]
+            if (not is_sets[self.state]) or (self.attitude == "eager"):
+                for n, j in enumerate(is_sets):
+                    if j:
+                        self.ensure_state_number(n, out)
+                        break
+            if not is_sets[self.state]: # i.e. still isn't.
+                let error = UnicodeEncodeError(self.name, string, offset, offset + 1, "")
+                let errorret = lookup_error(self.errors)(error)
+                out.add(errorret[0])
+                offset = errorret[1]
+                if offset < 0:
+                    offset += len(string)
+            else if self.state in [0, 1]:
+                # By this point we know whether ASCII or JIS-Roman is appropriate and have switched
+                #   to the appropriate one, so we can just treat these the same now.
+                let j
+                if i == "¥":
+                    j = "\\"
+                else if i == "\u203E":
+                    j = "~"
+                else:
+                    j = i
+                out.add(bytes([ord(j)]))
+                offset += 1
+            else:
+                for individ in self.encmap_jis7[ord(i)]:
+                    out.add(bytes([individ]))
+                offset += 1
+    def reset():
+        self.state = 0
+    def getstate():
+        return self.state
+    def setstate(state):
+        if state not in [0, 1, 2]:
+            raise ValueError("invalid state: " + repr(state))
+        self.state = state
 
+register_kuroko_codec(["iso-2022-jp", "csiso2022jp"], Iso2022JpIncrementalEncoder, None)
 
 
 
