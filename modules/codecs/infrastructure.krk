@@ -169,7 +169,7 @@ class AsciiIncrementalDecoder:
                 if bytemode == 1:
                     return out.getvalue()
                 else:
-                    let error = UnicodeDecodeError(self.name, data, offset - len(leader), offset + 1, "")
+                    let error = UnicodeDecodeError(self.name, data, offset - len(leader), offset, "")
                     let errorret = lookup_error(self.errors)(error)
                     out.add(errorret[0])
                     return out.getvalue()
@@ -207,7 +207,7 @@ class AsciiIncrementalDecoder:
                 bytemode = 1
                 leader = []
             else:
-                let errorstart = offset + 1 - bytemode
+                let errorstart = offset - len(leader)
                 let errorend = errorstart + bytemode
                 # Note: per WHATWG behaviour, if an invalid multi-byte code contains an ASCII byte,
                 #   parsing shall resume at that byte. Also doing so for bytes outside of the
