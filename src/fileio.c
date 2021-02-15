@@ -1,5 +1,5 @@
 /**
- * Native module for providing access to stdio.
+ * Provides an interface to C FILE* streams.
  */
 #include <assert.h>
 #include <stdio.h>
@@ -462,11 +462,14 @@ KRK_METHOD(Directory,__repr__,{
 	return OBJECT_VAL(out);
 })
 
-KrkValue krk_module_onload_fileio(void) {
+_noexport
+void _createAndBind_fileioMod(void) {
 	KrkInstance * module = krk_newInstance(vm.baseClasses->moduleClass);
-	/* Store it on the stack for now so we can do stuff that may trip GC
-	 * and not lose it to garbage colletion... */
-	krk_push(OBJECT_VAL(module));
+	krk_attachNamedObject(&vm.modules, "fileio", (KrkObj*)module);
+	krk_attachNamedObject(&module->fields, "__name__", (KrkObj*)S("fileio"));
+	krk_attachNamedValue(&module->fields, "__file__", NONE_VAL());
+	krk_attachNamedObject(&module->fields, "__doc__",
+		(KrkObj*)S("Provides access to C <stdio> buffered file I/O functions."));
 
 	/* Define a class to represent files. (Should this be a helper method?) */
 	krk_makeClass(module, &File, "File", vm.baseClasses->objectClass);
@@ -511,9 +514,4 @@ KrkValue krk_module_onload_fileio(void) {
 	/* Our base will be the open method */
 	BIND_FUNC(module,open);
 	BIND_FUNC(module,opendir);
-
-	/* Pop the module object before returning; it'll get pushed again
-	 * by the VM before the GC has a chance to run, so it's safe. */
-	assert(AS_INSTANCE(krk_pop()) == module);
-	return OBJECT_VAL(module);
 }
