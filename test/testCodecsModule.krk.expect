@@ -22,3 +22,4 @@ replace in DBCS state successful: ??塩鹽??/〒
 xmlcharrefreplace in DBCS state successful: &#50684;&#30416;塩鹽&#18300;&#20029;/〒
 Encoding not misaligned: 令?むかしむかしあるところに
 Delimiter not swallowed:  foo = "Quoted string ****令?" 
+"robert�"
