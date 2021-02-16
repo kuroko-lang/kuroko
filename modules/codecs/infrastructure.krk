@@ -249,6 +249,7 @@ class AsciiIncrementalDecoder:
                 if offset < 0:
                     offset += len(string)
     def reset():
+        self.pending = b""
     def getstate():
         return (self.pending, 0)
     def setstate(state):

@@ -167,6 +167,7 @@ class Gb18030IncrementalDecoder:
                 if offset < 0:
                     offset += len(string)
     def reset():
+        self.pending = b""
     def getstate():
         return (self.pending, 0)
     def setstate(state):
@@ -364,6 +365,7 @@ class Iso2022JpIncrementalDecoder:
                     offset += len(string)
     def reset():
         self.state = 0
+        self.pending = b""
     def getstate():
         return (self.pending, self.state)
     def setstate(state):
@@ -518,6 +520,7 @@ class Utf16IncrementalDecoder:
                     offset += len(string)
     def reset():
         self.state = -1
+        self.pending = b""
     def getstate():
         return (self.pending, self.state)
     def setstate(state):
@@ -659,6 +662,7 @@ class Utf8IncrementalDecoder:
         return out.getvalue()
     def reset():
         self.state = -1
+        self.pending = b""
     def getstate():
         return (self.pending, self.state)
     def setstate(state):
