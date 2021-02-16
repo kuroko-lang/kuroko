@@ -597,7 +597,8 @@ class Utf8IncrementalDecoder:
         self.errors = errors
         self.state = -1
     def decode(data_in, final = False):
-        # We use UTF-8 natively, so this only applies the error handler (and remove_bom if set)
+        # We use UTF-8 natively, so this only validates it and applies the error handler
+        #   (and removes a BOM if remove_bom is set)
         let data = self.pending + data_in
         self.pending = b""
         let out = StringCatenator()
@@ -627,7 +628,7 @@ class Utf8IncrementalDecoder:
                 else if 0xF0 <= data[running_offset] and data[running_offset] <= 0xF4:
                     if data[running_offset] == 0xF0: 
                         trail_byte_bottom = 0x90
-                    else if data[running_offset] == 0xED: 
+                    else if data[running_offset] == 0xF4: 
                         trail_byte_top = 0x8F
                     countdown = 3
                 else:
