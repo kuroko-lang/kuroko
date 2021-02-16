@@ -363,8 +363,6 @@ register_kuroko_codec(["iso-2022-jp", "csiso2022jp"],
     Iso2022JpIncrementalEncoder, Iso2022JpIncrementalDecoder)
 
 class Utf16IncrementalEncoder:
-    # The obvious labels for ASCII are all Windows-1252 per WHATWG. Also, what people call
-    # "ASCII" in 8-bit-byte contexts (without backspace combining) is properly ISO-4873-DV.
     name = "utf-16"
     webname = "utf-16"
     encoding_map = {}
