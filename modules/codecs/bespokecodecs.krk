@@ -222,6 +222,7 @@ class Iso2022JpIncrementalEncoder:
             if not is_sets[self.state]: # i.e. still isn't.
                 let error = UnicodeEncodeError(self.name, string, offset, offset + 1, "")
                 let errorret = lookup_error(self.errors)(error)
+                self.ensure_state_number(0, out)
                 out.add(errorret[0])
                 offset = errorret[1]
                 if offset < 0:
@@ -267,6 +268,7 @@ class Iso2022JpIncrementalDecoder:
     state = None
     def __init__(errors):
         self.errors = errors
+        self.state = 0
     def decode(data, final = False):
         let out = StringCatenator()
         let offset = 0
@@ -340,7 +342,8 @@ class Iso2022JpIncrementalDecoder:
                 else:
                     errorend = errorstart + 1
                 let error = UnicodeDecodeError(self.name, data, errorstart, errorend, "")
-                bytemode = 1
+                if bytemode != 2:
+                    bytemode = 1
                 leader = []
                 let errorret = lookup_error(self.errors)(error)
                 out.add(errorret[0])
@@ -358,6 +361,176 @@ class Iso2022JpIncrementalDecoder:
 
 register_kuroko_codec(["iso-2022-jp", "csiso2022jp"],
     Iso2022JpIncrementalEncoder, Iso2022JpIncrementalDecoder)
+
+class Utf16IncrementalEncoder:
+    # The obvious labels for ASCII are all Windows-1252 per WHATWG. Also, what people call
+    # "ASCII" in 8-bit-byte contexts (without backspace combining) is properly ISO-4873-DV.
+    name = "utf-16"
+    webname = "utf-16"
+    encoding_map = {}
+    endian = "little"
+    include_bom = True
+    # -1: BOM not yet emitted if applicable
+    #  0: BOM emitted
+    state = None
+    def __init__(errors):
+        self.errors = errors
+        self.state = -1
+    def push_word(word, out):
+        if self.endian == "little":
+            out.add(bytes([word & 0xFFFF, (word >> 8) & 0xFFFF]))
+        else if self.endian == "big":
+            out.add(bytes([(word >> 8) & 0xFFFF, word & 0xFFFF]))
+        else:
+            raise ValueError("unexpected endian value: " + repr(self.endian))
+    def encode(string, final = False):
+        let out = ByteCatenator()
+        let offset = 0
+        if self.include_bom and self.state == -1:
+            self.push_word(0xFEFF, out)
+        self.state = 0
+        while 1: # offset can be arbitrarily changed by the error handler, so not a for
+            if offset >= len(string):
+                return out.getvalue()
+            let i = string[offset]
+            if (ord(i) < 0x10000) and not (0xD800 <= ord(i) and ord(i) < 0xE000):
+                self.push_word(ord(i), out)
+                offset += 1
+            else if ord(i) >= 0x10000:
+                let astrality = ord(i) - 0x10000
+                let lead_surrogate = ((astrality >> 10) & 0x3FF) + 0xD800
+                let trail_surrogate = (astrality & 0x3FF) + 0xDC00
+                self.push_word(lead_surrogate, out)
+                self.push_word(trail_surrogate, out)
+                offset += 1
+            else: # i.e. trying to encode a surrogate "codepoint"
+                let error = UnicodeEncodeError(self.name, string, offset, offset + 1, "")
+                let errorret = lookup_error(self.errors)(error)
+                for i in errorret[0]:
+                    self.push_word(i, out)
+                offset = errorret[1]
+                if offset < 0:
+                    offset += len(string)
+    def reset():
+        self.state = -1
+    def getstate():
+        return self.state
+    def setstate(state):
+        if state not in [-1, 0]:
+            raise ValueError("invalid state: " + repr(state))
+        self.state = state
+
+class Utf16IncrementalDecoder:
+    name = "utf-16"
+    webname = "utf-16"
+    force_endian = None # subclass may set to "little" or "big"
+    # -1: expecting BOM
+    #  0: LE
+    #  1: BE
+    state = None
+    def __init__(errors):
+        self.errors = errors
+        self.state = -1
+    def decode(data, final = False):
+        let out = StringCatenator()
+        let offset = 0
+        let leader = []
+        let wordmode = 1
+        while 1: # offset can be arbitrarily changed by the error handler, so not a for
+            if (offset + 1) >= len(data):
+                if wordmode == 1:
+                    return out.getvalue()
+                else:
+                    let error = UnicodeDecodeError(self.name, data, offset - (len(leader) * 2), len(data), "")
+                    let errorret = lookup_error(self.errors)(error)
+                    out.add(errorret[0])
+                    return out.getvalue()
+            let i
+            if self.state != 1:
+                i = data[offset] | (data[offset + 1] << 8)
+            else:
+                i = data[offset + 1] | (data[offset] << 8)
+            if self.state == -1:
+                if self.force_endian == "little":
+                    self.state = 0 # keep BOM if endian specified, per Python.
+                    i = data[offset] | (data[offset + 1] << 8)
+                else if self.force_endian == "big":
+                    self.state = 1
+                    i = data[offset + 1] | (data[offset] << 8)
+                else if i == 0xFEFF:
+                    self.state = 0
+                    i = None
+                else if i == 0xFFFE:
+                    self.state = 1
+                    i = None
+                else:
+                    self.state = 0 # Default to LE, per WHATWG, contra Unicode
+            if i == None:
+            else if wordmode == 1 and not (0xD800 <= i and i < 0xE000):
+                out.add(chr(i))
+                offset += 2
+            else if wordmode == 1 and (0xD800 <= i and i < 0xDC00):
+                leader.append(i)
+                wordmode = 2
+                offset += 2
+            else if wordmode == 2 and (0xDC00 <= i and i < 0xE000):
+                out.add(chr((((leader[0] & 0x3FF) << 10) | (i & 0x3FF)) + 0x10000))
+                wordmode = 1
+                leader = []
+                offset += 2
+            else: # either an isolated trail word or an isolated lead word
+                let errorstart = offset - (len(leader) * 2)
+                let errorend = errorstart + 2
+                let error = UnicodeDecodeError(self.name, data, errorstart, errorend, "")
+                wordmode = 1
+                leader = []
+                let errorret = lookup_error(self.errors)(error)
+                out.add(errorret[0])
+                offset = errorret[1]
+                if offset < 0:
+                    offset += len(string)
+    def reset():
+        self.state = -1
+    def getstate():
+        return self.state
+    def setstate(state):
+        if state not in [-1, 0, 1]:
+            raise ValueError("invalid state: " + repr(state))
+        self.state = state
+
+class Utf16BeIncrementalEncoder(Utf16IncrementalEncoder):
+    name = "utf-16be"
+    webname = "utf-16be"
+    endian = "big"
+    include_bom = False
+
+class Utf16BeIncrementalDecoder(Utf16IncrementalDecoder):
+    name = "utf-16be"
+    webname = "utf-16be"
+    force_endian = "big"
+
+class Utf16LeIncrementalEncoder(Utf16IncrementalEncoder):
+    name = "utf-16le"
+    webname = "utf-16le"
+    endian = "little"
+    include_bom = False
+
+class Utf16LeIncrementalDecoder(Utf16IncrementalDecoder):
+    name = "utf-16le"
+    webname = "utf-16le"
+    force_endian = "little"
+
+# Note: this behaves explicitly differently to WHATWG since WHATWG has the BOM, if present,
+#   override *any label at all*, and doesn't specify an encoder for UTF-16. So it aliases UTF-16 to
+#   UTF-16LE, while we take UTF-16 as meaning with BOM and UTF-16LE/BE as without, per Python.
+register_kuroko_codec(["utf-16", "iso-10646-ucs-2", "ucs-2", "unicode", "csunicode"],
+    Utf16IncrementalEncoder, Utf16IncrementalDecoder)
+register_kuroko_codec(["utf-16le", "unicodefeff"],
+    Utf16LeIncrementalEncoder, Utf16LeIncrementalDecoder)
+register_kuroko_codec(["utf-16be", "unicodefffe"],
+    Utf16BeIncrementalEncoder, Utf16BeIncrementalDecoder)
+
+
 
 
 
