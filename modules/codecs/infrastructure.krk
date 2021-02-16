@@ -12,11 +12,24 @@ def register_kuroko_codec(labels, incremental_encoder_class, incremental_decoder
         if incremental_decoder_class:
             _decoder_registry[label] = incremental_decoder_class
 
-def encode(string, label, errors="strict"):
-    return _encoder_registry[label](errors).encode(string, True)
+class KurokoCodecInfo:
+    def __init__(label, encoder, decoder):
+        self.name = label
+        self.incrementalencoder = encoder
+        self.incrementaldecoder = decoder
+    def encode(string, errors="strict"):
+        return self.incrementalencoder(errors).encode(string, True)
+    def decode(data, errors="strict"):
+        return self.incrementaldecoder(errors).decode(data, True)
 
-def decode(string, label, errors="strict"):
-    return _decoder_registry[label](errors).decode(string, True)
+def lookup(label):
+    return KurokoCodecInfo(label, _encoder_registry[label], _decoder_registry[label])
+
+def encode(string, label, errors="strict"):
+    return lookup(label).encode(string, errors=errors)
+
+def decode(data, label, errors="strict"):
+    return lookup(label).decode(data, errors=errors)
 
 # Constructor is e.g. UnicodeEncodeError(encoding, object, start, end, reason)
 # Wouldn't it be wonderful if Python bloody documented that anywhere (e.g. manual or docstring)?
