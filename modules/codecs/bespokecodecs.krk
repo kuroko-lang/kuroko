@@ -257,9 +257,6 @@ class Iso2022JpIncrementalDecoder:
     webname = "iso-2022-jp"
     decmap_jis7 = decode_jis7
     decmap_jis7katakana = decode_jis7katakana
-    # eager: switch to a lower numbered state when possible (à la Python)
-    # lazy: switch state only when necessary (à la WHATWG)
-    attitude = "lazy"
     # state values:
     # — 0: ASCII
     # — 1: JIS-Roman
