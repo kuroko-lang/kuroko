@@ -1,6 +1,6 @@
 from codecs.infrastructure import register_kuroko_codec, ByteCatenator, StringCatenator, UnicodeEncodeError, UnicodeDecodeError, lookup_error
 from codecs.dbdata import encode_jis7, decode_jis7, decode_jis7katakana, encode_gbk, decode_gbk, gb_surrogate_ranges
-from itertools import enumerate
+from itertools import enumerate, bytes_iterator
 
 class Gb18030IncrementalEncoder:
     name = "gb18030"
@@ -520,12 +520,129 @@ class Utf16LeIncrementalDecoder(Utf16IncrementalDecoder):
 # Note: this behaves explicitly differently to WHATWG since WHATWG has the BOM, if present,
 #   override *any label at all*, and doesn't specify an encoder for UTF-16. So it aliases UTF-16 to
 #   UTF-16LE, while we take UTF-16 as meaning with BOM and UTF-16LE/BE as without, per Python.
-register_kuroko_codec(["utf-16", "iso-10646-ucs-2", "ucs-2", "unicode", "csunicode"],
+register_kuroko_codec(["utf-16", "iso-10646-ucs-2", "ucs-2", "unicode", "csunicode", "u16"],
     Utf16IncrementalEncoder, Utf16IncrementalDecoder)
-register_kuroko_codec(["utf-16le", "unicodefeff"],
+register_kuroko_codec(["utf-16le", "unicodefeff", "unicodelittleunmarked"],
     Utf16LeIncrementalEncoder, Utf16LeIncrementalDecoder)
-register_kuroko_codec(["utf-16be", "unicodefffe"],
+register_kuroko_codec(["utf-16be", "unicodefffe", "unicodebigunmarked"],
     Utf16BeIncrementalEncoder, Utf16BeIncrementalDecoder)
+
+class Utf8IncrementalDecoder:
+    name = "utf-8"
+    webname = "utf-8"
+    # -1: expecting BOM
+    #  0: Normal
+    state = None
+    remove_bom = False
+    def __init__(errors):
+        self.errors = errors
+        self.state = -1
+    def decode(data, final = False):
+        # We use UTF-8 natively, so this only applies the error handler (and remove_bom if set)
+        let out = StringCatenator()
+        let running_offset = 0
+        if self.remove_bom and self.state == -1 and len(data >= 3):
+            if data[0] = 0xEF and data[1] == 0xBB and data[2] == 0xBF:
+                running_offset = 3
+        let first_offset = running_offset
+        let second_offset = running_offset
+        self.state = 0
+        let countdown = 0
+        let trail_byte_bottom = 0x80
+        let trail_byte_top = 0xBF
+        let dlist = list(bytes_iterator(data))
+        while running_offset < len(data):
+            let is_error = False
+            if countdown == 0:
+                if data[running_offset] < 0x80:
+                else if 0xC2 <= data[running_offset] and data[running_offset] <= 0xDF:
+                    countdown = 1
+                else if 0xE0 <= data[running_offset] and data[running_offset] <= 0xEF:
+                    if data[running_offset] == 0xE0: 
+                        trail_byte_bottom = 0xA0
+                    else if data[running_offset] == 0xED: 
+                        trail_byte_top = 0x9F # exclude isolated surrogates
+                    countdown = 2
+                else if 0xF0 <= data[running_offset] and data[running_offset] <= 0xF4:
+                    if data[running_offset] == 0xF0: 
+                        trail_byte_bottom = 0x90
+                    else if data[running_offset] == 0xED: 
+                        trail_byte_top = 0x8F
+                    countdown = 3
+                else:
+                    is_error = True
+            else:
+                if not (trail_byte_bottom <= data[running_offset] and data[running_offset] <= trail_byte_top):
+                    is_error = True
+                trail_byte_bottom = 0x80
+                trail_byte_top = 0xBF
+                countdown -= 1
+            running_offset += 1
+            if is_error:
+                out.add(bytes(dlist[first_offset:second_offset]).decode())
+                let error = UnicodeDecodeError(self.name, data, second_offset, second_offset + 1, "")
+                let errorret = lookup_error(self.errors)(error)
+                out.add(errorret[0])
+                running_offset = errorret[1]
+                if running_offset < 0:
+                    running_offset += len(string)
+                countdown = 0
+                first_offset = running_offset
+                second_offset = running_offset
+            else if countdown == 0:
+                second_offset = running_offset
+        out.add(bytes(dlist[first_offset:second_offset]).decode())
+        return out.getvalue()
+    def reset():
+        self.state = -1
+    def getstate():
+        return self.state
+    def setstate(state):
+        if state not in [-1, 0]:
+            raise ValueError("invalid state: " + repr(state))
+        self.state = state
+
+class Utf8IncrementalEncoder:
+    name = "utf-8"
+    webname = "utf-8"
+    # -1: expecting BOM
+    #  0: Normal
+    state = None
+    include_bom = False
+    def __init__(errors):
+        self.errors = errors
+        self.state = -1
+    def encode(string, final = False):
+        # We use UTF-8 natively, so this is fairly simple
+        let out = ByteCatenator()
+        if self.include_bom and self.state == -1:
+            out.add("\uFEFF".encode())
+        self.state = 0
+        out.add(string.encode())
+        return out.getvalue()
+    def reset():
+        self.state = -1
+    def getstate():
+        return self.state
+    def setstate(state):
+        if state not in [-1, 0]:
+            raise ValueError("invalid state: " + repr(state))
+        self.state = state
+
+class Utf8SigIncrementalDecoder(Utf8IncrementalDecoder):
+    name = "utf-8-sig"
+    webname = None
+    remove_bom = True
+
+class Utf8SigIncrementalEncoder(Utf8IncrementalEncoder):
+    name = "utf-8-sig"
+    webname = None
+    include_bom = True
+
+register_kuroko_codec(["unicode-1-1-utf-8", "unicode11utf8", "unicode20utf8", "utf-8", "utf8", 
+                       "x-unicode20utf8", "u8", "utf", "cp65001", "utf8-ucs4", "utf8mb4"],
+    Utf8IncrementalEncoder, Utf8IncrementalDecoder)
+register_kuroko_codec(["utf-8-sig"], Utf8SigIncrementalEncoder, Utf8SigIncrementalDecoder)
 
 
 
