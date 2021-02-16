@@ -1,4 +1,5 @@
 import codecs
+from itertools import enumerate
 print(codecs.encode("🏣 í Brčko", "windows-1251", errors="ignore"))
 print(codecs.encode("🏣 í Brčko", "windows-1251", errors="replace"))
 print(codecs.encode("🏣 í Brčko", "windows-1251", errors="backslashreplace"))
@@ -52,4 +53,38 @@ let encoded5 = codecs.encode(decoded5, "gb18030")
 if encoded5 != data5:
     print("Didn't roundtrip")
 print(codecs.decode(codecs.encode(decoded5, "gbk", errors="xmlcharrefreplace"), "gb18030"))
+
+print("-")
+
+let test_0 = "염盐塩鹽䝼丽/〒"
+let test_1 = "令䝼むかしむかしあるところに"
+let test_2 = """ foo = "Quoted string ****令䝼" """
+
+let out_0a = codecs.decode(codecs.encode(test_0, "iso-2022-jp", errors="replace"), "iso-2022-jp", errors="replace")
+let success = True
+for n, char in enumerate(out_0a):
+    if char not in (test_0[n], "?"):
+        print("replace in DBCS state unsuccessful:", out_0a)
+        success = False
+        break
+if success:
+    print("replace in DBCS state successful:", out_0a)
+
+let out_0b = codecs.decode(codecs.encode(test_0, "iso-2022-jp", errors="xmlcharrefreplace"), "iso-2022-jp", errors="replace")
+if "&#18300;" not in out_0b:
+    print("xmlcharrefreplace in DBCS state unsuccessful:", out_0b)
+else:
+    print("xmlcharrefreplace in DBCS state successful:", out_0b)
+
+let out_1 = codecs.decode(codecs.encode(test_1, "iso-2022-jp", errors="replace"), "iso-2022-jp", errors="replace")
+if not out_1.endswith("むかしむかしあるところに"):
+    print("Encoding misaligned:", out_1)
+else:
+    print("Encoding not misaligned:", out_1)
+
+let out_2 = codecs.decode(codecs.encode(test_2, "iso-2022-jp", errors="replace"), "iso-2022-jp", errors="replace")
+if out_2[-2] != '"':
+    print("Delimiter swallowed:", out_2)
+else:
+    print("Delimiter not swallowed:", out_2)
 
