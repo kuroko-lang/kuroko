@@ -21,6 +21,8 @@ typedef long krk_integer_type;
 # define parseStrInt strtol
 #endif
 
+#define ENABLE_THREADING
+
 #ifdef DEBUG
 #define ENABLE_DISASSEMBLY
 #define ENABLE_TRACING
