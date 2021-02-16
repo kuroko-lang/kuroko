@@ -161,9 +161,12 @@ class AsciiIncrementalDecoder:
     dbrange = ()
     tbrange = ()
     trailrange = ()
+    pending = b""
     def __init__(errors):
         self.errors = errors
-    def decode(data, final = False):
+    def decode(data_in, final = False):
+        let data = self.pending + data_in
+        self.pending = b""
         let out = StringCatenator()
         let offset = 0
         let leader = []
@@ -172,10 +175,13 @@ class AsciiIncrementalDecoder:
             if offset >= len(data):
                 if bytemode == 1:
                     return out.getvalue()
-                else:
+                else if final:
                     let error = UnicodeDecodeError(self.name, data, offset - len(leader), offset, "")
                     let errorret = lookup_error(self.errors)(error)
                     out.add(errorret[0])
+                    return out.getvalue()
+                else:
+                    self.pending = bytes(leader)
                     return out.getvalue()
             let i = data[offset]
             if bytemode == 1 and i < 0x80:
@@ -231,30 +237,13 @@ class AsciiIncrementalDecoder:
                     offset += len(string)
     def reset():
     def getstate():
-        return 0
+        return (self.pending, 0)
     def setstate(state):
-        if state != 0:
-            raise ValueError("stateless decoder being set to nonzero state")
+        self.pending = state[0]
+        if state[1] != 0:
+            raise ValueError("stateless (besides pending buffer) decoder being set to nonzero state")
 
 register_kuroko_codec(["ecma-43-dv", "iso-4873-dv"], AsciiIncrementalEncoder, AsciiIncrementalDecoder)
-
-class UndefinedIncrementalDecoder:
-    name = "undefined"
-    webname = "replacement"
-    def __init__(errors):
-        self.errors = errors
-    def decode(data, final = False):
-        if len(data) == 0:
-            return "" # per WHATWG, contra Python
-        let error = UnicodeDecodeError(self.name, data, 0, len(data), "undefined encoding")
-        let errorret = lookup_error(self.errors)(error) # per WHATWG, contra Python
-        return errorret[0]
-    def reset():
-    def getstate():
-        return 0
-    def setstate(state):
-        if state != 0:
-            raise ValueError("undefined decoder being set to nonzero state")
 
 class UndefinedIncrementalEncoder:
     name = "undefined"
@@ -271,6 +260,24 @@ class UndefinedIncrementalEncoder:
     def setstate(state):
         if state != 0:
             raise ValueError("undefined encoder being set to nonzero state")
+
+class UndefinedIncrementalDecoder:
+    name = "undefined"
+    webname = "replacement"
+    def __init__(errors):
+        self.errors = errors
+    def decode(data, final = False):
+        if len(data) == 0:
+            return "" # per WHATWG, contra Python
+        let error = UnicodeDecodeError(self.name, data, 0, len(data), "undefined encoding")
+        let errorret = lookup_error(self.errors)(error) # per WHATWG, contra Python
+        return errorret[0]
+    def reset():
+    def getstate():
+        return (b"", 0)
+    def setstate(state):
+        if state[1] != 0:
+            raise ValueError("undefined decoder being set to nonzero state")
 
 register_kuroko_codec(
     ["undefined", "replacement", # "undefined" is Python's label, "replacement" is WHATWG's.
