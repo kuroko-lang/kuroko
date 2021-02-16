@@ -1193,7 +1193,7 @@ void krk_initVM(int flags) {
 	krk_attachNamedValue(&vm.system->fields, "module_paths", module_paths);
 	krk_writeValueArray(AS_LIST(module_paths), OBJECT_VAL(S("./")));
 	if (vm.binpath) {
-		krk_attachNamedObject(&vm.system->fields, "executable_path", (KrkObj*)krk_takeString(vm.binpath, strlen(vm.binpath)));
+		krk_attachNamedObject(&vm.system->fields, "executable_path", (KrkObj*)krk_copyString(vm.binpath, strlen(vm.binpath)));
 		char * dir = strdup(vm.binpath);
 #ifndef _WIN32
 		char * slash = strrchr(dir,'/');

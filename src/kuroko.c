@@ -311,7 +311,7 @@ static void findInterpreter(char * argv[]) {
 		}
 	}
 	if (binpath) {
-		vm.binpath = binpath;
+		vm.binpath = strdup(binpath);
 	} /* Else, give up at this point and just don't attach it at all. */
 #endif
 }
