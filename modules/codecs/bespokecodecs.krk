@@ -210,7 +210,9 @@ class Iso2022JpIncrementalEncoder:
                     self.ensure_state_number(0, out)
                 return out.getvalue()
             let i = string[offset]
-            let is_ascii = ord(i) < 0x80
+            # Do not pass Shift Out, Shift In or Escape through from data lest this generate
+            #   state changes (SO and SI are used in some ISO-2022-JP variants though not this one)
+            let is_ascii = ord(i) < 0x80 and i not in ("\x0E\x0F\x1B")
             let is_jiscii = (is_ascii and i not in "\\~") or (i in "¥\u203E")
             let is_jis7 = ord(i) in self.encmap_jis7
             let is_sets = [is_ascii, is_jiscii, is_jis7]

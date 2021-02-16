@@ -56,7 +56,7 @@ register_error("ignore", ignore_errors)
 
 def replace_errors(exc):
     if isinstance(exc, UnicodeEncodeError):
-        return (b"?", exc.end) # 0x3F: question mark in ASCII / SUBSTITUTE control code in EBCDIC
+        return (b"?", exc.end)
     else if isinstance(exc, UnicodeDecodeError):
         return ("\uFFFD", exc.end)
     else:
@@ -81,7 +81,11 @@ register_error("backslashreplace", backslashreplace_errors)
 
 def xmlcharrefreplace_errors(exc):
     if isinstance(exc, UnicodeEncodeError):
-        return (b"&#" + str(ord(exc.object[exc.start])).encode() + b";", exc.end)
+        let codepoint = ord(exc.object[exc.start])
+        # Per WHATWG (specified in its ISO-2022-JP encoder, the only one that
+        #   generates encoding errors for these three control codes):
+        if codepoint in (0x0E, 0x0F, 0x1B): return (b"&#65533;", exc.end)
+        return (b"&#" + str(codepoint).encode() + b";", exc.end)
     else:
         raise TypeError("'xmlcharrefreplace' handler is only for encoding")
 register_error("xmlcharrefreplace", xmlcharrefreplace_errors)
