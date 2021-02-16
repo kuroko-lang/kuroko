@@ -88,3 +88,7 @@ if out_2[-2] != '"':
 else:
     print("Delimiter not swallowed:", out_2)
 
+# https://encoding.spec.whatwg.org/#security-background
+print(codecs.decode(b'"robert\x82"', "shift_jis", errors="replace"))
+
+
