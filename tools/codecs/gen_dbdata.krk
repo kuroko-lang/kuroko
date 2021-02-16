@@ -42,6 +42,11 @@ class {idnameenc}IncrementalEncoder(AsciiIncrementalEncoder):
     webname = {weblabel}
     encoding_map = {encmap}
 
+class {idnameenc2}IncrementalEncoder(AsciiIncrementalEncoder):
+    name = {mainlabelenc2}
+    webname = None
+    encoding_map = {encmap2}
+
 class {idnamedec}IncrementalDecoder(AsciiIncrementalDecoder):
     name = {mainlabeldec}
     webname = {weblabel}
@@ -50,7 +55,9 @@ class {idnamedec}IncrementalDecoder(AsciiIncrementalDecoder):
     tbrange = {tbrange}
     trailrange = {trailrange}
 
-register_kuroko_codec({labels}, {idnameenc}IncrementalEncoder, {idnamedec}IncrementalDecoder)
+register_kuroko_codec({labelsenc}, {idnameenc}IncrementalEncoder, None)
+register_kuroko_codec({labelsenc2}, {idnameenc2}IncrementalEncoder, None)
+register_kuroko_codec({labelsdec}, None, {idnamedec}IncrementalDecoder)
 '''
 
 let decode_eucjp = {}
@@ -210,11 +217,15 @@ with fileio.open('modules/codecs/dbdata.krk', 'w') as f:
         dbrange=repr(dbrange_uhc), tbrange=repr(tbrange_uhc), 
         trailrange=repr(trailrange_uhc)))
     f.write(template_asymmetric.format(
-        mainlabelenc=repr("x-x-big5"), 
+        mainlabelenc=repr("big5"), 
+        mainlabelenc2=repr("big5-hkscs"), 
         mainlabeldec=repr("big5-hkscs"), 
         weblabel=repr("big5"),
-        labels=repr(aliases["big5"]),
-        encmap=repr(encode_big5web), idnameenc="XXBig5",
+        labelsenc=repr(["big5", "cn-big5", "csbig5", "x-x-big5"]),
+        labelsenc2=repr(["big5-hkscs"]),
+        labelsdec=repr(["big5", "big5-hkscs", "cn-big5", "csbig5", "x-x-big5"]),
+        encmap=repr(encode_big5eten), idnameenc="Big5",
+        encmap2=repr(encode_big5hkscs), idnameenc2="Big5HKSCS",
         decmap=repr(decode_big5hkscs), idnamedec="Big5HKSCS",
         dbrange=repr(dbrange_big5), tbrange=repr(tbrange_big5), 
         trailrange=repr(trailrange_big5)))
