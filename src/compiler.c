@@ -1130,7 +1130,7 @@ static void markInitialized() {
 	current->locals[current->localCount - 1].depth = current->scopeDepth;
 }
 
-static void lambda() {
+static void lambda(int canAssign) {
 	Compiler lambdaCompiler;
 	parser.previous = syntheticToken("<lambda>");
 	initCompiler(&lambdaCompiler, TYPE_LAMBDA);

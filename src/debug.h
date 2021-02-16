@@ -7,3 +7,4 @@
 extern void krk_disassembleChunk(FILE * f, KrkFunction * func, const char * name);
 extern size_t krk_disassembleInstruction(FILE * f, KrkFunction * func, size_t offset);
 extern size_t krk_lineNumber(KrkChunk * chunk, size_t offset);
+extern void _createAndBind_disMod(void);
