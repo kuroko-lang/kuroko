@@ -36,7 +36,7 @@ class {idname}IncrementalDecoder(AsciiIncrementalDecoder):
 register_kuroko_codec({labels}, {idname}IncrementalEncoder, {idname}IncrementalDecoder)
 '''
 
-let template_asymmetric = '''
+let template_big5 = '''
 class {idnameenc}IncrementalEncoder(AsciiIncrementalEncoder):
     name = {mainlabelenc}
     webname = {weblabel}
@@ -55,6 +55,10 @@ class {idnamedec}IncrementalDecoder(AsciiIncrementalDecoder):
     tbrange = {tbrange}
     trailrange = {trailrange}
 
+# Our Big5 deviates from WHATWG somewhat here in that encoding to HKSCS is permitted if
+# specifically the HKSCS label is specified, otherwise Big5-ETEN is used. This seems more
+# sensible in a non-browser context than the WHATWG behaviour of the encoder behaving the
+# same for all labels.
 register_kuroko_codec({labelsenc}, {idnameenc}IncrementalEncoder, None)
 register_kuroko_codec({labelsenc2}, {idnameenc2}IncrementalEncoder, None)
 register_kuroko_codec({labelsdec}, None, {idnamedec}IncrementalDecoder)
@@ -216,7 +220,7 @@ with fileio.open('modules/codecs/dbdata.krk', 'w') as f:
         encmap=repr(encode_uhc), decmap=repr(decode_uhc), idname="Windows949",
         dbrange=repr(dbrange_uhc), tbrange=repr(tbrange_uhc), 
         trailrange=repr(trailrange_uhc)))
-    f.write(template_asymmetric.format(
+    f.write(template_big5.format(
         mainlabelenc=repr("big5"), 
         mainlabelenc2=repr("big5-hkscs"), 
         mainlabeldec=repr("big5-hkscs"), 
