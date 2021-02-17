@@ -321,31 +321,24 @@ KRK_METHOD(str,__mul__,{
 	return OBJECT_VAL(krk_copyString(out, totalLength));
 })
 
+#define unpackArray(counter, indexer) do { \
+	for (size_t i = 0; i < counter; ++i) { \
+		if (!IS_STRING(indexer)) { errorStr = krk_typeName(indexer); goto _expectedString; } \
+		krk_push(indexer); \
+		if (i > 0) pushStringBuilderStr(&sb, self->chars, self->length); \
+		pushStringBuilderStr(&sb, AS_CSTRING(indexer), AS_STRING(indexer)->length); \
+		krk_pop(); \
+	} \
+} while (0)
+
 /* str.join(list) */
 KRK_METHOD(str,join,{
 	METHOD_TAKES_EXACTLY(1);
-	CHECK_ARG(1,list,KrkList*,iterable);
 
 	const char * errorStr = NULL;
 	struct StringBuilder sb = {0};
 
-	for (size_t i = 0; i < iterable->values.count; ++i) {
-		KrkValue value = iterable->values.values[i];
-		if (!IS_STRING(iterable->values.values[i])) {
-			errorStr = krk_typeName(value);
-			goto _expectedString;
-		}
-		krk_push(value);
-		if (i > 0) {
-			for (size_t j = 0; j < self->length; ++j) {
-				pushStringBuilder(&sb, self->chars[j]);
-			}
-		}
-		for (size_t j = 0; j < AS_STRING(value)->length; ++j) {
-			pushStringBuilder(&sb, AS_STRING(value)->chars[j]);
-		}
-		krk_pop();
-	}
+	unpackIterableFast(argv[1]);
 
 	return finishStringBuilder(&sb);
 
@@ -356,7 +349,7 @@ _expectedString:
 
 static int isWhitespace(char c) {
 	return (c == ' ' || c == '\t' || c == '\n' || c == '\r');
-}
+}\
 
 static int substringMatch(const char * haystack, size_t haystackLen, const char * needle, size_t needleLength) {
 	if (haystackLen < needleLength) return 0;

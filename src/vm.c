@@ -507,6 +507,19 @@ static void multipleDefs(KrkClosure * closure, int destination) {
 				"(unnamed arg)")));
 }
 
+#undef unpackError
+#define unpackError(fromInput) return krk_runtimeError(vm.exceptions->typeError, "Can not unpack *expression: '%s' object is not iterable", krk_typeName(fromInput)), 0;
+#define unpackArray(counter, indexer) do { \
+	if (positionals->count + counter > positionals->capacity) { \
+		size_t old = positionals->capacity; \
+		positionals->capacity = positionals->count + counter; \
+		positionals->values = GROW_ARRAY(KrkValue,positionals->values,old,positionals->capacity); \
+	} \
+	for (size_t i = 0; i < counter; ++i) { \
+		positionals->values[positionals->count] = indexer; \
+		positionals->count++; \
+	} \
+} while (0)
 int krk_processComplexArguments(int argCount, KrkValueArray * positionals, KrkTable * keywords) {
 	size_t kwargsCount = AS_INTEGER(krk_currentThread.stackTop[-1]);
 	krk_pop(); /* Pop the arg counter */
@@ -528,53 +541,7 @@ int krk_processComplexArguments(int argCount, KrkValueArray * positionals, KrkTa
 		KrkValue value = startOfExtras[i*2 + 1];
 		if (IS_KWARGS(key)) {
 			if (AS_INTEGER(key) == LONG_MAX-1) { /* unpack list */
-#define unpackArray(counter, indexer) do { \
-					if (positionals->count + counter > positionals->capacity) { \
-						size_t old = positionals->capacity; \
-						positionals->capacity = positionals->count + counter; \
-						positionals->values = GROW_ARRAY(KrkValue,positionals->values,old,positionals->capacity); \
-					} \
-					for (size_t i = 0; i < counter; ++i) { \
-						positionals->values[positionals->count] = indexer; \
-						positionals->count++; \
-					} \
-				} while (0)
-				
-				if (IS_TUPLE(value)) {
-					unpackArray(AS_TUPLE(value)->values.count, AS_TUPLE(value)->values.values[i]);
-				} else if (IS_INSTANCE(value) && AS_INSTANCE(value)->_class == vm.baseClasses->listClass) {
-					unpackArray(AS_LIST(value)->count, AS_LIST(value)->values[i]);
-				} else if (IS_INSTANCE(value) && AS_INSTANCE(value)->_class == vm.baseClasses->dictClass) {
-					unpackArray(AS_DICT(value)->count, krk_dict_nth_key_fast(AS_DICT(value)->capacity, AS_DICT(value)->entries, i));
-				} else if (IS_STRING(value)) {
-					unpackArray(AS_STRING(value)->codesLength, krk_string_get(2,(KrkValue[]){value,INTEGER_VAL(i)},0));
-				} else {
-					KrkClass * type = krk_getType(value);
-					if (type->_iter) {
-						/* Create the iterator */
-						size_t stackOffset = krk_currentThread.stackTop - krk_currentThread.stack;
-						krk_push(value);
-						krk_push(krk_callSimple(OBJECT_VAL(type->_iter), 1, 0));
-
-						do {
-							/* Call it until it gives us itself */
-							krk_push(krk_currentThread.stack[stackOffset]);
-							krk_push(krk_callSimple(krk_peek(0), 0, 1));
-							if (krk_valuesSame(krk_currentThread.stack[stackOffset], krk_peek(0))) {
-								/* We're done. */
-								krk_pop(); /* The result of iteration */
-								krk_pop(); /* The iterator */
-								break;
-							}
-							krk_writeValueArray(positionals, krk_peek(0));
-							krk_pop();
-						} while (1);
-					} else {
-						krk_runtimeError(vm.exceptions->typeError, "Can not unpack *expression: '%s' object is not iterable", krk_typeName(value));
-						return 0;
-					}
-				}
-#undef unpackArray
+				unpackIterableFast(value);
 			} else if (AS_INTEGER(key) == LONG_MAX-2) { /* unpack dict */
 				if (!IS_INSTANCE(value)) {
 					krk_runtimeError(vm.exceptions->typeError, "**expression value is not a dict.");
@@ -603,9 +570,9 @@ int krk_processComplexArguments(int argCount, KrkValueArray * positionals, KrkTa
 			}
 		}
 	}
-
 	return 1;
 }
+#undef unpackArray
 
 /**
  * Call a managed method.

@@ -170,3 +170,44 @@ static inline KrkValue discardStringBuilder(struct StringBuilder * sb) {
 #define IS_dictkeys(o) krk_isInstanceOf(o,vm.baseClasses->dictkeysClass)
 #define AS_dictkeys(o) ((struct DictKeys*)AS_OBJECT(o))
 
+#ifndef unpackError
+#define unpackError(fromInput) return krk_runtimeError(vm.exceptions->typeError, "'%s' object is not iterable", krk_typeName(fromInput));
+#endif
+
+#define unpackIterable(fromInput) do { \
+	KrkClass * type = krk_getType(fromInput); \
+	if (type->_iter) { \
+		size_t stackOffset = krk_currentThread.stackTop - krk_currentThread.stack; \
+		krk_push(fromInput); \
+		krk_push(krk_callSimple(OBJECT_VAL(type->_iter), 1, 0)); \
+		do { \
+			krk_push(krk_currentThread.stack[stackOffset]); \
+			krk_push(krk_callSimple(krk_peek(0), 0, 1)); \
+			if (krk_valuesSame(krk_currentThread.stack[stackOffset], krk_peek(0))) { \
+				krk_pop(); \
+				krk_pop(); \
+				break; \
+			} \
+			unpackArray(1,krk_peek(0)); \
+			krk_pop(); \
+		} while (1); \
+	} else { \
+		unpackError(fromInput); \
+	} \
+} while (0)
+
+#define unpackIterableFast(fromInput) do { \
+	KrkValue iterableValue = (fromInput); \
+	if (IS_TUPLE(iterableValue)) { \
+		unpackArray(AS_TUPLE(iterableValue)->values.count, AS_TUPLE(iterableValue)->values.values[i]); \
+	} else if (IS_INSTANCE(iterableValue) && AS_INSTANCE(iterableValue)->_class == vm.baseClasses->listClass) { \
+		unpackArray(AS_LIST(iterableValue)->count, AS_LIST(iterableValue)->values[i]); \
+	} else if (IS_INSTANCE(iterableValue) && AS_INSTANCE(iterableValue)->_class == vm.baseClasses->dictClass) { \
+		unpackArray(AS_DICT(iterableValue)->count, krk_dict_nth_key_fast(AS_DICT(iterableValue)->capacity, AS_DICT(iterableValue)->entries, i)); \
+	} else if (IS_STRING(iterableValue)) { \
+		unpackArray(AS_STRING(iterableValue)->codesLength, krk_string_get(2,(KrkValue[]){iterableValue,INTEGER_VAL(i)},0)); \
+	} else { \
+		unpackIterable(iterableValue); \
+	} \
+} while (0)
+
