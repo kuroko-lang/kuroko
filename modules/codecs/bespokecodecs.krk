@@ -119,8 +119,8 @@ class Gb18030IncrementalDecoder:
                 bytemode = 2
                 leader.append(i)
                 offset += 1
-            else if bytemode == 1 and i in self.decoding_map:
-                out.add(chr(self.decoding_map[i]))
+            else if bytemode == 1 and i == b"\x80":
+                out.add("€")
                 offset += 1
             else if bytemode == 2 and (leader[0], i) in decode_gbk:
                 out.add(chr(decode_gbk[(leader[0], i)]))
