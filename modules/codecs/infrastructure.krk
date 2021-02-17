@@ -3,15 +3,11 @@ from itertools import bytes_iterator
 let _encoder_registry = {}
 let _decoder_registry = {}
 def register_kuroko_codec(labels, incremental_encoder_class, incremental_decoder_class):
-    if incremental_encoder_class and incremental_encoder_class.name not in labels:
-        raise ValueError("encoder's name not in label list")
-    if incremental_decoder_class and incremental_decoder_class.name not in labels:
-        raise ValueError("decoder's name not in label list")
     for label in labels:
         if incremental_encoder_class:
-            _encoder_registry[label] = incremental_encoder_class
+            _encoder_registry[label.lower()] = incremental_encoder_class
         if incremental_decoder_class:
-            _decoder_registry[label] = incremental_decoder_class
+            _decoder_registry[label.lower()] = incremental_decoder_class
 
 class KurokoCodecInfo:
     def __init__(label, encoder, decoder):
@@ -27,10 +23,10 @@ def lookup(label):
     let enc = None
     let dec = None
     try:
-        enc = _encoder_registry[label]
+        enc = _encoder_registry[label.lower()]
     except:
     try:
-        dec = _decoder_registry[label]
+        dec = _decoder_registry[label.lower()]
     except:
     return KurokoCodecInfo(label, enc, dec)
 

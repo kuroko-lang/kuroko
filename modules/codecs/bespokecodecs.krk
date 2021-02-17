@@ -182,13 +182,10 @@ class Gb18030IncrementalDecoder:
             raise ValueError("stateless (besides pending buffer) decoder being set to nonzero state")
         self.pending = state[0]
 
-register_kuroko_codec(
-    ["gb18030", "chinese", "csgb2312", "csiso58gb231280", "gb2312", "gb_2312", "gb_2312-80",
-     "gbk", "iso-ir-58", "x-gbk"], None, Gb18030IncrementalDecoder)
-register_kuroko_codec(["gb18030"], Gb18030IncrementalEncoder, None)
+register_kuroko_codec(["gb18030"], Gb18030IncrementalEncoder, Gb18030IncrementalDecoder)
 register_kuroko_codec(
     ["chinese", "csgb2312", "csiso58gb231280", "gb2312", "gb_2312", "gb_2312-80",
-     "gbk", "iso-ir-58", "x-gbk"], GbkIncrementalEncoder, None)
+     "gbk", "iso-ir-58", "x-gbk"], GbkIncrementalEncoder, Gb18030IncrementalDecoder)
 
 class Iso2022JpIncrementalEncoder:
     name = "iso-2022-jp" # arguably should call it summat else since it's not exactly RFC 1468
@@ -852,7 +849,10 @@ class JapaneseAutodetectIncrementalDecoder:
         self.pendingutf.add(state[7])
         self.state = state[8]
 
-register_kuroko_codec(["japanese"], None, JapaneseAutodetectIncrementalDecoder)
+# If data is so insufficiently tagged that you have to autodetect its encoding, you probably want
+#   a BOM on any UTF-8 you send back:
+register_kuroko_codec(["japanese"], Utf8SigIncrementalEncoder,
+        JapaneseAutodetectIncrementalDecoder)
 
 
 

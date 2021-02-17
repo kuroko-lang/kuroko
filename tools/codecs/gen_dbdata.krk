@@ -59,9 +59,8 @@ class {idnamedec}IncrementalDecoder(AsciiIncrementalDecoder):
 # specifically the HKSCS label is specified, otherwise Big5-ETEN is used. This seems more
 # sensible in a non-browser context than the WHATWG behaviour of the encoder behaving the
 # same for all labels.
-register_kuroko_codec({labelsenc}, {idnameenc}IncrementalEncoder, None)
-register_kuroko_codec({labelsenc2}, {idnameenc2}IncrementalEncoder, None)
-register_kuroko_codec({labelsdec}, None, {idnamedec}IncrementalDecoder)
+register_kuroko_codec({labels}, {idnameenc}IncrementalEncoder, {idnamedec}IncrementalDecoder)
+register_kuroko_codec({labels2}, {idnameenc2}IncrementalEncoder, {idnamedec}IncrementalDecoder)
 '''
 
 let decode_eucjp = {}
@@ -221,16 +220,15 @@ with fileio.open('modules/codecs/dbdata.krk', 'w') as f:
         dbrange=repr(dbrange_uhc), tbrange=repr(tbrange_uhc), 
         trailrange=repr(trailrange_uhc)))
     f.write(template_big5.format(
-        mainlabelenc=repr("big5"), 
+        mainlabelenc=repr("big5-eten"), 
         mainlabelenc2=repr("big5-hkscs"), 
         mainlabeldec=repr("big5-hkscs"), 
         weblabel=repr("big5"),
-        labelsenc=repr(["big5", "cn-big5", "csbig5", "x-x-big5"]),
-        labelsenc2=repr(["big5-hkscs"]),
-        labelsdec=repr(["big5", "big5-hkscs", "cn-big5", "csbig5", "x-x-big5"]),
-        encmap=repr(encode_big5eten), idnameenc="Big5",
-        encmap2=repr(encode_big5hkscs), idnameenc2="Big5HKSCS",
-        decmap=repr(decode_big5hkscs), idnamedec="Big5HKSCS",
+        labels=repr(["big5", "cn-big5", "csbig5", "x-x-big5", "big5-eten"]),
+        labels2=repr(["big5-hkscs", "big5hkscs"]),
+        encmap=repr(encode_big5eten), idnameenc="Big5Eten",
+        encmap2=repr(encode_big5hkscs), idnameenc2="Big5Hkscs",
+        decmap=repr(decode_big5hkscs), idnamedec="Big5Hkscs",
         dbrange=repr(dbrange_big5), tbrange=repr(tbrange_big5), 
         trailrange=repr(trailrange_big5)))
     f.write("\n# Additional data for bespoke codecs")
