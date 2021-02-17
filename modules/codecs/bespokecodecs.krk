@@ -848,8 +848,8 @@ class JapaneseAutodetectIncrementalDecoder:
         self.pendingujis = StringCatenator()
         self.pendingujis.add(state[5])
         self.utf.setstate(state[6])
-        self.pendingujis = StringCatenator()
-        self.pendingujis.add(state[7])
+        self.pendingutf = StringCatenator()
+        self.pendingutf.add(state[7])
         self.state = state[8]
 
 register_kuroko_codec(["japanese"], None, JapaneseAutodetectIncrementalDecoder)
