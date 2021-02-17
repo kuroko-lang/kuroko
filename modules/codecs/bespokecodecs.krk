@@ -191,12 +191,16 @@ class Iso2022JpIncrementalEncoder:
     name = "iso-2022-jp" # arguably should call it summat else since it's not exactly RFC 1468
     webname = "iso-2022-jp"
     encmap_jis7 = encode_jis7
+    encmaps_sbcs = []
+    encmaps_dbcs = [None, None, encode_jis7]
+    escs_onebyte = {0: 0x42, 1: 0x4A}
+    escs_twobyte = {2: 0x42}
     # eager: switch to a lower numbered state when possible (à la Python)
     # lazy: switch state only when necessary (à la WHATWG)
     attitude = "lazy"
     # state values:
-    # — 0: ASCII
-    # — 1: JIS-Roman
+    # — 0: ASCII (hardcoded)
+    # — 1: JIS-Roman (hardcoded)
     # — 2: JIS-Kanji
     state = None
     def __init__(errors):
@@ -204,12 +208,14 @@ class Iso2022JpIncrementalEncoder:
         self.state = 0
     def ensure_state_number(state, out):
         if self.state == state:
-        else if state == 0:
-            out.add(b"\x1B(B")
-        else if state == 1:
-            out.add(b"\x1B(J")
-        else if state == 2:
-            out.add(b"\x1B$B")
+        else if state in self.escs_onebyte:
+            out.add(b"\x1B(")
+            out.add(bytes([self.escs_onebyte[state]]))
+        else if state in self.escs_twobyte:
+            out.add(b"\x1B$")
+            if self.escs_twobyte[state] not in (0x40, 0x41, 0x42):
+                out.add(b"(")
+            out.add(bytes([self.escs_twobyte[state]]))
         else:
             raise ValueError("set to invalid state: " + repr(state))
         self.state = state
@@ -226,8 +232,16 @@ class Iso2022JpIncrementalEncoder:
             #   state changes (SO and SI are used in some ISO-2022-JP variants though not this one)
             let is_ascii = ord(i) < 0x80 and i not in ("\x0E\x0F\x1B")
             let is_jiscii = (is_ascii and i not in "\\~") or (i in "¥\u203E")
-            let is_jis7 = ord(i) in self.encmap_jis7
-            let is_sets = [is_ascii, is_jiscii, is_jis7]
+            let is_sets = [is_ascii, is_jiscii]
+            let try_state = 2
+            while 1:
+                if try_state in self.escs_onebyte:
+                    is_sets.append(ord(i) in self.encmaps_sbcs[try_state])
+                else if try_state in self.escs_twobyte:
+                    is_sets.append(ord(i) in self.encmaps_dbcs[try_state])
+                else:
+                    break
+                try_state += 1
             if (not is_sets[self.state]) or (self.attitude == "eager"):
                 for n, j in enumerate(is_sets):
                     if j:
@@ -242,7 +256,7 @@ class Iso2022JpIncrementalEncoder:
                 offset = errorret[1]
                 if offset < 0:
                     offset += len(string)
-            else if self.state in [0, 1]:
+            else if self.state in (0, 1):
                 # By this point we know whether ASCII or JIS-Roman is appropriate and have switched
                 #   to the appropriate one, so we can just treat these the same now.
                 let j
@@ -254,29 +268,38 @@ class Iso2022JpIncrementalEncoder:
                     j = i
                 out.add(bytes([ord(j)]))
                 offset += 1
-            else:
-                for individ in self.encmap_jis7[ord(i)]:
+            else if self.state in self.escs_onebyte:
+                out.add(bytes([self.encmaps_sbcs[self.state][ord(i)]]))
+                offset += 1
+            else if self.state in self.escs_twobyte:
+                for individ in self.encmaps_dbcs[self.state][ord(i)]:
                     out.add(bytes([individ]))
                 offset += 1
+            else:
+                raise RuntimeError("inconsistently configured encoder")
     def reset():
         self.state = 0
     def getstate():
         return self.state
     def setstate(state):
-        if state not in [0, 1, 2]:
+        if state not in (0, 1) and state not in self.escs_onebyte and state not in self.escs_twobyte:
             raise ValueError("invalid state: " + repr(state))
         self.state = state
 
 class Iso2022JpIncrementalDecoder:
     name = "iso-2022-jp" # arguably should call it summat else since it's not exactly RFC 1468
     webname = "iso-2022-jp"
-    decmap_jis7 = decode_jis7
-    decmap_jis7katakana = decode_jis7katakana
+    decmaps_sbcs = [None, None, decode_jis7katakana]
+    decmaps_dbcs = [None, None, None, decode_jis7]
+    escs_onebyte = {0x42: 0, 0x49: 2, 0x4A: 1}
+    escs_twobyte = {0x40: 3, 0x42: 3}
+    two_byte_modes = [3]
+    new_twobytes = False
     # state values:
-    # — 0: ASCII
-    # — 1: JIS-Roman
-    # — 2: JIS-Kanji
-    # — 3: JIS-Katakana
+    # — 0: ASCII (hardcoded)
+    # — 1: JIS-Roman (hardcoded)
+    # — 2: JIS-Katakana
+    # — 3: JIS-Kanji
     state = None
     pending = b""
     def __init__(errors):
@@ -289,7 +312,7 @@ class Iso2022JpIncrementalDecoder:
         let offset = 0
         let leader = []
         let bytemode = 1
-        if self.state == 2:
+        if self.state in self.two_byte_modes:
             bytemode = 2
         while 1: # offset can be arbitrarily changed by the error handler, so not a for
             if offset >= len(data):
@@ -312,24 +335,19 @@ class Iso2022JpIncrementalDecoder:
             else if bytemode == 3 and len(leader) == 1 and i in (0x24, 0x28):
                 leader.append(i)
                 offset += 1
-            else if bytemode == 3 and len(leader) == 2 and leader[1] == 0x28 and i == 0x42:
-                self.state = 0
+            else if bytemode == 3 and len(leader) == 2 and leader[1] == 0x28 and i in self.escs_onebyte:
+                self.state = self.escs_onebyte[i]
                 bytemode = 1
                 leader = []
                 offset += 1
-            else if bytemode == 3 and len(leader) == 2 and leader[1] == 0x28 and i == 0x4A:
-                self.state = 1
-                bytemode = 1
-                leader = []
+            else if bytemode == 3 and len(leader) == 2 and leader[1] == 0x24 and i == 0x28 and self.new_twobytes:
+                bytemode = 4
+                leader.append(i)
                 offset += 1
-            else if bytemode == 3 and len(leader) == 2 and leader[1] == 0x24 and i in (0x40, 0x42):
-                self.state = 2
+            else if ((bytemode == 3 and len(leader) == 2) or (bytemode == 4 and len(leader) == 3)
+                     ) and leader[1] == 0x24 and i in self.escs_twobyte:
+                self.state = self.escs_twobyte[i]
                 bytemode = 2
-                leader = []
-                offset += 1
-            else if bytemode == 3 and len(leader) == 2 and leader[1] == 0x28 and i == 0x49:
-                self.state = 3
-                bytemode = 1
                 leader = []
                 offset += 1
             else if bytemode == 2 and len(leader) == 0:
@@ -346,11 +364,11 @@ class Iso2022JpIncrementalDecoder:
                     char = "\u203E"
                 out.add(char)
                 offset += 1
-            else if bytemode == 1 and i in self.decmap_jis7katakana:
-                out.add(chr(self.decmap_jis7katakana[i]))
+            else if bytemode == 1 and i in self.decmaps_sbcs[self.state]:
+                out.add(chr(self.decmaps_sbcs[self.state][i]))
                 offset += 1
-            else if bytemode == 2 and (leader[0], i) in self.decmap_jis7:
-                out.add(chr(self.decmap_jis7[(leader[0], i)]))
+            else if bytemode == 2 and (leader[0], i) in self.decmaps_dbcs[self.state]:
+                out.add(chr(self.decmaps_dbcs[self.state][(leader[0], i)]))
                 offset += 1
                 leader = []
             else:
@@ -376,7 +394,7 @@ class Iso2022JpIncrementalDecoder:
     def getstate():
         return (self.pending, self.state)
     def setstate(state):
-        if state[1] not in [0, 1, 2, 3]:
+        if state not in (0, 1) and state >= len(self.decmaps_sbcs) and state >= len(self.decmaps_dbcs):
             raise ValueError("invalid state: " + repr(state))
         self.pending = state[0]
         self.state = state[1]
