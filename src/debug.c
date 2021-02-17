@@ -35,21 +35,29 @@ static inline const char * opcodeClean(const char * opc) {
 }
 
 static int isJumpTarget(KrkFunction * func, size_t startPoint) {
+	KrkChunk * chunk = &func->chunk;
 	size_t offset = 0;
 
-#define SIMPLE(op) case op: offset += 1; continue; break;
-#define OPERANDB(op,_unused) case op: offset += 2; continue; break;
-#define OPERAND(op,_unused) OPERANDB(op,_) case op ## _LONG: offset += 4; continue; break;
-#define CONSTANT(op,_unused) OPERAND(op,_)
-#define JUMP(opc,sign) case opc: { uint16_t jump = (func->chunk.code[offset + 1] << 8) | (func->chunk.code[offset + 2]); \
-	if ((size_t)(offset + 3 sign jump) == startPoint) return 1; \
-	offset += 3; continue; break; }
+#define SIMPLE(opc) case opc: size = 1; break;
+#define CONSTANT(opc,more) case opc: { size_t constant __attribute__((unused)) = chunk->code[offset + 1]; more; size = 2; break; } \
+	case opc ## _LONG: { size_t constant __attribute__((unused)) = (chunk->code[offset + 1] << 16) | \
+	(chunk->code[offset + 2] << 8) | (chunk->code[offset + 3]); more; size = 4; break; }
+#define OPERANDB(opc,more) case opc: { size = 2; break; }
+#define OPERAND(opc,more) OPERANDB(opc,more) \
+	case opc ## _LONG: { size = 4; break; }
+#define JUMP(opc,sign) case opc: { uint16_t jump = (chunk->code[offset + 1] << 8) | (chunk->code[offset + 2]); \
+	if ((size_t)(offset + 3 sign jump) == startPoint) return 1; size = 3; break; }
+#define CLOSURE_MORE offset += AS_FUNCTION(chunk->constants.values[constant])->upvalueCount * 4
+#define EXPAND_ARGS_MORE
+#define LOCAL_MORE
 
-	while (offset < func->chunk.count) {
-		uint8_t opcode = func->chunk.code[offset];
+	while (offset < chunk->count) {
+		uint8_t opcode = chunk->code[offset];
+		size_t size = 0;
 		switch (opcode) {
 #include "opcodes.h"
 		}
+		offset += size;
 	}
 	return 0;
 #undef SIMPLE
@@ -57,6 +65,9 @@ static int isJumpTarget(KrkFunction * func, size_t startPoint) {
 #undef OPERAND
 #undef CONSTANT
 #undef JUMP
+#undef CLOSURE_MORE
+#undef LOCAL_MORE
+#undef EXPAND_ARGS_MORE
 }
 
 #define SIMPLE(opc) case opc: fprintf(f, "%-16s      ", opcodeClean(#opc)); size = 1; break;
@@ -83,7 +94,7 @@ static int isJumpTarget(KrkFunction * func, size_t startPoint) {
 	size = 4; break; }
 #define JUMP(opc,sign) case opc: { uint16_t jump = (chunk->code[offset + 1] << 8) | \
 	(chunk->code[offset + 2]); \
-	fprintf(f, "%-16s %4d -> %d", opcodeClean(#opc), (int)offset, (int)(offset + 3 sign jump)); \
+	fprintf(f, "%-16s %4d (to %d)", opcodeClean(#opc), (int)jump, (int)(offset + 3 sign jump)); \
 	size = 3; break; }
 
 #define CLOSURE_MORE \
