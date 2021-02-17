@@ -722,7 +722,7 @@ register_kuroko_codec(["utf-8-sig", "utf-8-bom"], Utf8SigIncrementalEncoder, Utf
 
 class JapaneseAutodetectIncrementalDecoder:
     name = "japanese"
-    webname = ""
+    webname = None
     # State flags:
     # 0x01: eliminated ISO-2022-JP
     # 0x02: eliminated Shift JIS
