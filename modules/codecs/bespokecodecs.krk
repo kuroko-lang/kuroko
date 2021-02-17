@@ -30,7 +30,12 @@ class Gb18030IncrementalEncoder:
                     out.add(bytes([target]))
                 offset += 1
             else if (not self.four_byte_codes) or (ord(i) == 0xE5E5):
-                let error = UnicodeEncodeError(self.name, string, offset, offset + 1, "")
+                let reason = ""
+                if not self.four_byte_codes:
+                    reason = "character not supported in plain GBK mode"
+                else if ord(i) == 0xE5E5:
+                    reason = "U+E5E5 corresponds to 0xA3A0, which is mapped to U+3000 as legacy"
+                let error = UnicodeEncodeError(self.name, string, offset, offset + 1, reason)
                 let errorret = lookup_error(self.errors)(error)
                 out.add(errorret[0])
                 offset = errorret[1]
@@ -98,7 +103,8 @@ class Gb18030IncrementalDecoder:
                 if bytemode == 1:
                     return out.getvalue()
                 else if final:
-                    let error = UnicodeDecodeError(self.name, data, offset - len(leader), offset, "")
+                    let error = UnicodeDecodeError(self.name, data, offset - len(leader), offset,
+                                "truncated sequence")
                     let errorret = lookup_error(self.errors)(error)
                     out.add(errorret[0])
                     return out.getvalue()
@@ -158,7 +164,8 @@ class Gb18030IncrementalDecoder:
                         errorend -= 3
                     else if i < 0x80:
                         errorend -= 1
-                let error = UnicodeDecodeError(self.name, data, errorstart, errorend, "")
+                let error = UnicodeDecodeError(self.name, data, errorstart, errorend, 
+                            "invalid sequence")
                 bytemode = 1
                 leader = []
                 let errorret = lookup_error(self.errors)(error)
@@ -230,7 +237,8 @@ class Iso2022JpIncrementalEncoder:
                         self.ensure_state_number(n, out)
                         break
             if not is_sets[self.state]: # i.e. still isn't.
-                let error = UnicodeEncodeError(self.name, string, offset, offset + 1, "")
+                let error = UnicodeEncodeError(self.name, string, offset, offset + 1,
+                            "character not supported by target encoding")
                 let errorret = lookup_error(self.errors)(error)
                 self.ensure_state_number(0, out)
                 out.add(errorret[0])
@@ -291,7 +299,8 @@ class Iso2022JpIncrementalDecoder:
                 if bytemode in (1, 2):
                     return out.getvalue()
                 else if final:
-                    let error = UnicodeDecodeError(self.name, data, offset - len(leader), offset, "")
+                    let error = UnicodeDecodeError(self.name, data, offset - len(leader), offset,
+                                "truncated sequence")
                     let errorret = lookup_error(self.errors)(error)
                     out.add(errorret[0])
                     return out.getvalue()
@@ -354,7 +363,8 @@ class Iso2022JpIncrementalDecoder:
                     errorend = errorstart + 2
                 else:
                     errorend = errorstart + 1
-                let error = UnicodeDecodeError(self.name, data, errorstart, errorend, "")
+                let error = UnicodeDecodeError(self.name, data, errorstart, errorend,
+                            "invalid sequence")
                 if bytemode != 2:
                     bytemode = 1
                 leader = []
@@ -417,7 +427,8 @@ class Utf16IncrementalEncoder:
                 self.push_word(trail_surrogate, out)
                 offset += 1
             else: # i.e. trying to encode a surrogate "codepoint"
-                let error = UnicodeEncodeError(self.name, string, offset, offset + 1, "")
+                let error = UnicodeEncodeError(self.name, string, offset, offset + 1,
+                            "isolated surrogate word")
                 let errorret = lookup_error(self.errors)(error)
                 for i in errorret[0]:
                     self.push_word(i, out)
@@ -454,10 +465,11 @@ class Utf16IncrementalDecoder:
         let wordmode = 1
         while 1: # offset can be arbitrarily changed by the error handler, so not a for
             if (offset + 1) >= len(data):
-                if wordmode == 1:
+                if (wordmode == 1) and (offset >= len(data)):
                     return out.getvalue()
                 else if final:
-                    let error = UnicodeDecodeError(self.name, data, offset - (len(leader) * 2), len(data), "")
+                    let error = UnicodeDecodeError(self.name, data, offset - (len(leader) * 2), 
+                                len(data), "truncated sequence")
                     let errorret = lookup_error(self.errors)(error)
                     out.add(errorret[0])
                     return out.getvalue()
@@ -507,10 +519,11 @@ class Utf16IncrementalDecoder:
                 wordmode = 1
                 leader = []
                 offset += 2
-            else: # either an isolated trail word or an isolated lead word
+            else:
                 let errorstart = offset - (len(leader) * 2)
                 let errorend = errorstart + 2
-                let error = UnicodeDecodeError(self.name, data, errorstart, errorend, "")
+                let error = UnicodeDecodeError(self.name, data, errorstart, errorend,
+                            "isolated surrogate word")
                 wordmode = 1
                 leader = []
                 let errorret = lookup_error(self.errors)(error)
@@ -616,8 +629,12 @@ class Utf8IncrementalDecoder:
         let trail_byte_bottom = 0x80
         let trail_byte_top = 0xBF
         let dlist = list(bytes_iterator(data))
+        let lingering_reason = None
+        let bolster = 1
         while running_offset < len(data):
             let is_error = False
+            let reason = lingering_reason or "byte does not begin valid sequence"
+            lingering_reason = None
             if countdown == 0:
                 if data[running_offset] < 0x80:
                 else if 0xC2 <= data[running_offset] and data[running_offset] <= 0xDF:
@@ -625,37 +642,56 @@ class Utf8IncrementalDecoder:
                 else if 0xE0 <= data[running_offset] and data[running_offset] <= 0xEF:
                     if data[running_offset] == 0xE0: 
                         trail_byte_bottom = 0xA0
+                        lingering_reason = "start of overlong sequence"
                     else if data[running_offset] == 0xED: 
                         trail_byte_top = 0x9F # exclude isolated surrogates
+                        lingering_reason = "start of sequence for surrogate code point"
                     countdown = 2
                 else if 0xF0 <= data[running_offset] and data[running_offset] <= 0xF4:
                     if data[running_offset] == 0xF0: 
                         trail_byte_bottom = 0x90
+                        lingering_reason = "start of overlong sequence"
                     else if data[running_offset] == 0xF4: 
                         trail_byte_top = 0x8F
+                        lingering_reason = "start of sequence beyond Unicode"
                     countdown = 3
                 else:
                     is_error = True
+                    if 0x80 <= data[running_offset] and data[running_offset] <= 0xBF:
+                        reason = "isolated trail byte"
+                    else if data[running_offset] in (0xC0, 0xC1):
+                        reason = "start of overlong sequence"
+                    else if 0xF5 <= data[running_offset] and data[running_offset] <= 0xFD:
+                        reason = "start of sequence beyond Unicode"
+                    else: reason = "invalid lead byte"
             else:
                 if not (trail_byte_bottom <= data[running_offset] and data[running_offset] <= trail_byte_top):
                     is_error = True
+                    if not (0x80 <= data[running_offset] and data[running_offset] <= 0xBF):
+                        reason = "not followed by trail byte"
+                        bolster -= 1
                 trail_byte_bottom = 0x80
                 trail_byte_top = 0xBF
                 countdown -= 1
             running_offset += 1
             if is_error:
                 out.add(bytes(dlist[first_offset:second_offset]).decode())
-                let error = UnicodeDecodeError(self.name, data, second_offset, second_offset + 1, "")
+                let error = UnicodeDecodeError(self.name, data, second_offset, 
+                            second_offset + bolster, reason)
                 let errorret = lookup_error(self.errors)(error)
                 out.add(errorret[0])
                 running_offset = errorret[1]
                 if running_offset < 0:
                     running_offset += len(string)
                 countdown = 0
+                bolster = 1
                 first_offset = running_offset
                 second_offset = running_offset
             else if countdown == 0:
                 second_offset = running_offset
+                bolster = 1
+            else:
+                bolster += 1
         out.add(bytes(dlist[first_offset:second_offset]).decode())
         if second_offset < len(data):
             self.pending = bytes(dlist[second_offset:])

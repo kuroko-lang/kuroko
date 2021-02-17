@@ -1,3 +1,4 @@
+from itertools import bytes_iterator
 
 let _encoder_registry = {}
 let _decoder_registry = {}
@@ -44,6 +45,14 @@ class UnicodeError(ValueError):
     def __repr__():
         let c = type(self)
         return f"{c.__name__}({self.encoding!r}, {self.object!r}, {self.start!r}, {self.end!r}, {self.reason!r})"
+    def __str__():
+        let c = type(self)
+        let slice
+        if isinstance(self.object, bytes):
+            slice = bytes(list(bytes_iterator(self.object))[self.start:self.end])
+        else:
+            slice = self.object[self.start:self.end]
+        return f"codec for {self.encoding!r} cannot process sequence {slice!r}: {self.reason}"
 
 class UnicodeEncodeError(UnicodeError):
 class UnicodeDecodeError(UnicodeError):
@@ -58,7 +67,7 @@ def lookup_error(name):
 
 def strict_errors(exc):
     # Raising exc (i.e. a ValueError subclass instance) directly is somehow a segfault atm.
-    raise ValueError(repr(exc))
+    raise ValueError(str(exc))
 register_error("strict", strict_errors)
 
 def ignore_errors(exc):
@@ -153,7 +162,8 @@ class AsciiIncrementalEncoder:
                     out.add(bytes([target]))
                 offset += 1
             else:
-                let error = UnicodeEncodeError(self.name, string, offset, offset + 1, "")
+                let error = UnicodeEncodeError(self.name, string, offset, offset + 1,
+                            "character not supported by target encoding")
                 let errorret = lookup_error(self.errors)(error)
                 out.add(errorret[0])
                 offset = errorret[1]
@@ -189,7 +199,7 @@ class AsciiIncrementalDecoder:
                 if bytemode == 1:
                     return out.getvalue()
                 else if final:
-                    let error = UnicodeDecodeError(self.name, data, offset - len(leader), offset, "")
+                    let error = UnicodeDecodeError(self.name, data, offset - len(leader), offset, "truncated sequence")
                     let errorret = lookup_error(self.errors)(error)
                     out.add(errorret[0])
                     return out.getvalue()
@@ -240,7 +250,10 @@ class AsciiIncrementalDecoder:
                         errorend -= 2
                     else if i not in self.trailrange or i < 0x80:
                         errorend -= 1
-                let error = UnicodeDecodeError(self.name, data, errorstart, errorend, "")
+                let reason = "invalid sequence"
+                if bytemode == 1:
+                    reason = "invalid byte"
+                let error = UnicodeDecodeError(self.name, data, errorstart, errorend, reason)
                 bytemode = 1
                 leader = []
                 let errorret = lookup_error(self.errors)(error)
