@@ -7,7 +7,24 @@
 
 void krk_disassembleChunk(FILE * f, KrkFunction * func, const char * name) {
 	KrkChunk * chunk = &func->chunk;
-	fprintf(f, "[%s from %s]\n", name, chunk->filename->chars);
+	/* Function header */
+	fprintf(f, "<%s(", name);
+	for (int i = 0; i < func->requiredArgs; ++i) {
+		fprintf(f,"%s",AS_CSTRING(func->requiredArgNames.values[i]));
+		if (i + 1 < func->requiredArgs || func->keywordArgs || func->collectsArguments || func->collectsKeywords) fprintf(f,",");
+	}
+	for (int i = 0; i < func->keywordArgs; ++i) {
+		fprintf(f,"%s=...",AS_CSTRING(func->keywordArgNames.values[i]));
+		if (i + 1 < func->keywordArgs || func->collectsArguments || func->collectsKeywords) fprintf(f,",");
+	}
+	if (func->collectsArguments) {
+		fprintf(f,"*%s", AS_CSTRING(func->requiredArgNames.values[func->requiredArgs]));
+		if (func->collectsKeywords) fprintf(f,",");
+	}
+	if (func->collectsKeywords) {
+		fprintf(f,"**%s", AS_CSTRING(func->keywordArgNames.values[func->keywordArgs]));
+	}
+	fprintf(f, ") from %s>\n", chunk->filename->chars);
 	for (size_t offset = 0; offset < chunk->count;) {
 		offset = krk_disassembleInstruction(f, func, offset);
 	}
@@ -15,6 +32,31 @@ void krk_disassembleChunk(FILE * f, KrkFunction * func, const char * name) {
 
 static inline const char * opcodeClean(const char * opc) {
 	return &opc[3];
+}
+
+static int isJumpTarget(KrkFunction * func, size_t startPoint) {
+	size_t offset = 0;
+
+#define SIMPLE(op) case op: offset += 1; continue; break;
+#define OPERANDB(op,_unused) case op: offset += 2; continue; break;
+#define OPERAND(op,_unused) OPERANDB(op,_) case op ## _LONG: offset += 4; continue; break;
+#define CONSTANT(op,_unused) OPERAND(op,_)
+#define JUMP(opc,sign) case opc: { uint16_t jump = (func->chunk.code[offset + 1] << 8) | (func->chunk.code[offset + 2]); \
+	if ((size_t)(offset + 3 sign jump) == startPoint) return 1; \
+	offset += 3; continue; break; }
+
+	while (offset < func->chunk.count) {
+		uint8_t opcode = func->chunk.code[offset];
+		switch (opcode) {
+#include "opcodes.h"
+		}
+	}
+	return 0;
+#undef SIMPLE
+#undef OPERANDB
+#undef OPERAND
+#undef CONSTANT
+#undef JUMP
 }
 
 #define SIMPLE(opc) case opc: fprintf(f, "%-16s      ", opcodeClean(#opc)); size = 1; break;
@@ -80,85 +122,23 @@ size_t krk_lineNumber(KrkChunk * chunk, size_t offset) {
 
 size_t krk_disassembleInstruction(FILE * f, KrkFunction * func, size_t offset) {
 	KrkChunk * chunk = &func->chunk;
-	fprintf(f, "%04u ", (unsigned int)offset);
 	if (offset > 0 && krk_lineNumber(chunk, offset) == krk_lineNumber(chunk, offset - 1)) {
-		fprintf(f, "   | ");
+		fprintf(f, "     ");
 	} else {
+		if (offset > 0) fprintf(f,"\n");
 		fprintf(f, "%4d ", (int)krk_lineNumber(chunk, offset));
 	}
+	if (isJumpTarget(func,offset)) {
+		fprintf(f, " >> ");
+	} else {
+		fprintf(f, "    ");
+	}
+	fprintf(f, "%4u ", (unsigned int)offset);
 	uint8_t opcode = chunk->code[offset];
 	size_t size = 1;
 
 	switch (opcode) {
-		SIMPLE(OP_RETURN)
-		SIMPLE(OP_ADD)
-		SIMPLE(OP_SUBTRACT)
-		SIMPLE(OP_MULTIPLY)
-		SIMPLE(OP_DIVIDE)
-		SIMPLE(OP_NEGATE)
-		SIMPLE(OP_MODULO)
-		SIMPLE(OP_NONE)
-		SIMPLE(OP_TRUE)
-		SIMPLE(OP_FALSE)
-		SIMPLE(OP_NOT)
-		SIMPLE(OP_EQUAL)
-		SIMPLE(OP_GREATER)
-		SIMPLE(OP_LESS)
-		SIMPLE(OP_POP)
-		SIMPLE(OP_INHERIT)
-		SIMPLE(OP_RAISE)
-		SIMPLE(OP_CLOSE_UPVALUE)
-		SIMPLE(OP_DOCSTRING)
-		SIMPLE(OP_CALL_STACK)
-		SIMPLE(OP_BITOR)
-		SIMPLE(OP_BITXOR)
-		SIMPLE(OP_BITAND)
-		SIMPLE(OP_SHIFTLEFT)
-		SIMPLE(OP_SHIFTRIGHT)
-		SIMPLE(OP_BITNEGATE)
-		SIMPLE(OP_INVOKE_GETTER)
-		SIMPLE(OP_INVOKE_SETTER)
-		SIMPLE(OP_INVOKE_DELETE)
-		SIMPLE(OP_INVOKE_GETSLICE)
-		SIMPLE(OP_INVOKE_SETSLICE)
-		SIMPLE(OP_INVOKE_DELSLICE)
-		SIMPLE(OP_SWAP)
-		SIMPLE(OP_FINALIZE)
-		SIMPLE(OP_IS)
-		SIMPLE(OP_POW)
-		SIMPLE(OP_CREATE_PROPERTY)
-		OPERANDB(OP_DUP,(void)0)
-		OPERANDB(OP_EXPAND_ARGS,EXPAND_ARGS_MORE)
-		CONSTANT(OP_DEFINE_GLOBAL,(void)0)
-		CONSTANT(OP_CONSTANT,(void)0)
-		CONSTANT(OP_GET_GLOBAL,(void)0)
-		CONSTANT(OP_SET_GLOBAL,(void)0)
-		CONSTANT(OP_DEL_GLOBAL,(void)0)
-		CONSTANT(OP_CLASS,(void)0)
-		CONSTANT(OP_GET_PROPERTY, (void)0)
-		CONSTANT(OP_SET_PROPERTY, (void)0)
-		CONSTANT(OP_DEL_PROPERTY,(void)0)
-		CONSTANT(OP_METHOD, (void)0)
-		CONSTANT(OP_CLOSURE, CLOSURE_MORE)
-		CONSTANT(OP_IMPORT, (void)0)
-		CONSTANT(OP_IMPORT_FROM, (void)0)
-		CONSTANT(OP_GET_SUPER, (void)0)
-		OPERAND(OP_KWARGS, (void)0)
-		OPERAND(OP_SET_LOCAL, LOCAL_MORE)
-		OPERAND(OP_GET_LOCAL, LOCAL_MORE)
-		OPERAND(OP_SET_UPVALUE, (void)0)
-		OPERAND(OP_GET_UPVALUE, (void)0)
-		OPERAND(OP_CALL, (void)0)
-		OPERAND(OP_INC, (void)0)
-		OPERAND(OP_TUPLE, (void)0)
-		OPERAND(OP_UNPACK, (void)0)
-		JUMP(OP_JUMP,+)
-		JUMP(OP_JUMP_IF_FALSE,+)
-		JUMP(OP_JUMP_IF_TRUE,+)
-		JUMP(OP_LOOP,-)
-		JUMP(OP_PUSH_TRY,+)
-		JUMP(OP_PUSH_WITH,+)
-		SIMPLE(OP_CLEANUP_WITH)
+#include "opcodes.h"
 		default:
 			fprintf(f, "Unknown opcode: %02x", opcode);
 	}

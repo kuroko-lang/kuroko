@@ -359,34 +359,7 @@ static KrkFunction * endCompiler() {
 
 #ifdef ENABLE_DISASSEMBLY
 	if ((krk_currentThread.flags & KRK_ENABLE_DISASSEMBLY) && !parser.hadError) {
-		krk_disassembleChunk(stderr, function, function->name ? function->name->chars : "<module>");
-		fprintf(stderr, "Function metadata: requiredArgs=%d keywordArgs=%d upvalueCount=%d\n",
-			function->requiredArgs, function->keywordArgs, (int)function->upvalueCount);
-		fprintf(stderr, "__doc__: \"%s\"\n", function->docstring ? function->docstring->chars : "");
-		fprintf(stderr, "Constants: ");
-		for (size_t i = 0; i < currentChunk()->constants.count; ++i) {
-			fprintf(stderr, "%d: ", (int)i);
-			krk_printValueSafe(stderr, currentChunk()->constants.values[i]);
-			if (i != currentChunk()->constants.count - 1) {
-				fprintf(stderr, ", ");
-			}
-		}
-		fprintf(stderr, "\nRequired arguments: ");
-		int i = 0;
-		for (; i < function->requiredArgs; ++i) {
-			fprintf(stderr, "%.*s%s",
-				(int)current->locals[i].name.length,
-				current->locals[i].name.start,
-				(i == function->requiredArgs - 1) ? "" : ", ");
-		}
-		fprintf(stderr, "\nKeyword arguments: ");
-		for (; i < function->requiredArgs + function->keywordArgs; ++i) {
-			fprintf(stderr, "%.*s=None%s",
-				(int)current->locals[i].name.length,
-				current->locals[i].name.start,
-				(i == function->keywordArgs - 1) ? "" : ", ");
-		}
-		fprintf(stderr, "\n");
+		krk_disassembleChunk(stderr, function, function->name ? function->name->chars : "(module)");
 	}
 #endif
 
