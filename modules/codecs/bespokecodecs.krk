@@ -1,4 +1,4 @@
-from codecs.infrastructure import register_kuroko_codec, ByteCatenator, StringCatenator, UnicodeEncodeError, UnicodeDecodeError, lookup_error
+from codecs.infrastructure import register_kuroko_codec, ByteCatenator, StringCatenator, UnicodeEncodeError, UnicodeDecodeError, lookup_error, lookup
 from codecs.dbdata import encode_jis7, decode_jis7, decode_jis7katakana, encode_gbk, decode_gbk, gb_surrogate_ranges
 from itertools import enumerate, bytes_iterator
 
@@ -178,9 +178,9 @@ class Gb18030IncrementalDecoder:
     def getstate():
         return (self.pending, 0)
     def setstate(state):
-        self.pending = state[0]
         if state[1] != 0:
             raise ValueError("stateless (besides pending buffer) decoder being set to nonzero state")
+        self.pending = state[0]
 
 register_kuroko_codec(
     ["gb18030", "chinese", "csgb2312", "csiso58gb231280", "gb2312", "gb_2312", "gb_2312-80",
@@ -379,9 +379,9 @@ class Iso2022JpIncrementalDecoder:
     def getstate():
         return (self.pending, self.state)
     def setstate(state):
-        self.pending = state[0]
         if state[1] not in [0, 1, 2, 3]:
             raise ValueError("invalid state: " + repr(state))
+        self.pending = state[0]
         self.state = state[1]
 
 register_kuroko_codec(["iso-2022-jp", "csiso2022jp"],
@@ -537,9 +537,9 @@ class Utf16IncrementalDecoder:
     def getstate():
         return (self.pending, self.state)
     def setstate(state):
-        self.pending = state[0]
         if state[1] not in [-1, 0, 1]:
             raise ValueError("invalid state: " + repr(state))
+        self.pending = state[0]
         self.state = state[1]
 
 class Utf16BeIncrementalEncoder(Utf16IncrementalEncoder):
@@ -702,9 +702,9 @@ class Utf8IncrementalDecoder:
     def getstate():
         return (self.pending, self.state)
     def setstate(state):
-        self.pending = state[0]
         if state[1] not in [-1, 0]:
             raise ValueError("invalid state: " + repr(state))
+        self.pending = state[0]
         self.state = state[1]
 
 class Utf8SigIncrementalEncoder(Utf8IncrementalEncoder):
@@ -721,8 +721,6 @@ register_kuroko_codec(["unicode-1-1-utf-8", "unicode11utf8", "unicode20utf8", "u
                        "x-unicode20utf8", "u8", "utf", "cp65001", "utf8-ucs4", "utf8mb4"],
     Utf8IncrementalEncoder, Utf8IncrementalDecoder)
 register_kuroko_codec(["utf-8-sig"], Utf8SigIncrementalEncoder, Utf8SigIncrementalDecoder)
-
-
 
 
 

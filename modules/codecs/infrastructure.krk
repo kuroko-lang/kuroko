@@ -24,7 +24,15 @@ class KurokoCodecInfo:
         return self.incrementaldecoder(errors).decode(data, True)
 
 def lookup(label):
-    return KurokoCodecInfo(label, _encoder_registry[label], _decoder_registry[label])
+    let enc = None
+    let dec = None
+    try:
+        enc = _encoder_registry[label]
+    except:
+    try:
+        dec = _decoder_registry[label]
+    except:
+    return KurokoCodecInfo(label, enc, dec)
 
 def encode(string, label, errors="strict"):
     return lookup(label).encode(string, errors=errors)
@@ -267,9 +275,9 @@ class AsciiIncrementalDecoder:
     def getstate():
         return (self.pending, 0)
     def setstate(state):
-        self.pending = state[0]
         if state[1] != 0:
             raise ValueError("stateless (besides pending buffer) decoder being set to nonzero state")
+        self.pending = state[0]
 
 register_kuroko_codec(["ecma-43-dv", "iso-4873-dv"], AsciiIncrementalEncoder, AsciiIncrementalDecoder)
 
