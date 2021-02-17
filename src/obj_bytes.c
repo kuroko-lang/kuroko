@@ -164,6 +164,54 @@ KRK_METHOD(bytes,__add__,{
 	return finishStringBuilderBytes(&sb);
 })
 
+FUNC_SIG(bytesiterator,__init__);
+
+KRK_METHOD(bytes,__iter__,{
+	METHOD_TAKES_NONE();
+	KrkInstance * output = krk_newInstance(vm.baseClasses->bytesiteratorClass);
+
+	krk_push(OBJECT_VAL(output));
+	FUNC_NAME(bytesiterator,__init__)(2, (KrkValue[]){krk_peek(0), argv[0]},0);
+	krk_pop();
+
+	return OBJECT_VAL(output);
+})
+
+#undef CURRENT_CTYPE
+#define CURRENT_CTYPE KrkInstance *
+KRK_METHOD(bytesiterator,__init__,{
+	METHOD_TAKES_EXACTLY(1);
+	CHECK_ARG(1,bytes,KrkBytes*,base);
+	krk_push(OBJECT_VAL(self));
+	krk_attachNamedObject(&self->fields, "s", (KrkObj*)base);
+	krk_attachNamedValue(&self->fields, "i", INTEGER_VAL(0));
+	return krk_pop();
+})
+
+KRK_METHOD(bytesiterator,__call__,{
+	METHOD_TAKES_NONE();
+	KrkValue _bytes;
+	KrkValue _counter;
+	const char * errorStr = NULL;
+	if (!krk_tableGet(&self->fields, OBJECT_VAL(S("s")), &_bytes)) {
+		errorStr = "no str pointer";
+		goto _corrupt;
+	}
+	if (!krk_tableGet(&self->fields, OBJECT_VAL(S("i")), &_counter)) {
+		errorStr = "no index";
+		goto _corrupt;
+	}
+
+	if ((size_t)AS_INTEGER(_counter) >= AS_BYTES(_bytes)->length) {
+		return argv[0];
+	} else {
+		krk_attachNamedValue(&self->fields, "i", INTEGER_VAL(AS_INTEGER(_counter)+1));
+		return INTEGER_VAL(AS_BYTES(_bytes)->bytes[AS_INTEGER(_counter)]);
+	}
+_corrupt:
+	return krk_runtimeError(vm.exceptions->typeError, "Corrupt bytes iterator: %s", errorStr);
+})
+
 _noexport
 void _createAndBind_bytesClass(void) {
 	KrkClass * bytes = ADD_BASE_CLASS(vm.baseClasses->bytesClass, "bytes", vm.baseClasses->objectClass);
@@ -174,8 +222,14 @@ void _createAndBind_bytesClass(void) {
 	BIND_METHOD(bytes,__get__);
 	BIND_METHOD(bytes,__eq__);
 	BIND_METHOD(bytes,__add__);
+	BIND_METHOD(bytes,__iter__);
 	BIND_METHOD(bytes,decode);
 	BIND_METHOD(bytes,join);
 	krk_defineNative(&bytes->methods,".__str__",FUNC_NAME(bytes,__repr__)); /* alias */
 	krk_finalizeClass(bytes);
+
+	KrkClass * bytesiterator = ADD_BASE_CLASS(vm.baseClasses->bytesiteratorClass, "bytesiterator", vm.baseClasses->objectClass);
+	BIND_METHOD(bytesiterator,__init__);
+	BIND_METHOD(bytesiterator,__call__);
+	krk_finalizeClass(bytesiterator);
 }
