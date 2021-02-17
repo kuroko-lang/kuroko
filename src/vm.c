@@ -208,13 +208,23 @@ void krk_dumpTraceback() {
 
 	if (!krk_valuesEqual(krk_currentThread.currentException,NONE_VAL())) {
 		krk_push(krk_currentThread.currentException);
-		KrkValue result = krk_callSimple(OBJECT_VAL(krk_getType(krk_currentThread.currentException)->_reprer), 1, 0);
-		if (!IS_STRING(result)) {
-			fprintf(stderr, "Error while processing exception: Expected %s.__repr__ to produce a string, not '%s'.\n",
-				krk_typeName(krk_currentThread.currentException), krk_typeName(result));
-		} else {
+		/* Is this a SyntaxError? Handle those specially. */
+		if (krk_isInstanceOf(krk_currentThread.currentException, vm.exceptions->syntaxError)) {
+			KrkValue result = krk_callSimple(OBJECT_VAL(krk_getType(krk_currentThread.currentException)->_tostr), 1, 0);
 			fprintf(stderr, "%s\n", AS_CSTRING(result));
+			return;
 		}
+		/* Clear the exception state while printing the exception. */
+		krk_currentThread.flags &= ~(KRK_HAS_EXCEPTION);
+		fprintf(stderr, "%s", krk_typeName(krk_currentThread.currentException));
+		KrkValue result = krk_callSimple(OBJECT_VAL(krk_getType(krk_currentThread.currentException)->_tostr), 1, 0);
+		if (!IS_STRING(result)) {
+			fprintf(stderr, "\n");
+		} else {
+			fprintf(stderr, ": %s\n", AS_CSTRING(result));
+		}
+		/* Turn the exception flag back on */
+		krk_currentThread.flags |= KRK_HAS_EXCEPTION;
 	}
 }
 
