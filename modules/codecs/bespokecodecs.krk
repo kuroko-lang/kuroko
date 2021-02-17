@@ -619,9 +619,10 @@ class Utf8IncrementalDecoder:
         if self.remove_bom and self.state == -1 and len(data) >= 3:
             if data[0] == 0xEF and data[1] == 0xBB and data[2] == 0xBF:
                 running_offset = 3
+        if data not in (b"\xEF\xBB", b"\xEF"):
+            self.state = 0
         let first_offset = running_offset
         let second_offset = running_offset
-        self.state = 0
         let countdown = 0
         let trail_byte_bottom = 0x80
         let trail_byte_top = 0xBF
