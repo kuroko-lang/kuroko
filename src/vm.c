@@ -209,7 +209,12 @@ void krk_dumpTraceback() {
 	if (!krk_valuesEqual(krk_currentThread.currentException,NONE_VAL())) {
 		krk_push(krk_currentThread.currentException);
 		KrkValue result = krk_callSimple(OBJECT_VAL(krk_getType(krk_currentThread.currentException)->_reprer), 1, 0);
-		fprintf(stderr, "%s\n", AS_CSTRING(result));
+		if (!IS_STRING(result)) {
+			fprintf(stderr, "Error while processing exception: Expected %s.__repr__ to produce a string, not '%s'.\n",
+				krk_typeName(krk_currentThread.currentException), krk_typeName(result));
+		} else {
+			fprintf(stderr, "%s\n", AS_CSTRING(result));
+		}
 	}
 }
 
