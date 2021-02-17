@@ -124,13 +124,13 @@ typedef struct ThreadState {
 } KrkThreadState;
 
 typedef struct {
-	int globalFlags;                        /* Global VM state flags */
+	int globalFlags;                  /* Global VM state flags */
 	char * binpath;                   /* A string representing the name of the interpreter binary. */
 	KrkTable strings;                 /* Strings table */
 	KrkTable modules;                 /* Module cache */
 	KrkInstance * builtins;           /* '__builtins__' module */
 	KrkInstance * system;             /* 'kuroko' module */
-	KrkValue * specialMethodNames;     /* Cached strings of important method and function names */
+	KrkValue * specialMethodNames;    /* Cached strings of important method and function names */
 	struct BaseClasses * baseClasses; /* Pointer to a (static) namespacing struct for the KrkClass*'s of built-in object types */
 	struct Exceptions * exceptions;   /* Pointer to a (static) namespacing struct for the KrkClass*'s of basic exception types */
 
