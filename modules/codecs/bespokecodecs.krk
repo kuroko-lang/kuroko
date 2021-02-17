@@ -735,7 +735,7 @@ class JapaneseAutodetectIncrementalDecoder:
         self.errors = errors
         self.state = 0
         self.jis = lookup("iso-2022-jp").incrementaldecoder("strict")
-        self.sjis = lookup("shift_jis").incrementaldecoder("strict")
+        self.sjis = lookup("windows-31j").incrementaldecoder("strict")
         self.ujis = lookup("euc-jp").incrementaldecoder("strict")
         self.utf = lookup("utf-8-sig").incrementaldecoder("strict")
         self.pendingjis = StringCatenator()
