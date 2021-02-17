@@ -70,9 +70,7 @@ def lookup_error(name):
     return _error_registry[name]
 
 def strict_errors(exc):
-    # Raising exc (i.e. a ValueError subclass instance) directly is somehow a segfault atm.
-    #   (it will print the traceback, then segfault trying to print the message).
-    raise ValueError(str(exc))
+    raise exc
 register_error("strict", strict_errors)
 
 def ignore_errors(exc):
