@@ -126,30 +126,23 @@ KRK_METHOD(bytes,decode,{
 	return OBJECT_VAL(krk_copyString((char*)AS_BYTES(argv[0])->bytes, AS_BYTES(argv[0])->length));
 })
 
+#define unpackArray(counter, indexer) do { \
+	for (size_t i = 0; i < counter; ++i) { \
+		if (!IS_BYTES(indexer)) { errorStr = krk_typeName(indexer); goto _expectedBytes; } \
+		krk_push(indexer); \
+		if (i > 0) pushStringBuilderStr(&sb, (char*)self->bytes, self->length); \
+		pushStringBuilderStr(&sb, (char*)AS_BYTES(indexer)->bytes, AS_BYTES(indexer)->length); \
+		krk_pop(); \
+	} \
+} while (0)
+
 KRK_METHOD(bytes,join,{
 	METHOD_TAKES_EXACTLY(1);
-	CHECK_ARG(1,list,KrkList*,iterable);
 
 	const char * errorStr = NULL;
 	struct StringBuilder sb = {0};
 
-	for (size_t i = 0; i < iterable->values.count; ++i) {
-		KrkValue value = iterable->values.values[i];
-		if (!IS_BYTES(iterable->values.values[i])) {
-			errorStr = krk_typeName(value);
-			goto _expectedBytes;
-		}
-		krk_push(value);
-		if (i > 0) {
-			for (size_t j = 0; j < self->length; ++j) {
-				pushStringBuilder(&sb, self->bytes[j]);
-			}
-		}
-		for (size_t j = 0; j < AS_STRING(value)->length; ++j) {
-			pushStringBuilder(&sb, AS_BYTES(value)->bytes[j]);
-		}
-		krk_pop();
-	}
+	unpackIterableFast(argv[1]);
 
 	return finishStringBuilderBytes(&sb);
 
@@ -157,6 +150,8 @@ _expectedBytes:
 	krk_runtimeError(vm.exceptions->typeError, "Expected bytes, got %s.", errorStr);
 	discardStringBuilder(&sb);
 })
+
+#undef unpackArray
 
 KRK_METHOD(bytes,__add__,{
 	METHOD_TAKES_EXACTLY(1);

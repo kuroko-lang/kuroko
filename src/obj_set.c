@@ -45,40 +45,7 @@ KRK_METHOD(set,__init__,{
 	METHOD_TAKES_AT_MOST(1);
 	krk_initTable(&self->entries);
 	if (argc == 2) {
-		KrkValue value = argv[1];
-		if (IS_TUPLE(value)) {
-			unpackArray(AS_TUPLE(value)->values.count, AS_TUPLE(value)->values.values[i]);
-		} else if (IS_INSTANCE(value) && AS_INSTANCE(value)->_class == vm.baseClasses->listClass) {
-			unpackArray(AS_LIST(value)->count, AS_LIST(value)->values[i]);
-		} else if (IS_INSTANCE(value) && AS_INSTANCE(value)->_class == vm.baseClasses->dictClass) {
-			unpackArray(AS_DICT(value)->count, krk_dict_nth_key_fast(AS_DICT(value)->capacity, AS_DICT(value)->entries, i));
-		} else if (IS_STRING(value)) {
-			unpackArray(AS_STRING(value)->codesLength, krk_string_get(2,(KrkValue[]){value,INTEGER_VAL(i)},0));
-		} else {
-			KrkClass * type = krk_getType(argv[1]);
-			if (type->_iter) {
-				/* Create the iterator */
-				size_t stackOffset = krk_currentThread.stackTop - krk_currentThread.stack;
-				krk_push(argv[1]);
-				krk_push(krk_callSimple(OBJECT_VAL(type->_iter), 1, 0));
-
-				do {
-					/* Call it until it gives us itself */
-					krk_push(krk_currentThread.stack[stackOffset]);
-					krk_push(krk_callSimple(krk_peek(0), 0, 1));
-					if (krk_valuesSame(krk_currentThread.stack[stackOffset], krk_peek(0))) {
-						/* We're done. */
-						krk_pop(); /* The result of iteration */
-						krk_pop(); /* The iterator */
-						break;
-					}
-					krk_tableSet(&self->entries, krk_peek(0), BOOLEAN_VAL(1));
-					krk_pop();
-				} while (1);
-			} else {
-				return krk_runtimeError(vm.exceptions->typeError, "'%s' object is not iterable", krk_typeName(value));
-			}
-		}
+		unpackIterableFast(argv[1]);
 	}
 	return argv[0];
 })
