@@ -619,8 +619,8 @@ class Utf8IncrementalDecoder:
         self.pending = b""
         let out = StringCatenator()
         let running_offset = 0
-        if self.remove_bom and self.state == -1 and len(data >= 3):
-            if data[0] = 0xEF and data[1] == 0xBB and data[2] == 0xBF:
+        if self.remove_bom and self.state == -1 and len(data) >= 3:
+            if data[0] == 0xEF and data[1] == 0xBB and data[2] == 0xBF:
                 running_offset = 3
         let first_offset = running_offset
         let second_offset = running_offset
@@ -720,7 +720,139 @@ class Utf8SigIncrementalDecoder(Utf8IncrementalDecoder):
 register_kuroko_codec(["unicode-1-1-utf-8", "unicode11utf8", "unicode20utf8", "utf-8", "utf8", 
                        "x-unicode20utf8", "u8", "utf", "cp65001", "utf8-ucs4", "utf8mb4"],
     Utf8IncrementalEncoder, Utf8IncrementalDecoder)
-register_kuroko_codec(["utf-8-sig"], Utf8SigIncrementalEncoder, Utf8SigIncrementalDecoder)
+register_kuroko_codec(["utf-8-sig", "utf-8-bom"], Utf8SigIncrementalEncoder, Utf8SigIncrementalDecoder)
+
+class JapaneseAutodetectIncrementalDecoder:
+    name = "japanese"
+    webname = ""
+    # State flags:
+    # 0x01: eliminated ISO-2022-JP
+    # 0x02: eliminated Shift JIS
+    # 0x04: eliminated EUC-JP
+    # 0x08: eliminated UTF-8
+    state = None
+    def __init__(errors):
+        self.errors = errors
+        self.state = 0
+        self.jis = lookup("iso-2022-jp").incrementaldecoder("strict")
+        self.sjis = lookup("shift_jis").incrementaldecoder("strict")
+        self.ujis = lookup("euc-jp").incrementaldecoder("strict")
+        self.utf = lookup("utf-8-sig").incrementaldecoder("strict")
+        self.pendingjis = StringCatenator()
+        self.pendingsjis = StringCatenator()
+        self.pendingujis = StringCatenator()
+        self.pendingutf = StringCatenator()
+    def decode(data, final = False):
+        if not (self.state & 0x01):
+            try:
+                self.pendingjis.add(self.jis.decode(data, final))
+            except:
+                self.state |= 0x01
+        #
+        if not (self.state & 0x02):
+            try:
+                let further_sjis = self.sjis.decode(data, final)
+                self.pendingsjis.add(further_sjis)
+                if "\x1B$B" in further_sjis and not (self.state & 0x01):
+                    self.state |= 0x02
+            except:
+                self.state |= 0x02
+        #
+        if not (self.state & 0x04):
+            try:
+                let further_ujis = self.ujis.decode(data, final)
+                self.pendingujis.add(further_ujis)
+                if "\x1B$B" in further_ujis and not (self.state & 0x01):
+                    self.state |= 0x04
+            except:
+                self.state |= 0x04
+        #
+        if not (self.state & 0x08):
+            try:
+                let further_utf = self.utf.decode(data, final)
+                self.pendingutf.add(further_utf)
+                if "\x1B$B" in further_utf and not (self.state & 0x01):
+                    self.state |= 0x08
+            except:
+                self.state |= 0x08
+        #
+        let use_encoding = None
+        if self.state == (0x01 | 0x02 | 0x04 | 0x08):
+            raise ValueError("does not appear to be ISO-2022-JP, Shift JIS, EUC-JP or UTF-8")
+        else if self.state == (0x02 | 0x04 | 0x08):
+            use_encoding = "jis"
+        else if self.state == (0x01 | 0x04 | 0x08):
+            use_encoding = "sjis"
+        else if self.state == (0x01 | 0x02 | 0x08):
+            use_encoding = "ujis"
+        else if self.state == (0x01 | 0x02 | 0x04):
+            use_encoding = "utf"
+        else if final:
+            # Give priority to easier-to-eliminate encodings which haven't been eliminated.
+            if not (self.state & 0x01):
+                # Anything not 7-bit clean would be enough to eliminate ISO-2022-JP.
+                use_encoding = "jis"
+            else if not (self.state & 0x08):
+                # With its non-overlapping single/lead/trail ranges, UTF-8 is easy to eliminate.
+                use_encoding = "utf"
+            else if not (self.state & 0x02):
+                # Shift JIS uses many 0x80–9F bytes; our EUC-JP codec rejects most of them (though
+                #   some may accept them all as control codes, most don't), making it relatively
+                #   easy to eliminate EUC-JP when given Shift JIS data.
+                use_encoding = "ujis"
+            else:
+                raise RuntimeError("this case should not be reachable")
+        #
+        if use_encoding == "jis":
+            let ret = self.pendingjis.getvalue()
+            self.pendingjis = StringCatenator()
+            return ret
+        else if use_encoding == "sjis":
+            let ret = self.pendingsjis.getvalue()
+            self.pendingsjis = StringCatenator()
+            return ret
+        else if use_encoding == "ujis":
+            let ret = self.pendingujis.getvalue()
+            self.pendingujis = StringCatenator()
+            return ret
+        else if use_encoding == "utf":
+            let ret = self.pendingutf.getvalue()
+            self.pendingutf = StringCatenator()
+            return ret
+        return ""
+    def reset():
+        self.state = -1
+        self.pending = b""
+        self.jis.reset()
+        self.pendingjis = StringCatenator()
+        self.sjis.reset()
+        self.pendingsjis = StringCatenator()
+        self.ujis.reset()
+        self.pendingujis = StringCatenator()
+    def getstate():
+        return (self.jis.getstate(), self.pendingjis.getvalue(), 
+                self.sjis.getstate(), self.pendingsjis.getvalue(), 
+                self.ujis.getstate(), self.pendingujis.getvalue(), 
+                self.utf.getstate(), self.pendingutf.getvalue(), 
+                self.state)
+    def setstate(state):
+        if state[8] < 0 or state[8] >= 16:
+            raise ValueError("invalid state: " + repr(state))
+        self.jis.setstate(state[0])
+        self.pendingjis = StringCatenator()
+        self.pendingjis.add(state[1])
+        self.sjis.setstate(state[2])
+        self.pendingsjis = StringCatenator()
+        self.pendingsjis.add(state[3])
+        self.ujis.setstate(state[4])
+        self.pendingujis = StringCatenator()
+        self.pendingujis.add(state[5])
+        self.utf.setstate(state[6])
+        self.pendingujis = StringCatenator()
+        self.pendingujis.add(state[7])
+        self.state = state[8]
+
+register_kuroko_codec(["japanese"], None, JapaneseAutodetectIncrementalDecoder)
 
 
 
