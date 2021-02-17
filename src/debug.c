@@ -74,14 +74,12 @@ static int isJumpTarget(KrkFunction * func, size_t startPoint) {
 #define CONSTANT(opc,more) case opc: { size_t constant = chunk->code[offset + 1]; \
 	fprintf(f, "%-16s %4d ", opcodeClean(#opc), (int)constant); \
 	krk_printValueSafe(f, chunk->constants.values[constant]); \
-	fprintf(f," (type=%s)", krk_typeName(chunk->constants.values[constant])); \
 	more; \
 	size = 2; break; } \
 	case opc ## _LONG: { size_t constant = (chunk->code[offset + 1] << 16) | \
 	(chunk->code[offset + 2] << 8) | (chunk->code[offset + 3]); \
 	fprintf(f, "%-16s %4d ", opcodeClean(#opc "_LONG"), (int)constant); \
 	krk_printValueSafe(f, chunk->constants.values[constant]); \
-	fprintf(f," (type=%s)", krk_typeName(chunk->constants.values[constant])); \
 	more; size = 4; break; }
 #define OPERANDB(opc,more) case opc: { uint32_t operand = chunk->code[offset + 1]; \
 	fprintf(f, "%-16s %4d", opcodeClean(#opc), (int)operand); \
@@ -99,10 +97,19 @@ static int isJumpTarget(KrkFunction * func, size_t startPoint) {
 
 #define CLOSURE_MORE \
 	KrkFunction * function = AS_FUNCTION(chunk->constants.values[constant]); \
+	fprintf(f, " "); \
 	for (size_t j = 0; j < function->upvalueCount; ++j) { \
 		int isLocal = chunk->code[offset++ + 2]; \
 		int index = chunk->code[offset++ + 2]; \
-		fprintf(f, " (%d %s %d)", (int)offset - 2, isLocal ? "local" : "upvalue", index); \
+		if (isLocal) { \
+			for (size_t i = 0; i < func->localNameCount; ++i) { \
+				if (func->localNames[i].id == (size_t)index && func->localNames[i].birthday <= offset && func->localNames[i].deathday >= offset) { \
+					fprintf(f, "%s", func->localNames[i].name->chars); \
+					break; \
+				} \
+			} \
+		} else { fprintf(f, "upvalue<%d>", index); } \
+		if (j + 1 != function->upvalueCount) fprintf(f, ", "); \
 	}
 
 #define EXPAND_ARGS_MORE \
