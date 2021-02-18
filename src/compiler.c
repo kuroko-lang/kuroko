@@ -1537,6 +1537,7 @@ static void tryStatement() {
 	beginScope();
 	int tryJump = emitJump(OP_PUSH_TRY);
 	/* We'll rename this later, but it needs to be on the stack now as it represents the exception handler */
+	size_t localNameCount = current->function->localNameCount;
 	Local * exceptionObject = addLocal(syntheticToken(""));
 	defineVariable(0);
 
@@ -1554,16 +1555,23 @@ static void tryStatement() {
 			advance();
 		}
 		if (match(TOKEN_EXCEPT)) {
+			/* Match filter expression (should be class or tuple) */
 			if (!check(TOKEN_COLON) && !check(TOKEN_AS)) {
 				expression();
 				emitByte(OP_FILTER_EXCEPT);
 			}
+
+			/* Match 'as' to rename exception */
 			if (match(TOKEN_AS)) {
 				consume(TOKEN_IDENTIFIER, "Expected identifier after 'as'");
 				exceptionObject->name = parser.previous;
 			} else {
+				/* XXX Should we remove this now? */
 				exceptionObject->name = syntheticToken("exception");
 			}
+			/* Make sure we update the local name for debugging */
+			current->function->localNames[localNameCount].name = krk_copyString(exceptionObject->name.start, exceptionObject->name.length);
+
 			consume(TOKEN_COLON, "Expect ':' after except.");
 			beginScope();
 			block(blockWidth,"except");
