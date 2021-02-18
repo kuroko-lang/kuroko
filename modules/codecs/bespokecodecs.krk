@@ -291,20 +291,29 @@ class Iso2022JpIncrementalDecoder:
     webname = "iso-2022-jp"
     decmaps_sbcs = [None, None, decode_jis7katakana]
     decmaps_dbcs = [None, None, None, decode_jis7]
+    decmap_shiftout = None
+    decmap_supershift_latin = None
+    decmap_supershift_greek = None
     escs_onebyte = {0x42: 0, 0x49: 2, 0x4A: 1}
     escs_twobyte = {0x40: 3, 0x42: 3}
     two_byte_modes = [3]
     new_twobytes = False
-    # state values:
+    shift_out = False
+    super_shift = False
+    # state_set values:
     # — 0: ASCII (hardcoded)
     # — 1: JIS-Roman (hardcoded)
     # — 2: JIS-Katakana
     # — 3: JIS-Kanji
-    state = None
+    state_set = None
+    state_greekmode = None # boolean for whether super-shift codes are in Greek mode
+    state_shiftoutmode = None # boolean for whether Shift Out is engaged
     pending = b""
     def __init__(errors):
         self.errors = errors
-        self.state = 0
+        self.state_set = 0
+        self.state_greekmode = False
+        self.state_shiftoutmode = False
     def decode(data_in, final = False):
         let data = self.pending + data_in
         self.pending = b""
@@ -312,8 +321,9 @@ class Iso2022JpIncrementalDecoder:
         let offset = 0
         let leader = []
         let bytemode = 1
-        if self.state in self.two_byte_modes:
+        if self.state_set in self.two_byte_modes and not self.state_shiftoutmode:
             bytemode = 2
+        let in_esc = False
         while 1: # offset can be arbitrarily changed by the error handler, so not a for
             if offset >= len(data):
                 if bytemode in (1, 2):
@@ -329,34 +339,65 @@ class Iso2022JpIncrementalDecoder:
                     return out.getvalue()
             let i = data[offset]
             if i == 0x1B and len(leader) == 0:
-                bytemode = 3
+                in_esc = True
                 leader.append(i)
                 offset += 1
-            else if bytemode == 3 and len(leader) == 1 and i in (0x24, 0x28):
+            else if i == 0x0E and len(leader) == 0 and self.shift_out and not self.state_shiftoutmode:
+                self.state_shiftoutmode = True
+                offset += 1
+            else if i == 0x0F and len(leader) == 0 and self.state_shiftoutmode:
+                self.state_shiftoutmode = False
+                offset += 1
+            else if in_esc and len(leader) == 1 and i in (0x24, 0x28):
                 leader.append(i)
                 offset += 1
-            else if bytemode == 3 and len(leader) == 2 and leader[1] == 0x28 and i in self.escs_onebyte:
-                self.state = self.escs_onebyte[i]
+            else if in_esc and len(leader) == 1 and i in (0x2E, 0x4E) and self.super_shift:
+                leader.append(i)
+                offset += 1
+            else if in_esc and len(leader) == 2 and leader[1] == 0x2E and i == 0x41:
+                self.state_greekmode = False
+                in_esc = False
+                leader = []
+                offset += 1
+            else if in_esc and len(leader) == 2 and leader[1] == 0x4E and (
+                    not self.state_greekmode and i in self.decmap_supershift_latin):
+                out.add(ord(self.decmap_supershift_latin[i]))
+                in_esc = False
+                leader = []
+                offset += 1
+            else if in_esc and len(leader) == 2 and leader[1] == 0x2E and i == 0x46:
+                self.state_greekmode = True
+                in_esc = False
+                leader = []
+                offset += 1
+            else if in_esc and len(leader) == 2 and leader[1] == 0x4E and (
+                    self.state_greekmode and i in self.decmap_supershift_latin):
+                out.add(ord(self.decmap_supershift_greek[i]))
+                in_esc = False
+                leader = []
+                offset += 1
+            else if in_esc and len(leader) == 2 and leader[1] == 0x28 and i in self.escs_onebyte:
+                self.state_set = self.escs_onebyte[i]
+                in_esc = False
                 bytemode = 1
                 leader = []
                 offset += 1
-            else if bytemode == 3 and len(leader) == 2 and leader[1] == 0x24 and i == 0x28 and self.new_twobytes:
-                bytemode = 4
+            else if in_esc and len(leader) == 2 and leader[1] == 0x24 and i == 0x28 and self.new_twobytes:
                 leader.append(i)
                 offset += 1
-            else if ((bytemode == 3 and len(leader) == 2) or (bytemode == 4 and len(leader) == 3)
-                     ) and leader[1] == 0x24 and i in self.escs_twobyte:
-                self.state = self.escs_twobyte[i]
+            else if in_esc and len(leader) in (2, 3) and leader[1] == 0x24 and i in self.escs_twobyte:
+                self.state_set = self.escs_twobyte[i]
+                in_esc = False
                 bytemode = 2
                 leader = []
                 offset += 1
-            else if bytemode == 2 and len(leader) == 0:
+            else if bytemode == 2 and len(leader) == 0 and not self.state_shiftoutmode:
                 leader.append(i)
                 offset += 1
-            else if bytemode == 1 and self.state == 0 and i < 0x80:
+            else if bytemode == 1 and self.state_set == 0 and i < 0x80 and not self.state_shiftoutmode:
                 out.add(chr(i))
                 offset += 1
-            else if bytemode == 1 and self.state == 1 and i < 0x80:
+            else if bytemode == 1 and self.state_set == 1 and i < 0x80 and not self.state_shiftoutmode:
                 let char = chr(i)
                 if char == "\\":
                     char = "¥"
@@ -364,11 +405,16 @@ class Iso2022JpIncrementalDecoder:
                     char = "\u203E"
                 out.add(char)
                 offset += 1
-            else if bytemode == 1 and self.state not in (0, 1) and i in self.decmaps_sbcs[self.state]:
-                out.add(chr(self.decmaps_sbcs[self.state][i]))
+            else if self.state_shiftoutmode and i in self.decmap_shiftout:
+                out.add(chr(self.decmap_shiftout[i]))
                 offset += 1
-            else if bytemode == 2 and (leader[0], i) in self.decmaps_dbcs[self.state]:
-                out.add(chr(self.decmaps_dbcs[self.state][(leader[0], i)]))
+            else if bytemode == 1 and self.state_set not in (0, 1) and (
+                    i in self.decmaps_sbcs[self.state_set] and not self.state_shiftoutmode):
+                out.add(chr(self.decmaps_sbcs[self.state_set][i]))
+                offset += 1
+            else if bytemode == 2 and (leader[0], i) in self.decmaps_dbcs[self.state_set] and (
+                    not self.state_shiftoutmode):
+                out.add(chr(self.decmaps_dbcs[self.state_set][(leader[0], i)]))
                 offset += 1
                 leader = []
             else:
@@ -389,15 +435,21 @@ class Iso2022JpIncrementalDecoder:
                 if offset < 0:
                     offset += len(string)
     def reset():
-        self.state = 0
+        self.state_set = 0
+        self.state_greekmode = False
+        self.state_shiftoutmode = False
         self.pending = b""
     def getstate():
-        return (self.pending, self.state)
+        return (self.pending, (self.state_set << 2) | 
+                              (int(self.state_greekmode) << 1) | 
+                              int(self.state_shiftoutmode))
     def setstate(state):
         if state not in (0, 1) and state >= len(self.decmaps_sbcs) and state >= len(self.decmaps_dbcs):
             raise ValueError("invalid state: " + repr(state))
         self.pending = state[0]
-        self.state = state[1]
+        self.state_set = state[1] >> 2
+        self.state_greekmode = bool(state[1] & 0x2)
+        self.state_shiftoutmode = bool(state[1] & 0x1)
 
 register_kuroko_codec(["iso-2022-jp", "csiso2022jp"],
     Iso2022JpIncrementalEncoder, Iso2022JpIncrementalDecoder)
