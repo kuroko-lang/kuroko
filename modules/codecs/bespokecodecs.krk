@@ -190,7 +190,6 @@ register_kuroko_codec(
 class Iso2022JpIncrementalEncoder:
     name = "iso-2022-jp" # arguably should call it summat else since it's not exactly RFC 1468
     webname = "iso-2022-jp"
-    encmap_jis7 = encode_jis7
     encmaps_sbcs = []
     encmaps_dbcs = [None, None, encode_jis7]
     encmap_supershift_latin = None
@@ -379,7 +378,7 @@ class Iso2022JpIncrementalDecoder:
                 offset += 1
             else if in_esc and len(leader) == 2 and leader[1] == 0x4E and (
                     not self.state_greekmode and i in self.decmap_supershift_latin):
-                out.add(ord(self.decmap_supershift_latin[i]))
+                out.add(chr(self.decmap_supershift_latin[i]))
                 in_esc = False
                 leader = []
                 offset += 1
@@ -390,7 +389,7 @@ class Iso2022JpIncrementalDecoder:
                 offset += 1
             else if in_esc and len(leader) == 2 and leader[1] == 0x4E and (
                     self.state_greekmode and i in self.decmap_supershift_latin):
-                out.add(ord(self.decmap_supershift_greek[i]))
+                out.add(chr(self.decmap_supershift_greek[i]))
                 in_esc = False
                 leader = []
                 offset += 1
@@ -409,13 +408,13 @@ class Iso2022JpIncrementalDecoder:
                 bytemode = 2
                 leader = []
                 offset += 1
-            else if bytemode == 2 and len(leader) == 0 and not self.state_shiftoutmode:
+            else if bytemode == 2 and len(leader) == 0 and not in_esc and not self.state_shiftoutmode:
                 leader.append(i)
                 offset += 1
-            else if bytemode == 1 and self.state_set == 0 and i < 0x80 and not self.state_shiftoutmode:
+            else if bytemode == 1 and self.state_set == 0 and i < 0x80 and not in_esc and not self.state_shiftoutmode:
                 out.add(chr(i))
                 offset += 1
-            else if bytemode == 1 and self.state_set == 1 and i < 0x80 and not self.state_shiftoutmode:
+            else if bytemode == 1 and self.state_set == 1 and i < 0x80 and not in_esc and not self.state_shiftoutmode:
                 let char = chr(i)
                 if char == "\\":
                     char = "¥"
@@ -423,15 +422,15 @@ class Iso2022JpIncrementalDecoder:
                     char = "\u203E"
                 out.add(char)
                 offset += 1
-            else if self.state_shiftoutmode and i in self.decmap_shiftout:
+            else if self.state_shiftoutmode and not in_esc and i in self.decmap_shiftout:
                 out.add(chr(self.decmap_shiftout[i]))
                 offset += 1
-            else if bytemode == 1 and self.state_set not in (0, 1) and (
+            else if bytemode == 1 and self.state_set not in (0, 1) and not in_esc and (
                     i in self.decmaps_sbcs[self.state_set] and not self.state_shiftoutmode):
                 out.add(chr(self.decmaps_sbcs[self.state_set][i]))
                 offset += 1
             else if bytemode == 2 and (leader[0], i) in self.decmaps_dbcs[self.state_set] and (
-                    not self.state_shiftoutmode):
+                    not self.state_shiftoutmode and not in_esc):
                 let decoded = self.decmaps_dbcs[self.state_set][(leader[0], i)]
                 if isinstance(decoded, tuple):
                     for individ in decoded:
@@ -449,8 +448,7 @@ class Iso2022JpIncrementalDecoder:
                     errorend = errorstart + 1
                 let error = UnicodeDecodeError(self.name, data, errorstart, errorend,
                             "invalid sequence")
-                if bytemode != 2:
-                    bytemode = 1
+                in_esc = False
                 leader = []
                 let errorret = lookup_error(self.errors)(error)
                 out.add(errorret[0])

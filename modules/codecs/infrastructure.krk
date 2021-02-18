@@ -13,9 +13,13 @@ class KurokoCodecInfo:
         self.incrementalencoder = encoder
         self.incrementaldecoder = decoder
     def encode(string, errors="strict"):
-        return self.incrementalencoder(errors).encode(string, True)
+        if self.incrementalencoder:
+            return self.incrementalencoder(errors).encode(string, True)
+        raise ValueError("unrecognised encoding or decode-only encoding")
     def decode(data, errors="strict"):
-        return self.incrementaldecoder(errors).decode(data, True)
+        if self.incrementaldecoder:
+            return self.incrementaldecoder(errors).decode(data, True)
+        raise ValueError("unrecognised encoding or encode-only encoding")
 
 def lookup(label):
     let enc = None
