@@ -22,10 +22,10 @@ def lookup(label):
     let dec = None
     try:
         enc = _encoder_registry[label.lower()]
-    except:
+    except KeyError:
     try:
         dec = _decoder_registry[label.lower()]
-    except:
+    except KeyError:
     return KurokoCodecInfo(label, enc, dec)
 
 def encode(string, label, errors="strict"):
