@@ -1,4 +1,4 @@
-from codecs.extradata import encmap_lat1supp, decmap_lat1supp, encmap_greksupp, decmap_greksupp, encmap_jis78, decmap_jis78, encmap_jis90p2, decmap_jis90p2, encmap_jis00, decmap_jis00, encmap_jis00p2, decmap_jis00p2, encmap_jis04, decmap_jis04, encmap_jis7katakana
+from codecs.extradata import encmap_lat1supp, decmap_lat1supp, encmap_greksupp, decmap_greksupp, encmap_jis78, decmap_jis78, encmap_jis90p2, decmap_jis90p2, encmap_jis00, decmap_jis00, encmap_jis00p2, decmap_jis00p2, encmap_jis04, decmap_jis04, encmap_jis7katakana, encmap_gb7, decmap_gb7, encmap_ksc7, decmap_ksc7
 from codecs.infrastructure import register_kuroko_codec, ByteCatenator, StringCatenator, UnicodeEncodeError, UnicodeDecodeError, lookup_error, lookup
 from codecs.dbdata import encode_jis7, decode_jis7, decode_jis7katakana
 from codecs.bespokecodecs import Iso2022JpIncrementalEncoder, Iso2022JpIncrementalDecoder
@@ -34,6 +34,44 @@ class JisEncodingIncrementalDecoder(Iso2022JpIncrementalDecoder):
 
 register_kuroko_codec(["jis_encoding"],
     JisEncodingIncrementalEncoder, JisEncodingIncrementalDecoder)
+
+
+class Iso2022Jp1IncrementalEncoder(Iso2022JpIncrementalEncoder):
+    name = "iso-2022-jp-1"
+    webname = None
+    encmaps_sbcs = [None, None]
+    encmaps_dbcs = [None, None, encode_jis7, encmap_jis90p2]
+    escs_onebyte = {0: 0x42, 1: 0x4A}
+    escs_twobyte = {2: 0x42, 3: 0x44}
+
+class Iso2022Jp2IncrementalEncoder(Iso2022JpIncrementalEncoder):
+    name = "iso-2022-jp-2"
+    webname = None
+    encmaps_sbcs = [None, None]
+    encmaps_dbcs = [None, None, encode_jis7, encmap_jis90p2, encmap_gb7, encmap_ksc7]
+    encmap_supershift_latin = encmap_lat1supp
+    encmap_supershift_greek = encmap_greksupp
+    super_shift = True
+    escs_onebyte = {0: 0x42, 1: 0x4A}
+    escs_twobyte = {2: 0x42, 3: 0x44, 4: 0x41, 5: 0x43}
+
+class Iso2022Jp2IncrementalDecoder(Iso2022JpIncrementalDecoder):
+    name = "iso-2022-jp-2"
+    webname = None
+    decmaps_sbcs = [None, None]
+    decmaps_dbcs = [None, None, decode_jis7, decmap_jis90p2, encmap_gb7, encmap_ksc7]
+    decmap_supershift_latin = decmap_lat1supp
+    decmap_supershift_greek = decmap_greksupp
+    escs_onebyte = {0x42: 0, 0x4A: 1}
+    escs_twobyte = {0x40: 2, 0x41: 4, 0x42: 2, 0x43: 5, 0x44: 3}
+    two_byte_modes = [2, 3, 4, 5]
+    new_twobytes = True
+    super_shift = True
+
+register_kuroko_codec(["iso-2022-jp-1"],
+    Iso2022Jp1IncrementalEncoder, Iso2022Jp2IncrementalDecoder)
+register_kuroko_codec(["iso-2022-jp-2"],
+    Iso2022Jp2IncrementalEncoder, Iso2022Jp2IncrementalDecoder)
 
 
 
