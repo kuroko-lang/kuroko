@@ -27,7 +27,7 @@ typedef struct {
 	size_t slots;         /**< Offset into the stack at which this function call's arguments begin */
 	size_t outSlots;      /**< Offset into the stack at which stackTop will be reset upon return */
 	KrkTable * globals;   /**< Pointer to the attribute table containing valud global vairables for this call */
-} CallFrame;
+} KrkCallFrame;
 
 /**
  * @brief Index numbers for always-available interned strings representing important method and member names.
@@ -150,7 +150,7 @@ struct BaseClasses {
 typedef struct ThreadState {
 	struct ThreadState * next; /**< Invasive list pointer to next thread. */
 
-	CallFrame * frames;        /**< Call frame stack for this thread, max KRK_CALL_FRAMES_MAX */
+	KrkCallFrame * frames;     /**< Call frame stack for this thread, max KRK_CALL_FRAMES_MAX */
 	size_t frameCount;         /**< Number of active call frames. */
 	size_t stackSize;          /**< Size of the allocated stack space for this thread. */
 	KrkValue * stack;          /**< Pointer to the bottom of the stack for this thread. */
