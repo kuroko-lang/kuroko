@@ -188,7 +188,7 @@ register_kuroko_codec(
      "gbk", "iso-ir-58", "x-gbk"], GbkIncrementalEncoder, Gb18030IncrementalDecoder)
 
 class Iso2022JpIncrementalEncoder:
-    name = "iso-2022-jp" # arguably should call it summat else since it's not exactly RFC 1468
+    name = "iso-2022-jp"
     webname = "iso-2022-jp"
     encmaps_sbcs = []
     encmaps_dbcs = [None, None, encode_jis7]
@@ -315,7 +315,7 @@ class Iso2022JpIncrementalEncoder:
         self.state_greekmode = bool(state & 1)
 
 class Iso2022JpIncrementalDecoder:
-    name = "iso-2022-jp" # arguably should call it summat else since it's not exactly RFC 1468
+    name = "iso-2022-jp"
     webname = "iso-2022-jp"
     decmaps_sbcs = [None, None, decode_jis7katakana]
     decmaps_dbcs = [None, None, None, decode_jis7]

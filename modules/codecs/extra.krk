@@ -1,3 +1,8 @@
+"""
+This module includes some additional encodings not specified by WHATWG. As such, none of the
+codecs in this module should be used in HTML.
+"""
+
 from codecs.extradata import encmap_lat1supp, decmap_lat1supp, encmap_greksupp, decmap_greksupp, encmap_jis78, decmap_jis78, encmap_jis90p2, decmap_jis90p2, encmap_jis00, decmap_jis00, encmap_jis00p2, decmap_jis00p2, encmap_jis04, decmap_jis04, encmap_jis7katakana, encmap_gb7, decmap_gb7, encmap_ksc7, decmap_ksc7
 from codecs.infrastructure import register_kuroko_codec, ByteCatenator, StringCatenator, UnicodeEncodeError, UnicodeDecodeError, lookup_error, lookup
 from codecs.dbdata import encode_jis7, decode_jis7, decode_jis7katakana
@@ -32,7 +37,7 @@ class JisEncodingIncrementalDecoder(Iso2022JpIncrementalDecoder):
     shift_out = True
     super_shift = True
 
-register_kuroko_codec(["jis_encoding"],
+register_kuroko_codec(["jis_encoding", "csjisencoding", "jis", "jis7"],
     JisEncodingIncrementalEncoder, JisEncodingIncrementalDecoder)
 
 
@@ -70,7 +75,7 @@ class Iso2022Jp2IncrementalDecoder(Iso2022JpIncrementalDecoder):
 
 register_kuroko_codec(["iso-2022-jp-1"],
     Iso2022Jp1IncrementalEncoder, Iso2022Jp2IncrementalDecoder)
-register_kuroko_codec(["iso-2022-jp-2"],
+register_kuroko_codec(["iso-2022-jp-2", "csISO2022JP2"],
     Iso2022Jp2IncrementalEncoder, Iso2022Jp2IncrementalDecoder)
 
 
