@@ -112,7 +112,7 @@ void krk_resetStack() {
  * the VM will never be called to produce a string, which would result in
  * a nasty infinite recursion if we did it while trying to trace the VM!
  */
-static void dumpStack(CallFrame * frame) {
+static void dumpStack(KrkCallFrame * frame) {
 	fprintf(stderr, "        | ");
 	size_t i = 0;
 	for (KrkValue * slot = krk_currentThread.stack; slot < krk_currentThread.stackTop; slot++) {
@@ -121,7 +121,7 @@ static void dumpStack(CallFrame * frame) {
 
 		for (size_t x = krk_currentThread.frameCount; x > 0; x--) {
 			if (krk_currentThread.frames[x-1].slots > i) continue;
-			CallFrame * f = &krk_currentThread.frames[x-1];
+			KrkCallFrame * f = &krk_currentThread.frames[x-1];
 			size_t relative = i - f->slots;
 			//fprintf(stderr, "(%s[%d])", f->closure->function->name->chars, (int)relative);
 			/* Should resolve here? */
@@ -263,7 +263,7 @@ static void attachTraceback(void) {
 		/* Build the traceback object */
 		if (krk_currentThread.frameCount) {
 			for (size_t i = 0; i < krk_currentThread.frameCount; i++) {
-				CallFrame * frame = &krk_currentThread.frames[i];
+				KrkCallFrame * frame = &krk_currentThread.frames[i];
 				KrkTuple * tbEntry = krk_newTuple(2);
 				krk_push(OBJECT_VAL(tbEntry));
 				tbEntry->values.values[tbEntry->values.count++] = OBJECT_VAL(frame->closure);
@@ -790,11 +790,11 @@ _finishKwarg:
 		krk_push(KWARGS_VAL(0));
 		argCount++;
 	}
-	if (krk_currentThread.frameCount == FRAMES_MAX) {
+	if (krk_currentThread.frameCount == KRK_CALL_FRAMES_MAX) {
 		krk_runtimeError(vm.exceptions->baseException, "Too many call frames.");
 		return 0;
 	}
-	CallFrame * frame = &krk_currentThread.frames[krk_currentThread.frameCount++];
+	KrkCallFrame * frame = &krk_currentThread.frames[krk_currentThread.frameCount++];
 	frame->closure = closure;
 	frame->ip = closure->function->chunk.code;
 	frame->slots = (krk_currentThread.stackTop - argCount) - krk_currentThread.stack;
@@ -1118,7 +1118,7 @@ void krk_initVM(int flags) {
 
 	/* Reset current thread */
 	krk_resetStack();
-	krk_currentThread.frames   = calloc(FRAMES_MAX,sizeof(CallFrame));
+	krk_currentThread.frames   = calloc(KRK_CALL_FRAMES_MAX,sizeof(KrkCallFrame));
 	krk_currentThread.flags    = flags & 0x00FF;
 	krk_currentThread.module   = NULL;
 	krk_currentThread.watchdog = 0;
@@ -1749,7 +1749,7 @@ static int valueDelProperty(KrkString * name) {
  * Read bytes after an opcode. Most instructions take 1, 2, or 3 bytes as an
  * operand referring to a local slot, constant slot, or offset.
  */
-static inline size_t readBytes(CallFrame * frame, int num) {
+static inline size_t readBytes(KrkCallFrame * frame, int num) {
 	size_t out = 0;
 	switch (num) {
 		case 3: out = READ_BYTE(); /* fallthrough*/
@@ -1764,7 +1764,7 @@ static inline size_t readBytes(CallFrame * frame, int num) {
  * VM main loop.
  */
 static KrkValue run() {
-	CallFrame* frame = &krk_currentThread.frames[krk_currentThread.frameCount - 1];
+	KrkCallFrame* frame = &krk_currentThread.frames[krk_currentThread.frameCount - 1];
 
 	while (1) {
 #ifdef ENABLE_TRACING

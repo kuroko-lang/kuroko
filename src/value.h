@@ -3,9 +3,24 @@
 #include <stdio.h>
 #include "kuroko.h"
 
+/**
+ * @brief Base structure of all heap objects.
+ *
+ * KrkObj is the base type of all objects stored on the heap and
+ * managed by the garbage collector.
+ */
 typedef struct Obj KrkObj;
 typedef struct ObjString KrkString;
 
+/**
+ * @brief Tag enum for basic value types.
+ *
+ * Value types are tagged unions of a handful of small
+ * types represented directly on the stack: Integers,
+ * double-precision floating point values, booleans,
+ * exception handler references, complex function argument
+ * processing sentinels, object reference pointers, and None.
+ */
 typedef enum {
 	VAL_NONE,
 	VAL_BOOLEAN,
@@ -14,14 +29,36 @@ typedef enum {
 	VAL_HANDLER,
 	VAL_OBJECT,
 	VAL_KWARGS,
-	/* More here later */
 } KrkValueType;
 
+/**
+ * @brief Stack value representation of a 'with' or 'try' block.
+ *
+ * When a 'with' or 'try' block is entered, a handler value is
+ * created on the stack representing the type (with, try) and the
+ * jump target to leave the block (entering the 'except' block of
+ * a 'try', if present, or calling the __exit__ method of an object
+ * __enter__'d by a 'with' block). When the relevant conditions are
+ * triggered in the VM, the stack will be scanned from top to bottom
+ * to look for these values.
+ */
 typedef struct {
 	unsigned short type;
 	unsigned short target;
 } KrkJumpTarget;
 
+/**
+ * @brief Stack reference or primative value.
+ *
+ * This type stores a stack reference to an object, or the contents of
+ * a primitive type. Each VM thread's stack consists of an array of
+ * these values, and they are generally passed around in the VM through
+ * direct copying rather than as pointers, avoiding the need to track
+ * memory used by them.
+ *
+ * Each value is a tagged union with a type (see the enum KrkValueType)
+ * and its contents.
+ */
 typedef struct {
 	KrkValueType type;
 	union {
@@ -32,6 +69,109 @@ typedef struct {
 		KrkObj *   object;
 	} as;
 } KrkValue;
+
+/**
+ * @brief Flexible vector of stack references.
+ *
+ * Value Arrays provide a resizable collection of values and are the
+ * backbone of lists and tuples.
+ */
+typedef struct {
+	size_t capacity;   /**< Available allocated space. */
+	size_t count;      /**< Current number of used slots. */
+	KrkValue * values; /**< Pointer to heap-allocated storage. */
+} KrkValueArray;
+
+/**
+ * @brief Initialize a value array.
+ *
+ * This should be called for any new value array, especially ones
+ * initialized in heap or stack space, to set up the capacity, count
+ * and initial value pointer.
+ *
+ * @param array Value array to initialize.
+ */
+extern void krk_initValueArray(KrkValueArray * array);
+
+/**
+ * @brief Add a value to a value array.
+ *
+ * Appends 'value' to the end of the given array, adjusting count values
+ * and resizing as necessary.
+ *
+ * @param array Array to append to.
+ * @param value Value to append to array.
+ */
+extern void krk_writeValueArray(KrkValueArray * array, KrkValue value);
+
+/**
+ * @brief Release relesources used by a value array.
+ *
+ * Frees the storage associated with a given value array and resets
+ * its capacity and count. Does not directly free resources associated
+ * with heap objects referenced by the values in this array: The GC
+ * is responsible for taking care of that.
+ *
+ * @param array Array to release.
+ */
+extern void krk_freeValueArray(KrkValueArray * array);
+
+/**
+ * @brief Print a string representation of a value.
+ *
+ * Print a string representation of 'value' to the stream 'f'.
+ * For primitives, performs appropriate formatting. For objects,
+ * this will call __str__ on the object's representative type.
+ * If the type does not have a __str__ method, __repr__ will be
+ * tried before falling back to krk_typeName to directly print
+ * the name of the class with no information on the value.
+ *
+ * This function provides the backend for the print() built-in.
+ *
+ * @param f     Stream to write to.
+ * @param value Value to display.
+ */
+extern void krk_printValue(FILE * f, KrkValue value);
+
+/**
+ * @brief Print a value without calling the VM.
+ *
+ * Print a string representation of 'value' to the stream 'f',
+ * avoiding calls to managed code by using simplified representations
+ * where necessary. This is intended for use in debugging code, such
+ * as during disassembly, or when printing values in an untrusted context.
+ *
+ * @note This function will truncate long strings and print them in a form
+ *       closer to the 'repr()' representation, with escaped bytes, rather
+ *       than directly printing them to the stream.
+ *
+ * @param f     Stream to write to.
+ * @param value Value to display.
+ */
+extern void krk_printValueSafe(FILE * f, KrkValue value);
+
+/**
+ * @brief Compare two values for equality.
+ *
+ * Performs a relaxed equality comparison between two values,
+ * check for equivalence by contents. This may call managed
+ * code to run __eq__ methods.
+ *
+ * @return 1 if values are equivalent, 0 otherwise.
+ */
+extern int krk_valuesEqual(KrkValue a, KrkValue b);
+
+/**
+ * @brief Compare two values by identity.
+ *
+ * Performs a strict comparison between two values, comparing
+ * their identities. For primitive values, this is generally
+ * the same as comparing by equality. For objects, this compares
+ * pointer values directly.
+ *
+ * @return 1 if values represent the same object or value, 0 otherwise.
+ */
+extern int krk_valuesSame(KrkValue a, KrkValue b);
 
 #define BOOLEAN_VAL(value)  ((KrkValue){VAL_BOOLEAN, {.boolean = value}})
 #define NONE_VAL(value)     ((KrkValue){VAL_NONE,    {.integer = 0}})
@@ -57,18 +197,4 @@ typedef struct {
 
 #define IS_TRY_HANDLER(value)  (IS_HANDLER(value) && AS_HANDLER(value).type == OP_PUSH_TRY)
 #define IS_WITH_HANDLER(value) (IS_HANDLER(value) && AS_HANDLER(value).type == OP_PUSH_WITH)
-
-typedef struct {
-	size_t capacity;
-	size_t count;
-	KrkValue * values;
-} KrkValueArray;
-
-extern void krk_initValueArray(KrkValueArray * array);
-extern void krk_writeValueArray(KrkValueArray * array, KrkValue value);
-extern void krk_freeValueArray(KrkValueArray * array);
-extern void krk_printValue(FILE * f, KrkValue value);
-extern void krk_printValueSafe(FILE * f, KrkValue value);
-extern int krk_valuesEqual(KrkValue a, KrkValue b);
-extern int krk_valuesSame(KrkValue a, KrkValue b);
 

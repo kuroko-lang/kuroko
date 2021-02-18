@@ -99,6 +99,12 @@ typedef enum {
 	TOKEN_EOF,
 } KrkTokenType;
 
+/**
+ * @brief A token from the scanner.
+ *
+ * Represents a single scanned item from the scanner, such as a keyword,
+ * string literal, numeric literal, identifier, etc.
+ */
 typedef struct {
 	KrkTokenType type;
 	const char * start;
@@ -109,6 +115,12 @@ typedef struct {
 	size_t literalWidth;
 } KrkToken;
 
+/**
+ * @brief Token scanner state.
+ *
+ * Stores the state of the compiler's scanner, reading from a source
+ * character string and tracking the current line.
+ */
 typedef struct {
 	const char * start;
 	const char * cur;
@@ -119,8 +131,48 @@ typedef struct {
 	KrkToken unget;
 } KrkScanner;
 
+/**
+ * @brief Initialize the compiler to scan tokens from 'src'.
+ *
+ * FIXME: There is currently only a single static scanner state;
+ *        along with making the compiler re-entrant, the scanner
+ *        needs to also be re-entrant; there's really no reason
+ *        these can't all just take a KrkScanner* argument.
+ */
 extern void krk_initScanner(const char * src);
+
+/**
+ * @brief Read the next token from the scanner.
+ *
+ * FIXME: Or, maybe the scanner shouldn't even be available outside
+ *        of the compiler, that would make some sense as well, as it's
+ *        a low-level detail, but we use it for tab completion in the
+ *        main repl, so I'm not sure that's feasible right now.
+ */
 extern KrkToken krk_scanToken(void);
+
+/**
+ * @brief Push a token back to the scanner to be reprocessed.
+ *
+ * Pushes a previously-scanned token back to the scanner.
+ * Used to implement small backtracking operations at the
+ * end of block constructs like 'if' and 'try'.
+ */
 extern void krk_ungetToken(KrkToken token);
+
+/**
+ * @brief Rewind the scanner to a previous state.
+ *
+ * Resets the current scanner to the state in 'to'. Used by
+ * the compiler to implement comprehensions, which would otherwise
+ * not be possible in a single-pass compiler.
+ */
 extern void krk_rewindScanner(KrkScanner to);
+
+/**
+ * @brief Retreive a copy of the current scanner state.
+ *
+ * Used with krk_rewindScanner() to implement rescanning
+ * for comprehensions.
+ */
 extern KrkScanner krk_tellScanner(void);
