@@ -95,12 +95,21 @@ static inline const char * _method_name(const char * func) {
 #define BIND_PROP(klass,method) do { krk_defineNativeProperty(&klass->fields, #method, _ ## klass ## _ ## method); } while (0)
 #define BIND_FUNC(module,func) do { krk_defineNative(&module->fields, #func, _krk_ ## func); } while (0)
 
+/**
+ * @brief Inline flexible string array.
+ */
 struct StringBuilder {
 	size_t capacity;
 	size_t length;
 	char * bytes;
 };
 
+/**
+ * @brief Add a character to the end of a string builder.
+ *
+ * @param sb String builder to append to.
+ * @param c  Character to append.
+ */
 static inline void pushStringBuilder(struct StringBuilder * sb, char c) {
 	if (sb->capacity < sb->length + 1) {
 		size_t old = sb->capacity;
@@ -110,6 +119,13 @@ static inline void pushStringBuilder(struct StringBuilder * sb, char c) {
 	sb->bytes[sb->length++] = c;
 }
 
+/**
+ * @brief Append a string to the end of a string builder.
+ *
+ * @param sb String builder to append to.
+ * @param str C string to add.
+ * @param len Length of the C string.
+ */
 static inline void pushStringBuilderStr(struct StringBuilder * sb, char *str, size_t len) {
 	if (sb->capacity < sb->length + len) {
 		while (sb->capacity < sb->length + len) {
@@ -123,18 +139,47 @@ static inline void pushStringBuilderStr(struct StringBuilder * sb, char *str, si
 	}
 }
 
+/**
+ * @brief Finalize a string builder into a string object.
+ *
+ * Creates a string object from the contents of the string builder and
+ * frees the space allocated for the builder, returning a value representing
+ * the newly created string object.
+ *
+ * @param sb String builder to finalize.
+ * @return A value representing a string object.
+ */
 static inline KrkValue finishStringBuilder(struct StringBuilder * sb) {
 	KrkValue out = OBJECT_VAL(krk_copyString(sb->bytes, sb->length));
 	FREE_ARRAY(char,sb->bytes, sb->capacity);
 	return out;
 }
 
+/**
+ * @brief Finalize a string builder in a bytes object.
+ *
+ * Converts the contents of a string builder into a bytes object and
+ * frees the space allocated for the builder.
+ *
+ * @param sb String builder to finalize.
+ * @return A value representing a bytes object.
+ */
 static inline KrkValue finishStringBuilderBytes(struct StringBuilder * sb) {
 	KrkValue out = OBJECT_VAL(krk_newBytes(sb->length, (uint8_t*)sb->bytes));
 	FREE_ARRAY(char,sb->bytes, sb->capacity);
 	return out;
 }
 
+/**
+ * @brief Discard the contents of a string builder.
+ *
+ * Frees the resources allocated for the string builder without converting
+ * it to a string or bytes object. Call this when an error has been encountered
+ * and the contents of a string builder are no longer needed.
+ *
+ * @param  sb String builder to discard.
+ * @return None, as a convenience.
+ */
 static inline KrkValue discardStringBuilder(struct StringBuilder * sb) {
 	FREE_ARRAY(char,sb->bytes, sb->capacity);
 	return NONE_VAL();

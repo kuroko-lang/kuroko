@@ -790,7 +790,7 @@ _finishKwarg:
 		krk_push(KWARGS_VAL(0));
 		argCount++;
 	}
-	if (krk_currentThread.frameCount == FRAMES_MAX) {
+	if (krk_currentThread.frameCount == KRK_CALL_FRAMES_MAX) {
 		krk_runtimeError(vm.exceptions->baseException, "Too many call frames.");
 		return 0;
 	}
@@ -1118,7 +1118,7 @@ void krk_initVM(int flags) {
 
 	/* Reset current thread */
 	krk_resetStack();
-	krk_currentThread.frames   = calloc(FRAMES_MAX,sizeof(CallFrame));
+	krk_currentThread.frames   = calloc(KRK_CALL_FRAMES_MAX,sizeof(CallFrame));
 	krk_currentThread.flags    = flags & 0x00FF;
 	krk_currentThread.module   = NULL;
 	krk_currentThread.watchdog = 0;
