@@ -239,7 +239,7 @@ void krk_markTable(KrkTable * table) {
 	}
 }
 
-void krk_tableRemoveWhite(KrkTable * table) {
+static void tableRemoveWhite(KrkTable * table) {
 	for (size_t i = 0; i < table->capacity; ++i) {
 		KrkTableEntry * entry = &table->entries[i];
 		if (IS_OBJECT(entry->key) && !(AS_OBJECT(entry->key))->isMarked) {
@@ -287,7 +287,7 @@ static void markRoots() {
 size_t krk_collectGarbage(void) {
 	markRoots();
 	traceReferences();
-	krk_tableRemoveWhite(&vm.strings);
+	tableRemoveWhite(&vm.strings);
 	size_t out = sweep();
 	vm.nextGC = vm.bytesAllocated * 2;
 	return out;
