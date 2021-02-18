@@ -97,6 +97,8 @@ struct BaseClasses {
 	KrkClass * dictClass;
 	KrkClass * dictitemsClass;
 	KrkClass * dictkeysClass;
+
+	KrkClass * bytesiteratorClass;
 };
 
 /**
