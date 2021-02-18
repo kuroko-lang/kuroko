@@ -763,6 +763,7 @@ class JapaneseAutodetectIncrementalDecoder:
             try:
                 self.pendingjis.add(self.jis.decode(data, final))
             except:
+                if not isinstance(exception, UnicodeDecodeError): raise exception
                 self.state |= 0x01
         #
         if not (self.state & 0x02):
@@ -772,6 +773,7 @@ class JapaneseAutodetectIncrementalDecoder:
                 if "\x1B$B" in further_sjis and not (self.state & 0x01):
                     self.state |= 0x02
             except:
+                if not isinstance(exception, UnicodeDecodeError): raise exception
                 self.state |= 0x02
         #
         if not (self.state & 0x04):
@@ -781,10 +783,12 @@ class JapaneseAutodetectIncrementalDecoder:
                 if "\x1B$B" in further_ujis and not (self.state & 0x01):
                     self.state |= 0x04
             except:
+                if not isinstance(exception, UnicodeDecodeError): raise exception
                 self.state |= 0x04
         #
         if not (self.state & 0x08):
             try:
+                if not isinstance(exception, UnicodeDecodeError): raise exception
                 let further_utf = self.utf.decode(data, final)
                 self.pendingutf.add(further_utf)
                 if "\x1B$B" in further_utf and not (self.state & 0x01):
