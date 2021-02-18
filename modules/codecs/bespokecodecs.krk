@@ -193,6 +193,9 @@ class Iso2022JpIncrementalEncoder:
     encmap_jis7 = encode_jis7
     encmaps_sbcs = []
     encmaps_dbcs = [None, None, encode_jis7]
+    encmap_supershift_latin = None
+    encmap_supershift_greek = None
+    super_shift = False
     escs_onebyte = {0: 0x42, 1: 0x4A}
     escs_twobyte = {2: 0x42}
     # eager: switch to a lower numbered state when possible (à la Python)
@@ -203,9 +206,11 @@ class Iso2022JpIncrementalEncoder:
     # — 1: JIS-Roman (hardcoded)
     # — 2: JIS-Kanji
     state = None
+    state_greekmode = None # boolean for whether super-shift codes are in Greek mode
     def __init__(errors):
         self.errors = errors
         self.state = 0
+        self.state_greekmode = False
     def ensure_state_number(state, out):
         if self.state == state:
         else if state in self.escs_onebyte:
@@ -248,14 +253,25 @@ class Iso2022JpIncrementalEncoder:
                         self.ensure_state_number(n, out)
                         break
             if not is_sets[self.state]: # i.e. still isn't.
-                let error = UnicodeEncodeError(self.name, string, offset, offset + 1,
-                            "character not supported by target encoding")
-                let errorret = lookup_error(self.errors)(error)
-                self.ensure_state_number(0, out)
-                out.add(errorret[0])
-                offset = errorret[1]
-                if offset < 0:
-                    offset += len(string)
+                if self.super_shift and ord(i) in self.encmap_supershift_latin:
+                    if self.state_greekmode:
+                        out.add("\x1B.A")
+                        self.state_greekmode = False
+                    out.add(bytes([self.encmap_supershift_latin[ord(i)]]))
+                else if self.super_shift and ord(i) in self.encmap_supershift_greek:
+                    if not self.state_greekmode:
+                        out.add("\x1B.F")
+                        self.state_greekmode = True
+                    out.add(bytes([self.encmap_supershift_greek[ord(i)]]))
+                else:
+                    let error = UnicodeEncodeError(self.name, string, offset, offset + 1,
+                                "character not supported by target encoding")
+                    let errorret = lookup_error(self.errors)(error)
+                    self.ensure_state_number(0, out)
+                    out.add(errorret[0])
+                    offset = errorret[1]
+                    if offset < 0:
+                        offset += len(string)
             else if self.state in (0, 1):
                 # By this point we know whether ASCII or JIS-Roman is appropriate and have switched
                 #   to the appropriate one, so we can just treat these the same now.
@@ -280,11 +296,13 @@ class Iso2022JpIncrementalEncoder:
     def reset():
         self.state = 0
     def getstate():
-        return self.state
+        return (self.state << 1) | int(self.state_greekmode)
     def setstate(state):
-        if state not in (0, 1) and state not in self.escs_onebyte and state not in self.escs_twobyte:
+        if (state >> 1) not in (0, 1) and (state >> 1) not in self.escs_onebyte and (
+                state >> 1) not in self.escs_twobyte:
             raise ValueError("invalid state: " + repr(state))
-        self.state = state
+        self.state = state >> 1
+        self.state_greekmode = bool(state & 1)
 
 class Iso2022JpIncrementalDecoder:
     name = "iso-2022-jp" # arguably should call it summat else since it's not exactly RFC 1468
@@ -444,7 +462,8 @@ class Iso2022JpIncrementalDecoder:
                               (int(self.state_greekmode) << 1) | 
                               int(self.state_shiftoutmode))
     def setstate(state):
-        if state not in (0, 1) and state >= len(self.decmaps_sbcs) and state >= len(self.decmaps_dbcs):
+        if (state[1] >> 2) not in (0, 1) and (state[1] >> 2) >= len(self.decmaps_sbcs) and (
+                state[1] >> 2) >= len(self.decmaps_dbcs):
             raise ValueError("invalid state: " + repr(state))
         self.pending = state[0]
         self.state_set = state[1] >> 2
