@@ -1,5 +1,3 @@
-from itertools import bytes_iterator
-
 let _encoder_registry = {}
 let _decoder_registry = {}
 def register_kuroko_codec(labels, incremental_encoder_class, incremental_decoder_class):
@@ -53,7 +51,7 @@ class UnicodeError(ValueError):
         let c = type(self)
         let slice
         if isinstance(self.object, bytes):
-            slice = bytes(list(bytes_iterator(self.object))[self.start:self.end])
+            slice = bytes(list(self.object)[self.start:self.end])
         else:
             slice = self.object[self.start:self.end]
         return f"codec for {self.encoding!r} cannot process sequence {slice!r}: {self.reason}"

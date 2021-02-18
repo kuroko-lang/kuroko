@@ -14,17 +14,7 @@ class enumerate():
             return out
         return _
 
-class bytes_iterator():
-    def __init__(byt):
-        self.byt = byt
-    def __iter__():
-        let i = 0
-        def continuation():
-            if i >= len(self.byt):
-                return continuation
-            i += 1
-            return self.byt[i - 1]
-        return continuation
+
 
 
 
