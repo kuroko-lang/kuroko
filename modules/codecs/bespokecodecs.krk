@@ -206,10 +206,12 @@ class Iso2022JpIncrementalEncoder:
     # — 2: JIS-Kanji
     state = None
     state_greekmode = None # boolean for whether super-shift codes are in Greek mode
+    state_desigsupershift = None # have we actually designated a super-shift set yet?
     def __init__(errors):
         self.errors = errors
         self.state = 0
         self.state_greekmode = False
+        self.state_desigsupershift = False
     def ensure_state_number(state, out):
         if self.state == state:
         else if state in self.escs_onebyte:
@@ -253,15 +255,21 @@ class Iso2022JpIncrementalEncoder:
                         break
             if not is_sets[self.state]: # i.e. still isn't.
                 if self.super_shift and ord(i) in self.encmap_supershift_latin:
-                    if self.state_greekmode:
-                        out.add("\x1B.A")
+                    if self.state_greekmode or not self.state_desigsupershift:
+                        out.add(b"\x1B.A")
                         self.state_greekmode = False
+                        self.state_desigsupershift = True
+                    out.add(b"\x1BN")
                     out.add(bytes([self.encmap_supershift_latin[ord(i)]]))
+                    offset += 1
                 else if self.super_shift and ord(i) in self.encmap_supershift_greek:
                     if not self.state_greekmode:
-                        out.add("\x1B.F")
+                        out.add(b"\x1B.F")
                         self.state_greekmode = True
+                        self.state_desigsupershift = True
+                    out.add(b"\x1BN")
                     out.add(bytes([self.encmap_supershift_greek[ord(i)]]))
+                    offset += 1
                 else:
                     let error = UnicodeEncodeError(self.name, string, offset, offset + 1,
                                 "character not supported by target encoding")
@@ -294,13 +302,16 @@ class Iso2022JpIncrementalEncoder:
                 raise RuntimeError("inconsistently configured encoder")
     def reset():
         self.state = 0
+        self.state_greekmode = False
+        self.state_desigsupershift = False
     def getstate():
-        return (self.state << 1) | int(self.state_greekmode)
+        return (self.state << 2) | (int(self.state_desigsupershift) << 1) | int(self.state_greekmode)
     def setstate(state):
-        if (state >> 1) not in (0, 1) and (state >> 1) not in self.escs_onebyte and (
-                state >> 1) not in self.escs_twobyte:
+        if (state >> 2) not in (0, 1) and (state >> 2) not in self.escs_onebyte and (
+                state >> 2) not in self.escs_twobyte:
             raise ValueError("invalid state: " + repr(state))
-        self.state = state >> 1
+        self.state = state >> 2
+        self.state_desigsupershift = bool(state & 2)
         self.state_greekmode = bool(state & 1)
 
 class Iso2022JpIncrementalDecoder:
