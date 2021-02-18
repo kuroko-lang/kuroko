@@ -432,7 +432,12 @@ class Iso2022JpIncrementalDecoder:
                 offset += 1
             else if bytemode == 2 and (leader[0], i) in self.decmaps_dbcs[self.state_set] and (
                     not self.state_shiftoutmode):
-                out.add(chr(self.decmaps_dbcs[self.state_set][(leader[0], i)]))
+                let decoded = self.decmaps_dbcs[self.state_set][(leader[0], i)]
+                if isinstance(decoded, tuple):
+                    for individ in decoded:
+                        out.add(chr(individ))
+                else:
+                    out.add(chr(decoded))
                 offset += 1
                 leader = []
             else:
