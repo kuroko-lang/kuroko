@@ -167,47 +167,66 @@ static void dumpStack(CallFrame * frame) {
  * the source file and print the corresponding line.
  */
 void krk_dumpTraceback() {
-	if (krk_currentThread.frameCount) {
-		fprintf(stderr, "Traceback (most recent call last):\n");
-		for (size_t i = 0; i <= krk_currentThread.frameCount - 1; i++) {
-			CallFrame * frame = &krk_currentThread.frames[i];
-			KrkFunction * function = frame->closure->function;
-			size_t instruction = frame->ip - function->chunk.code - 1;
-			int lineNo = (int)krk_lineNumber(&function->chunk, instruction);
-			fprintf(stderr, "  File \"%s\", line %d, in %s\n",
-				(function->chunk.filename ? function->chunk.filename->chars : "?"),
-				lineNo,
-				(function->name ? function->name->chars : "(unnamed)"));
-			if (function->chunk.filename) {
-				FILE * f = fopen(function->chunk.filename->chars, "r");
-				if (f) {
-					int line = 1;
-					do {
-						char c = fgetc(f);
-						if (c < -1) break;
-						if (c == '\n') {
-							line++;
-							continue;
-						}
-						if (line == lineNo) {
-							fprintf(stderr,"    ");
-							while (c == ' ') c = fgetc(f);
-							do {
-								fputc(c, stderr);
-								c = fgetc(f);
-							} while (!feof(f) && c > 0 && c != '\n');
-							fprintf(stderr, "\n");
-							break;
-						}
-					} while (!feof(f));
-					fclose(f);
+	if (!krk_valuesEqual(krk_currentThread.currentException,NONE_VAL())) {
+		krk_push(krk_currentThread.currentException);
+		KrkValue tracebackEntries;
+		if (IS_INSTANCE(krk_currentThread.currentException)
+			&& krk_tableGet(&AS_INSTANCE(krk_currentThread.currentException)->fields, OBJECT_VAL(S("traceback")), &tracebackEntries)
+			&& IS_list(tracebackEntries) && AS_LIST(tracebackEntries)->count > 0) {
+			/* This exception has a traceback we can print. */
+			fprintf(stderr, "Traceback (most recent call last):\n");
+			for (size_t i = 0; i < AS_LIST(tracebackEntries)->count; ++i) {
+
+				/* Quietly skip invalid entries as we don't want to bother printing explanatory text for them */
+				if (!IS_TUPLE(AS_LIST(tracebackEntries)->values[i])) continue;
+				KrkTuple * entry = AS_TUPLE(AS_LIST(tracebackEntries)->values[i]);
+				if (entry->values.count != 2) continue;
+				if (!IS_CLOSURE(entry->values.values[0])) continue;
+				if (!IS_INTEGER(entry->values.values[1])) continue;
+
+				/* Get the function and instruction index from this traceback entry */
+				KrkClosure * closure = AS_CLOSURE(entry->values.values[0]);
+				KrkFunction * function = closure->function;
+				size_t instruction = AS_INTEGER(entry->values.values[1]);
+
+				/* Calculate the line number */
+				int lineNo = (int)krk_lineNumber(&function->chunk, instruction);
+
+				/* Print the simple stuff that we already know */
+				fprintf(stderr, "  File \"%s\", line %d, in %s\n",
+					(function->chunk.filename ? function->chunk.filename->chars : "?"),
+					lineNo,
+					(function->name ? function->name->chars : "(unnamed)"));
+
+				/* Try to open the file */
+				if (function->chunk.filename) {
+					FILE * f = fopen(function->chunk.filename->chars, "r");
+					if (f) {
+						int line = 1;
+						do {
+							char c = fgetc(f);
+							if (c < -1) break;
+							if (c == '\n') {
+								line++;
+								continue;
+							}
+							if (line == lineNo) {
+								fprintf(stderr,"    ");
+								while (c == ' ') c = fgetc(f);
+								do {
+									fputc(c, stderr);
+									c = fgetc(f);
+								} while (!feof(f) && c > 0 && c != '\n');
+								fprintf(stderr, "\n");
+								break;
+							}
+						} while (!feof(f));
+						fclose(f);
+					}
 				}
 			}
 		}
-	}
 
-	if (!krk_valuesEqual(krk_currentThread.currentException,NONE_VAL())) {
-		krk_push(krk_currentThread.currentException);
 		/* Is this a SyntaxError? Handle those specially. */
 		if (krk_isInstanceOf(krk_currentThread.currentException, vm.exceptions->syntaxError)) {
 			KrkValue result = krk_callSimple(OBJECT_VAL(krk_getType(krk_currentThread.currentException)->_tostr), 1, 0);
@@ -226,6 +245,37 @@ void krk_dumpTraceback() {
 		/* Turn the exception flag back on */
 		krk_currentThread.flags |= KRK_HAS_EXCEPTION;
 	}
+}
+
+/**
+ * Attach a traceback to the current exception object, if it doesn't already have one.
+ */
+static void attachTraceback(void) {
+	if (IS_INSTANCE(krk_currentThread.currentException)) {
+		KrkInstance * theException = AS_INSTANCE(krk_currentThread.currentException);
+
+		/* If there already is a traceback, don't add a new one; this exception was re-raised. */
+		KrkValue existing;
+		if (krk_tableGet(&theException->fields, OBJECT_VAL(S("traceback")), &existing)) return;
+
+		KrkValue tracebackList = krk_list_of(0,NULL,0);
+		krk_push(tracebackList);
+		/* Build the traceback object */
+		if (krk_currentThread.frameCount) {
+			for (size_t i = 0; i < krk_currentThread.frameCount; i++) {
+				CallFrame * frame = &krk_currentThread.frames[i];
+				KrkTuple * tbEntry = krk_newTuple(2);
+				krk_push(OBJECT_VAL(tbEntry));
+				tbEntry->values.values[tbEntry->values.count++] = OBJECT_VAL(frame->closure);
+				tbEntry->values.values[tbEntry->values.count++] = INTEGER_VAL(frame->ip - frame->closure->function->chunk.code - 1);
+				krk_tupleUpdateHash(tbEntry);
+				krk_writeValueArray(AS_LIST(tracebackList), OBJECT_VAL(tbEntry));
+				krk_pop();
+			}
+		}
+		krk_attachNamedValue(&theException->fields, "traceback", tracebackList);
+		krk_pop();
+	} /* else: probably a legacy 'raise str', just don't bother. */
 }
 
 /**
@@ -254,6 +304,7 @@ KrkValue krk_runtimeError(KrkClass * type, const char * fmt, ...) {
 
 	/* Set the current exception to be picked up by handleException */
 	krk_currentThread.currentException = OBJECT_VAL(exceptionObject);
+	attachTraceback();
 	return NONE_VAL();
 }
 
@@ -1831,6 +1882,7 @@ static KrkValue run() {
 			case OP_POP:   krk_pop(); break;
 			case OP_RAISE: {
 				krk_currentThread.currentException = krk_pop();
+				attachTraceback();
 				krk_currentThread.flags |= KRK_HAS_EXCEPTION;
 				goto _finishException;
 			}
@@ -1943,6 +1995,28 @@ static KrkValue run() {
 				KrkProperty * newProperty = krk_newProperty(krk_peek(0));
 				krk_pop();
 				krk_push(OBJECT_VAL(newProperty));
+				break;
+			}
+			case OP_FILTER_EXCEPT: {
+				int isMatch = 0;
+				if (IS_CLASS(krk_peek(0)) && krk_isInstanceOf(krk_peek(1), AS_CLASS(krk_peek(0)))) {
+					isMatch = 1;
+				} if (IS_TUPLE(krk_peek(0))) {
+					for (size_t i = 0; i < AS_TUPLE(krk_peek(0))->values.count; ++i) {
+						if (IS_CLASS(AS_TUPLE(krk_peek(0))->values.values[i]) && krk_isInstanceOf(krk_peek(1), AS_CLASS(AS_TUPLE(krk_peek(0))->values.values[i]))) {
+							isMatch = 1;
+							break;
+						}
+					}
+				}
+				if (!isMatch) {
+					/* Restore and re-raise the exception if it didn't match. */
+					krk_currentThread.currentException = krk_peek(1);
+					krk_currentThread.flags |= KRK_HAS_EXCEPTION;
+					goto _finishException;
+				}
+				/* Else pop the filter value */
+				krk_pop();
 				break;
 			}
 

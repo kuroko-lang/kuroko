@@ -49,6 +49,7 @@ typedef enum {
 	OP_SUBTRACT,
 	OP_SWAP,
 	OP_TRUE,
+	OP_FILTER_EXCEPT,
 
 	OP_CALL = 64,
 	OP_CLASS,

@@ -191,7 +191,7 @@ static void and_(int canAssign);
 static KrkToken classDeclaration();
 static void declareVariable();
 static void namedVariable(KrkToken name, int canAssign);
-static void addLocal(KrkToken name);
+static Local * addLocal(KrkToken name);
 static void string(int canAssign);
 static KrkToken decorator(size_t level, FunctionType type);
 static void call(int canAssign);
@@ -1536,7 +1536,8 @@ static void tryStatement() {
 	/* Make sure we are in a local scope so this ends up on the stack */
 	beginScope();
 	int tryJump = emitJump(OP_PUSH_TRY);
-	addLocal(syntheticToken("exception"));
+	/* We'll rename this later, but it needs to be on the stack now as it represents the exception handler */
+	Local * exceptionObject = addLocal(syntheticToken(""));
 	defineVariable(0);
 
 	beginScope();
@@ -1553,6 +1554,16 @@ static void tryStatement() {
 			advance();
 		}
 		if (match(TOKEN_EXCEPT)) {
+			if (!check(TOKEN_COLON) && !check(TOKEN_AS)) {
+				expression();
+				emitByte(OP_FILTER_EXCEPT);
+			}
+			if (match(TOKEN_AS)) {
+				consume(TOKEN_IDENTIFIER, "Expected identifier after 'as'");
+				exceptionObject->name = parser.previous;
+			} else {
+				exceptionObject->name = syntheticToken("exception");
+			}
 			consume(TOKEN_COLON, "Expect ':' after except.");
 			beginScope();
 			block(blockWidth,"except");
@@ -2428,7 +2439,7 @@ static ssize_t resolveLocal(Compiler * compiler, KrkToken * name) {
 	return -1;
 }
 
-static void addLocal(KrkToken name) {
+static Local * addLocal(KrkToken name) {
 	if (current->localCount + 1 > current->localsSpace) {
 		size_t old = current->localsSpace;
 		current->localsSpace = GROW_CAPACITY(old);
@@ -2449,6 +2460,7 @@ static void addLocal(KrkToken name) {
 	current->function->localNames[current->function->localNameCount].deathday = 0;
 	current->function->localNames[current->function->localNameCount].name = krk_copyString(name.start, name.length);
 	current->function->localNameCount++;
+	return local;
 }
 
 static void declareVariable() {
