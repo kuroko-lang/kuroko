@@ -67,10 +67,7 @@ class Gb18030IncrementalEncoder:
                 offset += 1
     def reset():
     def getstate():
-        return 0
     def setstate(state):
-        if state != 0:
-            raise ValueError("stateless encoder being set to nonzero state")
 
 class GbkIncrementalEncoder(Gb18030IncrementalEncoder):
     name = "gbk"
@@ -176,11 +173,9 @@ class Gb18030IncrementalDecoder:
     def reset():
         self.pending = b""
     def getstate():
-        return (self.pending, 0)
+        return self.pending
     def setstate(state):
-        if state[1] != 0:
-            raise ValueError("stateless (besides pending buffer) decoder being set to nonzero state")
-        self.pending = state[0]
+        self.pending = state
 
 register_kuroko_codec(["gb18030"], Gb18030IncrementalEncoder, Gb18030IncrementalDecoder)
 register_kuroko_codec(
@@ -209,9 +204,7 @@ class Iso2022JpIncrementalEncoder:
     state_desigsupershift = None # have we actually designated a super-shift set yet?
     def __init__(errors):
         self.errors = errors
-        self.state = 0
-        self.state_greekmode = False
-        self.state_desigsupershift = False
+        self.reset()
     def ensure_state_number(state, out):
         if self.state == state:
         else if state in self.escs_onebyte:
@@ -305,14 +298,11 @@ class Iso2022JpIncrementalEncoder:
         self.state_greekmode = False
         self.state_desigsupershift = False
     def getstate():
-        return (self.state << 2) | (int(self.state_desigsupershift) << 1) | int(self.state_greekmode)
+        return (self.state, self.state_desigsupershift, self.state_greekmode)
     def setstate(state):
-        if (state >> 2) not in (0, 1) and (state >> 2) not in self.escs_onebyte and (
-                state >> 2) not in self.escs_twobyte:
-            raise ValueError("invalid state: " + repr(state))
-        self.state = state >> 2
-        self.state_desigsupershift = bool(state & 2)
-        self.state_greekmode = bool(state & 1)
+        self.state = state[0]
+        self.state_desigsupershift = state[1]
+        self.state_greekmode = state[2]
 
 class Iso2022JpIncrementalDecoder:
     name = "iso-2022-jp"
@@ -339,9 +329,7 @@ class Iso2022JpIncrementalDecoder:
     pending = b""
     def __init__(errors):
         self.errors = errors
-        self.state_set = 0
-        self.state_greekmode = False
-        self.state_shiftoutmode = False
+        self.reset()
     def decode(data_in, final = False):
         let data = self.pending + data_in
         self.pending = b""
@@ -467,22 +455,17 @@ class Iso2022JpIncrementalDecoder:
                 if offset < 0:
                     offset += len(string)
     def reset():
+        self.pending = b""
         self.state_set = 0
         self.state_greekmode = False
         self.state_shiftoutmode = False
-        self.pending = b""
     def getstate():
-        return (self.pending, (self.state_set << 2) | 
-                              (int(self.state_greekmode) << 1) | 
-                              int(self.state_shiftoutmode))
+        return (self.pending, self.state_set, self.state_greekmode, self.state_shiftoutmode)
     def setstate(state):
-        if (state[1] >> 2) not in (0, 1) and (state[1] >> 2) >= len(self.decmaps_sbcs) and (
-                state[1] >> 2) >= len(self.decmaps_dbcs):
-            raise ValueError("invalid state: " + repr(state))
         self.pending = state[0]
-        self.state_set = state[1] >> 2
-        self.state_greekmode = bool(state[1] & 0x2)
-        self.state_shiftoutmode = bool(state[1] & 0x1)
+        self.state_set = state[1]
+        self.state_greekmode = state[2]
+        self.state_shiftoutmode = state[3]
 
 register_kuroko_codec(["iso-2022-jp", "csiso2022jp"],
     Iso2022JpIncrementalEncoder, Iso2022JpIncrementalDecoder)
@@ -498,7 +481,7 @@ class Utf16IncrementalEncoder:
     state = None
     def __init__(errors):
         self.errors = errors
-        self.state = -1
+        self.reset()
     def push_word(word, out):
         if self.endian == "little":
             out.add(bytes([word & 0xFFFF, (word >> 8) & 0xFFFF]))
@@ -540,8 +523,6 @@ class Utf16IncrementalEncoder:
     def getstate():
         return self.state
     def setstate(state):
-        if state not in [-1, 0]:
-            raise ValueError("invalid state: " + repr(state))
         self.state = state
 
 class Utf16IncrementalDecoder:
@@ -555,7 +536,7 @@ class Utf16IncrementalDecoder:
     pending = b""
     def __init__(errors):
         self.errors = errors
-        self.state = -1
+        self.reset()
     def decode(data_in, final = False):
         let data = self.pending + data_in
         self.pending = b""
@@ -632,13 +613,11 @@ class Utf16IncrementalDecoder:
                 if offset < 0:
                     offset += len(string)
     def reset():
-        self.state = -1
         self.pending = b""
+        self.state = -1
     def getstate():
         return (self.pending, self.state)
     def setstate(state):
-        if state[1] not in [-1, 0, 1]:
-            raise ValueError("invalid state: " + repr(state))
         self.pending = state[0]
         self.state = state[1]
 
@@ -683,7 +662,7 @@ class Utf8IncrementalEncoder:
     include_bom = False
     def __init__(errors):
         self.errors = errors
-        self.state = -1
+        self.reset()
     def encode(string, final = False):
         # We use UTF-8 natively, so this is fairly simple
         let out = ByteCatenator()
@@ -697,8 +676,6 @@ class Utf8IncrementalEncoder:
     def getstate():
         return self.state
     def setstate(state):
-        if state not in [-1, 0]:
-            raise ValueError("invalid state: " + repr(state))
         self.state = state
 
 class Utf8IncrementalDecoder:
@@ -711,7 +688,7 @@ class Utf8IncrementalDecoder:
     pending = b""
     def __init__(errors):
         self.errors = errors
-        self.state = -1
+        self.reset()
     def decode(data_in, final = False):
         # We use UTF-8 natively, so this only validates it and applies the error handler
         #   (and removes a BOM if remove_bom is set)
@@ -798,13 +775,11 @@ class Utf8IncrementalDecoder:
             self.pending = bytes(dlist[second_offset:])
         return out.getvalue()
     def reset():
-        self.state = -1
         self.pending = b""
+        self.state = -1
     def getstate():
         return (self.pending, self.state)
     def setstate(state):
-        if state[1] not in [-1, 0]:
-            raise ValueError("invalid state: " + repr(state))
         self.pending = state[0]
         self.state = state[1]
 
@@ -834,15 +809,11 @@ class JapaneseAutodetectIncrementalDecoder:
     state = None
     def __init__(errors):
         self.errors = errors
-        self.state = 0
         self.jis = lookup("iso-2022-jp").incrementaldecoder("strict")
         self.sjis = lookup("windows-31j").incrementaldecoder("strict")
         self.ujis = lookup("euc-jp").incrementaldecoder("strict")
         self.utf = lookup("utf-8-sig").incrementaldecoder("strict")
-        self.pendingjis = StringCatenator()
-        self.pendingsjis = StringCatenator()
-        self.pendingujis = StringCatenator()
-        self.pendingutf = StringCatenator()
+        self.reset()
     def decode(data, final = False):
         if not (self.state & 0x01):
             try:
@@ -937,8 +908,6 @@ class JapaneseAutodetectIncrementalDecoder:
                 self.utf.getstate(), self.pendingutf.getvalue(), 
                 self.state)
     def setstate(state):
-        if state[8] < 0 or state[8] >= 16:
-            raise ValueError("invalid state: " + repr(state))
         self.jis.setstate(state[0])
         self.pendingjis = StringCatenator()
         self.pendingjis.add(state[1])

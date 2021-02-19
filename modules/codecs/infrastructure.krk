@@ -176,10 +176,7 @@ class AsciiIncrementalEncoder:
                     offset += len(string)
     def reset():
     def getstate():
-        return 0
     def setstate(state):
-        if state != 0:
-            raise ValueError("stateless encoder being set to nonzero state")
 
 class AsciiIncrementalDecoder:
     name = "ecma-43-dv"
@@ -269,11 +266,9 @@ class AsciiIncrementalDecoder:
     def reset():
         self.pending = b""
     def getstate():
-        return (self.pending, 0)
+        return self.pending
     def setstate(state):
-        if state[1] != 0:
-            raise ValueError("stateless (besides pending buffer) decoder being set to nonzero state")
-        self.pending = state[0]
+        self.pending = state
 
 register_kuroko_codec(["ecma-43-dv", "iso-4873-dv"], AsciiIncrementalEncoder, AsciiIncrementalDecoder)
 
@@ -288,10 +283,7 @@ class UndefinedIncrementalEncoder:
         strict_errors(error)
     def reset():
     def getstate():
-        return 0
     def setstate(state):
-        if state != 0:
-            raise ValueError("undefined encoder being set to nonzero state")
 
 class UndefinedIncrementalDecoder:
     name = "undefined"
@@ -306,10 +298,7 @@ class UndefinedIncrementalDecoder:
         return errorret[0]
     def reset():
     def getstate():
-        return (b"", 0)
     def setstate(state):
-        if state[1] != 0:
-            raise ValueError("undefined decoder being set to nonzero state")
 
 register_kuroko_codec(
     ["undefined", "replacement", # "undefined" is Python's label, "replacement" is WHATWG's.
