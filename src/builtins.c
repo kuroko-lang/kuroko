@@ -271,6 +271,14 @@ static KrkValue _type(int argc, KrkValue argv[], int hasKw) {
 	return OBJECT_VAL(krk_getType(argv[0]));
 }
 
+KRK_FUNC(getattr,{
+	FUNCTION_TAKES_AT_LEAST(2);
+	KrkValue object = argv[0];
+	CHECK_ARG(1,str,KrkString*,property);
+	return krk_valueGetAttribute(object, property->chars);
+})
+
+
 #define IS_Helper(o)  (krk_isInstanceOf(o, Helper))
 #define AS_Helper(o)  (AS_INSTANCE(o))
 #define IS_LicenseReader(o) (krk_isInstanceOf(o, LicenseReader))
@@ -377,5 +385,6 @@ void _createAndBind_builtins(void) {
 	BUILTIN_FUNCTION("hex", _hex, "Convert an integer value to a hexadecimal string.");
 	BUILTIN_FUNCTION("any", _any, "Returns True if at least one element in the given iterable is truthy, False otherwise.");
 	BUILTIN_FUNCTION("all", _all, "Returns True if every element in the given iterable is truthy, False otherwise.");
+	BUILTIN_FUNCTION("getattr", FUNC_NAME(krk,getattr), "Obtain a property of an object as if it were accessed by the dot operator.");
 }
 

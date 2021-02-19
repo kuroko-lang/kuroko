@@ -1113,6 +1113,12 @@ static KrkValue krk_setclean(int argc, KrkValue argv[], int hasKw) {
 	return NONE_VAL();
 }
 
+static KrkValue krk_import_wrapper(int argc, KrkValue argv[], int hasKw) {
+	if (!argc || !IS_STRING(argv[0])) return krk_runtimeError(vm.exceptions->typeError, "expected string");
+	if (!krk_doRecursiveModuleLoad(AS_STRING(argv[0]))) return NONE_VAL(); /* ImportError already raised */
+	return krk_pop();
+}
+
 void krk_initVM(int flags) {
 	vm.globalFlags = flags & 0xFF00;
 
@@ -1221,6 +1227,7 @@ void krk_initVM(int flags) {
 	krk_defineNative(&vm.system->fields, "getsizeof", krk_getsize);
 	krk_defineNative(&vm.system->fields, "set_clean_output", krk_setclean);
 	krk_defineNative(&vm.system->fields, "set_tracing", krk_set_tracing)->doc = "Toggle debugging modes.";
+	krk_defineNative(&vm.system->fields, "importmodule", krk_import_wrapper)->doc = "Import a module by string name";
 	krk_attachNamedObject(&vm.system->fields, "path_sep", (KrkObj*)S(PATH_SEP));
 	KrkValue module_paths = krk_list_of(0,NULL,0);
 	krk_attachNamedValue(&vm.system->fields, "module_paths", module_paths);
@@ -1717,6 +1724,17 @@ static int valueGetProperty(KrkString * name) {
 	}
 
 	return 0;
+}
+
+KrkValue krk_valueGetAttribute(KrkValue value, char * name) {
+	krk_push(OBJECT_VAL(krk_copyString(name,strlen(name))));
+	krk_push(value);
+	if (!valueGetProperty(AS_STRING(krk_peek(1)))) {
+		return krk_runtimeError(vm.exceptions->attributeError, "'%s' object has no attribute '%s'", krk_typeName(krk_peek(0)), name);
+	}
+	krk_swap(1);
+	krk_pop(); /* String */
+	return krk_pop();
 }
 
 static int valueDelProperty(KrkString * name) {

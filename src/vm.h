@@ -741,3 +741,4 @@ extern KrkValue krk_operator_lt(KrkValue,KrkValue);
 extern KrkValue krk_operator_gt(KrkValue,KrkValue);
 
 
+extern KrkValue krk_valueGetAttribute(KrkValue value, char * name);
