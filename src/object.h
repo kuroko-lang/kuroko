@@ -11,6 +11,7 @@
 #include <pthread.h>
 #endif
 
+#define isObjType(v,t) (IS_OBJECT(v) && (AS_OBJECT(v)->type == (t)))
 #define OBJECT_TYPE(value) (AS_OBJECT(value)->type)
 #define IS_STRING(value)   isObjType(value, OBJ_STRING)
 #define AS_STRING(value)   ((KrkString *)AS_OBJECT(value))
@@ -216,10 +217,6 @@ struct DictKeys {
 
 #define AS_LIST(value) (&((KrkList *)AS_OBJECT(value))->values)
 #define AS_DICT(value) (&((KrkDict *)AS_OBJECT(value))->entries)
-
-static inline int isObjType(KrkValue value, ObjType type) {
-	return IS_OBJECT(value) && AS_OBJECT(value)->type == type;
-}
 
 /**
  * @brief Yield ownership of a C string to the GC and obtain a string object.
