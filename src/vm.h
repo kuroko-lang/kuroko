@@ -58,7 +58,7 @@ typedef struct {
  *
  * These values are the offsets into that index for each of the relevant
  * function names (generally with extra underscores removed). For example
- * @c METHOD_INIT is the offset for the string value for @c "\__init__".
+ * @c METHOD_INIT is the offset for the string value for @c "__init__".
  */
 typedef enum {
 	METHOD_INIT,
@@ -194,7 +194,7 @@ typedef struct KrkThreadState {
  * string and module tables, tables of builtin types,
  * and the state of the (shared) garbage collector.
  */
-typedef struct {
+typedef struct KrkVM {
 	int globalFlags;                  /**< Global VM state flags */
 	char * binpath;                   /**< A string representing the name of the interpreter binary. */
 	KrkTable strings;                 /**< Strings table */
@@ -253,7 +253,7 @@ extern KrkVM krk_vm;
 
 /**
  * @brief Initialize the VM at program startup.
- * @memberof KrkVm
+ * @memberof KrkVM
  *
  * All library users must call this exactly once on startup to create
  * the built-in types, modules, and functions for the VM and prepare
@@ -267,7 +267,7 @@ extern void krk_initVM(int flags);
 
 /**
  * @brief Release resources from the VM.
- * @memberof KrkVm
+ * @memberof KrkVM
  *
  * Generally, it is desirable to call this once before the hosting program exits.
  * If a fresh VM state is needed, krk_freeVM should be called before a further
@@ -303,7 +303,7 @@ extern void krk_resetStack(void);
  *         indicate @c KRK_THREAD_HAS_EXCEPTION and @c krk_currentThread.currentException
  *         should contain the raised exception value.
  */
-extern KrkValue krk_interpret(const char * src, int newScope, char *, char *);
+extern KrkValue krk_interpret(const char * src, int newScope, char * fromName, char * fromFile);
 
 /**
  * @brief Load and run a source file and return when execution completes.
@@ -319,7 +319,7 @@ extern KrkValue krk_interpret(const char * src, int newScope, char *, char *);
  * @return As with @c krk_interpret, an object representing the newly created module,
  *         or the final return value of the VM execution.
  */
-extern KrkValue krk_runfile(const char * fileName, int newScope, char *, char *);
+extern KrkValue krk_runfile(const char * fileName, int newScope, char * fromName, char * fromFile);
 
 /**
  * @brief Load and run a file as a module.
@@ -407,7 +407,7 @@ extern KrkNative * krk_defineNative(KrkTable * table, const char * name, NativeF
  *
  * @param table    Attribute table to attach to, such as @c &someInstance->fields
  * @param name     Nil-terminated C string with the name to assign
- * @param function Native function pointer to attach
+ * @param func     Native function pointer to attach
  * @return A pointer to the property object created.
  */
 extern KrkProperty * krk_defineNativeProperty(KrkTable * table, const char * name, NativeFn func);
@@ -660,12 +660,12 @@ extern KrkValue krk_dirObject(int argc, KrkValue argv[], int hasKw);
  *
  * This is generally called by the import mechanisms to load a single module.
  *
- * @param name      Name of the module, used for file lookup.
+ * @param path      Dotted path of the module, used for file lookup.
  * @param moduleOut Receives a value with the module object.
- * @param runAs     Name to attach to @c \__name__ for this module, different from @p name
+ * @param runAs     Name to attach to @c \__name__ for this module, different from @p path
  * @return 1 if the module was loaded, 0 if an @c ImportError occurred.
  */
-extern int krk_loadModule(KrkString * name, KrkValue * moduleOut, KrkString * runAs);
+extern int krk_loadModule(KrkString * path, KrkValue * moduleOut, KrkString * runAs);
 
 /**
  * @brief Load a module from a package.

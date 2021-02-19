@@ -74,6 +74,7 @@ extern void krk_tableAddAll(KrkTable * from, KrkTable * to);
  * an entry equivalent to the string specified by the 'chars' and 'length'
  * parameters, using the 'hash' parameter to speed up lookup.
  *
+ * @param table   Should always be @c &vm.strings
  * @param chars   C array of chars representing the string.
  * @param length  Length of the string.
  * @param hash    Precalculated hash value for the string.
