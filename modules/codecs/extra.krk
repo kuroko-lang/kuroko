@@ -66,13 +66,13 @@ class Iso2022Jp2IncrementalEncoder(Iso2022JpIncrementalEncoder):
 class Iso2022Jp2IncrementalDecoder(Iso2022JpIncrementalDecoder):
     name = "iso-2022-jp-2"
     webname = None
-    decmaps_sbcs = [None, None]
-    decmaps_dbcs = [None, None, decode_jis7, decmap_jis90p2, encmap_gb7, encmap_ksc7]
+    decmaps_sbcs = [None, None, decode_jis7katakana]
+    decmaps_dbcs = [None, None, None, decode_jis7, decmap_jis90p2, encmap_gb7, encmap_ksc7, decmap_jis78]
     decmap_supershift_latin = decmap_lat1supp
     decmap_supershift_greek = decmap_greksupp
-    escs_onebyte = {0x42: 0, 0x4A: 1}
-    escs_twobyte = {0x40: 2, 0x41: 4, 0x42: 2, 0x43: 5, 0x44: 3}
-    two_byte_modes = [2, 3, 4, 5]
+    escs_onebyte = {0x42: 0, 0x49: 2, 0x4A: 1}
+    escs_twobyte = {0x40: 7, 0x41: 5, 0x42: 3, 0x43: 6, 0x44: 4}
+    two_byte_modes = [3, 4, 5, 6, 7]
     new_twobytes = True
     super_shift = True
 
@@ -104,10 +104,10 @@ class Iso2022Jp2004IncrementalDecoder(Iso2022JpIncrementalDecoder):
     name = "iso-2022-jp-2004"
     webname = None
     decmaps_sbcs = [None, None, decode_jis7katakana]
-    decmaps_dbcs = [None, None, None, decode_jis7, decmap_jis00, decmap_jis00p2, decmap_jis04]
+    decmaps_dbcs = [None, None, None, decode_jis7, decmap_jis00, decmap_jis00p2, decmap_jis04, decmap_jis78]
     escs_onebyte = {0x42: 0, 0x49: 2, 0x4A: 1}
-    escs_twobyte = {0x40: 3, 0x42: 3, 0x4F: 4, 0x50: 5, 0x51: 6}
-    two_byte_modes = [3, 4, 5, 6]
+    escs_twobyte = {0x40: 7, 0x42: 3, 0x4F: 4, 0x50: 5, 0x51: 6}
+    two_byte_modes = [3, 4, 5, 6, 7]
     new_twobytes = True
 
 register_kuroko_codec(["iso-2022-jp-3"],
