@@ -30,7 +30,10 @@ class JisEncodingIncrementalDecoder(Iso2022JpIncrementalDecoder):
     decmap_shiftout = decode_jis7katakana
     decmap_supershift_latin = decmap_lat1supp
     decmap_supershift_greek = decmap_greksupp
-    escs_onebyte = {0x42: 0, 0x49: 2, 0x4A: 1}
+    # 0x48 is not ASCII or JIS-Roman, but SEN 85 02 00 Annex C. It is however misused for either
+    #   ASCII or JIS-Roman in some encoders, so it is a "good idea for software to recognise,
+    #   but not to generate" (—Lunde) it for JIS-Roman.
+    escs_onebyte = {0x42: 0, 0x48: 1, 0x49: 2, 0x4A: 1}
     escs_twobyte = {0x40: 4, 0x41: 9, 0x42: 3, 0x43: 10, 0x44: 5, 0x4F: 6, 0x50: 7, 0x51: 8}
     two_byte_modes = [3, 4, 5, 6, 7, 8, 9, 10]
     new_twobytes = True
