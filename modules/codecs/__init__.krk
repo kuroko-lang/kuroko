@@ -1,2 +1,2 @@
 from codecs.infrastructure import encode, decode, lookup
-import codecs.sbencs, codecs.dbdata, codecs.bespokecodecs, codecs.extra
+import codecs.sbencs, codecs.dbdata, codecs.bespokecodecs, codecs.sbextra, codecs.dbextra

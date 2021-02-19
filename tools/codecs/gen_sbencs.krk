@@ -62,6 +62,14 @@ with fileio.open("modules/codecs/sbencs.krk", "w") as outf:
                     let whatwgname = enc["name"].lower()
                     let name = realname.get(whatwgname, whatwgname)
                     let labels = enc["labels"]
+                    if name == "iso-8859-16":
+                        labels.append("iso8859-16") # Python parity
+                    if name == "macintosh":
+                        labels.append("mac-roman") # Python parity
+                        labels.append("macroman") # Python parity
+                    if name == "x-mac-cyrillic":
+                        labels.append("mac-cyrillic") # Python parity
+                        labels.append("maccyrillic") # Python parity
                     let built = build_sbmap(whatwgname)
                     let encoding_map = built[0]
                     let decoding_map = built[1]

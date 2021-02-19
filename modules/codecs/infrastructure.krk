@@ -3,8 +3,12 @@ let _decoder_registry = {}
 def register_kuroko_codec(labels, incremental_encoder_class, incremental_decoder_class):
     for label in labels:
         if incremental_encoder_class:
+            if label.lower() in _encoder_registry:
+                raise ValueError(f"label {label!r} already registered")
             _encoder_registry[label.lower()] = incremental_encoder_class
         if incremental_decoder_class:
+            if label.lower() in _decoder_registry:
+                raise ValueError(f"label {label!r} already registered")
             _decoder_registry[label.lower()] = incremental_decoder_class
 
 class KurokoCodecInfo:

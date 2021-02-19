@@ -1,6 +1,6 @@
 """
-This module includes some additional encodings not specified by WHATWG. As such, none of the
-codecs in this module should be used in HTML.
+This module includes some additional variable-width or wide encodings not specified by WHATWG. As 
+such, none of the codecs in this module should be used in HTML.
 """
 
 from codecs.extradata import encmap_lat1supp, decmap_lat1supp, encmap_greksupp, decmap_greksupp, encmap_jis78, decmap_jis78, encmap_jis90p2, decmap_jis90p2, encmap_jis00, decmap_jis00, encmap_jis00p2, decmap_jis00p2, encmap_jis04, decmap_jis04, encmap_jis7katakana, encmap_gb7, decmap_gb7, encmap_ksc7, decmap_ksc7
