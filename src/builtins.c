@@ -125,7 +125,7 @@ static KrkValue _hex(int argc, KrkValue argv[], int hasKw) {
 	if (argc != 1 || !IS_INTEGER(argv[0])) return krk_runtimeError(vm.exceptions->argumentError, "hex() expects one int argument");
 	char tmp[20];
 	krk_integer_type x = AS_INTEGER(argv[0]);
-	size_t len = sprintf(tmp, "%s0x" PRIkrk_hex, x < 0 ? "-" : "", x < 0 ? -x : x);
+	size_t len = snprintf(tmp, 20, "%s0x" PRIkrk_hex, x < 0 ? "-" : "", x < 0 ? -x : x);
 	return OBJECT_VAL(krk_copyString(tmp,len));
 }
 
@@ -221,14 +221,16 @@ static KrkValue _module_repr(int argc, KrkValue argv[], int hasKw) {
 	KrkValue file = NONE_VAL();
 	krk_tableGet(&self->fields, vm.specialMethodNames[METHOD_FILE], &file);
 
-	char * tmp = malloc(50 + AS_STRING(name)->length + (IS_STRING(file) ? AS_STRING(file)->length : 20));
+	size_t allocSize = 50 + AS_STRING(name)->length + (IS_STRING(file) ? AS_STRING(file)->length : 20);
+	char * tmp = malloc(allocSize);
+	size_t len;
 	if (IS_STRING(file)) {
-		sprintf(tmp, "<module '%s' from '%s'>", AS_CSTRING(name), AS_CSTRING(file));
+		len = snprintf(tmp, allocSize, "<module '%s' from '%s'>", AS_CSTRING(name), AS_CSTRING(file));
 	} else {
-		sprintf(tmp, "<module '%s' (built-in)>", AS_CSTRING(name));
+		len = snprintf(tmp, allocSize, "<module '%s' (built-in)>", AS_CSTRING(name));
 	}
 
-	KrkValue out = OBJECT_VAL(krk_copyString(tmp, strlen(tmp)));
+	KrkValue out = OBJECT_VAL(krk_copyString(tmp, len));
 	free(tmp);
 	return out;
 }
@@ -252,14 +254,15 @@ static KrkValue obj_hash(int argc, KrkValue argv[], int hasKw) {
  */
 static KrkValue _strBase(int argc, KrkValue argv[], int hasKw) {
 	KrkClass * type = krk_getType(argv[0]);
-	size_t len = sizeof("<instance of . at 0x1234567812345678>") + type->name->length;
-	char * tmp = malloc(len);
+	size_t allocSize = sizeof("<instance of . at 0x1234567812345678>") + type->name->length;
+	char * tmp = malloc(allocSize);
+	size_t len;
 	if (IS_OBJECT(argv[0])) {
-		sprintf(tmp, "<instance of %s at %p>", type->name->chars, (void*)AS_OBJECT(argv[0]));
+		len = snprintf(tmp, allocSize, "<instance of %s at %p>", type->name->chars, (void*)AS_OBJECT(argv[0]));
 	} else {
-		sprintf(tmp, "<instance of %s>", type->name->chars);
+		len = snprintf(tmp, allocSize, "<instance of %s>", type->name->chars);
 	}
-	KrkValue out = OBJECT_VAL(krk_copyString(tmp, strlen(tmp)));
+	KrkValue out = OBJECT_VAL(krk_copyString(tmp, len));
 	free(tmp);
 	return out;
 }

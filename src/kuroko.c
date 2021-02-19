@@ -166,9 +166,10 @@ static void tab_complete_func(rline_context_t * c) {
 					krk_push(thisValue);
 					if (IS_CLOSURE(thisValue) || IS_BOUND_METHOD(thisValue) ||
 						(IS_NATIVE(thisValue) && ((KrkNative*)AS_OBJECT(thisValue))->isMethod != 2)) {
-						char * tmp = malloc(s->length + 2);
-						sprintf(tmp, "%s(", s->chars);
-						s = krk_takeString(tmp, strlen(tmp));
+						size_t allocSize = s->length + 2;
+						char * tmp = malloc(allocSize);
+						size_t len = snprintf(tmp, allocSize, "%s(", s->chars);
+						s = krk_takeString(tmp, len);
 						krk_pop();
 						krk_push(OBJECT_VAL(s));
 					}
@@ -300,7 +301,7 @@ static void findInterpreter(char * argv[]) {
 				if (next) *next++ = '\0';
 
 				char tmp[4096];
-				sprintf(tmp, "%s/%s", path, argv[0]);
+				snprintf(tmp, 4096, "%s/%s", path, argv[0]);
 				if (access(tmp, X_OK) == 0) {
 					binpath = strdup(tmp);
 					break;

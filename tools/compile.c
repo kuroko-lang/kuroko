@@ -87,7 +87,7 @@ static void findInterpreter(char * argv[]) {
 				if (next) *next++ = '\0';
 
 				char tmp[4096];
-				sprintf(tmp, "%s/%s", path, argv[0]);
+				snprintf(tmp, 4096, "%s/%s", path, argv[0]);
 				if (access(tmp, X_OK) == 0) {
 					binpath = strdup(tmp);
 					break;

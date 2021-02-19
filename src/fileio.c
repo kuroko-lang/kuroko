@@ -93,9 +93,10 @@ KRK_METHOD(File,__str__,{
 	KrkValue modestr;
 	if (!krk_tableGet(&self->inst.fields, OBJECT_VAL(S("filename")), &filename) || !IS_STRING(filename)) return krk_runtimeError(vm.exceptions->baseException, "Corrupt File");
 	if (!krk_tableGet(&self->inst.fields, OBJECT_VAL(S("modestr")), &modestr) || !IS_STRING(modestr)) return krk_runtimeError(vm.exceptions->baseException, "Corrupt File");
-	char * tmp = malloc(AS_STRING(filename)->length + AS_STRING(modestr)->length + 100); /* safety */
-	sprintf(tmp, "<%s file '%s', mode '%s' at %p>", self->filePtr ? "open" : "closed", AS_CSTRING(filename), AS_CSTRING(modestr), (void*)self);
-	KrkString * out = krk_copyString(tmp, strlen(tmp));
+	size_t allocSize = AS_STRING(filename)->length + AS_STRING(modestr)->length + 100;
+	char * tmp = malloc(allocSize);
+	size_t len = snprintf(tmp, allocSize, "<%s file '%s', mode '%s' at %p>", self->filePtr ? "open" : "closed", AS_CSTRING(filename), AS_CSTRING(modestr), (void*)self);
+	KrkString * out = krk_copyString(tmp, len);
 	free(tmp);
 	return OBJECT_VAL(out);
 })
@@ -455,8 +456,9 @@ KRK_METHOD(Directory,__repr__,{
 	if (!krk_tableGet(&self->inst.fields, OBJECT_VAL(S("path")), &path) || !IS_STRING(path))
 		return krk_runtimeError(vm.exceptions->valueError, "corrupt Directory");
 
-	char * tmp = malloc(AS_STRING(path)->length + 100);
-	size_t len = sprintf(tmp, "<%s directory '%s' at %p>", self->dirPtr ? "open" : "closed", AS_CSTRING(path), (void*)self);
+	size_t allocSize = AS_STRING(path)->length + 100;
+	char * tmp = malloc(allocSize);
+	size_t len = snprintf(tmp, allocSize, "<%s directory '%s' at %p>", self->dirPtr ? "open" : "closed", AS_CSTRING(path), (void*)self);
 	KrkString * out = krk_copyString(tmp, len);
 	free(tmp);
 	return OBJECT_VAL(out);
