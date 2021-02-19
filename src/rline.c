@@ -72,8 +72,9 @@ void rline_history_insert(char * str) {
 void rline_history_append_line(char * str) {
 	if (rline_history_count) {
 		char ** s = &rline_history[(rline_history_count - 1 + rline_history_offset) % RLINE_HISTORY_ENTRIES];
-		char * c = malloc(strlen(*s) + strlen(str) + 2);
-		sprintf(c, "%s\n%s", *s, str);
+		size_t len = strlen(*s) + strlen(str) + 2;
+		char * c = malloc(len);
+		snprintf(c, len, "%s\n%s", *s, str);
 		if (c[strlen(c)-1] == '\n') {
 			c[strlen(c)-1] = '\0';
 		}

@@ -156,7 +156,7 @@ KRK_METHOD(Lock,__repr__,{
 	/* Address of lock object */
 	{
 		char tmp[100];
-		size_t len = sprintf(tmp, "%p", (void*)self);
+		size_t len = snprintf(tmp, 100, "%p", (void*)self);
 		pushStringBuilderStr(&sb, tmp, len);
 	}
 

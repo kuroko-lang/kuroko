@@ -63,7 +63,7 @@ static KrkValue _closure_str(int argc, KrkValue argv[], int hasKw) {
 
 	size_t len = AS_STRING(s)->length + sizeof("<function >");
 	char * tmp = malloc(len);
-	sprintf(tmp, "<function %s>", AS_CSTRING(s));
+	snprintf(tmp, len, "<function %s>", AS_CSTRING(s));
 	s = OBJECT_VAL(krk_copyString(tmp,len-1));
 	free(tmp);
 	krk_pop();
@@ -79,7 +79,7 @@ static KrkValue _bound_str(int argc, KrkValue argv[], int hasKw) {
 
 	size_t len = AS_STRING(s)->length + sizeof("<method >") + strlen(typeName) + 1;
 	char * tmp = malloc(len);
-	sprintf(tmp, "<method %s.%s>", typeName, AS_CSTRING(s));
+	snprintf(tmp, len, "<method %s.%s>", typeName, AS_CSTRING(s));
 	s = OBJECT_VAL(krk_copyString(tmp,len-1));
 	free(tmp);
 	krk_pop();

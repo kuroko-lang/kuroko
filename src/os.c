@@ -70,9 +70,9 @@ KRK_FUNC(uname,{
 	}
 
 	char tmp[256];
-	sprintf(tmp, "%ld", versionInfo.dwBuildNumber);
+	size_t len = snprintf(tmp, 256, "%ld", versionInfo.dwBuildNumber);
 
-	S_KEY(version, krk_copyString(tmp,strlen(tmp)));
+	S_KEY(version, krk_copyString(tmp,len));
 	if (sizeof(void *) == 8) {
 		S_KEY(machine,S("x64"));
 	} else {
@@ -94,8 +94,9 @@ KrkValue krk_os_setenviron(int argc, KrkValue argv[], int hasKw) {
 		return krk_runtimeError(vm.exceptions->argumentError, "Invalid arguments to environ.__set__");
 	}
 	/* Set environment variable */
-	char * tmp = malloc(AS_STRING(argv[1])->length + AS_STRING(argv[2])->length + 2);
-	sprintf(tmp, "%s=%s", AS_CSTRING(argv[1]), AS_CSTRING(argv[2]));
+	size_t len = AS_STRING(argv[1])->length + AS_STRING(argv[2])->length + 2;
+	char * tmp = malloc(len);
+	snprintf(tmp, len, "%s=%s", AS_CSTRING(argv[1]), AS_CSTRING(argv[2]));
 	int r = putenv(tmp);
 	if (r == 0) {
 		/* Make super call */
@@ -116,8 +117,9 @@ KrkValue krk_os_unsetenviron(int argc, KrkValue argv[], int hasKw) {
 #ifndef _WIN32
 	unsetenv(AS_CSTRING(argv[1]));
 #else
-	char * tmp = malloc(AS_STRING(argv[1])->length + 2);
-	sprintf(tmp, "%s=", AS_CSTRING(argv[1]));
+	size_t len = AS_STRING(argv[1])->length + 2;
+	char * tmp = malloc(len);
+	snprintf(tmp, len, "%s=", AS_CSTRING(argv[1]));
 	putenv(tmp);
 	free(tmp);
 #endif

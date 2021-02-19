@@ -705,7 +705,7 @@ KRK_METHOD(str,__repr__,{
 					PUSH_CHAR('\\');
 					PUSH_CHAR('x');
 					char hex[3];
-					sprintf(hex,"%02x", (unsigned char)*c);
+					snprintf(hex, 3, "%02x", (unsigned char)*c);
 					PUSH_CHAR(hex[0]);
 					PUSH_CHAR(hex[1]);
 				} else {

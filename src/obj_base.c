@@ -36,8 +36,9 @@ static KrkValue krk_docOfClass(int argc, KrkValue argv[], int hasKw) {
 /* Class.__str__() (and Class.__repr__) */
 static KrkValue _class_to_str(int argc, KrkValue argv[], int hasKw) {
 	if (!IS_CLASS(argv[0])) return krk_runtimeError(vm.exceptions->typeError, "expected class");
-	char * tmp = malloc(sizeof("<type ''>") + AS_CLASS(argv[0])->name->length);
-	size_t l = sprintf(tmp, "<type '%s'>", AS_CLASS(argv[0])->name->chars);
+	size_t allocSize = sizeof("<type ''>") + AS_CLASS(argv[0])->name->length;
+	char * tmp = malloc(allocSize);
+	size_t l = snprintf(tmp, allocSize, "<type '%s'>", AS_CLASS(argv[0])->name->chars);
 	KrkString * out = krk_copyString(tmp,l);
 	free(tmp);
 	return OBJECT_VAL(out);

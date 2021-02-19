@@ -197,8 +197,9 @@ KRK_FUNC(dis,{
 			KrkFunction * func = ((KrkClosure*)AS_BOUND_METHOD(argv[0])->method)->function;
 			const char * methodName = func->name ? func->name->chars : "(unnamed)";
 			const char * typeName = IS_CLASS(AS_BOUND_METHOD(argv[0])->receiver) ? AS_CLASS(AS_BOUND_METHOD(argv[0])->receiver)->name->chars : krk_typeName(AS_BOUND_METHOD(argv[0])->receiver);
-			char * tmp = malloc(strlen(methodName) + strlen(typeName) + 2);
-			sprintf(tmp, "%s.%s", typeName, methodName);
+			size_t allocSize = strlen(methodName) + strlen(typeName) + 2;
+			char * tmp = malloc(allocSize);
+			snprintf(tmp, allocSize, "%s.%s", typeName, methodName);
 			krk_disassembleChunk(stdout, func, tmp);
 			free(tmp);
 		} else {

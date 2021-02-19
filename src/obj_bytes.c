@@ -84,7 +84,7 @@ KRK_METHOD(bytes,__repr__,{
 					pushStringBuilder(&sb, '\\');
 					pushStringBuilder(&sb, 'x');
 					char hex[3];
-					sprintf(hex,"%02x", ch);
+					snprintf(hex,3,"%02x", ch);
 					pushStringBuilder(&sb, hex[0]);
 					pushStringBuilder(&sb, hex[1]);
 				} else {

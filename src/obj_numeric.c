@@ -30,7 +30,7 @@ KRK_METHOD(int,__init__,{
 
 KRK_METHOD(int,__str__,{
 	char tmp[100];
-	size_t l = sprintf(tmp, PRIkrk_int, self);
+	size_t l = snprintf(tmp, 100, PRIkrk_int, self);
 	return OBJECT_VAL(krk_copyString(tmp, l));
 })
 
@@ -62,7 +62,7 @@ KRK_METHOD(float,__float__,{ return argv[0]; })
 
 KRK_METHOD(float,__str__,{
 	char tmp[100];
-	size_t l = sprintf(tmp, "%g", self);
+	size_t l = snprintf(tmp, 100, "%g", self);
 	return OBJECT_VAL(krk_copyString(tmp, l));
 })
 

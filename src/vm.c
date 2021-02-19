@@ -1234,19 +1234,22 @@ void krk_initVM(int flags) {
 		if (strstr(dir,"/bin") == (dir + strlen(dir) - 4)) {
 			slash = strrchr(dir,'/');
 			if (slash) *slash = '\0';
-			char * out = malloc(sizeof("/lib/kuroko/") + strlen(dir));
-			size_t len = sprintf(out,"%s/lib/kuroko/", dir);
+			size_t allocSize = sizeof("/lib/kuroko/") + strlen(dir);
+			char * out = malloc(allocSize);
+			size_t len = snprintf(out, allocSize, "%s/lib/kuroko/", dir);
 			krk_writeValueArray(AS_LIST(module_paths), OBJECT_VAL(krk_takeString(out, len)));
 		} else {
-			char * out = malloc(sizeof("/modules/") + strlen(dir));
-			size_t len = sprintf(out,"%s/modules/", dir);
+			size_t allocSize = sizeof("/modules/") + strlen(dir);
+			char * out = malloc(allocSize);
+			size_t len = snprintf(out, allocSize, "%s/modules/", dir);
 			krk_writeValueArray(AS_LIST(module_paths), OBJECT_VAL(krk_takeString(out, len)));
 		}
 #else
 		char * backslash = strrchr(dir,'\\');
 		if (backslash) *backslash = '\0';
-		char * out = malloc(sizeof("\\modules\\") + strlen(dir));
-		size_t len = sprintf(out,"%s\\modules\\", dir);
+		size_t allocSize = sizeof("\\modules\\") + strlen(dir);
+		char * out = malloc(allocSize);
+		size_t len = snprintf(out, allocSize, "%s\\modules\\", dir);
 		krk_writeValueArray(AS_LIST(module_paths), OBJECT_VAL(krk_takeString(out,len)));
 #endif
 		free(dir);
