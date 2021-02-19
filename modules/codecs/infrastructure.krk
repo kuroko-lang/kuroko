@@ -20,6 +20,33 @@ class KurokoCodecInfo:
         if self.incrementaldecoder:
             return self.incrementaldecoder(errors).decode(data, True)
         raise ValueError("unrecognised encoding or encode-only encoding")
+    def __repr__():
+        let ret = "<" + type(self).__name__ + " " + repr(self.name)
+        let enc = self.incrementalencoder
+        let dec = self.incrementaldecoder
+        if enc:
+            if enc.name != self.name or (enc.webname and enc.webname != self.name):
+                ret += "; encoded as " + repr(enc.name)
+            else:
+                ret += "; with encoder"
+            if not enc.webname:
+                ret += " (non-web)"
+            else if enc.webname != enc.name:
+                ret += " (web " + repr(enc.webname) + ")"
+        else:
+            ret += "; no encoder"
+        if dec:
+            if dec.name != self.name or (dec.webname and dec.webname != self.name):
+                ret += "; decoded as " + repr(dec.name)
+            else:
+                ret += "; with decoder"
+            if not dec.webname:
+                ret += " (non-web)"
+            else if dec.webname != dec.name:
+                ret += " (web " + repr(dec.webname) + ")"
+        else:
+            ret += "; no decoder"
+        return ret + ">"
 
 def lookup(label):
     let enc = None
