@@ -6,6 +6,8 @@
 # I typically clone these subprojects in the root as well.
 /wasm/
 /jupyter/
+# Doxygen output
+/html/
 # Match library files anywhere.
 *.o
 *.so

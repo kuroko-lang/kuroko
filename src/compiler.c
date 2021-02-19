@@ -359,7 +359,7 @@ static KrkFunction * endCompiler() {
 
 #ifdef ENABLE_DISASSEMBLY
 	if ((krk_currentThread.flags & KRK_THREAD_ENABLE_DISASSEMBLY) && !parser.hadError) {
-		krk_disassembleChunk(stderr, function, function->name ? function->name->chars : "(module)");
+		krk_disassembleCodeObject(stderr, function, function->name ? function->name->chars : "(module)");
 	}
 #endif
 

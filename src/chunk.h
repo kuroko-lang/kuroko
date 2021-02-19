@@ -166,30 +166,36 @@ typedef struct {
 
 /**
  * @brief Initialize an opcode chunk.
+ * @memberof KrkChunk
  */
 extern void krk_initChunk(KrkChunk * chunk);
 
 /**
+ * @memberof KrkChunk
  * @brief Append a byte to an opcode chunk.
  */
 extern void krk_writeChunk(KrkChunk * chunk, uint8_t byte, size_t line);
 
 /**
  * @brief Release the resources allocated to an opcode chunk.
+ * @memberof KrkChunk
  */
 extern void krk_freeChunk(KrkChunk * chunk);
 
 /**
  * @brief Add a new constant value to an opcode chunk.
+ * @memberof KrkChunk
  */
 extern size_t krk_addConstant(KrkChunk * chunk, KrkValue value);
 
 /**
  * @brief Write an OP_CONSTANT(_LONG) instruction.
+ * @memberof KrkChunk
  */
 extern void krk_emitConstant(KrkChunk * chunk, size_t ind, size_t line);
 
 /**
  * @brief Add a new constant and write an instruction for it.
+ * @memberof KrkChunk
  */
 extern size_t krk_writeConstant(KrkChunk * chunk, KrkValue value, size_t line);

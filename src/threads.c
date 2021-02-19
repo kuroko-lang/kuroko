@@ -19,6 +19,16 @@
 
 KrkClass * ThreadError;
 KrkClass * Thread;
+/**
+ * @brief Object representation of a system thread.
+ * @extends KrkInstance
+ *
+ * Except for the main thread, each new thread spawned by the virtual machine
+ * is represented by a thread object. As long as the thread is active, its
+ * own thread object will live on its stac and avoid being garbage collected.
+ * When a thread terminates, its thread object can be released if not referenced
+ * from another thread.
+ */
 struct Thread {
 	KrkInstance inst;
 	KrkThreadState * threadState;
@@ -29,6 +39,12 @@ struct Thread {
 };
 
 KrkClass * Lock;
+/**
+ * @brief Simple atomic structure for waiting.
+ * @extends KrkInstance
+ *
+ * Provides direct access to a mutex for managed code.
+ */
 struct Lock {
 	KrkInstance inst;
 	pthread_mutex_t mutex;

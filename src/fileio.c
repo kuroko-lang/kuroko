@@ -15,6 +15,11 @@
 
 static KrkClass * File = NULL;
 static KrkClass * BinaryFile = NULL;
+
+/**
+ * @brief Object for a C `FILE*` stream.
+ * @extends KrkInstance
+ */
 struct File {
 	KrkInstance inst;
 	FILE * filePtr;
@@ -27,6 +32,10 @@ struct File {
 #define AS_BinaryFile(o) ((struct File*)AS_OBJECT(o))
 
 static KrkClass * Directory = NULL;
+/**
+ * @brief OBject for a C `DIR*` stream.
+ * @extends KrkInstance
+ */
 struct Directory {
 	KrkInstance inst;
 	DIR * dirPtr;
@@ -34,7 +43,6 @@ struct Directory {
 
 #define IS_Directory(o) (krk_isInstanceOf(o,Directory))
 #define AS_Directory(o) ((struct Directory*)AS_OBJECT(o))
-
 
 #define CURRENT_CTYPE struct File *
 #define CURRENT_NAME  self

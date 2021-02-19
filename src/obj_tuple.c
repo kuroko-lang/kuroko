@@ -98,6 +98,10 @@ KRK_METHOD(tuple,__repr__,{
 	return finishStringBuilder(&sb);
 })
 
+/**
+ * @brief Iterator over the values in a tuple.
+ * @extends KrkInstance
+ */
 struct TupleIter {
 	KrkInstance inst;
 	KrkValue myTuple;

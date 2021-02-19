@@ -4,6 +4,12 @@
 #include "memory.h"
 #include "util.h"
 
+/**
+ * @brief `range` object.
+ * @extends KrkInstance
+ *
+ * Generators iterator values that count from @p min to @p max.
+ */
 struct Range {
 	KrkInstance inst;
 	krk_integer_type min;

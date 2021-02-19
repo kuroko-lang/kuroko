@@ -1,0 +1,30 @@
+PROJECT_NAME           = "Kuroko"
+PROJECT_BRIEF          = "Bytecode-compiled interpreted programming language."
+PROJECT_LOGO           =
+
+# Since we're documenting a C API...
+OPTIMIZE_OUTPUT_FOR_C  = YES
+LAYOUT_FILE            =
+
+# Make docs for interpreter and tools
+INPUT                  = src/ tools/
+
+# Ignore rline, since it's a vendored library from ToaruOS
+EXCLUDE                = src/rline.c src/rline.h
+
+# Enable the source browser, even if I don't particular like Doxygen's highlighting
+SOURCE_BROWSER         = YES
+GENERATE_HTML          = YES
+
+HTML_OUTPUT            = html
+HTML_FILE_EXTENSION    = .html
+HTML_HEADER            =
+HTML_FOOTER            =
+HTML_STYLESHEET        =
+HTML_EXTRA_STYLESHEET  =
+HTML_EXTRA_FILES       =
+HTML_COLORSTYLE_HUE    = 0
+HTML_COLORSTYLE_SAT    = 200
+
+# Doxygen will enable latex by default, so let's turn that off.
+GENERATE_LATEX         = NO

@@ -5,6 +5,11 @@
 #include "util.h"
 
 static KrkClass * set;
+
+/**
+ * @brief Mutable unordered set of values.
+ * @extends KrkInstance
+ */
 struct Set {
 	KrkInstance inst;
 	KrkTable entries;
@@ -22,6 +27,11 @@ static void _set_gcsweep(KrkInstance * self) {
 }
 
 static KrkClass * setiterator;
+
+/**
+ * @brief Iterator over the values in a set.
+ * @extends KrkInstance
+ */
 struct SetIterator {
 	KrkInstance inst;
 	KrkValue set;

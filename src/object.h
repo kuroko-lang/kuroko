@@ -27,15 +27,22 @@ typedef enum {
 	OBJ_PROPERTY,
 } ObjType;
 
-struct Obj {
+#undef KrkObj
+/**
+ * @brief The most basic object type.
+ *
+ * This is the base of all object types and contains
+ * the core structures for garbage collection.
+ */
+typedef struct KrkObj {
 	ObjType type;
 	unsigned char isMarked:1;
 	unsigned char inRepr:1;
 	unsigned char generation:2;
 	unsigned char isImmortal:1;
 	uint32_t hash;
-	struct Obj * next;
-} /* KrkObj */;
+	struct KrkObj * next;
+} KrkObj;
 
 typedef enum {
 	KRK_STRING_ASCII = 0,
@@ -45,29 +52,48 @@ typedef enum {
 	KRK_STRING_INVALID = 5,
 } KrkStringType;
 
-struct ObjString {
+#undef KrkString
+/**
+ * @brief Immutable sequence of Unicode codepoints.
+ * @extends KrkObj
+ */
+typedef struct KrkString {
 	KrkObj obj;
 	KrkStringType type;
 	size_t length;
 	size_t codesLength;
 	char * chars;
 	void * codes;
-} /* KrkString */;
+} KrkString;
 
+/**
+ * @brief Immutable sequence of bytes.
+ * @extends KrkObj
+ */
 typedef struct {
 	KrkObj obj;
 	size_t length;
 	uint8_t * bytes;
 } KrkBytes;
 
+/**
+ * @brief Storage for values referenced from nested functions.
+ * @extends KrkObj
+ */
 typedef struct KrkUpvalue {
 	KrkObj obj;
 	int location;
 	KrkValue   closed;
 	struct KrkUpvalue * next;
-	struct ThreadState * owner;
+	struct KrkThreadState * owner;
 } KrkUpvalue;
 
+/**
+ * @brief Metadata on a local variable name in a function.
+ *
+ * This is used by the disassembler to print the names of
+ * locals when they are referenced by instructions.
+ */
 typedef struct {
 	size_t id;
 	size_t birthday;
@@ -77,6 +103,12 @@ typedef struct {
 
 struct KrkInstance;
 
+/**
+ * @brief Code object.
+ * @extends KrkObj
+ *
+ * Contains the static data associated with a chunk of bytecode.
+ */
 typedef struct {
 	KrkObj obj;
 	short requiredArgs;
@@ -95,6 +127,12 @@ typedef struct {
 	struct KrkInstance * globalsContext;
 } KrkFunction;
 
+/**
+ * @brief Function object.
+ * @extends KrkObj
+ *
+ * Not to be confused with code objects, a closure is a single instance of a function.
+ */
 typedef struct {
 	KrkObj obj;
 	KrkFunction * function;
@@ -104,6 +142,13 @@ typedef struct {
 
 typedef void (*KrkCleanupCallback)(struct KrkInstance *);
 
+/**
+ * @brief Type object.
+ * @extends KrkObj
+ *
+ * Represents classes defined in user code as well as classes defined
+ * by C extensions to represent method tables for new types.
+ */
 typedef struct KrkClass {
 	KrkObj obj;
 	KrkString * name;
@@ -136,12 +181,28 @@ typedef struct KrkClass {
 	KrkObj * _delslice;
 } KrkClass;
 
+/**
+ * @brief An object of a class.
+ * @extends KrkObj
+ *
+ * Created by class initializers, instances are the standard type of objects
+ * built by managed code. Not all objects are instances, but all instances are
+ * objects, and all instances have well-defined class.
+ */
 typedef struct KrkInstance {
 	KrkObj obj;
 	KrkClass * _class;
 	KrkTable fields;
 } KrkInstance;
 
+/**
+ * @brief A function that has been attached to an object to serve as a method.
+ * @extends KrkObj
+ *
+ * When a bound method is called, its receiver is implicitly extracted as
+ * the first argument. Bound methods are created whenever a method is retreived
+ * from the class of a value.
+ */
 typedef struct {
 	KrkObj obj;
 	KrkValue receiver;
@@ -149,6 +210,13 @@ typedef struct {
 } KrkBoundMethod;
 
 typedef KrkValue (*NativeFn)(int argCount, KrkValue* args, int hasKwargs);
+
+/**
+ * @brief Managed binding to a C function.
+ * @extends KrkObj
+ *
+ * Represents a C function that has been exposed to managed code.
+ */
 typedef struct {
 	KrkObj obj;
 	NativeFn function;
@@ -157,16 +225,38 @@ typedef struct {
 	int isMethod;
 } KrkNative;
 
+/**
+ * @brief Immutable sequence of arbitrary values.
+ * @extends KrkObj
+ *
+ * Tuples are fixed-length non-mutable collections of values intended
+ * for use in situations where the flexibility of a list is not needed.
+ */
 typedef struct {
 	KrkObj obj;
 	KrkValueArray values;
 } KrkTuple;
 
+/**
+ * @brief Dynamic property.
+ * @extends KrkObj
+ *
+ * A property is a value that is determined at runtime by a function and
+ * for which modifications using the dot operator and an assignment result
+ * in a function call.
+ */
 typedef struct {
 	KrkObj obj;
 	KrkValue method;
 } KrkProperty;
 
+/**
+ * @brief Mutable array of values.
+ * @extends KrkInstance
+ *
+ * A list is a flexible array of values that can be extended, cleared,
+ * sorted, rearranged, iterated over, etc.
+ */
 typedef struct {
 	KrkInstance inst;
 	KrkValueArray values;
@@ -175,6 +265,12 @@ typedef struct {
 #endif
 } KrkList;
 
+/**
+ * @brief Flexible mapping type.
+ * @extends KrkInstance
+ *
+ * Provides key-to-value mappings as a first-class object type.
+ */
 typedef struct {
 	KrkInstance inst;
 	KrkTable entries;
@@ -194,6 +290,7 @@ struct DictKeys {
 
 /**
  * @brief Yield ownership of a C string to the GC and obtain a string object.
+ * @memberof KrkString
  *
  * Creates a string object represented by the characters in 'chars' and of
  * length 'length'. The source string must be nil-terminated and must
@@ -212,6 +309,7 @@ extern KrkString * krk_takeString(char * chars, size_t length);
 
 /**
  * @brief Obtain a string object representation of the given C string.
+ * @memberof KrkString
  *
  * Converts the C string 'chars' into a string object by checking the
  * string table for it. If the string table does not have an equivalent
@@ -228,6 +326,7 @@ extern KrkString * krk_copyString(const char * chars, size_t length);
 
 /**
  * @brief Ensure that a codepoint representation of a string is available.
+ * @memberof KrkString
  *
  * Obtain an untyped pointer to the codepoint representation of a string.
  * If the string does not have a codepoint representation allocated, it will
@@ -241,6 +340,7 @@ extern void * krk_unicodeString(KrkString * string);
 
 /**
  * @brief Obtain the codepoint at a given index in a string.
+ * @memberof KrkString
  *
  * This is a convenience function which ensures that a Unicode codepoint
  * representation has been generated and returns the codepoint value at
@@ -258,6 +358,7 @@ extern uint32_t krk_unicodeCodepoint(KrkString * string, size_t index);
 
 /**
  * @brief Convert an integer codepoint to a UTF-8 byte representation.
+ * @memberof KrkString
  *
  * Converts a single codepoint to a sequence of bytes containing the
  * UTF-8 representation. 'out' must be allocated by the caller.
