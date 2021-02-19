@@ -205,7 +205,29 @@ class AsciiIncrementalEncoder:
     def getstate():
     def setstate(state):
 
-class AsciiIncrementalDecoder:
+class BaseDecoder:
+    def __init__(errors):
+        self.errors = errors
+        self.reset()
+    def _handle_truncation(out, bytemode, final, data, offset, leader):
+        if bytemode == 1:
+            return out.getvalue()
+        else if final:
+            let error = UnicodeDecodeError(self.name, data, offset - len(leader), offset, "truncated sequence")
+            let errorret = lookup_error(self.errors)(error)
+            out.add(errorret[0])
+            return out.getvalue()
+        else:
+            self.pending = bytes(leader)
+            return out.getvalue()
+    def reset():
+        self.pending = b""
+    def getstate():
+        return self.pending
+    def setstate(state):
+        self.pending = state
+
+class AsciiIncrementalDecoder(BaseDecoder):
     name = "ecma-43-dv"
     webname = None
     # For non-ASCII single-byte characters (this should work as a base class)
@@ -213,9 +235,6 @@ class AsciiIncrementalDecoder:
     dbrange = ()
     tbrange = ()
     trailrange = ()
-    pending = b""
-    def __init__(errors):
-        self.errors = errors
     def decode(data_in, final = False):
         let data = self.pending + data_in
         self.pending = b""
@@ -225,16 +244,7 @@ class AsciiIncrementalDecoder:
         let bytemode = 1
         while 1: # offset can be arbitrarily changed by the error handler, so not a for
             if offset >= len(data):
-                if bytemode == 1:
-                    return out.getvalue()
-                else if final:
-                    let error = UnicodeDecodeError(self.name, data, offset - len(leader), offset, "truncated sequence")
-                    let errorret = lookup_error(self.errors)(error)
-                    out.add(errorret[0])
-                    return out.getvalue()
-                else:
-                    self.pending = bytes(leader)
-                    return out.getvalue()
+                return self._handle_truncation(out, bytemode, final, data, offset, leader)
             let i = data[offset]
             if bytemode == 1 and i < 0x80:
                 out.add(chr(i))
@@ -290,12 +300,6 @@ class AsciiIncrementalDecoder:
                 offset = errorret[1]
                 if offset < 0:
                     offset += len(string)
-    def reset():
-        self.pending = b""
-    def getstate():
-        return self.pending
-    def setstate(state):
-        self.pending = state
 
 register_kuroko_codec(["ecma-43-dv", "iso-4873-dv"], AsciiIncrementalEncoder, AsciiIncrementalDecoder)
 

@@ -1,4 +1,4 @@
-from codecs.infrastructure import register_kuroko_codec, ByteCatenator, StringCatenator, UnicodeEncodeError, UnicodeDecodeError, lookup_error, lookup
+from codecs.infrastructure import register_kuroko_codec, ByteCatenator, StringCatenator, UnicodeEncodeError, UnicodeDecodeError, lookup_error, lookup, BaseDecoder
 from codecs.dbdata import encode_jis7, decode_jis7, decode_jis7katakana, encode_gbk, decode_gbk, gb_surrogate_ranges
 from itertools import enumerate
 
@@ -82,12 +82,9 @@ def _get_gbsurrogate_pointer(leader, i):
     if (39419 < ret and ret < 189000) or (ret > 1237575): return None
     return ret
 
-class Gb18030IncrementalDecoder:
+class Gb18030IncrementalDecoder(BaseDecoder):
     name = "gb18030"
     webname = "gb18030"
-    pending = b""
-    def __init__(errors):
-        self.errors = errors
     def decode(data_in, final = False):
         let data = self.pending + data_in
         self.pending = b""
@@ -97,17 +94,7 @@ class Gb18030IncrementalDecoder:
         let bytemode = 1
         while 1: # offset can be arbitrarily changed by the error handler, so not a for
             if offset >= len(data):
-                if bytemode == 1:
-                    return out.getvalue()
-                else if final:
-                    let error = UnicodeDecodeError(self.name, data, offset - len(leader), offset,
-                                "truncated sequence")
-                    let errorret = lookup_error(self.errors)(error)
-                    out.add(errorret[0])
-                    return out.getvalue()
-                else:
-                    self.pending = bytes(leader)
-                    return out.getvalue()
+                return self._handle_truncation(out, bytemode, final, data, offset, leader)
             let i = data[offset]
             if bytemode == 1 and i < 0x80:
                 out.add(chr(i))
@@ -170,12 +157,6 @@ class Gb18030IncrementalDecoder:
                 offset = errorret[1]
                 if offset < 0:
                     offset += len(string)
-    def reset():
-        self.pending = b""
-    def getstate():
-        return self.pending
-    def setstate(state):
-        self.pending = state
 
 register_kuroko_codec(["gb18030"], Gb18030IncrementalEncoder, Gb18030IncrementalDecoder)
 register_kuroko_codec(
@@ -304,7 +285,7 @@ class Iso2022JpIncrementalEncoder:
         self.state_desigsupershift = state[1]
         self.state_greekmode = state[2]
 
-class Iso2022JpIncrementalDecoder:
+class Iso2022JpIncrementalDecoder(BaseDecoder):
     name = "iso-2022-jp"
     webname = "iso-2022-jp"
     decmaps_sbcs = [None, None, decode_jis7katakana]
@@ -326,10 +307,6 @@ class Iso2022JpIncrementalDecoder:
     state_set = None
     state_greekmode = None # boolean for whether super-shift codes are in Greek mode
     state_shiftoutmode = None # boolean for whether Shift Out is engaged
-    pending = b""
-    def __init__(errors):
-        self.errors = errors
-        self.reset()
     def decode(data_in, final = False):
         let data = self.pending + data_in
         self.pending = b""
@@ -342,17 +319,7 @@ class Iso2022JpIncrementalDecoder:
         let in_esc = False
         while 1: # offset can be arbitrarily changed by the error handler, so not a for
             if offset >= len(data):
-                if bytemode in (1, 2):
-                    return out.getvalue()
-                else if final:
-                    let error = UnicodeDecodeError(self.name, data, offset - len(leader), offset,
-                                "truncated sequence")
-                    let errorret = lookup_error(self.errors)(error)
-                    out.add(errorret[0])
-                    return out.getvalue()
-                else:
-                    self.pending = bytes(leader)
-                    return out.getvalue()
+                return self._handle_truncation(out, bytemode, final, data, offset, leader)
             let i = data[offset]
             if i == 0x1B and len(leader) == 0:
                 in_esc = True
@@ -525,7 +492,7 @@ class Utf16IncrementalEncoder:
     def setstate(state):
         self.state = state
 
-class Utf16IncrementalDecoder:
+class Utf16IncrementalDecoder(BaseDecoder):
     name = "utf-16"
     webname = "utf-16"
     force_endian = None # subclass may set to "little" or "big"
@@ -534,9 +501,6 @@ class Utf16IncrementalDecoder:
     #  1: BE
     state = None
     pending = b""
-    def __init__(errors):
-        self.errors = errors
-        self.reset()
     def decode(data_in, final = False):
         let data = self.pending + data_in
         self.pending = b""
@@ -546,27 +510,18 @@ class Utf16IncrementalDecoder:
         let wordmode = 1
         while 1: # offset can be arbitrarily changed by the error handler, so not a for
             if (offset + 1) >= len(data):
-                if (wordmode == 1) and (offset >= len(data)):
-                    return out.getvalue()
-                else if final:
-                    let error = UnicodeDecodeError(self.name, data, offset - (len(leader) * 2), 
-                                len(data), "truncated sequence")
-                    let errorret = lookup_error(self.errors)(error)
-                    out.add(errorret[0])
-                    return out.getvalue()
-                else:
-                    let leader_bytes = []
-                    for i in leader:
-                        if self.state == 1:
-                            leader_bytes.append((i >> 8) & 0xFF)
-                            leader_bytes.append(i & 0xFF)
-                        else:
-                            leader_bytes.append(i & 0xFF)
-                            leader_bytes.append((i >> 8) & 0xFF)
-                    if offset == (len(data) - 1): # i.e. one isolated byte at the end
-                        leader_bytes.append(data[offset])
-                    self.pending = bytes(leader_bytes)
-                    return out.getvalue()
+            if offset >= len(data):
+                let leader_bytes = []
+                for i in leader:
+                    if self.state == 1:
+                        leader_bytes.append((i >> 8) & 0xFF)
+                        leader_bytes.append(i & 0xFF)
+                    else:
+                        leader_bytes.append(i & 0xFF)
+                        leader_bytes.append((i >> 8) & 0xFF)
+                if offset == (len(data) - 1): # i.e. one isolated byte at the end
+                    leader_bytes.append(data[offset])
+                return self._handle_truncation(out, bytemode, final, data, offset, leader_bytes)
             let i
             if self.state != 1:
                 i = data[offset] | (data[offset + 1] << 8)
@@ -678,7 +633,7 @@ class Utf8IncrementalEncoder:
     def setstate(state):
         self.state = state
 
-class Utf8IncrementalDecoder:
+class Utf8IncrementalDecoder(BaseDecoder):
     name = "utf-8"
     webname = "utf-8"
     # -1: expecting BOM
@@ -686,9 +641,6 @@ class Utf8IncrementalDecoder:
     state = None
     remove_bom = False
     pending = b""
-    def __init__(errors):
-        self.errors = errors
-        self.reset()
     def decode(data_in, final = False):
         # We use UTF-8 natively, so this only validates it and applies the error handler
         #   (and removes a BOM if remove_bom is set)
@@ -798,7 +750,7 @@ register_kuroko_codec(["unicode-1-1-utf-8", "unicode11utf8", "unicode20utf8", "u
     Utf8IncrementalEncoder, Utf8IncrementalDecoder)
 register_kuroko_codec(["utf-8-sig", "utf-8-bom"], Utf8SigIncrementalEncoder, Utf8SigIncrementalDecoder)
 
-class JapaneseAutodetectIncrementalDecoder:
+class JapaneseAutodetectIncrementalDecoder(BaseDecoder):
     name = "japanese"
     webname = None
     # State flags:
