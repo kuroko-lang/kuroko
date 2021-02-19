@@ -1,5 +1,8 @@
 #pragma once
-
+/**
+ * @file debug.h
+ * @brief Functions for disassembling bytecode.
+ */
 #include <stdio.h>
 #include "chunk.h"
 #include "object.h"

@@ -1,5 +1,8 @@
 #pragma once
-
+/**
+ * @file chunk.h
+ * @brief Structures and enums for bytecode chunks.
+ */
 #include "kuroko.h"
 #include "value.h"
 

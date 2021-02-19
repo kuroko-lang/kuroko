@@ -8,9 +8,9 @@
 void * krk_reallocate(void * ptr, size_t old, size_t new) {
 	vm.bytesAllocated += new - old;
 
-	if (new > old && ptr != krk_currentThread.stack && &krk_currentThread == vm.threads && !(vm.globalFlags & KRK_GC_PAUSED)) {
+	if (new > old && ptr != krk_currentThread.stack && &krk_currentThread == vm.threads && !(vm.globalFlags & KRK_GLOBAL_GC_PAUSED)) {
 #ifdef ENABLE_STRESS_GC
-		if (vm.globalFlags & KRK_ENABLE_STRESS_GC) {
+		if (vm.globalFlags & KRK_GLOBAL_ENABLE_STRESS_GC) {
 			krk_collectGarbage();
 		}
 #endif
@@ -259,7 +259,7 @@ static void markThreadRoots(KrkThreadState * thread) {
 
 	if (thread->module)  krk_markObject((KrkObj*)thread->module);
 
-	for (int i = 0; i < THREAD_SCRATCH_SIZE; ++i) {
+	for (int i = 0; i < KRK_THREAD_SCRATCH_SIZE; ++i) {
 		krk_markValue(thread->scratchSpace[i]);
 	}
 }
@@ -318,12 +318,12 @@ static KrkValue krk_generations(int argc, KrkValue argv[], int hasKw) {
 }
 
 static KrkValue _gc_pause(int argc, KrkValue argv[], int hasKw) {
-	vm.globalFlags |= (KRK_GC_PAUSED);
+	vm.globalFlags |= (KRK_GLOBAL_GC_PAUSED);
 	return NONE_VAL();
 }
 
 static KrkValue _gc_resume(int argc, KrkValue argv[], int hasKw) {
-	vm.globalFlags &= ~(KRK_GC_PAUSED);
+	vm.globalFlags &= ~(KRK_GLOBAL_GC_PAUSED);
 	return NONE_VAL();
 }
 

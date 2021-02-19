@@ -1,5 +1,8 @@
 #pragma once
-
+/**
+ * @file value.h
+ * @brief Definitions for primitive stack references.
+ */
 #include <stdio.h>
 #include "kuroko.h"
 

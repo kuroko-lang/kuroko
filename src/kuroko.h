@@ -1,5 +1,8 @@
 #pragma once
-
+/**
+ * @file kuroko.h
+ * @brief Top-level header with configuration macros.
+ */
 #include <stdint.h>
 #include <stddef.h>
 #include <stdlib.h>

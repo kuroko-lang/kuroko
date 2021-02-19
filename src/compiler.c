@@ -231,7 +231,7 @@ static void advance() {
 			(parser.current.type == TOKEN_INDENTATION || parser.current.type == TOKEN_EOL)) continue;
 
 #ifdef ENABLE_SCAN_TRACING
-		if (krk_currentThread.flags & KRK_ENABLE_SCAN_TRACING) {
+		if (krk_currentThread.flags & KRK_THREAD_ENABLE_SCAN_TRACING) {
 			fprintf(stderr, "[%s<%d> %d:%d '%.*s'] ",
 				getRule(parser.current.type)->name,
 				(int)parser.current.type,
@@ -358,7 +358,7 @@ static KrkFunction * endCompiler() {
 	}
 
 #ifdef ENABLE_DISASSEMBLY
-	if ((krk_currentThread.flags & KRK_ENABLE_DISASSEMBLY) && !parser.hadError) {
+	if ((krk_currentThread.flags & KRK_THREAD_ENABLE_DISASSEMBLY) && !parser.hadError) {
 		krk_disassembleChunk(stderr, function, function->name ? function->name->chars : "(module)");
 	}
 #endif
@@ -837,7 +837,7 @@ static void block(size_t indentation, const char * blockName) {
 				}
 			};
 #ifdef ENABLE_SCAN_TRACING
-			if (krk_currentThread.flags & KRK_ENABLE_SCAN_TRACING) {
+			if (krk_currentThread.flags & KRK_THREAD_ENABLE_SCAN_TRACING) {
 				fprintf(stderr, "\n\nfinished with block %s (ind=%d) on line %d, sitting on a %s (len=%d)\n\n",
 					blockName, (int)indentation, (int)parser.current.line,
 					getRule(parser.current.type)->name, (int)parser.current.length);
@@ -1080,7 +1080,7 @@ static KrkToken classDeclaration() {
 				method(currentIndentation);
 			}
 #ifdef ENABLE_SCAN_TRACING
-			if (krk_currentThread.flags & KRK_ENABLE_SCAN_TRACING) fprintf(stderr, "Exiting from class definition on %s\n", getRule(parser.current.type)->name);
+			if (krk_currentThread.flags & KRK_THREAD_ENABLE_SCAN_TRACING) fprintf(stderr, "Exiting from class definition on %s\n", getRule(parser.current.type)->name);
 #endif
 			/* Exit from block */
 		}

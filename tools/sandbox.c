@@ -37,7 +37,7 @@ int main(int argc, char * argv[]) {
 			if (IS_STRING(result)) {
 				fprintf(stdout, "%s\n", AS_CSTRING(result));
 			}
-		} else if (krk_currentThread.flags & KRK_HAS_EXCEPTION) {
+		} else if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) {
 			krk_dumpTraceback();
 			retval = 1;
 		}

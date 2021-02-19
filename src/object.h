@@ -1,7 +1,9 @@
 #pragma once
-
+/**
+ * @file object.h
+ * @brief Struct definitions for core object types.
+ */
 #include <stdio.h>
-
 #include "kuroko.h"
 #include "value.h"
 #include "chunk.h"
@@ -10,31 +12,6 @@
 #ifdef ENABLE_THREADING
 #include <pthread.h>
 #endif
-
-#define isObjType(v,t) (IS_OBJECT(v) && (AS_OBJECT(v)->type == (t)))
-#define OBJECT_TYPE(value) (AS_OBJECT(value)->type)
-#define IS_STRING(value)   isObjType(value, OBJ_STRING)
-#define AS_STRING(value)   ((KrkString *)AS_OBJECT(value))
-#define AS_CSTRING(value)  (((KrkString *)AS_OBJECT(value))->chars)
-#define IS_BYTES(value)    isObjType(value, OBJ_BYTES)
-#define AS_BYTES(value)    ((KrkBytes*)AS_OBJECT(value))
-#define IS_FUNCTION(value) isObjType(value, OBJ_FUNCTION)
-#define AS_FUNCTION(value) ((KrkFunction *)AS_OBJECT(value))
-#define IS_NATIVE(value)   isObjType(value, OBJ_NATIVE)
-#define AS_NATIVE(value)   ((KrkNative *)AS_OBJECT(value))
-#define IS_CLOSURE(value)  isObjType(value, OBJ_CLOSURE)
-#define AS_CLOSURE(value)  ((KrkClosure *)AS_OBJECT(value))
-#define IS_CLASS(value)    isObjType(value, OBJ_CLASS)
-#define AS_CLASS(value)    ((KrkClass *)AS_OBJECT(value))
-#define IS_INSTANCE(value) isObjType(value, OBJ_INSTANCE)
-#define AS_INSTANCE(value) ((KrkInstance *)AS_OBJECT(value))
-#define IS_BOUND_METHOD(value) isObjType(value, OBJ_BOUND_METHOD)
-#define AS_BOUND_METHOD(value) ((KrkBoundMethod*)AS_OBJECT(value))
-
-#define IS_TUPLE(value)    isObjType(value, OBJ_TUPLE)
-#define AS_TUPLE(value)    ((KrkTuple *)AS_OBJECT(value))
-#define IS_PROPERTY(value) isObjType(value, OBJ_PROPERTY)
-#define AS_PROPERTY(value) ((KrkProperty *)AS_OBJECT(value))
 
 typedef enum {
 	OBJ_FUNCTION,
@@ -58,7 +35,7 @@ struct Obj {
 	unsigned char isImmortal:1;
 	uint32_t hash;
 	struct Obj * next;
-};
+} /* KrkObj */;
 
 typedef enum {
 	KRK_STRING_ASCII = 0,
@@ -75,7 +52,7 @@ struct ObjString {
 	size_t codesLength;
 	char * chars;
 	void * codes;
-};
+} /* KrkString */;
 
 typedef struct {
 	KrkObj obj;
@@ -215,9 +192,6 @@ struct DictKeys {
 	size_t i;
 };
 
-#define AS_LIST(value) (&((KrkList *)AS_OBJECT(value))->values)
-#define AS_DICT(value) (&((KrkDict *)AS_OBJECT(value))->entries)
-
 /**
  * @brief Yield ownership of a C string to the GC and obtain a string object.
  *
@@ -296,14 +270,17 @@ extern size_t krk_codepointToBytes(krk_integer_type value, unsigned char * out);
 
 /* Internal stuff. */
 extern KrkFunction *    krk_newFunction(void);
-extern KrkNative * krk_newNative(NativeFn function, const char * name, int type);
+extern KrkNative *      krk_newNative(NativeFn function, const char * name, int type);
 extern KrkClosure *     krk_newClosure(KrkFunction * function);
 extern KrkUpvalue *     krk_newUpvalue(int slot);
 extern KrkClass *       krk_newClass(KrkString * name, KrkClass * base);
 extern KrkInstance *    krk_newInstance(KrkClass * _class);
 extern KrkBoundMethod * krk_newBoundMethod(KrkValue receiver, KrkObj * method);
 extern KrkTuple *       krk_newTuple(size_t length);
-extern KrkProperty * krk_newProperty(KrkValue method);
+extern KrkProperty *    krk_newProperty(KrkValue method);
+extern KrkBytes *       krk_newBytes(size_t length, uint8_t * source);
+extern void krk_bytesUpdateHash(KrkBytes * bytes);
+extern void krk_tupleUpdateHash(KrkTuple * self);
 
 #define KRK_STRING_FAST(string,offset)  (uint32_t)\
 	(string->type <= 1 ? ((uint8_t*)string->codes)[offset] : \
@@ -312,7 +289,29 @@ extern KrkProperty * krk_newProperty(KrkValue method);
 
 #define CODEPOINT_BYTES(cp) (cp < 0x80 ? 1 : (cp < 0x800 ? 2 : (cp < 0x10000 ? 3 : 4)))
 
-extern KrkBytes * krk_newBytes(size_t length, uint8_t * source);
-extern void krk_bytesUpdateHash(KrkBytes * bytes);
+#define isObjType(v,t) (IS_OBJECT(v) && (AS_OBJECT(v)->type == (t)))
+#define OBJECT_TYPE(value) (AS_OBJECT(value)->type)
+#define IS_STRING(value)   isObjType(value, OBJ_STRING)
+#define AS_STRING(value)   ((KrkString *)AS_OBJECT(value))
+#define AS_CSTRING(value)  (((KrkString *)AS_OBJECT(value))->chars)
+#define IS_BYTES(value)    isObjType(value, OBJ_BYTES)
+#define AS_BYTES(value)    ((KrkBytes*)AS_OBJECT(value))
+#define IS_FUNCTION(value) isObjType(value, OBJ_FUNCTION)
+#define AS_FUNCTION(value) ((KrkFunction *)AS_OBJECT(value))
+#define IS_NATIVE(value)   isObjType(value, OBJ_NATIVE)
+#define AS_NATIVE(value)   ((KrkNative *)AS_OBJECT(value))
+#define IS_CLOSURE(value)  isObjType(value, OBJ_CLOSURE)
+#define AS_CLOSURE(value)  ((KrkClosure *)AS_OBJECT(value))
+#define IS_CLASS(value)    isObjType(value, OBJ_CLASS)
+#define AS_CLASS(value)    ((KrkClass *)AS_OBJECT(value))
+#define IS_INSTANCE(value) isObjType(value, OBJ_INSTANCE)
+#define AS_INSTANCE(value) ((KrkInstance *)AS_OBJECT(value))
+#define IS_BOUND_METHOD(value) isObjType(value, OBJ_BOUND_METHOD)
+#define AS_BOUND_METHOD(value) ((KrkBoundMethod*)AS_OBJECT(value))
+#define IS_TUPLE(value)    isObjType(value, OBJ_TUPLE)
+#define AS_TUPLE(value)    ((KrkTuple *)AS_OBJECT(value))
+#define IS_PROPERTY(value) isObjType(value, OBJ_PROPERTY)
+#define AS_PROPERTY(value) ((KrkProperty *)AS_OBJECT(value))
+#define AS_LIST(value) (&((KrkList *)AS_OBJECT(value))->values)
+#define AS_DICT(value) (&((KrkDict *)AS_OBJECT(value))->entries)
 
-extern void krk_tupleUpdateHash(KrkTuple * self);

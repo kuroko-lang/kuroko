@@ -355,7 +355,7 @@ static int compileFile(char * argv[], int flags, char * fileName) {
 	KrkFunction * func = krk_compile(buf, 0, fileName);
 
 	/* See if there was an exception. */
-	if (krk_currentThread.flags & KRK_HAS_EXCEPTION) {
+	if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) {
 		krk_dumpTraceback();
 	}
 
@@ -388,19 +388,19 @@ int main(int argc, char * argv[]) {
 				return runString(argv, flags, optarg);
 			case 'd':
 				/* Disassemble code blocks after compilation. */
-				flags |= KRK_ENABLE_DISASSEMBLY;
+				flags |= KRK_THREAD_ENABLE_DISASSEMBLY;
 				break;
 			case 'g':
 				/* Always garbage collect during an allocation. */
-				flags |= KRK_ENABLE_STRESS_GC;
+				flags |= KRK_GLOBAL_ENABLE_STRESS_GC;
 				break;
 			case 's':
 				/* Print debug information during compilation. */
-				flags |= KRK_ENABLE_SCAN_TRACING;
+				flags |= KRK_THREAD_ENABLE_SCAN_TRACING;
 				break;
 			case 't':
 				/* Disassemble instructions as they are executed. */
-				flags |= KRK_ENABLE_TRACING;
+				flags |= KRK_THREAD_ENABLE_TRACING;
 				break;
 			case 'm':
 				moduleAsMain = 1;
@@ -482,7 +482,7 @@ _finishArgs:
 			AS_STRING(AS_LIST(argList)->values[0]),
 			&module,
 			AS_STRING(krk_peek(0)));
-		if (krk_currentThread.flags & KRK_HAS_EXCEPTION) {
+		if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) {
 			krk_dumpTraceback();
 			krk_resetStack();
 		}

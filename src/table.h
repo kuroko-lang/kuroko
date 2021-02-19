@@ -1,6 +1,8 @@
 #pragma once
-
-/*
+/**
+ * @file table.h
+ * @brief Implementation of a generic hash table.
+ *
  * I was going to just use the ToaruOS hashmap library, but to make following
  * the book easier, let's just start from their Table implementation; it has
  * an advantage of using stored entries and fixed arrays, so it has some nice
