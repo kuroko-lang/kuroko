@@ -1,12 +1,12 @@
+#pragma once
 /**
- * Utilities for creating native bindings.
+ * @file util.h
+ * @brief Utilities for creating native bindings.
  *
  * This is intended for use in C extensions to provide a uniform interface
  * for defining extension methods and ensuring they have consistent argument
  * and keyword argument usage.
  */
-#pragma once
-
 #include "object.h"
 #include "vm.h"
 #include "memory.h"

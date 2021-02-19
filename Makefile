@@ -22,7 +22,7 @@ ifndef KRK_ENABLE_STATIC
     LDFLAGS += -Wl,-rpath -Wl,'$$ORIGIN' -L.
     # On POSIX-like platforms, link with libdl and assume -lkuroko gives us
     # our own library.
-    LDLIBS  += -ldl -lkuroko
+    LDLIBS  += -ldl -lkuroko -lpthread
   else
     # For Windows, disable format string warnings because gcc will get mad
     # about non-portable Windows format specifiers...
@@ -38,30 +38,7 @@ else
   CFLAGS +=-DSTATIC_ONLY
   LDFLAGS += -static
   all: ${TARGET}
-  KUROKO_LIBS = ${OBJS}
-endif
-
-ifeq ($(shell uname -s),Linux)
-  ifeq (,$(findstring mingw,$(CC)))
-    # Enable threading by default on Linux,
-    # but make sure we're not cross-building
-    # with ming first...
-    KRK_ENABLE_THREAD ?= 1
-  endif
-endif
-
-ifeq ($(shell uname -s),Darwin)
-  # Assume we're not using ming to build for Windows on macOS
-  # and enable threads for Darwin, as they've been tested there.
-  KRK_ENABLE_THREAD ?= 1
-endif
-
-ifeq (1,$(KRK_ENABLE_THREAD))
-  # Thread support is EXPERIMENTAL
-  # and downright known to be broken
-  # (but only if you actually use it)
-  CFLAGS += -DENABLE_THREADING
-  LDLIBS += -lpthread
+  KUROKO_LIBS = ${OBJS} -lpthread
 endif
 
 ifndef KRK_DISABLE_RLINE
@@ -101,7 +78,6 @@ help:
 	@echo "   KRK_DISABLE_DEBUG=1    Disable debugging features (might be faster)."
 	@echo "   KRK_ENABLE_STATIC=1    Build a single static binary."
 	@echo "   KRK_ENABLE_BUNDLE=1    Link C modules directly into the interpreter."
-	@echo "   KRK_ENABLE_THREAD=1    Enable EXPERIMENTAL threading support. (* enabled by default on Linux)"
 	@echo ""
 	@echo "Available tools: ${TOOLS}"
 

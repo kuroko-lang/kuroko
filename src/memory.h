@@ -1,5 +1,8 @@
 #pragma once
-
+/**
+ * @file memory.h
+ * @brief Functions for dealing with garbage collection and memory allocation.
+ */
 #include "kuroko.h"
 #include "object.h"
 #include "table.h"

@@ -203,9 +203,18 @@ static KrkValue _globals(int argc, KrkValue argv[], int hasKw) {
 
 static KrkValue _isinstance(int argc, KrkValue argv[], int hasKw) {
 	if (argc != 2) return krk_runtimeError(vm.exceptions->argumentError, "isinstance expects 2 arguments, got %d", argc);
-	if (!IS_CLASS(argv[1])) return krk_runtimeError(vm.exceptions->typeError, "isinstance() arg 2 must be class");
-
-	return BOOLEAN_VAL(krk_isInstanceOf(argv[0], AS_CLASS(argv[1])));
+	if (IS_CLASS(argv[1])) {
+		return BOOLEAN_VAL(krk_isInstanceOf(argv[0], AS_CLASS(argv[1])));
+	} else if (IS_TUPLE(argv[1])) {
+		for (size_t i = 0; i < AS_TUPLE(argv[1])->values.count; ++i) {
+			if (IS_CLASS(AS_TUPLE(argv[1])->values.values[i]) && krk_isInstanceOf(argv[0], AS_CLASS(AS_TUPLE(argv[1])->values.values[i]))) {
+				return BOOLEAN_VAL(1);
+			}
+		}
+		return BOOLEAN_VAL(0);
+	} else {
+		return krk_runtimeError(vm.exceptions->typeError, "isinstance() arg 2 must be class or tuple");
+	}
 }
 
 static KrkValue _module_repr(int argc, KrkValue argv[], int hasKw) {
@@ -270,6 +279,14 @@ static KrkValue _strBase(int argc, KrkValue argv[], int hasKw) {
 static KrkValue _type(int argc, KrkValue argv[], int hasKw) {
 	return OBJECT_VAL(krk_getType(argv[0]));
 }
+
+KRK_FUNC(getattr,{
+	FUNCTION_TAKES_AT_LEAST(2);
+	KrkValue object = argv[0];
+	CHECK_ARG(1,str,KrkString*,property);
+	return krk_valueGetAttribute(object, property->chars);
+})
+
 
 #define IS_Helper(o)  (krk_isInstanceOf(o, Helper))
 #define AS_Helper(o)  (AS_INSTANCE(o))
@@ -377,5 +394,6 @@ void _createAndBind_builtins(void) {
 	BUILTIN_FUNCTION("hex", _hex, "Convert an integer value to a hexadecimal string.");
 	BUILTIN_FUNCTION("any", _any, "Returns True if at least one element in the given iterable is truthy, False otherwise.");
 	BUILTIN_FUNCTION("all", _all, "Returns True if every element in the given iterable is truthy, False otherwise.");
+	BUILTIN_FUNCTION("getattr", FUNC_NAME(krk,getattr), "Obtain a property of an object as if it were accessed by the dot operator.");
 }
 

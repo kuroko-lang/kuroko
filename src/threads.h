@@ -1,4 +1,8 @@
 #pragma once
+/**
+ * @file threads.h
+ * @brief Convience header for providing atomic operations to threads.
+ */
 
 #ifdef ENABLE_THREADING
 #include <pthread.h>

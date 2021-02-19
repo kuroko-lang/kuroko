@@ -1,5 +1,8 @@
 #pragma once
-
+/**
+ * @file compiler.h
+ * @brief Exported methods for the source compiler.
+ */
 #include "object.h"
 
 /**

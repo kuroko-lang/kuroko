@@ -1,5 +1,8 @@
 #pragma once
-
+/**
+ * @file kuroko.h
+ * @brief Top-level header with configuration macros.
+ */
 #include <stdint.h>
 #include <stddef.h>
 #include <stdlib.h>
@@ -19,6 +22,7 @@ typedef long krk_integer_type;
 # define PRIkrk_int "%ld"
 # define PRIkrk_hex "%lx"
 # define parseStrInt strtol
+# define ENABLE_THREADING
 #endif
 
 #ifdef DEBUG

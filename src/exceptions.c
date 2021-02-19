@@ -1,3 +1,7 @@
+/**
+ * @file exceptions.c
+ * @brief Definitions and native method bindings for error types.
+ */
 #include <string.h>
 #include "vm.h"
 #include "value.h"
@@ -5,11 +9,11 @@
 #include "util.h"
 
 /**
- * @def ADD_EXCEPTION_CLASS(obj, name, baseClass)
+ * @def ADD_EXCEPTION_CLASS(obj,name,baseClass)
  *
  * Convenience macro for creating exception types.
  */
-#define ADD_EXCEPTION_CLASS(obj, name, baseClass) do { \
+#define ADD_EXCEPTION_CLASS(obj,name,baseClass) do { \
 	obj = krk_newClass(S(name), baseClass); \
 	krk_attachNamedObject(&vm.builtins->fields, name, (KrkObj*)obj); \
 	krk_finalizeClass(obj); \
@@ -31,9 +35,9 @@ static KrkValue krk_initException(int argc, KrkValue argv[], int hasKw) {
 /**
  * @brief Create a string representation of an Exception.
  *
- * Native binding for Exception.__repr__
+ * Native binding for @c Exception.__repr__
  *
- * Generates a string representation of the form "Exception(arg)".
+ * Generates a string representation of the form @c "Exception(arg)" .
  */
 static KrkValue _exception_repr(int argc, KrkValue argv[], int hasKw) {
 	KrkInstance * self = AS_INSTANCE(argv[0]);
@@ -58,7 +62,7 @@ static KrkValue _exception_repr(int argc, KrkValue argv[], int hasKw) {
 /**
  * @brief Obtain a descriptive string from an exception.
  *
- * Native binding for Exception.__str__
+ * Native binding for @c Exception.__str__
  *
  * For most exceptions, this is the 'arg' value attached at initialization
  * and is printed during a traceback after the name of the exception type.
@@ -79,7 +83,7 @@ static KrkValue _exception_str(int argc, KrkValue argv[], int hasKw) {
 /**
  * @brief Generate printable text for a syntax error.
  *
- * Native binding for SyntaxError.__str__
+ * Native binding for @c SyntaxError.__str__
  *
  * Syntax errors are handled specially by the traceback generator so that they
  * can print the original source line containing the erroneous input, so instead

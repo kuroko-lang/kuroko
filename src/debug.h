@@ -1,5 +1,8 @@
 #pragma once
-
+/**
+ * @file debug.h
+ * @brief Functions for disassembling bytecode.
+ */
 #include <stdio.h>
 #include "chunk.h"
 #include "object.h"
@@ -14,7 +17,7 @@
  * @param func  Code object to disassemble.
  * @param name  Function name to display in disassembly output.
  */
-extern void krk_disassembleChunk(FILE * f, KrkFunction * func, const char * name);
+extern void krk_disassembleCodeObject(FILE * f, KrkFunction * func, const char * name);
 
 /**
  * @brief Print a disassembly of a single opcode instruction.

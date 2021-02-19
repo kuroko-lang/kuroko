@@ -100,7 +100,7 @@ void krk_resetStack() {
 	krk_currentThread.stackTop = krk_currentThread.stack;
 	krk_currentThread.frameCount = 0;
 	krk_currentThread.openUpvalues = NULL;
-	krk_currentThread.flags &= ~KRK_HAS_EXCEPTION;
+	krk_currentThread.flags &= ~KRK_THREAD_HAS_EXCEPTION;
 	krk_currentThread.currentException = NONE_VAL();
 }
 
@@ -234,7 +234,7 @@ void krk_dumpTraceback() {
 			return;
 		}
 		/* Clear the exception state while printing the exception. */
-		krk_currentThread.flags &= ~(KRK_HAS_EXCEPTION);
+		krk_currentThread.flags &= ~(KRK_THREAD_HAS_EXCEPTION);
 		fprintf(stderr, "%s", krk_typeName(krk_currentThread.currentException));
 		KrkValue result = krk_callSimple(OBJECT_VAL(krk_getType(krk_currentThread.currentException)->_tostr), 1, 0);
 		if (!IS_STRING(result)) {
@@ -243,7 +243,7 @@ void krk_dumpTraceback() {
 			fprintf(stderr, ": %s\n", AS_CSTRING(result));
 		}
 		/* Turn the exception flag back on */
-		krk_currentThread.flags |= KRK_HAS_EXCEPTION;
+		krk_currentThread.flags |= KRK_THREAD_HAS_EXCEPTION;
 	}
 }
 
@@ -289,7 +289,7 @@ KrkValue krk_runtimeError(KrkClass * type, const char * fmt, ...) {
 	va_start(args, fmt);
 	size_t len = vsnprintf(buf, 1024, fmt, args);
 	va_end(args);
-	krk_currentThread.flags |= KRK_HAS_EXCEPTION;
+	krk_currentThread.flags |= KRK_THREAD_HAS_EXCEPTION;
 
 	/* Allocate an exception object of the requested type. */
 	KrkInstance * exceptionObject = krk_newInstance(type);
@@ -478,14 +478,14 @@ static KrkValue krk_set_tracing(int argc, KrkValue argv[], int hasKw) {
 	if (hasKw) {
 		KrkValue test;
 		if (krk_tableGet(AS_DICT(argv[argc]), OBJECT_VAL(S("tracing")), &test) && IS_INTEGER(test)) {
-			if (AS_INTEGER(test) == 1) krk_currentThread.flags |= KRK_ENABLE_TRACING; else krk_currentThread.flags &= ~KRK_ENABLE_TRACING; }
+			if (AS_INTEGER(test) == 1) krk_currentThread.flags |= KRK_THREAD_ENABLE_TRACING; else krk_currentThread.flags &= ~KRK_THREAD_ENABLE_TRACING; }
 		if (krk_tableGet(AS_DICT(argv[argc]), OBJECT_VAL(S("disassembly")), &test) && IS_INTEGER(test)) {
-			if (AS_INTEGER(test) == 1) krk_currentThread.flags |= KRK_ENABLE_DISASSEMBLY; else krk_currentThread.flags &= ~KRK_ENABLE_DISASSEMBLY; }
+			if (AS_INTEGER(test) == 1) krk_currentThread.flags |= KRK_THREAD_ENABLE_DISASSEMBLY; else krk_currentThread.flags &= ~KRK_THREAD_ENABLE_DISASSEMBLY; }
 		if (krk_tableGet(AS_DICT(argv[argc]), OBJECT_VAL(S("scantracing")), &test) && IS_INTEGER(test)) {
-			if (AS_INTEGER(test) == 1) krk_currentThread.flags |= KRK_ENABLE_SCAN_TRACING; else krk_currentThread.flags &= ~KRK_ENABLE_SCAN_TRACING; }
+			if (AS_INTEGER(test) == 1) krk_currentThread.flags |= KRK_THREAD_ENABLE_SCAN_TRACING; else krk_currentThread.flags &= ~KRK_THREAD_ENABLE_SCAN_TRACING; }
 
 		if (krk_tableGet(AS_DICT(argv[argc]), OBJECT_VAL(S("stressgc")), &test) && IS_INTEGER(test)) {
-			if (AS_INTEGER(test) == 1) vm.globalFlags |= KRK_ENABLE_STRESS_GC; else krk_currentThread.flags &= ~KRK_ENABLE_STRESS_GC; }
+			if (AS_INTEGER(test) == 1) vm.globalFlags |= KRK_GLOBAL_ENABLE_STRESS_GC; else krk_currentThread.flags &= ~KRK_GLOBAL_ENABLE_STRESS_GC; }
 	}
 	return BOOLEAN_VAL(1);
 #else
@@ -1106,11 +1106,17 @@ static KrkValue krk_getsize(int argc, KrkValue argv[], int hasKw) {
 
 static KrkValue krk_setclean(int argc, KrkValue argv[], int hasKw) {
 	if (!argc || (IS_BOOLEAN(argv[0]) && AS_BOOLEAN(argv[0]))) {
-		vm.globalFlags |= KRK_CLEAN_OUTPUT;
+		vm.globalFlags |= KRK_GLOBAL_CLEAN_OUTPUT;
 	} else {
-		vm.globalFlags &= ~KRK_CLEAN_OUTPUT;
+		vm.globalFlags &= ~KRK_GLOBAL_CLEAN_OUTPUT;
 	}
 	return NONE_VAL();
+}
+
+static KrkValue krk_import_wrapper(int argc, KrkValue argv[], int hasKw) {
+	if (!argc || !IS_STRING(argv[0])) return krk_runtimeError(vm.exceptions->typeError, "expected string");
+	if (!krk_doRecursiveModuleLoad(AS_STRING(argv[0]))) return NONE_VAL(); /* ImportError already raised */
+	return krk_pop();
 }
 
 void krk_initVM(int flags) {
@@ -1221,6 +1227,7 @@ void krk_initVM(int flags) {
 	krk_defineNative(&vm.system->fields, "getsizeof", krk_getsize);
 	krk_defineNative(&vm.system->fields, "set_clean_output", krk_setclean);
 	krk_defineNative(&vm.system->fields, "set_tracing", krk_set_tracing)->doc = "Toggle debugging modes.";
+	krk_defineNative(&vm.system->fields, "importmodule", krk_import_wrapper)->doc = "Import a module by string name";
 	krk_attachNamedObject(&vm.system->fields, "path_sep", (KrkObj*)S(PATH_SEP));
 	KrkValue module_paths = krk_list_of(0,NULL,0);
 	krk_attachNamedValue(&vm.system->fields, "module_paths", module_paths);
@@ -1406,7 +1413,7 @@ static int handleException() {
 	krk_currentThread.frameCount = frameOffset + 1;
 
 	/* Clear the exception flag so we can continue executing from the handler. */
-	krk_currentThread.flags &= ~KRK_HAS_EXCEPTION;
+	krk_currentThread.flags &= ~KRK_THREAD_HAS_EXCEPTION;
 	return 0;
 }
 
@@ -1487,7 +1494,7 @@ int krk_loadModule(KrkString * path, KrkValue * moduleOut, KrkString * runAs) {
 		*moduleOut = krk_callfile(fileName,runAs->chars,fileName);
 		krk_currentThread.module = enclosing;
 		if (!IS_OBJECT(*moduleOut)) {
-			if (!(krk_currentThread.flags & KRK_HAS_EXCEPTION)) {
+			if (!(krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION)) {
 				krk_runtimeError(vm.exceptions->importError,
 					"Failed to load module '%s' from '%s'", runAs->chars, fileName);
 			}
@@ -1719,6 +1726,17 @@ static int valueGetProperty(KrkString * name) {
 	return 0;
 }
 
+KrkValue krk_valueGetAttribute(KrkValue value, char * name) {
+	krk_push(OBJECT_VAL(krk_copyString(name,strlen(name))));
+	krk_push(value);
+	if (!valueGetProperty(AS_STRING(krk_peek(1)))) {
+		return krk_runtimeError(vm.exceptions->attributeError, "'%s' object has no attribute '%s'", krk_typeName(krk_peek(0)), name);
+	}
+	krk_swap(1);
+	krk_pop(); /* String */
+	return krk_pop();
+}
+
 static int valueDelProperty(KrkString * name) {
 	if (IS_INSTANCE(krk_peek(0))) {
 		KrkInstance* instance = AS_INSTANCE(krk_peek(0));
@@ -1771,7 +1789,7 @@ static KrkValue run() {
 
 	while (1) {
 #ifdef ENABLE_TRACING
-		if (krk_currentThread.flags & KRK_ENABLE_TRACING) {
+		if (krk_currentThread.flags & KRK_THREAD_ENABLE_TRACING) {
 			dumpStack(frame);
 			krk_disassembleInstruction(stderr, frame->closure->function,
 				(size_t)(frame->ip - frame->closure->function->chunk.code));
@@ -1886,7 +1904,7 @@ static KrkValue run() {
 			case OP_RAISE: {
 				krk_currentThread.currentException = krk_pop();
 				attachTraceback();
-				krk_currentThread.flags |= KRK_HAS_EXCEPTION;
+				krk_currentThread.flags |= KRK_THREAD_HAS_EXCEPTION;
 				goto _finishException;
 			}
 			/* This version of the call instruction takes its arity from the
@@ -2015,7 +2033,7 @@ static KrkValue run() {
 				if (!isMatch) {
 					/* Restore and re-raise the exception if it didn't match. */
 					krk_currentThread.currentException = krk_peek(1);
-					krk_currentThread.flags |= KRK_HAS_EXCEPTION;
+					krk_currentThread.flags |= KRK_THREAD_HAS_EXCEPTION;
 					goto _finishException;
 				}
 				/* Else pop the filter value */
@@ -2365,7 +2383,7 @@ static KrkValue run() {
 				break;
 			}
 		}
-		if (likely(!(krk_currentThread.flags & KRK_HAS_EXCEPTION))) continue;
+		if (likely(!(krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION))) continue;
 _finishException:
 		if (!handleException()) {
 			frame = &krk_currentThread.frames[krk_currentThread.frameCount - 1];

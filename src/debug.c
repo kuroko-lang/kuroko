@@ -5,7 +5,7 @@
 #include "vm.h"
 #include "util.h"
 
-void krk_disassembleChunk(FILE * f, KrkFunction * func, const char * name) {
+void krk_disassembleCodeObject(FILE * f, KrkFunction * func, const char * name) {
 	KrkChunk * chunk = &func->chunk;
 	/* Function header */
 	fprintf(f, "<%s(", name);
@@ -191,7 +191,7 @@ KRK_FUNC(dis,{
 
 	if (IS_CLOSURE(argv[0])) {
 		KrkFunction * func = AS_CLOSURE(argv[0])->function;
-		krk_disassembleChunk(stdout, func, func->name ? func->name->chars : "(unnamed)");
+		krk_disassembleCodeObject(stdout, func, func->name ? func->name->chars : "(unnamed)");
 	} else if (IS_BOUND_METHOD(argv[0])) {
 		if (AS_BOUND_METHOD(argv[0])->method->type == OBJ_CLOSURE) {
 			KrkFunction * func = ((KrkClosure*)AS_BOUND_METHOD(argv[0])->method)->function;
@@ -200,7 +200,7 @@ KRK_FUNC(dis,{
 			size_t allocSize = strlen(methodName) + strlen(typeName) + 2;
 			char * tmp = malloc(allocSize);
 			snprintf(tmp, allocSize, "%s.%s", typeName, methodName);
-			krk_disassembleChunk(stdout, func, tmp);
+			krk_disassembleCodeObject(stdout, func, tmp);
 			free(tmp);
 		} else {
 			krk_runtimeError(vm.exceptions->typeError, "Can not disassemble built-in method of '%s'", krk_typeName(AS_BOUND_METHOD(argv[0])->receiver));

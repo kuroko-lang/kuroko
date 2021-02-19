@@ -116,7 +116,7 @@ static int runSimpleRepl(void) {
 					fprintf(stdout, formatStr, AS_CSTRING(result));
 				}
 				krk_resetStack();
-			} else if (krk_currentThread.flags & KRK_HAS_EXCEPTION) {
+			} else if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) {
 				krk_dumpTraceback();
 			}
 			free(allData);

@@ -1,5 +1,11 @@
 #pragma once
-
+/**
+ * @file vm.h
+ * @brief Core API for the bytecode virtual machine.
+ *
+ * Functions and structures declared here make up the bulk of the public C API
+ * for Kuroko, including initializing the VM and passing code to be interpreted.
+ */
 #include <stdarg.h>
 #include <sys/types.h>
 #include "kuroko.h"
@@ -7,7 +13,21 @@
 #include "table.h"
 #include "object.h"
 
+/**
+ * @def KRK_CALL_FRAMES_MAX
+ * @brief Maximum depth of the call stack in managed-code function calls.
+ */
 #define KRK_CALL_FRAMES_MAX 64
+
+/**
+ * @def KRK_THREAD_SCRATCH_SIZE
+ * @brief Extra space for each thread to store a set of working values safe from the GC.
+ *
+ * Various operations require threads to remove values from the stack but ensure
+ * they are not lost to garbage collection. This space allows each thread to keep
+ * a few things around during those operations.
+ */
+#define KRK_THREAD_SCRATCH_SIZE 3
 
 /**
  * @brief Represents a managed call state in a VM thread.
@@ -34,11 +54,11 @@ typedef struct {
  *
  * The VM must look up many methods and members by fixed names. To avoid
  * continuously having to box and unbox these from C strings to the appropriate
- * interned KrkString, we keep an array of the KrkString pointers in the global VM state.
+ * interned @c KrkString, we keep an array of the @c KrkString pointers in the global VM state.
  *
  * These values are the offsets into that index for each of the relevant
  * function names (generally with extra underscores removed). For example
- * METHOD_INIT is the offset for the string value for "__init__".
+ * @c METHOD_INIT is the offset for the string value for @c "__init__".
  */
 typedef enum {
 	METHOD_INIT,
@@ -147,8 +167,8 @@ struct BaseClasses {
  *
  * @see krk_currentThread
  */
-typedef struct ThreadState {
-	struct ThreadState * next; /**< Invasive list pointer to next thread. */
+typedef struct KrkThreadState {
+	struct KrkThreadState * next; /**< Invasive list pointer to next thread. */
 
 	KrkCallFrame * frames;     /**< Call frame stack for this thread, max KRK_CALL_FRAMES_MAX */
 	size_t frameCount;         /**< Number of active call frames. */
@@ -163,8 +183,7 @@ typedef struct ThreadState {
 	int flags;                 /**< Thread-local VM flags; each thread inherits the low byte of the global VM flags. */
 	long watchdog;             /**< Decrementing watchdog timer for embedding. */
 
-#define THREAD_SCRATCH_SIZE 3
-	KrkValue scratchSpace[THREAD_SCRATCH_SIZE]; /**< A place to store a few values to keep them from being prematurely GC'd. */
+	KrkValue scratchSpace[KRK_THREAD_SCRATCH_SIZE]; /**< A place to store a few values to keep them from being prematurely GC'd. */
 } KrkThreadState;
 
 /**
@@ -175,12 +194,12 @@ typedef struct ThreadState {
  * string and module tables, tables of builtin types,
  * and the state of the (shared) garbage collector.
  */
-typedef struct {
+typedef struct KrkVM {
 	int globalFlags;                  /**< Global VM state flags */
 	char * binpath;                   /**< A string representing the name of the interpreter binary. */
 	KrkTable strings;                 /**< Strings table */
 	KrkTable modules;                 /**< Module cache */
-	KrkInstance * builtins;           /**< '__builtins__' module */
+	KrkInstance * builtins;           /**< '\__builtins__' module */
 	KrkInstance * system;             /**< 'kuroko' module */
 	KrkValue * specialMethodNames;    /**< Cached strings of important method and function names */
 	struct BaseClasses * baseClasses; /**< Pointer to a (static) namespacing struct for the KrkClass*'s of built-in object types */
@@ -198,32 +217,43 @@ typedef struct {
 } KrkVM;
 
 /* Thread-specific flags */
-/* TODO Should these be in an enum instead? */
-#define KRK_ENABLE_TRACING      (1 << 0)
-#define KRK_ENABLE_DISASSEMBLY  (1 << 1)
-#define KRK_ENABLE_SCAN_TRACING (1 << 2)
-#define KRK_HAS_EXCEPTION       (1 << 3)
+#define KRK_THREAD_ENABLE_TRACING      (1 << 0)
+#define KRK_THREAD_ENABLE_DISASSEMBLY  (1 << 1)
+#define KRK_THREAD_ENABLE_SCAN_TRACING (1 << 2)
+#define KRK_THREAD_HAS_EXCEPTION       (1 << 3)
 
 /* Global flags */
-#define KRK_ENABLE_STRESS_GC    (1 << 8)
-#define KRK_GC_PAUSED           (1 << 9)
-#define KRK_CLEAN_OUTPUT        (1 << 10)
+#define KRK_GLOBAL_ENABLE_STRESS_GC    (1 << 8)
+#define KRK_GLOBAL_GC_PAUSED           (1 << 9)
+#define KRK_GLOBAL_CLEAN_OUTPUT        (1 << 10)
 
 #ifdef ENABLE_THREADING
-extern void _createAndBind_threadsMod(void);
-extern __thread KrkThreadState krk_currentThread;
+#  define threadLocal __thread
 #else
-extern KrkThreadState krk_currentThread;
+#  define threadLocal
 #endif
 
 /**
- * Singleton instance of the shared VM state.
+ * @brief Thread-local VM state.
+ *
+ * See @c KrkThreadState for more information.
+ */
+extern threadLocal KrkThreadState krk_currentThread;
+
+/**
+ * @brief Singleton instance of the shared VM state.
  */
 extern KrkVM krk_vm;
+
+/**
+ * @def vm
+ * @brief Convenience macro for namespacing.
+ */
 #define vm krk_vm
 
 /**
  * @brief Initialize the VM at program startup.
+ * @memberof KrkVM
  *
  * All library users must call this exactly once on startup to create
  * the built-in types, modules, and functions for the VM and prepare
@@ -237,6 +267,7 @@ extern void krk_initVM(int flags);
 
 /**
  * @brief Release resources from the VM.
+ * @memberof KrkVM
  *
  * Generally, it is desirable to call this once before the hosting program exits.
  * If a fresh VM state is needed, krk_freeVM should be called before a further
@@ -252,7 +283,7 @@ extern void krk_freeVM(void);
  * In a repl, this can be called before or after each iteration to clean up any
  * remnant stack entries from an uncaught exception. It should not be called
  * during normal execution by C extensions. Values on the stack may be lost
- * to garbage collection after a call to krk_resetStack .
+ * to garbage collection after a call to @c krk_resetStack .
  */
 extern void krk_resetStack(void);
 
@@ -268,11 +299,11 @@ extern void krk_resetStack(void);
  * @param fromFile Path to the source file, or a representative string like "<stdin>".
  * @return When newScope is non-zero, an object representing the globals of the new scope;
  *         otherwise, the returned result of the execution of this code. If an uncaught
- *         exception occurred, this will be None, krk_currentThread.flags should indicate
- *         KRK_HAS_EXCEPTION, and krk_currentThread.currentException should contain the raised
- *         exception value.
+ *         exception occurred, this will be @c None and @c krk_currentThread.flags should
+ *         indicate @c KRK_THREAD_HAS_EXCEPTION and @c krk_currentThread.currentException
+ *         should contain the raised exception value.
  */
-extern KrkValue krk_interpret(const char * src, int newScope, char *, char *);
+extern KrkValue krk_interpret(const char * src, int newScope, char * fromName, char * fromFile);
 
 /**
  * @brief Load and run a source file and return when execution completes.
@@ -283,23 +314,23 @@ extern KrkValue krk_interpret(const char * src, int newScope, char *, char *);
  *
  * @param fileName  Path to the source file to read and execute.
  * @param newScope  Whether this file should be run in the context of a new module.
- * @param fromName  Value to assign to __name__
- * @param fromFile  Value to assign to __file__
- * @return As with krk_interpret, an object representing the newly created module,
+ * @param fromName  Value to assign to @c \__name__
+ * @param fromFile  Value to assign to @c \__file__
+ * @return As with @c krk_interpret, an object representing the newly created module,
  *         or the final return value of the VM execution.
  */
-extern KrkValue krk_runfile(const char * fileName, int newScope, char *, char *);
+extern KrkValue krk_runfile(const char * fileName, int newScope, char * fromName, char * fromFile);
 
 /**
  * @brief Load and run a file as a module.
  *
- * Similar to krk_runfile, but ensures that execution of the VM returns to the caller
- * after the file is run. This should be run after calling krk_startModule to initialize
+ * Similar to @c krk_runfile but ensures that execution of the VM returns to the caller
+ * after the file is run. This should be run after calling @c krk_startModule to initialize
  * a new module context and is used internally by the import mechanism.
  *
  * @param fileName Path to the source file to read and execute.
- * @param fromName Value to assign to __name__
- * @param fromFile Value to assign to __file__
+ * @param fromName Value to assign to @c \__name__
+ * @param fromFile Value to assign to @c \__file__
  * @return The object representing the module, or None if execution of the file failed.
  */
 extern KrkValue krk_callfile(const char * fileName, char * fromName, char * fromFile);
@@ -338,26 +369,28 @@ extern KrkValue krk_peek(int distance);
 
 /**
  * @brief Get the name of the type of a value.
+ * @memberof KrkValue
  *
  * Obtains the C string representing the name of the class
  * associated with the given value. Useful for crafting
  * exception messages, such as those describing TypeErrors.
  *
  * @param value Value to examine
- * @return Nul-terminated C string of the type of 'value'.
+ * @return Nul-terminated C string of the type of @p value
  */
 extern const char * krk_typeName(KrkValue value);
 
 /**
  * @brief Attach a native C function to an attribute table.
+ * @memberof KrkTable
  *
  * Attaches the given native function pointer to an attribute table
  * while managing the stack shuffling and boxing of both the name and
- * the function object. If 'name' begins with a '.', the native function
- * is marked as a method. If 'name' begins with a ':', the native function
+ * the function object. If @p name begins with a '.', the native function
+ * is marked as a method. If @p name begins with a ':', the native function
  * is marked as a dynamic property.
  *
- * @param table    Attribute table to attach to, such as &someInstance->fields
+ * @param table    Attribute table to attach to, such as @c &someInstance->fields
  * @param name     Nil-terminated C string with the name to assign
  * @param function Native function pointer to attach
  * @return A pointer to the object representing the attached function.
@@ -366,26 +399,28 @@ extern KrkNative * krk_defineNative(KrkTable * table, const char * name, NativeF
 
 /**
  * @brief Attach a native dynamic property to an attribute table.
+ * @memberof KrkTable
  *
- * Mostly the same as defineNative, but ensures the creation of a dynamic property.
+ * Mostly the same as @c krk_defineNative, but ensures the creation of a dynamic property.
  * The intention of this function is to replace uses of defineNative with ":" names,
- * and replace specialized methods with KrkProperty* objects.
+ * and replace specialized methods with @c KrkProperty* objects.
  *
- * @param table    Attribute table to attach to, such as &someInstance->fields
+ * @param table    Attribute table to attach to, such as @c &someInstance->fields
  * @param name     Nil-terminated C string with the name to assign
- * @param function Native function pointer to attach
+ * @param func     Native function pointer to attach
  * @return A pointer to the property object created.
  */
 extern KrkProperty * krk_defineNativeProperty(KrkTable * table, const char * name, NativeFn func);
 
 /**
  * @brief Attach a value to an attribute table.
+ * @memberof KrkTable
  *
  * Manages the stack shuffling and boxing of the name string when attaching
- * a value to an attribute table. Rather than using krk_tableSet, this is
+ * a value to an attribute table. Rather than using @c krk_tableSet, this is
  * the preferred method of supplying fields to objects from C code.
  *
- * @param table Attribute table to attach to, such as &someInstance->fields
+ * @param table Attribute table to attach to, such as @c &someInstance->fields
  * @param name  Nil-terminated C string with the name to assign
  * @param obj   Value to attach.
  */
@@ -393,14 +428,15 @@ extern void krk_attachNamedValue(KrkTable * table, const char name[], KrkValue o
 
 /**
  * @brief Attach an object to an attribute table.
+ * @memberof KrkTable
  *
  * Manages the stack shuffling and boxing of the name string when attaching
- * an object to an attribute table. Rather than using krk_tableSet, this is
+ * an object to an attribute table. Rather than using @c krk_tableSet, this is
  * the preferred method of supplying fields to objects from C code.
  *
- * This is a convenience wrapper around krk_attachNamedValue.
+ * This is a convenience wrapper around @c krk_attachNamedValue.
  *
- * @param table Attribute table to attach to, such as &someInstance->fields
+ * @param table Attribute table to attach to, such as @c &someInstance->fields
  * @param name  Nil-terminated C string with the name to assign
  * @param obj   Object to attach.
  */
@@ -415,18 +451,18 @@ extern void krk_attachNamedObject(KrkTable * table, const char name[], KrkObj * 
  * may have different initializer signatures and need separate initialization.
  *
  * The created exception object is attached to the current thread state and
- * the HAS_EXCEPTION flag is set.
+ * the @c KRK_THREAD_HAS_EXCEPTION flag is set.
  *
- * @param type Class pointer for the exception type, eg. vm.exceptions->valueError
+ * @param type Class pointer for the exception type, eg. @c vm.exceptions->valueError
  * @param fmt  Format string.
- * @return As a convenience to C extension authors, returns None.
+ * @return As a convenience to C extension authors, returns @c None
  */
 extern KrkValue krk_runtimeError(KrkClass * type, const char * fmt, ...);
 
 /**
  * @brief Get a pointer to the current thread state.
  *
- * Generally equivalent to &krk_currentThread, though krk_currentThread
+ * Generally equivalent to @c &krk_currentThread, though @c krk_currentThread
  * itself may be implemented as a macro that calls this function depending
  * on the platform's thread support.
  *
@@ -440,7 +476,7 @@ extern KrkThreadState * krk_getCurrentThread(void);
  * Resumes the VM dispatch loop, returning to the caller when
  * the next exit trigger event happens. Generally, callers will
  * want to set the current thread's exitOnFrame before calling
- * krk_runNext. Alternatively, see krk_callValue which manages
+ * @c krk_runNext. Alternatively, see @c krk_callValue which manages
  * exit triggers automatically when calling function objects.
  *
  * @return Value returned by the exit trigger, generally the value
@@ -451,6 +487,7 @@ extern KrkValue  krk_runNext(void);
 
 /**
  * @brief Get the class representing a value.
+ * @memberof KrkValue
  *
  * Returns the class object representing the type of a value.
  * This may be the direct class of an instance, or a pseudoclass
@@ -463,30 +500,32 @@ extern KrkClass * krk_getType(KrkValue value);
 
 /**
  * @brief Determine if a class is an instance or subclass of a given type.
+ * @memberof KrkValue
  *
  * Searches the class hierarchy of the given value to determine if it is
- * a subtype of 'type'. As this chains through the inheritence tree, the
- * more deeply subclassed 'obj' is, the longer it may take to determine
- * if it is a subtype of 'type'. All types should eventually be subtypes
- * of the 'object' type, so this condition should not be checked. For
+ * a subtype of @p type. As this chains through the inheritence tree, the
+ * more deeply subclassed @p obj is, the longer it may take to determine
+ * if it is a subtype of @p type. All types should eventually be subtypes
+ * of the @c object type, so this condition should not be checked. For
  * some types, convenience macros are available. If you need to check if
- * 'obj' is a specific type, exclusive of subtypes, compare krk_getType
+ * @p obj is a specific type, exclusive of subtypes, compare @c krk_getType
  * instead of using this function.
  *
  * @param obj Value to examine.
  * @param type Class object to test for membership of.
- * @return 1 if obj is an instance of type or of a subclass of type
+ * @return 1 if @p obj is an instance of @p type or of a subclass of @p type
  */
 extern int krk_isInstanceOf(KrkValue obj, KrkClass * type);
 
 /**
  * @brief Perform method binding on the stack.
+ * @memberof KrkClass
  *
- * Performs attribute lookup from the class '_class' for 'name'.
- * If 'name' is not a valid method, the binding fails.
- * If 'name' is a valid method, the method will be retrieved and
+ * Performs attribute lookup from the class @p _class for @p name.
+ * If @p name is not a valid method, the binding fails.
+ * If @p name is a valid method, the method will be retrieved and
  * bound to the instance on the top of the stack, replacing it
- * with a BoundMethod object.
+ * with a @c BoundMethod object.
  *
  * @param _class Class object to resolve methods from.
  * @param name   String object with the name of the method to resolve.
@@ -496,9 +535,10 @@ extern int krk_bindMethod(KrkClass * _class, KrkString * name);
 
 /**
  * @brief Call a callable value in the current stack context.
+ * @memberof KrkValue
  *
  * Executes the given callable object (function, bound method, object
- * with a __call__() method, etc.) using 'argCount' arguments from the stack.
+ * with a @c \__call__() method, etc.) using @p argCount arguments from the stack.
  *
  * @param callee   Value referencing a callable object.
  * @param argCount Arguments to retreive from stack.
@@ -518,32 +558,36 @@ extern int krk_callValue(KrkValue callee, int argCount, int extra);
 
 /**
  * @brief Create a list object.
+ * @memberof KrkList
  *
- * This is the native function bound to 'listOf'.
+ * This is the native function bound to @c listOf
  */
 extern KrkValue krk_list_of(int argc, KrkValue argv[], int hasKw);
 
 /**
  * @brief Create a dict object.
+ * @memberof KrkDict
  *
- * This is the native function bound to 'dictOf'
+ * This is the native function bound to @c dictOf
  */
 extern KrkValue krk_dict_of(int argc, KrkValue argv[], int hasKw);
 
 /**
  * @brief Create a tuple object.
+ * @memberof KrkTuple
  *
- * This is the native function bound to 'tupleOf'.
+ * This is the native function bound to @c tupleOf
  */
 extern KrkValue krk_tuple_of(int argc, KrkValue argv[], int hasKw);
 
 /**
  * @brief Call a callable and manage VM state to obtain the return value.
+ * @memberof KrkValue
  *
  * This is a wrapper around various mechanisms including krk_callValue
  * intended for use by C extensions to call arbitrary functions without
  * knowledge of their implementation details. See the notes for
- * krk_callValue's 'extra' paramater for details on how 'isMethod' is used.
+ * @c krk_callValue 's @c extra paramater for details on how @p isMethod is used.
  *
  * @param value    Callable object reference.
  * @param argCount Arguments to collect from the stack.
@@ -554,20 +598,22 @@ extern KrkValue krk_callSimple(KrkValue value, int argCount, int isMethod);
 
 /**
  * @brief Convenience function for creating new types.
+ * @memberof KrkClass
  *
- * Creates a class object, output to *_class, setting its name to 'name', inheriting
- * from 'base', and attaching it with its name to the fields table of the given 'module'.
+ * Creates a class object, output to @p _class, setting its name to @p name, inheriting
+ * from @p base, and attaching it with its name to the fields table of the given @p module.
  *
- * @param module  Pointer to an instance for a module to attach to, or NULL to skip attaching.
+ * @param module  Pointer to an instance for a module to attach to, or @c NULL to skip attaching.
  * @param _class  Output pointer to assign the new class object to.
  * @param name    Name of the new class.
  * @param base    Pointer to class object to inherit from.
- * @return A pointer to the class object, equivalent to the value assigned to *_class.
+ * @return A pointer to the class object, equivalent to the value assigned to @p _class.
  */
 extern KrkClass * krk_makeClass(KrkInstance * module, KrkClass ** _class, const char * name, KrkClass * base);
 
 /**
  * @brief Finalize a class by collecting pointers to core methods.
+ * @memberof KrkClass
  *
  * Scans through the methods table of a class object to find special
  * methods and assign them to the class object's pointer table so they
@@ -578,26 +624,26 @@ extern KrkClass * krk_makeClass(KrkInstance * module, KrkClass ** _class, const 
 extern void krk_finalizeClass(KrkClass * _class);
 
 /**
- * @brief If there is an active exception, print a traceback to stderr.
+ * @brief If there is an active exception, print a traceback to @c stderr
  *
  * This function is exposed as a convenience for repl developers. Normally,
- * the VM will call dumpTraceback itself if an exception is unhandled and no
+ * the VM will call @c krk_dumpTraceback itself if an exception is unhandled and no
  * exit trigger is current set. The traceback is obtained from the exception
  * object. If the exception object does not have a traceback, only the
  * exception itself will be printed. The traceback printer will attempt to
  * open source files to print faulting lines and may call into the VM if the
- * exception object has a managed implementation of __str__.
+ * exception object has a managed implementation of @c \__str__.
  */
 extern void krk_dumpTraceback();
 
 /**
  * @brief Set up a new module object in the current thread.
  *
- * Creates a new instance of the module type and attaches a __builtins__
+ * Creates a new instance of the module type and attaches a @c \__builtins__
  * reference to its fields. The module becomes the current thread's
  * main module, but is not directly attached to the module table.
  *
- * @param name Name of the module, which is assigned to __name__
+ * @param name Name of the module, which is assigned to @c \__name__
  * @return The instance object representing the module.
  */
 extern KrkInstance * krk_startModule(const char * name);
@@ -605,7 +651,7 @@ extern KrkInstance * krk_startModule(const char * name);
 /**
  * @brief Obtain a list of properties for an object.
  *
- * This is the native function bound to 'object.__dir__'
+ * This is the native function bound to @c object.__dir__
  */
 extern KrkValue krk_dirObject(int argc, KrkValue argv[], int hasKw);
 
@@ -614,12 +660,12 @@ extern KrkValue krk_dirObject(int argc, KrkValue argv[], int hasKw);
  *
  * This is generally called by the import mechanisms to load a single module.
  *
- * @param name      Name of the module, used for file lookup.
+ * @param path      Dotted path of the module, used for file lookup.
  * @param moduleOut Receives a value with the module object.
- * @param runAs     Name to attach to __name__ for this module, different from 'name'.
- * @return 1 if the module was loaded, 0 if an ImportError occurred.
+ * @param runAs     Name to attach to @c \__name__ for this module, different from @p path
+ * @return 1 if the module was loaded, 0 if an @c ImportError occurred.
  */
-extern int krk_loadModule(KrkString * name, KrkValue * moduleOut, KrkString * runAs);
+extern int krk_loadModule(KrkString * path, KrkValue * moduleOut, KrkString * runAs);
 
 /**
  * @brief Load a module from a package.
@@ -628,12 +674,13 @@ extern int krk_loadModule(KrkString * name, KrkValue * moduleOut, KrkString * ru
  * into the module table.
  *
  * @param name String object of the dot-separated package path to import.
- * @return 1 if the module was loaded, 0 if an ImportError occurred.
+ * @return 1 if the module was loaded, 0 if an @c ImportError occurred.
  */
 extern int krk_doRecursiveModuleLoad(KrkString * name);
 
 /**
  * @brief Determine the truth of a value.
+ * @memberof KrkValue
  *
  * Determines if a value represents a "falsey" value.
  * Empty collections, 0-length strings, False, numeric 0,
@@ -647,12 +694,12 @@ extern int krk_isFalsey(KrkValue value);
 /**
  * @brief Concatenate two strings.
  *
- * This is a convenience function which calls 'str.__add__' on the top stack
- * values. Generally, this should be avoided - use StringBuilder instead.
+ * This is a convenience function which calls @c str.__add__ on the top stack
+ * values. Generally, this should be avoided - use @c StringBuilder instead.
  */
 extern void krk_addObjects(void);
 
-/**
+/*
  * All of the remaining stuff is internal and shouldn't be used by library users or embedders.
  * FIXME This stuff needs to be moved to another header! FIXME
  */
@@ -668,9 +715,7 @@ extern KrkValue _str_split(int argc, KrkValue argv[], int hasKw);
 extern KrkValue _str_format(int argc, KrkValue argv[], int hasKw);
 #define krk_string_format _str_format
 
-/* obj_dict.h */
 extern KrkValue krk_dict_nth_key_fast(size_t capacity, KrkTableEntry * entries, size_t index);
-
 
 extern void _createAndBind_numericClasses(void);
 extern void _createAndBind_strClass(void);
@@ -688,9 +733,12 @@ extern void _createAndBind_gcMod(void);
 extern void _createAndBind_timeMod(void);
 extern void _createAndBind_osMod(void);
 extern void _createAndBind_fileioMod(void);
-
+#ifdef ENABLE_THREADING
+extern void _createAndBind_threadsMod(void);
+#endif
 
 extern KrkValue krk_operator_lt(KrkValue,KrkValue);
 extern KrkValue krk_operator_gt(KrkValue,KrkValue);
 
 
+extern KrkValue krk_valueGetAttribute(KrkValue value, char * name);

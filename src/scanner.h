@@ -1,4 +1,8 @@
 #pragma once
+/**
+ * @file scanner.h
+ * @brief Definitions used by the token scanner.
+ */
 
 typedef enum {
 	TOKEN_LEFT_PAREN, TOKEN_RIGHT_PAREN,

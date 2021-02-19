@@ -1,5 +1,8 @@
 #pragma once
-
+/**
+ * @file value.h
+ * @brief Definitions for primitive stack references.
+ */
 #include <stdio.h>
 #include "kuroko.h"
 
@@ -9,8 +12,8 @@
  * KrkObj is the base type of all objects stored on the heap and
  * managed by the garbage collector.
  */
-typedef struct Obj KrkObj;
-typedef struct ObjString KrkString;
+typedef struct KrkObj KrkObj;
+typedef struct KrkString KrkString;
 
 /**
  * @brief Tag enum for basic value types.
@@ -84,6 +87,7 @@ typedef struct {
 
 /**
  * @brief Initialize a value array.
+ * @memberof KrkValueArray
  *
  * This should be called for any new value array, especially ones
  * initialized in heap or stack space, to set up the capacity, count
@@ -95,6 +99,7 @@ extern void krk_initValueArray(KrkValueArray * array);
 
 /**
  * @brief Add a value to a value array.
+ * @memberof KrkValueArray
  *
  * Appends 'value' to the end of the given array, adjusting count values
  * and resizing as necessary.
@@ -106,6 +111,7 @@ extern void krk_writeValueArray(KrkValueArray * array, KrkValue value);
 
 /**
  * @brief Release relesources used by a value array.
+ * @memberof KrkValueArray
  *
  * Frees the storage associated with a given value array and resets
  * its capacity and count. Does not directly free resources associated
@@ -118,6 +124,7 @@ extern void krk_freeValueArray(KrkValueArray * array);
 
 /**
  * @brief Print a string representation of a value.
+ * @memberof KrkValue
  *
  * Print a string representation of 'value' to the stream 'f'.
  * For primitives, performs appropriate formatting. For objects,
@@ -135,6 +142,7 @@ extern void krk_printValue(FILE * f, KrkValue value);
 
 /**
  * @brief Print a value without calling the VM.
+ * @memberof KrkValue
  *
  * Print a string representation of 'value' to the stream 'f',
  * avoiding calls to managed code by using simplified representations
@@ -152,6 +160,7 @@ extern void krk_printValueSafe(FILE * f, KrkValue value);
 
 /**
  * @brief Compare two values for equality.
+ * @memberof KrkValue
  *
  * Performs a relaxed equality comparison between two values,
  * check for equivalence by contents. This may call managed
@@ -163,6 +172,7 @@ extern int krk_valuesEqual(KrkValue a, KrkValue b);
 
 /**
  * @brief Compare two values by identity.
+ * @memberof KrkValue
  *
  * Performs a strict comparison between two values, comparing
  * their identities. For primitive values, this is generally

@@ -370,7 +370,7 @@ static int compileFile(char * fileName) {
 	krk_startModule("__main__");
 	KrkFunction * func = krk_compile(buf, 0, fileName);
 
-	if (krk_currentThread.flags & KRK_HAS_EXCEPTION) {
+	if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) {
 		fprintf(stderr, "%s: exception during compilation:\n", fileName);
 		krk_dumpTraceback();
 		return 3;
