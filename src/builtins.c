@@ -203,9 +203,18 @@ static KrkValue _globals(int argc, KrkValue argv[], int hasKw) {
 
 static KrkValue _isinstance(int argc, KrkValue argv[], int hasKw) {
 	if (argc != 2) return krk_runtimeError(vm.exceptions->argumentError, "isinstance expects 2 arguments, got %d", argc);
-	if (!IS_CLASS(argv[1])) return krk_runtimeError(vm.exceptions->typeError, "isinstance() arg 2 must be class");
-
-	return BOOLEAN_VAL(krk_isInstanceOf(argv[0], AS_CLASS(argv[1])));
+	if (IS_CLASS(argv[1])) {
+		return BOOLEAN_VAL(krk_isInstanceOf(argv[0], AS_CLASS(argv[1])));
+	} else if (IS_TUPLE(argv[1])) {
+		for (size_t i = 0; i < AS_TUPLE(argv[1])->values.count; ++i) {
+			if (IS_CLASS(AS_TUPLE(argv[1])->values.values[i]) && krk_isInstanceOf(argv[0], AS_CLASS(AS_TUPLE(argv[1])->values.values[i]))) {
+				return BOOLEAN_VAL(1);
+			}
+		}
+		return BOOLEAN_VAL(0);
+	} else {
+		return krk_runtimeError(vm.exceptions->typeError, "isinstance() arg 2 must be class or tuple");
+	}
 }
 
 static KrkValue _module_repr(int argc, KrkValue argv[], int hasKw) {
