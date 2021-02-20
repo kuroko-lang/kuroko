@@ -405,13 +405,16 @@ void _createAndBind_builtins(void) {
 	krk_finalizeClass(vm.baseClasses->propertyClass);
 
 	krk_makeClass(vm.builtins, &Helper, "Helper", vm.baseClasses->objectClass);
-	BIND_METHOD(Helper,__call__);
+	Helper->docstring = S("Special object that prints a helpful message when passed to @ref repr");
+	BIND_METHOD(Helper,__call__)->doc = "@arguments obj=None\nPrints the help documentation attached to @p obj or "
+		"starts the interactive help system.";
 	BIND_METHOD(Helper,__repr__);
 	krk_finalizeClass(Helper);
 	krk_attachNamedObject(&vm.builtins->fields, "help", (KrkObj*)krk_newInstance(Helper));
 
 	krk_makeClass(vm.builtins, &LicenseReader, "LicenseReader", vm.baseClasses->objectClass);
-	BIND_METHOD(LicenseReader,__call__);
+	LicenseReader->docstring = S("Special object that prints Kuroko's copyright information when passed to @ref repr");
+	BIND_METHOD(LicenseReader,__call__)->doc = "Print the full license statement.";
 	BIND_METHOD(LicenseReader,__repr__);
 	krk_finalizeClass(LicenseReader);
 	krk_attachNamedObject(&vm.builtins->fields, "license", (KrkObj*)krk_newInstance(LicenseReader));

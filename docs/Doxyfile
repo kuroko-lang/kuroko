@@ -28,7 +28,8 @@ HTML_COLORSTYLE_SAT    = 200
 # Doxygen will enable latex by default, so let's turn that off.
 GENERATE_LATEX         = NO
 
-ALIASES += methodstart{4}="\htmlonly<\3 class=\"memtitle \4\" id=\"\1\"><span class=\"permalink\"><a href=\"#\1\">_</a></span>\2</\3><div class=\"memitem\"><div class=\"memdoc\">\endhtmlonly"
+ALIASES += methodstart{4}="\anchor \1 \htmlonly<\3 class=\"memtitle \4\"><span class=\"permalink\"><a href=\"#\1\">_</a></span>\2</\3><div class=\"memitem\"><div class=\"memdoc\">\endhtmlonly"
+ALIASES += methodstart{5}="\anchor \1 \htmlonly<\3 class=\"memtitle \4\"><span class=\"permalink\"><a href=\"#\1\">_</a></span>\2</\3><div class=\"memitem\"><div class=\"memproto\">\5</div><div class=\"memdoc\">\endhtmlonly"
 ALIASES += methodend="\htmlonly</div></div>\endhtmlonly"
 ALIASES += bsnote{1}="\htmlonly<div class=\"alert alert-warning\">\endhtmlonly\1\htmlonly</div>\endhtmlonly"
 
