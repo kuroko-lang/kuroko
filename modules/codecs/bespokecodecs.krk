@@ -159,7 +159,7 @@ register_kuroko_codec(
      "gbk", "iso-ir-58", "x-gbk"], GbkIncrementalEncoder, Gb18030IncrementalDecoder)
 
 class Iso2022JpIncrementalEncoder(IncrementalEncoder):
-    name = "iso-2022-jp"
+    name = "cp50220"
     webname = "iso-2022-jp"
     encmaps_sbcs = []
     encmaps_dbcs = [None, None, encode_jis7]
@@ -278,7 +278,7 @@ class Iso2022JpIncrementalEncoder(IncrementalEncoder):
         self.state_greekmode = state[2]
 
 class Iso2022JpIncrementalDecoder(IncrementalDecoder):
-    name = "iso-2022-jp"
+    name = "cp50220"
     webname = "iso-2022-jp"
     decmaps_sbcs = [None, None, decode_jis7katakana]
     decmaps_dbcs = [None, None, None, decode_jis7]
@@ -426,7 +426,7 @@ class Iso2022JpIncrementalDecoder(IncrementalDecoder):
         self.state_greekmode = state[2]
         self.state_shiftoutmode = state[3]
 
-register_kuroko_codec(["iso-2022-jp", "csiso2022jp"],
+register_kuroko_codec(["iso-2022-jp", "csiso2022jp", "cp50220", "cscp50220"],
     Iso2022JpIncrementalEncoder, Iso2022JpIncrementalDecoder)
 
 class Utf16IncrementalEncoder(IncrementalEncoder):
