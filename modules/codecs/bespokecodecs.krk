@@ -4,7 +4,7 @@ from itertools import enumerate
 
 class Gb18030IncrementalEncoder(IncrementalEncoder):
     name = "gb18030"
-    webname = "gb18030"
+    html5name = "gb18030"
     four_byte_codes = True
     def encode(string, final = False):
         let out = ByteCatenator()
@@ -66,7 +66,7 @@ class Gb18030IncrementalEncoder(IncrementalEncoder):
 
 class GbkIncrementalEncoder(Gb18030IncrementalEncoder):
     name = "gbk"
-    webname = "gbk"
+    html5name = "gbk"
     four_byte_codes = False
 
 def _get_gbsurrogate_pointer(leader, i):
@@ -79,7 +79,7 @@ def _get_gbsurrogate_pointer(leader, i):
 
 class Gb18030IncrementalDecoder(IncrementalDecoder):
     name = "gb18030"
-    webname = "gb18030"
+    html5name = "gb18030"
     def decode(data_in, final = False):
         let data = self.pending + data_in
         self.pending = b""
@@ -160,7 +160,7 @@ register_kuroko_codec(
 
 class Iso2022JpIncrementalEncoder(IncrementalEncoder):
     name = "cp50220"
-    webname = "iso-2022-jp"
+    html5name = "iso-2022-jp"
     encmaps_sbcs = []
     encmaps_dbcs = [None, None, encode_jis7]
     encmap_supershift_latin = None
@@ -279,7 +279,7 @@ class Iso2022JpIncrementalEncoder(IncrementalEncoder):
 
 class Iso2022JpIncrementalDecoder(IncrementalDecoder):
     name = "cp50220"
-    webname = "iso-2022-jp"
+    html5name = "iso-2022-jp"
     decmaps_sbcs = [None, None, decode_jis7katakana]
     decmaps_dbcs = [None, None, None, decode_jis7]
     decmap_shiftout = None
@@ -431,7 +431,7 @@ register_kuroko_codec(["iso-2022-jp", "csiso2022jp", "cp50220", "cscp50220"],
 
 class Utf16IncrementalEncoder(IncrementalEncoder):
     name = "utf-16"
-    webname = "utf-16"
+    html5name = "utf-16"
     encoding_map = {}
     endian = "little"
     include_bom = True
@@ -483,7 +483,7 @@ class Utf16IncrementalEncoder(IncrementalEncoder):
 
 class Utf16IncrementalDecoder(IncrementalDecoder):
     name = "utf-16"
-    webname = "utf-16"
+    html5name = "utf-16"
     force_endian = None # subclass may set to "little" or "big"
     # -1: expecting BOM
     #  0: LE
@@ -567,24 +567,24 @@ class Utf16IncrementalDecoder(IncrementalDecoder):
 
 class Utf16BeIncrementalEncoder(Utf16IncrementalEncoder):
     name = "utf-16be"
-    webname = "utf-16be"
+    html5name = "utf-16be"
     endian = "big"
     include_bom = False
 
 class Utf16BeIncrementalDecoder(Utf16IncrementalDecoder):
     name = "utf-16be"
-    webname = "utf-16be"
+    html5name = "utf-16be"
     force_endian = "big"
 
 class Utf16LeIncrementalEncoder(Utf16IncrementalEncoder):
     name = "utf-16le"
-    webname = "utf-16le"
+    html5name = "utf-16le"
     endian = "little"
     include_bom = False
 
 class Utf16LeIncrementalDecoder(Utf16IncrementalDecoder):
     name = "utf-16le"
-    webname = "utf-16le"
+    html5name = "utf-16le"
     force_endian = "little"
 
 # Note: this behaves explicitly differently to WHATWG since WHATWG has the BOM, if present,
@@ -599,7 +599,7 @@ register_kuroko_codec(["utf-16be", "unicodefffe", "unicodebigunmarked"],
 
 class Utf8IncrementalEncoder(IncrementalEncoder):
     name = "utf-8"
-    webname = "utf-8"
+    html5name = "utf-8"
     # -1: expecting BOM
     #  0: Normal
     state = None
@@ -621,7 +621,7 @@ class Utf8IncrementalEncoder(IncrementalEncoder):
 
 class Utf8IncrementalDecoder(IncrementalDecoder):
     name = "utf-8"
-    webname = "utf-8"
+    html5name = "utf-8"
     # -1: expecting BOM
     #  0: Normal
     state = None
@@ -723,12 +723,12 @@ class Utf8IncrementalDecoder(IncrementalDecoder):
 
 class Utf8SigIncrementalEncoder(Utf8IncrementalEncoder):
     name = "utf-8-sig"
-    webname = None
+    html5name = None
     include_bom = True
 
 class Utf8SigIncrementalDecoder(Utf8IncrementalDecoder):
     name = "utf-8-sig"
-    webname = None
+    html5name = None
     remove_bom = True
 
 register_kuroko_codec(["unicode-1-1-utf-8", "unicode11utf8", "unicode20utf8", "utf-8", "utf8", 
@@ -738,7 +738,7 @@ register_kuroko_codec(["utf-8-sig", "utf-8-bom"], Utf8SigIncrementalEncoder, Utf
 
 class JapaneseAutodetectIncrementalDecoder(IncrementalDecoder):
     name = "japanese"
-    webname = None
+    html5name = None
     # State flags:
     # 0x01: eliminated ISO-2022-JP
     # 0x02: eliminated Shift JIS

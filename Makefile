@@ -107,11 +107,11 @@ modules/%.so: src/module_%.c libkuroko.so
 modules/math.so: src/module_math.c libkuroko.so
 	${CC} ${CFLAGS} ${LDFLAGS} -shared -o $@ $< -lm ${LDLIBS}
 
-modules/codecs/sbencs.krk: kuroko tools/codecs/gen_sbencs.krk tools/codecs/encodings.json tools/codecs/indexes.json
-	./kuroko tools/codecs/gen_sbencs.krk
+modules/codecs/sbencs.krk: kuroko tools/codectools/gen_sbencs.krk tools/codectools/encodings.json tools/codectools/indexes.json
+	./kuroko tools/codectools/gen_sbencs.krk
 
-modules/codecs/dbdata.krk: kuroko tools/codecs/gen_dbdata.krk tools/codecs/encodings.json tools/codecs/indexes.json
-	./kuroko tools/codecs/gen_dbdata.krk
+modules/codecs/dbdata.krk: kuroko tools/codectools/gen_dbdata.krk tools/codectools/encodings.json tools/codectools/indexes.json
+	./kuroko tools/codectools/gen_dbdata.krk
 
 .PHONY: clean
 clean:

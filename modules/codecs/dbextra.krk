@@ -12,14 +12,14 @@ let encmap_johab_ascii = encmap_johabx_ascii.copy()
 encmap_johab_ascii.update(encmap_johab_hangul)
 class AsciiJohabIncrementalEncoder(AsciiIncrementalEncoder):
     name = "johab-ascii"
-    webname = None
+    html5name = None
     encoding_map = encmap_johab_ascii
 
 let decmap_johab_ascii = decmap_johabx_ascii.copy()
 decmap_johab_ascii.update(decmap_johab_hangul)
 class AsciiJohabIncrementalDecoder(AsciiIncrementalDecoder):
     name = "johab-ascii"
-    webname = None
+    html5name = None
     decoding_map = decmap_johab_ascii
     dbrange = tupleOf(*range(0x84, 0xF9 + 1))
     # Trail ranges for hangul and nonhangul are different, but this is their union.
@@ -33,7 +33,7 @@ let encmap_johab_ebcdic = encmap_johabx_ebcdic.copy()
 encmap_johab_ebcdic.update(encmap_johab_hangul)
 class EbcdicJohabIncrementalEncoder(BaseEbcdicIncrementalEncoder):
     name = "johab-ebcdic"
-    webname = None
+    html5name = None
     sbcs_encmap = encmap_nbyte_ebcdic
     dbcshost_encmap = encmap_johab_ebcdic
 
@@ -41,7 +41,7 @@ let decmap_johab_ebcdic = decmap_johabx_ebcdic.copy()
 decmap_johab_ebcdic.update(decmap_johab_hangul)
 class EbcdicJohabIncrementalDecoder(BaseEbcdicIncrementalDecoder):
     name = "johab-ebcdic"
-    webname = None
+    html5name = None
     sbcs_decmap = decmap_nbyte_ebcdic
     dbcshost_decmap = decmap_johab_ebcdic
 
@@ -51,7 +51,7 @@ register_kuroko_codec(["cp933", "ibm-933", "933", "x-IBM933", "johab-ebcdic"],
 
 class JisEncodingIncrementalEncoder(Iso2022JpIncrementalEncoder):
     name = "jis_encoding"
-    webname = None
+    html5name = None
     encmaps_sbcs = [None, None, encmap_jis7katakana]
     encmaps_dbcs = [None, None, None, encode_jis7, encmap_jis78, encmap_jis90p2,
                     encmap_jis00, encmap_jis00p2, encmap_jis04, encmap_gb7, encmap_ksc7]
@@ -64,7 +64,7 @@ class JisEncodingIncrementalEncoder(Iso2022JpIncrementalEncoder):
 
 class JisEncodingIncrementalDecoder(Iso2022JpIncrementalDecoder):
     name = "jis_encoding"
-    webname = None
+    html5name = None
     decmaps_sbcs = [None, None, decode_jis7katakana]
     decmaps_dbcs = [None, None, None, decode_jis7, decmap_jis78, decmap_jis90p2,
                     decmap_jis00, decmap_jis00p2, decmap_jis04, decmap_gb7, decmap_ksc7]
@@ -87,7 +87,7 @@ register_kuroko_codec(["jis_encoding", "csjisencoding", "jis", "jis7"],
 
 class Iso2022Jp1IncrementalEncoder(Iso2022JpIncrementalEncoder):
     name = "iso-2022-jp-1"
-    webname = None
+    html5name = None
     encmaps_sbcs = [None, None]
     encmaps_dbcs = [None, None, encmap_jis90p2, encode_jis7]
     escs_onebyte = {0: 0x42, 1: 0x4A}
@@ -100,7 +100,7 @@ register_kuroko_codec(["iso-2022-jp-1"],
 
 class Iso2022JpExtIncrementalEncoder(Iso2022JpIncrementalEncoder):
     name = "iso-2022-jp-ext"
-    webname = None
+    html5name = None
     encmaps_sbcs = [None, None, encmap_jis7katakana]
     encmaps_dbcs = [None, None, None, encmap_jis90p2, encode_jis7]
     escs_onebyte = {0: 0x42, 1: 0x4A, 2: 0x49}
@@ -113,7 +113,7 @@ register_kuroko_codec(["iso-2022-jp-ext"],
 
 class Iso2022Jp2IncrementalEncoder(Iso2022JpIncrementalEncoder):
     name = "iso-2022-jp-2"
-    webname = None
+    html5name = None
     encmaps_sbcs = [None, None]
     encmaps_dbcs = [None, None, encmap_jis90p2, encode_jis7, encmap_gb7, encmap_ksc7]
     encmap_supershift_latin = encmap_lat1supp
@@ -143,7 +143,7 @@ for i in encode_jis7.keys():
 
 class Iso2022Jp3IncrementalEncoder(Iso2022JpIncrementalEncoder):
     name = "iso-2022-jp-3"
-    webname = None
+    html5name = None
     encmaps_sbcs = [None, None, encmap_jis7katakana]
     encmaps_dbcs = [None, None, None, encode_jis7_reduced, encmap_jis00, encmap_jis00p2]
     escs_onebyte = {0: 0x42, 1: 0x4A, 2: 0x49}
@@ -156,7 +156,7 @@ register_kuroko_codec(["iso-2022-jp-3"],
 
 class Iso2022Jp2004IncrementalEncoder(Iso2022JpIncrementalEncoder):
     name = "iso-2022-jp-2004"
-    webname = None
+    html5name = None
     encmaps_sbcs = [None, None, encmap_jis7katakana]
     encmaps_dbcs = [None, None, None, encode_jis7_reduced, encmap_jis00p2, encmap_jis04]
     escs_onebyte = {0: 0x42, 1: 0x4A, 2: 0x49}

@@ -43,25 +43,25 @@ class KurokoCodecInfo:
         let enc = self.incrementalencoder
         let dec = self.incrementaldecoder
         if enc:
-            if enc.name != self.name or (enc.webname and enc.webname != self.name):
+            if enc.name != self.name or (enc.html5name and enc.html5name != self.name):
                 ret += "; encoded as " + repr(enc.name)
             else:
                 ret += "; with encoder"
-            if not enc.webname:
-                ret += " (non-web)"
-            else if enc.webname != enc.name:
-                ret += " (web " + repr(enc.webname) + ")"
+            if not enc.html5name:
+                ret += " (non-HTML5)"
+            else if enc.html5name != enc.name:
+                ret += " (HTML5 " + repr(enc.html5name) + ")"
         else:
             ret += "; no encoder"
         if dec:
-            if dec.name != self.name or (dec.webname and dec.webname != self.name):
+            if dec.name != self.name or (dec.html5name and dec.html5name != self.name):
                 ret += "; decoded as " + repr(dec.name)
             else:
                 ret += "; with decoder"
-            if not dec.webname:
-                ret += " (non-web)"
-            else if dec.webname != dec.name:
-                ret += " (web " + repr(dec.webname) + ")"
+            if not dec.html5name:
+                ret += " (non-HTML5)"
+            else if dec.html5name != dec.name:
+                ret += " (HTML5 " + repr(dec.html5name) + ")"
         else:
             ret += "; no decoder"
         return ret + ">"
@@ -186,7 +186,7 @@ class StringCatenator:
 
 class IncrementalEncoder:
     name = None
-    webname = None
+    html5name = None
     def __init__(errors):
         self.errors = errors
         self.reset()
@@ -198,7 +198,7 @@ class IncrementalEncoder:
 
 class IncrementalDecoder:
     name = None
-    webname = None
+    html5name = None
     def __init__(errors):
         self.errors = errors
         self.reset()
@@ -226,7 +226,7 @@ class AsciiIncrementalEncoder(IncrementalEncoder):
     # The obvious labels for ASCII are all Windows-1252 per WHATWG. Also, what people call
     # "ASCII" in 8-bit-byte contexts (without backspace combining) is properly ISO-4873-DV.
     name = "ecma-43-dv"
-    webname = None
+    html5name = None
     # For non-ASCII characters (this should work as a base class)
     encoding_map = {}
     def encode(string, final = False):
@@ -258,7 +258,7 @@ class AsciiIncrementalEncoder(IncrementalEncoder):
 
 class AsciiIncrementalDecoder(IncrementalDecoder):
     name = "ecma-43-dv"
-    webname = None
+    html5name = None
     # For non-ASCII single-byte characters (this should work as a base class)
     decoding_map = {}
     dbrange = ()
@@ -334,7 +334,7 @@ register_kuroko_codec(["ecma-43-dv", "iso-4873-dv"], AsciiIncrementalEncoder, As
 
 class BaseEbcdicIncrementalEncoder(IncrementalEncoder):
     name = None
-    webname = None
+    html5name = None
     sbcs_encmap = {}
     dbcshost_encmap = {}
     sbcsge_encmap = {}
@@ -390,7 +390,7 @@ class BaseEbcdicIncrementalEncoder(IncrementalEncoder):
 
 class BaseEbcdicIncrementalDecoder(IncrementalDecoder):
     name = None
-    webname = None
+    html5name = None
     sbcs_decmap = {}
     dbcshost_decmap = {}
     sbcsge_decmap = {}
@@ -474,7 +474,7 @@ class BaseEbcdicIncrementalDecoder(IncrementalDecoder):
 
 class UndefinedIncrementalEncoder(IncrementalEncoder):
     name = "undefined"
-    webname = "replacement"
+    html5name = "replacement"
     # WHATWG doesn't specify an encoder for "replacement" so follow Python "undefined" here.
     # i.e. ignore the errors specifier and always use strict, and fail on even empty strings.
     def __init__(errors):
@@ -484,7 +484,7 @@ class UndefinedIncrementalEncoder(IncrementalEncoder):
 
 class UndefinedIncrementalDecoder(IncrementalDecoder):
     name = "undefined"
-    webname = "replacement"
+    html5name = "replacement"
     def decode(data, final = False):
         if len(data) == 0:
             return "" # per WHATWG, contra Python
