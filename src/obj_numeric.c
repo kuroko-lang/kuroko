@@ -62,7 +62,10 @@ KRK_METHOD(float,__float__,{ return argv[0]; })
 
 KRK_METHOD(float,__str__,{
 	char tmp[100];
-	size_t l = snprintf(tmp, 100, "%g", self);
+	size_t l = snprintf(tmp, 97, "%.16g", self);
+	if (!strstr(tmp,".") && !strstr(tmp,"e")) {
+		l = snprintf(tmp,100,"%.16g.0",self);
+	}
 	return OBJECT_VAL(krk_copyString(tmp, l));
 })
 
