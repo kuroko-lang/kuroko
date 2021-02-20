@@ -206,7 +206,12 @@ KRK_FUNC(dis,{
 			krk_runtimeError(vm.exceptions->typeError, "Can not disassemble built-in method of '%s'", krk_typeName(AS_BOUND_METHOD(argv[0])->receiver));
 		}
 	} else if (IS_CLASS(argv[0])) {
-		krk_runtimeError(vm.exceptions->typeError, "todo: class disassembly");
+		KrkValue code;
+		if (krk_tableGet(&AS_CLASS(argv[0])->fields, OBJECT_VAL(S("__func__")), &code) && IS_CLOSURE(code)) {
+			KrkFunction * func = AS_CLOSURE(code)->function;
+			krk_disassembleCodeObject(stdout, func, AS_CLASS(argv[0])->name->chars);
+		}
+		/* TODO Methods! */
 	} else {
 		krk_runtimeError(vm.exceptions->typeError, "Don't know how to disassemble '%s'", krk_typeName(argv[0]));
 	}
@@ -221,6 +226,9 @@ void _createAndBind_disMod(void) {
 	krk_attachNamedObject(&module->fields, "__name__", (KrkObj*)S("dis"));
 	krk_attachNamedValue(&module->fields, "__file__", NONE_VAL());
 	krk_attachNamedObject(&module->fields, "__doc__",
-		(KrkObj*)S("Provides tools for disassembling bytecode."));
-	BIND_FUNC(module, dis);
+		(KrkObj*)S("@brief Provides tools for disassembling bytecode."));
+	BIND_FUNC(module, dis)->doc = "@brief Disassemble an object.\n"
+		"@arguments obj\n\n"
+		"Dumps a disassembly of the bytecode in the code object associated with @p obj. "
+		"If @p obj can not be disassembled, a @ref TypeError is raised.";
 }

@@ -368,6 +368,22 @@ static KrkValue _property_doc(int argc, KrkValue argv[], int hasKw) {
 	return NONE_VAL();
 }
 
+static KrkValue _property_name(int argc, KrkValue argv[], int hasKw) {
+	if (argc != 1 || !IS_PROPERTY(argv[0])) return krk_runtimeError(vm.exceptions->typeError, "?");
+	KrkValue method = AS_PROPERTY(argv[0])->method;
+	if (IS_NATIVE(method) && AS_NATIVE(method)->name) {
+		return OBJECT_VAL(krk_copyString(AS_NATIVE(method)->name, strlen(AS_NATIVE(method)->name)));
+	} else if (IS_CLOSURE(method)) {
+		return OBJECT_VAL(AS_CLOSURE(method)->function->name);
+	}
+	return NONE_VAL();
+}
+
+static KrkValue _property_method(int argc, KrkValue argv[], int hasKw) {
+	if (argc != 1 || !IS_PROPERTY(argv[0])) return krk_runtimeError(vm.exceptions->typeError, "?");
+	return AS_PROPERTY(argv[0])->method;
+}
+
 _noexport
 void _createAndBind_builtins(void) {
 	vm.baseClasses->objectClass = krk_newClass(S("object"), NULL);
@@ -402,6 +418,8 @@ void _createAndBind_builtins(void) {
 	krk_makeClass(vm.builtins, &vm.baseClasses->propertyClass, "Property", vm.baseClasses->objectClass);
 	krk_defineNative(&vm.baseClasses->propertyClass->methods, ".__repr__", _property_repr);
 	krk_defineNative(&vm.baseClasses->propertyClass->methods, ":__doc__", _property_doc);
+	krk_defineNative(&vm.baseClasses->propertyClass->methods, ":__name__", _property_name);
+	krk_defineNative(&vm.baseClasses->propertyClass->methods, ":__method__", _property_method);
 	krk_finalizeClass(vm.baseClasses->propertyClass);
 
 	krk_makeClass(vm.builtins, &Helper, "Helper", vm.baseClasses->objectClass);

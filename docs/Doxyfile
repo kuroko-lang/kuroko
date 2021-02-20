@@ -32,6 +32,7 @@ ALIASES += methodstart{4}="\anchor \1 \htmlonly<\3 class=\"memtitle \4\"><span c
 ALIASES += methodstart{5}="\anchor \1 \htmlonly<\3 class=\"memtitle \4\"><span class=\"permalink\"><a href=\"#\1\">_</a></span>\2</\3><div class=\"memitem\"><div class=\"memproto\">\5</div><div class=\"memdoc\">\endhtmlonly"
 ALIASES += methodend="\htmlonly</div></div>\endhtmlonly"
 ALIASES += bsnote{1}="\htmlonly<div class=\"alert alert-warning\">\endhtmlonly\1\htmlonly</div>\endhtmlonly"
+ALIASES += bsnote{2}="\htmlonly<div class=\"alert alert-\1\">\endhtmlonly\2\htmlonly</div>\endhtmlonly"
 
 ALIASES += modulelist{1}="\htmlonly<div class=\"directory\"><table class=\"directory\">\endhtmlonly\1\htmlonly</table></div>\endhtmlonly"
 ALIASES += krkmodule{2}="\htmlonly<tr class=\"autoalternate\"><td class=\"entry\"><span style\"width:16px;display:inline-block;\">&nbsp;</span><span class=\"icona\"><span class=\"icon\">M</span></span>\endhtmlonly@ref \1\htmlonly</td><td class=\"desc\">\endhtmlonly\2\htmlonly</td</tr>\endhtmlonly"

@@ -338,10 +338,15 @@ void _createAndBind_gcMod(void) {
 	krk_attachNamedObject(&vm.modules, "gc", (KrkObj*)gcModule);
 	krk_attachNamedObject(&gcModule->fields, "__name__", (KrkObj*)S("gc"));
 	krk_attachNamedValue(&gcModule->fields, "__file__", NONE_VAL());
-	krk_defineNative(&gcModule->fields, "collect", krk_collectGarbage_wrapper);
-	krk_defineNative(&gcModule->fields, "generations", krk_generations);
-	krk_defineNative(&gcModule->fields, "pause", _gc_pause);
-	krk_defineNative(&gcModule->fields, "resume", _gc_resume);
 	krk_attachNamedObject(&gcModule->fields, "__doc__",
-		(KrkObj*)S("Namespace containing methods for controlling the garbge collector."));
+		(KrkObj*)S("@brief Namespace containing methods for controlling the garbge collector."));
+
+	krk_defineNative(&gcModule->fields, "collect", krk_collectGarbage_wrapper)->doc =
+		"@brief Triggers one cycle of garbage collection.";
+	krk_defineNative(&gcModule->fields, "generations", krk_generations)->doc =
+		"@brief Returns a 4-tuple of the counts of objects in each stage of garbage collection.";
+	krk_defineNative(&gcModule->fields, "pause", _gc_pause)->doc =
+		"@brief Disables automatic garbage collection until @ref resume is called.";
+	krk_defineNative(&gcModule->fields, "resume", _gc_resume)->doc =
+		"@brief Re-enable automatic garbage collection after it was stopped by @ref pause ";
 }

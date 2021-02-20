@@ -87,10 +87,12 @@ let modules = [
 let docString = {}
 
 def fixup(mod):
+    '''Escapes some characters in module names to make better page IDs.'''
     if mod.startswith('__'): return '\\' + mod
     return mod
 
 def truncateString(s):
+    '''If @p s is longer than 100 characters, truncate it with an ellipsis.'''
     s = s.strip()
     if '\n' in s:
         s = s.split('\n')[0]
@@ -101,14 +103,15 @@ def truncateString(s):
         return short
 
 def fixupDoc(doc):
+    '''Cleans up docstring contents for display in the module list.'''
     for line in doc.split('\n'):
         if line.strip().startswith('@brief '):
             doc = line.strip().replace('@brief ', '', 1).strip()
-            realPrint('derp:',doc)
             break
     return doc.replace(',','\\,').replace('<','&lt;').replace('>','&gt;')
 
 def isExceptionType(cls):
+    '''Determines if @p cls is an @c Exception type by examining its superclass chain.'''
     if cls == Exception: return True
     let checked = []
     while '__base__' in dir(cls) and cls.__base__ not in checked:
@@ -118,6 +121,7 @@ def isExceptionType(cls):
     return False
 
 def getArgs(func):
+    '''Extract the arguments of either a managed (@c func.__args__) or native (from an `@arguments` docstring) function.'''
     if func.__file__ == '<builtin>':
         if '__doc__' in dir(func) and func.__doc__ and '@arguments ' in func.__doc__:
             let before, after = func.__doc__.split('@arguments ',1)
@@ -127,6 +131,7 @@ def getArgs(func):
     return '\\,'.join([x for x in func.__args__ if x != 'self'])
 
 def functionDoc(func):
+    '''Extracts the docstring from a function and removes markup that Doxygen will choke on.'''
     let doc = func.__doc__ if ('__doc__' in dir(func) and func.__doc__) else ''
     if '@arguments ' in doc:
         doc = '\n'.join([x for x in doc.split('\n') if '@arguments' not in x])
@@ -152,13 +157,13 @@ def processModules(modules):
         else:
             docString[modulepath] = 'TODO'
 
-        def outputFunction(name, func, prefix=None):
+        def outputFunction(name, func, prefix=None, paren=True):
             # Build the function signature
             let _args = getArgs(func)
             let args = ('<i>' + _args + '</i>') if _args else ''
             let body = functionDoc(func)
             let maybePrefix = prefix + '.' if prefix else ''
-            let formatted = maybePrefix + '<b>' + name + '</b>(' + args + ')'
+            let formatted = maybePrefix + '<b>' + name + '</b>' + (f'({args})' if paren else args)
             let maybeDetail = ''
             if prefix and name in specialMethods:
                 maybeDetail = ',' + formatted
@@ -183,6 +188,7 @@ def processModules(modules):
                 print('<p>' + cls.__doc__ + '</p>')
             let seen = []
             let methods = []
+            let properties = []
             for member in dir(cls):
                 if member in blacklistedMethods: continue
                 realPrint(cls,member)
@@ -195,10 +201,17 @@ def processModules(modules):
                 if isinstance(obj, function) and member not in seen:
                     seen.append(member)
                     methods.append(Pair(member,obj))
+                else if isinstance(obj, Property) and member not in seen:
+                    seen.append(member)
+                    properties.append(Pair(member,obj.__method__))
             if methods:
                 methods.sort()
                 for methodName, method in methods:
                     outputFunction(methodName, method, prefix=name)
+            if properties:
+                properties.sort()
+                for propName, method in properties:
+                    outputFunction(propName, method, prefix=name, paren=False)
             print('\\methodend')
 
         def dumpModule(name, thing):
