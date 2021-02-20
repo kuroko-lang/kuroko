@@ -170,6 +170,28 @@ class StringCatenator:
     def getvalue():
         return self.first + self.second
 
+class BaseDecoder:
+    def __init__(errors):
+        self.errors = errors
+        self.reset()
+    def _handle_truncation(out, unused, final, data, offset, leader):
+        if len(leader) == 0:
+            return out.getvalue()
+        else if final:
+            let error = UnicodeDecodeError(self.name, data, offset - len(leader), offset, "truncated sequence")
+            let errorret = lookup_error(self.errors)(error)
+            out.add(errorret[0])
+            return out.getvalue()
+        else:
+            self.pending = bytes(leader)
+            return out.getvalue()
+    def reset():
+        self.pending = b""
+    def getstate():
+        return self.pending
+    def setstate(state):
+        self.pending = state
+
 class AsciiIncrementalEncoder:
     # The obvious labels for ASCII are all Windows-1252 per WHATWG. Also, what people call
     # "ASCII" in 8-bit-byte contexts (without backspace combining) is properly ISO-4873-DV.
@@ -208,28 +230,6 @@ class AsciiIncrementalEncoder:
     def reset():
     def getstate():
     def setstate(state):
-
-class BaseDecoder:
-    def __init__(errors):
-        self.errors = errors
-        self.reset()
-    def _handle_truncation(out, bytemode, final, data, offset, leader):
-        if bytemode == 1:
-            return out.getvalue()
-        else if final:
-            let error = UnicodeDecodeError(self.name, data, offset - len(leader), offset, "truncated sequence")
-            let errorret = lookup_error(self.errors)(error)
-            out.add(errorret[0])
-            return out.getvalue()
-        else:
-            self.pending = bytes(leader)
-            return out.getvalue()
-    def reset():
-        self.pending = b""
-    def getstate():
-        return self.pending
-    def setstate(state):
-        self.pending = state
 
 class AsciiIncrementalDecoder(BaseDecoder):
     name = "ecma-43-dv"
@@ -306,6 +306,147 @@ class AsciiIncrementalDecoder(BaseDecoder):
                     offset += len(string)
 
 register_kuroko_codec(["ecma-43-dv", "iso-4873-dv"], AsciiIncrementalEncoder, AsciiIncrementalDecoder)
+
+class BaseEbcdicIncrementalEncoder:
+    name = None
+    webname = None
+    sbcs_encmap = {}
+    dbcshost_encmap = {}
+    sbcsge_encmap = {}
+    shift_to_dbcs = 0x0E
+    shift_to_sbcs = 0x0F
+    def __init__(errors):
+        self.errors = errors
+        self.reset()
+    def encode(string, final = False):
+        let out = ByteCatenator()
+        let offset = 0
+        while 1: # offset can be arbitrarily changed by the error handler, so not a for
+            if offset >= len(string):
+                return out.getvalue()
+            let i = string[offset]
+            if ord(i) in self.sbcs_encmap:
+                if self.in_dbcshost:
+                    out.add(bytes([self.shift_to_sbcs]))
+                    self.in_dbcshost = False
+                out.add(bytes([self.sbcs_encmap[ord(i)]]))
+                offset += 1
+            else if ord(i) in self.sbcsge_encmap:
+                out.add(b"\x08")
+                out.add(bytes([self.sbcsge_encmap[ord(i)]]))
+                offset += 1
+            else if ord(i) in self.dbcshost_encmap:
+                if not self.in_dbcshost:
+                    out.add(bytes([self.shift_to_dbcs]))
+                    self.in_dbcshost = True
+                let target = self.dbcshost_encmap[ord(i)]
+                for individ in target:
+                    out.add(bytes([individ]))
+                offset += 1
+            else if ord(i) == 0x3000:
+                if not self.in_dbcshost:
+                    out.add(bytes([self.shift_to_dbcs]))
+                    self.in_dbcshost = True
+                out.add(b"\x40\x40")
+                offset += 1
+            else:
+                let error = UnicodeEncodeError(self.name, string, offset, offset + 1,
+                            "character not supported by target encoding")
+                let errorret = lookup_error(self.errors)(error)
+                out.add(encode(errorret[0].decode(), self.name, errors="strict"))
+                offset = errorret[1]
+                if offset < 0:
+                    offset += len(string)
+    def reset():
+        self.in_dbcshost = False
+    def getstate():
+        return self.in_dbcshost
+    def setstate(state):
+        self.in_dbcshost = state
+
+class BaseEbcdicIncrementalDecoder(BaseDecoder):
+    name = None
+    webname = None
+    sbcs_decmap = {}
+    dbcshost_decmap = {}
+    sbcsge_decmap = {}
+    shift_to_dbcs = 0x0E
+    shift_to_sbcs = 0x0F
+    def decode(data_in, final = False):
+        let data = self.pending + data_in
+        self.pending = b""
+        let out = StringCatenator()
+        let offset = 0
+        let leader = []
+        while 1: # offset can be arbitrarily changed by the error handler, so not a for
+            if offset >= len(data):
+                return self._handle_truncation(out, None, final, data, offset, leader)
+            let i = data[offset]
+            if i == self.shift_to_sbcs and not leader:
+                self.in_dbcshost = False
+                offset += 1
+            else if i == self.shift_to_dbcs and not leader:
+                self.in_dbcshost = True
+                offset += 1
+            else if not self.in_dbcshost and not leader and i in self.sbcs_decmap:
+                out.add(chr(self.sbcs_decmap[i]))
+                offset += 1
+            else if not self.in_dbcshost and i == 0x08:
+                leader.append(i)
+                offset += 1
+            else if not self.in_dbcshost and leader[0] == 0x08 and i in self.sbcsge_decmap:
+                out.add(chr(self.sbcsge_decmap[i]))
+                leader = []
+                offset += 1
+            else if self.in_dbcshost and i < 0x40 and not leader:
+                out.add(chr(self.sbcs_decmap[i]))
+                offset += 1
+            else if self.in_dbcshost and 0x40 <= i and i <= 0xFE and not leader:
+                offset += 1
+                leader.append(i)
+            else if self.in_dbcshost and leader and leader[0] == 0x40 and i == 0x40:
+                out.add("\u3000")
+                leader = []
+                offset += 1
+            else if self.in_dbcshost and leader and leader[0] == 0x40 and 0x41 <= i and i <= 0xFE:
+                out.add(" ")
+                leader = [i]
+                offset += 1
+            else if self.in_dbcshost and leader and 0x40 <= i and i <= 0xFE and (
+                            leader[0], i) in self.dbcshost_decmap:
+                out.add(chr(self.dbcshost_decmap[(leader[0], i)]))
+                leader = []
+                offset += 1
+            else:
+                let errorstart
+                let errorend
+                if leader:
+                    errorstart = offset - len(leader)
+                    if 0x41 <= leader[0] and leader[0] <= 0xFE and 0x41 <= i and i <= 0xFE:
+                        errorend = offset + 1
+                    else:
+                        errorend = errorstart + 1
+                else:
+                    errorstart = offset
+                    errorend = offset + 1
+                let reason = "invalid sequence"
+                if not leader:
+                    reason = "invalid byte"
+                let error = UnicodeDecodeError(self.name, data, errorstart, errorend, reason)
+                leader = []
+                let errorret = lookup_error(self.errors)(error)
+                out.add(errorret[0])
+                offset = errorret[1]
+                if offset < 0:
+                    offset += len(string)
+    def reset():
+        self.pending = b""
+        self.in_dbcshost = False
+    def getstate():
+        return (self.pending, self.in_dbcshost)
+    def setstate(state):
+        self.pending = state[0]
+        self.in_dbcshost = state[1]
 
 class UndefinedIncrementalEncoder:
     name = "undefined"
