@@ -345,6 +345,8 @@ class BaseEbcdicIncrementalEncoder(IncrementalEncoder):
         let offset = 0
         while 1: # offset can be arbitrarily changed by the error handler, so not a for
             if offset >= len(string):
+                if final:
+                    out.add(bytes([self.shift_to_sbcs]))
                 return out.getvalue()
             let i = string[offset]
             if ord(i) in self.sbcs_encmap:
