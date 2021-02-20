@@ -391,7 +391,7 @@ class BaseEbcdicIncrementalDecoder(BaseDecoder):
             else if not self.in_dbcshost and not leader and i in self.sbcs_decmap:
                 out.add(chr(self.sbcs_decmap[i]))
                 offset += 1
-            else if i == 0x08:
+            else if not leader and i == 0x08:
                 leader.append(i)
                 offset += 1
             else if leader and leader[0] == 0x08 and i in self.sbcsge_decmap:
