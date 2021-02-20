@@ -94,6 +94,7 @@ typedef enum {
 	TYPE_LAMBDA,
 	TYPE_STATIC,
 	TYPE_PROPERTY,
+	TYPE_CLASS,
 } FunctionType;
 
 typedef struct Compiler {
@@ -1148,6 +1149,7 @@ static KrkToken decorator(size_t level, FunctionType type) {
 	/* hol'up, let's special case some stuff */
 	KrkToken at_staticmethod = syntheticToken("staticmethod");
 	KrkToken at_property = syntheticToken("property");
+	KrkToken at_classmethod = syntheticToken("classmethod");
 	if (identifiersEqual(&at_staticmethod, &parser.current)) {
 		if (level != 0 || type != TYPE_METHOD) {
 			error("Invalid use of @staticmethod, which must be the top decorator of a class method.");
@@ -1164,6 +1166,13 @@ static KrkToken decorator(size_t level, FunctionType type) {
 		advance();
 		type = TYPE_PROPERTY;
 		emitBytes(OP_DUP, 0);
+	} else if (identifiersEqual(&at_classmethod, &parser.current)) {
+		if (level != 0 || type != TYPE_METHOD) {
+			error("Invalid use of @classmethod, which must be the top decorator of a class method.");
+			return funcName;
+		}
+		advance();
+		type = TYPE_CLASS;
 	} else {
 		/* Collect an identifier */
 		expression();
@@ -1211,6 +1220,10 @@ static KrkToken decorator(size_t level, FunctionType type) {
 			size_t ind = identifierConstant(&funcName);
 			EMIT_CONSTANT_OP(OP_SET_PROPERTY, ind);
 			emitByte(OP_POP);
+		} else if (type == TYPE_CLASS) {
+			emitByte(OP_CREATE_CLASSMETHOD);
+			size_t ind = identifierConstant(&funcName);
+			EMIT_CONSTANT_OP(OP_METHOD, ind);
 		} else if (type == TYPE_PROPERTY) {
 			emitByte(OP_CREATE_PROPERTY);
 			size_t ind = identifierConstant(&funcName);
