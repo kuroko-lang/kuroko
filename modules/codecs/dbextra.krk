@@ -11,7 +11,7 @@ from codecs.bespokecodecs import Iso2022JpIncrementalEncoder, Iso2022JpIncrement
 let encmap_johab_ascii = encmap_johabx_ascii.copy()
 encmap_johab_ascii.update(encmap_johab_hangul)
 class AsciiJohabIncrementalEncoder(AsciiIncrementalEncoder):
-    name = "johab"
+    name = "johab-ascii"
     webname = None
     encoding_map = encmap_johab_ascii
 
@@ -40,7 +40,7 @@ class EbcdicJohabIncrementalEncoder(BaseEbcdicIncrementalEncoder):
 let decmap_johab_ebcdic = decmap_johabx_ebcdic.copy()
 decmap_johab_ebcdic.update(decmap_johab_hangul)
 class EbcdicJohabIncrementalDecoder(BaseEbcdicIncrementalDecoder):
-    name = "ibm-933"
+    name = "johab-ebcdic"
     webname = None
     sbcs_decmap = decmap_nbyte_ebcdic
     dbcshost_decmap = decmap_johab_ebcdic
