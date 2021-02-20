@@ -102,14 +102,35 @@ static KrkValue _bound_get_file(int argc, KrkValue argv[], int hasKw) {
 static KrkValue _closure_get_argnames(int argc, KrkValue argv[], int hasKw) {
 	if (!IS_CLOSURE(argv[0])) return OBJECT_VAL(krk_newTuple(0));
 	KrkFunction * self = AS_CLOSURE(argv[0])->function;
-	KrkTuple * tuple = krk_newTuple(self->requiredArgs + self->keywordArgs);
+	KrkTuple * tuple = krk_newTuple(self->requiredArgs + self->keywordArgs + self->collectsArguments + self->collectsKeywords);
 	krk_push(OBJECT_VAL(tuple));
+
 	for (short i = 0; i < self->requiredArgs; ++i) {
 		tuple->values.values[tuple->values.count++] = self->requiredArgNames.values[i];
 	}
+
 	for (short i = 0; i < self->keywordArgs; ++i) {
-		tuple->values.values[tuple->values.count++] = self->keywordArgNames.values[i];
+		struct StringBuilder sb = {0};
+		pushStringBuilderStr(&sb, AS_CSTRING(self->keywordArgNames.values[i]), AS_STRING(self->keywordArgNames.values[i])->length);
+		pushStringBuilder(&sb,'=');
+		tuple->values.values[tuple->values.count++] = finishStringBuilder(&sb);
 	}
+
+	if (self->collectsArguments) {
+		struct StringBuilder sb = {0};
+		pushStringBuilder(&sb, '*');
+		pushStringBuilderStr(&sb, AS_CSTRING(self->requiredArgNames.values[self->requiredArgs]), AS_STRING(self->requiredArgNames.values[self->requiredArgs])->length);
+		tuple->values.values[tuple->values.count++] = finishStringBuilder(&sb);
+	}
+
+	if (self->collectsKeywords) {
+		struct StringBuilder sb = {0};
+		pushStringBuilder(&sb, '*');
+		pushStringBuilder(&sb, '*');
+		pushStringBuilderStr(&sb, AS_CSTRING(self->keywordArgNames.values[self->keywordArgs]), AS_STRING(self->keywordArgNames.values[self->keywordArgs])->length);
+		tuple->values.values[tuple->values.count++] = finishStringBuilder(&sb);
+	}
+
 	krk_tupleUpdateHash(tuple);
 	krk_pop();
 	return OBJECT_VAL(tuple);
