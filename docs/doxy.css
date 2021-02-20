@@ -1,0 +1,355 @@
+#main-nav {
+  height: 40px;
+  background-color: rgb(33, 37, 41); /* Main bootstrap nav background color */
+  border-radius: 5px;
+  color: #fff;
+  display: flex;
+}
+#main-nav li {
+  list-style: none;
+  font-size: 14px;
+}
+#main-menu {
+  align-items: center;
+  border-radius: 5px;
+  height: 100%;
+  display: flex;
+  flex-direction: row;
+  width: 100%;
+}
+#main-menu>li:last-child {
+  margin-left: auto;
+}
+#main-menu div#MSearchBox {
+  display: flex;
+  margin-top: 0;
+  height: 19px;
+}
+#MSearchBox>span {
+  top: auto !important;
+}
+#MSearchBox>span.left {
+  border-radius: 5px 0px 0px 5px;
+  background-color: #fff;
+  background-image: none;
+}
+#MSearchBox>span>input {
+  background-image: none;
+  background-color: #fff;
+}
+#MSearchBox>span.right {
+  top: auto;
+  border-radius: 0px 5px 5px 0px;
+  background-color: #fff;
+  background-image: none;
+}
+.header {
+  margin-top: 1em;
+}
+.header a { text-decoration: none; }
+.header a:hover { text-decoration: underline; }
+.header>.summary {
+  float: right;
+  font-size: small;
+}
+.header>.headertitle {
+  font-size: 25px;
+  font-weight: bold;
+}
+.contents {
+  margin-bottom: 2rem;
+}
+.contents a { text-decoration: none; }
+.contents a:hover { text-decoration: underline; }
+.contents h1 {
+  font-size: 32px;
+  font-weight: bold;
+  margin-top: 1rem;
+}
+.contents h2 {
+  font-size: 26px;
+}
+.contents a {
+  scroll-margin-top: 4rem;
+}
+tr.heading h2 {
+  margin-top: 12px;
+  margin-bottom: 4px;
+}
+h2.groupheader {
+  margin-top: 1.75em;
+}
+.contents .center {
+  text-align: center;
+}
+.legend {
+}
+
+h3.classDef, h3.letDef {
+  font-size: 22px;
+}
+h3.classDef>em, h3.letDef>em {
+  font-size: 18px;
+}
+h3.classDef>b, h3.letDef>b {
+  font-family: "Monaco", "Menlo", "Ubuntu Mono", "Consolas", "source-code-pro", monospace;
+}
+
+table.memberdecls {
+  border-spacing: 0px;
+  padding: 0;
+}
+
+.memItemLeft { white-space: nowrap; }
+.memItemRight { width: 100%; }
+.mdescLeft, .mdescRight, .memItemLeft, .memItemRight, .memTemplItemLeft, .memTemplItemRight, .memTemplParams {
+  margin: 4px;
+  background-color: #fef7f7;
+  border: none;
+  padding: 1px 0 0 8px;
+}
+
+.memSeparator {
+  border-bottom: 1px solid #f9d5d5;
+  line-height: 1px;
+  margin: 0;
+  padding: 0;
+}
+a.el {
+  font-weight: bold;
+  color: rgb(179,21,21);
+}
+
+h2.memtitle, h3.memtitle, h4.memtitle {
+  padding: .5rem 1rem;
+  margin-bottom: 0;
+  background-color: rgba(0,0,0,.03);
+  border: 1px solid rgba(0,0,0,.125);
+  border-radius: 5px 5px 0px 0px;
+  font-family: "Monaco", "Menlo", "Ubuntu Mono", "Consolas", "source-code-pro", monospace;
+  font-size: 24px;
+  scroll-margin-top: 4rem;
+}
+.memtitle.classDef {
+  background-color: #cfe2ff;
+}
+.memtitle.exceptionDef {
+  background-color: #f8d7da;
+}
+h4.memtitle {
+  font-size: 22px;
+}
+div.memitem {
+  border-radius: 0px 0px 5px 5px;
+  border: 1px solid rgba(0,0,0,.125);
+  border-top: none;
+  padding: 0;
+  margin-bottom: 0.5rem;
+}
+div.memproto {
+  background-color: rgba(0,0,0,.015);
+  border-bottom: 1px solid rgba(0,0,0,.125);
+  padding: 0.5rem;
+  font-size: 17px;
+  font-family: "Monaco", "Menlo", "Ubuntu Mono", "Consolas", "source-code-pro", monospace;
+  line-height: 19px;
+}
+div.memdoc {
+  padding: 0.5rem 0.5rem 0 0.5rem;
+}
+.params .paramname {
+  font-weight: bold;
+}
+.paramname {
+  color: #602020;
+  white-space: nowrap;
+}
+.params dd {
+  margin-left: 2rem;
+}
+.permalink>a {
+  visibility: hidden;
+  font-size: 0;
+}
+.permalink>a::before {
+  visibility: visible;
+  font-size: 24px;
+  content: "#";
+  margin-right: 0.25rem;
+  color: rgb(10,10,10,0.25);
+}
+.permalink>a:hover::before {
+  color: rgb(10,10,10,1);
+}
+.permalink>a:hover { text-decoration: none; }
+.contents > hr {
+  display: none;
+}
+
+.icona {
+  width: 24px;
+  height: 22px;
+  display: inline-block;
+}
+
+.icon {
+  background-color: #dc3545;
+  font-weight: bold;
+  color: #fff;
+  font-size: 12px;
+  width: 18px;
+  border-radius: 4px;
+  display: inline-block;
+  text-align: center;
+}
+
+.directory tr:nth-child(odd) {
+  background-color: rgba(0,0,0,.03);
+}
+.directory td.desc {
+  width: 100%;
+  border-left: 1px solid rgba(0,0,0,0.05);
+  padding-left: 1rem;
+}
+.directory td.entry {
+  white-space: nowrap;
+  padding-right: 6px;
+  padding-top: 3px;
+}
+.arrow {
+  user-select: none;
+  cursor: pointer;
+  font-size: 80%;
+  display: inline-block;
+  width: 16px;
+  height: 22px;
+}
+
+.levels {
+  white-space: nowrap;
+  text-align: right;
+  font-size: 9pt;
+}
+.levels>span {
+  cursor: pointer;
+  padding-left: 2px;
+  padding-right: 2px;
+  color: #B31515;
+}
+.qindex {
+  text-align: center;
+  color: #fff;
+  display: none;
+}
+.qindex>a {
+}
+.classindex {
+  width: 100%;
+}
+.classindex .ah {
+  display: inline-block;
+  width: 25px;
+  height: 25px;
+  border-radius: 4px;
+  background-color: rgb(0,0,0,0.05);
+  color: #602020;
+  font-weight: bold;
+}
+.fragment>.line {
+  font-size: 17px;
+  font-family: "Monaco", "Menlo", "Ubuntu Mono", "Consolas", "source-code-pro", monospace;
+  line-height: 19px;
+  white-space: pre-wrap;
+}
+.fragment {
+  margin: 1rem;
+  background-color: #1f1f1f;
+  padding: 0.5rem;
+  border-radius: 5px;
+  color: #e6e6e6;
+}
+.fragment a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+}
+.fragment>.line {
+  margin: 0;
+  padding: 0;
+  line-height: normal;
+}
+.fragment>.line span.keyword { color: #33a2e6; }
+.fragment>.line span.keywordflow { color: #33a2e6; }
+.fragment>.line span.stringliteral  { color: #48b048; }
+.fragment>.line span.comment { color: #9e9981; font-style: oblique; }
+.fragment>.line span.numeric { color: #e62b7f; }
+.fragment>.line span.charliteral { color: #e62b7f; }
+.fragment>.line span.escape  { color: #71cbad; }
+.fragment>.line span.keywordtype { color: #e6ce6e; }
+.fragment>.line span.preprocessor { color: #e62b7f; }
+.fragment>.line>.lineno {
+  color: #e6ce6e; background-color: #1f1f1f;
+  border-right: 1px solid rgb(255,255,255,0.5);
+  padding-right: 0.5rem;
+}
+.fragment>.line>.lineno a {
+  text-decoration: none;
+}
+.ttc {
+  position: absolute;
+  display: none;
+}
+#powerTip {
+  cursor: default;
+  white-space: nowrap;
+  background-color: white;
+  border: 1px solid #d8d8d8;
+  border-radius: calc(.3rem - 1px);
+  box-shadow: 1px 1px 7px black;
+  display: none;
+  font-size: smaller;
+  max-width: 80%;
+  background-color: rgba(255,255,255,0.9);
+  padding: 0;
+  position: absolute;
+  z-index: 2147483647;
+}
+#powerTip>.ttname {
+  background-color: #f0f0f0;
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid #d8d8d8;
+}
+#powerTip>.ttname a {
+  text-decoration: none;
+  color: inherit;
+}
+#powerTip>.ttdeci {
+  padding: 0.5rem 1rem;
+  background-color: #fff;
+  font-family: "Monaco", "Menlo", "Ubuntu Mono", "Consolas", "source-code-pro", monospace;
+}
+#powerTip>.ttdoc {
+  padding: 0.5rem 1rem;
+  background-color: #fff;
+}
+#powerTip>.ttdef {
+  padding: 0.5rem 1rem;
+  border-top: 1px solid #d8d8d8;
+  background-color: #f0f0f0;
+}
+#nav-path ul {
+  display: flex;
+  flex-direction: row;
+}
+#nav-path ul li {
+  list-style: none;
+  display: inline-block;
+  margin: 0.25rem;
+  margin-left: auto;
+  margin-right: auto;
+}
+#nav-path ul li + li::before {
+  padding-right: 0.5rem;
+  color: rgb(0,0,0,0.6);
+  content: '/';
+}

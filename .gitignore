@@ -7,7 +7,8 @@
 /wasm/
 /jupyter/
 # Doxygen output
-/html/
+/docs/html/
+/docs/mod*.md
 # Match library files anywhere.
 *.o
 *.so

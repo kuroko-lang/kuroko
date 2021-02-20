@@ -155,55 +155,58 @@ KrkValue krk_module_onload_math(void) {
 	KrkInstance * module = krk_newInstance(vm.baseClasses->moduleClass);
 	krk_push(OBJECT_VAL(module));
 
-	bind(ceil);
-	bind(floor);
+	krk_attachNamedObject(&module->fields, "__doc__",(KrkObj*)
+		S("Provides access to floating-point mathematical functions from the system `libm`."));
+
+	bind(ceil)->doc  = "Returns the smallest integer value not less than the input.";
+	bind(floor)->doc = "Returns the largest integer value not greater than the input.";
 #ifdef _math_trunc
-	bind(trunc);
+	bind(trunc)->doc = "Rounds the input towards zero to an integer.";
 #endif
-	bind(exp);
+	bind(exp)->doc   = "Returns the base-e exponentiation of the input.";
 #ifdef _math_expm1
-	bind(expm1);
+	bind(expm1)->doc = "Equivalent to `exp(x) - 1`.";
 #endif
-	bind(log2);
-	bind(log10);
-	bind(sqrt);
-	bind(acos);
-	bind(asin);
-	bind(atan);
-	bind(cos);
-	bind(sin);
-	bind(tan);
+	bind(log2)->doc  = "Calculates the base-2 logarithm of the input.";
+	bind(log10)->doc = "Calculates the base-10 logarithm of the input.";
+	bind(sqrt)->doc  = "Calculates the square root of the input.";
+	bind(acos)->doc  = "Calculates the arc-cosine of the radian input.";
+	bind(asin)->doc  = "Calculates the arc-sine of the radian input.";
+	bind(atan)->doc  = "Calculates the arc-tangent of the radian input.";
+	bind(cos)->doc   = "Calculates the cosine of the radian input.";
+	bind(sin)->doc   = "Calculates the sine of the radian input.";
+	bind(tan)->doc   = "Calculates the tangent of the radian input.";
 #ifdef _math_acosh
-	bind(acosh);
-	bind(asinh);
-	bind(atanh);
+	bind(acosh)->doc = "Calculates the inverse hyperbolic cosine of the input.";
+	bind(asinh)->doc = "Calculates the inverse hyperbolic sine of the input.";
+	bind(atanh)->doc = "Calculates the inverse hyperbolic tangent of the input.";
 #endif
-	bind(cosh);
-	bind(sinh);
-	bind(tanh);
+	bind(cosh)->doc  = "Calculates the hyperbolic cosine of the input.";
+	bind(sinh)->doc  = "Calculates the hyperbolic sine of the input.";
+	bind(tanh)->doc  = "Calculates the hyperbolic tangent of the input.";
 #ifdef _math_erf
-	bind(erf);
-	bind(erfc);
+	bind(erf)->doc   = "Calculates the error function of the input.";
+	bind(erfc)->doc  = "Calculates the complementary error function of the input.";
 #endif
 #ifdef _math_gamma
-	bind(gamma);
-	bind(lgamma);
+	bind(gamma)->doc  = "Calculates the gamma of the input.";
+	bind(lgamma)->doc = "Calculates the log gamma of the input.";
 #endif
 #ifdef _math_copysign
-	bind(copysign);
+	bind(copysign)->doc = "Copies the sign from one value to another.";
 #endif
-	bind(fmod);
+	bind(fmod)->doc = "Returns the floating point remainder of the first input over the second.";
 #ifdef _math_remainder
-	bind(remainder);
+	bind(remainder)->doc = "Somehow different from `fmod`.";
 #endif
-	bind(log1p);
-	bind(pow);
-	bind(atan2);
-	bind(frexp);
+	bind(log1p)->doc = "Equivalent to `log(x) + 1`";
+	bind(pow)->doc   = "Calculates `x^p`";
+	bind(atan2)->doc = "Calculates the arctangent of `x` and `y`";
+	bind(frexp)->doc = "Converts a floating point input to a fractional and integer component pair, returned as a tuple.";
 #ifdef isfinite
-	bind(isfinite);
-	bind(isinf);
-	bind(isnan);
+	bind(isfinite)->doc = "Determines if the input is finite.";
+	bind(isinf)->doc = "Determines if the input is infinite.";
+	bind(isnan)->doc = "Determines if the input is the floating point `NaN`.";
 #endif
 
 	/**

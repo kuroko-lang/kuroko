@@ -1,0 +1,39 @@
+PROJECT_NAME           = "Kuroko"
+PROJECT_BRIEF          = "Bytecode-compiled interpreted programming language."
+PROJECT_LOGO           =
+
+# Since we're documenting a C API...
+OPTIMIZE_OUTPUT_FOR_C  = YES
+LAYOUT_FILE            = docs/DoxygenLayout.xml
+
+# Make docs for interpreter and tools
+INPUT                  = src/ tools/ docs/
+FILE_PATTERNS = *.c *.h *.md
+
+# Ignore rline, since it's a vendored library from ToaruOS
+EXCLUDE                = src/rline.c src/rline.h
+
+# Enable the source browser, even if I don't particular like Doxygen's highlighting
+SOURCE_BROWSER         = YES
+GENERATE_HTML          = YES
+
+HTML_OUTPUT            = docs/html
+HTML_FILE_EXTENSION    = .html
+HTML_HEADER            = docs/doxygen_header.html
+HTML_FOOTER            = docs/doxygen_footer.html
+HTML_EXTRA_FILES       = docs/doxy.css docs/tabs-override.css
+HTML_COLORSTYLE_HUE    = 0
+HTML_COLORSTYLE_SAT    = 200
+
+# Doxygen will enable latex by default, so let's turn that off.
+GENERATE_LATEX         = NO
+
+ALIASES += methodstart{4}="\htmlonly<\3 class=\"memtitle \4\" id=\"\1\"><span class=\"permalink\"><a href=\"#\1\">_</a></span>\2</\3><div class=\"memitem\"><div class=\"memdoc\">\endhtmlonly"
+ALIASES += methodend="\htmlonly</div></div>\endhtmlonly"
+ALIASES += bsnote{1}="\htmlonly<div class=\"alert alert-warning\">\endhtmlonly\1\htmlonly</div>\endhtmlonly"
+
+ALIASES += modulelist{1}="\htmlonly<div class=\"directory\"><table class=\"directory\">\endhtmlonly\1\htmlonly</table></div>\endhtmlonly"
+ALIASES += krkmodule{2}="\htmlonly<tr class=\"autoalternate\"><td class=\"entry\"><span style\"width:16px;display:inline-block;\">&nbsp;</span><span class=\"icona\"><span class=\"icon\">M</span></span>\endhtmlonly@ref \1\htmlonly</td><td class=\"desc\">\endhtmlonly\2\htmlonly</td</tr>\endhtmlonly"
+
+# These are just really crazy
+COLLABORATION_GRAPH = NO

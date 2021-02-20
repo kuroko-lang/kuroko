@@ -358,7 +358,7 @@ void _createAndBind_builtins(void) {
 	krk_defineNative(&vm.baseClasses->moduleClass->methods, ".__repr__", _module_repr);
 	krk_defineNative(&vm.baseClasses->moduleClass->methods, ".__str__", _module_repr);
 	krk_finalizeClass(vm.baseClasses->moduleClass);
-	vm.baseClasses->moduleClass->docstring = S("");
+	vm.baseClasses->moduleClass->docstring = S("Type of imported modules and packages.");
 
 	vm.builtins = krk_newInstance(vm.baseClasses->moduleClass);
 	krk_attachNamedObject(&vm.modules, "__builtins__", (KrkObj*)vm.builtins);
