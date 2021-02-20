@@ -159,7 +159,6 @@
 .sm-dox ul ul ul ul ul a:active {
  border-left:40px solid transparent
 }
-@media (min-width: 768px) {
  .sm-dox ul {
   position:absolute;
   width:12em
@@ -350,5 +349,4 @@
  .sm-dox.sm-vertical ul a.disabled {
   background:#fff
  }
-}
 

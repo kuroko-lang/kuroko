@@ -9,6 +9,8 @@
 # Doxygen output
 /docs/html/
 /docs/mod*.md
+/docs/classindex.md
+/docs/functionindex.md
 # Match library files anywhere.
 *.o
 *.so
