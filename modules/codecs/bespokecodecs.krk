@@ -1,13 +1,11 @@
-from codecs.infrastructure import register_kuroko_codec, ByteCatenator, StringCatenator, UnicodeEncodeError, UnicodeDecodeError, lookup_error, lookup, BaseDecoder
+from codecs.infrastructure import register_kuroko_codec, ByteCatenator, StringCatenator, UnicodeEncodeError, UnicodeDecodeError, lookup_error, lookup, IncrementalDecoder, IncrementalEncoder
 from codecs.dbdata import encode_jis7, decode_jis7, decode_jis7katakana, encode_gbk, decode_gbk, gb_surrogate_ranges
 from itertools import enumerate
 
-class Gb18030IncrementalEncoder:
+class Gb18030IncrementalEncoder(IncrementalEncoder):
     name = "gb18030"
     webname = "gb18030"
     four_byte_codes = True
-    def __init__(errors):
-        self.errors = errors
     def encode(string, final = False):
         let out = ByteCatenator()
         let offset = 0
@@ -65,9 +63,6 @@ class Gb18030IncrementalEncoder:
                 let fourth = 0x30 + (running % 10)
                 out.add(bytes([first, second, third, fourth]))
                 offset += 1
-    def reset():
-    def getstate():
-    def setstate(state):
 
 class GbkIncrementalEncoder(Gb18030IncrementalEncoder):
     name = "gbk"
@@ -82,7 +77,7 @@ def _get_gbsurrogate_pointer(leader, i):
     if (39419 < ret and ret < 189000) or (ret > 1237575): return None
     return ret
 
-class Gb18030IncrementalDecoder(BaseDecoder):
+class Gb18030IncrementalDecoder(IncrementalDecoder):
     name = "gb18030"
     webname = "gb18030"
     def decode(data_in, final = False):
@@ -163,7 +158,7 @@ register_kuroko_codec(
     ["chinese", "csgb2312", "csiso58gb231280", "gb2312", "gb_2312", "gb_2312-80",
      "gbk", "iso-ir-58", "x-gbk"], GbkIncrementalEncoder, Gb18030IncrementalDecoder)
 
-class Iso2022JpIncrementalEncoder:
+class Iso2022JpIncrementalEncoder(IncrementalEncoder):
     name = "iso-2022-jp"
     webname = "iso-2022-jp"
     encmaps_sbcs = []
@@ -183,9 +178,6 @@ class Iso2022JpIncrementalEncoder:
     state = None
     state_greekmode = None # boolean for whether super-shift codes are in Greek mode
     state_desigsupershift = None # have we actually designated a super-shift set yet?
-    def __init__(errors):
-        self.errors = errors
-        self.reset()
     def ensure_state_number(state, out):
         if self.state == state:
         else if state in self.escs_onebyte:
@@ -285,7 +277,7 @@ class Iso2022JpIncrementalEncoder:
         self.state_desigsupershift = state[1]
         self.state_greekmode = state[2]
 
-class Iso2022JpIncrementalDecoder(BaseDecoder):
+class Iso2022JpIncrementalDecoder(IncrementalDecoder):
     name = "iso-2022-jp"
     webname = "iso-2022-jp"
     decmaps_sbcs = [None, None, decode_jis7katakana]
@@ -437,7 +429,7 @@ class Iso2022JpIncrementalDecoder(BaseDecoder):
 register_kuroko_codec(["iso-2022-jp", "csiso2022jp"],
     Iso2022JpIncrementalEncoder, Iso2022JpIncrementalDecoder)
 
-class Utf16IncrementalEncoder:
+class Utf16IncrementalEncoder(IncrementalEncoder):
     name = "utf-16"
     webname = "utf-16"
     encoding_map = {}
@@ -446,9 +438,6 @@ class Utf16IncrementalEncoder:
     # -1: BOM not yet emitted if applicable
     #  0: BOM emitted
     state = None
-    def __init__(errors):
-        self.errors = errors
-        self.reset()
     def push_word(word, out):
         if self.endian == "little":
             out.add(bytes([word & 0xFFFF, (word >> 8) & 0xFFFF]))
@@ -492,7 +481,7 @@ class Utf16IncrementalEncoder:
     def setstate(state):
         self.state = state
 
-class Utf16IncrementalDecoder(BaseDecoder):
+class Utf16IncrementalDecoder(IncrementalDecoder):
     name = "utf-16"
     webname = "utf-16"
     force_endian = None # subclass may set to "little" or "big"
@@ -608,16 +597,13 @@ register_kuroko_codec(["utf-16le", "unicodefeff", "unicodelittleunmarked"],
 register_kuroko_codec(["utf-16be", "unicodefffe", "unicodebigunmarked"],
     Utf16BeIncrementalEncoder, Utf16BeIncrementalDecoder)
 
-class Utf8IncrementalEncoder:
+class Utf8IncrementalEncoder(IncrementalEncoder):
     name = "utf-8"
     webname = "utf-8"
     # -1: expecting BOM
     #  0: Normal
     state = None
     include_bom = False
-    def __init__(errors):
-        self.errors = errors
-        self.reset()
     def encode(string, final = False):
         # We use UTF-8 natively, so this is fairly simple
         let out = ByteCatenator()
@@ -633,7 +619,7 @@ class Utf8IncrementalEncoder:
     def setstate(state):
         self.state = state
 
-class Utf8IncrementalDecoder(BaseDecoder):
+class Utf8IncrementalDecoder(IncrementalDecoder):
     name = "utf-8"
     webname = "utf-8"
     # -1: expecting BOM
@@ -750,7 +736,7 @@ register_kuroko_codec(["unicode-1-1-utf-8", "unicode11utf8", "unicode20utf8", "u
     Utf8IncrementalEncoder, Utf8IncrementalDecoder)
 register_kuroko_codec(["utf-8-sig", "utf-8-bom"], Utf8SigIncrementalEncoder, Utf8SigIncrementalDecoder)
 
-class JapaneseAutodetectIncrementalDecoder(BaseDecoder):
+class JapaneseAutodetectIncrementalDecoder(IncrementalDecoder):
     name = "japanese"
     webname = None
     # State flags:
