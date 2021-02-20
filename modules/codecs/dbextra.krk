@@ -3,24 +3,24 @@ This module includes some additional variable-width or wide encodings not specif
 such, none of the codecs in this module should be used in HTML.
 """
 
-from codecs.extradata import encmap_lat1supp, decmap_lat1supp, encmap_greksupp, decmap_greksupp, encmap_jis78, decmap_jis78, encmap_jis90p2, decmap_jis90p2, encmap_jis00, decmap_jis00, encmap_jis00p2, decmap_jis00p2, encmap_jis04, decmap_jis04, encmap_jis7katakana, encmap_gb7, decmap_gb7, encmap_ksc7, decmap_ksc7, encmap_nbyte_ebcdic, decmap_nbyte_ebcdic, encmap_johab_hangul, decmap_johab_hangul, encmap_johabx_ascii, decmap_johabx_ascii, encmap_johabx_ebcdic, decmap_johabx_ebcdic
+from codecs.extradata import encode_lat1supp, decode_lat1supp, encode_greksupp, decode_greksupp, encode_jis78, decode_jis78, encode_jis90p2, decode_jis90p2, encode_jis00, decode_jis00, encode_jis00p2, decode_jis00p2, encode_jis04, decode_jis04, encode_jis7katakana, encode_gb7, decode_gb7, encode_ksc7, decode_ksc7, encode_nbyte_ebcdic, decode_nbyte_ebcdic, encode_johab_hangul, decode_johab_hangul, encode_johabx_ascii, decode_johabx_ascii, encode_johabx_ebcdic, decode_johabx_ebcdic
 from codecs.infrastructure import register_kuroko_codec, ByteCatenator, StringCatenator, UnicodeEncodeError, UnicodeDecodeError, lookup_error, lookup, BaseEbcdicIncrementalEncoder, BaseEbcdicIncrementalDecoder, AsciiIncrementalEncoder, AsciiIncrementalDecoder
 from codecs.dbdata import encode_jis7, decode_jis7, decode_jis7katakana
 from codecs.bespokecodecs import Iso2022JpIncrementalEncoder, Iso2022JpIncrementalDecoder
 
-let encmap_johab_ascii = encmap_johabx_ascii.copy()
-encmap_johab_ascii.update(encmap_johab_hangul)
+let encode_johab_ascii = encode_johabx_ascii.copy()
+encode_johab_ascii.update(encode_johab_hangul)
 class AsciiJohabIncrementalEncoder(AsciiIncrementalEncoder):
     name = "johab-ascii"
     html5name = None
-    encoding_map = encmap_johab_ascii
+    encoding_map = encode_johab_ascii
 
-let decmap_johab_ascii = decmap_johabx_ascii.copy()
-decmap_johab_ascii.update(decmap_johab_hangul)
+let decode_johab_ascii = decode_johabx_ascii.copy()
+decode_johab_ascii.update(decode_johab_hangul)
 class AsciiJohabIncrementalDecoder(AsciiIncrementalDecoder):
     name = "johab-ascii"
     html5name = None
-    decoding_map = decmap_johab_ascii
+    decoding_map = decode_johab_ascii
     dbrange = tupleOf(*range(0x84, 0xF9 + 1))
     # Trail ranges for hangul and nonhangul are different, but this is their union.
     trailrange = tupleOf(*range(0x31, 0x7E + 1), *range(0x81, 0xFE + 1))
@@ -29,21 +29,21 @@ register_kuroko_codec(["cp1361", "ms1361", "johab", "x-johab", "johab-ascii"],
     AsciiJohabIncrementalEncoder, AsciiJohabIncrementalDecoder)
 
 
-let encmap_johab_ebcdic = encmap_johabx_ebcdic.copy()
-encmap_johab_ebcdic.update(encmap_johab_hangul)
+let encode_johab_ebcdic = encode_johabx_ebcdic.copy()
+encode_johab_ebcdic.update(encode_johab_hangul)
 class EbcdicJohabIncrementalEncoder(BaseEbcdicIncrementalEncoder):
     name = "johab-ebcdic"
     html5name = None
-    sbcs_encmap = encmap_nbyte_ebcdic
-    dbcshost_encmap = encmap_johab_ebcdic
+    sbcs_encode = encode_nbyte_ebcdic
+    dbcshost_encode = encode_johab_ebcdic
 
-let decmap_johab_ebcdic = decmap_johabx_ebcdic.copy()
-decmap_johab_ebcdic.update(decmap_johab_hangul)
+let decode_johab_ebcdic = decode_johabx_ebcdic.copy()
+decode_johab_ebcdic.update(decode_johab_hangul)
 class EbcdicJohabIncrementalDecoder(BaseEbcdicIncrementalDecoder):
     name = "johab-ebcdic"
     html5name = None
-    sbcs_decmap = decmap_nbyte_ebcdic
-    dbcshost_decmap = decmap_johab_ebcdic
+    sbcs_decode = decode_nbyte_ebcdic
+    dbcshost_decode = decode_johab_ebcdic
 
 register_kuroko_codec(["cp933", "ibm-933", "933", "x-IBM933", "johab-ebcdic"],
     EbcdicJohabIncrementalEncoder, EbcdicJohabIncrementalDecoder)
@@ -52,11 +52,11 @@ register_kuroko_codec(["cp933", "ibm-933", "933", "x-IBM933", "johab-ebcdic"],
 class JisEncodingIncrementalEncoder(Iso2022JpIncrementalEncoder):
     name = "jis_encoding"
     html5name = None
-    encmaps_sbcs = [None, None, encmap_jis7katakana]
-    encmaps_dbcs = [None, None, None, encode_jis7, encmap_jis78, encmap_jis90p2,
-                    encmap_jis00, encmap_jis00p2, encmap_jis04, encmap_gb7, encmap_ksc7]
-    encmap_supershift_latin = encmap_lat1supp
-    encmap_supershift_greek = encmap_greksupp
+    encodes_sbcs = [None, None, encode_jis7katakana]
+    encodes_dbcs = [None, None, None, encode_jis7, encode_jis78, encode_jis90p2,
+                    encode_jis00, encode_jis00p2, encode_jis04, encode_gb7, encode_ksc7]
+    encode_supershift_latin = encode_lat1supp
+    encode_supershift_greek = encode_greksupp
     super_shift = True
     escs_onebyte = {0: 0x42, 1: 0x4A, 2: 0x49}
     escs_twobyte = {3: 0x42, 4: 0x40, 5: 0x44, 6: 0x4F, 7: 0x50, 8: 0x51, 9: 0x41, 10: 0x43}
@@ -65,12 +65,12 @@ class JisEncodingIncrementalEncoder(Iso2022JpIncrementalEncoder):
 class JisEncodingIncrementalDecoder(Iso2022JpIncrementalDecoder):
     name = "jis_encoding"
     html5name = None
-    decmaps_sbcs = [None, None, decode_jis7katakana]
-    decmaps_dbcs = [None, None, None, decode_jis7, decmap_jis78, decmap_jis90p2,
-                    decmap_jis00, decmap_jis00p2, decmap_jis04, decmap_gb7, decmap_ksc7]
-    decmap_shiftout = decode_jis7katakana
-    decmap_supershift_latin = decmap_lat1supp
-    decmap_supershift_greek = decmap_greksupp
+    decodes_sbcs = [None, None, decode_jis7katakana]
+    decodes_dbcs = [None, None, None, decode_jis7, decode_jis78, decode_jis90p2,
+                    decode_jis00, decode_jis00p2, decode_jis04, decode_gb7, decode_ksc7]
+    decode_shiftout = decode_jis7katakana
+    decode_supershift_latin = decode_lat1supp
+    decode_supershift_greek = decode_greksupp
     # 0x48 is not ASCII or JIS-Roman, but SEN 85 02 00 Annex C. It is however misused for either
     #   ASCII or JIS-Roman in some encoders, so it is a "good idea for software to recognise,
     #   but not to generate" (—Lunde) it for JIS-Roman when decoding JIS_encoding.
@@ -88,8 +88,8 @@ register_kuroko_codec(["jis_encoding", "csjisencoding", "jis", "jis7"],
 class Iso2022Jp1IncrementalEncoder(Iso2022JpIncrementalEncoder):
     name = "iso-2022-jp-1"
     html5name = None
-    encmaps_sbcs = [None, None]
-    encmaps_dbcs = [None, None, encmap_jis90p2, encode_jis7]
+    encodes_sbcs = [None, None]
+    encodes_dbcs = [None, None, encode_jis90p2, encode_jis7]
     escs_onebyte = {0: 0x42, 1: 0x4A}
     escs_twobyte = {3: 0x42, 2: 0x44}
     attitude = "eager"
@@ -101,8 +101,8 @@ register_kuroko_codec(["iso-2022-jp-1", "iso2022-jp-1", "iso2022jp-1"],
 class Iso2022JpExtIncrementalEncoder(Iso2022JpIncrementalEncoder):
     name = "iso-2022-jp-ext"
     html5name = None
-    encmaps_sbcs = [None, None, encmap_jis7katakana]
-    encmaps_dbcs = [None, None, None, encmap_jis90p2, encode_jis7]
+    encodes_sbcs = [None, None, encode_jis7katakana]
+    encodes_dbcs = [None, None, None, encode_jis90p2, encode_jis7]
     escs_onebyte = {0: 0x42, 1: 0x4A, 2: 0x49}
     escs_twobyte = {4: 0x42, 3: 0x44}
     attitude = "eager"
@@ -114,10 +114,10 @@ register_kuroko_codec(["iso-2022-jp-ext", "iso2022-jp-ext", "iso2022jp-ext"],
 class Iso2022Jp2IncrementalEncoder(Iso2022JpIncrementalEncoder):
     name = "iso-2022-jp-2"
     html5name = None
-    encmaps_sbcs = [None, None]
-    encmaps_dbcs = [None, None, encmap_jis90p2, encode_jis7, encmap_gb7, encmap_ksc7]
-    encmap_supershift_latin = encmap_lat1supp
-    encmap_supershift_greek = encmap_greksupp
+    encodes_sbcs = [None, None]
+    encodes_dbcs = [None, None, encode_jis90p2, encode_jis7, encode_gb7, encode_ksc7]
+    encode_supershift_latin = encode_lat1supp
+    encode_supershift_greek = encode_greksupp
     super_shift = True
     escs_onebyte = {0: 0x42, 1: 0x4A}
     escs_twobyte = {3: 0x42, 2: 0x44, 4: 0x41, 5: 0x43}
@@ -137,15 +137,15 @@ register_kuroko_codec(["iso-2022-jp-2", "iso2022-jp-2", "iso2022jp-2", "csISO202
 #   to JIS X 0213.
 let encode_jis7_reduced = {}
 for i in encode_jis7.keys():
-    if (i not in encmap_jis00 or encmap_jis00[i] == encode_jis7[i]) and (i not in encmap_jis00p2):
+    if (i not in encode_jis00 or encode_jis00[i] == encode_jis7[i]) and (i not in encode_jis00p2):
         encode_jis7_reduced[i] = encode_jis7[i]
 
 
 class Iso2022Jp3IncrementalEncoder(Iso2022JpIncrementalEncoder):
     name = "iso-2022-jp-3"
     html5name = None
-    encmaps_sbcs = [None, None, encmap_jis7katakana]
-    encmaps_dbcs = [None, None, None, encode_jis7_reduced, encmap_jis00, encmap_jis00p2]
+    encodes_sbcs = [None, None, encode_jis7katakana]
+    encodes_dbcs = [None, None, None, encode_jis7_reduced, encode_jis00, encode_jis00p2]
     escs_onebyte = {0: 0x42, 1: 0x4A, 2: 0x49}
     escs_twobyte = {3: 0x42, 4: 0x4F, 5: 0x50}
     attitude = "eager"
@@ -157,8 +157,8 @@ register_kuroko_codec(["iso-2022-jp-3", "iso2022-jp-3", "iso2022jp-3"],
 class Iso2022Jp2004IncrementalEncoder(Iso2022JpIncrementalEncoder):
     name = "iso-2022-jp-2004"
     html5name = None
-    encmaps_sbcs = [None, None, encmap_jis7katakana]
-    encmaps_dbcs = [None, None, None, encode_jis7_reduced, encmap_jis00p2, encmap_jis04]
+    encodes_sbcs = [None, None, encode_jis7katakana]
+    encodes_dbcs = [None, None, None, encode_jis7_reduced, encode_jis00p2, encode_jis04]
     escs_onebyte = {0: 0x42, 1: 0x4A, 2: 0x49}
     escs_twobyte = {3: 0x42, 4: 0x50, 5: 0x51}
     attitude = "eager"

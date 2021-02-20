@@ -338,9 +338,9 @@ register_kuroko_codec(["ecma-43-dv", "iso-4873-dv", "646", "cp367", "ibm367", "i
 class BaseEbcdicIncrementalEncoder(IncrementalEncoder):
     name = None
     html5name = None
-    sbcs_encmap = {}
-    dbcshost_encmap = {}
-    sbcsge_encmap = {}
+    sbcs_encode = {}
+    dbcshost_encode = {}
+    sbcsge_encode = {}
     shift_to_dbcs = 0x0E
     shift_to_sbcs = 0x0F
     def encode(string, final = False):
@@ -352,21 +352,21 @@ class BaseEbcdicIncrementalEncoder(IncrementalEncoder):
                     out.add(bytes([self.shift_to_sbcs]))
                 return out.getvalue()
             let i = string[offset]
-            if ord(i) in self.sbcs_encmap:
+            if ord(i) in self.sbcs_encode:
                 if self.in_dbcshost:
                     out.add(bytes([self.shift_to_sbcs]))
                     self.in_dbcshost = False
-                out.add(bytes([self.sbcs_encmap[ord(i)]]))
+                out.add(bytes([self.sbcs_encode[ord(i)]]))
                 offset += 1
-            else if ord(i) in self.sbcsge_encmap:
+            else if ord(i) in self.sbcsge_encode:
                 out.add(b"\x08")
-                out.add(bytes([self.sbcsge_encmap[ord(i)]]))
+                out.add(bytes([self.sbcsge_encode[ord(i)]]))
                 offset += 1
-            else if ord(i) in self.dbcshost_encmap:
+            else if ord(i) in self.dbcshost_encode:
                 if not self.in_dbcshost:
                     out.add(bytes([self.shift_to_dbcs]))
                     self.in_dbcshost = True
-                let target = self.dbcshost_encmap[ord(i)]
+                let target = self.dbcshost_encode[ord(i)]
                 for individ in target:
                     out.add(bytes([individ]))
                 offset += 1
@@ -394,9 +394,9 @@ class BaseEbcdicIncrementalEncoder(IncrementalEncoder):
 class BaseEbcdicIncrementalDecoder(IncrementalDecoder):
     name = None
     html5name = None
-    sbcs_decmap = {}
-    dbcshost_decmap = {}
-    sbcsge_decmap = {}
+    sbcs_decode = {}
+    dbcshost_decode = {}
+    sbcsge_decode = {}
     shift_to_dbcs = 0x0E
     shift_to_sbcs = 0x0F
     def decode(data_in, final = False):
@@ -415,18 +415,18 @@ class BaseEbcdicIncrementalDecoder(IncrementalDecoder):
             else if i == self.shift_to_dbcs and not leader:
                 self.in_dbcshost = True
                 offset += 1
-            else if not self.in_dbcshost and not leader and i in self.sbcs_decmap:
-                out.add(chr(self.sbcs_decmap[i]))
+            else if not self.in_dbcshost and not leader and i in self.sbcs_decode:
+                out.add(chr(self.sbcs_decode[i]))
                 offset += 1
             else if not leader and i == 0x08:
                 leader.append(i)
                 offset += 1
-            else if leader and leader[0] == 0x08 and i in self.sbcsge_decmap:
-                out.add(chr(self.sbcsge_decmap[i]))
+            else if leader and leader[0] == 0x08 and i in self.sbcsge_decode:
+                out.add(chr(self.sbcsge_decode[i]))
                 leader = []
                 offset += 1
             else if self.in_dbcshost and i < 0x40 and not leader:
-                out.add(chr(self.sbcs_decmap[i]))
+                out.add(chr(self.sbcs_decode[i]))
                 offset += 1
             else if self.in_dbcshost and 0x40 <= i and i <= 0xFE and not leader:
                 offset += 1
@@ -440,8 +440,8 @@ class BaseEbcdicIncrementalDecoder(IncrementalDecoder):
                 leader = [i]
                 offset += 1
             else if self.in_dbcshost and leader and 0x40 <= i and i <= 0xFE and (
-                            leader[0], i) in self.dbcshost_decmap:
-                out.add(chr(self.dbcshost_decmap[(leader[0], i)]))
+                            leader[0], i) in self.dbcshost_decode:
+                out.add(chr(self.dbcshost_decode[(leader[0], i)]))
                 leader = []
                 offset += 1
             else:

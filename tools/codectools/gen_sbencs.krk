@@ -20,12 +20,12 @@ let template = """
 class {idname}IncrementalEncoder(AsciiIncrementalEncoder):
     name = {mainlabel}
     html5name = {weblabel}
-    encoding_map = {encmap}
+    encoding_map = {encode}
 
 class {idname}IncrementalDecoder(AsciiIncrementalDecoder):
     name = {mainlabel}
     html5name = {weblabel}
-    decoding_map = {decmap}
+    decoding_map = {decode}
 
 register_kuroko_codec(
     {labels}, 
@@ -102,12 +102,12 @@ with fileio.open("modules/codecs/sbencs.krk", "w") as outf:
                     let encoding_map = built[0]
                     let decoding_map = built[1]
                     let idname = name.title().replace("-", "")
-                    outf.write(template.format(mainlabel=repr(name), encmap=repr(encoding_map),
+                    outf.write(template.format(mainlabel=repr(name), encode=repr(encoding_map),
                             weblabel=repr(whatwgname),
-                            decmap=repr(decoding_map), labels=repr(labels), idname=idname))
-    outf.write(template.format(mainlabel=repr("x-user-defined"), encmap=repr(encode_xudef),
+                            decode=repr(decoding_map), labels=repr(labels), idname=idname))
+    outf.write(template.format(mainlabel=repr("x-user-defined"), encode=repr(encode_xudef),
             weblabel=repr("x-user-defined"),
-            decmap=repr(decode_xudef), labels=repr(["x-user-defined"]), idname="XUserDefined"))
+            decode=repr(decode_xudef), labels=repr(["x-user-defined"]), idname="XUserDefined"))
 
 
 

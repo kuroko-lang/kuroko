@@ -162,10 +162,10 @@ register_kuroko_codec(
 class Iso2022JpIncrementalEncoder(IncrementalEncoder):
     name = "cp50220"
     html5name = "iso-2022-jp"
-    encmaps_sbcs = []
-    encmaps_dbcs = [None, None, encode_jis7]
-    encmap_supershift_latin = None
-    encmap_supershift_greek = None
+    encodes_sbcs = []
+    encodes_dbcs = [None, None, encode_jis7]
+    encode_supershift_latin = None
+    encode_supershift_greek = None
     super_shift = False
     escs_onebyte = {0: 0x42, 1: 0x4A}
     escs_twobyte = {2: 0x42}
@@ -209,9 +209,9 @@ class Iso2022JpIncrementalEncoder(IncrementalEncoder):
             let try_state = 2
             while 1:
                 if try_state in self.escs_onebyte:
-                    is_sets.append(ord(i) in self.encmaps_sbcs[try_state])
+                    is_sets.append(ord(i) in self.encodes_sbcs[try_state])
                 else if try_state in self.escs_twobyte:
-                    is_sets.append(ord(i) in self.encmaps_dbcs[try_state])
+                    is_sets.append(ord(i) in self.encodes_dbcs[try_state])
                 else:
                     break
                 try_state += 1
@@ -221,21 +221,21 @@ class Iso2022JpIncrementalEncoder(IncrementalEncoder):
                         self.ensure_state_number(n, out)
                         break
             if not is_sets[self.state]: # i.e. still isn't.
-                if self.super_shift and ord(i) in self.encmap_supershift_latin:
+                if self.super_shift and ord(i) in self.encode_supershift_latin:
                     if self.state_greekmode or not self.state_desigsupershift:
                         out.add(b"\x1B.A")
                         self.state_greekmode = False
                         self.state_desigsupershift = True
                     out.add(b"\x1BN")
-                    out.add(bytes([self.encmap_supershift_latin[ord(i)]]))
+                    out.add(bytes([self.encode_supershift_latin[ord(i)]]))
                     offset += 1
-                else if self.super_shift and ord(i) in self.encmap_supershift_greek:
+                else if self.super_shift and ord(i) in self.encode_supershift_greek:
                     if not self.state_greekmode:
                         out.add(b"\x1B.F")
                         self.state_greekmode = True
                         self.state_desigsupershift = True
                     out.add(b"\x1BN")
-                    out.add(bytes([self.encmap_supershift_greek[ord(i)]]))
+                    out.add(bytes([self.encode_supershift_greek[ord(i)]]))
                     offset += 1
                 else:
                     let error = UnicodeEncodeError(self.name, string, offset, offset + 1,
@@ -259,10 +259,10 @@ class Iso2022JpIncrementalEncoder(IncrementalEncoder):
                 out.add(bytes([ord(j)]))
                 offset += 1
             else if self.state in self.escs_onebyte:
-                out.add(bytes([self.encmaps_sbcs[self.state][ord(i)]]))
+                out.add(bytes([self.encodes_sbcs[self.state][ord(i)]]))
                 offset += 1
             else if self.state in self.escs_twobyte:
-                for individ in self.encmaps_dbcs[self.state][ord(i)]:
+                for individ in self.encodes_dbcs[self.state][ord(i)]:
                     out.add(bytes([individ]))
                 offset += 1
             else:
@@ -281,11 +281,11 @@ class Iso2022JpIncrementalEncoder(IncrementalEncoder):
 class Iso2022JpIncrementalDecoder(IncrementalDecoder):
     name = "cp50220"
     html5name = "iso-2022-jp"
-    decmaps_sbcs = [None, None, decode_jis7katakana]
-    decmaps_dbcs = [None, None, None, decode_jis7]
-    decmap_shiftout = None
-    decmap_supershift_latin = None
-    decmap_supershift_greek = None
+    decodes_sbcs = [None, None, decode_jis7katakana]
+    decodes_dbcs = [None, None, None, decode_jis7]
+    decode_shiftout = None
+    decode_supershift_latin = None
+    decode_supershift_greek = None
     escs_onebyte = {0x42: 0, 0x49: 2, 0x4A: 1}
     escs_twobyte = {0x40: 3, 0x42: 3}
     two_byte_modes = [3]
@@ -336,8 +336,8 @@ class Iso2022JpIncrementalDecoder(IncrementalDecoder):
                 leader = []
                 offset += 1
             else if in_esc and len(leader) == 2 and leader[1] == 0x4E and (
-                    not self.state_greekmode and i in self.decmap_supershift_latin):
-                out.add(chr(self.decmap_supershift_latin[i]))
+                    not self.state_greekmode and i in self.decode_supershift_latin):
+                out.add(chr(self.decode_supershift_latin[i]))
                 in_esc = False
                 leader = []
                 offset += 1
@@ -347,8 +347,8 @@ class Iso2022JpIncrementalDecoder(IncrementalDecoder):
                 leader = []
                 offset += 1
             else if in_esc and len(leader) == 2 and leader[1] == 0x4E and (
-                    self.state_greekmode and i in self.decmap_supershift_latin):
-                out.add(chr(self.decmap_supershift_greek[i]))
+                    self.state_greekmode and i in self.decode_supershift_latin):
+                out.add(chr(self.decode_supershift_greek[i]))
                 in_esc = False
                 leader = []
                 offset += 1
@@ -381,16 +381,16 @@ class Iso2022JpIncrementalDecoder(IncrementalDecoder):
                     char = "\u203E"
                 out.add(char)
                 offset += 1
-            else if self.state_shiftoutmode and not in_esc and i in self.decmap_shiftout:
-                out.add(chr(self.decmap_shiftout[i]))
+            else if self.state_shiftoutmode and not in_esc and i in self.decode_shiftout:
+                out.add(chr(self.decode_shiftout[i]))
                 offset += 1
             else if bytemode == 1 and self.state_set not in (0, 1) and not in_esc and (
-                    i in self.decmaps_sbcs[self.state_set] and not self.state_shiftoutmode):
-                out.add(chr(self.decmaps_sbcs[self.state_set][i]))
+                    i in self.decodes_sbcs[self.state_set] and not self.state_shiftoutmode):
+                out.add(chr(self.decodes_sbcs[self.state_set][i]))
                 offset += 1
-            else if bytemode == 2 and (leader[0], i) in self.decmaps_dbcs[self.state_set] and (
+            else if bytemode == 2 and (leader[0], i) in self.decodes_dbcs[self.state_set] and (
                     not self.state_shiftoutmode and not in_esc):
-                let decoded = self.decmaps_dbcs[self.state_set][(leader[0], i)]
+                let decoded = self.decodes_dbcs[self.state_set][(leader[0], i)]
                 if isinstance(decoded, tuple):
                     for individ in decoded:
                         out.add(chr(individ))
