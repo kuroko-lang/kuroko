@@ -12,18 +12,19 @@ let _encoder_registry = {}
 let _decoder_registry = {}
 def register_kuroko_codec(labels, incremental_encoder_class, incremental_decoder_class):
     for label in labels:
+        let norm = label.replace("_", "-").lower()
         if incremental_encoder_class:
             if not issubclass(incremental_encoder_class, IncrementalEncoder):
                 raise ValueError(f"expected IncrementalEncoder subclass, got {incremental_encoder_class!r}")
-            if label.lower() in _encoder_registry:
+            if norm in _encoder_registry and _encoder_registry[norm] != incremental_encoder_class:
                 raise ValueError(f"label {label!r} already registered")
-            _encoder_registry[label.lower()] = incremental_encoder_class
+            _encoder_registry[norm] = incremental_encoder_class
         if incremental_decoder_class:
             if not issubclass(incremental_decoder_class, IncrementalDecoder):
                 raise ValueError(f"expected IncrementalDecoder subclass, got {incremental_decoder_class!r}")
-            if label.lower() in _decoder_registry:
+            if norm in _decoder_registry and _decoder_registry[norm] != incremental_decoder_class:
                 raise ValueError(f"label {label!r} already registered")
-            _decoder_registry[label.lower()] = incremental_decoder_class
+            _decoder_registry[norm] = incremental_decoder_class
 
 class KurokoCodecInfo:
     def __init__(label, encoder, decoder):
@@ -70,10 +71,10 @@ def lookup(label):
     let enc = None
     let dec = None
     try:
-        enc = _encoder_registry[label.lower()]
+        enc = _encoder_registry[label.replace("_", "-").lower()]
     except KeyError:
     try:
-        dec = _decoder_registry[label.lower()]
+        dec = _decoder_registry[label.replace("_", "-").lower()]
     except KeyError:
     return KurokoCodecInfo(label, enc, dec)
 
@@ -330,7 +331,9 @@ class AsciiIncrementalDecoder(IncrementalDecoder):
                 if offset < 0:
                     offset += len(string)
 
-register_kuroko_codec(["ecma-43-dv", "iso-4873-dv"], AsciiIncrementalEncoder, AsciiIncrementalDecoder)
+register_kuroko_codec(["ecma-43-dv", "iso-4873-dv", "646", "cp367", "ibm367", "iso646-us", 
+                       "iso-646.irv-1991", "iso-ir-6", "us", "csascii"],
+    AsciiIncrementalEncoder, AsciiIncrementalDecoder)
 
 class BaseEbcdicIncrementalEncoder(IncrementalEncoder):
     name = None

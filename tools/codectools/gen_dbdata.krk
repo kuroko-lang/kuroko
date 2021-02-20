@@ -201,21 +201,22 @@ with fileio.open('modules/codecs/dbdata.krk', 'w') as f:
     f.write(template.format(
         mainlabel=repr('windows-31j'),
         weblabel=repr('shift_jis'),
-        labels=repr(aliases['shift_jis']),
+        labels=repr(aliases['shift_jis'] + ["cp932", "932", "mskanji", "shiftjis", "s_jis"]),
         encmap=repr(encode_shiftjis), decmap=repr(decode_shiftjis), idname='Windows31J',
         dbrange=repr(dbrange_shiftjis), tbrange=repr(tbrange_shiftjis),
         trailrange=repr(trailrange_shiftjis)))
     f.write(template.format(
         mainlabel=repr("x-euc-jp"),
         weblabel=repr("euc-jp"),
-        labels=repr(aliases["euc-jp"]),
+        labels=repr(aliases["euc-jp"] + ["eucjp", "ujis", "u_jis"]),
         encmap=repr(encode_eucjp), decmap=repr(decode_eucjp), idname="XEucJp",
         dbrange=repr(dbrange_eucjp), tbrange=repr(tbrange_eucjp), 
         trailrange=repr(trailrange_eucjp)))
     f.write(template.format(
         mainlabel=repr("windows-949"), 
         weblabel=repr("euc-kr"),
-        labels=repr(aliases["euc-kr"]),
+        labels=repr(aliases["euc-kr"] + ["cp949", "949", "ms949", "uhc", "euckr", 
+                    "ks_c_5601", "ksx1001", "ks_x_1001"]),
         encmap=repr(encode_uhc), decmap=repr(decode_uhc), idname="Windows949",
         dbrange=repr(dbrange_uhc), tbrange=repr(tbrange_uhc), 
         trailrange=repr(trailrange_uhc)))
@@ -224,8 +225,8 @@ with fileio.open('modules/codecs/dbdata.krk', 'w') as f:
         mainlabelenc2=repr("big5-hkscs"), 
         mainlabeldec=repr("big5-hkscs"), 
         weblabel=repr("big5"),
-        labels=repr(["big5", "cn-big5", "csbig5", "x-x-big5", "big5-eten"]),
-        labels2=repr(["big5-hkscs", "big5hkscs"]),
+        labels=repr(["big5", "cn-big5", "csbig5", "x-x-big5", "big5-eten", "cp950", "950", "ms950"]),
+        labels2=repr(["big5-hkscs", "big5hkscs", "hkscs"]),
         encmap=repr(encode_big5eten), idnameenc="Big5Eten",
         encmap2=repr(encode_big5hkscs), idnameenc2="Big5Hkscs",
         decmap=repr(decode_big5hkscs), idnamedec="Big5Hkscs",

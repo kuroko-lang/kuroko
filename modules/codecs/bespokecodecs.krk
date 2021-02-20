@@ -153,10 +153,11 @@ class Gb18030IncrementalDecoder(IncrementalDecoder):
                 if offset < 0:
                     offset += len(string)
 
-register_kuroko_codec(["gb18030"], Gb18030IncrementalEncoder, Gb18030IncrementalDecoder)
+register_kuroko_codec(["gb18030", "gb18030_2000"], Gb18030IncrementalEncoder, Gb18030IncrementalDecoder)
 register_kuroko_codec(
-    ["chinese", "csgb2312", "csiso58gb231280", "gb2312", "gb_2312", "gb_2312-80",
-     "gbk", "iso-ir-58", "x-gbk"], GbkIncrementalEncoder, Gb18030IncrementalDecoder)
+    ["chinese", "csgb2312", "csiso58gb231280", "gb2312", "gb_2312", "gb_2312-80", "936", "cp936", "ms936",
+     "gbk", "iso-ir-58", "x-gbk", "euc_cn", "euccn", "eucgb2312_cn", "gb2312_1980", "gb2312_80"], 
+    GbkIncrementalEncoder, Gb18030IncrementalDecoder)
 
 class Iso2022JpIncrementalEncoder(IncrementalEncoder):
     name = "cp50220"
@@ -426,7 +427,7 @@ class Iso2022JpIncrementalDecoder(IncrementalDecoder):
         self.state_greekmode = state[2]
         self.state_shiftoutmode = state[3]
 
-register_kuroko_codec(["iso-2022-jp", "csiso2022jp", "cp50220", "cscp50220"],
+register_kuroko_codec(["iso-2022-jp", "iso2022-jp", "iso2022jp", "csiso2022jp", "cp50220", "cscp50220"],
     Iso2022JpIncrementalEncoder, Iso2022JpIncrementalDecoder)
 
 class Utf16IncrementalEncoder(IncrementalEncoder):
@@ -590,11 +591,11 @@ class Utf16LeIncrementalDecoder(Utf16IncrementalDecoder):
 # Note: this behaves explicitly differently to WHATWG since WHATWG has the BOM, if present,
 #   override *any label at all*, and doesn't specify an encoder for UTF-16. So it aliases UTF-16 to
 #   UTF-16LE, while we take UTF-16 as meaning with BOM and UTF-16LE/BE as without, per Python.
-register_kuroko_codec(["utf-16", "iso-10646-ucs-2", "ucs-2", "unicode", "csunicode", "u16"],
+register_kuroko_codec(["utf-16", "utf16", "iso-10646-ucs-2", "ucs-2", "unicode", "csunicode", "u16"],
     Utf16IncrementalEncoder, Utf16IncrementalDecoder)
-register_kuroko_codec(["utf-16le", "unicodefeff", "unicodelittleunmarked"],
+register_kuroko_codec(["utf-16le", "utf-16-le", "unicodefeff", "unicodelittleunmarked"],
     Utf16LeIncrementalEncoder, Utf16LeIncrementalDecoder)
-register_kuroko_codec(["utf-16be", "unicodefffe", "unicodebigunmarked"],
+register_kuroko_codec(["utf-16be", "utf-16-be", "unicodefffe", "unicodebigunmarked"],
     Utf16BeIncrementalEncoder, Utf16BeIncrementalDecoder)
 
 class Utf8IncrementalEncoder(IncrementalEncoder):

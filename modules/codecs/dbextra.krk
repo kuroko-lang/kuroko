@@ -94,7 +94,7 @@ class Iso2022Jp1IncrementalEncoder(Iso2022JpIncrementalEncoder):
     escs_twobyte = {3: 0x42, 2: 0x44}
     attitude = "eager"
 
-register_kuroko_codec(["iso-2022-jp-1"],
+register_kuroko_codec(["iso-2022-jp-1", "iso2022-jp-1", "iso2022jp-1"],
     Iso2022Jp1IncrementalEncoder, JisEncodingIncrementalDecoder)
 
 
@@ -107,7 +107,7 @@ class Iso2022JpExtIncrementalEncoder(Iso2022JpIncrementalEncoder):
     escs_twobyte = {4: 0x42, 3: 0x44}
     attitude = "eager"
 
-register_kuroko_codec(["iso-2022-jp-ext"],
+register_kuroko_codec(["iso-2022-jp-ext", "iso2022-jp-ext", "iso2022jp-ext"],
     Iso2022JpExtIncrementalEncoder, JisEncodingIncrementalDecoder)
 
 
@@ -123,7 +123,7 @@ class Iso2022Jp2IncrementalEncoder(Iso2022JpIncrementalEncoder):
     escs_twobyte = {3: 0x42, 2: 0x44, 4: 0x41, 5: 0x43}
     attitude = "eager"
 
-register_kuroko_codec(["iso-2022-jp-2", "csISO2022JP2"],
+register_kuroko_codec(["iso-2022-jp-2", "iso2022-jp-2", "iso2022jp-2", "csISO2022JP2"],
     Iso2022Jp2IncrementalEncoder, JisEncodingIncrementalDecoder)
 
 
@@ -150,7 +150,7 @@ class Iso2022Jp3IncrementalEncoder(Iso2022JpIncrementalEncoder):
     escs_twobyte = {3: 0x42, 4: 0x4F, 5: 0x50}
     attitude = "eager"
 
-register_kuroko_codec(["iso-2022-jp-3"],
+register_kuroko_codec(["iso-2022-jp-3", "iso2022-jp-3", "iso2022jp-3"],
     Iso2022Jp3IncrementalEncoder, JisEncodingIncrementalDecoder)
 
 
@@ -163,7 +163,7 @@ class Iso2022Jp2004IncrementalEncoder(Iso2022JpIncrementalEncoder):
     escs_twobyte = {3: 0x42, 4: 0x50, 5: 0x51}
     attitude = "eager"
 
-register_kuroko_codec(["iso-2022-jp-2004"],
+register_kuroko_codec(["iso-2022-jp-2004", "iso2022-jp-2004", "iso2022jp-2004"],
     Iso2022Jp2004IncrementalEncoder, JisEncodingIncrementalDecoder)
 
 
