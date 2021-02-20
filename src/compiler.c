@@ -344,7 +344,7 @@ static KrkFunction * endCompiler() {
 		KrkValue value = OBJECT_VAL(krk_copyString(current->locals[args].name.start,
 			current->locals[args].name.length));
 		krk_push(value);
-		krk_writeValueArray(&function->keywordArgNames, value);
+		krk_writeValueArray(&function->requiredArgNames, value);
 		krk_pop();
 		args++;
 	}
