@@ -3,10 +3,51 @@ This module includes some additional variable-width or wide encodings not specif
 such, none of the codecs in this module should be used in HTML.
 """
 
-from codecs.extradata import encmap_lat1supp, decmap_lat1supp, encmap_greksupp, decmap_greksupp, encmap_jis78, decmap_jis78, encmap_jis90p2, decmap_jis90p2, encmap_jis00, decmap_jis00, encmap_jis00p2, decmap_jis00p2, encmap_jis04, decmap_jis04, encmap_jis7katakana, encmap_gb7, decmap_gb7, encmap_ksc7, decmap_ksc7
-from codecs.infrastructure import register_kuroko_codec, ByteCatenator, StringCatenator, UnicodeEncodeError, UnicodeDecodeError, lookup_error, lookup
+from codecs.extradata import encmap_lat1supp, decmap_lat1supp, encmap_greksupp, decmap_greksupp, encmap_jis78, decmap_jis78, encmap_jis90p2, decmap_jis90p2, encmap_jis00, decmap_jis00, encmap_jis00p2, decmap_jis00p2, encmap_jis04, decmap_jis04, encmap_jis7katakana, encmap_gb7, decmap_gb7, encmap_ksc7, decmap_ksc7, encmap_nbyte_ebcdic, decmap_nbyte_ebcdic, encmap_johab_hangul, decmap_johab_hangul, encmap_johabx_ascii, decmap_johabx_ascii, encmap_johabx_ebcdic, decmap_johabx_ebcdic
+from codecs.infrastructure import register_kuroko_codec, ByteCatenator, StringCatenator, UnicodeEncodeError, UnicodeDecodeError, lookup_error, lookup, BaseEbcdicIncrementalEncoder, BaseEbcdicIncrementalDecoder, AsciiIncrementalEncoder, AsciiIncrementalDecoder
 from codecs.dbdata import encode_jis7, decode_jis7, decode_jis7katakana
 from codecs.bespokecodecs import Iso2022JpIncrementalEncoder, Iso2022JpIncrementalDecoder
+
+let encmap_johab_ascii = encmap_johabx_ascii.copy()
+encmap_johab_ascii.update(encmap_johab_hangul)
+class AsciiJohabIncrementalEncoder(AsciiIncrementalEncoder):
+    name = "johab"
+    webname = None
+    encoding_map = encmap_johab_ascii
+
+let decmap_johab_ascii = decmap_johabx_ascii.copy()
+decmap_johab_ascii.update(decmap_johab_hangul)
+class AsciiJohabIncrementalDecoder(AsciiIncrementalDecoder):
+    name = "johab-ascii"
+    webname = None
+    decoding_map = decmap_johab_ascii
+    dbrange = tupleOf(*range(0x84, 0xF9 + 1))
+    # Trail ranges for hangul and nonhangul are different, but this is their union.
+    trailrange = tupleOf(*range(0x31, 0x7E + 1), *range(0x81, 0xFE + 1))
+
+register_kuroko_codec(["cp1361", "ms1361", "johab", "x-johab", "johab-ascii"],
+    AsciiJohabIncrementalEncoder, AsciiJohabIncrementalDecoder)
+
+
+let encmap_johab_ebcdic = encmap_johabx_ebcdic.copy()
+encmap_johab_ebcdic.update(encmap_johab_hangul)
+class EbcdicJohabIncrementalEncoder(BaseEbcdicIncrementalEncoder):
+    name = "johab-ebcdic"
+    webname = None
+    sbcs_encmap = encmap_nbyte_ebcdic
+    dbcshost_encmap = encmap_johab_ebcdic
+
+let decmap_johab_ebcdic = decmap_johabx_ebcdic.copy()
+decmap_johab_ebcdic.update(decmap_johab_hangul)
+class EbcdicJohabIncrementalDecoder(BaseEbcdicIncrementalDecoder):
+    name = "ibm-933"
+    webname = None
+    sbcs_decmap = decmap_nbyte_ebcdic
+    dbcshost_decmap = decmap_johab_ebcdic
+
+register_kuroko_codec(["cp933", "ibm-933", "933", "x-IBM933", "johab-ebcdic"],
+    EbcdicJohabIncrementalEncoder, EbcdicJohabIncrementalDecoder)
+
 
 class JisEncodingIncrementalEncoder(Iso2022JpIncrementalEncoder):
     name = "jis_encoding"
