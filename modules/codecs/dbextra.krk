@@ -3,10 +3,48 @@ This module includes some additional variable-width or wide encodings not specif
 such, none of the codecs in this module should be used in HTML.
 """
 
-from codecs.extradata import encode_lat1supp, decode_lat1supp, encode_greksupp, decode_greksupp, encode_jis78, decode_jis78, encode_jis90p2, decode_jis90p2, encode_jis00, decode_jis00, encode_jis00p2, decode_jis00p2, encode_jis04, decode_jis04, encode_jis7katakana, encode_gb7, decode_gb7, encode_ksc7, decode_ksc7, encode_nbyte_ebcdic, decode_nbyte_ebcdic, encode_johab_hangul, decode_johab_hangul, encode_johabx_ascii, decode_johabx_ascii, encode_johabx_ebcdic, decode_johabx_ebcdic
+from codecs.extradata import encode_lat1supp, decode_lat1supp, encode_greksupp, decode_greksupp, encode_jis78, decode_jis78, encode_jis90p2, decode_jis90p2, encode_jis00, decode_jis00, encode_jis00p2, decode_jis00p2, encode_jis04, decode_jis04, encode_jis7katakana, encode_gb7, decode_gb7, encode_ksc7, decode_ksc7, encode_nbyte_ebcdic, decode_nbyte_ebcdic, encode_johab_hangul, decode_johab_hangul, encode_johabx_ascii, decode_johabx_ascii, encode_johabx_ebcdic, decode_johabx_ebcdic, encode_euc04, decode_euc04, encode_sjis04, decode_sjis04
 from codecs.infrastructure import register_kuroko_codec, ByteCatenator, StringCatenator, UnicodeEncodeError, UnicodeDecodeError, lookup_error, lookup, BaseEbcdicIncrementalEncoder, BaseEbcdicIncrementalDecoder, AsciiIncrementalEncoder, AsciiIncrementalDecoder
 from codecs.dbdata import encode_jis7, decode_jis7, decode_jis7katakana
 from codecs.bespokecodecs import Iso2022JpIncrementalEncoder, Iso2022JpIncrementalDecoder
+
+
+class EucJis2004IncrementalEncoder(AsciiIncrementalEncoder):
+    name = "euc-jis-2004"
+    html5name = None
+    encoding_map = encode_euc04
+
+class EucJis2004IncrementalDecoder(AsciiIncrementalDecoder):
+    name = "euc-jis-2004"
+    html5name = None
+    decoding_map = decode_euc04
+    dbrange = tupleOf(0x8E, *range(0xA1, 0xFE + 1))
+    tbrange = (0x8F,)
+    trailrange = tupleOf(*range(0xA1, 0xFE + 1))
+
+register_kuroko_codec(["euc_jis_2004", "jisx0213", "eucjis2004", "euc_jis2004", 
+        "euc_jisx0213", "eucjisx0213"],
+    EucJis2004IncrementalEncoder, EucJis2004IncrementalDecoder)
+
+
+class ShiftJis2004IncrementalEncoder(AsciiIncrementalEncoder):
+    name = "shift-jis-2004"
+    html5name = None
+    encoding_map = encode_sjis04
+    ascii_exceptions = (0x5C, 0x7E)
+
+class ShiftJis2004IncrementalDecoder(AsciiIncrementalDecoder):
+    name = "shift-jis-2004"
+    html5name = None
+    decoding_map = decode_sjis04
+    ascii_exceptions = (0x5C, 0x7E)
+    dbrange = (129, 130, 131, 132, 133, 134, 135, 136, 137, 138, 139, 140, 141, 142, 143, 144, 145, 146, 147, 148, 149, 150, 151, 152, 153, 154, 155, 156, 157, 158, 159, 224, 225, 226, 227, 228, 229, 230, 231, 232, 233, 234, 235, 236, 237, 238, 239, 240, 241, 242, 243, 244, 245, 246, 247, 248, 249, 250, 251, 252)
+    trailrange = tupleOf(*range(64, 126 + 1), *range(128, 252 + 1))
+
+register_kuroko_codec(["shift_jis_2004", "shiftjis2004", "sjis_2004", "s_jis_2004", 
+        "shift_jisx0213", "shiftjisx0213", "sjisx0213", "s_jisx0213"],
+    ShiftJis2004IncrementalEncoder, ShiftJis2004IncrementalDecoder)
+
 
 let encode_johab_ascii = encode_johabx_ascii.copy()
 encode_johab_ascii.update(encode_johab_hangul)
