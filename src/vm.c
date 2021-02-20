@@ -523,6 +523,8 @@ inline KrkClass * krk_getType(KrkValue of) {
 					return vm.baseClasses->tupleClass;
 				case OBJ_BYTES:
 					return vm.baseClasses->bytesClass;
+				case OBJ_PROPERTY:
+					return vm.baseClasses->propertyClass;
 				case OBJ_INSTANCE:
 					return AS_INSTANCE(of)->_class;
 				default:
@@ -1702,6 +1704,7 @@ static int valueGetProperty(KrkString * name) {
 		KrkInstance * instance = AS_INSTANCE(krk_peek(0));
 		if (krk_tableGet(&instance->fields, OBJECT_VAL(name), &value)) {
 			if (IS_PROPERTY(value)) {
+				/* Properties retreived from instances are magic. */
 				krk_push(krk_callSimple(AS_PROPERTY(value)->method, 1, 0));
 				return 1;
 			}
@@ -1714,10 +1717,6 @@ static int valueGetProperty(KrkString * name) {
 		KrkClass * _class = AS_CLASS(krk_peek(0));
 		if (krk_tableGet(&_class->fields, OBJECT_VAL(name), &value) ||
 			krk_tableGet(&_class->methods, OBJECT_VAL(name), &value)) {
-			if (IS_PROPERTY(value)) {
-				krk_push(krk_callSimple(AS_PROPERTY(value)->method, 1, 0));
-				return 1;
-			}
 			krk_pop();
 			krk_push(value);
 			return 1;

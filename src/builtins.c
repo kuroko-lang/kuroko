@@ -340,6 +340,34 @@ KRK_METHOD(LicenseReader,__call__,{
 	return krk_runtimeError(vm.exceptions->typeError, "unexpected error");
 })
 
+static KrkValue _property_repr(int argc, KrkValue argv[], int hasKw) {
+	if (argc != 1 || !IS_PROPERTY(argv[0])) return krk_runtimeError(vm.exceptions->typeError, "?");
+	struct StringBuilder sb = {0};
+	pushStringBuilderStr(&sb, "Property(", 9);
+
+	KrkValue method = AS_PROPERTY(argv[0])->method;
+
+	if (IS_NATIVE(method)) {
+		pushStringBuilderStr(&sb, (char*)AS_NATIVE(method)->name, strlen(AS_NATIVE(method)->name));
+	} else if (IS_CLOSURE(method)) {
+		pushStringBuilderStr(&sb, AS_CLOSURE(method)->function->name->chars, AS_CLOSURE(method)->function->name->length);
+	}
+
+	pushStringBuilder(&sb,')');
+	return finishStringBuilder(&sb);
+}
+
+static KrkValue _property_doc(int argc, KrkValue argv[], int hasKw) {
+	if (argc != 1 || !IS_PROPERTY(argv[0])) return krk_runtimeError(vm.exceptions->typeError, "?");
+	KrkValue method = AS_PROPERTY(argv[0])->method;
+	if (IS_NATIVE(method) && AS_NATIVE(method)->doc) {
+		return OBJECT_VAL(krk_copyString(AS_NATIVE(method)->doc, strlen(AS_NATIVE(method)->doc)));
+	} else if (IS_CLOSURE(method)) {
+		return OBJECT_VAL(AS_CLOSURE(method)->function->docstring);
+	}
+	return NONE_VAL();
+}
+
 _noexport
 void _createAndBind_builtins(void) {
 	vm.baseClasses->objectClass = krk_newClass(S("object"), NULL);
@@ -370,6 +398,11 @@ void _createAndBind_builtins(void) {
 	krk_attachNamedValue(&vm.builtins->fields, "__file__", NONE_VAL());
 	krk_attachNamedObject(&vm.builtins->fields, "__doc__",
 		(KrkObj*)S("Internal module containing built-in functions and classes."));
+
+	krk_makeClass(vm.builtins, &vm.baseClasses->propertyClass, "Property", vm.baseClasses->objectClass);
+	krk_defineNative(&vm.baseClasses->propertyClass->methods, ".__repr__", _property_repr);
+	krk_defineNative(&vm.baseClasses->propertyClass->methods, ":__doc__", _property_doc);
+	krk_finalizeClass(vm.baseClasses->propertyClass);
 
 	krk_makeClass(vm.builtins, &Helper, "Helper", vm.baseClasses->objectClass);
 	BIND_METHOD(Helper,__call__);

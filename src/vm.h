@@ -156,6 +156,7 @@ struct BaseClasses {
 	KrkClass * dictitemsClass;       /**< Iterator over the (key,value) pairs of a dict */
 	KrkClass * dictkeysClass;        /**< Iterator over the keys of a dict */
 	KrkClass * bytesiteratorClass;   /**< Iterator over the integer byte values of a bytes object. */
+	KrkClass * propertyClass;        /**< Magic object that calls a function when accessed from an instance through the dot operator. */
 };
 
 /**
