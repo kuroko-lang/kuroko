@@ -1,0 +1,292 @@
+#!/usr/bin/env kuroko
+'''
+@brief Tool for dynamically generating documentation files through introspection.
+
+Imports modules and scans through members to generate Markdown files to feed into
+Doxygen. Uses dynamic introspection to obtain member lists and look up function
+arguments, docstrings, etc.
+
+Markdown output is aided by a set of macros defined in the Kuroko API Documentation
+Doxyfile. The output should be suitable for use with a normal Doxygen build, but some
+additional customization is available.
+'''
+import fileio
+import kuroko
+import syntax.highlighter
+
+let realPrint = print
+
+let blacklistedMethods = [
+    '__func__',
+    '__repr__',
+    '__str__',
+]
+
+let specialMethods = {
+    '__contains__': lambda cls, args: f'{args or "<i>needle</i>"} <b>in</b> {cls}',
+    '__init__': lambda cls, args: f'let <i>x</i> = <b>{cls}</b>({args})',
+    '__get__': lambda cls, args: f'{cls}[{args or "<i>key</i>"}]',
+    '__delitem__': lambda cls, args: f'<b>del</b> {cls}[{args or "<i>key</i>"}]',
+    '__add__': lambda cls, args: f'{cls} + {args or "<i>other</i>"}',
+    '__len__': lambda cls, args: f'<b>len</b>({cls})',
+    '__call__': lambda cls, args: f'{cls}({args})',
+    '__iter__': lambda cls, args: f'<b>for</b> <i>x</i> <b>in</b> {cls}:',
+    '__eq__': lambda cls, args: f'{cls} == {args or "<i>other</i>"}',
+    '__lt__': lambda cls, args: f'{cls} &lt; {args or "<i>other</i>"}',
+    '__gt__': lambda cls, args: f'{cls} &gt; {args or "<i>other</i>"}',
+}
+
+class Pair():
+    '''Makes a silly sortable pair that can be expanded like a two-tuple.'''
+    def __init__(left,right):
+        self.left = left
+        self.right = right
+    def __eq__(other):
+        if not isinstance(other,Pair): return False
+        return self.left == other.left
+    def __lt__(other):
+        if self.left == '__init__' and other.left != '__init__': return True
+        if other.left == '__init__': return False
+        return self.left < other.left
+    def __gt__(other):
+        if self.left == '__init__': return False
+        if other.left == '__init__': return True
+        return self.left > other.left
+    def __repr__():
+        return f'Pair({self.left!r},{self.right!r})'
+    def __iter__():
+        let x = -1
+        def _():
+            x++
+            if x == 0: return self.left
+            elif x == 1: return self.right
+            else: return _
+        return _
+
+let modules = [
+    # Integrated stuff
+    '__builtins__',
+    'os',
+    'kuroko',
+    'math',
+    'threading',
+    'gc',
+    'dis',
+    'fileio',
+    'time',
+
+    # Stuff from modules/
+    'json',
+    'collections',
+    'string',
+
+    # Other stuff
+    'tools.gendoc',
+]
+
+let docString = {}
+
+def fixup(mod):
+    '''Escapes some characters in module names to make better page IDs.'''
+    if mod.startswith('__'): return '\\' + mod
+    return mod
+
+def truncateString(s):
+    '''If @p s is longer than 100 characters, truncate it with an ellipsis.'''
+    s = s.strip()
+    if '\n' in s:
+        s = s.split('\n')[0]
+    let short = s[:100]
+    if len(short) < len(s):
+        return short + '...'
+    else:
+        return short
+
+def fixupDoc(doc):
+    '''Cleans up docstring contents for display in the module list.'''
+    for line in doc.split('\n'):
+        if line.strip().startswith('@brief '):
+            doc = line.strip().replace('@brief ', '', 1).strip()
+            break
+    return doc.replace(',','\\,').replace('<','&lt;').replace('>','&gt;')
+
+def isExceptionType(cls):
+    '''Determines if @p cls is an @c Exception type by examining its superclass chain.'''
+    if cls == Exception: return True
+    let checked = []
+    while '__base__' in dir(cls) and cls.__base__ not in checked:
+        if cls.__base__ == Exception: return True
+        checked.append(cls.__base__)
+        cls = cls.__base__
+    return False
+
+def getArgs(func):
+    '''Extract the arguments of either a managed (@c func.__args__) or native (from an `@arguments` docstring) function.'''
+    if func.__file__ == '<builtin>':
+        if '__doc__' in dir(func) and func.__doc__ and '@arguments ' in func.__doc__:
+            let before, after = func.__doc__.split('@arguments ',1)
+            let line, rest = after.split('\n',1) if '\n' in after else (after,None)
+            return line.strip().replace(',','\\,')
+        return ''
+    return '\\,'.join([x for x in func.__args__ if x != 'self'])
+
+def functionDoc(func):
+    '''Extracts the docstring from a function and removes markup that Doxygen will choke on.'''
+    let doc = func.__doc__ if ('__doc__' in dir(func) and func.__doc__) else ''
+    if '@arguments ' in doc:
+        doc = '\n'.join([x for x in doc.split('\n') if '@arguments' not in x])
+    return doc
+
+def processModules(modules):
+    for modulepath in modules:
+        # Import the module.
+        let module = kuroko.importmodule(modulepath)
+
+        let output = fileio.open(f'docs/mod.{modulepath}.md','w')
+
+        realPrint(f"Processing {modulepath}")
+
+        def print(*args):
+            output.write(' '.join(args))
+            output.write('\n')
+
+        print('## ' + fixup(modulepath) + ' {#mod_' + modulepath.replace('.','_') + '}')
+        if '__doc__' in dir(module) and module.__doc__:
+            print(module.__doc__.strip())
+            docString[modulepath] = truncateString(module.__doc__)
+        else:
+            docString[modulepath] = 'TODO'
+
+        def outputFunction(name, func, prefix=None, paren=True):
+            # Build the function signature
+            let _args = getArgs(func)
+            let args = ('<i>' + _args + '</i>') if _args else ''
+            let body = functionDoc(func)
+            let maybePrefix = prefix + '.' if prefix else ''
+            let formatted = maybePrefix + '<b>' + name + '</b>' + (f'({args})' if paren else args)
+            let maybeDetail = ''
+            if prefix and name in specialMethods:
+                maybeDetail = ',' + formatted
+                formatted = specialMethods[name](prefix,args)
+            print('\\methodstart{' + (maybePrefix + name).replace('.','_') + ',' + formatted + ',' + ('h4,methodDef' if prefix else 'h3,functionDef') + maybeDetail + '}')
+            if body: print(body)
+            print('\n\\methodend')
+            print('')
+
+        def outputConstant(name, val):
+            print(f'<h3 class=\"letDef\"><i>let</i> <b>{name}</b> = <code>\htmlonly {val!r} \\endhtmlonly</code></h3>\n')
+
+        def outputOther(name, val):
+            print(f'<h3 class=\"letDef\"><i>let</i> <b>{name}</b> = <i>{type(val).__name__}</i></h3>\n')
+
+        def outputClass(name, cls):
+            let classType = 'exceptionDef' if isExceptionType(cls) else 'classDef'
+            let superclass = cls.__base__.__name__ if cls.__base__ else ''
+            let formatted = f'<i>class</i> <b>{name}</b>({superclass})'
+            print('\\methodstart{' + name + ',' + formatted + ',h3,' + classType + '}')
+            if '__doc__' in dir(cls) and isinstance(cls.__doc__,str):
+                print('<p>' + cls.__doc__ + '</p>')
+            let seen = []
+            let methods = []
+            let properties = []
+            for member in dir(cls):
+                if member in blacklistedMethods: continue
+                realPrint(cls,member)
+                let obj
+                try:
+                   obj = getattr(cls,member)
+                    if cls.__base__ and member in dir(cls.__base__) and getattr(cls.__base__,member) == obj: continue
+                except:
+                    continue
+                if isinstance(obj, function) and member not in seen:
+                    seen.append(member)
+                    methods.append(Pair(member,obj))
+                else if isinstance(obj, Property) and member not in seen:
+                    seen.append(member)
+                    properties.append(Pair(member,obj.__method__))
+            if methods:
+                methods.sort()
+                for methodName, method in methods:
+                    outputFunction(methodName, method, prefix=name)
+            if properties:
+                properties.sort()
+                for propName, method in properties:
+                    outputFunction(propName, method, prefix=name, paren=False)
+            print('\\methodend')
+
+        def dumpModule(name, thing):
+            let functions = []
+            let classes = []
+            let constants = []
+            let exceptions = []
+            let other = []
+
+            for member in dir(thing):
+                if not member.startswith('_'):
+                    let obj = getattr(thing,member)
+                    if isinstance(obj, function):
+                        functions.append(Pair(member,obj))
+                    else if isinstance(obj, type):
+                        if isExceptionType(obj):
+                            exceptions.append(Pair(member,obj))
+                        else:
+                            classes.append(Pair(member,obj))
+                    else if isinstance(obj, (int,str,float,bool,type(None))):
+                        constants.append(Pair(member,obj))
+                    else if isinstance(obj, kuroko.module):
+                        continue # Skip top-level modules as these are almost definitely imports
+                    else:
+                        other.append(Pair(member,obj))
+
+            if classes:
+                print('\n### Classes\n')
+                classes.sort()
+                for name, cls in classes:
+                    outputClass(name, cls)
+
+            if functions:
+                print('\n### Functions\n')
+                functions.sort()
+                for name, func in functions:
+                    outputFunction(name, func)
+
+            if exceptions:
+                print('\n### Exceptions\n')
+                exceptions.sort()
+                for name, cls in exceptions:
+                    outputClass(name, cls)
+
+            if constants:
+                print('\n### Constants\n')
+                constants.sort()
+                for name, val in constants:
+                    outputConstant(name,val)
+
+            if other:
+                print('\n### Other Members\n')
+                other.sort()
+                for name, val in other:
+                    outputOther(name, val)
+
+        dumpModule(modulepath,module)
+
+        output.close()
+
+    with fileio.open('docs/modulelist.md','w') as output:
+        output.write(
+            '# Module List {#modulelist}\n'
+            '\n'
+            'Here is a list of documented modules:\n'
+            '\n'
+            '\\modulelist{\n'
+        )
+
+        modules.sort()
+
+        for module in modules:
+            output.write('  \\krkmodule{mod_' + fixup(module).replace('.','_') + ',' + fixupDoc(docString[module]) + '}\n')
+
+        output.write('}\n')
+
+if __name__ == '__main__':
+    processModules(modules)

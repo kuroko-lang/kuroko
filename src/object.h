@@ -124,6 +124,7 @@ typedef struct {
 	KrkLocalEntry * localNames;
 	unsigned char collectsArguments:1;
 	unsigned char collectsKeywords:1;
+	unsigned char isClassMethod:1;
 	struct KrkInstance * globalsContext;
 } KrkFunction;
 

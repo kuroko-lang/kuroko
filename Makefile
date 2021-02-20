@@ -116,6 +116,7 @@ modules/codecs/dbdata.krk: kuroko tools/codecs/gen_dbdata.krk tools/codecs/encod
 .PHONY: clean
 clean:
 	@rm -f ${OBJS} ${TARGET} ${MODULES} libkuroko.so src/*.o kuroko.exe ${TOOLS} $(patsubst %,%.exe,${TOOLS})
+	@rm -rf docs/html
 
 tags: $(wildcard src/*.c) $(wildcard src/*.h)
 	@ctags --c-kinds=+lx src/*.c src/*.h
@@ -184,3 +185,9 @@ deb: kuroko libkuroko.so
 		--iteration   0 \
 		--directories $(libdir)/kuroko
 	rm -r $(DESTDIR)
+
+.PHONY: docs
+
+docs: kuroko
+	./kuroko tools/gendoc.krk
+	doxygen docs/Doxyfile

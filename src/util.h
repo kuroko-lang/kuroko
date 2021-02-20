@@ -90,10 +90,10 @@ static inline const char * _method_name(const char * func) {
 
 /* This assumes you have a KrkInstance called `module` in the current scope. */
 #define MAKE_CLASS(klass) do { krk_makeClass(module,&klass,#klass,vm.baseClasses->objectClass); klass ->allocSize = sizeof(struct klass); } while (0)
-#define BIND_METHOD(klass,method) do { krk_defineNative(&klass->methods, "." #method, _ ## klass ## _ ## method); } while (0)
-#define BIND_FIELD(klass,method) do { krk_defineNative(&klass->methods, ":" #method, _ ## klass ## _ ## method); } while (0)
-#define BIND_PROP(klass,method) do { krk_defineNativeProperty(&klass->fields, #method, _ ## klass ## _ ## method); } while (0)
-#define BIND_FUNC(module,func) do { krk_defineNative(&module->fields, #func, _krk_ ## func); } while (0)
+#define BIND_METHOD(klass,method) krk_defineNative(&klass->methods, "." #method, _ ## klass ## _ ## method)
+#define BIND_FIELD(klass,method) krk_defineNative(&klass->methods, ":" #method, _ ## klass ## _ ## method)
+#define BIND_PROP(klass,method) krk_defineNativeProperty(&klass->fields, #method, _ ## klass ## _ ## method)
+#define BIND_FUNC(module,func) krk_defineNative(&module->fields, #func, _krk_ ## func)
 
 /**
  * @brief Inline flexible string array.

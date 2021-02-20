@@ -215,7 +215,10 @@ _corrupt:
 _noexport
 void _createAndBind_bytesClass(void) {
 	KrkClass * bytes = ADD_BASE_CLASS(vm.baseClasses->bytesClass, "bytes", vm.baseClasses->objectClass);
-	BIND_METHOD(bytes,__init__);
+	BIND_METHOD(bytes,__init__)->doc =
+		"@arguments iter=None\n"
+		"Creates a new @ref bytes object. If @p iter is provided, it should be a @ref tuple or @ref list "
+		"of integers within the range @c 0 and @c 255.";
 	BIND_METHOD(bytes,__repr__);
 	BIND_METHOD(bytes,__len__);
 	BIND_METHOD(bytes,__contains__);

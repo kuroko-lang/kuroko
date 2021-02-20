@@ -523,6 +523,8 @@ inline KrkClass * krk_getType(KrkValue of) {
 					return vm.baseClasses->tupleClass;
 				case OBJ_BYTES:
 					return vm.baseClasses->bytesClass;
+				case OBJ_PROPERTY:
+					return vm.baseClasses->propertyClass;
 				case OBJ_INSTANCE:
 					return AS_INSTANCE(of)->_class;
 				default:
@@ -936,6 +938,8 @@ int krk_bindMethod(KrkClass * _class, KrkString * name) {
 	if (!krk_tableGet(&_class->methods, OBJECT_VAL(name), &method)) return 0;
 	if (IS_NATIVE(method) && ((KrkNative*)AS_OBJECT(method))->isMethod == 2) {
 		out = AS_NATIVE(method)->function(1, (KrkValue[]){krk_peek(0)}, 0);
+	} else if (IS_CLOSURE(method) && (AS_CLOSURE(method)->function->isClassMethod)) {
+		out = OBJECT_VAL(krk_newBoundMethod(OBJECT_VAL(_class), AS_OBJECT(method)));
 	} else {
 		out = OBJECT_VAL(krk_newBoundMethod(krk_peek(0), AS_OBJECT(method)));
 	}
@@ -1220,14 +1224,29 @@ void krk_initVM(int flags) {
 	krk_attachNamedObject(&vm.modules, "kuroko", (KrkObj*)vm.system);
 	krk_attachNamedObject(&vm.system->fields, "__name__", (KrkObj*)S("kuroko"));
 	krk_attachNamedValue(&vm.system->fields, "__file__", NONE_VAL()); /* (built-in) */
+	krk_attachNamedObject(&vm.system->fields, "__doc__", (KrkObj*)S("System module."));
 	krk_attachNamedObject(&vm.system->fields, "version",
 		(KrkObj*)S(KRK_VERSION_MAJOR "." KRK_VERSION_MINOR "." KRK_VERSION_PATCH KRK_VERSION_EXTRA));
 	krk_attachNamedObject(&vm.system->fields, "buildenv", (KrkObj*)S(KRK_BUILD_COMPILER));
 	krk_attachNamedObject(&vm.system->fields, "builddate", (KrkObj*)S(KRK_BUILD_DATE));
-	krk_defineNative(&vm.system->fields, "getsizeof", krk_getsize);
-	krk_defineNative(&vm.system->fields, "set_clean_output", krk_setclean);
-	krk_defineNative(&vm.system->fields, "set_tracing", krk_set_tracing)->doc = "Toggle debugging modes.";
-	krk_defineNative(&vm.system->fields, "importmodule", krk_import_wrapper)->doc = "Import a module by string name";
+	krk_defineNative(&vm.system->fields, "getsizeof", krk_getsize)->doc = "Calculate the approximate size of an object in bytes.\n"
+		"@arguments value\n\n"
+		"@param value Value to examine.";
+	krk_defineNative(&vm.system->fields, "set_clean_output", krk_setclean)->doc = "Disables terminal escapes in some output from the VM.\n"
+		"@arguments clean=True\n\n"
+		"@param clean Whether to remove escapes.";
+	krk_defineNative(&vm.system->fields, "set_tracing", krk_set_tracing)->doc = "Toggle debugging modes.\n"
+		"@arguments tracing=None,disassembly=None,scantracing=None,stressgc=None\n\n"
+		"Enables or disables tracing options for the current thread.\n\n"
+		"@param tracing Enables instruction tracing.\n"
+		"@param disassembly Prints bytecode disassembly after compilation.\n"
+		"@param scantracing Prints debug output from the token scanner during compilation.\n"
+		"@param stressgc Forces a garbage collection cycle on each heap allocation.";
+	krk_defineNative(&vm.system->fields, "importmodule", krk_import_wrapper)->doc = "Import a module by string name\n"
+		"@arguments module\n\n"
+		"Imports the dot-separated module @p module as if it were imported by the @c import statement and returns the resulting module object.\n\n"
+		"@param module A string with a dot-separated package or module name";
+	krk_attachNamedObject(&vm.system->fields, "module", (KrkObj*)vm.baseClasses->moduleClass);
 	krk_attachNamedObject(&vm.system->fields, "path_sep", (KrkObj*)S(PATH_SEP));
 	KrkValue module_paths = krk_list_of(0,NULL,0);
 	krk_attachNamedValue(&vm.system->fields, "module_paths", module_paths);
@@ -1687,6 +1706,7 @@ static int valueGetProperty(KrkString * name) {
 		KrkInstance * instance = AS_INSTANCE(krk_peek(0));
 		if (krk_tableGet(&instance->fields, OBJECT_VAL(name), &value)) {
 			if (IS_PROPERTY(value)) {
+				/* Properties retreived from instances are magic. */
 				krk_push(krk_callSimple(AS_PROPERTY(value)->method, 1, 0));
 				return 1;
 			}
@@ -1699,9 +1719,8 @@ static int valueGetProperty(KrkString * name) {
 		KrkClass * _class = AS_CLASS(krk_peek(0));
 		if (krk_tableGet(&_class->fields, OBJECT_VAL(name), &value) ||
 			krk_tableGet(&_class->methods, OBJECT_VAL(name), &value)) {
-			if (IS_PROPERTY(value)) {
-				krk_push(krk_callSimple(AS_PROPERTY(value)->method, 1, 0));
-				return 1;
+			if (IS_CLOSURE(value) && AS_CLOSURE(value)->function->isClassMethod) {
+				value = OBJECT_VAL(krk_newBoundMethod(OBJECT_VAL(_class), AS_OBJECT(value)));
 			}
 			krk_pop();
 			krk_push(value);
@@ -2016,6 +2035,15 @@ static KrkValue run() {
 				KrkProperty * newProperty = krk_newProperty(krk_peek(0));
 				krk_pop();
 				krk_push(OBJECT_VAL(newProperty));
+				break;
+			}
+			case OP_CREATE_CLASSMETHOD: {
+				if (!IS_CLOSURE(krk_peek(0))) {
+					krk_runtimeError(vm.exceptions->typeError, "Classmethod must be a method, not '%s'",
+						krk_typeName(krk_peek(0)));
+					goto _finishException;
+				}
+				AS_CLOSURE(krk_peek(0))->function->isClassMethod = 1;
 				break;
 			}
 			case OP_FILTER_EXCEPT: {
