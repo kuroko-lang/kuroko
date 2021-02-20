@@ -89,9 +89,10 @@ class Iso2022Jp1IncrementalEncoder(Iso2022JpIncrementalEncoder):
     name = "iso-2022-jp-1"
     webname = None
     encmaps_sbcs = [None, None]
-    encmaps_dbcs = [None, None, encode_jis7, encmap_jis90p2]
+    encmaps_dbcs = [None, None, encmap_jis90p2, encode_jis7]
     escs_onebyte = {0: 0x42, 1: 0x4A}
-    escs_twobyte = {2: 0x42, 3: 0x44}
+    escs_twobyte = {3: 0x42, 2: 0x44}
+    attitude = "eager"
 
 register_kuroko_codec(["iso-2022-jp-1"],
     Iso2022Jp1IncrementalEncoder, JisEncodingIncrementalDecoder)
@@ -101,9 +102,10 @@ class Iso2022JpExtIncrementalEncoder(Iso2022JpIncrementalEncoder):
     name = "iso-2022-jp-ext"
     webname = None
     encmaps_sbcs = [None, None, encmap_jis7katakana]
-    encmaps_dbcs = [None, None, None, encode_jis7, encmap_jis90p2]
+    encmaps_dbcs = [None, None, None, encmap_jis90p2, encode_jis7]
     escs_onebyte = {0: 0x42, 1: 0x4A, 2: 0x49}
-    escs_twobyte = {3: 0x42, 4: 0x44}
+    escs_twobyte = {4: 0x42, 3: 0x44}
+    attitude = "eager"
 
 register_kuroko_codec(["iso-2022-jp-ext"],
     Iso2022JpExtIncrementalEncoder, JisEncodingIncrementalDecoder)
@@ -113,22 +115,37 @@ class Iso2022Jp2IncrementalEncoder(Iso2022JpIncrementalEncoder):
     name = "iso-2022-jp-2"
     webname = None
     encmaps_sbcs = [None, None]
-    encmaps_dbcs = [None, None, encode_jis7, encmap_jis90p2, encmap_gb7, encmap_ksc7]
+    encmaps_dbcs = [None, None, encmap_jis90p2, encode_jis7, encmap_gb7, encmap_ksc7]
     encmap_supershift_latin = encmap_lat1supp
     encmap_supershift_greek = encmap_greksupp
     super_shift = True
     escs_onebyte = {0: 0x42, 1: 0x4A}
-    escs_twobyte = {2: 0x42, 3: 0x44, 4: 0x41, 5: 0x43}
+    escs_twobyte = {3: 0x42, 2: 0x44, 4: 0x41, 5: 0x43}
+    attitude = "eager"
 
 register_kuroko_codec(["iso-2022-jp-2", "csISO2022JP2"],
     Iso2022Jp2IncrementalEncoder, JisEncodingIncrementalDecoder)
+
+
+# Bit confusing to explain what this bit is doing, so let me explain:
+#   The JIS X 0213 variants of ISO-2022-JP should encode to JIS X 0213 before encoding to any
+#   extension to JIS X 0208 (assuming they "should" encode to extensions at all). So we remove any
+#   characters that are encoded to different locations in JIS X 0213. This also removes certain
+#   Unicode characters that are mapped differently by Microsoft/WHATWG versus by JIS X 0213 (e.g.
+#   Microsoft mapping the Unicode fullwidth tilde to the JIS wave dash, while JIS X 0213 includes
+#   it separately and maps the JIS wave dash to the Unicode wave dash), forcing them to be encoded
+#   to JIS X 0213.
+let encode_jis7_reduced = {}
+for i in encode_jis7.keys():
+    if (i not in encmap_jis00 or encmap_jis00[i] == encode_jis7[i]) and (i not in encmap_jis00p2):
+        encode_jis7_reduced[i] = encode_jis7[i]
 
 
 class Iso2022Jp3IncrementalEncoder(Iso2022JpIncrementalEncoder):
     name = "iso-2022-jp-3"
     webname = None
     encmaps_sbcs = [None, None, encmap_jis7katakana]
-    encmaps_dbcs = [None, None, None, encode_jis7, encmap_jis00, encmap_jis00p2]
+    encmaps_dbcs = [None, None, None, encode_jis7_reduced, encmap_jis00, encmap_jis00p2]
     escs_onebyte = {0: 0x42, 1: 0x4A, 2: 0x49}
     escs_twobyte = {3: 0x42, 4: 0x4F, 5: 0x50}
     attitude = "eager"
@@ -141,7 +158,7 @@ class Iso2022Jp2004IncrementalEncoder(Iso2022JpIncrementalEncoder):
     name = "iso-2022-jp-2004"
     webname = None
     encmaps_sbcs = [None, None, encmap_jis7katakana]
-    encmaps_dbcs = [None, None, None, encode_jis7, encmap_jis00p2, encmap_jis04]
+    encmaps_dbcs = [None, None, None, encode_jis7_reduced, encmap_jis00p2, encmap_jis04]
     escs_onebyte = {0: 0x42, 1: 0x4A, 2: 0x49}
     escs_twobyte = {3: 0x42, 4: 0x50, 5: 0x51}
     attitude = "eager"
