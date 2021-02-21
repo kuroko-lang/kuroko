@@ -136,6 +136,17 @@ def replace_errors(exc):
         raise TypeError("'replace' handler expected UnicodeEncodeError or UnicodeDecodeError")
 register_error("replace", replace_errors)
 
+def warnreplace_errors(exc):
+    import fileio
+    fileio.stderr.write(type(exc).__name__ + ": " + str(exc) + "\n")
+    if isinstance(exc, UnicodeEncodeError):
+        return (b"?", exc.end)
+    else if isinstance(exc, UnicodeDecodeError):
+        return ("\uFFFD", exc.end)
+    else:
+        raise TypeError("'warnreplace' handler expected UnicodeEncodeError or UnicodeDecodeError")
+register_error("warnreplace", warnreplace_errors)
+
 def backslashreplace_errors(exc):
     if isinstance(exc, UnicodeEncodeError):
         # Work around str.format not supporting format specifiers
