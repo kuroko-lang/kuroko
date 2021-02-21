@@ -285,6 +285,7 @@ class Iso2022JpIncrementalDecoder(IncrementalDecoder):
     new_twobytes = False
     shift_out = False
     super_shift = False
+    concat_lenient = False
     def decode(data_in, final = False):
         let data = self.pending + data_in
         self.pending = b""
@@ -361,12 +362,19 @@ class Iso2022JpIncrementalDecoder(IncrementalDecoder):
                 leader.append(i)
                 offset += 1
             else if in_esc and len(leader) in (2, 3) and leader[1] == 0x24 and i in self.escs_twobyte:
-                if self.state_justswitched:
+                if self.state_justswitched and not self.concat_lenient:
+                    # This can break concatenations of two ISO-2022-JP streams and is questionable
+                    #   whether it actually secures anything, but WHATWG does not exempt double-
+                    #   byte targets from errors on being switched to straight after another
+                    #   switch.
+                    # The concat_lenient attribute can be set by subclasses to stop this, but this
+                    #   class should be at least as scrutinous as the WHATWG spec.
                     out.add(lookup_error(self.errors)(UnicodeDecodeError(self.name, data, offset,
                             offset, "no content between two G0 re-designations"))[0])
                 # Don't error upon re-designation of the same two-byte set: remember that WHATWG
                 #   treats both \[$@ and \[$B as designating the same set, but not all encoders do
-                #   necessarily (_vide_ the "jis_encoder" subclassing this class).
+                #   necessarily (_vide_ the "jis_encoder" subclassing this class). WHATWG does not
+                #   require erroring on nil-effect re-designation at all.
                 self.state_set = self.escs_twobyte[i]
                 self.state_justswitched = True
                 in_esc = False

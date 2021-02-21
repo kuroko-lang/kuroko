@@ -122,6 +122,7 @@ class JisEncodingIncrementalDecoder(Iso2022JpIncrementalDecoder):
     new_twobytes = True
     shift_out = True
     super_shift = True
+    concat_lenient = True
 
 register_kuroko_codec(["jis_encoding", "csjisencoding", "jis", "jis7"],
     JisEncodingIncrementalEncoder, JisEncodingIncrementalDecoder)
