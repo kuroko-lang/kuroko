@@ -98,4 +98,10 @@ else:
 # https://encoding.spec.whatwg.org/#security-background
 print(codecs.decode(b'"robert\x82"', "shift_jis", errors="replace"))
 
+let scrutiny = b'\x1b$BF|K\\T"L1$O!"\x1b(B\x1b$B@5aD$KA*Z)$5$l$?\x1b(BNo: \x1b(B; Yes: \x1b(J\\; Yes: \\\x1b(B; No: \x1b(J; No: \x1b(B\x1b(J; Yes: \x1b(B~; No: \x1b(J\x1b(B; Yes: ~\x1b(J; No: \x1b(B; Yes: \x1b(J~; Yes: .;\x1b(B'
+print(codecs.decode(scrutiny, "iso-2022-jp", errors="replace"))
+print(codecs.decode(scrutiny, "jis_encoding", errors="replace"))
+
+
+
 

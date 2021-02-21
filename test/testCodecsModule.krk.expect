@@ -24,3 +24,5 @@ xmlcharrefreplace in DBCS state successful: &#50684;&#30416;塩鹽&#18300;&#2002
 Encoding not misaligned: 令?むかしむかしあるところに
 Delimiter not swallowed:  foo = "Quoted string ****令?" 
 "robert�"
+日本國民は、�正當に選擧されたNo: �; Yes: ¥; Yes: ¥; No: �; No: ��; Yes: ~; No: ��; Yes: ~; No: �; Yes: ‾; Yes: .;
+日本國民は、正當に選擧されたNo: �; Yes: ¥; Yes: ¥; No: �; No: ��; Yes: ~; No: ��; Yes: ~; No: �; Yes: ‾; Yes: .;
