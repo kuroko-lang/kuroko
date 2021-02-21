@@ -461,6 +461,8 @@ class BaseEbcdicIncrementalDecoder(IncrementalDecoder):
                 let reason = "invalid sequence"
                 if not leader:
                     reason = "invalid byte"
+                else if self.in_dbcshost and leader and not (0x41 <= i and i <= 0xFE):
+                    reason = "truncated sequence (lead byte not followed by trail byte)"
                 let error = UnicodeDecodeError(self.name, data, errorstart, errorend, reason)
                 leader = []
                 let errorret = lookup_error(self.errors)(error)
