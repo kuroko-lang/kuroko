@@ -310,7 +310,11 @@ class Utf32IncrementalDecoder(IncrementalDecoder):
                     self.state = 1
                     i = data[offset + 3] | (data[offset + 2] << 8) | (data[offset + 1] << 16) | (data[offset] << 24)
                 else:
-                    self.state = 0 # Default to LE, per WHATWG, contra Unicode
+                    # Default to LE, to be consistent with our (WHATWG-influenced) UTF-16 handling.
+                    # Note that except in the relatively unlikely event of the stream starting with
+                    #   the first character in a plane, the previous clause would have detected
+                    #   UTF-32BE already though.
+                    self.state = 0
             if i == None:
                 offset += 4
             else if not (0xD800 <= i and i < 0xE000) and (i < 0x110000):
