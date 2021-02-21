@@ -511,7 +511,7 @@ class Utf16IncrementalDecoder(IncrementalDecoder):
                         leader_bytes.append((i >> 8) & 0xFF)
                 if offset == (len(data) - 1): # i.e. one isolated byte at the end
                     leader_bytes.append(data[offset])
-                return self._handle_truncation(out, bytemode, final, data, offset, leader_bytes)
+                return self._handle_truncation(out, None, final, data, offset, leader_bytes)
             let i
             if self.state != 1:
                 i = data[offset] | (data[offset + 1] << 8)
@@ -533,6 +533,7 @@ class Utf16IncrementalDecoder(IncrementalDecoder):
                 else:
                     self.state = 0 # Default to LE, per WHATWG, contra Unicode
             if i == None:
+                offset += 2
             else if wordmode == 1 and not (0xD800 <= i and i < 0xE000):
                 out.add(chr(i))
                 offset += 2

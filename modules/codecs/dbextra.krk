@@ -4,7 +4,7 @@ such, none of the codecs in this module should be used in HTML.
 """
 
 from codecs.extradata import encode_lat1supp, decode_lat1supp, encode_greksupp, decode_greksupp, encode_jis78, decode_jis78, encode_jis90p2, decode_jis90p2, encode_jis00, decode_jis00, encode_jis00p2, decode_jis00p2, encode_jis04, decode_jis04, encode_jis7katakana, encode_gb7, decode_gb7, encode_ksc7, decode_ksc7, encode_nbyte_ebcdic, decode_nbyte_ebcdic, encode_johab_hangul, decode_johab_hangul, encode_johabx_ascii, decode_johabx_ascii, encode_johabx_ebcdic, decode_johabx_ebcdic, encode_euc04, decode_euc04, encode_sjis04, decode_sjis04
-from codecs.infrastructure import register_kuroko_codec, ByteCatenator, StringCatenator, UnicodeEncodeError, UnicodeDecodeError, lookup_error, lookup, BaseEbcdicIncrementalEncoder, BaseEbcdicIncrementalDecoder, AsciiIncrementalEncoder, AsciiIncrementalDecoder
+from codecs.infrastructure import register_kuroko_codec, ByteCatenator, StringCatenator, UnicodeEncodeError, UnicodeDecodeError, lookup_error, lookup, BaseEbcdicIncrementalEncoder, BaseEbcdicIncrementalDecoder, AsciiIncrementalEncoder, AsciiIncrementalDecoder, IncrementalEncoder, IncrementalDecoder
 from codecs.dbdata import encode_jis7, decode_jis7, decode_jis7katakana
 from codecs.bespokecodecs import Iso2022JpIncrementalEncoder, Iso2022JpIncrementalDecoder
 
@@ -211,6 +211,165 @@ class Iso2022Jp2004IncrementalEncoder(Iso2022JpIncrementalEncoder):
 
 register_kuroko_codec(["iso-2022-jp-2004", "iso2022-jp-2004", "iso2022jp-2004"],
     Iso2022Jp2004IncrementalEncoder, JisEncodingIncrementalDecoder)
+
+
+class Utf32IncrementalEncoder(IncrementalEncoder):
+    name = "utf-32"
+    html5name = None
+    encoding_map = {}
+    endian = "little"
+    include_bom = True
+    # -1: BOM not yet emitted if applicable
+    #  0: BOM emitted
+    state = None
+    def push_word(word, out):
+        if self.endian == "little":
+            out.add(bytes([word & 0xFF, (word >> 8) & 0xFF, (word >> 16) & 0xFF, (word >> 24) & 0xFF]))
+        else if self.endian == "big":
+            out.add(bytes([(word >> 24) & 0xFF, (word >> 16) & 0xFF, (word >> 8) & 0xFF, word & 0xFF]))
+        else:
+            raise ValueError("unexpected endian value: " + repr(self.endian))
+    def encode(string, final = False):
+        let out = ByteCatenator()
+        let offset = 0
+        if self.include_bom and self.state == -1:
+            self.push_word(0xFEFF, out)
+        self.state = 0
+        while 1: # offset can be arbitrarily changed by the error handler, so not a for
+            if offset >= len(string):
+                return out.getvalue()
+            let i = string[offset]
+            if not (0xD800 <= ord(i) and ord(i) < 0xE000):
+                self.push_word(ord(i), out)
+                offset += 1
+            else: # i.e. trying to encode a surrogate "codepoint"
+                let error = UnicodeEncodeError(self.name, string, offset, offset + 1,
+                            "surrogate codepoint")
+                let errorret = lookup_error(self.errors)(error)
+                for i in errorret[0]:
+                    self.push_word(i, out)
+                offset = errorret[1]
+                if offset < 0:
+                    offset += len(string)
+    def reset():
+        self.state = -1
+    def getstate():
+        return self.state
+    def setstate(state):
+        self.state = state
+
+class Utf32IncrementalDecoder(IncrementalDecoder):
+    name = "utf-32"
+    html5name = None
+    force_endian = None # subclass may set to "little" or "big"
+    # -1: expecting BOM
+    #  0: LE
+    #  1: BE
+    state = None
+    pending = b""
+    def decode(data_in, final = False):
+        let data = self.pending + data_in
+        self.pending = b""
+        let out = StringCatenator()
+        let offset = 0
+        let leader = []
+        while 1: # offset can be arbitrarily changed by the error handler, so not a for
+            if (offset + 3) >= len(data):
+                let leader_bytes = []
+                for i in leader:
+                    if self.state == 1:
+                        leader_bytes.append((i >> 8) & 0xFF)
+                        leader_bytes.append(i & 0xFF)
+                    else:
+                        leader_bytes.append(i & 0xFF)
+                        leader_bytes.append((i >> 8) & 0xFF)
+                if offset < len(data): # i.e. one to three isolated bytes at the end
+                    leader_bytes.extend(list(data)[offset:])
+                return self._handle_truncation(out, None, final, data, offset, leader_bytes)
+            let i
+            if self.state != 1:
+                i = data[offset] | (data[offset + 1] << 8) | (data[offset + 2] << 16) | (data[offset + 3] << 24)
+            else:
+                i = data[offset + 3] | (data[offset + 2] << 8) | (data[offset + 1] << 16) | (data[offset] << 24)
+            if self.state == -1:
+                if self.force_endian == "little":
+                    self.state = 0 # keep BOM if endian specified, per Python.
+                    i = data[offset] | (data[offset + 1] << 8) | (data[offset + 2] << 16) | (data[offset + 3] << 24)
+                else if self.force_endian == "big":
+                    self.state = 1
+                    i = data[offset + 3] | (data[offset + 2] << 8) | (data[offset + 1] << 16) | (data[offset] << 24)
+                else if i == 0xFEFF:
+                    self.state = 0
+                    i = None
+                else if i == 0xFFFE0000:
+                    self.state = 1
+                    i = None
+                else if i & 0xFF000000:
+                    # UTF-32's highest byte will never be used, so if it has a value it's obviously
+                    #   the other endian.
+                    self.state = 1
+                    i = data[offset + 3] | (data[offset + 2] << 8) | (data[offset + 1] << 16) | (data[offset] << 24)
+                else:
+                    self.state = 0 # Default to LE, per WHATWG, contra Unicode
+            if i == None:
+                offset += 4
+            else if not (0xD800 <= i and i < 0xE000) and (i < 0x110000):
+                out.add(chr(i))
+                offset += 4
+            else:
+                let errorstart = offset - (len(leader) * 2)
+                let errorend = errorstart + 4
+                let reason
+                if i > 0x110000:
+                    reason = "UTF-32 code beyond Unicode"
+                else:
+                    reason = "surrogate word in UTF-32"
+                let error = UnicodeDecodeError(self.name, data, errorstart, errorend, reason)
+                leader = []
+                let errorret = lookup_error(self.errors)(error)
+                out.add(errorret[0])
+                offset = errorret[1]
+                if offset < 0:
+                    offset += len(string)
+    def reset():
+        self.pending = b""
+        self.state = -1
+    def getstate():
+        return (self.pending, self.state)
+    def setstate(state):
+        self.pending = state[0]
+        self.state = state[1]
+
+class Utf32BeIncrementalEncoder(Utf32IncrementalEncoder):
+    name = "utf-32be"
+    html5name = "utf-32be"
+    endian = "big"
+    include_bom = False
+
+class Utf32BeIncrementalDecoder(Utf32IncrementalDecoder):
+    name = "utf-32be"
+    html5name = "utf-32be"
+    force_endian = "big"
+
+class Utf32LeIncrementalEncoder(Utf32IncrementalEncoder):
+    name = "utf-32le"
+    html5name = "utf-32le"
+    endian = "little"
+    include_bom = False
+
+class Utf32LeIncrementalDecoder(Utf32IncrementalDecoder):
+    name = "utf-32le"
+    html5name = "utf-32le"
+    force_endian = "little"
+
+register_kuroko_codec(["utf-32", "utf32", "iso-10646-ucs-4", "ucs-4", "u32"],
+    Utf32IncrementalEncoder, Utf32IncrementalDecoder)
+register_kuroko_codec(["utf-32le", "utf-32-le"],
+    Utf32LeIncrementalEncoder, Utf32LeIncrementalDecoder)
+register_kuroko_codec(["utf-32be", "utf-32-be"],
+    Utf32BeIncrementalEncoder, Utf32BeIncrementalDecoder)
+
+
 
 
 
