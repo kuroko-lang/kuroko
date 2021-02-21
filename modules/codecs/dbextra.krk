@@ -346,24 +346,24 @@ class Utf32IncrementalDecoder(IncrementalDecoder):
 
 class Utf32BeIncrementalEncoder(Utf32IncrementalEncoder):
     name = "utf-32be"
-    html5name = "utf-32be"
+    html5name = None
     endian = "big"
     include_bom = False
 
 class Utf32BeIncrementalDecoder(Utf32IncrementalDecoder):
     name = "utf-32be"
-    html5name = "utf-32be"
+    html5name = None
     force_endian = "big"
 
 class Utf32LeIncrementalEncoder(Utf32IncrementalEncoder):
     name = "utf-32le"
-    html5name = "utf-32le"
+    html5name = None
     endian = "little"
     include_bom = False
 
 class Utf32LeIncrementalDecoder(Utf32IncrementalDecoder):
     name = "utf-32le"
-    html5name = "utf-32le"
+    html5name = None
     force_endian = "little"
 
 register_kuroko_codec(["utf-32", "utf32", "iso-10646-ucs-4", "ucs-4", "u32"],
