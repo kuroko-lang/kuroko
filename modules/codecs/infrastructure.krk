@@ -34,11 +34,11 @@ class KurokoCodecInfo:
     def encode(string, errors="strict"):
         if self.incrementalencoder:
             return self.incrementalencoder(errors).encode(string, True)
-        raise ValueError("unrecognised encoding or decode-only encoding")
+        raise ValueError(f"unrecognised encoding or decode-only encoding: {self.name!r}")
     def decode(data, errors="strict"):
         if self.incrementaldecoder:
             return self.incrementaldecoder(errors).decode(data, True)
-        raise ValueError("unrecognised encoding or encode-only encoding")
+        raise ValueError(f"unrecognised encoding or encode-only encoding: {self.name!r}")
     def __repr__():
         let ret = "<" + type(self).__name__ + " " + repr(self.name)
         let enc = self.incrementalencoder

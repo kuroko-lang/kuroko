@@ -185,8 +185,10 @@ for pointer, ucs in enumerate(indices['big5']):
         if ucs not in encode_big5web:
             encode_big5web[ucs] = (first, second)
 
-encode_shiftjis[0xA5] = (encode_eucjp[0xA5] = 0x5C)
-encode_shiftjis[0x203E] = (encode_eucjp[0x203E] = 0x7E)
+encode_shiftjis[0xA5] = 0x5C
+encode_eucjp[0xA5] = 0x5C
+encode_shiftjis[0x203E] = 0x7E
+encode_eucjp[0x203E] = 0x7E
 encode_shiftjis[0x2212] = encode_shiftjis[0xFF0D]
 encode_eucjp[0x2212] = encode_eucjp[0xFF0D]
 encode_jis7[0x2212] = encode_jis7[0xFF0D]
