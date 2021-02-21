@@ -38,7 +38,10 @@ class ShiftJis2004IncrementalDecoder(AsciiIncrementalDecoder):
     html5name = None
     decoding_map = decode_sjis04
     ascii_exceptions = (0x5C, 0x7E)
-    dbrange = (129, 130, 131, 132, 133, 134, 135, 136, 137, 138, 139, 140, 141, 142, 143, 144, 145, 146, 147, 148, 149, 150, 151, 152, 153, 154, 155, 156, 157, 158, 159, 224, 225, 226, 227, 228, 229, 230, 231, 232, 233, 234, 235, 236, 237, 238, 239, 240, 241, 242, 243, 244, 245, 246, 247, 248, 249, 250, 251, 252)
+    dbrange = (129, 130, 131, 132, 133, 134, 135, 136, 137, 138, 139, 140, 141, 142, 143, 144, 145, 
+               146, 147, 148, 149, 150, 151, 152, 153, 154, 155, 156, 157, 158, 159, 224, 225, 226, 
+               227, 228, 229, 230, 231, 232, 233, 234, 235, 236, 237, 238, 239, 240, 241, 242, 243, 
+               244, 245, 246, 247, 248, 249, 250, 251, 252)
     trailrange = tupleOf(*range(64, 126 + 1), *range(128, 252 + 1))
 
 register_kuroko_codec(["shift_jis_2004", "shiftjis2004", "sjis_2004", "s_jis_2004", 
@@ -83,7 +86,8 @@ class EbcdicJohabIncrementalDecoder(BaseEbcdicIncrementalDecoder):
     sbcs_decode = decode_nbyte_ebcdic
     dbcshost_decode = decode_johab_ebcdic
 
-register_kuroko_codec(["cp933", "ibm-933", "933", "x-IBM933", "johab-ebcdic"],
+register_kuroko_codec(["cp933", "ibm-933", "933", "x-IBM933", "ibm-1364", "x-IBM1364",
+        "johab-ebcdic"],
     EbcdicJohabIncrementalEncoder, EbcdicJohabIncrementalDecoder)
 
 
