@@ -138,6 +138,10 @@ def functionDoc(func):
     return doc
 
 def processModules(modules):
+
+    let globalClassList = []
+    let globalFunctionList = []
+
     for modulepath in modules:
         # Import the module.
         let module = kuroko.importmodule(modulepath)
@@ -241,14 +245,16 @@ def processModules(modules):
             if classes:
                 print('\n### Classes\n')
                 classes.sort()
-                for name, cls in classes:
-                    outputClass(name, cls)
+                for clsName, cls in classes:
+                    outputClass(clsName, cls)
+                    globalClassList.append((name.replace('.','_'), clsName))
 
             if functions:
                 print('\n### Functions\n')
                 functions.sort()
-                for name, func in functions:
-                    outputFunction(name, func)
+                for funcName, func in functions:
+                    outputFunction(funcName, func)
+                    globalFunctionList.append((name.replace('.','_'), funcName))
 
             if exceptions:
                 print('\n### Exceptions\n')
@@ -287,6 +293,32 @@ def processModules(modules):
             output.write('  \\krkmodule{mod_' + fixup(module).replace('.','_') + ',' + fixupDoc(docString[module]) + '}\n')
 
         output.write('}\n')
+
+    with fileio.open('docs/classindex.md','w') as output:
+        output.write(
+            '# Class Index {#classindex}\n'
+            '\n'
+            'Here are all of the available classes:\n'
+            '\n'
+            '\htmlonly<div class="krk-class-index"><ul>\n')
+
+        for moduleName, className in globalClassList:
+            output.write(f'<li><a class="el" href="mod_{moduleName}.html#{className}">{className}</a> <i>from <b>{moduleName}</b></i></li>\n')
+
+        output.write('</ul></div>\endhtmlonly\n')
+
+    with fileio.open('docs/functionindex.md','w') as output:
+        output.write(
+            '# Function Index {#functionindex}\n'
+            '\n'
+            'Here are all of the available functions:\n'
+            '\n'
+            '\htmlonly<div class="krk-class-index"><ul>\n')
+
+        for moduleName, funcName in globalFunctionList:
+            output.write(f'<li><a class="el" href="mod_{moduleName}.html#{funcName}">{funcName}</a> <i>from <b>{moduleName}</b></i></li>\n')
+
+        output.write('</ul></div>\endhtmlonly\n')
 
 if __name__ == '__main__':
     processModules(modules)

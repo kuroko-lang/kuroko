@@ -1,3 +1,7 @@
 # Kuroko Language Reference {#mainpage}
 
-Hello, world.
+Take a look at the @ref modulelist or learn how to embed Kuroko with the @ref embedding.
+
+You can also find a complete list of all classes provided by the standard library in the @ref classindex and all functions in the @ref functionindex.
+
+@bsnote{This documentation is a work-in-progress.}

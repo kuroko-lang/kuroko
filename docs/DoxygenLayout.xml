@@ -13,6 +13,8 @@
     </tab>
     <tab type="usergroup" visible="yes" title="Modules">
       <tab type="user" url="@ref modulelist" title="Module List"/>
+      <tab type="user" url="@ref classindex" title="Class Index"/>
+      <tab type="user" url="@ref functionindex" title="Function Index"/>
     </tab>
     <!--
     <tab type="pages" visible="no" title="" intro=""/>

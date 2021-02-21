@@ -128,6 +128,7 @@ h2.memtitle, h3.memtitle, h4.memtitle {
   border-radius: 5px 5px 0px 0px;
   font-family: "Monaco", "Menlo", "Ubuntu Mono", "Consolas", "source-code-pro", monospace;
   font-size: 24px;
+  word-break: break-all;
   scroll-margin-top: 4rem;
 }
 .memtitle.classDef {
@@ -352,4 +353,21 @@ div.memdoc {
   padding-right: 0.5rem;
   color: rgb(0,0,0,0.6);
   content: '/';
+}
+.krk-class-index {
+  columns: 3;
+}
+@media (max-width: 991.98px) {
+  #main-menu div#MSearchBox {
+    display: none;
+  }
+  h4.memtitle {
+    font-size: 16px;
+  }
+  h2.memtitle,h3.memtitle {
+    font-size: 18px;
+  }
+  .krk-class-index {
+    columns: 1;
+  }
 }

@@ -60,10 +60,18 @@ KRK_METHOD(float,__init__,{
 KRK_METHOD(float,__int__,{ return INTEGER_VAL(self); })
 KRK_METHOD(float,__float__,{ return argv[0]; })
 
+static int isDigits(const char * c) {
+	while (*c) {
+		if (*c < '0' || *c > '9') return 0;
+		c++;
+	}
+	return 1;
+}
+
 KRK_METHOD(float,__str__,{
 	char tmp[100];
 	size_t l = snprintf(tmp, 97, "%.16g", self);
-	if (!strstr(tmp,".") && !strstr(tmp,"e")) {
+	if (!strstr(tmp,".") && isDigits(tmp)) {
 		l = snprintf(tmp,100,"%.16g.0",self);
 	}
 	return OBJECT_VAL(krk_copyString(tmp, l));
