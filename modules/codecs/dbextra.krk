@@ -170,17 +170,21 @@ register_kuroko_codec(["iso-2022-jp-2", "iso2022-jp-2", "iso2022jp-2", "csISO202
 
 
 # Bit confusing to explain what this bit is doing, so let me explain:
-#   The JIS X 0213 variants of ISO-2022-JP should encode to JIS X 0213 before encoding to any
+#     The JIS X 0213 variants of ISO-2022-JP should encode to JIS X 0213 before encoding to any
 #   extension to JIS X 0208 (assuming they "should" encode to extensions at all). So we remove any
-#   characters that are encoded to different locations in JIS X 0213. This also removes certain
-#   Unicode characters that are mapped differently by Microsoft/WHATWG versus by JIS X 0213 (e.g.
-#   Microsoft mapping the Unicode fullwidth tilde to the JIS wave dash, while JIS X 0213 includes
-#   it separately and maps the JIS wave dash to the Unicode wave dash), forcing them to be encoded
-#   to JIS X 0213.
+#   characters that are encoded to different locations in JIS X 0213.
+#     Since NEC Row 13 is retained it JIS X 0213, but should be encoded in the JIS X 0213 state not
+#   the JIS X 0208 state, it is excluded manually (lead byte 0x2D).
+#     As an additional effect, this also removes certain Unicode characters that are mapped
+#   differently by Microsoft/WHATWG versus by JIS X 0213, e.g. Microsoft two-way maps the Unicode
+#   fullwidth tilde to the JIS wave dash, while JIS X 0213 includes a separate tilde character
+#   mapped to both the fullwidth tilde and (where appropriate) the ASCII tilde, and maps the JIS
+#   wave dash to the Unicode wave dash. This forces those characters to be encoded to JIS X 0213.
 let encode_jis7_reduced = {}
 for i in encode_jis7.keys():
     if (i not in encode_jis00 or encode_jis00[i] == encode_jis7[i]) and (i not in encode_jis00p2):
-        encode_jis7_reduced[i] = encode_jis7[i]
+        if encode_jis7[i][0] != 0x2D:
+            encode_jis7_reduced[i] = encode_jis7[i]
 
 
 class Iso2022Jp3IncrementalEncoder(Iso2022JpIncrementalEncoder):

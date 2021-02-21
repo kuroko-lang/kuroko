@@ -430,6 +430,7 @@ class Iso2022JpIncrementalDecoder(IncrementalDecoder):
 register_kuroko_codec(["iso-2022-jp", "iso2022-jp", "iso2022jp", "csiso2022jp", "cp50220", "cscp50220"],
     Iso2022JpIncrementalEncoder, Iso2022JpIncrementalDecoder)
 
+
 class Utf16IncrementalEncoder(IncrementalEncoder):
     name = "utf-16"
     html5name = "utf-16"
@@ -441,9 +442,9 @@ class Utf16IncrementalEncoder(IncrementalEncoder):
     state = None
     def push_word(word, out):
         if self.endian == "little":
-            out.add(bytes([word & 0xFFFF, (word >> 8) & 0xFFFF]))
+            out.add(bytes([word & 0xFF, (word >> 8) & 0xFF]))
         else if self.endian == "big":
-            out.add(bytes([(word >> 8) & 0xFFFF, word & 0xFFFF]))
+            out.add(bytes([(word >> 8) & 0xFF, word & 0xFF]))
         else:
             raise ValueError("unexpected endian value: " + repr(self.endian))
     def encode(string, final = False):
@@ -500,7 +501,6 @@ class Utf16IncrementalDecoder(IncrementalDecoder):
         let wordmode = 1
         while 1: # offset can be arbitrarily changed by the error handler, so not a for
             if (offset + 1) >= len(data):
-            if offset >= len(data):
                 let leader_bytes = []
                 for i in leader:
                     if self.state == 1:
@@ -597,6 +597,7 @@ register_kuroko_codec(["utf-16le", "utf-16-le", "unicodefeff", "unicodelittleunm
     Utf16LeIncrementalEncoder, Utf16LeIncrementalDecoder)
 register_kuroko_codec(["utf-16be", "utf-16-be", "unicodefffe", "unicodebigunmarked"],
     Utf16BeIncrementalEncoder, Utf16BeIncrementalDecoder)
+
 
 class Utf8IncrementalEncoder(IncrementalEncoder):
     name = "utf-8"
@@ -736,6 +737,7 @@ register_kuroko_codec(["unicode-1-1-utf-8", "unicode11utf8", "unicode20utf8", "u
                        "x-unicode20utf8", "u8", "utf", "cp65001", "utf8-ucs4", "utf8mb4"],
     Utf8IncrementalEncoder, Utf8IncrementalDecoder)
 register_kuroko_codec(["utf-8-sig", "utf-8-bom"], Utf8SigIncrementalEncoder, Utf8SigIncrementalDecoder)
+
 
 class JapaneseAutodetectIncrementalDecoder(IncrementalDecoder):
     name = "japanese"
