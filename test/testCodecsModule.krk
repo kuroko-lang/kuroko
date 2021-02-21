@@ -27,7 +27,7 @@ if encoded2a != data2a:
 if codecs.decode(b'\x8f\xa2\xf1', "euc-jp") != codecs.decode(b'\xad\xe2', "euc-jp"):
     print("NEC / 0212 equivalent didn't match")
 
-let data2b = b'\x1b$B!!F|K\\T"L1$O!"@5aD$KA*Z)$5$l$?T"Pr$K$*$1$kBeI=<T$rDL$8$F9TF0$7!"$o$l$i$H$o$l$i$N;RB9$N$?$a$K!"=tT"L1$H$N6(OB$K$h$k@.2L$H!"$o$,T"A4EZ$K$o$?$D$F<+M3$N$b$?$i$9X*_7$r3NJ]$7!"@/I\\$N9T`*$K$h$D$F:F$SY%`\'$NXN2R$,5/$k$3$H$N$J$$$d$&$K$9$k$3$H$r7h0U$7!"$3$3$K<g\\^$,T"L1$KB8$9$k$3$H$r@k8@$7!"$3$N7{K!$r3NDj$9$k!#$=$b$=$bT"@/$O!"T"L1$NSnfi$J?.Bw$K$h$k$b$N$G$"$D$F!"$=$N\\^0R$OT"L1$KM3PT$7!"$=$N\\^NO$OT"L1$NBeI=<T$,$3$l$r9T;H$7!"$=$NJ!Mx$OT"L1$,$3$l$r5}<u$9$k!#$3$l$O?MN`IaJW$N86M}$G$"$j!"$3$N7{K!$O!"$+$+$k86M}$K4p$/$b$N$G$"$k!#$o$l$i$O!"$3$l$KH?$9$k0l@Z$N7{K!!"K!Na5Z$S>[D<$rGS=|$9$k!#\x1b(B \x1b$B-b\x1b(B'
+let data2b = b'\[$B!!F|K\\T"L1$O!"@5aD$KA*Z)$5$l$?T"Pr$K$*$1$kBeI=<T$rDL$8$F9TF0$7!"$o$l$i$H$o$l$i$N;RB9$N$?$a$K!"=tT"L1$H$N6(OB$K$h$k@.2L$H!"$o$,T"A4EZ$K$o$?$D$F<+M3$N$b$?$i$9X*_7$r3NJ]$7!"@/I\\$N9T`*$K$h$D$F:F$SY%`\'$NXN2R$,5/$k$3$H$N$J$$$d$&$K$9$k$3$H$r7h0U$7!"$3$3$K<g\\^$,T"L1$KB8$9$k$3$H$r@k8@$7!"$3$N7{K!$r3NDj$9$k!#$=$b$=$bT"@/$O!"T"L1$NSnfi$J?.Bw$K$h$k$b$N$G$"$D$F!"$=$N\\^0R$OT"L1$KM3PT$7!"$=$N\\^NO$OT"L1$NBeI=<T$,$3$l$r9T;H$7!"$=$NJ!Mx$OT"L1$,$3$l$r5}<u$9$k!#$3$l$O?MN`IaJW$N86M}$G$"$j!"$3$N7{K!$O!"$+$+$k86M}$K4p$/$b$N$G$"$k!#$o$l$i$O!"$3$l$KH?$9$k0l@Z$N7{K!!"K!Na5Z$S>[D<$rGS=|$9$k!#\[(B \[$B-b\[(B'
 let decoded2b = codecs.decode(data2b, "iso-2022-jp")
 print(decoded2b)
 let encoded2b = codecs.encode(decoded2b, "iso-2022-jp")
@@ -98,7 +98,7 @@ else:
 # https://encoding.spec.whatwg.org/#security-background
 print(codecs.decode(b'"robert\x82"', "shift_jis", errors="replace"))
 
-let scrutiny = b'\x1b$BF|K\\T"L1$O!"\x1b(B\x1b$B@5aD$KA*Z)$5$l$?\x1b(BNo: \x1b(B; Yes: \x1b(J\\; Yes: \\\x1b(B; No: \x1b(J; No: \x1b(B\x1b(J; Yes: \x1b(B~; No: \x1b(J\x1b(B; Yes: ~\x1b(J; No: \x1b(B; Yes: \x1b(J~; Yes: .;\x1b(B'
+let scrutiny = b'\[$BF|K\\T"L1$O!"\[(B\[$B@5aD$KA*Z)$5$l$?\[(BNo: \[(B; Yes: \[(J\\; Yes: \\\[(B; No: \[(J; No: \[(B\[(J; Yes: \[(B~; No: \[(J\[(B; Yes: ~\[(J; No: \[(B; Yes: \[(J~; Yes: .;\[(B'
 print(codecs.decode(scrutiny, "iso-2022-jp", errors="replace"))
 print(codecs.decode(scrutiny, "jis_encoding", errors="replace"))
 

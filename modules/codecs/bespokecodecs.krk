@@ -175,10 +175,10 @@ class Iso2022JpIncrementalEncoder(IncrementalEncoder):
     def ensure_state_number(state, out):
         if self.state == state:
         else if state in self.escs_onebyte:
-            out.add(b"\x1B(")
+            out.add(b"\[(")
             out.add(bytes([self.escs_onebyte[state]]))
         else if state in self.escs_twobyte:
-            out.add(b"\x1B$")
+            out.add(b"\[$")
             if self.escs_twobyte[state] not in (0x40, 0x41, 0x42):
                 out.add(b"(")
             out.add(bytes([self.escs_twobyte[state]]))
@@ -196,7 +196,7 @@ class Iso2022JpIncrementalEncoder(IncrementalEncoder):
             let i = string[offset]
             # Do not pass Shift Out, Shift In or Escape through from data lest this generate
             #   state changes (SO and SI are used in some ISO-2022-JP variants though not this one)
-            let is_ascii = ord(i) < 0x80 and i not in ("\x0E\x0F\x1B")
+            let is_ascii = ord(i) < 0x80 and i not in ("\x0E\x0F\[")
             let is_jiscii = (is_ascii and i not in "\\~") or (i in "¥\u203E")
             let is_sets = [is_ascii, is_jiscii]
             let try_state = 2
@@ -216,18 +216,18 @@ class Iso2022JpIncrementalEncoder(IncrementalEncoder):
             if not is_sets[self.state]: # i.e. still isn't.
                 if self.super_shift and ord(i) in self.encode_supershift_latin:
                     if self.state_greekmode or not self.state_desigsupershift:
-                        out.add(b"\x1B.A")
+                        out.add(b"\[.A")
                         self.state_greekmode = False
                         self.state_desigsupershift = True
-                    out.add(b"\x1BN")
+                    out.add(b"\[N")
                     out.add(bytes([self.encode_supershift_latin[ord(i)]]))
                     offset += 1
                 else if self.super_shift and ord(i) in self.encode_supershift_greek:
                     if not self.state_greekmode:
-                        out.add(b"\x1B.F")
+                        out.add(b"\[.F")
                         self.state_greekmode = True
                         self.state_desigsupershift = True
-                    out.add(b"\x1BN")
+                    out.add(b"\[N")
                     out.add(bytes([self.encode_supershift_greek[ord(i)]]))
                     offset += 1
                 else:
@@ -814,7 +814,7 @@ class JapaneseAutodetectIncrementalDecoder(IncrementalDecoder):
             try:
                 let further_sjis = self.sjis.decode(data, final)
                 self.pendingsjis.add(further_sjis)
-                if "\x1B$B" in further_sjis and not (self.state & 0x01):
+                if "\[$B" in further_sjis and not (self.state & 0x01):
                     self.state |= 0x02
             except UnicodeDecodeError:
                 self.state |= 0x02
@@ -823,7 +823,7 @@ class JapaneseAutodetectIncrementalDecoder(IncrementalDecoder):
             try:
                 let further_ujis = self.ujis.decode(data, final)
                 self.pendingujis.add(further_ujis)
-                if "\x1B$B" in further_ujis and not (self.state & 0x01):
+                if "\[$B" in further_ujis and not (self.state & 0x01):
                     self.state |= 0x04
             except UnicodeDecodeError:
                 self.state |= 0x04
@@ -832,7 +832,7 @@ class JapaneseAutodetectIncrementalDecoder(IncrementalDecoder):
             try:
                 let further_utf = self.utf.decode(data, final)
                 self.pendingutf.add(further_utf)
-                if "\x1B$B" in further_utf and not (self.state & 0x01):
+                if "\[$B" in further_utf and not (self.state & 0x01):
                     self.state |= 0x08
             except UnicodeDecodeError:
                 self.state |= 0x08
