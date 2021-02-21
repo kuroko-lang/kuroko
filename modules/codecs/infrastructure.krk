@@ -272,7 +272,7 @@ class AsciiIncrementalEncoder(IncrementalEncoder):
 class AsciiIncrementalDecoder(IncrementalDecoder):
     name = "ecma-43-dv"
     html5name = None
-    # For non-ASCII single-byte characters (this should work as a base class)
+    # For non-ASCII characters (this should work as a base class)
     decoding_map = {}
     dbrange = ()
     tbrange = ()
