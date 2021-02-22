@@ -209,3 +209,64 @@ class deque():
             ptr = ptr[2]
         return False
 
+def smartrepr(data):
+    '''
+    repr a large dictionary or list such that line breaks are inserted every 4000 characters or so.
+    '''
+    if isinstance(data, dict):
+        let out = ""
+        let scratch = "{"
+        for i in data.keys():
+            scratch += repr(i) + ": " + repr(data[i]) + ","
+            if len(scratch) > 4000:
+                out += scratch + "\n"
+                scratch = ""
+            else:
+                scratch += " "
+        return out + scratch + "}"
+    else if isinstance(data, list):
+        let out = ""
+        let scratch = "["
+        for i in data:
+            scratch += repr(i) + ","
+            if len(scratch) > 4000:
+                out += scratch + "\n"
+                scratch = ""
+            else:
+                scratch += " "
+        return out + scratch + "]"
+    return repr(data)
+
+class xraydict:
+    '''
+    Provides an alternative to the following code without copying anything:
+    
+        let modified = base.copy()
+        modified.update(overlay)
+        for i in modified.keys():
+            if i in exclude:
+                del modified[i]
+    '''
+    def __init__(base, overlay, exclude=[]):
+        self.base = base
+        self.overlay = overlay
+        self.exclude = exclude
+    def __contains__(thing):
+        return thing not in self.exclude and (thing in self.base or thing in self.overlay)
+    def __get__(key):
+        if key in self.nukelist:
+            raise KeyError(f"element with key {key!r} excluded from xraydict")
+        if key in self.overlay:
+            return self.overlay[key]
+        return self.base[key]
+    def keys():
+        let ret = list(self.base.keys())
+        for i in self.overlay.keys():
+            if i not in ret:
+                ret.append(i)
+        return ret
+    def __iter__():
+        return self.keys().__iter__()
+
+
+

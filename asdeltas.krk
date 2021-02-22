@@ -1,0 +1,123 @@
+import codecs
+from collections import smartrepr
+
+def get_changes(a, b):
+    let delta = {}
+    for i in b.keys():
+        if i not in a or a[i] != b[i]:
+            delta[i] = b[i]
+    return delta
+
+def get_removals(a, b):
+    let excludelist = []
+    for i in a.keys():
+        if i not in b:
+            excludelist.append(i)
+    return excludelist
+
+let template = """
+let {idname} = xraydict({base}, {delta}, {exclude})
+"""
+
+print("from collections import xraydict")
+print("from codecs.dbdata import encode_jis7, decode_jis7, decode_jis7katakana, encode_gbk, " + 
+"decode_gbk, encode_eucjp_extra, XEucJpIncrementalEncoder, XEucJpIncrementalDecoder, " +
+"Windows31JIncrementalEncoder, Windows31JIncrementalDecoder")
+
+print("\nlet encode_lat1supp = {}\n".format(smartrepr(codecs.extradata.encode_lat1supp)))
+print("\nlet decode_lat1supp = {}\n".format(smartrepr(codecs.extradata.decode_lat1supp)))
+print("\nlet encode_greksupp = {}\n".format(smartrepr(codecs.extradata.encode_greksupp)))
+print("\nlet decode_greksupp = {}\n".format(smartrepr(codecs.extradata.decode_greksupp)))
+print("\nlet encode_jis7katakana = {}\n".format(smartrepr(codecs.extradata.encode_jis7katakana)))
+print("\nlet encode_nbyte_ebcdic = {}\n".format(smartrepr(codecs.extradata.encode_nbyte_ebcdic)))
+print("\nlet decode_nbyte_ebcdic = {}\n".format(smartrepr(codecs.extradata.decode_nbyte_ebcdic)))
+
+print(template.format(
+    idname = "decode_jis78", 
+    base = "decode_jis7", 
+    delta = smartrepr(get_changes(codecs.dbdata.decode_jis7, codecs.extradata.decode_jis78)),
+    exclude = smartrepr(get_removals(codecs.dbdata.decode_jis7, codecs.extradata.decode_jis78))
+))
+
+print(template.format(
+    idname = "encode_jis78", 
+    base = "encode_jis7", 
+    delta = smartrepr(get_changes(codecs.dbdata.encode_jis7, codecs.extradata.encode_jis78)),
+    exclude = smartrepr(get_removals(codecs.dbdata.encode_jis7, codecs.extradata.encode_jis78))
+))
+
+print(template.format(
+    idname = "decode_jis00", 
+    base = "decode_jis7", 
+    delta = smartrepr(get_changes(codecs.dbdata.decode_jis7, codecs.extradata.decode_jis00)),
+    exclude = smartrepr(get_removals(codecs.dbdata.decode_jis7, codecs.extradata.decode_jis00))
+))
+
+print(template.format(
+    idname = "encode_jis00", 
+    base = "encode_jis7", 
+    delta = smartrepr(get_changes(codecs.dbdata.encode_jis7, codecs.extradata.encode_jis00)),
+    exclude = smartrepr(get_removals(codecs.dbdata.encode_jis7, codecs.extradata.encode_jis00))
+))
+
+print(template.format(
+    idname = "decode_jis04", 
+    base = "decode_jis00", 
+    delta = smartrepr(get_changes(codecs.extradata.decode_jis00, codecs.extradata.decode_jis04)),
+    exclude = smartrepr(get_removals(codecs.extradata.decode_jis00, codecs.extradata.decode_jis04))
+))
+
+print(template.format(
+    idname = "encode_jis04", 
+    base = "encode_jis00", 
+    delta = smartrepr(get_changes(codecs.extradata.encode_jis00, codecs.extradata.encode_jis04)),
+    exclude = smartrepr(get_removals(codecs.extradata.encode_jis00, codecs.extradata.encode_jis04))
+))
+
+print("\nlet encode_euc90 = xraydict(encode_eucjp_extra, XEucJpIncrementalEncoder.encoding_map)\n")
+print(template.format(
+    idname = "encode_euc04", 
+    base = "encode_euc90", 
+    delta = smartrepr(get_changes(codecs.extradata.encode_euc90, codecs.extradata.encode_euc04)),
+    exclude = smartrepr(get_removals(codecs.extradata.encode_euc90, codecs.extradata.encode_euc04))
+))
+print(template.format(
+    idname = "decode_euc04", 
+    base = "XEucJpIncrementalDecoder.decoding_map", 
+    delta = smartrepr(get_changes(codecs.dbdata.XEucJpIncrementalDecoder.decoding_map, codecs.extradata.decode_euc04)),
+    exclude = smartrepr(get_removals(codecs.dbdata.XEucJpIncrementalDecoder.decoding_map, codecs.extradata.decode_euc04))
+))
+print(template.format(
+    idname = "encode_sjis04", 
+    base = "Windows31JIncrementalEncoder.encoding_map", 
+    delta = smartrepr(get_changes(codecs.dbdata.Windows31JIncrementalEncoder.encoding_map, codecs.extradata.encode_sjis04)),
+    exclude = smartrepr(get_removals(codecs.dbdata.Windows31JIncrementalEncoder.encoding_map, codecs.extradata.encode_sjis04))
+))
+print(template.format(
+    idname = "decode_sjis04", 
+    base = "Windows31JIncrementalDecoder.decoding_map", 
+    delta = smartrepr(get_changes(codecs.dbdata.Windows31JIncrementalDecoder.decoding_map, codecs.extradata.decode_sjis04)),
+    exclude = smartrepr(get_removals(codecs.dbdata.Windows31JIncrementalDecoder.decoding_map, codecs.extradata.decode_sjis04))
+))
+
+print("\nlet encode_gb7 = {}\n".format(smartrepr(codecs.extradata.encode_gb7)))
+print("\nlet decode_gb7 = {}\n".format(smartrepr(codecs.extradata.decode_gb7)))
+print("\nlet encode_ksc7 = {}\n".format(smartrepr(codecs.extradata.encode_ksc7)))
+print("\nlet decode_ksc7 = {}\n".format(smartrepr(codecs.extradata.decode_ksc7)))
+print("\nlet encode_jis90p2 = {}\n".format(smartrepr(codecs.extradata.encode_jis90p2)))
+print("\nlet decode_jis90p2 = {}\n".format(smartrepr(codecs.extradata.decode_jis90p2)))
+print("\nlet encode_jis00p2 = {}\n".format(smartrepr(codecs.extradata.encode_jis00p2)))
+print("\nlet decode_jis00p2 = {}\n".format(smartrepr(codecs.extradata.decode_jis00p2)))
+print("\nlet encode_johab_hangul = {}\n".format(smartrepr(codecs.extradata.encode_johab_hangul)))
+print("\nlet decode_johab_hangul = {}\n".format(smartrepr(codecs.extradata.decode_johab_hangul)))
+print("\nlet encode_johabx_ascii = {}\n".format(smartrepr(codecs.extradata.encode_johabx_ascii)))
+print("\nlet encode_johab_ascii = xraydict(encode_johab_hangul, encode_johabx_ascii)\n")
+print("\nlet decode_johabx_ascii = {}\n".format(smartrepr(codecs.extradata.decode_johabx_ascii)))
+print("\nlet decode_johab_ascii = xraydict(decode_johab_hangul, decode_johabx_ascii)\n")
+print("\nlet encode_johabx_ebcdic = {}\n".format(smartrepr(codecs.extradata.encode_johabx_ebcdic)))
+print("\nlet encode_johab_ebcdic = xraydict(encode_johab_hangul, encode_johabx_ebcdic)\n")
+print("\nlet decode_johabx_ebcdic = {}\n".format(smartrepr(codecs.extradata.decode_johabx_ebcdic)))
+print("\nlet decode_johab_ebcdic = xraydict(decode_johab_hangul, decode_johabx_ebcdic)\n")
+
+
+

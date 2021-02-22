@@ -1,18 +1,7 @@
 import json
 import fileio
 from itertools import enumerate
-
-def smartrepr(data):
-    let out = ""
-    let scratch = "{"
-    for i in data.keys():
-        scratch += repr(i) + ": " + repr(data[i]) + ","
-        if len(scratch) > 4000:
-            out += scratch + "\n"
-            scratch = ""
-        else:
-            scratch += " "
-    return out + scratch + "}"
+from collections import smartrepr
 
 let indices
 with fileio.open('tools/codectools/indexes.json') as f:
