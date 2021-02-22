@@ -348,8 +348,10 @@ class Iso2022JpIncrementalDecoder(IncrementalDecoder):
                     out.add(lookup_error(self.errors)(UnicodeDecodeError(self.name, data,
                         offset - 5, offset + 1, "no content between two G0 re-designations"))[0])
                 else if self.state_set == self.escs_onebyte[i]:
-                    out.add(lookup_error(self.errors)(UnicodeDecodeError(self.name, data,
-                        offset - 2, offset + 1, "G0 re-designation to the same one-byte set"))[0])
+                    # Don't penalise a switch to ASCII at the very start.
+                    if (self.state_set != 0) or self.state_last646seen:
+                        out.add(lookup_error(self.errors)(UnicodeDecodeError(self.name, data,
+                            offset - 2, offset + 1, "G0 re-designation to the same one-byte set"))[0])
                 else if self.state_set in (0, 1) and self.escs_onebyte[i] in (0, 1) and self.state_last646seen:
                     self.scrutinising_inter646 = True
                 self.state_set = self.escs_onebyte[i]
@@ -459,6 +461,7 @@ class Iso2022JpIncrementalDecoder(IncrementalDecoder):
         #   "jis_encoding" subclass) and allows both lazy and eager switches between the 646-sets.
         # As a general rule, do not presume to be able to sanitise anything while it is encoded as
         #   ISO-2022-JP. You have been warned.
+        # Some further reading: https://www.unicode.org/L2/L2020/20202-empty-iso-2022-jp.pdf
         self.state_justswitched = False
         self.state_last646seen = None
         self.scrutinising_inter646 = False
