@@ -2,6 +2,18 @@ import json
 import fileio
 from itertools import enumerate
 
+def smartrepr(data):
+    let out = ""
+    let scratch = "{"
+    for i in data.keys():
+        scratch += repr(i) + ": " + repr(data[i]) + ","
+        if len(scratch) > 4000:
+            out += scratch + "\n"
+            scratch = ""
+        else:
+            scratch += " "
+    return out + scratch + "}"
+
 let indices
 with fileio.open('tools/codectools/indexes.json') as f:
     indices = json.loads(f.read())
@@ -72,6 +84,7 @@ let decode_big5eten = {}
 let decode_big5hkscs = {}
 let decode_gbk = {}
 let encode_eucjp = {}
+let encode_eucjp_extra = {}
 let encode_shiftjis = {}
 let encode_jis7 = {}
 let encode_uhc = {}
@@ -122,6 +135,7 @@ for pointer, ucs in enumerate(indices['jis0212']):
     let second = 0xA0 + ku
     let third  = 0xA0 + ten
     decode_eucjp[(0x8F,second,third)] = ucs
+    encode_eucjp_extra[ucs] = (0x8F,second,third)
 
 for i in range(63):
     let ucs  = 0xFF61 + i
@@ -204,14 +218,14 @@ with fileio.open('modules/codecs/dbdata.krk', 'w') as f:
         mainlabel=repr('windows-31j'),
         weblabel=repr('shift_jis'),
         labels=repr(aliases['shift_jis'] + ["cp932", "932", "mskanji", "shiftjis", "s_jis"]),
-        encode=repr(encode_shiftjis), decode=repr(decode_shiftjis), idname='Windows31J',
+        encode=smartrepr(encode_shiftjis), decode=smartrepr(decode_shiftjis), idname='Windows31J',
         dbrange=repr(dbrange_shiftjis), tbrange=repr(tbrange_shiftjis),
         trailrange=repr(trailrange_shiftjis)))
     f.write(template.format(
         mainlabel=repr("x-euc-jp"),
         weblabel=repr("euc-jp"),
         labels=repr(aliases["euc-jp"] + ["eucjp", "ujis", "u_jis"]),
-        encode=repr(encode_eucjp), decode=repr(decode_eucjp), idname="XEucJp",
+        encode=smartrepr(encode_eucjp), decode=smartrepr(decode_eucjp), idname="XEucJp",
         dbrange=repr(dbrange_eucjp), tbrange=repr(tbrange_eucjp), 
         trailrange=repr(trailrange_eucjp)))
     f.write(template.format(
@@ -219,7 +233,7 @@ with fileio.open('modules/codecs/dbdata.krk', 'w') as f:
         weblabel=repr("euc-kr"),
         labels=repr(aliases["euc-kr"] + ["cp949", "949", "ms949", "uhc", "euckr", 
                     "ks_c_5601", "ksx1001", "ks_x_1001"]),
-        encode=repr(encode_uhc), decode=repr(decode_uhc), idname="Windows949",
+        encode=smartrepr(encode_uhc), decode=smartrepr(decode_uhc), idname="Windows949",
         dbrange=repr(dbrange_uhc), tbrange=repr(tbrange_uhc), 
         trailrange=repr(trailrange_uhc)))
     f.write(template_big5.format(
@@ -229,21 +243,22 @@ with fileio.open('modules/codecs/dbdata.krk', 'w') as f:
         weblabel=repr("big5"),
         labels=repr(["big5", "cn-big5", "csbig5", "x-x-big5", "big5-eten", "cp950", "950", "ms950"]),
         labels2=repr(["big5-hkscs", "big5hkscs", "hkscs"]),
-        encode=repr(encode_big5eten), idnameenc="Big5Eten",
-        encode2=repr(encode_big5hkscs), idnameenc2="Big5Hkscs",
-        decode=repr(decode_big5hkscs), idnamedec="Big5Hkscs",
+        encode=smartrepr(encode_big5eten), idnameenc="Big5Eten",
+        encode2=smartrepr(encode_big5hkscs), idnameenc2="Big5Hkscs",
+        decode=smartrepr(decode_big5hkscs), idnamedec="Big5Hkscs",
         dbrange=repr(dbrange_big5), tbrange=repr(tbrange_big5), 
         trailrange=repr(trailrange_big5)))
-    f.write("\n# Additional data for bespoke codecs")
-    f.write("\nlet encode_jis7 = {}".format(repr(encode_jis7)))
-    f.write("\nlet decode_jis7 = {}".format(repr(decode_jis7)))
-    f.write("\nlet decode_jis7katakana = {}".format(repr(decode_jis7katakana)))
-    f.write("\nlet encode_gbk = {}".format(repr(encode_gbk)))
-    f.write("\nlet decode_gbk = {}".format(repr(decode_gbk)))
+    f.write("\n# Additional data for bespoke or extra codecs")
+    f.write("\nlet encode_jis7 = {}".format(smartrepr(encode_jis7)))
+    f.write("\nlet decode_jis7 = {}".format(smartrepr(decode_jis7)))
+    f.write("\nlet decode_jis7katakana = {}".format(smartrepr(decode_jis7katakana)))
+    f.write("\nlet encode_gbk = {}".format(smartrepr(encode_gbk)))
+    f.write("\nlet decode_gbk = {}".format(smartrepr(decode_gbk)))
     let ranges = indices["gb18030-ranges"]
     let rangesout = []
     for i in ranges:
         rangesout.append((i[0], i[1]))
     f.write("\nlet gb_surrogate_ranges = {}".format(repr(rangesout)))
+    f.write("\nlet encode_eucjp_extra = {}".format(smartrepr(encode_eucjp_extra)))
 
 
