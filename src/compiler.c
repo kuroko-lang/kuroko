@@ -1488,9 +1488,7 @@ static void forStatement() {
 		loopStart = currentChunk()->count;
 
 		beginScope();
-		do {
-			expression(); /* condition */
-		} while (match(TOKEN_COMMA));
+		expression(); /* condition */
 		endScope();
 		exitJump = emitJump(OP_JUMP_IF_FALSE);
 		emitByte(OP_POP);
@@ -1501,10 +1499,9 @@ static void forStatement() {
 			int incrementStart = currentChunk()->count;
 			beginScope();
 			do {
-				expression();
+				expressionStatement();
 			} while (match(TOKEN_COMMA));
 			endScope();
-			emitByte(OP_POP);
 
 			emitLoop(loopStart);
 			loopStart = incrementStart;
