@@ -922,6 +922,10 @@ static void function(FunctionType type, size_t blockWidth) {
 				emitByte(OP_POP); /* comparison value */
 				continue;
 			}
+			if (hasCollectors) {
+				error("arguments follow catch-all collector");
+				break;
+			}
 			ssize_t paramConstant = parseVariable("Expect parameter name.");
 			defineVariable(paramConstant);
 			if (match(TOKEN_EQUAL)) {
@@ -948,6 +952,10 @@ static void function(FunctionType type, size_t blockWidth) {
 				emitByte(OP_POP);
 				current->function->keywordArgs++;
 			} else {
+				if (current->function->keywordArgs) {
+					error("non-keyword argument follows keyword argument");
+					break;
+				}
 				current->function->requiredArgs++;
 			}
 		} while (match(TOKEN_COMMA));
