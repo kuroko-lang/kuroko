@@ -2394,7 +2394,7 @@ static void actualTernary(size_t count, KrkScanner oldScanner, Parser oldParser)
 	emitByte(OP_POP); /* Pop the condition */
 	consume(TOKEN_ELSE, "Expected 'else' after ternary condition");
 
-	parsePrecedence(PREC_OR);
+	parsePrecedence(PREC_TERNARY);
 
 	KrkScanner outScanner = krk_tellScanner();
 	Parser outParser = parser;
