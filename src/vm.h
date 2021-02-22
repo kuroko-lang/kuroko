@@ -90,6 +90,7 @@ typedef enum {
 	METHOD_DIR,
 	METHOD_SETSLICE,
 	METHOD_DELSLICE,
+	METHOD_CONTAINS,
 
 	METHOD__MAX,
 } KrkSpecialMethods;

@@ -458,6 +458,7 @@ void krk_finalizeClass(KrkClass * _class) {
 		{&_class->_iter, METHOD_ITER},
 		{&_class->_getattr, METHOD_GETATTR},
 		{&_class->_dir, METHOD_DIR},
+		{&_class->_contains, METHOD_CONTAINS},
 		{NULL, 0},
 	};
 
@@ -1185,6 +1186,7 @@ void krk_initVM(int flags) {
 		_(METHOD_ITER, "__iter__"),
 		_(METHOD_GETATTR, "__getattr__"),
 		_(METHOD_DIR, "__dir__"),
+		_(METHOD_CONTAINS, "__contains__"),
 	#undef _
 	};
 	for (size_t i = 0; i < METHOD__MAX; ++i) {
@@ -2006,6 +2008,16 @@ static KrkValue run() {
 					krk_push(krk_callSimple(OBJECT_VAL(type->_iter), 1, 0));
 				} else {
 					krk_runtimeError(vm.exceptions->attributeError, "'%s' object is not iterable", krk_typeName(krk_peek(0)));
+				}
+				break;
+			}
+			case OP_INVOKE_CONTAINS: {
+				KrkClass * type = krk_getType(krk_peek(0));
+				if (likely(type->_contains)) {
+					krk_swap(1);
+					krk_push(krk_callSimple(OBJECT_VAL(type->_contains), 2, 0));
+				} else {
+					krk_runtimeError(vm.exceptions->attributeError, "'%s' object can not be tested for membership", krk_typeName(krk_peek(0)));
 				}
 				break;
 			}

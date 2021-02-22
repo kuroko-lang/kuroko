@@ -624,11 +624,7 @@ _dotDone:
 
 static void in_(int canAssign) {
 	parsePrecedence(PREC_COMPARISON);
-	KrkToken contains = syntheticToken("__contains__");
-	ssize_t ind = identifierConstant(&contains);
-	EMIT_CONSTANT_OP(OP_GET_PROPERTY, ind);
-	emitByte(OP_SWAP);
-	emitBytes(OP_CALL,1);
+	emitByte(OP_INVOKE_CONTAINS);
 }
 
 static void not_(int canAssign) {
