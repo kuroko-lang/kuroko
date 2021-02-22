@@ -254,15 +254,18 @@ class xraydict:
     def __contains__(thing):
         return thing not in self.exclude and (thing in self.base or thing in self.overlay)
     def __get__(key):
-        if key in self.nukelist:
+        if key in self.exclude:
             raise KeyError(f"element with key {key!r} excluded from xraydict")
         if key in self.overlay:
             return self.overlay[key]
         return self.base[key]
     def keys():
-        let ret = list(self.base.keys())
+        let ret = []
+        for i in self.base.keys():
+            if i not in self.exclude:
+                ret.append(i)
         for i in self.overlay.keys():
-            if i not in ret:
+            if i not in ret and i not in self.exclude:
                 ret.append(i)
         return ret
     def __iter__():
