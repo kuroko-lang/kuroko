@@ -425,7 +425,12 @@ class Iso2022JpIncrementalDecoder(IncrementalDecoder):
             else if bytemode == 2 and (leader[0], i) in self.decodes_dbcs[self.state_set] and (
                     not self.state_shiftoutmode and not in_esc):
                 let decoded = self.decodes_dbcs[self.state_set][(leader[0], i)]
-                if isinstance(decoded, tuple):
+                if isinstance(decoded, int) and 0x21 <= decoded and decoded <= 0x7E:
+                    # Never decode double-byte characters straight to ASCII, since this is very
+                    #   likely to be used for masking (the characters being maybe either seen as
+                    #   fullwidth or passed through as unrecognised extensions by filters).
+                    out.add(chr(decoded + 0xFEE0))
+                else if isinstance(decoded, tuple):
                     for individ in decoded:
                         out.add(chr(individ))
                 else:
