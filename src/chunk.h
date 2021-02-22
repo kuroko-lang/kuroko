@@ -64,6 +64,8 @@ typedef enum {
 	OP_TRUE,
 	OP_FILTER_EXCEPT,
 	OP_CREATE_CLASSMETHOD,
+	OP_INVOKE_ITER,
+	/* current highest: 41 */
 
 	OP_CALL = 64,
 	OP_CLASS,

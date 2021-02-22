@@ -1458,10 +1458,7 @@ static void forStatement() {
 		addLocal(_it);
 		defineVariable(indLoopIter);
 
-		KrkToken _iter = syntheticToken("__iter__");
-		ssize_t ind = identifierConstant(&_iter);
-		EMIT_CONSTANT_OP(OP_GET_PROPERTY, ind);
-		emitBytes(OP_CALL, 0);
+		emitByte(OP_INVOKE_ITER);
 
 		/* assign */
 		EMIT_CONSTANT_OP(OP_SET_LOCAL, indLoopIter);
@@ -2061,10 +2058,7 @@ static void comprehension(KrkScanner scannerBefore, Parser parserBefore, const c
 	defineVariable(indLoopIter);
 
 	/* Now try to call .__iter__ on the result to produce our iterator */
-	KrkToken _iter = syntheticToken("__iter__");
-	ssize_t ind = identifierConstant(&_iter);
-	EMIT_CONSTANT_OP(OP_GET_PROPERTY, ind);
-	emitBytes(OP_CALL, 0);
+	emitByte(OP_INVOKE_ITER);
 
 	/* Assign the resulting iterator to indLoopIter */
 	EMIT_CONSTANT_OP(OP_SET_LOCAL, indLoopIter);

@@ -2000,6 +2000,15 @@ static KrkValue run() {
 				}
 				break;
 			}
+			case OP_INVOKE_ITER: {
+				KrkClass * type = krk_getType(krk_peek(0));
+				if (likely(type->_iter)) {
+					krk_push(krk_callSimple(OBJECT_VAL(type->_iter), 1, 0));
+				} else {
+					krk_runtimeError(vm.exceptions->attributeError, "'%s' object is not iterable", krk_typeName(krk_peek(0)));
+				}
+				break;
+			}
 			case OP_FINALIZE: {
 				KrkClass * _class = AS_CLASS(krk_peek(0));
 				/* Store special methods for quick access */
