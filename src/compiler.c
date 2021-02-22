@@ -922,6 +922,10 @@ static void function(FunctionType type, size_t blockWidth) {
 				emitByte(OP_POP); /* comparison value */
 				continue;
 			}
+			if (hasCollectors) {
+				error("arguments follow catch-all collector");
+				break;
+			}
 			ssize_t paramConstant = parseVariable("Expect parameter name.");
 			defineVariable(paramConstant);
 			if (match(TOKEN_EQUAL)) {
@@ -948,6 +952,10 @@ static void function(FunctionType type, size_t blockWidth) {
 				emitByte(OP_POP);
 				current->function->keywordArgs++;
 			} else {
+				if (current->function->keywordArgs) {
+					error("non-keyword argument follows keyword argument");
+					break;
+				}
 				current->function->requiredArgs++;
 			}
 		} while (match(TOKEN_COMMA));
@@ -1450,10 +1458,7 @@ static void forStatement() {
 		addLocal(_it);
 		defineVariable(indLoopIter);
 
-		KrkToken _iter = syntheticToken("__iter__");
-		ssize_t ind = identifierConstant(&_iter);
-		EMIT_CONSTANT_OP(OP_GET_PROPERTY, ind);
-		emitBytes(OP_CALL, 0);
+		emitByte(OP_INVOKE_ITER);
 
 		/* assign */
 		EMIT_CONSTANT_OP(OP_SET_LOCAL, indLoopIter);
@@ -1488,9 +1493,7 @@ static void forStatement() {
 		loopStart = currentChunk()->count;
 
 		beginScope();
-		do {
-			expression(); /* condition */
-		} while (match(TOKEN_COMMA));
+		expression(); /* condition */
 		endScope();
 		exitJump = emitJump(OP_JUMP_IF_FALSE);
 		emitByte(OP_POP);
@@ -1501,10 +1504,9 @@ static void forStatement() {
 			int incrementStart = currentChunk()->count;
 			beginScope();
 			do {
-				expression();
+				expressionStatement();
 			} while (match(TOKEN_COMMA));
 			endScope();
-			emitByte(OP_POP);
 
 			emitLoop(loopStart);
 			loopStart = incrementStart;
@@ -2056,10 +2058,7 @@ static void comprehension(KrkScanner scannerBefore, Parser parserBefore, const c
 	defineVariable(indLoopIter);
 
 	/* Now try to call .__iter__ on the result to produce our iterator */
-	KrkToken _iter = syntheticToken("__iter__");
-	ssize_t ind = identifierConstant(&_iter);
-	EMIT_CONSTANT_OP(OP_GET_PROPERTY, ind);
-	emitBytes(OP_CALL, 0);
+	emitByte(OP_INVOKE_ITER);
 
 	/* Assign the resulting iterator to indLoopIter */
 	EMIT_CONSTANT_OP(OP_SET_LOCAL, indLoopIter);
@@ -2394,7 +2393,7 @@ static void actualTernary(size_t count, KrkScanner oldScanner, Parser oldParser)
 	emitByte(OP_POP); /* Pop the condition */
 	consume(TOKEN_ELSE, "Expected 'else' after ternary condition");
 
-	parsePrecedence(PREC_OR);
+	parsePrecedence(PREC_TERNARY);
 
 	KrkScanner outScanner = krk_tellScanner();
 	Parser outParser = parser;
