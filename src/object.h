@@ -180,6 +180,7 @@ typedef struct KrkClass {
 	KrkObj * _dir;
 	KrkObj * _setslice;
 	KrkObj * _delslice;
+	KrkObj * _contains;
 } KrkClass;
 
 /**
