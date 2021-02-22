@@ -8,6 +8,10 @@ def issubclass(klass, superclass):
     else:
         return issubclass(klass.__base__, superclass)
 
+def idstr(obj):
+    let reprd = object.__repr__(obj)
+    return reprd.split(" at 0x")[1].split(">")[0]
+
 let _encoder_registry = {}
 let _decoder_registry = {}
 def register_kuroko_codec(labels, incremental_encoder_class, incremental_decoder_class):
@@ -65,7 +69,7 @@ class KurokoCodecInfo:
                 ret += " (HTML5 " + repr(dec.html5name) + ")"
         else:
             ret += "; no decoder"
-        return ret + ">"
+        return ret + "; at 0x" + idstr(self) + ">"
 
 def lookup(label):
     let enc = None
@@ -202,6 +206,13 @@ class IncrementalEncoder:
     def __init__(errors):
         self.errors = errors
         self.reset()
+    def __repr__():
+        let c = type(self)
+        let w = "(non-HTML5)"
+        if self.html5name:
+            w = f"(HTML5 {self.html5name!r})"
+        let addr = idstr(self)
+        return f"<{c.__name__} instance: encoder for {self.name!r} {w} at 0x{addr}>"
     def encode(string, final = False):
         raise NotImplementedError("must be implemented by subclass")
     def reset():
@@ -214,6 +225,13 @@ class IncrementalDecoder:
     def __init__(errors):
         self.errors = errors
         self.reset()
+    def __repr__():
+        let c = type(self)
+        let w = "(non-HTML5)"
+        if self.html5name:
+            w = f"(HTML5 {self.html5name!r})"
+        let addr = idstr(self)
+        return f"<{c.__name__} instance: decoder for {self.name!r} {w} at 0x{addr}>"
     def decode(data_in, final = False):
         raise NotImplementedError("must be implemented by subclass")
     def _handle_truncation(out, unused, final, data, offset, leader):
