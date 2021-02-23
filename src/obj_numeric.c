@@ -21,6 +21,7 @@
 KRK_METHOD(int,__init__,{
 	METHOD_TAKES_AT_MOST(1);
 	if (argc < 2) return INTEGER_VAL(0);
+	if (IS_BOOLEAN(argv[1])) return INTEGER_VAL(AS_INTEGER(argv[1]));
 	if (IS_INTEGER(argv[1])) return argv[1];
 	if (IS_STRING(argv[1])) return krk_string_int(argc-1,&argv[1],0);
 	if (IS_FLOATING(argv[1])) return INTEGER_VAL(AS_FLOATING(argv[1]));
@@ -78,7 +79,7 @@ KRK_METHOD(float,__str__,{
 })
 
 #undef CURRENT_CTYPE
-#define CURRENT_CTYPE char
+#define CURRENT_CTYPE krk_integer_type
 
 KRK_METHOD(bool,__init__,{
 	METHOD_TAKES_AT_MOST(1);
@@ -117,7 +118,7 @@ void _createAndBind_numericClasses(void) {
 	krk_finalizeClass(_float);
 	_float->docstring = S("Convert a number or string type to a float representation.");
 
-	KrkClass * _bool = ADD_BASE_CLASS(vm.baseClasses->boolClass, "bool", vm.baseClasses->objectClass);
+	KrkClass * _bool = ADD_BASE_CLASS(vm.baseClasses->boolClass, "bool", vm.baseClasses->intClass);
 	BIND_METHOD(bool,__init__);
 	BIND_METHOD(bool,__str__);
 	krk_defineNative(&_bool->methods, ".__repr__", FUNC_NAME(bool,__str__));

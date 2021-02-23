@@ -22,14 +22,13 @@ ifndef KRK_ENABLE_STATIC
     LDFLAGS += -Wl,-rpath -Wl,'$$ORIGIN' -L.
     # On POSIX-like platforms, link with libdl and assume -lkuroko gives us
     # our own library.
-    LDLIBS  += -ldl -lkuroko -lpthread
+    LDLIBS  += -ldl -lpthread
   else
     # For Windows, disable format string warnings because gcc will get mad
     # about non-portable Windows format specifiers...
     CFLAGS  += -Wno-format
     # And we need to link this by name with extension because I don't want
     # to actually rename it to kuroko.dll or whatever.
-    LDLIBS  += libkuroko.so
   endif
   all: ${TARGET} ${MODULES} ${TOOLS}
   KUROKO_LIBS = libkuroko.so
@@ -84,13 +83,13 @@ help:
 all: kuroko modules/codecs/sbencs.krk modules/codecs/dbdata.krk
 
 kuroko: src/kuroko.o ${KUROKO_LIBS}
-	${CC} ${CFLAGS} ${LDFLAGS} -o $@ src/kuroko.o ${KUROKO_LIBS} ${LDLIBS}
+	${CC} ${CFLAGS} ${LDFLAGS} -o $@ src/kuroko.o ${KUROKO_LIBS}
 
 krk-%: tools/%.c ${KUROKO_LIBS}
-	${CC} -Itools ${CFLAGS} ${LDFLAGS} -o $@ $< ${KUROKO_LIBS} ${LDLIBS}
+	${CC} -Itools ${CFLAGS} ${LDFLAGS} -o $@ $< ${KUROKO_LIBS}
 
 libkuroko.so: ${OBJS}
-	${CC} ${CFLAGS} ${LDFLAGS} -shared -o $@ ${OBJS}
+	${CC} ${CFLAGS} ${LDFLAGS} -shared -o $@ ${OBJS} ${LDLIBS}
 
 # Make sure we rebuild things when headers change as we have a lot of
 # headers that define build flags...
@@ -124,10 +123,12 @@ tags: $(wildcard src/*.c) $(wildcard src/*.h)
 # Test targets run against all .krk files in the test/ directory, writing
 # stdout to `.expect` files, and then comparing with `git`.
 # To update the tests if changes are expected, run `make test` and commit the result.
-.PHONY: test stress-test
+.PHONY: test stress-test update-tests
 test:
+	@for i in test/*.krk; do echo $$i; KUROKO_TEST_ENV=1 $(TESTWRAPPER) ./kuroko $$i > $$i.actual; diff $$i.expect $$i.actual || exit 1; rm $$i.actual; done
+
+update-tests:
 	@for i in test/*.krk; do echo $$i; KUROKO_TEST_ENV=1 $(TESTWRAPPER) ./kuroko $$i > $$i.expect; done
-	@git diff --exit-code test/*.expect
 
 # You can also set TESTWRAPPER to other things to run the tests in other tools.
 stress-test:
@@ -167,6 +168,8 @@ install: all libkuroko.so ${HEADERS} $(KRKMODS) $(MODULES)
 install-strip: all
 	$(MAKE) INSTALL_PROGRAM='$(INSTALL_PROGRAM) -s' install
 
+LIBCMIN = $(shell readelf -a libkuroko.so kuroko krk-* modules/*.so | grep GLIBC_ | grep Version | sed s"/.*GLIBC_//" | sed s"/  .*//" | sort --version-sort | tail -1)
+
 # The deb target piggybacks off the install target, creating a temporary DESTDIR
 # to install into with 'prefix' as /usr, packages that with fpm, and removes DESTDIR
 .PHONY: deb
@@ -180,7 +183,7 @@ deb: kuroko libkuroko.so
 		--url         "https://kuroko-lang.github.io/" \
 		--license     "ISC" \
 		--category    "devel" \
-		-d            "libc6 (>= 2.29)" \
+		-d            "libc6 (>= $(LIBCMIN))" \
 		--version     $(VERSION) \
 		--iteration   0 \
 		--directories $(libdir)/kuroko
