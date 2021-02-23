@@ -158,6 +158,8 @@ install: kuroko libkuroko.so ${HEADERS} $(KRKMODS) $(MODULES)
 install-strip: all
 	$(MAKE) INSTALL_PROGRAM='$(INSTALL_PROGRAM) -s' install
 
+LIBCMIN = $(shell readelf -a libkuroko.so kuroko krk-* modules/*.so | grep GLIBC_ | grep Version | sed s"/.*GLIBC_//" | sed s"/  .*//" | sort --version-sort | tail -1)
+
 # The deb target piggybacks off the install target, creating a temporary DESTDIR
 # to install into with 'prefix' as /usr, packages that with fpm, and removes DESTDIR
 .PHONY: deb
@@ -171,7 +173,7 @@ deb: kuroko libkuroko.so
 		--url         "https://kuroko-lang.github.io/" \
 		--license     "ISC" \
 		--category    "devel" \
-		-d            "libc6 (>= 2.29)" \
+		-d            "libc6 (>= $(LIBCMIN))" \
 		--version     $(VERSION) \
 		--iteration   0 \
 		--directories $(libdir)/kuroko
