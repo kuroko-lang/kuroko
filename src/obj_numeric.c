@@ -21,6 +21,7 @@
 KRK_METHOD(int,__init__,{
 	METHOD_TAKES_AT_MOST(1);
 	if (argc < 2) return INTEGER_VAL(0);
+	if (IS_BOOLEAN(argv[1])) return INTEGER_VAL(AS_INTEGER(argv[1]));
 	if (IS_INTEGER(argv[1])) return argv[1];
 	if (IS_STRING(argv[1])) return krk_string_int(argc-1,&argv[1],0);
 	if (IS_FLOATING(argv[1])) return INTEGER_VAL(AS_FLOATING(argv[1]));
