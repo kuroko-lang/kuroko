@@ -183,7 +183,7 @@ extern int krk_valuesEqual(KrkValue a, KrkValue b);
  */
 extern int krk_valuesSame(KrkValue a, KrkValue b);
 
-#define BOOLEAN_VAL(value)  ((KrkValue){VAL_BOOLEAN, {.boolean = value}})
+#define BOOLEAN_VAL(value)  ((KrkValue){VAL_BOOLEAN, {.integer = value}})
 #define NONE_VAL(value)     ((KrkValue){VAL_NONE,    {.integer = 0}})
 #define INTEGER_VAL(value)  ((KrkValue){VAL_INTEGER, {.integer = value}})
 #define FLOATING_VAL(value) ((KrkValue){VAL_FLOATING,{.floating = value}})
@@ -191,7 +191,7 @@ extern int krk_valuesSame(KrkValue a, KrkValue b);
 #define OBJECT_VAL(value)   ((KrkValue){VAL_OBJECT,  {.object = (KrkObj*)value}})
 #define KWARGS_VAL(value)   ((KrkValue){VAL_KWARGS,  {.integer = value}})
 
-#define AS_BOOLEAN(value)   ((value).as.boolean)
+#define AS_BOOLEAN(value)   ((value).as.integer)
 #define AS_INTEGER(value)   ((value).as.integer)
 #define AS_FLOATING(value)  ((value).as.floating)
 #define AS_HANDLER(value)   ((value).as.handler)
@@ -199,7 +199,7 @@ extern int krk_valuesSame(KrkValue a, KrkValue b);
 
 #define IS_BOOLEAN(value)   ((value).type == VAL_BOOLEAN)
 #define IS_NONE(value)      ((value).type == VAL_NONE)
-#define IS_INTEGER(value)   ((value).type == VAL_INTEGER)
+#define IS_INTEGER(value)   (((value).type == VAL_INTEGER) || ((value.type) == VAL_BOOLEAN))
 #define IS_FLOATING(value)  ((value).type == VAL_FLOATING)
 #define IS_HANDLER(value)   ((value).type == VAL_HANDLER)
 #define IS_OBJECT(value)    ((value).type == VAL_OBJECT)

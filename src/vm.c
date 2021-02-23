@@ -1359,15 +1359,21 @@ MAKE_UNOPTIMIZED_BIN_OP(pow,**)
 
 /* Bit ops are invalid on doubles in C, so we can't use the same set of macros for them;
  * they should be invalid in Kuroko as well. */
+#define MAKE_BIT_OP_BOOL(name,operator) \
+	KrkValue krk_operator_ ## name (KrkValue a, KrkValue b) { \
+		if (IS_BOOLEAN(a) && IS_BOOLEAN(b)) return BOOLEAN_VAL(AS_INTEGER(a) operator AS_INTEGER(b)); \
+		if (IS_INTEGER(a) && IS_INTEGER(b)) return INTEGER_VAL(AS_INTEGER(a) operator AS_INTEGER(b)); \
+		return tryBind("__" #name "__", a, b, "unsupported operand types for " #operator ": '%s' and '%s'"); \
+	}
 #define MAKE_BIT_OP(name,operator) \
 	KrkValue krk_operator_ ## name (KrkValue a, KrkValue b) { \
 		if (IS_INTEGER(a) && IS_INTEGER(b)) return INTEGER_VAL(AS_INTEGER(a) operator AS_INTEGER(b)); \
 		return tryBind("__" #name "__", a, b, "unsupported operand types for " #operator ": '%s' and '%s'"); \
 	}
 
-MAKE_BIT_OP(or,|)
-MAKE_BIT_OP(xor,^)
-MAKE_BIT_OP(and,&)
+MAKE_BIT_OP_BOOL(or,|)
+MAKE_BIT_OP_BOOL(xor,^)
+MAKE_BIT_OP_BOOL(and,&)
 MAKE_BIT_OP(lshift,<<)
 MAKE_BIT_OP(rshift,>>)
 MAKE_BIT_OP(mod,%) /* not a bit op, but doesn't work on floating point */
