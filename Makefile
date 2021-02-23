@@ -22,14 +22,13 @@ ifndef KRK_ENABLE_STATIC
     LDFLAGS += -Wl,-rpath -Wl,'$$ORIGIN' -L.
     # On POSIX-like platforms, link with libdl and assume -lkuroko gives us
     # our own library.
-    LDLIBS  += -ldl -lkuroko -lpthread
+    LDLIBS  += -ldl -lpthread
   else
     # For Windows, disable format string warnings because gcc will get mad
     # about non-portable Windows format specifiers...
     CFLAGS  += -Wno-format
     # And we need to link this by name with extension because I don't want
     # to actually rename it to kuroko.dll or whatever.
-    LDLIBS  += libkuroko.so
   endif
   all: ${TARGET} ${MODULES} ${TOOLS}
   KUROKO_LIBS = libkuroko.so
@@ -82,13 +81,13 @@ help:
 	@echo "Available tools: ${TOOLS}"
 
 kuroko: src/kuroko.o ${KUROKO_LIBS}
-	${CC} ${CFLAGS} ${LDFLAGS} -o $@ src/kuroko.o ${KUROKO_LIBS} ${LDLIBS}
+	${CC} ${CFLAGS} ${LDFLAGS} -o $@ src/kuroko.o ${KUROKO_LIBS}
 
 krk-%: tools/%.c ${KUROKO_LIBS}
-	${CC} -Itools ${CFLAGS} ${LDFLAGS} -o $@ $< ${KUROKO_LIBS} ${LDLIBS}
+	${CC} -Itools ${CFLAGS} ${LDFLAGS} -o $@ $< ${KUROKO_LIBS}
 
 libkuroko.so: ${OBJS}
-	${CC} ${CFLAGS} ${LDFLAGS} -shared -o $@ ${OBJS}
+	${CC} ${CFLAGS} ${LDFLAGS} -shared -o $@ ${OBJS} ${LDLIBS}
 
 # Make sure we rebuild things when headers change as we have a lot of
 # headers that define build flags...
