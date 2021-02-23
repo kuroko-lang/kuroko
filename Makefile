@@ -116,10 +116,12 @@ tags: $(wildcard src/*.c) $(wildcard src/*.h)
 # Test targets run against all .krk files in the test/ directory, writing
 # stdout to `.expect` files, and then comparing with `git`.
 # To update the tests if changes are expected, run `make test` and commit the result.
-.PHONY: test stress-test
+.PHONY: test stress-test update-tests
 test:
+	@for i in test/*.krk; do echo $$i; KUROKO_TEST_ENV=1 $(TESTWRAPPER) ./kuroko $$i > $$i.actual; diff $$i.expect $$i.actual || exit 1; rm $$i.actual; done
+
+update-tests:
 	@for i in test/*.krk; do echo $$i; KUROKO_TEST_ENV=1 $(TESTWRAPPER) ./kuroko $$i > $$i.expect; done
-	@git diff --exit-code test/*.expect
 
 # You can also set TESTWRAPPER to other things to run the tests in other tools.
 stress-test:

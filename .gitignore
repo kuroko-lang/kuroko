@@ -3,6 +3,7 @@
 /*.exe
 /*.deb
 /krk-*
+/test/*.actual
 # I typically clone these subprojects in the root as well.
 /wasm/
 /jupyter/
