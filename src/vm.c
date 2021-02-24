@@ -1542,7 +1542,8 @@ int krk_loadModule(KrkString * path, KrkValue * moduleOut, KrkString * runAs) {
 		krk_startModule(runAs->chars);
 		krk_tableSet(&vm.modules, OBJECT_VAL(runAs), OBJECT_VAL(krk_currentThread.module));
 		if (isPackage) krk_attachNamedValue(&krk_currentThread.module->fields,"__ispackage__",BOOLEAN_VAL(1));
-		*moduleOut = krk_callfile(fileName,runAs->chars,fileName);
+		krk_callfile(fileName,fileName);
+		*moduleOut = OBJECT_VAL(krk_currentThread.module);
 		krk_currentThread.module = enclosing;
 		if (!IS_OBJECT(*moduleOut)) {
 			if (!(krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION)) {
@@ -2507,8 +2508,8 @@ KrkInstance * krk_startModule(const char * name) {
 	return module;
 }
 
-KrkValue krk_interpret(const char * src, int newScope, char * fromName, char * fromFile) {
-	KrkFunction * function = krk_compile(src, 0, fromFile);
+KrkValue krk_interpret(const char * src, char * fromFile) {
+	KrkFunction * function = krk_compile(src, fromFile);
 	if (!function) {
 		if (!krk_currentThread.frameCount) handleException();
 		return NONE_VAL();
@@ -2517,34 +2518,24 @@ KrkValue krk_interpret(const char * src, int newScope, char * fromName, char * f
 	krk_push(OBJECT_VAL(function));
 	krk_attachNamedObject(&krk_currentThread.module->fields, "__file__", (KrkObj*)function->chunk.filename);
 
-	function->name = krk_copyString(fromName, strlen(fromName));
-
 	KrkClosure * closure = krk_newClosure(function);
 	krk_pop();
 
 	krk_push(OBJECT_VAL(closure));
-	if (!newScope) {
-		/* Quick little kludge so that empty statements return None from REPLs */
-		krk_push(NONE_VAL());
-		krk_pop();
-	}
+
+	/* Quick little kludge so that empty statements return None from REPLs */
+	krk_push(NONE_VAL());
+	krk_pop();
+
 	krk_callValue(OBJECT_VAL(closure), 0, 1);
 
-	KrkValue result = run();
-
-	if (newScope) {
-		return OBJECT_VAL(krk_currentThread.module);
-	} else {
-		return result;
-	}
+	return run();
 }
 
-KrkValue krk_runfile(const char * fileName, int newScope, char * fromName, char * fromFile) {
+KrkValue krk_runfile(const char * fileName, char * fromFile) {
 	FILE * f = fopen(fileName,"r");
 	if (!f) {
-		if (!newScope) {
-			fprintf(stderr, "kuroko: could not read file '%s': %s\n", fileName, strerror(errno));
-		}
+		fprintf(stderr, "kuroko: could not read file '%s': %s\n", fileName, strerror(errno));
 		return INTEGER_VAL(errno);
 	}
 
@@ -2559,16 +2550,16 @@ KrkValue krk_runfile(const char * fileName, int newScope, char * fromName, char 
 	fclose(f);
 	buf[size] = '\0';
 
-	KrkValue result = krk_interpret(buf, newScope, fromName, fromFile);
+	KrkValue result = krk_interpret(buf, fromFile);
 	free(buf);
 
 	return result;
 }
 
-KrkValue krk_callfile(const char * fileName, char * fromName, char * fromFile) {
+KrkValue krk_callfile(const char * fileName, char * fromFile) {
 	int previousExitFrame = krk_currentThread.exitOnFrame;
 	krk_currentThread.exitOnFrame = krk_currentThread.frameCount;
-	KrkValue out = krk_runfile(fileName, 1, fromName, fromFile);
+	KrkValue out = krk_runfile(fileName, fromFile);
 	krk_currentThread.exitOnFrame = previousExitFrame;
 	return out;
 }

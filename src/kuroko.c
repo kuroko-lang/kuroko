@@ -321,7 +321,7 @@ static int runString(char * argv[], int flags, char * string) {
 	findInterpreter(argv);
 	krk_initVM(flags);
 	krk_startModule("__main__");
-	krk_interpret(string, 1, "<stdin>","<stdin>");
+	krk_interpret(string, "<stdin>");
 	krk_freeVM();
 	return 0;
 }
@@ -666,7 +666,7 @@ _finishArgs:
 			FREE_ARRAY(char *, lines, lineCapacity);
 
 			if (valid) {
-				KrkValue result = krk_interpret(allData, 0, "<module>","<stdin>");
+				KrkValue result = krk_interpret(allData, "<stdin>");
 				if (!IS_NONE(result)) {
 					KrkClass * type = krk_getType(result);
 					const char * formatStr = " \033[1;30m=> %s\033[0m\n";
@@ -691,7 +691,7 @@ _finishArgs:
 		}
 	} else {
 		krk_startModule("__main__");
-		result = krk_runfile(argv[optind],0,"__main__",argv[optind]);
+		result = krk_runfile(argv[optind],argv[optind]);
 		if (IS_NONE(result) && krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) result = INTEGER_VAL(1);
 	}
 

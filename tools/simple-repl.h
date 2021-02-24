@@ -99,7 +99,7 @@ static int runSimpleRepl(void) {
 		}
 		FREE_ARRAY(char *, lines, lineCapacity);
 		if (valid) {
-			KrkValue result = krk_interpret(allData, 0, "<module>","<stdin>");
+			KrkValue result = krk_interpret(allData, "<stdin>");
 			if (!IS_NONE(result)) {
 				KrkClass * type = krk_getType(result);
 				const char * formatStr = " \033[1;30m=> %s\033[0m\n";

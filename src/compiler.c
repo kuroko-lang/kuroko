@@ -2626,15 +2626,14 @@ static ParseRule * getRule(KrkTokenType type) {
 static volatile int _compilerLock = 0;
 #endif
 
-KrkFunction * krk_compile(const char * src, int newScope, char * fileName) {
+KrkFunction * krk_compile(const char * src, char * fileName) {
 	_obtain_lock(_compilerLock);
 
 	krk_initScanner(src);
 	Compiler compiler;
 	initCompiler(&compiler, TYPE_MODULE);
 	compiler.function->chunk.filename = krk_copyString(fileName, strlen(fileName));
-
-	if (newScope) beginScope();
+	compiler.function->name = krk_copyString("<module>",8);
 
 	parser.hadError = 0;
 	parser.panicMode = 0;

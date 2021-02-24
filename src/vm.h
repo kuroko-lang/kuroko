@@ -296,8 +296,6 @@ extern void krk_resetStack(void);
  * of commands from a REPL or when executing a file.
  *
  * @param src      Source code to compile and run.
- * @param newScope Whether this code should be interpreted in the context of a new module.
- * @param fromName Name of the function or module being interpreted.
  * @param fromFile Path to the source file, or a representative string like "<stdin>".
  * @return When newScope is non-zero, an object representing the globals of the new scope;
  *         otherwise, the returned result of the execution of this code. If an uncaught
@@ -305,7 +303,7 @@ extern void krk_resetStack(void);
  *         indicate @c KRK_THREAD_HAS_EXCEPTION and @c krk_currentThread.currentException
  *         should contain the raised exception value.
  */
-extern KrkValue krk_interpret(const char * src, int newScope, char * fromName, char * fromFile);
+extern KrkValue krk_interpret(const char * src, char * fromFile);
 
 /**
  * @brief Load and run a source file and return when execution completes.
@@ -315,13 +313,11 @@ extern KrkValue krk_interpret(const char * src, int newScope, char * fromName, c
  * of the current module state (eg. as if they were lines entered on a repl)
  *
  * @param fileName  Path to the source file to read and execute.
- * @param newScope  Whether this file should be run in the context of a new module.
- * @param fromName  Value to assign to @c \__name__
  * @param fromFile  Value to assign to @c \__file__
  * @return As with @c krk_interpret, an object representing the newly created module,
  *         or the final return value of the VM execution.
  */
-extern KrkValue krk_runfile(const char * fileName, int newScope, char * fromName, char * fromFile);
+extern KrkValue krk_runfile(const char * fileName, char * fromFile);
 
 /**
  * @brief Load and run a file as a module.
@@ -331,11 +327,10 @@ extern KrkValue krk_runfile(const char * fileName, int newScope, char * fromName
  * a new module context and is used internally by the import mechanism.
  *
  * @param fileName Path to the source file to read and execute.
- * @param fromName Value to assign to @c \__name__
  * @param fromFile Value to assign to @c \__file__
  * @return The object representing the module, or None if execution of the file failed.
  */
-extern KrkValue krk_callfile(const char * fileName, char * fromName, char * fromFile);
+extern KrkValue krk_callfile(const char * fileName, char * fromFile);
 
 /**
  * @brief Push a stack value.
