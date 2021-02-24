@@ -1540,7 +1540,6 @@ int krk_loadModule(KrkString * path, KrkValue * moduleOut, KrkString * runAs) {
 		 * returns to the current call frame; modules should return objects. */
 		KrkInstance * enclosing = krk_currentThread.module;
 		krk_startModule(runAs->chars);
-		krk_tableSet(&vm.modules, OBJECT_VAL(runAs), OBJECT_VAL(krk_currentThread.module));
 		if (isPackage) krk_attachNamedValue(&krk_currentThread.module->fields,"__ispackage__",BOOLEAN_VAL(1));
 		krk_callfile(fileName,fileName);
 		*moduleOut = OBJECT_VAL(krk_currentThread.module);
@@ -2503,6 +2502,7 @@ KrkValue krk_runNext(void) {
 KrkInstance * krk_startModule(const char * name) {
 	KrkInstance * module = krk_newInstance(vm.baseClasses->moduleClass);
 	krk_currentThread.module = module;
+	krk_attachNamedObject(&vm.modules, name, (KrkObj*)module);
 	krk_attachNamedObject(&module->fields, "__builtins__", (KrkObj*)vm.builtins);
 	krk_attachNamedObject(&module->fields, "__name__", (KrkObj*)krk_copyString(name,strlen(name)));
 	return module;
