@@ -472,15 +472,9 @@ _finishArgs:
 	KrkValue result = INTEGER_VAL(0);
 
 	if (moduleAsMain) {
-		/* This isn't going to do what we want for built-in modules, but I'm not sure
-		 * what we _should_ do for them anyway... let's just leave that as a TODO;
-		 * we do let C modules know they are the __main__ now, so non-built-in
-		 * C modules can still act as scripts if they want... */
-		KrkValue module;
 		krk_push(OBJECT_VAL(krk_copyString("__main__",8)));
-		int out = !krk_loadModule(
+		int out = !krk_importModule(
 			AS_STRING(AS_LIST(argList)->values[0]),
-			&module,
 			AS_STRING(krk_peek(0)));
 		if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) {
 			krk_dumpTraceback();

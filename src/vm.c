@@ -1624,7 +1624,7 @@ int krk_loadModule(KrkString * path, KrkValue * moduleOut, KrkString * runAs) {
 	return 0;
 }
 
-int krk_doRecursiveModuleLoad(KrkString * name) {
+int krk_importModule(KrkString * name, KrkString * runAs) {
 	/* See if 'name' is clear to directly import */
 	int isClear = 1;
 	for (size_t i = 0; i < name->length; ++i) {
@@ -1636,7 +1636,7 @@ int krk_doRecursiveModuleLoad(KrkString * name) {
 
 	if (isClear) {
 		KrkValue base;
-		return krk_loadModule(name,&base,name);
+		return krk_loadModule(name,&base,runAs);
 	}
 
 	/**
@@ -1683,7 +1683,7 @@ int krk_doRecursiveModuleLoad(KrkString * name) {
 			krk_pop(); /* dot */
 			krk_pop(); /* remainder */
 			KrkValue current;
-			if (!krk_loadModule(AS_STRING(krk_currentThread.stack[argBase+1]), &current, AS_STRING(krk_currentThread.stack[argBase+2]))) return 0;
+			if (!krk_loadModule(AS_STRING(krk_currentThread.stack[argBase+1]), &current, runAs)) return 0;
 			krk_pop(); /* dot-sepaerated */
 			krk_pop(); /* slash-separated */
 			krk_push(current);
@@ -1718,6 +1718,10 @@ int krk_doRecursiveModuleLoad(KrkString * name) {
 			krk_currentThread.stack[argBase+2] = krk_pop();
 		}
 	} while (1);
+}
+
+int krk_doRecursiveModuleLoad(KrkString * name) {
+	return krk_importModule(name,name);
 }
 
 /**
