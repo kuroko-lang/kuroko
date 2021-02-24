@@ -37,6 +37,52 @@ class Big5NonEtenKanaIncrementalDecoder(AsciiIncrementalDecoder):
 register_kuroko_codec(["big5-nonetenkana", "big5-tw"],
     Big5NonEtenKanaIncrementalEncoder, Big5NonEtenKanaIncrementalDecoder)
 
+class XMacChineseTradIncrementalEncoder(AsciiIncrementalEncoder):
+    name = "x-mac-chinesetrad"
+    html5name = None
+    encoding_map = xraydict(cp950_no_eudc_encoding_map, {
+        0xB7: (0xA1, 0x45),
+        0x22EF: (0xA1, 0x4B),
+        0x203E: (0xA1, 0xC2),
+        0x223C: (0xA1, 0xE3),
+        0x2609: (0xA1, 0xF3),
+        0xA5: (0xA2, 0x44),
+        0xA2: (0xA2, 0x46),
+        0xA3: (0xA2, 0x47),
+        0xF880: 0x81,
+        0xF881: 0x82,
+        0xA0: 0xA0,
+        0xA9: 0xFD,
+        0x2122: 0xFE,
+        0x2026: 0xFF,
+    })
+
+class XMacChineseTradIncrementalDecoder(AsciiIncrementalDecoder):
+    name = "x-mac-chinesetrad"
+    html5name = None
+    decoding_map = xraydict(cp950_no_eudc_decoding_map, {
+        (0xA1, 0x45): 0xB7,
+        (0xA1, 0x4B): 0x22EF,
+        (0xA1, 0xC2): 0x203E,
+        (0xA1, 0xE3): 0x223C,
+        (0xA1, 0xF3): 0x2609,
+        (0xA2, 0x44): 0xA5,
+        (0xA2, 0x46): 0xA2,
+        (0xA2, 0x47): 0xA3,
+        0x80: 0x5C,
+        0x81: 0xF880,
+        0x82: 0xF881,
+        0xA0: 0xA0,
+        0xFD: 0xA9,
+        0xFE: 0x2122,
+        0xFF: 0x2026,
+    })
+    dbrange = tupleOf(*range(0xA1, 0xFC + 1))
+    trailrange = Big5HkscsIncrementalDecoder.trailrange
+
+register_kuroko_codec(["x-mac-chinesetrad", "x-mac-trad-chinese"],
+    XMacChineseTradIncrementalEncoder, XMacChineseTradIncrementalDecoder)
+
 
 class Cesu8IncrementalEncoder(IncrementalEncoder):
     name = "cesu-8"
