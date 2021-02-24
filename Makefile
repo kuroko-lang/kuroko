@@ -143,21 +143,27 @@ INSTALL_DATA=$(INSTALL) -m 644
 
 .PHONY: install
 install: kuroko libkuroko.so ${HEADERS} $(KRKMODS) $(MODULES)
+	@echo "Creating directories..."
 	$(INSTALL) -d $(DESTDIR)$(includedir)/kuroko
 	$(INSTALL) -d $(DESTDIR)$(bindir)
 	$(INSTALL) -d $(DESTDIR)$(libdir)
 	$(INSTALL) -d $(DESTDIR)$(bindir)/../lib/kuroko
 	$(INSTALL) -d $(DESTDIR)$(bindir)/../lib/kuroko/syntax
 	$(INSTALL) -d $(DESTDIR)$(bindir)/../lib/kuroko/foo/bar
-	$(INSTALL_DATA) ${HEADERS} $(DESTDIR)$(includedir)/kuroko/
+	@echo "Installing programs..."
 	$(INSTALL_PROGRAM) kuroko $(DESTDIR)$(bindir)/kuroko
+	$(INSTALL_PROGRAM) $(TOOLS) $(DESTDIR)$(bindir)/
+	@echo "Installing libraries..."
 	$(INSTALL_PROGRAM) libkuroko.so $(DESTDIR)$(libdir)/$(SONAME)
 	ln -s -f $(SONAME) $(DESTDIR)$(libdir)/libkuroko.so
+	@echo "Installing source modules..."
 	$(INSTALL_DATA) modules/*.krk         $(DESTDIR)$(bindir)/../lib/kuroko/
 	$(INSTALL_DATA) modules/foo/*.krk     $(DESTDIR)$(bindir)/../lib/kuroko/foo/
 	$(INSTALL_DATA) modules/foo/bar/*.krk $(DESTDIR)$(bindir)/../lib/kuroko/foo/bar/
 	$(INSTALL_DATA) modules/syntax/*.krk  $(DESTDIR)$(bindir)/../lib/kuroko/syntax/
 	$(INSTALL_PROGRAM) $(MODULES)         $(DESTDIR)$(bindir)/../lib/kuroko/
+	@echo "Installing headers..."
+	$(INSTALL_DATA) ${HEADERS} $(DESTDIR)$(includedir)/kuroko/
 	@echo "You may need to run 'ldconfig'."
 
 install-strip: all
