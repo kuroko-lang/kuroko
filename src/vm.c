@@ -1416,8 +1416,7 @@ static int handleException() {
 			 * VM stack state. It should still be safe to execute more code after
 			 * this reset, so the repl can throw errors and keep accepting new lines.
 			 */
-			krk_dumpTraceback();
-			krk_resetStack();
+			if (!(vm.globalFlags & KRK_GLOBAL_CLEAN_OUTPUT)) krk_dumpTraceback();
 			krk_currentThread.frameCount = 0;
 		}
 		/* If exitSlot was not 0, there was an exception during a call to runNext();

@@ -688,8 +688,8 @@ _finishArgs:
 					} else {
 						fprintf(stdout, formatStr, AS_CSTRING(result));
 					}
-					krk_resetStack();
 				}
+				krk_resetStack();
 				free(allData);
 			}
 
@@ -697,7 +697,8 @@ _finishArgs:
 		}
 	} else {
 		krk_startModule("__main__");
-		result = krk_runfile(argv[optind],1,"__main__",argv[optind]);
+		result = krk_runfile(argv[optind],0,"__main__",argv[optind]);
+		if (IS_NONE(result) && krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) result = INTEGER_VAL(1);
 	}
 
 	krk_freeVM();
