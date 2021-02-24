@@ -3,10 +3,40 @@ This module includes some additional variable-width or wide encodings not specif
 such, none of the codecs in this module should be used in HTML.
 """
 
-from codecs.extradata import encode_lat1supp, decode_lat1supp, encode_greksupp, decode_greksupp, encode_jis78, decode_jis78, encode_jis90p2, decode_jis90p2, encode_jis00, decode_jis00, encode_jis00p2, decode_jis00p2, encode_jis04, decode_jis04, encode_jis7katakana, encode_gb7, decode_gb7, encode_ksc7, decode_ksc7, encode_nbyte_ebcdic, decode_nbyte_ebcdic, encode_johab_ascii, decode_johab_ascii, encode_johab_ebcdic, decode_johab_ebcdic, encode_euc90, encode_euc04, decode_euc04, encode_sjis04, decode_sjis04
+from codecs.extradata import encode_lat1supp, decode_lat1supp, encode_greksupp, decode_greksupp, encode_jis78, decode_jis78, encode_jis90p2, decode_jis90p2, encode_jis00, decode_jis00, encode_jis00p2, decode_jis00p2, encode_jis04, decode_jis04, encode_jis7katakana, encode_gb7, decode_gb7, encode_ksc7, decode_ksc7, encode_nbyte_ebcdic, decode_nbyte_ebcdic, encode_johab_ascii, decode_johab_ascii, encode_johab_ebcdic, decode_johab_ebcdic, encode_euc90, encode_euc04, decode_euc04, encode_sjis04, decode_sjis04, encode_big5_nonetenkana, decode_big5_nonetenkana
 from codecs.infrastructure import register_kuroko_codec, ByteCatenator, StringCatenator, UnicodeEncodeError, UnicodeDecodeError, lookup_error, lookup, BaseEbcdicIncrementalEncoder, BaseEbcdicIncrementalDecoder, AsciiIncrementalEncoder, AsciiIncrementalDecoder, IncrementalEncoder, IncrementalDecoder
-from codecs.dbdata import encode_jis7, decode_jis7, decode_jis7katakana, XEucJpIncrementalDecoder
+from codecs.dbdata import encode_jis7, decode_jis7, decode_jis7katakana, XEucJpIncrementalDecoder, Big5EtenIncrementalEncoder, Big5HkscsIncrementalDecoder
 from codecs.bespokecodecs import Iso2022JpIncrementalEncoder, Iso2022JpIncrementalDecoder, Utf8IncrementalDecoder
+from collections import xraydict
+
+let cp950_no_eudc_encoding_map = xraydict(Big5EtenIncrementalEncoder.encoding_map, {},
+    [i for i in Big5EtenIncrementalEncoder.encoding_map.keys()
+        if Big5EtenIncrementalEncoder.encoding_map[i][0] in (0xC7, 0xC8) or (
+            Big5EtenIncrementalEncoder.encoding_map[i][0] == 0xC6 and
+            Big5EtenIncrementalEncoder.encoding_map[i][1] >= 0xA1
+        )
+    ]
+)
+
+let cp950_no_eudc_decoding_map = xraydict(Big5HkscsIncrementalDecoder.decoding_map, {},
+    [i for i in Big5HkscsIncrementalDecoder.decoding_map.keys()
+        if i[0] < 0xA1 or i[0] > 0xF9 or i[0] in (0xC7, 0xC8) or (i[0] == 0xC6 and i[1] >= 0xA1)])
+
+class Big5NonEtenKanaIncrementalEncoder(AsciiIncrementalEncoder):
+    name = "big5-nonetenkana"
+    html5name = None
+    encoding_map = xraydict(cp950_no_eudc_encoding_map, encode_big5_nonetenkana)
+
+class Big5NonEtenKanaIncrementalDecoder(AsciiIncrementalDecoder):
+    name = "big5-nonetenkana"
+    html5name = None
+    decoding_map = xraydict(cp950_no_eudc_decoding_map, decode_big5_nonetenkana)
+    dbrange = Big5HkscsIncrementalDecoder.dbrange
+    trailrange = Big5HkscsIncrementalDecoder.trailrange
+
+register_kuroko_codec(["big5-nonetenkana", "big5-tw"],
+    Big5NonEtenKanaIncrementalEncoder, Big5NonEtenKanaIncrementalDecoder)
+
 
 class Cesu8IncrementalEncoder(IncrementalEncoder):
     name = "cesu-8"
@@ -443,6 +473,9 @@ register_kuroko_codec(["utf-32le", "utf-32-le"],
     Utf32LeIncrementalEncoder, Utf32LeIncrementalDecoder)
 register_kuroko_codec(["utf-32be", "utf-32-be"],
     Utf32BeIncrementalEncoder, Utf32BeIncrementalDecoder)
+
+
+
 
 
 
