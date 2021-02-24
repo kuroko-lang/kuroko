@@ -6,7 +6,76 @@ such, none of the codecs in this module should be used in HTML.
 from codecs.extradata import encode_lat1supp, decode_lat1supp, encode_greksupp, decode_greksupp, encode_jis78, decode_jis78, encode_jis90p2, decode_jis90p2, encode_jis00, decode_jis00, encode_jis00p2, decode_jis00p2, encode_jis04, decode_jis04, encode_jis7katakana, encode_gb7, decode_gb7, encode_ksc7, decode_ksc7, encode_nbyte_ebcdic, decode_nbyte_ebcdic, encode_johab_ascii, decode_johab_ascii, encode_johab_ebcdic, decode_johab_ebcdic, encode_euc90, encode_euc04, decode_euc04, encode_sjis04, decode_sjis04
 from codecs.infrastructure import register_kuroko_codec, ByteCatenator, StringCatenator, UnicodeEncodeError, UnicodeDecodeError, lookup_error, lookup, BaseEbcdicIncrementalEncoder, BaseEbcdicIncrementalDecoder, AsciiIncrementalEncoder, AsciiIncrementalDecoder, IncrementalEncoder, IncrementalDecoder
 from codecs.dbdata import encode_jis7, decode_jis7, decode_jis7katakana, XEucJpIncrementalDecoder
-from codecs.bespokecodecs import Iso2022JpIncrementalEncoder, Iso2022JpIncrementalDecoder
+from codecs.bespokecodecs import Iso2022JpIncrementalEncoder, Iso2022JpIncrementalDecoder, Utf8IncrementalDecoder
+
+class Cesu8IncrementalEncoder(IncrementalEncoder):
+    name = "cesu-8"
+    html5name = None
+    # -1: expecting BOM
+    #  0: Normal
+    state = None
+    include_bom = False
+    def encode(string, final = False):
+        let out = ByteCatenator()
+        if self.include_bom and self.state == -1:
+            out.add("\uFEFF".encode())
+        self.state = 0
+        let first_offset = 0
+        let second_offset = 0
+        while second_offset < len(string):
+            let codepoint = ord(string[second_offset])
+            if 0x10000 <= codepoint and codepoint <= 0x10FFFF:
+                out.add(string[first_offset:second_offset].encode())
+                let bits_remaining = codepoint
+                let sixth = 0x80 | (bits_remaining & 0x3F)
+                bits_remaining >>= 6
+                let fifth = 0xB0 | (bits_remaining & 0xF)
+                bits_remaining >>= 4
+                let third = 0x80 | (bits_remaining & 0x3F)
+                bits_remaining >>= 6
+                let second = 0xA0 | bits_remaining
+                out.add(bytes([0xED, second, third, 0xED, fifth, sixth]))
+                second_offset += 1
+                first_offset = second_offset
+            else:
+                second_offset += 1
+        out.add(string[first_offset:second_offset].encode())
+        return out.getvalue()
+    def reset():
+        self.state = -1
+    def getstate():
+        return self.state
+    def setstate(state):
+        self.state = state
+
+class Cesu8IncrementalDecoder(Utf8IncrementalDecoder):
+    name = "cesu-8"
+    html5name = None
+    def _error_handler(error):
+        # Note: not error.end (which is set after noticing the CESU seq, not at the end of it).
+        let after_cesu = error.start + 6
+        let maybe_cesu = list(error.object)[error.start:after_cesu]
+        if len(maybe_cesu) == 6 and (
+                    maybe_cesu[0] == 0xED and 0xA0 <= maybe_cesu[1] and maybe_cesu[1] <= 0xAF
+                ) and (
+                    maybe_cesu[3] == 0xED and 0xB0 <= maybe_cesu[4] and maybe_cesu[4] <= 0xBF):
+            let codepoint = 0
+            codepoint |= maybe_cesu[1] & 0xF
+            codepoint <<= 6
+            codepoint |= maybe_cesu[2] & 0x3F
+            codepoint <<= 4
+            codepoint |= maybe_cesu[4] & 0xF
+            codepoint <<= 6
+            codepoint |= maybe_cesu[5] & 0x3F
+            return (chr(codepoint), after_cesu)
+        elif len(maybe_cesu) >= 2 and maybe_cesu[0] == 0xC0 and maybe_cesu[1] == 0x80:
+            # mUTF-8 is a fairly common CESU-8 variant, using the two-byte code for embedded NUL
+            return ("\x00", error.start + 2)
+        else:
+            return lookup_error(self.errors)(error)
+
+register_kuroko_codec(["utf8-ucs2", "utf8mb3", "cesu-8", "cesu8"],
+    Cesu8IncrementalEncoder, Cesu8IncrementalDecoder)
 
 
 class EucJpFullIncrementalEncoder(AsciiIncrementalEncoder):
