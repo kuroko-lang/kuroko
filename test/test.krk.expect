@@ -26,7 +26,7 @@ Function is defined, creating it...
 And executing the result...
 outside
 Let's do some classes.
-<type 'Test'>
+<class '__main__.Test'>
 yay: bax
 bar
 <method Test.doAThing>

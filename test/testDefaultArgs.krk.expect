@@ -2,7 +2,7 @@ You like bacon right?
 <function test>
 You like sports right?
 1 True c None 2.71828
-one 2 test None <type 'object'>
+one 2 test None <class 'object'>
 l= []
 l*= [1]
 l= []

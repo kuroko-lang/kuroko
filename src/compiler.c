@@ -1062,6 +1062,16 @@ static KrkToken classDeclaration() {
 	namedVariable(className, 0);
 
 	consume(TOKEN_COLON, "Expected colon after class");
+
+	emitBytes(OP_DUP, 0);
+	KrkToken name_tok = syntheticToken("__name__");
+	size_t name_ind = identifierConstant(&name_tok);
+	EMIT_CONSTANT_OP(OP_GET_GLOBAL, name_ind);
+	KrkToken module_tok = syntheticToken("__module__");
+	size_t module_ind = identifierConstant(&module_tok);
+	EMIT_CONSTANT_OP(OP_SET_PROPERTY, module_ind);
+	emitByte(OP_POP);
+
 	if (match(TOKEN_EOL)) {
 		if (check(TOKEN_INDENTATION)) {
 			size_t currentIndentation = parser.current.length;

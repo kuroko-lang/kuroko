@@ -472,15 +472,9 @@ _finishArgs:
 	KrkValue result = INTEGER_VAL(0);
 
 	if (moduleAsMain) {
-		/* This isn't going to do what we want for built-in modules, but I'm not sure
-		 * what we _should_ do for them anyway... let's just leave that as a TODO;
-		 * we do let C modules know they are the __main__ now, so non-built-in
-		 * C modules can still act as scripts if they want... */
-		KrkValue module;
 		krk_push(OBJECT_VAL(krk_copyString("__main__",8)));
-		int out = !krk_loadModule(
+		int out = !krk_importModule(
 			AS_STRING(AS_LIST(argList)->values[0]),
-			&module,
 			AS_STRING(krk_peek(0)));
 		if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) {
 			krk_dumpTraceback();
@@ -494,7 +488,7 @@ _finishArgs:
 
 		/* The repl runs in the context of a top-level module so each input
 		 * line can share a globals state with the others. */
-		krk_startModule("<module>");
+		krk_startModule("__main__");
 		krk_attachNamedValue(&krk_currentThread.module->fields,"__doc__", NONE_VAL());
 
 #ifndef NO_RLINE
@@ -688,8 +682,8 @@ _finishArgs:
 					} else {
 						fprintf(stdout, formatStr, AS_CSTRING(result));
 					}
-					krk_resetStack();
 				}
+				krk_resetStack();
 				free(allData);
 			}
 
@@ -697,7 +691,8 @@ _finishArgs:
 		}
 	} else {
 		krk_startModule("__main__");
-		result = krk_runfile(argv[optind],1,"__main__",argv[optind]);
+		result = krk_runfile(argv[optind],0,"__main__",argv[optind]);
+		if (IS_NONE(result) && krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) result = INTEGER_VAL(1);
 	}
 
 	krk_freeVM();

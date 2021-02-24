@@ -115,10 +115,10 @@ static int runSimpleRepl(void) {
 				} else {
 					fprintf(stdout, formatStr, AS_CSTRING(result));
 				}
-				krk_resetStack();
 			} else if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) {
 				krk_dumpTraceback();
 			}
+			krk_resetStack();
 			free(allData);
 		}
 

@@ -134,36 +134,46 @@ update-tests:
 stress-test:
 	$(MAKE) TESTWRAPPER='valgrind' test
 
-# The install target is set up for modern multiarch Linux environments,
-# and you may need to do extra work for it to make sense on other targets.
-LIBCARCH    ?= $(shell gcc -print-multiarch)
+# Really should be up to you to set, not us...
+multiarch   ?= $(shell gcc -print-multiarch)
 prefix      ?= /usr/local
 exec_prefix ?= $(prefix)
 includedir  ?= $(prefix)/include
 bindir      ?= $(exec_prefix)/bin
-libdir      ?= $(exec_prefix)/lib/$(LIBCARCH)
+ifeq (/usr,$(prefix))
+libdir      ?= $(exec_prefix)/lib/$(multiarch)
+else
+libdir      ?= $(exec_prefix)/lib
+endif
 INSTALL = install
 INSTALL_PROGRAM=$(INSTALL)
 INSTALL_DATA=$(INSTALL) -m 644
 
 .PHONY: install
 install: all libkuroko.so ${HEADERS} $(KRKMODS) $(MODULES)
+	@echo "Creating directories..."
 	$(INSTALL) -d $(DESTDIR)$(includedir)/kuroko
 	$(INSTALL) -d $(DESTDIR)$(bindir)
 	$(INSTALL) -d $(DESTDIR)$(libdir)
 	$(INSTALL) -d $(DESTDIR)$(bindir)/../lib/kuroko
 	$(INSTALL) -d $(DESTDIR)$(bindir)/../lib/kuroko/syntax
 	$(INSTALL) -d $(DESTDIR)$(bindir)/../lib/kuroko/foo/bar
-	$(INSTALL_DATA) ${HEADERS} $(DESTDIR)$(includedir)/kuroko/
+	@echo "Installing programs..."
 	$(INSTALL_PROGRAM) kuroko $(DESTDIR)$(bindir)/kuroko
+	$(INSTALL_PROGRAM) $(TOOLS) $(DESTDIR)$(bindir)/
+	@echo "Installing libraries..."
 	$(INSTALL_PROGRAM) libkuroko.so $(DESTDIR)$(libdir)/$(SONAME)
 	ln -s -f $(SONAME) $(DESTDIR)$(libdir)/libkuroko.so
+	@echo "Installing source modules..."
 	$(INSTALL_DATA) modules/*.krk         $(DESTDIR)$(bindir)/../lib/kuroko/
 	$(INSTALL_DATA) modules/foo/*.krk     $(DESTDIR)$(bindir)/../lib/kuroko/foo/
 	$(INSTALL_DATA) modules/foo/bar/*.krk $(DESTDIR)$(bindir)/../lib/kuroko/foo/bar/
 	$(INSTALL_DATA) modules/syntax/*.krk  $(DESTDIR)$(bindir)/../lib/kuroko/syntax/
 	$(INSTALL_DATA) modules/codecs/*.krk  $(DESTDIR)$(bindir)/../lib/kuroko/codecs/
 	$(INSTALL_PROGRAM) $(MODULES)         $(DESTDIR)$(bindir)/../lib/kuroko/
+	@echo "Installing headers..."
+	$(INSTALL_DATA) ${HEADERS} $(DESTDIR)$(includedir)/kuroko/
+	@echo "You may need to run 'ldconfig'."
 
 install-strip: all
 	$(MAKE) INSTALL_PROGRAM='$(INSTALL_PROGRAM) -s' install

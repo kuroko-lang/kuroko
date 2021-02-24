@@ -421,6 +421,10 @@ KrkClass * krk_makeClass(KrkInstance * module, KrkClass ** _class, const char * 
 		krk_push(OBJECT_VAL(*_class));
 		/* Bind it */
 		krk_attachNamedObject(&module->fields,name,(KrkObj*)*_class);
+		/* Now give it a __module__ */
+		KrkValue moduleName = NONE_VAL();
+		krk_tableGet(&module->fields, OBJECT_VAL(S("__name__")), &moduleName);
+		krk_attachNamedValue(&(*_class)->fields,"__module__",moduleName);
 		krk_pop();
 	}
 	krk_pop();
@@ -1124,6 +1128,25 @@ static KrkValue krk_import_wrapper(int argc, KrkValue argv[], int hasKw) {
 	return krk_pop();
 }
 
+static KrkValue krk_module_list(int argc, KrkValue argv[], int hasKw) {
+	KrkValue moduleList = krk_list_of(0,NULL,0);
+	krk_push(moduleList);
+	for (size_t i = 0; i < vm.modules.capacity; ++i) {
+		KrkTableEntry * entry = &vm.modules.entries[i];
+		if (IS_KWARGS(entry->key)) continue;
+		krk_writeValueArray(AS_LIST(moduleList), entry->key);
+	}
+	return krk_pop();
+}
+
+static KrkValue krk_unload(int argc, KrkValue argv[], int hasKw) {
+	if (argc != 1 || !IS_STRING(argv[0])) return krk_runtimeError(vm.exceptions->typeError, "expected string");
+	if (!krk_tableDelete(&vm.modules, argv[0])) {
+		return krk_runtimeError(vm.exceptions->keyError, "Module is not loaded.");
+	}
+	return NONE_VAL();
+}
+
 void krk_initVM(int flags) {
 	vm.globalFlags = flags & 0xFF00;
 
@@ -1248,6 +1271,8 @@ void krk_initVM(int flags) {
 		"@arguments module\n\n"
 		"Imports the dot-separated module @p module as if it were imported by the @c import statement and returns the resulting module object.\n\n"
 		"@param module A string with a dot-separated package or module name";
+	krk_defineNative(&vm.system->fields, "modules", krk_module_list)->doc = "Get the list of valid names from the module table";
+	krk_defineNative(&vm.system->fields, "unload", krk_unload)->doc = "Removes a module from the module table. It is not necessarily garbage collected if other references to it exist.";
 	krk_attachNamedObject(&vm.system->fields, "module", (KrkObj*)vm.baseClasses->moduleClass);
 	krk_attachNamedObject(&vm.system->fields, "path_sep", (KrkObj*)S(PATH_SEP));
 	KrkValue module_paths = krk_list_of(0,NULL,0);
@@ -1416,8 +1441,7 @@ static int handleException() {
 			 * VM stack state. It should still be safe to execute more code after
 			 * this reset, so the repl can throw errors and keep accepting new lines.
 			 */
-			krk_dumpTraceback();
-			krk_resetStack();
+			if (!(vm.globalFlags & KRK_GLOBAL_CLEAN_OUTPUT)) krk_dumpTraceback();
 			krk_currentThread.frameCount = 0;
 		}
 		/* If exitSlot was not 0, there was an exception during a call to runNext();
@@ -1604,7 +1628,7 @@ int krk_loadModule(KrkString * path, KrkValue * moduleOut, KrkString * runAs) {
 	return 0;
 }
 
-int krk_doRecursiveModuleLoad(KrkString * name) {
+int krk_importModule(KrkString * name, KrkString * runAs) {
 	/* See if 'name' is clear to directly import */
 	int isClear = 1;
 	for (size_t i = 0; i < name->length; ++i) {
@@ -1616,7 +1640,7 @@ int krk_doRecursiveModuleLoad(KrkString * name) {
 
 	if (isClear) {
 		KrkValue base;
-		return krk_loadModule(name,&base,name);
+		return krk_loadModule(name,&base,runAs);
 	}
 
 	/**
@@ -1663,7 +1687,7 @@ int krk_doRecursiveModuleLoad(KrkString * name) {
 			krk_pop(); /* dot */
 			krk_pop(); /* remainder */
 			KrkValue current;
-			if (!krk_loadModule(AS_STRING(krk_currentThread.stack[argBase+1]), &current, AS_STRING(krk_currentThread.stack[argBase+2]))) return 0;
+			if (!krk_loadModule(AS_STRING(krk_currentThread.stack[argBase+1]), &current, runAs)) return 0;
 			krk_pop(); /* dot-sepaerated */
 			krk_pop(); /* slash-separated */
 			krk_push(current);
@@ -1698,6 +1722,10 @@ int krk_doRecursiveModuleLoad(KrkString * name) {
 			krk_currentThread.stack[argBase+2] = krk_pop();
 		}
 	} while (1);
+}
+
+int krk_doRecursiveModuleLoad(KrkString * name) {
+	return krk_importModule(name,name);
 }
 
 /**

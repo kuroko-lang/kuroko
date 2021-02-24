@@ -658,7 +658,7 @@ extern KrkInstance * krk_startModule(const char * name);
 extern KrkValue krk_dirObject(int argc, KrkValue argv[], int hasKw);
 
 /**
- * @brief Load a module by name.
+ * @brief Load a module from a file with a specified name.
  *
  * This is generally called by the import mechanisms to load a single module.
  *
@@ -670,7 +670,7 @@ extern KrkValue krk_dirObject(int argc, KrkValue argv[], int hasKw);
 extern int krk_loadModule(KrkString * path, KrkValue * moduleOut, KrkString * runAs);
 
 /**
- * @brief Load a module from a package.
+ * @brief Load a module by a dotted name.
  *
  * Given a package identifier, attempt to the load module
  * into the module table.
@@ -679,6 +679,14 @@ extern int krk_loadModule(KrkString * path, KrkValue * moduleOut, KrkString * ru
  * @return 1 if the module was loaded, 0 if an @c ImportError occurred.
  */
 extern int krk_doRecursiveModuleLoad(KrkString * name);
+
+/**
+ * @brief Load the dotted name @p name with the final element as @p runAs
+ *
+ * If @p name was imported previously with a name different from @p runAs,
+ * it will be imported again with the new name.
+ */
+extern int krk_importModule(KrkString * name, KrkString * runAs);
 
 /**
  * @brief Determine the truth of a value.
