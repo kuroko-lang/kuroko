@@ -36,9 +36,18 @@ static KrkValue krk_docOfClass(int argc, KrkValue argv[], int hasKw) {
 /* Class.__str__() (and Class.__repr__) */
 static KrkValue _class_to_str(int argc, KrkValue argv[], int hasKw) {
 	if (!IS_CLASS(argv[0])) return krk_runtimeError(vm.exceptions->typeError, "expected class");
-	size_t allocSize = sizeof("<type ''>") + AS_CLASS(argv[0])->name->length;
+
+	/* Determine if this class has a module */
+	KrkValue module = NONE_VAL();
+	krk_tableGet(&AS_CLASS(argv[0])->fields, OBJECT_VAL(S("__module__")), &module);
+
+	size_t allocSize = sizeof("<class ''>") + AS_CLASS(argv[0])->name->length;
+	if (IS_STRING(module)) allocSize += AS_STRING(module)->length + 1;
 	char * tmp = malloc(allocSize);
-	size_t l = snprintf(tmp, allocSize, "<type '%s'>", AS_CLASS(argv[0])->name->chars);
+	size_t l = snprintf(tmp, allocSize, "<class '%s%s%s'>",
+		IS_STRING(module) ? AS_CSTRING(module) : "",
+		IS_STRING(module) ? "." : "",
+		AS_CLASS(argv[0])->name->chars);
 	KrkString * out = krk_copyString(tmp,l);
 	free(tmp);
 	return OBJECT_VAL(out);

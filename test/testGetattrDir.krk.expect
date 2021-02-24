@@ -1,3 +1,3 @@
-['__init__', '__str__', '__repr__', '__getattr__', '__class__', '__dir__', '__hash__', '__func__', '_dict']
+['__init__', '__str__', '__repr__', '__getattr__', '__class__', '__dir__', '__hash__', '__func__', '__module__', '_dict']
 1
-['__class__', '__str__', '__dir__', '__repr__', '__hash__', '__func__', 'butts']
+['__class__', '__str__', '__dir__', '__repr__', '__hash__', '__func__', '__module__', 'butts']
