@@ -488,7 +488,7 @@ _finishArgs:
 
 		/* The repl runs in the context of a top-level module so each input
 		 * line can share a globals state with the others. */
-		krk_startModule("<module>");
+		krk_startModule("__main__");
 		krk_attachNamedValue(&krk_currentThread.module->fields,"__doc__", NONE_VAL());
 
 #ifndef NO_RLINE
