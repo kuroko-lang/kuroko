@@ -3,18 +3,26 @@
   <!-- Navigation index tabs for HTML output -->
   <navindex>
     <tab type="mainpage" visible="yes" title="Home"/>
+    <tab type="usergroup" visible="yes" url="@ref lang_intro" title="Language">
+      <tab type="user" url="@ref lang_intro" title="Language"/>
+      <tab type="user" url="@ref lang_compiler" title="Compilation"/>
+      <tab type="user" url="@ref lang_objects" title="Objects"/>
+      <tab type="user" url="@ref lang_expressions" title="Expressions"/>
+      <tab type="user" url="@ref lang_statements" title="Statements"/>
+    </tab>
+    <tab type="usergroup" visible="yes" url="@ref modulelist" title="Modules">
+      <tab type="user" url="@ref modulelist" title="Module List"/>
+      <tab type="user" url="@ref classindex" title="Class Index"/>
+      <tab type="user" url="@ref functionindex" title="Function Index"/>
+    </tab>
     <tab type="usergroup" visible="yes" url="@ref embedding" title="Embedding">
+      <tab type="user" url="@ref embedding" title="Embedding"/>
       <tab type="classlist" visible="yes" title="" intro=""/>
       <tab type="classindex" visible="$ALPHABETICAL_INDEX" title=""/> 
       <tab type="hierarchy" visible="yes" title="" intro=""/>
       <tab type="classmembers" visible="yes" title="" intro=""/>
       <tab type="filelist" visible="yes" title="" intro=""/>
       <tab type="globals" visible="yes" title="" intro=""/>
-    </tab>
-    <tab type="usergroup" visible="yes" title="Modules">
-      <tab type="user" url="@ref modulelist" title="Module List"/>
-      <tab type="user" url="@ref classindex" title="Class Index"/>
-      <tab type="user" url="@ref functionindex" title="Function Index"/>
     </tab>
     <!--
     <tab type="pages" visible="no" title="" intro=""/>
