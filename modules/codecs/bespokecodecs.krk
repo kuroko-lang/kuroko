@@ -375,7 +375,7 @@ class Iso2022JpIncrementalDecoder(IncrementalDecoder):
                         offset - 5, offset + 1, "no content between two G0 re-designations"))[0])
                 # Don't error upon re-designation of the same two-byte set: remember that WHATWG
                 #   treats both \[$@ and \[$B as designating the same set, but not all encoders do
-                #   necessarily (_vide_ the "jis_encoder" subclassing this class). WHATWG does not
+                #   necessarily (_vide_ the "jis_encoding" subclassing this class). WHATWG does not
                 #   require erroring on nil-effect re-designation at all.
                 self.state_set = self.escs_twobyte[i]
                 self.state_justswitched = True
@@ -685,6 +685,8 @@ class Utf8IncrementalDecoder(IncrementalDecoder):
     state = None
     remove_bom = False
     pending = b""
+    def _error_handler(error):
+        return lookup_error(self.errors)(error)
     def decode(data_in, final = False):
         # We use UTF-8 natively, so this only validates it and applies the error handler
         #   (and removes a BOM if remove_bom is set)
@@ -718,7 +720,7 @@ class Utf8IncrementalDecoder(IncrementalDecoder):
                         trail_byte_bottom = 0xA0
                         lingering_reason = "start of overlong sequence"
                     else if data[running_offset] == 0xED: 
-                        trail_byte_top = 0x9F # exclude isolated surrogates
+                        trail_byte_top = 0x9F
                         lingering_reason = "start of sequence for surrogate code point"
                     countdown = 2
                 else if 0xF0 <= data[running_offset] and data[running_offset] <= 0xF4:
@@ -752,7 +754,7 @@ class Utf8IncrementalDecoder(IncrementalDecoder):
                 out.add(bytes(dlist[first_offset:second_offset]).decode())
                 let error = UnicodeDecodeError(self.name, data, second_offset, 
                             second_offset + bolster, reason)
-                let errorret = lookup_error(self.errors)(error)
+                let errorret = self._error_handler(error)
                 out.add(errorret[0])
                 running_offset = errorret[1]
                 if running_offset < 0:
@@ -779,6 +781,80 @@ class Utf8IncrementalDecoder(IncrementalDecoder):
         self.pending = state[0]
         self.state = state[1]
 
+register_kuroko_codec(["unicode-1-1-utf-8", "unicode11utf8", "unicode20utf8", "utf-8", "utf8", 
+                       "x-unicode20utf8", "u8", "utf", "cp65001", "utf8-ucs4", "utf8mb4",
+                       "al32utf8"],
+    Utf8IncrementalEncoder, Utf8IncrementalDecoder)
+
+class Cesu8IncrementalEncoder(IncrementalEncoder):
+    name = "cesu-8"
+    html5name = None
+    # -1: expecting BOM
+    #  0: Normal
+    state = None
+    include_bom = False
+    def encode(string, final = False):
+        let out = ByteCatenator()
+        if self.include_bom and self.state == -1:
+            out.add("\uFEFF".encode())
+        self.state = 0
+        let first_offset = 0
+        let second_offset = 0
+        while second_offset < len(string):
+            let codepoint = ord(string[second_offset])
+            if 0x10000 <= codepoint and codepoint <= 0x10FFFF:
+                out.add(string[first_offset:second_offset].encode())
+                let bits_remaining = codepoint
+                let sixth = 0x80 | (bits_remaining & 0x3F)
+                bits_remaining >>= 6
+                let fifth = 0xB0 | (bits_remaining & 0xF)
+                bits_remaining >>= 4
+                let third = 0x80 | (bits_remaining & 0x3F)
+                bits_remaining >>= 6
+                let second = 0xA0 | bits_remaining
+                out.add(bytes([0xED, second, third, 0xED, fifth, sixth]))
+                second_offset += 1
+                first_offset = second_offset
+            else:
+                second_offset += 1
+        out.add(string[first_offset:second_offset].encode())
+        return out.getvalue()
+    def reset():
+        self.state = -1
+    def getstate():
+        return self.state
+    def setstate(state):
+        self.state = state
+
+class Cesu8IncrementalDecoder(Utf8IncrementalDecoder):
+    name = "cesu-8"
+    html5name = None
+    def _error_handler(error):
+        # Note: not error.end (which is set after noticing the CESU seq, not at the end of it).
+        let after_cesu = error.start + 6
+        let maybe_cesu = list(error.object)[error.start:after_cesu]
+        if len(maybe_cesu) == 6 and (
+                    maybe_cesu[0] == 0xED and 0xA0 <= maybe_cesu[1] and maybe_cesu[1] <= 0xAF
+                ) and (
+                    maybe_cesu[3] == 0xED and 0xB0 <= maybe_cesu[4] and maybe_cesu[4] <= 0xBF):
+            let codepoint = 0
+            codepoint |= maybe_cesu[1] & 0xF
+            codepoint <<= 6
+            codepoint |= maybe_cesu[2] & 0x3F
+            codepoint <<= 4
+            codepoint |= maybe_cesu[4] & 0xF
+            codepoint <<= 6
+            codepoint |= maybe_cesu[5] & 0x3F
+            return (chr(codepoint), after_cesu)
+        elif len(maybe_cesu) >= 2 and maybe_cesu[0] == 0xC0 and maybe_cesu[1] == 0x80:
+            # mUTF-8 is a fairly common CESU-8 variant, using the two-byte code for embedded NUL
+            return ("\x00", error.start + 2)
+        else:
+            return lookup_error(self.errors)(error)
+
+register_kuroko_codec(["utf8-ucs2", "utf8mb3", "cesu-8", "cesu8"],
+    Cesu8IncrementalEncoder, Cesu8IncrementalDecoder)
+
 class Utf8SigIncrementalEncoder(Utf8IncrementalEncoder):
     name = "utf-8-sig"
     html5name = None
@@ -789,9 +865,6 @@ class Utf8SigIncrementalDecoder(Utf8IncrementalDecoder):
     html5name = None
     remove_bom = True
 
-register_kuroko_codec(["unicode-1-1-utf-8", "unicode11utf8", "unicode20utf8", "utf-8", "utf8", 
-                       "x-unicode20utf8", "u8", "utf", "cp65001", "utf8-ucs4", "utf8mb4"],
-    Utf8IncrementalEncoder, Utf8IncrementalDecoder)
 register_kuroko_codec(["utf-8-sig", "utf-8-bom"], Utf8SigIncrementalEncoder, Utf8SigIncrementalDecoder)
 
 
