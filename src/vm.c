@@ -1124,6 +1124,25 @@ static KrkValue krk_import_wrapper(int argc, KrkValue argv[], int hasKw) {
 	return krk_pop();
 }
 
+static KrkValue krk_module_list(int argc, KrkValue argv[], int hasKw) {
+	KrkValue moduleList = krk_list_of(0,NULL,0);
+	krk_push(moduleList);
+	for (size_t i = 0; i < vm.modules.capacity; ++i) {
+		KrkTableEntry * entry = &vm.modules.entries[i];
+		if (IS_KWARGS(entry->key)) continue;
+		krk_writeValueArray(AS_LIST(moduleList), entry->key);
+	}
+	return krk_pop();
+}
+
+static KrkValue krk_unload(int argc, KrkValue argv[], int hasKw) {
+	if (argc != 1 || !IS_STRING(argv[0])) return krk_runtimeError(vm.exceptions->typeError, "expected string");
+	if (!krk_tableDelete(&vm.modules, argv[0])) {
+		return krk_runtimeError(vm.exceptions->keyError, "Module is not loaded.");
+	}
+	return NONE_VAL();
+}
+
 void krk_initVM(int flags) {
 	vm.globalFlags = flags & 0xFF00;
 
@@ -1248,6 +1267,8 @@ void krk_initVM(int flags) {
 		"@arguments module\n\n"
 		"Imports the dot-separated module @p module as if it were imported by the @c import statement and returns the resulting module object.\n\n"
 		"@param module A string with a dot-separated package or module name";
+	krk_defineNative(&vm.system->fields, "modules", krk_module_list)->doc = "Get the list of valid names from the module table";
+	krk_defineNative(&vm.system->fields, "unload", krk_unload)->doc = "Removes a module from the module table. It is not necessarily garbage collected if other references to it exist.";
 	krk_attachNamedObject(&vm.system->fields, "module", (KrkObj*)vm.baseClasses->moduleClass);
 	krk_attachNamedObject(&vm.system->fields, "path_sep", (KrkObj*)S(PATH_SEP));
 	KrkValue module_paths = krk_list_of(0,NULL,0);
