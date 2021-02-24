@@ -126,14 +126,17 @@ update-tests:
 stress-test:
 	$(MAKE) TESTWRAPPER='valgrind' test
 
-# The install target is set up for modern multiarch Linux environments,
-# and you may need to do extra work for it to make sense on other targets.
-LIBCARCH    ?= $(shell gcc -print-multiarch)
+# Really should be up to you to set, not us...
+multiarch   ?= $(shell gcc -print-multiarch)
 prefix      ?= /usr/local
 exec_prefix ?= $(prefix)
 includedir  ?= $(prefix)/include
 bindir      ?= $(exec_prefix)/bin
-libdir      ?= $(exec_prefix)/lib/$(LIBCARCH)
+ifeq (/usr,$(prefix))
+libdir      ?= $(exec_prefix)/lib/$(multiarch)
+else
+libdir      ?= $(exec_prefix)/lib
+endif
 INSTALL = install
 INSTALL_PROGRAM=$(INSTALL)
 INSTALL_DATA=$(INSTALL) -m 644
@@ -155,6 +158,7 @@ install: kuroko libkuroko.so ${HEADERS} $(KRKMODS) $(MODULES)
 	$(INSTALL_DATA) modules/foo/bar/*.krk $(DESTDIR)$(bindir)/../lib/kuroko/foo/bar/
 	$(INSTALL_DATA) modules/syntax/*.krk  $(DESTDIR)$(bindir)/../lib/kuroko/syntax/
 	$(INSTALL_PROGRAM) $(MODULES)         $(DESTDIR)$(bindir)/../lib/kuroko/
+	@echo "You may need to run 'ldconfig'."
 
 install-strip: all
 	$(MAKE) INSTALL_PROGRAM='$(INSTALL_PROGRAM) -s' install
