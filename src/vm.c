@@ -421,6 +421,10 @@ KrkClass * krk_makeClass(KrkInstance * module, KrkClass ** _class, const char * 
 		krk_push(OBJECT_VAL(*_class));
 		/* Bind it */
 		krk_attachNamedObject(&module->fields,name,(KrkObj*)*_class);
+		/* Now give it a __module__ */
+		KrkValue moduleName = NONE_VAL();
+		krk_tableGet(&module->fields, OBJECT_VAL(S("__name__")), &moduleName);
+		krk_attachNamedValue(&(*_class)->fields,"__module__",moduleName);
 		krk_pop();
 	}
 	krk_pop();

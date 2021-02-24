@@ -41,12 +41,14 @@ static KrkValue _class_to_str(int argc, KrkValue argv[], int hasKw) {
 	KrkValue module = NONE_VAL();
 	krk_tableGet(&AS_CLASS(argv[0])->fields, OBJECT_VAL(S("__module__")), &module);
 
+	int includeModule = !(IS_NONE(module) || (IS_STRING(module) && AS_STRING(module) == S("__builtins__")));
+
 	size_t allocSize = sizeof("<class ''>") + AS_CLASS(argv[0])->name->length;
 	if (IS_STRING(module)) allocSize += AS_STRING(module)->length + 1;
 	char * tmp = malloc(allocSize);
 	size_t l = snprintf(tmp, allocSize, "<class '%s%s%s'>",
-		IS_STRING(module) ? AS_CSTRING(module) : "",
-		IS_STRING(module) ? "." : "",
+		includeModule ? AS_CSTRING(module) : "",
+		includeModule ? "." : "",
 		AS_CLASS(argv[0])->name->chars);
 	KrkString * out = krk_copyString(tmp,l);
 	free(tmp);
