@@ -28,6 +28,7 @@
 #include "vm.h"
 #include "memory.h"
 #include "scanner.h"
+#include "compiler.h"
 
 #define PROMPT_MAIN  ">>> "
 #define PROMPT_BLOCK "  > "
@@ -326,8 +327,6 @@ static int runString(char * argv[], int flags, char * string) {
 	return 0;
 }
 
-/* This isn't normally exposed. */
-extern KrkFunction * krk_compile(const char * src, int newScope, char * fileName);
 static int compileFile(char * argv[], int flags, char * fileName) {
 	findInterpreter(argv);
 	krk_initVM(flags);
@@ -352,7 +351,7 @@ static int compileFile(char * argv[], int flags, char * fileName) {
 	krk_startModule("__main__");
 
 	/* Call the compiler directly. */
-	KrkFunction * func = krk_compile(buf, 0, fileName);
+	KrkFunction * func = krk_compile(buf, fileName);
 
 	/* See if there was an exception. */
 	if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) {
