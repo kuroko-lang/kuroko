@@ -1,0 +1,20 @@
+class TopLevel():
+    pass
+
+class TopOfNested():
+    def func(self):
+        class Inner():
+            pass
+        return Inner
+
+def topLevelFunc():
+    class OtherInner():
+        pass
+    return OtherInner
+
+print(TopLevel.__qualname__)
+print(TopOfNested.__qualname__)
+print(TopOfNested().func().__qualname__)
+print(TopOfNested().func())
+print(topLevelFunc().__qualname__)
+print(topLevelFunc())

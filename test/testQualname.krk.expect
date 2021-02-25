@@ -1,0 +1,6 @@
+TopLevel
+TopOfNested
+TopOfNested.func.<locals>.Inner
+<class '__main__.TopOfNested.func.<locals>.Inner'>
+topLevelFunc.<locals>.OtherInner
+<class '__main__.topLevelFunc.<locals>.OtherInner'>
