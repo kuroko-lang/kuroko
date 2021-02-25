@@ -107,7 +107,7 @@ class Cesu8IncrementalEncoder(IncrementalEncoder):
             let codepoint = ord(string[second_offset])
             if 0x10000 <= codepoint and codepoint <= 0x10FFFF:
                 out.add(string[first_offset:second_offset].encode())
-                let bits_remaining = codepoint
+                let bits_remaining = codepoint - 0x10000
                 let sixth = 0x80 | (bits_remaining & 0x3F)
                 bits_remaining >>= 6
                 let fifth = 0xB0 | (bits_remaining & 0xF)
@@ -148,6 +148,7 @@ class Cesu8IncrementalDecoder(Utf8IncrementalDecoder):
             codepoint |= maybe_cesu[4] & 0xF
             codepoint <<= 6
             codepoint |= maybe_cesu[5] & 0x3F
+            codepoint += 0x10000
             return (chr(codepoint), after_cesu)
         elif len(maybe_cesu) >= 2 and maybe_cesu[0] == 0xC0 and maybe_cesu[1] == 0x80:
             # mUTF-8 is a fairly common CESU-8 variant, using the two-byte code for embedded NUL
