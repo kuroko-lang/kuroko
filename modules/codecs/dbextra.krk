@@ -9,7 +9,12 @@ from codecs.dbdata import encode_jis7, decode_jis7, decode_jis7katakana, XEucJpI
 from codecs.bespokecodecs import Iso2022JpIncrementalEncoder, Iso2022JpIncrementalDecoder, Utf8IncrementalDecoder
 from collections import xraydict
 
-let cp950_no_eudc_encoding_map = xraydict(Big5EtenIncrementalEncoder.encoding_map, {},
+let cp950_no_eudc_encoding_map = xraydict(Big5EtenIncrementalEncoder.encoding_map, {
+        0x2550: (0xA2, 0xA4),
+        0x255E: (0xA2, 0xA5),
+        0x256A: (0xA2, 0xA6),
+        0x2561: (0xA2, 0xA7),
+    },
     [i for i in Big5EtenIncrementalEncoder.encoding_map.keys()
         if Big5EtenIncrementalEncoder.encoding_map[i][0] in (0xC7, 0xC8) or (
             Big5EtenIncrementalEncoder.encoding_map[i][0] == 0xC6 and
