@@ -5,7 +5,7 @@ such, none of the codecs in this module should be used in HTML.
 
 from codecs.extradata import encode_lat1supp, decode_lat1supp, encode_greksupp, decode_greksupp, encode_jis78, decode_jis78, encode_jis90p2, decode_jis90p2, encode_jis00, decode_jis00, encode_jis00p2, decode_jis00p2, encode_jis04, decode_jis04, encode_jis7katakana, encode_gb7, decode_gb7, encode_ksc7, decode_ksc7, encode_nbyte_ebcdic, decode_nbyte_ebcdic, encode_johab_ascii, decode_johab_ascii, encode_johab_ebcdic, decode_johab_ebcdic, encode_euc90, encode_euc04, decode_euc04, encode_sjis04, decode_sjis04, encode_big5_nonetenkana, decode_big5_nonetenkana
 from codecs.infrastructure import register_kuroko_codec, ByteCatenator, StringCatenator, UnicodeEncodeError, UnicodeDecodeError, lookup_error, lookup, BaseEbcdicIncrementalEncoder, BaseEbcdicIncrementalDecoder, AsciiIncrementalEncoder, AsciiIncrementalDecoder, IncrementalEncoder, IncrementalDecoder
-from codecs.dbdata import encode_jis7, decode_jis7, decode_jis7katakana, XEucJpIncrementalDecoder, Big5EtenIncrementalEncoder, Big5HkscsIncrementalDecoder
+from codecs.dbdata import encode_jis7, decode_jis7, decode_jis7katakana, XEucJpIncrementalDecoder, Big5EtenIncrementalEncoder, Big5HkscsIncrementalDecoder, encode_gbk, decode_gbk
 from codecs.bespokecodecs import Iso2022JpIncrementalEncoder, Iso2022JpIncrementalDecoder, Utf8IncrementalDecoder
 from collections import xraydict
 
@@ -87,6 +87,76 @@ class XMacChineseTradIncrementalDecoder(AsciiIncrementalDecoder):
 
 register_kuroko_codec(["x-mac-chinesetrad", "x-mac-trad-chinese"],
     XMacChineseTradIncrementalEncoder, XMacChineseTradIncrementalDecoder)
+
+
+let encode_gb8 = xraydict(encode_gbk, {
+        0xFE10: (0xA6, 0xD9),
+        0xFE12: (0xA6, 0xDA),
+        0xFE11: (0xA6, 0xDB),
+        0xFE13: (0xA6, 0xDC),
+        0xFE14: (0xA6, 0xDD),
+        0xFE15: (0xA6, 0xDE),
+        0xFE16: (0xA6, 0xDF),
+        0xFE17: (0xA6, 0xEC),
+        0xFE18: (0xA6, 0xED),
+        0xFE19: (0xA6, 0xF3),
+    }, [i for i in encode_gbk.keys() if 
+        len(encode_gbk[i]) != 2 or
+        (not (0xA1 <= encode_gbk[i][0] and encode_gbk[i][0] <= 0xFC)) or
+        encode_gbk[i][1] < 0xA1])
+
+let decode_gb8 = xraydict(decode_gbk, {
+        (0xA6, 0xD9): 0xFE10,
+        (0xA6, 0xDA): 0xFE12,
+        (0xA6, 0xDB): 0xFE11,
+        (0xA6, 0xDC): 0xFE13,
+        (0xA6, 0xDD): 0xFE14,
+        (0xA6, 0xDE): 0xFE15,
+        (0xA6, 0xDF): 0xFE16,
+        (0xA6, 0xEC): 0xFE17,
+        (0xA6, 0xED): 0xFE18,
+        (0xA6, 0xF3): 0xFE19,
+    })
+
+class XMacChineseSimpIncrementalEncoder(AsciiIncrementalEncoder):
+    name = "x-mac-chinesesimp"
+    html5name = None
+    encoding_map = xraydict(encode_gb8, {
+        0x301C: (0xA1, 0xAB),
+        0x22EF: (0xA1, 0xAD),
+        0xA2: (0xA1, 0xE9),
+        0xA3: (0xA1, 0xEA),
+        0x203E: (0xA3, 0xFE),
+        0xF880: 0x81,
+        0xF881: 0x82,
+        0xA0: 0xA0,
+        0xA9: 0xFD,
+        0x2122: 0xFE,
+        0x2026: 0xFF,
+    })
+
+class XMacChineseSimpIncrementalDecoder(AsciiIncrementalDecoder):
+    name = "x-mac-chinesesimp"
+    html5name = None
+    decoding_map = xraydict(decode_gb8, {
+        (0xA1, 0xAB): 0x301C,
+        (0xA1, 0xAD): 0x22EF,
+        (0xA1, 0xE9): 0xA2,
+        (0xA1, 0xEA): 0xA3,
+        (0xA3, 0xFE): 0x203E,
+        0x80: 0xFC,
+        0x81: 0xF880,
+        0x82: 0xF881,
+        0xA0: 0xA0,
+        0xFD: 0xA9,
+        0xFE: 0x2122,
+        0xFF: 0x2026,
+    })
+    dbrange = tupleOf(*range(0xA1, 0xFC + 1))
+    trailrange = tupleOf(*range(0xA1, 0xFE + 1))
+
+register_kuroko_codec(["x-mac-chinesesimp", "x-mac-simp-chinese", "euc-cn", "euccn", "eucgb2312-cn"],
+    XMacChineseSimpIncrementalEncoder, XMacChineseSimpIncrementalDecoder)
 
 
 class Cesu8IncrementalEncoder(IncrementalEncoder):

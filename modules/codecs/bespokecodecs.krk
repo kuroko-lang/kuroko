@@ -156,7 +156,7 @@ class Gb18030IncrementalDecoder(IncrementalDecoder):
 register_kuroko_codec(["gb18030", "gb18030_2000"], Gb18030IncrementalEncoder, Gb18030IncrementalDecoder)
 register_kuroko_codec(
     ["chinese", "csgb2312", "csiso58gb231280", "gb2312", "gb_2312", "gb_2312-80", "936", "cp936", "ms936",
-     "gbk", "iso-ir-58", "x-gbk", "euc_cn", "euccn", "eucgb2312_cn", "gb2312_1980", "gb2312_80"], 
+     "gbk", "iso-ir-58", "x-gbk", "gb2312_1980", "gb2312_80"], 
     GbkIncrementalEncoder, Gb18030IncrementalDecoder)
 
 class Iso2022JpIncrementalEncoder(IncrementalEncoder):
