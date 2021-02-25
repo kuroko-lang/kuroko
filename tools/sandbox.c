@@ -16,7 +16,7 @@ int main(int argc, char * argv[]) {
 	krk_tableDelete(&vm.builtins->fields, OBJECT_VAL(S("print")));
 
 	/* Set up our module context. */
-	krk_startModule("<module>");
+	krk_startModule("__main__");
 
 	/* Attach a docstring so that we can interpret strings */
 	krk_attachNamedValue(&krk_currentThread.module->fields,"__doc__", NONE_VAL());
@@ -24,7 +24,7 @@ int main(int argc, char * argv[]) {
 	int retval = 0;
 
 	if (argc > 1) {
-		KrkValue result = krk_interpret(argv[1], 0, "<stdin>","<stdin>");
+		KrkValue result = krk_interpret(argv[1], "<stdin>");
 		if (!IS_NONE(result)) {
 			if (IS_INTEGER(result)) {
 				retval = AS_INTEGER(result);

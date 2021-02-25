@@ -95,6 +95,7 @@ typedef enum {
 	TYPE_STATIC,
 	TYPE_PROPERTY,
 	TYPE_CLASS,
+	TYPE_CLASSMETHOD,
 } FunctionType;
 
 typedef struct Compiler {
@@ -307,7 +308,7 @@ static void emitReturn() {
 	} else if (current->type == TYPE_MODULE) {
 		/* Un-pop the last stack value */
 		emitBytes(OP_GET_LOCAL, 0);
-	} else if (current->type != TYPE_LAMBDA) {
+	} else if (current->type != TYPE_LAMBDA && current->type != TYPE_CLASS) {
 		emitByte(OP_NONE);
 	}
 	emitByte(OP_RETURN);
@@ -1010,13 +1011,52 @@ static void method(size_t blockWidth) {
 	}
 }
 
+#define ATTACH_PROPERTY(propName,how,propValue) do { \
+	emitBytes(OP_DUP, 0); \
+	KrkToken val_tok = syntheticToken(propValue); \
+	size_t val_ind = identifierConstant(&val_tok); \
+	EMIT_CONSTANT_OP(how, val_ind); \
+	KrkToken name_tok = syntheticToken(propName); \
+	size_t name_ind = identifierConstant(&name_tok); \
+	EMIT_CONSTANT_OP(OP_SET_PROPERTY, name_ind); \
+	emitByte(OP_POP); \
+} while (0)
+
+static char * calculateQualName(void) {
+	static char space[1024]; /* We'll just truncate if we need to */
+	space[1023] = '\0';
+	char * writer = &space[1023];
+
+#define WRITE(s) do { \
+	size_t len = strlen(s); \
+	if (writer - len < space) break; \
+	writer -= len; \
+	memcpy(writer, s, len); \
+} while (0)
+
+	WRITE(current->function->name->chars);
+	/* Go up by _compiler_, ignore class compilers as we don't need them. */
+	Compiler * ptr = current->enclosing;
+	while (ptr->enclosing) { /* Ignores the top level module */
+		if (ptr->type != TYPE_CLASS) {
+			/* We must be the locals of a function. */
+			WRITE("<locals>.");
+		}
+		WRITE(".");
+		WRITE(ptr->function->name->chars);
+		ptr = ptr->enclosing;
+	}
+
+	return writer;
+}
+
 static KrkToken classDeclaration() {
 	size_t blockWidth = (parser.previous.type == TOKEN_INDENTATION) ? parser.previous.length : 0;
 	advance(); /* Collect the `class` */
 
 	consume(TOKEN_IDENTIFIER, "Expected class name.");
 	Compiler subcompiler;
-	initCompiler(&subcompiler, TYPE_LAMBDA);
+	initCompiler(&subcompiler, TYPE_CLASS);
 	subcompiler.function->chunk.filename = subcompiler.enclosing->function->chunk.filename;
 
 	beginScope();
@@ -1063,14 +1103,10 @@ static KrkToken classDeclaration() {
 
 	consume(TOKEN_COLON, "Expected colon after class");
 
-	emitBytes(OP_DUP, 0);
-	KrkToken name_tok = syntheticToken("__name__");
-	size_t name_ind = identifierConstant(&name_tok);
-	EMIT_CONSTANT_OP(OP_GET_GLOBAL, name_ind);
-	KrkToken module_tok = syntheticToken("__module__");
-	size_t module_ind = identifierConstant(&module_tok);
-	EMIT_CONSTANT_OP(OP_SET_PROPERTY, module_ind);
-	emitByte(OP_POP);
+	/* Set Class.__module__ to the value of __name__, which is the string
+	 * name of the current module. */
+	ATTACH_PROPERTY("__module__", OP_GET_GLOBAL, "__name__");
+	ATTACH_PROPERTY("__qualname__", OP_CONSTANT, calculateQualName());
 
 	if (match(TOKEN_EOL)) {
 		if (check(TOKEN_INDENTATION)) {
@@ -1186,7 +1222,7 @@ static KrkToken decorator(size_t level, FunctionType type) {
 			return funcName;
 		}
 		advance();
-		type = TYPE_CLASS;
+		type = TYPE_CLASSMETHOD;
 	} else {
 		/* Collect an identifier */
 		expression();
@@ -1234,7 +1270,7 @@ static KrkToken decorator(size_t level, FunctionType type) {
 			size_t ind = identifierConstant(&funcName);
 			EMIT_CONSTANT_OP(OP_SET_PROPERTY, ind);
 			emitByte(OP_POP);
-		} else if (type == TYPE_CLASS) {
+		} else if (type == TYPE_CLASSMETHOD) {
 			emitByte(OP_CREATE_CLASSMETHOD);
 			size_t ind = identifierConstant(&funcName);
 			EMIT_CONSTANT_OP(OP_METHOD, ind);
@@ -2626,15 +2662,14 @@ static ParseRule * getRule(KrkTokenType type) {
 static volatile int _compilerLock = 0;
 #endif
 
-KrkFunction * krk_compile(const char * src, int newScope, char * fileName) {
+KrkFunction * krk_compile(const char * src, char * fileName) {
 	_obtain_lock(_compilerLock);
 
 	krk_initScanner(src);
 	Compiler compiler;
 	initCompiler(&compiler, TYPE_MODULE);
 	compiler.function->chunk.filename = krk_copyString(fileName, strlen(fileName));
-
-	if (newScope) beginScope();
+	compiler.function->name = krk_copyString("<module>",8);
 
 	parser.hadError = 0;
 	parser.panicMode = 0;

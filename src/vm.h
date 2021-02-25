@@ -282,7 +282,7 @@ extern void krk_freeVM(void);
 /**
  * @brief Reset the current thread's stack state to the top level.
  *
- * In a repl, this can be called before or after each iteration to clean up any
+ * In a repl, this should be called before or after each iteration to clean up any
  * remnant stack entries from an uncaught exception. It should not be called
  * during normal execution by C extensions. Values on the stack may be lost
  * to garbage collection after a call to @c krk_resetStack .
@@ -296,16 +296,14 @@ extern void krk_resetStack(void);
  * of commands from a REPL or when executing a file.
  *
  * @param src      Source code to compile and run.
- * @param newScope Whether this code should be interpreted in the context of a new module.
- * @param fromName Name of the function or module being interpreted.
  * @param fromFile Path to the source file, or a representative string like "<stdin>".
- * @return When newScope is non-zero, an object representing the globals of the new scope;
- *         otherwise, the returned result of the execution of this code. If an uncaught
+ * @return The value of the executed code, which is either the value of an explicit 'return'
+ *         statement, or the last expression value from an executed statement.  If an uncaught
  *         exception occurred, this will be @c None and @c krk_currentThread.flags should
  *         indicate @c KRK_THREAD_HAS_EXCEPTION and @c krk_currentThread.currentException
  *         should contain the raised exception value.
  */
-extern KrkValue krk_interpret(const char * src, int newScope, char * fromName, char * fromFile);
+extern KrkValue krk_interpret(const char * src, char * fromFile);
 
 /**
  * @brief Load and run a source file and return when execution completes.
@@ -315,13 +313,11 @@ extern KrkValue krk_interpret(const char * src, int newScope, char * fromName, c
  * of the current module state (eg. as if they were lines entered on a repl)
  *
  * @param fileName  Path to the source file to read and execute.
- * @param newScope  Whether this file should be run in the context of a new module.
- * @param fromName  Value to assign to @c \__name__
  * @param fromFile  Value to assign to @c \__file__
  * @return As with @c krk_interpret, an object representing the newly created module,
  *         or the final return value of the VM execution.
  */
-extern KrkValue krk_runfile(const char * fileName, int newScope, char * fromName, char * fromFile);
+extern KrkValue krk_runfile(const char * fileName, char * fromFile);
 
 /**
  * @brief Load and run a file as a module.
@@ -331,11 +327,10 @@ extern KrkValue krk_runfile(const char * fileName, int newScope, char * fromName
  * a new module context and is used internally by the import mechanism.
  *
  * @param fileName Path to the source file to read and execute.
- * @param fromName Value to assign to @c \__name__
  * @param fromFile Value to assign to @c \__file__
  * @return The object representing the module, or None if execution of the file failed.
  */
-extern KrkValue krk_callfile(const char * fileName, char * fromName, char * fromFile);
+extern KrkValue krk_callfile(const char * fileName, char * fromFile);
 
 /**
  * @brief Push a stack value.
@@ -508,10 +503,10 @@ extern KrkClass * krk_getType(KrkValue value);
  * a subtype of @p type. As this chains through the inheritence tree, the
  * more deeply subclassed @p obj is, the longer it may take to determine
  * if it is a subtype of @p type. All types should eventually be subtypes
- * of the @c object type, so this condition should not be checked. For
+ * of the @ref object type, so this condition should not be checked. For
  * some types, convenience macros are available. If you need to check if
- * @p obj is a specific type, exclusive of subtypes, compare @c krk_getType
- * instead of using this function.
+ * @p obj is a specific type, exclusive of subtypes, look at
+ * @c krk_getType() instead of using this function.
  *
  * @param obj Value to examine.
  * @param type Class object to test for membership of.
@@ -527,7 +522,7 @@ extern int krk_isInstanceOf(KrkValue obj, KrkClass * type);
  * If @p name is not a valid method, the binding fails.
  * If @p name is a valid method, the method will be retrieved and
  * bound to the instance on the top of the stack, replacing it
- * with a @c BoundMethod object.
+ * with a @ref BoundMethod object.
  *
  * @param _class Class object to resolve methods from.
  * @param name   String object with the name of the method to resolve.
@@ -629,7 +624,7 @@ extern void krk_finalizeClass(KrkClass * _class);
  * @brief If there is an active exception, print a traceback to @c stderr
  *
  * This function is exposed as a convenience for repl developers. Normally,
- * the VM will call @c krk_dumpTraceback itself if an exception is unhandled and no
+ * the VM will call @c krk_dumpTraceback() itself if an exception is unhandled and no
  * exit trigger is current set. The traceback is obtained from the exception
  * object. If the exception object does not have a traceback, only the
  * exception itself will be printed. The traceback printer will attempt to
@@ -660,23 +655,25 @@ extern KrkValue krk_dirObject(int argc, KrkValue argv[], int hasKw);
 /**
  * @brief Load a module from a file with a specified name.
  *
- * This is generally called by the import mechanisms to load a single module.
+ * This is generally called by the import mechanisms to load a single module and
+ * will establish a module context internally to load the new module into, return
+ * a KrkValue representing that module context through the @p moduleOut parameter.
  *
  * @param path      Dotted path of the module, used for file lookup.
  * @param moduleOut Receives a value with the module object.
  * @param runAs     Name to attach to @c \__name__ for this module, different from @p path
- * @return 1 if the module was loaded, 0 if an @c ImportError occurred.
+ * @return 1 if the module was loaded, 0 if an @ref ImportError occurred.
  */
 extern int krk_loadModule(KrkString * path, KrkValue * moduleOut, KrkString * runAs);
 
 /**
  * @brief Load a module by a dotted name.
  *
- * Given a package identifier, attempt to the load module
- * into the module table.
+ * Given a package identifier, attempt to the load module into the module table.
+ * This is a thin wrapper around `krk_importModule()`.
  *
  * @param name String object of the dot-separated package path to import.
- * @return 1 if the module was loaded, 0 if an @c ImportError occurred.
+ * @return 1 if the module was loaded, 0 if an @ref ImportError occurred.
  */
 extern int krk_doRecursiveModuleLoad(KrkString * name);
 
@@ -684,7 +681,13 @@ extern int krk_doRecursiveModuleLoad(KrkString * name);
  * @brief Load the dotted name @p name with the final element as @p runAs
  *
  * If @p name was imported previously with a name different from @p runAs,
- * it will be imported again with the new name.
+ * it will be imported again with the new name; this may result in
+ * unexpected behaviour. Generally, @p runAs is used to specify that the
+ * module should be run as `__main__`.
+ *
+ * @param name Dotted path name of a module.
+ * @param runAs Alternative name to attach to @c \__name__ for the module.
+ * @return 1 on success, 0 on failure.
  */
 extern int krk_importModule(KrkString * name, KrkString * runAs);
 
@@ -700,6 +703,21 @@ extern int krk_importModule(KrkString * name, KrkString * runAs);
  * @return 1 if falsey, 0 if truthy
  */
 extern int krk_isFalsey(KrkValue value);
+
+/**
+ * @brief Obtain a property of an object by name.
+ * @memberof KrkValue
+ *
+ * This is a convenience function that works in essentially the
+ * same way as the OP_GET_PROPERTY instruction.
+ *
+ * @param value Value to examine.
+ * @param name  C-string of the property name to query.
+ * @return The requested property, or None with an @ref AttributeError
+ *         exception set in the current thread if the attribute was
+ *         not found.
+ */
+extern KrkValue krk_valueGetAttribute(KrkValue value, char * name);
 
 /**
  * @brief Concatenate two strings.
@@ -751,4 +769,3 @@ extern KrkValue krk_operator_lt(KrkValue,KrkValue);
 extern KrkValue krk_operator_gt(KrkValue,KrkValue);
 
 
-extern KrkValue krk_valueGetAttribute(KrkValue value, char * name);
