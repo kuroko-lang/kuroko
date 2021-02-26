@@ -5,6 +5,8 @@
 #include <unistd.h>
 #include <signal.h>
 #include <fcntl.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 #ifndef _WIN32
 #include <sys/utsname.h>
 #else
@@ -20,6 +22,7 @@
 extern char ** environ;
 
 KrkClass * OSError = NULL;
+KrkClass * stat_result = NULL;
 
 #define DO_KEY(key) krk_attachNamedObject(AS_DICT(result), #key, (KrkObj*)krk_copyString(buf. key, strlen(buf .key)))
 #define S_KEY(key,val) krk_attachNamedObject(AS_DICT(result), #key, (KrkObj*)val);
@@ -301,6 +304,24 @@ KRK_FUNC(close,{
 	}
 })
 
+#ifdef _WIN32
+#define mkdir(p,m) mkdir(p); (void)m
+#endif
+KRK_FUNC(mkdir,{
+	FUNCTION_TAKES_AT_LEAST(1);
+	FUNCTION_TAKES_AT_MOST(2);
+	CHECK_ARG(0,str,KrkString*,path);
+	int mode = 0777;
+	if (argc > 1) {
+		CHECK_ARG(1,int,krk_integer_type,_mode);
+		mode = _mode;
+	}
+	int result = mkdir(path->chars, mode);
+	if (result == -1) {
+		return krk_runtimeError(OSError, strerror(errno));
+	}
+})
+
 KRK_FUNC(read,{
 	FUNCTION_TAKES_EXACTLY(2);
 	CHECK_ARG(0,int,krk_integer_type,fd);
@@ -483,6 +504,119 @@ KRK_FUNC(execvp,{
 	return krk_runtimeError(OSError, "Expected to not return from exec, but did.");
 })
 
+#define SET(thing) krk_attachNamedValue(&out->fields, #thing, INTEGER_VAL(buf. thing))
+#ifdef _WIN32
+#define STAT_STRUCT struct __stat64
+#define stat _stat64
+#else
+#define STAT_STRUCT struct stat
+#endif
+KRK_FUNC(stat,{
+	FUNCTION_TAKES_EXACTLY(1);
+	CHECK_ARG(0,str,KrkString*,path);
+	STAT_STRUCT buf;
+	int result = stat(path->chars, &buf);
+	if (result == -1) {
+		return krk_runtimeError(OSError, strerror(errno));
+	}
+	KrkInstance * out = krk_newInstance(stat_result);
+	krk_push(OBJECT_VAL(out));
+
+	SET(st_dev);
+	SET(st_ino);
+	SET(st_mode);
+	SET(st_nlink);
+	SET(st_uid);
+	SET(st_gid);
+	SET(st_size);
+
+	/* TODO times */
+	/* TODO block sizes */
+
+	return krk_pop();
+})
+#undef SET
+
+#define IS_stat_result(o) (krk_isInstanceOf(o,stat_result))
+#define AS_stat_result(o) AS_INSTANCE(o)
+#define CURRENT_NAME  self
+#define CURRENT_CTYPE KrkInstance *
+
+#define getProp(name) \
+	KrkValue name = NONE_VAL(); \
+	krk_tableGet(&self->fields, OBJECT_VAL(S(#name)), &name); \
+	if (!IS_INTEGER(name)) return krk_runtimeError(vm.exceptions->valueError, "stat_result is invalid")
+
+KRK_METHOD(stat_result,__repr__,{
+	METHOD_TAKES_NONE();
+	getProp(st_dev);
+	getProp(st_ino);
+	getProp(st_mode);
+	getProp(st_nlink);
+	getProp(st_uid);
+	getProp(st_gid);
+	getProp(st_size);
+
+	char * buf = malloc(1024);
+	size_t len = snprintf(buf,1024,
+		"os.stat_result("
+			"st_dev=%d,"
+			"st_ino=%d,"
+			"st_mode=%d,"
+			"st_nlink=%d,"
+			"st_uid=%d,"
+			"st_gid=%d,"
+			"st_size=%d)",
+		(int)AS_INTEGER(st_dev),
+		(int)AS_INTEGER(st_ino),
+		(int)AS_INTEGER(st_mode),
+		(int)AS_INTEGER(st_nlink),
+		(int)AS_INTEGER(st_uid),
+		(int)AS_INTEGER(st_gid),
+		(int)AS_INTEGER(st_size));
+
+	if (len > 1023) len = 1023;
+	return OBJECT_VAL(krk_copyString(buf,len));
+})
+
+KRK_FUNC(S_ISBLK,{
+	FUNCTION_TAKES_EXACTLY(1);
+	CHECK_ARG(0,int,krk_integer_type,mode);
+	return INTEGER_VAL(S_ISBLK(mode));
+})
+KRK_FUNC(S_ISCHR,{
+	FUNCTION_TAKES_EXACTLY(1);
+	CHECK_ARG(0,int,krk_integer_type,mode);
+	return INTEGER_VAL(S_ISCHR(mode));
+})
+KRK_FUNC(S_ISDIR,{
+	FUNCTION_TAKES_EXACTLY(1);
+	CHECK_ARG(0,int,krk_integer_type,mode);
+	return INTEGER_VAL(S_ISDIR(mode));
+})
+KRK_FUNC(S_ISFIFO,{
+	FUNCTION_TAKES_EXACTLY(1);
+	CHECK_ARG(0,int,krk_integer_type,mode);
+	return INTEGER_VAL(S_ISFIFO(mode));
+})
+KRK_FUNC(S_ISREG,{
+	FUNCTION_TAKES_EXACTLY(1);
+	CHECK_ARG(0,int,krk_integer_type,mode);
+	return INTEGER_VAL(S_ISREG(mode));
+})
+#ifndef _WIN32
+KRK_FUNC(S_ISLNK,{
+	FUNCTION_TAKES_EXACTLY(1);
+	CHECK_ARG(0,int,krk_integer_type,mode);
+	return INTEGER_VAL(S_ISLNK(mode));
+})
+KRK_FUNC(S_ISSOCK,{
+	FUNCTION_TAKES_EXACTLY(1);
+	CHECK_ARG(0,int,krk_integer_type,mode);
+	return INTEGER_VAL(S_ISSOCK(mode));
+})
+#endif
+
 _noexport
 void _createAndBind_osMod(void) {
 	KrkInstance * module = krk_newInstance(vm.baseClasses->moduleClass);
@@ -602,6 +736,9 @@ void _createAndBind_osMod(void) {
 	BIND_FUNC(module,write)->doc = "@brief Write to an open file descriptor.\n"
 		"@arguments fd,data\n\n"
 		"Writes the @ref bytes object @p data to the open file descriptor @p fd.";
+	BIND_FUNC(module,mkdir)->doc = "@brief Create a directory.\n"
+		"@arguments path,mode=0o777\n\n"
+		"Creates a directory at @p path.";
 
 	BIND_FUNC(module,execl)->doc = "@brief Replace the current process.\n"
 		"@arguments path,[args...]\n\n"
@@ -665,6 +802,32 @@ void _createAndBind_osMod(void) {
 #endif
 
 	_loadEnviron(module);
+
+	/* Nothing special */
+	krk_makeClass(module, &stat_result, "stat_result", vm.baseClasses->objectClass);
+	BIND_METHOD(stat_result,__repr__);
+	krk_finalizeClass(stat_result);
+
+	BIND_FUNC(module,stat)->doc = "@brief Get the status of a file\n"
+		"@arguments path\n\n"
+		"Runs the @c stat system call on @p path. Returns a @ref stat_result.\n";
+
+	module = krk_newInstance(vm.baseClasses->moduleClass);
+	krk_attachNamedObject(&vm.modules, "stat", (KrkObj*)module);
+	krk_attachNamedObject(&module->fields, "__name__", (KrkObj*)S("stat"));
+	krk_attachNamedValue(&module->fields, "__file__", NONE_VAL());
+	krk_attachNamedObject(&module->fields, "__doc__",
+		(KrkObj*)S("@brief Functions to check results from @ref stat calls."));
+
+	BIND_FUNC(module,S_ISBLK);
+	BIND_FUNC(module,S_ISCHR);
+	BIND_FUNC(module,S_ISDIR);
+	BIND_FUNC(module,S_ISFIFO);
+	BIND_FUNC(module,S_ISREG);
+#ifndef _WIN32
+	BIND_FUNC(module,S_ISLNK);
+	BIND_FUNC(module,S_ISSOCK);
+#endif
 }
 
 

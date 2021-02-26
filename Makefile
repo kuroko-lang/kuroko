@@ -29,6 +29,7 @@ ifndef KRK_ENABLE_STATIC
     CFLAGS  += -Wno-format
     # And we need to link this by name with extension because I don't want
     # to actually rename it to kuroko.dll or whatever.
+    MODLIBS = libkuroko.so
   endif
   all: ${TARGET} ${MODULES} ${TOOLS}
   KUROKO_LIBS = libkuroko.so
@@ -98,13 +99,13 @@ libkuroko.so: ${OBJS}
 # Modules are built as shared objects. We link them with LDLIBS
 # as well, but this probably isn't necessary?
 modules/%.so: src/module_%.c libkuroko.so
-	${CC} ${CFLAGS} ${LDFLAGS} -shared -o $@ $< ${LDLIBS}
+	${CC} ${CFLAGS} ${LDFLAGS} -shared -o $@ $< ${LDLIBS} ${MODLIBS}
 
 # A module can have dependencies that didn't exist in the main lib,
 # like how the math library pulls in libm but we kept references
 # to that out of the main interpreter.
 modules/math.so: src/module_math.c libkuroko.so
-	${CC} ${CFLAGS} ${LDFLAGS} -shared -o $@ $< -lm ${LDLIBS}
+	${CC} ${CFLAGS} ${LDFLAGS} -shared -o $@ $< -lm ${LDLIBS} ${MODLIBS}
 
 modules/codecs/sbencs.krk: kuroko tools/codectools/gen_sbencs.krk tools/codectools/encodings.json tools/codectools/indexes.json
 	./kuroko tools/codectools/gen_sbencs.krk
