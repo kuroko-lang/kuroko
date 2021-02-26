@@ -25,12 +25,18 @@ def register_kuroko_codec(labels, incremental_encoder_class, incremental_decoder
                 raise ValueError(f"expected IncrementalEncoder subclass, got {incremental_encoder_class!r}")
             if norm in _encoder_registry and _encoder_registry[norm] != incremental_encoder_class:
                 raise ValueError(f"label {label!r} already registered")
+            let webname = incremental_encoder_class.html5name
+            if webname != None and map_weblabel(webname.lower()) == None:
+                raise ValueError(f"purported HTML5 name {webname!r} is not an HTML5 label")
             _encoder_registry[norm] = incremental_encoder_class
         if incremental_decoder_class:
             if not issubclass(incremental_decoder_class, IncrementalDecoder):
                 raise ValueError(f"expected IncrementalDecoder subclass, got {incremental_decoder_class!r}")
             if norm in _decoder_registry and _decoder_registry[norm] != incremental_decoder_class:
                 raise ValueError(f"label {label!r} already registered")
+            let webname = incremental_decoder_class.html5name
+            if webname != None and map_weblabel(webname.lower()) == None:
+                raise ValueError(f"purported HTML5 name {webname!r} is not an HTML5 label")
             _decoder_registry[norm] = incremental_decoder_class
 
 class KurokoCodecInfo:
