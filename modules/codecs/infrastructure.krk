@@ -1,3 +1,5 @@
+from itertools import max
+
 def issubclass(klass, superclass):
     if superclass == object:
         return True
@@ -260,13 +262,43 @@ class AsciiIncrementalEncoder(IncrementalEncoder):
     # For non-ASCII characters (this should work as a base class)
     encoding_map = {}
     ascii_exceptions = ()
-    def encode(string, final = False):
+    #
+    _lead_codes = None
+    pending_lead = None
+    def __init__(errors):
+        IncrementalEncoder.__init__(self, errors)
+        self._lead_codes = {}
+        for i in self.encoding_map.keys():
+            if isinstance(i, tuple):
+                self._lead_codes.setdefault(i[0], []).append(i)
+    def encode(string_in, final = False):
+        let string = self.pending_lead + string_in
+        self.pending_lead = ""
         let out = ByteCatenator()
         let offset = 0
         while 1: # offset can be arbitrarily changed by the error handler, so not a for
             if offset >= len(string):
                 return out.getvalue()
             let i = string[offset]
+            if ord(i) in self._lead_codes:
+                let seqs = self._lead_codes[ord(i)]
+                let max_length = max([len(j) for j in seqs])
+                let string_bit = [ord(i) for i in string[offset:(offset + max_length)]]
+                let testable_length = len(string_bit)
+                for seq in seqs:
+                    # TODO: where one mapped multi-codepoint sequence starts with another mapped
+                    #   multi-codepoint sequence is still pathological.
+                    if tupleOf(*string_bit[:len(seq)]) == seq:
+                        out.add(bytes(self.encoding_map[seq]))
+                        offset += len(seq)
+                        if offset >= len(string):
+                            return out.getvalue()
+                        i = string[offset]
+                        break
+                    else if (not final) and (tupleOf(*string_bit) == 
+                                             tupleOf(*list(seq)[:testable_length])):
+                        self.pending_lead = "".join([chr(i) for i in string_bit])
+                        return out.getvalue()
             if ord(i) < 0x80 and ord(i) not in self.ascii_exceptions:
                 out.add(bytes([ord(i)]))
                 offset += 1
@@ -286,6 +318,12 @@ class AsciiIncrementalEncoder(IncrementalEncoder):
                 offset = errorret[1]
                 if offset < 0:
                     offset += len(string)
+    def reset():
+        self.pending_lead = ""
+    def getstate():
+        return self.pending_lead
+    def setstate(state):
+        self.pending_lead = state
 
 class AsciiIncrementalDecoder(IncrementalDecoder):
     name = "ecma-43-dv"

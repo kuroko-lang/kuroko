@@ -14,6 +14,24 @@ class enumerate():
             return out
         return _
 
+def max(itr):
+    let maxv
+    let set = False
+    for i in itr:
+        if not set or maxv < i:
+            maxv = i
+            set = True
+    return maxv
+
+def min(itr):
+    let minv
+    let set = False
+    for i in itr:
+        if not set or minv > i:
+            minv = i
+            set = True
+    return minv
+
 
 
 
