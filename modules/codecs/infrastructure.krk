@@ -102,6 +102,70 @@ def encode(string, label, web=False, errors="strict"):
 def decode(data, label, web=False, errors="strict"):
     return lookup(label, web = web).decode(data, errors=errors)
 
+let _base64_alphabet = (
+    list(range(ord("A"), ord("Z") + 1)) + 
+    list(range(ord("a"), ord("z") + 1)) +
+    list(range(ord("0"), ord("9") + 1)) + [ord("+"), ord("/")]
+)
+def encode_base64(data):
+    let offset = 0
+    let out = StringCatenator()
+    while 1:
+        let subdata = list(data)[offset:(offset + 3)]
+        if len(subdata) == 0:
+            return out.getvalue()
+        let padchars = 3 - len(subdata)
+        subdata = subdata + ([0] * padchars)
+        let high = subdata[0]
+        let mid = subdata[1]
+        let low = subdata[2]
+        let charm = high >> 2
+        let up = ((high & 3) << 4) | (mid >> 4)
+        let down = ((mid & 0xF) << 2) | (low >> 6)
+        let strange = low & 0x3F
+        let outbit = "".join([chr(_base64_alphabet[i]) for i in [charm, up, down, strange]])
+        if padchars:
+            outbit = outbit[:-padchars] + ("=" * padchars)
+        out.add(outbit)
+        offset += 3
+def decode_base64(string):
+    let offset = 0
+    let out = ByteCatenator()
+    while 1:
+        let raw_substring = string[offset:(offset + 4)]
+        let substring = raw_substring
+        if len(substring) == 0:
+            return out.getvalue()
+        let padchars = 4 - len(substring.rstrip("="))
+        if padchars:
+            substring = substring[:-padchars] + ("A" * padchars)
+        let charm
+        let up
+        let down
+        let strange
+        try:
+            try:
+                charm = _base64_alphabet.index(ord(substring[0]))
+                up = _base64_alphabet.index(ord(substring[1]))
+                down = _base64_alphabet.index(ord(substring[2]))
+                strange = _base64_alphabet.index(ord(substring[3]))
+            except ValueError:
+                raise ValueError(f"not Base64: {raw_substring!r}")
+        except IndexError:
+            raise ValueError("truncated Base64")
+        let high = (charm << 2) | (up >> 4)
+        let mid = ((up & 0xF) << 4) | (down >> 2)
+        let low = ((down & 3) << 6) | strange
+        if not padchars:
+            out.add(bytes([high, mid, low]))
+        else if padchars == 1:
+            out.add(bytes([high, mid]))
+        else if padchars == 2:
+            out.add(bytes([high]))
+        else:
+            raise ValueError("invalid number of Base64 pad characters")
+        offset += 4
+
 # Constructor is e.g. UnicodeEncodeError(encoding, object, start, end, reason)
 # Wouldn't it be wonderful if Python bloody documented that anywhere (e.g. manual or docstring)?
 # -- Har.
