@@ -5,10 +5,10 @@
 #include <unistd.h>
 #include <signal.h>
 #include <fcntl.h>
-#ifndef _WIN32
-#include <sys/utsname.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#ifndef _WIN32
+#include <sys/utsname.h>
 #else
 #include <windows.h>
 #endif
@@ -304,6 +304,9 @@ KRK_FUNC(close,{
 	}
 })
 
+#ifdef _WIN32
+#define mkdir(p,m) mkdir(p); (void)m
+#endif
 KRK_FUNC(mkdir,{
 	FUNCTION_TAKES_AT_LEAST(1);
 	FUNCTION_TAKES_AT_MOST(2);
@@ -502,10 +505,16 @@ KRK_FUNC(execvp,{
 })
 
 #define SET(thing) krk_attachNamedValue(&out->fields, #thing, INTEGER_VAL(buf. thing))
+#ifdef _WIN32
+#define STAT_STRUCT struct __stat64
+#define stat _stat64
+#else
+#define STAT_STRUCT struct stat
+#endif
 KRK_FUNC(stat,{
 	FUNCTION_TAKES_EXACTLY(1);
 	CHECK_ARG(0,str,KrkString*,path);
-	struct stat buf;
+	STAT_STRUCT buf;
 	int result = stat(path->chars, &buf);
 	if (result == -1) {
 		return krk_runtimeError(OSError, strerror(errno));
@@ -595,6 +604,7 @@ KRK_FUNC(S_ISREG,{
 	CHECK_ARG(0,int,krk_integer_type,mode);
 	return INTEGER_VAL(S_ISREG(mode));
 })
+#ifndef _WIN32
 KRK_FUNC(S_ISLNK,{
 	FUNCTION_TAKES_EXACTLY(1);
 	CHECK_ARG(0,int,krk_integer_type,mode);
@@ -605,6 +615,7 @@ KRK_FUNC(S_ISSOCK,{
 	CHECK_ARG(0,int,krk_integer_type,mode);
 	return INTEGER_VAL(S_ISSOCK(mode));
 })
+#endif
 
 _noexport
 void _createAndBind_osMod(void) {
@@ -813,8 +824,10 @@ void _createAndBind_osMod(void) {
 	BIND_FUNC(module,S_ISDIR);
 	BIND_FUNC(module,S_ISFIFO);
 	BIND_FUNC(module,S_ISREG);
+#ifndef _WIN32
 	BIND_FUNC(module,S_ISLNK);
 	BIND_FUNC(module,S_ISSOCK);
+#endif
 }
 
 
