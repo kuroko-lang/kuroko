@@ -494,21 +494,26 @@ class BaseEbcdicIncrementalDecoder(IncrementalDecoder):
                 out.add(chr(self.sbcsge_decode[i]))
                 leader = []
                 offset += 1
-            else if self.in_dbcshost and (i < 0x40 or i == 0xFF) and not leader:
+            else if self.in_dbcshost and not leader and (i < 0x40 or i == 0xFF):
                 out.add(chr(self.sbcs_decode[i]))
                 offset += 1
-            else if self.in_dbcshost and 0x40 <= i and i <= 0xFE and not leader:
+            else if self.in_dbcshost and not leader and i == 0x40:
+                leader.append(i)
+                offset += 1
+            else if self.in_dbcshost and leader and leader[0] == 0x40:
+                if i == 0x40:
+                    out.add("\u3000")
+                    leader = []
+                    offset += 1
+                else:
+                    # Note: this is a leniency (unpaired 0x40 in DBCS-Host is not valid)
+                    out.add(" ")
+                    leader = []
+                    continue # i.e. without incrementing offset
+            else if self.in_dbcshost and not leader and 0x41 <= i and i <= 0xFE:
                 offset += 1
                 leader.append(i)
-            else if self.in_dbcshost and leader and leader[0] == 0x40 and i == 0x40:
-                out.add("\u3000")
-                leader = []
-                offset += 1
-            else if self.in_dbcshost and leader and leader[0] == 0x40 and 0x41 <= i and i <= 0xFE:
-                out.add(" ")
-                leader = [i]
-                offset += 1
-            else if self.in_dbcshost and leader and 0x40 <= i and i <= 0xFE and (
+            else if self.in_dbcshost and leader and 0x41 <= i and i <= 0xFE and (
                             leader[0], i) in self.dbcshost_decode:
                 out.add(chr(self.dbcshost_decode[(leader[0], i)]))
                 leader = []
