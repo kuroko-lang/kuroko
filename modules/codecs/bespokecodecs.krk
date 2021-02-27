@@ -255,8 +255,7 @@ class Iso2022JpIncrementalEncoder(IncrementalEncoder):
                 out.add(bytes([self.encodes_sbcs[self.state][ord(i)]]))
                 offset += 1
             else if self.state in self.escs_twobyte:
-                for individ in self.encodes_dbcs[self.state][ord(i)]:
-                    out.add(bytes([individ]))
+                out.add(bytes(self.encodes_dbcs[self.state][ord(i)]))
                 offset += 1
             else:
                 raise RuntimeError("inconsistently configured encoder")
