@@ -8,6 +8,7 @@ from codecs.infrastructure import register_kuroko_codec, ByteCatenator, StringCa
 from codecs.dbdata import encode_jis7, decode_jis7, decode_jis7katakana, XEucJpIncrementalDecoder, Big5EtenIncrementalEncoder, Big5HkscsIncrementalDecoder, encode_gbk, decode_gbk
 from codecs.bespokecodecs import Iso2022JpIncrementalEncoder, Iso2022JpIncrementalDecoder, Utf8IncrementalDecoder, Utf16BeIncrementalEncoder, Utf16BeIncrementalDecoder
 from collections import xraydict
+from itertools import enumerate
 
 let cp950_no_eudc_encoding_map = xraydict(Big5EtenIncrementalEncoder.encoding_map, {
         0x2550: (0xA2, 0xA4),
@@ -235,7 +236,13 @@ let _verbatim_utf7 = (
     list(range(ord("a"), ord("z") + 1)) +
     list(range(ord("0"), ord("9") + 1)) + [ord(i) for i in "/-(),.:? \r\n"]
 )
+let _base64_alphabet = (
+    list(range(ord("A"), ord("Z") + 1)) + 
+    list(range(ord("a"), ord("z") + 1)) +
+    list(range(ord("0"), ord("9") + 1)) + [ord("+"), ord("/")]
+)
 let _utf7_not_need_hyphen = [ord(i) for i in "(),.:? \r\n"]
+
 class Utf7IncrementalEncoder(IncrementalEncoder):
     name = "utf-7"
     html5name = None
@@ -246,7 +253,7 @@ class Utf7IncrementalEncoder(IncrementalEncoder):
         self.utf16encoder = Utf16BeIncrementalEncoder(errors)
         IncrementalEncoder.__init__(self, errors)
     def encode(data, final=False):
-        let incoming = self.pending + list(self.utf16encoder.encode(data))
+        let incoming = self.pending + list(self.utf16encoder.encode(data, final=final))
         self.pending = []
         let offset = 0
         let out = ByteCatenator()
@@ -289,8 +296,84 @@ class Utf7IncrementalEncoder(IncrementalEncoder):
         self.mode = state[1]
         self.pending = state[2]
 
+class Utf7IncrementalDecoder(IncrementalDecoder):
+    name = "utf-7"
+    html5name = None
+    utf16decoder = None
+    mode = "ascii"
+    pending = []
+    def __init__(errors):
+        self.utf16decoder = Utf16BeIncrementalDecoder(errors)
+        IncrementalDecoder.__init__(self, errors)
+    def decode(data_in, final=False):
+        let data = self.pending + data_in
+        self.pending = b""
+        let incoming = list(data)
+        let offset = 0
+        let out = StringCatenator()
+        let chunksize = 8 if self.mode in ("base64", "maybebase64") else 1
+        while offset < len(incoming):
+            let chunk = incoming[offset:offset + chunksize]
+            if len(chunk) < chunksize and not final:
+                self.pending = bytes(chunk)
+                return out.getvalue()
+            if self.mode == "ascii":
+                if chunk[0] == b"+"[0]:
+                    self.mode = "maybebase64"
+                    chunksize = 8
+                else:
+                    out.add(chr(chunk[0]))
+                offset += 1
+            else:
+                if self.mode == "maybebase64":
+                    if chunk[0] == b"-"[0]:
+                        out.add("+")
+                        offset += 1
+                        self.mode = "ascii"
+                        chunksize = 1
+                        continue
+                    else:
+                        self.mode = "base64"
+                let cutpoint = len(chunk)
+                let stride = len(chunk)
+                for n, i in enumerate(chunk):
+                    if i not in _base64_alphabet:
+                        cutpoint = n
+                        stride = n if i != b"-"[0] else (n + 1)
+                        # In preparation for the next iteration, which will be in ASCII mode:
+                        self.mode = "ascii"
+                        chunksize = 1
+                        break
+                chunk = chunk[:cutpoint]
+                if len(chunk) > 0:
+                    let padbytes = (4 - (len(chunk) % 4)) % 4
+                    if padbytes > 2:
+                        let error = UnicodeDecodeError(self.name, data, offset, offset + cutpoint,
+                                    "truncated Base64 sequence")
+                        let errorret = lookup_error(self.errors)(error)
+                        out.add(errorret[0])
+                        offset = errorret[1]
+                        continue
+                    let base64 = bytes(chunk).decode() + ("=" * padbytes)
+                    let utf16 = decode_base64(base64)
+                    out.add(self.utf16decoder.decode(utf16, final=final))
+                offset += stride
+        if final and self.mode != "ascii":
+            self.mode = "ascii"
+        return out.getvalue()
+    def reset():
+        self.utf16decoder.reset()
+        self.mode = "ascii"
+        self.pending = b""
+    def getstate():
+        return (self.utf16encoder.getstate(), self.mode, self.pending)
+    def setstate(state):
+        self.utf16encoder.setstate(state[0])
+        self.mode = state[1]
+        self.pending = state[2]
+
 register_kuroko_codec(["utf-7", "utf7", "u7", "unicode-1-1-utf-7"],
-    Utf7IncrementalEncoder, None)
+    Utf7IncrementalEncoder, Utf7IncrementalDecoder)
 
 
 class EucJpFullIncrementalEncoder(AsciiIncrementalEncoder):
