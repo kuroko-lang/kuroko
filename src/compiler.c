@@ -2606,7 +2606,8 @@ static void call(int canAssign) {
 			} else if (keywordArgs) {
 				error("Positional argument follows keyword argument");
 				return;
-			} else if (specialArgs) {
+			}
+			if (specialArgs) {
 				emitBytes(OP_EXPAND_ARGS, 0);
 				expression();
 				specialArgs++;
