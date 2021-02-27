@@ -992,6 +992,263 @@ register_kuroko_codec(["japanese"], Utf8SigIncrementalEncoder,
         JapaneseAutodetectIncrementalDecoder)
 
 
+class Iso2022NonJpIncrementalEncoder(IncrementalEncoder):
+    name = None
+    html5name = None
+    encodes = []
+    escs_shift = {}
+    escs_super = {}
+    escs_super3 = {}
+    def ensure_shift_state(state, out):
+        if self.shift == state:
+        else if state == False: out.add(b"\x0F")
+        else: out.add(b"\x0E")
+        self.shift = state
+    def ensure_shift_designation(state, out):
+        if self.shift_desig == state: return
+        out.add(b"\[$)")
+        out.add(bytes([self.escs_shift[state]]))
+        self.shift_desig = state
+    def ensure_super_designation(state, out):
+        if self.super_desig == state: return
+        out.add(b"\[$*")
+        out.add(bytes([self.escs_super[state]]))
+        self.super_desig = state
+    def ensure_super3_designation(state, out):
+        if self.super3_desig == state: return
+        out.add(b"\[$+")
+        out.add(bytes([self.escs_super3[state]]))
+        self.super3_desig = state
+    def run_prelude(out):
+    def encode(string, final = False):
+        let out = ByteCatenator()
+        let offset = 0
+        if self.shift_desig == None and self.super_desig == None and self.super3_desig == None:
+            self.run_prelude(out)
+        while 1: # offset can be arbitrarily changed by the error handler, so not a for
+            if offset >= len(string):
+                if final:
+                    self.ensure_shift_state(False, out)
+                return out.getvalue()
+            let i = string[offset]
+            let is_ascii = ord(i) < 0x80 and i not in ("\x0E\x0F\[")
+            let is_shift = self.shift_desig != None and ord(i) in self.encodes[self.shift_desig]
+            let is_super = self.super_desig != None and ord(i) in self.encodes[self.super_desig]
+            let is_super3 = self.super3_desig != None and ord(i) in self.encodes[self.super3_desig]
+            if is_ascii:
+                self.ensure_shift_state(False, out)
+                out.add(bytes([ord(i)]))
+                offset += 1
+                continue
+            if not is_shift:
+                for desig in self.escs_shift.keys():
+                    if ord(i) in self.encodes[desig]:
+                        self.ensure_shift_designation(desig, out)
+                        is_shift = True
+                        break
+            if is_shift:
+                self.ensure_shift_state(True, out)
+                out.add(bytes(self.encodes[self.shift_desig][ord(i)]))
+                offset += 1
+                continue
+            if not is_super:
+                for desig in self.escs_super.keys():
+                    if ord(i) in self.encodes[desig]:
+                        self.ensure_super_designation(desig, out)
+                        is_super = True
+                        break
+            if is_super:
+                out.add(b"\x1B\x6E")
+                out.add(bytes(self.encodes[self.super_desig][ord(i)]))
+                offset += 1
+                continue
+            if not is_super3:
+                for desig in self.escs_super3.keys():
+                    if ord(i) in self.encodes[desig]:
+                        self.ensure_super3_designation(desig, out)
+                        is_super3 = True
+                        break
+            if is_super3:
+                out.add(b"\x1B\x6F")
+                out.add(bytes(self.encodes[self.super3_desig][ord(i)]))
+                offset += 1
+                continue
+            let error = UnicodeEncodeError(self.name, string, offset, offset + 1,
+                        "character not supported by target encoding")
+            let errorret = lookup_error(self.errors)(error)
+            self.ensure_shift_state(False, out)
+            out.add(errorret[0])
+            offset = errorret[1]
+            if offset < 0:
+                offset += len(string)
+    def reset():
+        self.shift = False
+        self.shift_desig = None
+        self.super_desig = None
+        self.super3_desig = None
+    def getstate():
+        return (self.shift, self.shift_desig, self.super_desig, self.super3_desig)
+    def setstate(state):
+        self.shift = state[0]
+        self.shift_desig = state[1]
+        self.super_desig = state[2]
+        self.super3_desig = state[2]
+
+class Iso2022NonJpIncrementalDecoder(IncrementalDecoder):
+    name = None
+    html5name = None
+    decodes = []
+    escs_shift = {}
+    escs_super = {}
+    escs_super3 = {}
+    def decode(data_in, final = False):
+        let data = self.pending + data_in
+        self.pending = b""
+        let out = StringCatenator()
+        let offset = 0
+        let leader = []
+        let in_esc = False
+        while 1: # offset can be arbitrarily changed by the error handler, so not a for
+            if offset >= len(data):
+                return self._handle_truncation(out, None, final, data, offset, leader)
+            let i = data[offset]
+            if i == 0x1B and len(leader) == 0:
+                in_esc = True
+                leader.append(i)
+                offset += 1
+                continue
+            if i == 0x0E and len(leader) == 0 and not self.shift:
+                self.shift = True
+                offset += 1
+                continue
+            if i == 0x0F and len(leader) == 0 and self.shift:
+                self.shift = False
+                offset += 1
+                continue
+            if in_esc:
+                if len(leader) == 1 and i in (0x24, 0x4E, 0x4F):
+                    leader.append(i)
+                    offset += 1
+                    continue
+                if len(leader) == 2:
+                    if leader[1] == 0x24 and i in (0x29, 0x2A, 0x2B):
+                        leader.append(i)
+                        offset += 1
+                        continue
+                    if leader[1] in (0x4E, 0x4F) and (0x21 <= i and i <= 0x7E):
+                        leader.append(i)
+                        offset += 1
+                        continue
+                if len(leader) == 3:
+                    if leader[1] in (0x4E, 0x4F) and (0x21 <= i and i <= 0x7E):
+                        let desig = self.super_desig if leader[1] == 0x4E else self.super3_desig
+                        if (leader[2], i) in self.decodes[desig]:
+                            let ucs = self.decodes[desig][(leader[2], i)]
+                            if isinstance(ucs, tuple):
+                                for individ in ucs:
+                                    out.add(chr(individ))
+                            else:
+                                out.add(chr(ucs))
+                            leader = []
+                            in_esc = False
+                            offset += 1
+                            continue
+                    if leader[1] == 0x24:
+                        if leader[2] == 0x29: # to G1 (shift)
+                            if i in self.escs_shift:
+                                self.shift_desig = self.escs_shift[i]
+                                in_esc = False
+                                leader = []
+                                offset += 1
+                                continue
+                        if leader[2] == 0x2A: # to G2 (super shift 2)
+                            if i in self.escs_super:
+                                self.super_desig = self.escs_super[i]
+                                in_esc = False
+                                leader = []
+                                offset += 1
+                                continue
+                        if leader[2] == 0x2B: # to G3 (super shift 3)
+                            if i in self.escs_super3:
+                                self.super3_desig = self.escs_super3[i]
+                                in_esc = False
+                                leader = []
+                                offset += 1
+                                continue
+            else:
+                if self.shift:
+                    if len(leader) == 0 and (0x21 <= i and i <= 0x7E):
+                        leader.append(i)
+                        offset += 1
+                        continue
+                    if len(leader) == 1 and (0x21 <= i and i <= 0x7E):
+                        if (leader[0], i) in self.decodes[self.shift_desig]:
+                            let ucs = self.decodes[self.shift_desig][(leader[0], i)]
+                            if isinstance(ucs, tuple):
+                                for individ in ucs:
+                                    out.add(chr(individ))
+                            else:
+                                out.add(chr(ucs))
+                            leader = []
+                            in_esc = False
+                            offset += 1
+                            continue
+                else if i < 0x80:
+                    out.add(chr(i))
+                    offset += 1
+                    continue
+            let errorstart = offset - len(leader)
+            let errorend
+            if self.shift and i != 0x1B:
+                errorend = errorstart + 2
+            else:
+                errorend = errorstart + 1
+            let error = UnicodeDecodeError(self.name, data, errorstart, errorend,
+                        "invalid sequence")
+            in_esc = False
+            leader = []
+            let errorret = lookup_error(self.errors)(error)
+            out.add(errorret[0])
+            offset = errorret[1]
+            if offset < 0:
+                offset += len(string)
+    def reset():
+        self.pending = b""
+        self.shift = False
+        self.shift_desig = None
+        self.super_desig = None
+        self.super3_desig = None
+    def getstate():
+        return (self.pending, self.shift, self.shift_desig, self.super_desig, self.super3_desig)
+    def setstate(state):
+        self.pending = state[0]
+        self.shift = state[1]
+        self.shift_desig = state[2]
+        self.super_desig = state[3]
+        self.super3_desig = state[4]
+
+class Iso2022KrIncrementalEncoder(Iso2022NonJpIncrementalEncoder):
+    name = "iso-2022-kr"
+    html5name = None
+    encodes = [encode_ksc7]
+    escs_shift = {0: 0x43}
+    def run_prelude(out):
+        # Per RFC 1557, the designation has to be at the "beginning of a line", hence we're doing
+        #   it at the start of the stream. This is contra Python, which just emits it before the
+        #   first SO, even if that's in the middle of a line.
+        self.ensure_shift_designation(0, out)
+
+class Iso2022KrIncrementalDecoder(Iso2022NonJpIncrementalDecoder):
+    name = "iso-2022-kr"
+    html5name = None
+    decodes = [decode_ksc7]
+    escs_shift = {0x43: 0}
+
+register_kuroko_codec(["iso-2022-kr", "iso2022-kr", "iso2022kr", "csiso2022kr"],
+    Iso2022KrIncrementalEncoder, Iso2022KrIncrementalDecoder)
+
+
+
 
 
 
