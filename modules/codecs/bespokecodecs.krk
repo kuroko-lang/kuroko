@@ -160,7 +160,7 @@ register_kuroko_codec(
     GbkIncrementalEncoder, Gb18030IncrementalDecoder)
 
 class Iso2022JpIncrementalEncoder(IncrementalEncoder):
-    name = "cp50220"
+    name = "iso-2022-jp"
     html5name = "iso-2022-jp"
     encodes_sbcs = []
     encodes_dbcs = [None, None, encode_jis7]
@@ -272,7 +272,7 @@ class Iso2022JpIncrementalEncoder(IncrementalEncoder):
         self.state_greekmode = state[2]
 
 class Iso2022JpIncrementalDecoder(IncrementalDecoder):
-    name = "cp50220"
+    name = "iso-2022-jp"
     html5name = "iso-2022-jp"
     decodes_sbcs = [None, None, decode_jis7katakana]
     decodes_dbcs = [None, None, None, decode_jis7]
