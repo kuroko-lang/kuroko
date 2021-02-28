@@ -40,15 +40,15 @@ static int isJumpTarget(KrkFunction * func, size_t startPoint) {
 	size_t offset = 0;
 
 #define SIMPLE(opc) case opc: size = 1; break;
-#define CONSTANT(opc,more) case opc: { size_t constant __attribute__((unused)) = chunk->code[offset + 1]; more; size = 2; break; } \
+#define CONSTANT(opc,more) case opc: { size_t constant __attribute__((unused)) = chunk->code[offset + 1]; size = 2; more; break; } \
 	case opc ## _LONG: { size_t constant __attribute__((unused)) = (chunk->code[offset + 1] << 16) | \
-	(chunk->code[offset + 2] << 8) | (chunk->code[offset + 3]); more; size = 4; break; }
-#define OPERANDB(opc,more) case opc: { size = 2; break; }
+	(chunk->code[offset + 2] << 8) | (chunk->code[offset + 3]); size = 4; more; break; }
+#define OPERANDB(opc,more) case opc: { size = 2; more; break; }
 #define OPERAND(opc,more) OPERANDB(opc,more) \
-	case opc ## _LONG: { size = 4; break; }
+	case opc ## _LONG: { size = 4; more; break; }
 #define JUMP(opc,sign) case opc: { uint16_t jump = (chunk->code[offset + 1] << 8) | (chunk->code[offset + 2]); \
 	if ((size_t)(offset + 3 sign jump) == startPoint) return 1; size = 3; break; }
-#define CLOSURE_MORE offset += AS_FUNCTION(chunk->constants.values[constant])->upvalueCount * 4
+#define CLOSURE_MORE size += AS_FUNCTION(chunk->constants.values[constant])->upvalueCount * 2
 #define EXPAND_ARGS_MORE
 #define LOCAL_MORE
 
@@ -244,12 +244,12 @@ KRK_FUNC(build,{
 #define CONSTANT(opc,more) case opc: { constant = chunk->code[offset + 1]; size = 2; more; break; } \
 	case opc ## _LONG: { constant = (chunk->code[offset + 1] << 16) | \
 	(chunk->code[offset + 2] << 8) | (chunk->code[offset + 3]); size = 4; more; break; }
-#define OPERANDB(opc,more) case opc: { size = 2; break; }
+#define OPERANDB(opc,more) case opc: { size = 2; more; break; }
 #define OPERAND(opc,more) OPERANDB(opc,more) \
-	case opc ## _LONG: { size = 4; break; }
+	case opc ## _LONG: { size = 4; more; break; }
 #define JUMP(opc,sign) case opc: { jump = 0 sign ((chunk->code[offset + 1] << 8) | (chunk->code[offset + 2])); \
 	size = 3; break; }
-#define CLOSURE_MORE size += AS_FUNCTION(chunk->constants.values[constant])->upvalueCount * 4
+#define CLOSURE_MORE size += AS_FUNCTION(chunk->constants.values[constant])->upvalueCount * 2
 #define EXPAND_ARGS_MORE
 #define LOCAL_MORE
 FUNC_SIG(krk,examine) {
@@ -283,6 +283,11 @@ FUNC_SIG(krk,examine) {
 		}
 		krk_writeValueArray(AS_LIST(output), krk_peek(0));
 		krk_pop();
+
+		if (size == 0) {
+			fprintf(stderr, "offset = %ld, chunk->count = %ld, found size = 0?\n", offset, chunk->count);
+			abort();
+		}
 
 		offset += size;
 	}
