@@ -1281,7 +1281,7 @@ class Iso2022CnExtIncrementalDecoder(Iso2022NonJpIncrementalDecoder):
     escs_super = {0x48: 3}
     escs_super3 = {0x49: 4, 0x4A: 5, 0x4B: 6, 0x4C: 7, 0x4D: 8}
 
-register_kuroko_codec(["iso-2022-cn-ext", "iso2022-cnext", "iso2022cnext", "csiso2022cnext"],
+register_kuroko_codec(["iso-2022-cn-ext", "iso2022-cn-ext", "iso2022cn-ext", "iso2022cnext", "csiso2022cnext"],
     Iso2022CnExtIncrementalEncoder, Iso2022CnExtIncrementalDecoder)
 
 
