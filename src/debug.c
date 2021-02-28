@@ -4,6 +4,7 @@
 #include "debug.h"
 #include "vm.h"
 #include "util.h"
+#include "compiler.h"
 
 void krk_disassembleCodeObject(FILE * f, KrkFunction * func, const char * name) {
 	KrkChunk * chunk = &func->chunk;
@@ -39,15 +40,15 @@ static int isJumpTarget(KrkFunction * func, size_t startPoint) {
 	size_t offset = 0;
 
 #define SIMPLE(opc) case opc: size = 1; break;
-#define CONSTANT(opc,more) case opc: { size_t constant __attribute__((unused)) = chunk->code[offset + 1]; more; size = 2; break; } \
+#define CONSTANT(opc,more) case opc: { size_t constant __attribute__((unused)) = chunk->code[offset + 1]; size = 2; more; break; } \
 	case opc ## _LONG: { size_t constant __attribute__((unused)) = (chunk->code[offset + 1] << 16) | \
-	(chunk->code[offset + 2] << 8) | (chunk->code[offset + 3]); more; size = 4; break; }
-#define OPERANDB(opc,more) case opc: { size = 2; break; }
+	(chunk->code[offset + 2] << 8) | (chunk->code[offset + 3]); size = 4; more; break; }
+#define OPERANDB(opc,more) case opc: { size = 2; more; break; }
 #define OPERAND(opc,more) OPERANDB(opc,more) \
-	case opc ## _LONG: { size = 4; break; }
+	case opc ## _LONG: { size = 4; more; break; }
 #define JUMP(opc,sign) case opc: { uint16_t jump = (chunk->code[offset + 1] << 8) | (chunk->code[offset + 2]); \
 	if ((size_t)(offset + 3 sign jump) == startPoint) return 1; size = 3; break; }
-#define CLOSURE_MORE offset += AS_FUNCTION(chunk->constants.values[constant])->upvalueCount * 4
+#define CLOSURE_MORE size += AS_FUNCTION(chunk->constants.values[constant])->upvalueCount * 2
 #define EXPAND_ARGS_MORE
 #define LOCAL_MORE
 
@@ -179,15 +180,20 @@ size_t krk_disassembleInstruction(FILE * f, KrkFunction * func, size_t offset) {
 
 	return offset + size;
 }
+#undef SIMPLE
+#undef OPERANDB
+#undef OPERAND
+#undef CONSTANT
+#undef JUMP
+#undef CLOSURE_MORE
+#undef LOCAL_MORE
+#undef EXPAND_ARGS_MORE
 
 /**
  * dis.dis(object)
  */
 KRK_FUNC(dis,{
-	if (argc < 1) {
-		krk_runtimeError(vm.exceptions->argumentError, "dis() takes ");
-		return BOOLEAN_VAL(0);
-	}
+	FUNCTION_TAKES_EXACTLY(1);
 
 	if (IS_CLOSURE(argv[0])) {
 		KrkFunction * func = AS_CLOSURE(argv[0])->function;
@@ -219,6 +225,84 @@ KRK_FUNC(dis,{
 	return NONE_VAL();
 })
 
+KRK_FUNC(build,{
+	FUNCTION_TAKES_EXACTLY(1);
+	CHECK_ARG(0,str,KrkString*,code);
+
+	/* Unset module */
+	krk_push(OBJECT_VAL(krk_currentThread.module));
+	KrkInstance * module = krk_currentThread.module;
+	krk_currentThread.module = NULL;
+	KrkFunction * c = krk_compile(code->chars,"<source>");
+	krk_currentThread.module = module;
+	krk_pop();
+	if (c) return OBJECT_VAL(c);
+	else return NONE_VAL();
+})
+
+#define SIMPLE(opc) case opc: size = 1; break;
+#define CONSTANT(opc,more) case opc: { constant = chunk->code[offset + 1]; size = 2; more; break; } \
+	case opc ## _LONG: { constant = (chunk->code[offset + 1] << 16) | \
+	(chunk->code[offset + 2] << 8) | (chunk->code[offset + 3]); size = 4; more; break; }
+#define OPERANDB(opc,more) case opc: { size = 2; more; break; }
+#define OPERAND(opc,more) OPERANDB(opc,more) \
+	case opc ## _LONG: { size = 4; more; break; }
+#define JUMP(opc,sign) case opc: { jump = 0 sign ((chunk->code[offset + 1] << 8) | (chunk->code[offset + 2])); \
+	size = 3; break; }
+#define CLOSURE_MORE size += AS_FUNCTION(chunk->constants.values[constant])->upvalueCount * 2
+#define EXPAND_ARGS_MORE
+#define LOCAL_MORE
+FUNC_SIG(krk,examine) {
+	FUNCTION_TAKES_EXACTLY(1);
+	CHECK_ARG(0,FUNCTION,KrkFunction*,func);
+
+	KrkValue output = krk_list_of(0,NULL,0);
+	krk_push(output);
+
+	KrkChunk * chunk = &func->chunk;
+	size_t offset = 0;
+	while (offset < chunk->count) {
+		uint8_t opcode = chunk->code[offset];
+		size_t size = 0;
+		ssize_t constant = -1;
+		ssize_t jump = 0;
+		switch (opcode) {
+#include "opcodes.h"
+		}
+
+		KrkTuple * newTuple = krk_newTuple(3);
+		krk_push(OBJECT_VAL(newTuple));
+		newTuple->values.values[newTuple->values.count++] = INTEGER_VAL(opcode);
+		newTuple->values.values[newTuple->values.count++] = INTEGER_VAL(size);
+		if (constant != -1) {
+			newTuple->values.values[newTuple->values.count++] = chunk->constants.values[constant];
+		} else if (jump != 0) {
+			newTuple->values.values[newTuple->values.count++] = INTEGER_VAL(jump);
+		} else {
+			newTuple->values.values[newTuple->values.count++] = NONE_VAL();
+		}
+		krk_writeValueArray(AS_LIST(output), krk_peek(0));
+		krk_pop();
+
+		if (size == 0) {
+			fprintf(stderr, "offset = %ld, chunk->count = %ld, found size = 0?\n", offset, chunk->count);
+			abort();
+		}
+
+		offset += size;
+	}
+
+	return krk_pop();
+}
+#undef SIMPLE
+#undef OPERANDB
+#undef OPERAND
+#undef CONSTANT
+#undef JUMP
+#undef CLOSURE_MORE
+#undef LOCAL_MORE
+#undef EXPAND_ARGS_MORE
+
 _noexport
 void _createAndBind_disMod(void) {
 	KrkInstance * module = krk_newInstance(vm.baseClasses->moduleClass);
@@ -231,4 +315,25 @@ void _createAndBind_disMod(void) {
 		"@arguments obj\n\n"
 		"Dumps a disassembly of the bytecode in the code object associated with @p obj. "
 		"If @p obj can not be disassembled, a @ref TypeError is raised.";
+
+	BIND_FUNC(module, build);
+	BIND_FUNC(module, examine);
+
+#define OPCODE(opc) krk_attachNamedValue(&module->fields, #opc, INTEGER_VAL(opc));
+#define SIMPLE(opc) OPCODE(opc)
+#define CONSTANT(opc,more) OPCODE(opc) OPCODE(opc ## _LONG)
+#define OPERAND(opc,more) OPCODE(opc) OPCODE(opc ## _LONG)
+#define JUMP(opc,sign) OPCODE(opc)
+#define CLOSURE_MORE
+#define EXPAND_ARGS_MORE
+#define LOCAL_MORE
+#include "opcodes.h"
+#undef SIMPLE
+#undef OPERANDB
+#undef OPERAND
+#undef CONSTANT
+#undef JUMP
+#undef CLOSURE_MORE
+#undef LOCAL_MORE
+#undef EXPAND_ARGS_MORE
 }
