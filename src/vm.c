@@ -516,8 +516,9 @@ inline KrkClass * krk_getType(KrkValue of) {
 			switch (AS_OBJECT(of)->type) {
 				case OBJ_CLASS:
 					return vm.baseClasses->typeClass;
-				case OBJ_NATIVE:
 				case OBJ_FUNCTION:
+					return vm.baseClasses->codeobjectClass;
+				case OBJ_NATIVE:
 				case OBJ_CLOSURE:
 					return vm.baseClasses->functionClass;
 				case OBJ_BOUND_METHOD:

@@ -30,6 +30,10 @@ static KrkValue nativeFunctionName(KrkValue func) {
 	return OBJECT_VAL(krk_copyString(string,len));
 }
 
+static KrkValue _function_get_name(int argc, KrkValue argv[], int hasKw) {
+	return AS_FUNCTION(argv[0])->name ? OBJECT_VAL(AS_FUNCTION(argv[0])->name) : OBJECT_VAL(S(""));
+}
+
 /* function.__name__ */
 static KrkValue _closure_get_name(int argc, KrkValue argv[], int hasKw) {
 	if (IS_NATIVE(argv[0])) return nativeFunctionName(argv[0]);
@@ -43,6 +47,13 @@ static KrkValue _bound_get_name(int argc, KrkValue argv[], int hasKw) {
 	return _closure_get_name(1, (KrkValue[]){OBJECT_VAL(boundMethod->method)}, hasKw);
 }
 
+static KrkValue _function_ip_to_line(int argc, KrkValue argv[], int hasKw) {
+	if (argc < 2) return krk_runtimeError(vm.exceptions->argumentError, "%s() expects exactly 2 arguments", "ip_to_line");
+	if (!IS_FUNCTION(argv[0])) return NONE_VAL();
+	if (!IS_INTEGER(argv[1])) return TYPE_ERROR(int,argv[1]);
+	return INTEGER_VAL(krk_lineNumber(&AS_FUNCTION(argv[0])->chunk, AS_INTEGER(argv[1])));
+}
+
 static KrkValue _closure_ip_to_line(int argc, KrkValue argv[], int hasKw) {
 	if (argc < 2) return krk_runtimeError(vm.exceptions->argumentError, "%s() expects exactly 2 arguments", "ip_to_line");
 	if (!IS_CLOSURE(argv[0])) return NONE_VAL();
@@ -53,6 +64,20 @@ static KrkValue _closure_ip_to_line(int argc, KrkValue argv[], int hasKw) {
 static KrkValue _bound_ip_to_line(int argc, KrkValue argv[], int hasKw) {
 	KrkBoundMethod * boundMethod = AS_BOUND_METHOD(argv[0]);
 	return _closure_ip_to_line(1, (KrkValue[]){OBJECT_VAL(boundMethod->method)}, hasKw);
+}
+
+static KrkValue _function_str(int argc, KrkValue argv[], int hasKw) {
+	KrkValue s = _function_get_name(argc, argv, hasKw);
+	if (!IS_STRING(s)) return NONE_VAL();
+	krk_push(s);
+
+	size_t len = AS_STRING(s)->length + sizeof("<codeobject >");
+	char * tmp = malloc(len);
+	snprintf(tmp, len, "<codeobject %s>", AS_CSTRING(s));
+	s = OBJECT_VAL(krk_copyString(tmp,len-1));
+	free(tmp);
+	krk_pop();
+	return s;
 }
 
 /* function.__str__ / function.__repr__ */
@@ -144,6 +169,13 @@ static KrkValue _bound_get_argnames(int argc, KrkValue argv[], int hasKw) {
 
 _noexport
 void _createAndBind_functionClass(void) {
+	ADD_BASE_CLASS(vm.baseClasses->codeobjectClass, "codeobject", vm.baseClasses->objectClass);
+	krk_defineNative(&vm.baseClasses->codeobjectClass->methods, ".__str__", _function_str);
+	krk_defineNative(&vm.baseClasses->codeobjectClass->methods, ".__repr__", _function_str);
+	krk_defineNative(&vm.baseClasses->codeobjectClass->methods, ":__name__", _function_get_name);
+	krk_defineNative(&vm.baseClasses->codeobjectClass->methods, "_ip_to_line", _function_ip_to_line);
+	krk_finalizeClass(vm.baseClasses->codeobjectClass);
+
 	ADD_BASE_CLASS(vm.baseClasses->functionClass, "function", vm.baseClasses->objectClass);
 	krk_defineNative(&vm.baseClasses->functionClass->methods, ".__str__", _closure_str);
 	krk_defineNative(&vm.baseClasses->functionClass->methods, ".__repr__", _closure_str);
