@@ -3,7 +3,7 @@ This module includes some additional variable-width or wide encodings not specif
 such, none of the codecs in this module should be used in HTML.
 """
 
-from codecs.extradata import encode_lat1supp, decode_lat1supp, encode_greksupp, decode_greksupp, encode_jis78, decode_jis78, encode_jis90p2, decode_jis90p2, encode_jis00, decode_jis00, encode_jis00p2, decode_jis00p2, encode_jis04, decode_jis04, encode_jis7katakana, encode_gb7, decode_gb7, encode_ksc7, decode_ksc7, encode_nbyte_ebcdic, decode_nbyte_ebcdic, encode_johab_ascii, decode_johab_ascii, encode_johab_ebcdic, decode_johab_ebcdic, encode_euc90, encode_euc04, decode_euc04, encode_sjis04, decode_sjis04, encode_big5_nonetenkana, decode_big5_nonetenkana
+from codecs.extradata import encode_lat1supp, decode_lat1supp, encode_greksupp, decode_greksupp, encode_jis78, decode_jis78, encode_jis90p2, decode_jis90p2, encode_jis00, decode_jis00, encode_jis00p2, decode_jis00p2, encode_jis04, decode_jis04, encode_jis7katakana, encode_gb7, decode_gb7, encode_ksc7, decode_ksc7, encode_nbyte_ebcdic, decode_nbyte_ebcdic, encode_johab_ascii, decode_johab_ascii, encode_johab_ebcdic, decode_johab_ebcdic, encode_euc90, encode_euc04, decode_euc04, encode_sjis04, decode_sjis04, encode_big5_nonetenkana, decode_big5_nonetenkana, encode_csic1, decode_csic1, encode_csic2, decode_csic2
 from codecs.infrastructure import register_kuroko_codec, ByteCatenator, StringCatenator, UnicodeEncodeError, UnicodeDecodeError, lookup_error, lookup, BaseEbcdicIncrementalEncoder, BaseEbcdicIncrementalDecoder, AsciiIncrementalEncoder, AsciiIncrementalDecoder, IncrementalEncoder, IncrementalDecoder, encode_base64, decode_base64
 from codecs.dbdata import encode_jis7, decode_jis7, decode_jis7katakana, XEucJpIncrementalDecoder, Big5EtenIncrementalEncoder, Big5HkscsIncrementalDecoder, encode_gbk, decode_gbk
 from codecs.bespokecodecs import Iso2022JpIncrementalEncoder, Iso2022JpIncrementalDecoder, Utf8IncrementalDecoder, Utf16BeIncrementalEncoder, Utf16BeIncrementalDecoder, Utf8SigIncrementalEncoder
@@ -1058,7 +1058,7 @@ class Iso2022NonJpIncrementalEncoder(IncrementalEncoder):
                         is_super = True
                         break
             if is_super:
-                out.add(b"\x1B\x6E")
+                out.add(b"\x1B\x4E")
                 out.add(bytes(self.encodes[self.super_desig][ord(i)]))
                 offset += 1
                 continue
@@ -1069,7 +1069,7 @@ class Iso2022NonJpIncrementalEncoder(IncrementalEncoder):
                         is_super3 = True
                         break
             if is_super3:
-                out.add(b"\x1B\x6F")
+                out.add(b"\x1B\x4F")
                 out.add(bytes(self.encodes[self.super3_desig][ord(i)]))
                 offset += 1
                 continue
@@ -1246,6 +1246,23 @@ class Iso2022KrIncrementalDecoder(Iso2022NonJpIncrementalDecoder):
 
 register_kuroko_codec(["iso-2022-kr", "iso2022-kr", "iso2022kr", "csiso2022kr"],
     Iso2022KrIncrementalEncoder, Iso2022KrIncrementalDecoder)
+
+class Iso2022CnIncrementalEncoder(Iso2022NonJpIncrementalEncoder):
+    name = "iso-2022-cn"
+    html5name = None
+    encodes = [encode_gb7, encode_csic1, encode_csic2]
+    escs_shift = {0: 0x41, 1: 0x47}
+    escs_super = {2: 0x48}
+
+class Iso2022CnIncrementalDecoder(Iso2022NonJpIncrementalDecoder):
+    name = "iso-2022-cn"
+    html5name = None
+    decodes = [decode_gb7, decode_csic1, decode_csic2]
+    escs_shift = {0x41: 0, 0x47: 1}
+    escs_super = {0x48: 2}
+
+register_kuroko_codec(["iso-2022-cn", "iso2022-cn", "iso2022cn", "csiso2022cn"],
+    Iso2022CnIncrementalEncoder, Iso2022CnIncrementalDecoder)
 
 
 
