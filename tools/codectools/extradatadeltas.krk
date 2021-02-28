@@ -118,6 +118,12 @@ print("\nlet encode_johabx_ebcdic = {}\n".format(smartrepr(codecs.extradata.enco
 print("\nlet encode_johab_ebcdic = xraydict(encode_johab_hangul, encode_johabx_ebcdic)\n")
 print("\nlet decode_johabx_ebcdic = {}\n".format(smartrepr(codecs.extradata.decode_johabx_ebcdic)))
 print("\nlet decode_johab_ebcdic = xraydict(decode_johab_hangul, decode_johabx_ebcdic)\n")
+print("\nlet encode_big5_nonetenkana = {}\n".format(smartrepr(codecs.extradata.encode_big5_nonetenkana)))
+print("\nlet decode_big5_nonetenkana = {}\n".format(smartrepr(codecs.extradata.decode_big5_nonetenkana)))
+print("\nlet encode_csic1 = {}\n".format(smartrepr(codecs.extradata.encode_csic1)))
+print("\nlet decode_csic1 = {}\n".format(smartrepr(codecs.extradata.decode_csic1)))
+print("\nlet encode_csic2 = {}\n".format(smartrepr(codecs.extradata.encode_csic2)))
+print("\nlet decode_csic2 = {}\n".format(smartrepr(codecs.extradata.decode_csic2)))
 
 
 
