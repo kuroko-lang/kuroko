@@ -50,9 +50,10 @@ typedef struct {
 typedef enum {
 	PREC_NONE,
 	PREC_ASSIGNMENT, /* = */
-	PREC_TERNARY,
+	PREC_TERNARY,    /* TrueBranch if Condition else FalseBranch */
 	PREC_OR,         /* or */
 	PREC_AND,        /* and */
+	PREC_NOT,        /* not */
 	PREC_COMPARISON, /* < > <= >= in 'not in' */
 	PREC_BITOR,      /* | */
 	PREC_BITXOR,     /* ^ */
@@ -60,8 +61,10 @@ typedef enum {
 	PREC_SHIFT,      /* << >> */
 	PREC_TERM,       /* + - */
 	PREC_FACTOR,     /* * / % */
-	PREC_UNARY,      /* ! - not */
+	PREC_UNARY,      /* + - */
+	PREC_BITUNARY,   /* ~ ! */
 	PREC_EXPONENT,   /* ** */
+	PREC_SUBSCRIPT,  /* [ ] */
 	PREC_CALL,       /* . () */
 	PREC_PRIMARY
 } Precedence;
@@ -1801,21 +1804,27 @@ _anotherSimpleStatement:
 	}
 }
 
+static void unot_(int canAssign) {
+	parsePrecedence(PREC_NOT);
+	emitByte(OP_NOT);
+}
+
+static void bitunary(int canAssign) {
+	KrkTokenType operatorType = parser.previous.type;
+	parsePrecedence(PREC_BITUNARY);
+	switch (operatorType) {
+		case TOKEN_TILDE: emitByte(OP_BITNEGATE); break;
+		case TOKEN_BANG:  emitByte(OP_NOT); break;
+		default: return;
+	}
+}
+
 static void unary(int canAssign) {
 	KrkTokenType operatorType = parser.previous.type;
-
 	parsePrecedence(PREC_UNARY);
-
 	switch (operatorType) {
+		case TOKEN_PLUS: break; /* no op, but explicitly listed here for clarity */
 		case TOKEN_MINUS: emitByte(OP_NEGATE); break;
-		case TOKEN_TILDE: emitByte(OP_BITNEGATE); break;
-
-		/* These are equivalent */
-		case TOKEN_BANG:
-		case TOKEN_NOT:
-			emitByte(OP_NOT);
-			break;
-
 		default: return;
 	}
 }
@@ -2367,19 +2376,19 @@ ParseRule krk_parseRules[] = {
 	RULE(TOKEN_RIGHT_PAREN,   NULL,     NULL,   PREC_NONE),
 	RULE(TOKEN_LEFT_BRACE,    dict,     NULL,   PREC_NONE),
 	RULE(TOKEN_RIGHT_BRACE,   NULL,     NULL,   PREC_NONE),
-	RULE(TOKEN_LEFT_SQUARE,   list,     get_,   PREC_CALL),
+	RULE(TOKEN_LEFT_SQUARE,   list,     get_,   PREC_SUBSCRIPT),
 	RULE(TOKEN_RIGHT_SQUARE,  NULL,     NULL,   PREC_NONE),
 	RULE(TOKEN_COLON,         NULL,     NULL,   PREC_NONE),
 	RULE(TOKEN_COMMA,         NULL,     NULL,   PREC_NONE),
 	RULE(TOKEN_DOT,           NULL,     dot,    PREC_CALL),
 	RULE(TOKEN_MINUS,         unary,    binary, PREC_TERM),
-	RULE(TOKEN_PLUS,          NULL,     binary, PREC_TERM),
+	RULE(TOKEN_PLUS,          unary,    binary, PREC_TERM),
 	RULE(TOKEN_SEMICOLON,     NULL,     NULL,   PREC_NONE),
 	RULE(TOKEN_SOLIDUS,       NULL,     binary, PREC_FACTOR),
 	RULE(TOKEN_ASTERISK,      NULL,     binary, PREC_FACTOR),
 	RULE(TOKEN_POW,           NULL,     binary, PREC_EXPONENT),
 	RULE(TOKEN_MODULO,        NULL,     binary, PREC_FACTOR),
-	RULE(TOKEN_BANG,          unary,    NULL,   PREC_NONE),
+	RULE(TOKEN_BANG,          bitunary, NULL,   PREC_NONE),
 	RULE(TOKEN_BANG_EQUAL,    NULL,     binary, PREC_COMPARISON),
 	RULE(TOKEN_EQUAL,         NULL,     NULL,   PREC_NONE),
 	RULE(TOKEN_EQUAL_EQUAL,   NULL,     binary, PREC_COMPARISON),
@@ -2404,7 +2413,7 @@ ParseRule krk_parseRules[] = {
 	RULE(TOKEN_IN,            NULL,     in_,    PREC_COMPARISON),
 	RULE(TOKEN_LET,           NULL,     NULL,   PREC_NONE),
 	RULE(TOKEN_NONE,          literal,  NULL,   PREC_NONE),
-	RULE(TOKEN_NOT,           unary,    not_,   PREC_COMPARISON),
+	RULE(TOKEN_NOT,           unot_,    not_,   PREC_COMPARISON),
 	RULE(TOKEN_IS,            NULL,     is_,    PREC_COMPARISON),
 	RULE(TOKEN_OR,            NULL,     or_,    PREC_OR),
 	RULE(TOKEN_RETURN,        NULL,     NULL,   PREC_NONE),
@@ -2419,7 +2428,7 @@ ParseRule krk_parseRules[] = {
 
 	RULE(TOKEN_AT,            NULL,     NULL,   PREC_NONE),
 
-	RULE(TOKEN_TILDE,         unary,    NULL,   PREC_NONE),
+	RULE(TOKEN_TILDE,         bitunary, NULL,   PREC_NONE),
 	RULE(TOKEN_PIPE,          NULL,     binary, PREC_BITOR),
 	RULE(TOKEN_CARET,         NULL,     binary, PREC_BITXOR),
 	RULE(TOKEN_AMPERSAND,     NULL,     binary, PREC_BITAND),
