@@ -102,6 +102,15 @@ let scrutiny = b'\[$BF|K\\T"L1$O!"\[(B\[$B@5aD$KA*Z)$5$l$?\[(BNo: \[(B; Yes: \[(
 print(codecs.decode(scrutiny, "iso-2022-jp", errors="replace"))
 print(codecs.decode(scrutiny, "jis_encoding", errors="replace"))
 
-
+for i in range(0x21, 0x7E + 1):
+    for j in range(0x21, 0x7E + 1):
+        let data = codecs.decode(bytes([0x1B, 0x24, 0x42, i, j]), "iso-2022-jp", errors="replace")
+        if "\uFFFD" in data: continue
+        let encoded = codecs.encode(data, "iso-2022-cn-ext", errors="replace")
+        if encoded[0] == 0x3F:
+            continue
+        let decoded = codecs.decode(encoded, "iso-2022-cn-ext")
+        if decoded != data:
+            print("Did not round trip", data)
 
 
