@@ -158,6 +158,7 @@ void _createAndBind_exceptions(void) {
 	ADD_EXCEPTION_CLASS(vm.exceptions->keyboardInterrupt, "KeyboardInterrupt", vm.exceptions->baseException);
 	ADD_EXCEPTION_CLASS(vm.exceptions->zeroDivisionError, "ZeroDivisionError", vm.exceptions->baseException);
 	ADD_EXCEPTION_CLASS(vm.exceptions->notImplementedError, "NotImplementedError", vm.exceptions->baseException);
+	ADD_EXCEPTION_CLASS(vm.exceptions->assertionError, "AssertionError", vm.exceptions->baseException);
 	ADD_EXCEPTION_CLASS(vm.exceptions->syntaxError, "SyntaxError", vm.exceptions->baseException);
 	krk_defineNative(&vm.exceptions->syntaxError->methods, ".__str__", _syntaxerror_str);
 	krk_finalizeClass(vm.exceptions->syntaxError);

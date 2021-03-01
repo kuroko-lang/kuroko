@@ -1734,6 +1734,27 @@ static void delStatement() {
 	inDel = 0;
 }
 
+static void assertStatement() {
+	expression();
+	int elseJump = emitJump(OP_JUMP_IF_TRUE);
+
+	KrkToken assertionError = syntheticToken("AssertionError");
+	size_t ind = identifierConstant(&assertionError);
+	EMIT_CONSTANT_OP(OP_GET_GLOBAL, ind);
+	int args = 0;
+
+	if (match(TOKEN_COMMA)) {
+		expression();
+		args = 1;
+	}
+
+	EMIT_CONSTANT_OP(OP_CALL, args);
+	emitByte(OP_RAISE);
+
+	patchJump(elseJump);
+	emitByte(OP_POP);
+}
+
 static void statement() {
 	if (match(TOKEN_EOL) || match(TOKEN_EOF)) {
 		return; /* Meaningless blank line */
@@ -1766,6 +1787,8 @@ _anotherSimpleStatement:
 			continueStatement();
 		} else if (match(TOKEN_DEL)) {
 			delStatement();
+		} else if (match(TOKEN_ASSERT)) {
+			assertStatement();
 		} else if (match(TOKEN_PASS)) {
 			/* Do nothing. */
 		} else {

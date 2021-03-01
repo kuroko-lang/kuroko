@@ -1,0 +1,14 @@
+
+
+assert 1 + 1
+assert True, "Test"
+
+try:
+    assert False
+except AssertionError:
+    print("Pass")
+
+try:
+    assert False, "with a message"
+except AssertionError as e:
+    print("msg =", str(e))

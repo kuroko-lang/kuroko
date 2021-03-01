@@ -120,6 +120,7 @@ struct Exceptions {
 	KrkClass * zeroDivisionError;   /**< @exception ZeroDivisionError A mathematical function attempted to divide by zero. */
 	KrkClass * notImplementedError; /**< @exception NotImplementedError The method is not implemented, either for the given arguments or in general. */
 	KrkClass * syntaxError;         /**< @exception SyntaxError The compiler encountered an unrecognized or invalid source code input. */
+	KrkClass * assertionError;      /**< @exception AssertionError An @c assert statement failed. */
 };
 
 /**
