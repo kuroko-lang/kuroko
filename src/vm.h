@@ -120,6 +120,7 @@ struct Exceptions {
 	KrkClass * zeroDivisionError;   /**< @exception ZeroDivisionError A mathematical function attempted to divide by zero. */
 	KrkClass * notImplementedError; /**< @exception NotImplementedError The method is not implemented, either for the given arguments or in general. */
 	KrkClass * syntaxError;         /**< @exception SyntaxError The compiler encountered an unrecognized or invalid source code input. */
+	KrkClass * assertionError;      /**< @exception AssertionError An @c assert statement failed. */
 };
 
 /**
@@ -224,6 +225,7 @@ typedef struct KrkVM {
 #define KRK_THREAD_ENABLE_DISASSEMBLY  (1 << 1)
 #define KRK_THREAD_ENABLE_SCAN_TRACING (1 << 2)
 #define KRK_THREAD_HAS_EXCEPTION       (1 << 3)
+#define KRK_THREAD_SINGLE_STEP         (1 << 4)
 
 /* Global flags */
 #define KRK_GLOBAL_ENABLE_STRESS_GC    (1 << 8)

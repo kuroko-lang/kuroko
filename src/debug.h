@@ -4,6 +4,7 @@
  * @brief Functions for disassembling bytecode.
  */
 #include <stdio.h>
+#include "vm.h"
 #include "chunk.h"
 #include "object.h"
 
@@ -48,3 +49,23 @@ extern size_t krk_lineNumber(KrkChunk * chunk, size_t offset);
 
 /* Internal stuff */
 extern void _createAndBind_disMod(void);
+
+/**
+ * @brief Called by the VM when a breakpoint is encountered.
+ *
+ * Internal method, should not generally be called.
+ */
+extern int krk_debugBreakpointHandler(void);
+
+/**
+ * @brief Called by the VM when single step mode is enabled.
+ *
+ * Internal method, but you can hook this with a different
+ * symbol if you're embedding, I guess?
+ */
+extern int krk_debuggerHook(void);
+
+/**
+ * @brief Overridable debugger hook callback.
+ */
+extern int (*krk_externalDebuggerHook)(void);

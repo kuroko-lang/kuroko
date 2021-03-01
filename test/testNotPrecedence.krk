@@ -1,0 +1,2 @@
+print(not True + True) # Should be False
+print(not True or True) # Should be True

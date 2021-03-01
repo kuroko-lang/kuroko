@@ -381,7 +381,7 @@ int main(int argc, char * argv[]) {
 	int flags = 0;
 	int moduleAsMain = 0;
 	int opt;
-	while ((opt = getopt(argc, argv, "+c:C:dgm:rstMV-:")) != -1) {
+	while ((opt = getopt(argc, argv, "+c:C:dgm:rstMSV-:")) != -1) {
 		switch (opt) {
 			case 'c':
 				return runString(argv, flags, optarg);
@@ -397,6 +397,9 @@ int main(int argc, char * argv[]) {
 				/* Print debug information during compilation. */
 				flags |= KRK_THREAD_ENABLE_SCAN_TRACING;
 				break;
+			case 'S':
+				flags |= KRK_THREAD_SINGLE_STEP;
+				/* fallthrough - single step requires tracing */
 			case 't':
 				/* Disassemble instructions as they are executed. */
 				flags |= KRK_THREAD_ENABLE_TRACING;
@@ -429,6 +432,7 @@ int main(int argc, char * argv[]) {
 						" -t          Disassemble instructions as they are exceuted.\n"
 						" -C file     Compile 'file', but do not execute it.\n"
 						" -M          Print the default module import paths.\n"
+						" -S          Enable single-step debugging.\n"
 						" -V          Print version information.\n"
 						"\n"
 						" --version   Print version information.\n"
