@@ -225,6 +225,7 @@ typedef struct KrkVM {
 #define KRK_THREAD_ENABLE_DISASSEMBLY  (1 << 1)
 #define KRK_THREAD_ENABLE_SCAN_TRACING (1 << 2)
 #define KRK_THREAD_HAS_EXCEPTION       (1 << 3)
+#define KRK_THREAD_SINGLE_STEP         (1 << 4)
 
 /* Global flags */
 #define KRK_GLOBAL_ENABLE_STRESS_GC    (1 << 8)

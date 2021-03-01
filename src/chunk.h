@@ -66,7 +66,8 @@ typedef enum {
 	OP_CREATE_CLASSMETHOD,
 	OP_INVOKE_ITER,
 	OP_INVOKE_CONTAINS,
-	/* current highest: 42 */
+	OP_BREAKPOINT, /* NEVER output this instruction in the compiler or bad things can happen */
+	/* current highest: 43 */
 
 	OP_CALL = 64,
 	OP_CLASS,

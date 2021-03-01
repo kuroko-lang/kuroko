@@ -1846,9 +1846,13 @@ static KrkValue run() {
 	while (1) {
 #ifdef ENABLE_TRACING
 		if (krk_currentThread.flags & KRK_THREAD_ENABLE_TRACING) {
-			dumpStack(frame);
-			krk_disassembleInstruction(stderr, frame->closure->function,
-				(size_t)(frame->ip - frame->closure->function->chunk.code));
+			if (krk_currentThread.flags & KRK_THREAD_SINGLE_STEP) {
+				krk_debuggerHook();
+			} else {
+				dumpStack(frame);
+				krk_disassembleInstruction(stderr, frame->closure->function,
+					(size_t)(frame->ip - frame->closure->function->chunk.code));
+			}
 		}
 #endif
 
@@ -2122,6 +2126,11 @@ static KrkValue run() {
 				}
 				/* Else pop the filter value */
 				krk_pop();
+				break;
+			}
+			case OP_BREAKPOINT: {
+				/* First off, halt execution. */
+				krk_debugBreakpointHandler();
 				break;
 			}
 
