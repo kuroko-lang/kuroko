@@ -213,7 +213,7 @@ static void debug_disableSingleStep(void) {
 }
 
 KRK_FUNC(enablebreakpoint,{
-	CHECK_ARG(1,int,krk_integer_type,breakIndex);
+	CHECK_ARG(0,int,krk_integer_type,breakIndex);
 	if (breakIndex < 0 || breakIndex >= breakpointsCount || breakpoints[breakIndex].inFunction == NULL) {
 		return krk_runtimeError(vm.exceptions->indexError, "invalid breakpoint id");
 	}
@@ -221,7 +221,7 @@ KRK_FUNC(enablebreakpoint,{
 })
 
 KRK_FUNC(disablebreakpoint,{
-	CHECK_ARG(1,int,krk_integer_type,breakIndex);
+	CHECK_ARG(0,int,krk_integer_type,breakIndex);
 	if (breakIndex < 0 || breakIndex >= breakpointsCount || breakpoints[breakIndex].inFunction == NULL) {
 		return krk_runtimeError(vm.exceptions->indexError, "invalid breakpoint id");
 	}
@@ -230,7 +230,7 @@ KRK_FUNC(disablebreakpoint,{
 })
 
 KRK_FUNC(delbreakpoint,{
-	CHECK_ARG(1,int,krk_integer_type,breakIndex);
+	CHECK_ARG(0,int,krk_integer_type,breakIndex);
 	if (breakIndex < 0 || breakIndex >= breakpointsCount || breakpoints[breakIndex].inFunction == NULL) {
 		return krk_runtimeError(vm.exceptions->indexError, "invalid breakpoint id");
 	}
@@ -322,6 +322,15 @@ static void debug_dumpTraceback(void) {
 	krk_currentThread.flags = flagsBefore;
 }
 
+static void debug_help(void) {
+	fprintf(stderr, " c = continue    s = step\n");
+	fprintf(stderr, " t = traceback   q = quit\n");
+	fprintf(stderr, " b FILE LINE = add breakpoint\n");
+	fprintf(stderr, " l = list breakpoints\n");
+	fprintf(stderr, " e X = enable breakpoint X\n");
+	fprintf(stderr, " d X = disable breakpoint X\n");
+}
+
 int (*krk_externalDebuggerHook)(void) = NULL;
 int krk_debuggerHook(void) {
 	if (krk_externalDebuggerHook) {
@@ -338,12 +347,7 @@ int krk_debuggerHook(void) {
 	if (debuggerShowHello) {
 		debuggerShowHello = 0;
 		fprintf(stderr, "Entering debugger.\n");
-		fprintf(stderr, " c = continue    s = step\n");
-		fprintf(stderr, " t = traceback   q = quit\n");
-		fprintf(stderr, " b FILE LINE = add breakpoint\n");
-		fprintf(stderr, " l = list breakpoints\n");
-		fprintf(stderr, " e X = enable breakpoint X\n");
-		fprintf(stderr, " d X = disable breakpoint X\n");
+		debug_help();
 	}
 
 	KrkCallFrame* frame = &krk_currentThread.frames[krk_currentThread.frameCount - 1];
@@ -398,45 +402,66 @@ int krk_debuggerHook(void) {
 					breakpoints[i].inFunction->chunk.code[breakpoints[i].offset] == OP_BREAKPOINT ? "enabled" : "disabled"
 				);
 			}
-		} else {
-			/* Commands with arguments */
-			if (strstr(buf,"e ") == buf) {
-				int breakIndex = atoi(buf+2);
-				if (breakIndex <= breakpointsCount || breakpoints[breakIndex].inFunction == NULL) {
-					fprintf(stderr, "not a valid breakpoint index\n");
-				} else {
-					breakpoints[breakIndex].inFunction->chunk.code[breakpoints[breakIndex].offset] =
-						OP_BREAKPOINT;
-				}
-			} else if (strstr(buf,"d ") == buf) {
-				int breakIndex = atoi(buf+2);
-				if (breakIndex <= breakpointsCount || breakpoints[breakIndex].inFunction == NULL) {
-					fprintf(stderr, "not a valid breakpoint index\n");
-				} else {
-					breakpoints[breakIndex].inFunction->chunk.code[breakpoints[breakIndex].offset] =
-						breakpoints[breakIndex].originalOpcode;
-				}
-			} else if (strstr(buf,"b ") == buf) {
-				char * filename = buf+2;
-				char * afterFilename = strstr(filename, " ");
-				if (!afterFilename) {
-					fprintf(stderr, "expected a line number\n");
-				} else {
-					*afterFilename = '\0';
-					int lineNumber = atoi(afterFilename+1);
+		} else if (!strcmp(buf,"h")) {
+			debug_help();
+		} else if (strstr(buf,"e ") == buf) {
+			int breakIndex = atoi(buf+2);
+			if (breakIndex <= breakpointsCount || breakpoints[breakIndex].inFunction == NULL) {
+				fprintf(stderr, "not a valid breakpoint index\n");
+			} else {
+				breakpoints[breakIndex].inFunction->chunk.code[breakpoints[breakIndex].offset] =
+					OP_BREAKPOINT;
+			}
+		} else if (strstr(buf,"d ") == buf) {
+			int breakIndex = atoi(buf+2);
+			if (breakIndex <= breakpointsCount || breakpoints[breakIndex].inFunction == NULL) {
+				fprintf(stderr, "not a valid breakpoint index\n");
+			} else {
+				breakpoints[breakIndex].inFunction->chunk.code[breakpoints[breakIndex].offset] =
+					breakpoints[breakIndex].originalOpcode;
+			}
+		} else if (strstr(buf,"b ") == buf) {
+			char * filename = buf+2;
+			char * afterFilename = strstr(filename, " ");
+			if (!afterFilename) {
+				fprintf(stderr, "expected a line number\n");
+			} else {
+				*afterFilename = '\0';
+				int lineNumber = atoi(afterFilename+1);
 
-					fprintf(stderr, "Trying to add breakpoint to '%s' at line %d\n", filename, lineNumber);
-					krk_push(OBJECT_VAL(krk_copyString(filename,strlen(filename))));
-					KrkValue result = FUNC_NAME(krk,addbreakpoint)(2,(KrkValue[]){krk_peek(0),INTEGER_VAL(lineNumber)},0);
-					krk_pop();
-					if (!IS_INTEGER(result)) {
-						fprintf(stderr, "That probably didn't work.\n");
-					} else {
-						fprintf(stderr, "add breakpoint %d\n", (int)AS_INTEGER(result));
-					}
+				fprintf(stderr, "Trying to add breakpoint to '%s' at line %d\n", filename, lineNumber);
+				krk_push(OBJECT_VAL(krk_copyString(filename,strlen(filename))));
+				KrkValue result = FUNC_NAME(krk,addbreakpoint)(2,(KrkValue[]){krk_peek(0),INTEGER_VAL(lineNumber)},0);
+				krk_pop();
+				if (!IS_INTEGER(result)) {
+					fprintf(stderr, "That probably didn't work.\n");
+				} else {
+					fprintf(stderr, "add breakpoint %d\n", (int)AS_INTEGER(result));
 				}
 			}
+		} else if (strstr(buf,"p ") == buf) {
+			int flagsBefore = krk_currentThread.flags;
+			debug_disableSingleStep();
+			krk_push(krk_currentThread.currentException);
+			int previousExitFrame = krk_currentThread.exitOnFrame;
+			krk_currentThread.exitOnFrame = krk_currentThread.frameCount;
 
+			/* Compile expression */
+			KrkValue value = krk_interpret(buf+2,"<debugger>");
+			if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) {
+				fprintf(stderr," [raised exception %s]\n", krk_typeName(krk_currentThread.currentException));
+				krk_currentThread.frameCount = krk_currentThread.exitOnFrame;
+			} else {
+				fprintf(stderr," => ");
+				krk_printValue(stderr, value);
+				fprintf(stderr,"\n");
+			}
+
+			krk_currentThread.exitOnFrame = previousExitFrame;
+			krk_currentThread.currentException = krk_pop();
+			krk_currentThread.flags = flagsBefore;
+		} else {
+			fprintf(stderr, "unknown command\n");
 		}
 	}
 
@@ -572,7 +597,7 @@ FUNC_SIG(krk,examine) {
 			} else {
 				newTuple->values.values[newTuple->values.count++] = INTEGER_VAL(operand); /* Just in case */
 				for (size_t i = 0; i < func->localNameCount; ++i) {
-					if (func->localNames[i].id == (size_t)local && func->localNames[i].birthday <= (size_t)local && func->localNames[i].deathday >= (size_t)local) {
+					if (func->localNames[i].id == (size_t)local && func->localNames[i].birthday <= offset && func->localNames[i].deathday >= offset) {
 						newTuple->values.values[newTuple->values.count-1] = OBJECT_VAL(func->localNames[i].name);
 						break;
 					}
