@@ -17,6 +17,7 @@ typedef long long krk_integer_type;
 # define PRIkrk_int "%I64d"
 # define PRIkrk_hex "%I64x"
 # define parseStrInt strtoll
+# define ENABLE_THREADING
 # else
 typedef long krk_integer_type;
 # define PRIkrk_int "%ld"

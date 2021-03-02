@@ -26,10 +26,12 @@ ifndef KRK_ENABLE_STATIC
   else
     # For Windows, disable format string warnings because gcc will get mad
     # about non-portable Windows format specifiers...
-    CFLAGS  += -Wno-format
+    CFLAGS  += -Wno-format -static-libgcc
     # And we need to link this by name with extension because I don't want
     # to actually rename it to kuroko.dll or whatever.
     MODLIBS = libkuroko.so
+    LDLIBS += -l:libwinpthread.a
+    ${OBJS}: CFLAGS += -DKRKINLIB
   endif
   all: ${TARGET} ${MODULES} ${TOOLS}
   KUROKO_LIBS = libkuroko.so

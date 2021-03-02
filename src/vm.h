@@ -243,7 +243,11 @@ typedef struct KrkVM {
  *
  * See @c KrkThreadState for more information.
  */
+#if defined(_WIN32) && !defined(KRKINLIB)
+#define krk_currentThread (*krk_getCurrentThread())
+#else
 extern threadLocal KrkThreadState krk_currentThread;
+#endif
 
 /**
  * @brief Singleton instance of the shared VM state.
