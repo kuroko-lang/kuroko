@@ -528,14 +528,14 @@ KRK_FUNC(build,{
 #define CONSTANT(opc,more) case opc: { constant = chunk->code[offset + 1]; size = 2; more; break; } \
 	case opc ## _LONG: { constant = (chunk->code[offset + 1] << 16) | \
 	(chunk->code[offset + 2] << 8) | (chunk->code[offset + 3]); size = 4; more; break; }
-#define OPERANDB(opc,more) case opc: { size = 2; more; break; }
-#define OPERAND(opc,more) OPERANDB(opc,more) \
-	case opc ## _LONG: { size = 4; more; break; }
+#define OPERAND(opc,more) case opc: { operand = chunk->code[offset + 1]; size = 2; more; break; } \
+	case opc ## _LONG: { operand = (chunk->code[offset + 1] << 16) | \
+	(chunk->code[offset + 2] << 8) | (chunk->code[offset + 3]); size = 4; more; break; }
 #define JUMP(opc,sign) case opc: { jump = 0 sign ((chunk->code[offset + 1] << 8) | (chunk->code[offset + 2])); \
 	size = 3; break; }
 #define CLOSURE_MORE size += AS_FUNCTION(chunk->constants.values[constant])->upvalueCount * 2
 #define EXPAND_ARGS_MORE
-#define LOCAL_MORE
+#define LOCAL_MORE local = operand;
 FUNC_SIG(krk,examine) {
 	FUNCTION_TAKES_EXACTLY(1);
 	CHECK_ARG(0,FUNCTION,KrkFunction*,func);
@@ -550,6 +550,8 @@ FUNC_SIG(krk,examine) {
 		size_t size = 0;
 		ssize_t constant = -1;
 		ssize_t jump = 0;
+		ssize_t operand = -1;
+		ssize_t local = -1;
 		switch (opcode) {
 #include "opcodes.h"
 		}
@@ -562,6 +564,22 @@ FUNC_SIG(krk,examine) {
 			newTuple->values.values[newTuple->values.count++] = chunk->constants.values[constant];
 		} else if (jump != 0) {
 			newTuple->values.values[newTuple->values.count++] = INTEGER_VAL(jump);
+		} else if (local != -1) {
+			if ((short int)local < func->requiredArgs) {
+				newTuple->values.values[newTuple->values.count++] = func->requiredArgNames.values[local];
+			} else if ((short int)local < func->requiredArgs + func->keywordArgs) {
+				newTuple->values.values[newTuple->values.count++] = func->keywordArgNames.values[local - func->requiredArgs];
+			} else {
+				newTuple->values.values[newTuple->values.count++] = INTEGER_VAL(operand); /* Just in case */
+				for (size_t i = 0; i < func->localNameCount; ++i) {
+					if (func->localNames[i].id == (size_t)local && func->localNames[i].birthday <= (size_t)local && func->localNames[i].deathday >= (size_t)local) {
+						newTuple->values.values[newTuple->values.count-1] = OBJECT_VAL(func->localNames[i].name);
+						break;
+					}
+				}
+			}
+		} else if (operand != -1) {
+			newTuple->values.values[newTuple->values.count++] = INTEGER_VAL(operand);
 		} else {
 			newTuple->values.values[newTuple->values.count++] = NONE_VAL();
 		}
