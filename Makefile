@@ -15,6 +15,7 @@ KRKMODS  = $(wildcard modules/*.krk modules/*/*.krk modules/*/*/*.krk)
 
 ifndef KRK_ENABLE_STATIC
   # The normal build configuration is as a shared library or DLL (on Windows)
+  all: ${TARGET} ${MODULES} ${TOOLS}
   CFLAGS  += -fPIC
   ifeq (,$(findstring mingw,$(CC)))
     # We set rpath here mostly so you can run the locally-built interpreter
@@ -34,10 +35,10 @@ ifndef KRK_ENABLE_STATIC
     # And we need to link this by name with extension because I don't want
     # to actually rename it to kuroko.dll or whatever.
     MODLIBS = libkuroko.so
-    LDLIBS += -l:libwinpthread.a
+    LDLIBS += -l:libwinpthread.a -Wl,--require-defined=tc_malloc libtcmalloc_minimal.a -l:libpsapi.a -l:libstdc++.a
     ${OBJS}: CFLAGS += -DKRKINLIB
+    libkuroko.so: libtcmalloc_minimal.a
   endif
-  all: ${TARGET} ${MODULES} ${TOOLS}
   KUROKO_LIBS = libkuroko.so
 else
   # Static builds are a little different...
@@ -118,6 +119,9 @@ clean:
 
 tags: $(wildcard src/*.c) $(wildcard src/*.h)
 	@ctags --c-kinds=+lx src/*.c src/*.h
+
+libtcmalloc_minimal.a:
+	curl -O https://klange.dev/libtcmalloc_minimal.a
 
 # Test targets run against all .krk files in the test/ directory, writing
 # stdout to `.expect` files, and then comparing with `git`.
