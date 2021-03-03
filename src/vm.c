@@ -1846,13 +1846,13 @@ static KrkValue run() {
 	while (1) {
 #ifdef ENABLE_TRACING
 		if (krk_currentThread.flags & KRK_THREAD_ENABLE_TRACING) {
-			if (krk_currentThread.flags & KRK_THREAD_SINGLE_STEP) {
-				krk_debuggerHook();
-			} else {
-				dumpStack(frame);
-				krk_disassembleInstruction(stderr, frame->closure->function,
-					(size_t)(frame->ip - frame->closure->function->chunk.code));
-			}
+			dumpStack(frame);
+			krk_disassembleInstruction(stderr, frame->closure->function,
+				(size_t)(frame->ip - frame->closure->function->chunk.code));
+		}
+
+		if (krk_currentThread.flags & KRK_THREAD_SINGLE_STEP) {
+			krk_debuggerHook(frame);
 		}
 #endif
 
@@ -1869,6 +1869,8 @@ static KrkValue run() {
 			vm.watchdog--;
 		}
 #endif
+
+_resumeHook: (void)0;
 
 		/* Each instruction begins with one opcode byte */
 		uint8_t opcode = READ_BYTE();
@@ -2131,7 +2133,8 @@ static KrkValue run() {
 			case OP_BREAKPOINT: {
 				/* First off, halt execution. */
 				krk_debugBreakpointHandler();
-				break;
+				if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) goto _finishException;
+				goto _resumeHook;
 			}
 
 			/*

@@ -650,6 +650,52 @@ int syn_krk_calculate(struct syntax_state * state) {
 	return -1;
 }
 
+char * syn_krk_dbg_commands[] = {
+	"s", "skip",
+	"c", "continue",
+	"q", "quit",
+	"e", "enable",
+	"d", "disable",
+	"r", "remove",
+	"bt", "backtrace",
+	"break",
+	"abort",
+	"help",
+	NULL,
+};
+
+char * syn_krk_dbg_info_types[] = {
+	"breakpoints",
+	NULL,
+};
+
+int syn_krk_dbg_calculate(struct syntax_state * state) {
+	if (state->state < 1) {
+		if (state->i == 0) {
+			if (match_and_paint(state, "p", FLAG_KEYWORD, c_keyword_qualifier) ||
+			    match_and_paint(state, "print", FLAG_KEYWORD, c_keyword_qualifier)) {
+				while (1) {
+					int result = syn_krk_calculate(state);
+					if (result == 0) continue;
+					if (result == -1) return -1;
+					return result + 1;
+				}
+			} else if (match_and_paint(state,"info", FLAG_KEYWORD, c_keyword_qualifier) ||
+			           match_and_paint(state,"i", FLAG_KEYWORD, c_keyword_qualifier)) {
+				skip();
+				find_keywords(state,syn_krk_dbg_info_types, FLAG_TYPE, c_keyword_qualifier);
+				return -1;
+			} else if (find_keywords(state, syn_krk_dbg_commands, FLAG_KEYWORD, c_keyword_qualifier)) {
+				return 0;
+			}
+		}
+		return -1;
+	} else {
+		state->state -= 1;
+		return syn_krk_calculate(state) + 1;
+	}
+}
+
 #ifdef __toaru__
 int esh_variable_qualifier(int c) {
 	return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || (c == '_');
@@ -1040,6 +1086,7 @@ struct syntax_definition {
 	int tabIndents;
 } syntaxes[] = {
 	{"krk",syn_krk_calculate, 1},
+	{"krk-dbg",syn_krk_dbg_calculate, 1},
 #ifdef __toaru__
 	{"python",syn_py_calculate, 1},
 	{"esh",syn_esh_calculate, 0},

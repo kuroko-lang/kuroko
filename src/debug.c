@@ -189,92 +189,25 @@ size_t krk_disassembleInstruction(FILE * f, KrkFunction * func, size_t offset) {
 #undef LOCAL_MORE
 #undef EXPAND_ARGS_MORE
 
-struct BreakPointTable {
+struct BreakpointEntry {
 	KrkFunction * inFunction;
 	size_t offset;
+	int flags;
 	uint8_t originalOpcode;
 };
 
-#define MAX_BREAKPOINTS 16
-static struct BreakPointTable breakpoints[MAX_BREAKPOINTS] = {0};
+#define MAX_BREAKPOINTS 32
+static struct BreakpointEntry breakpoints[MAX_BREAKPOINTS] = {0};
 static int breakpointsCount = 0;
 
-static char * lastDebuggerCommand = NULL;
-static int debuggerShowHello = 1; /* Always make sure we show the message on the first call */
+static KrkDebugCallback _debugger_hook = NULL;
 
-static void debug_enableSingleStep(void) {
-	krk_currentThread.flags |= KRK_THREAD_ENABLE_TRACING;
-	krk_currentThread.flags |= KRK_THREAD_SINGLE_STEP;
-}
+/* Internal state tracks re-enabling repeat breakpoints */
+static threadLocal int _repeatStack_top    = -1;
+static threadLocal int _repeatStack_bottom = -1;
+static threadLocal int _thisWasForced = 0;
 
-static void debug_disableSingleStep(void) {
-	krk_currentThread.flags &= ~(KRK_THREAD_ENABLE_TRACING);
-	krk_currentThread.flags &= ~(KRK_THREAD_SINGLE_STEP);
-}
-
-KRK_FUNC(enablebreakpoint,{
-	CHECK_ARG(0,int,krk_integer_type,breakIndex);
-	if (breakIndex < 0 || breakIndex >= breakpointsCount || breakpoints[breakIndex].inFunction == NULL) {
-		return krk_runtimeError(vm.exceptions->indexError, "invalid breakpoint id");
-	}
-	breakpoints[breakIndex].inFunction->chunk.code[breakpoints[breakIndex].offset] = OP_BREAKPOINT;
-})
-
-KRK_FUNC(disablebreakpoint,{
-	CHECK_ARG(0,int,krk_integer_type,breakIndex);
-	if (breakIndex < 0 || breakIndex >= breakpointsCount || breakpoints[breakIndex].inFunction == NULL) {
-		return krk_runtimeError(vm.exceptions->indexError, "invalid breakpoint id");
-	}
-	breakpoints[breakIndex].inFunction->chunk.code[breakpoints[breakIndex].offset] =
-		breakpoints[breakIndex].originalOpcode;
-})
-
-KRK_FUNC(delbreakpoint,{
-	CHECK_ARG(0,int,krk_integer_type,breakIndex);
-	if (breakIndex < 0 || breakIndex >= breakpointsCount || breakpoints[breakIndex].inFunction == NULL) {
-		return krk_runtimeError(vm.exceptions->indexError, "invalid breakpoint id");
-	}
-	breakpoints[breakIndex].inFunction = NULL;
-	while (breakpointsCount && breakpoints[breakpointsCount-1].inFunction == NULL) {
-		breakpointsCount--;
-	}
-})
-
-KRK_FUNC(addbreakpoint,{
-	FUNCTION_TAKES_EXACTLY(2);
-	CHECK_ARG(1,int,krk_integer_type,lineNo);
-
-	KrkFunction * target = NULL;
-	if (IS_CLOSURE(argv[0])) {
-		target = AS_CLOSURE(argv[0])->function;
-	} else if (IS_BOUND_METHOD(argv[0]) && IS_CLOSURE(OBJECT_VAL(AS_BOUND_METHOD(argv[0])->method))) {
-		target = AS_CLOSURE(OBJECT_VAL(AS_BOUND_METHOD(argv[0])->method))->function;
-	} else if (IS_FUNCTION(argv[0])) {
-		target = AS_FUNCTION(argv[0]);
-	} else if (IS_STRING(argv[0])) {
-		/* Look at _ALL_ objects... */
-		KrkObj * object = vm.objects;
-		while (object) {
-			if (object->type == OBJ_FUNCTION) {
-				KrkChunk * chunk = &((KrkFunction*)object)->chunk;
-				if (AS_STRING(argv[0]) == chunk->filename) {
-					/* We have a candidate. */
-					if (krk_lineNumber(chunk, 0) <= (size_t)lineNo &&
-					    krk_lineNumber(chunk,chunk->count) >= (size_t)lineNo) {
-						target = (KrkFunction*)object;
-						break;
-					}
-				}
-			}
-			object = object->next;
-		}
-		if (!target) {
-			return krk_runtimeError(vm.exceptions->valueError, "Could not locate a matching bytecode object.");
-		}
-	} else {
-		return TYPE_ERROR(function or method or filename,argv[0]);
-	}
-
+int krk_debug_addBreakpointCodeOffset(KrkFunction * target, size_t offset, int flags) {
 	int index = breakpointsCount;
 	if (breakpointsCount == MAX_BREAKPOINTS) {
 		/* See if any are available */
@@ -285,34 +218,170 @@ KRK_FUNC(addbreakpoint,{
 			}
 		}
 		if (index == breakpointsCount) {
-			return krk_runtimeError(vm.exceptions->indexError, "Too many active breakpoints, max is %d", MAX_BREAKPOINTS);
+			return -1;
 		}
 	} else {
 		index = breakpointsCount++;
 	}
 
-	/* Figure out what instruction this should be on */
-	size_t last = 0;
-	for (size_t i = 0; i < target->chunk.linesCount; ++i) {
-		if (target->chunk.lines[i].line > (size_t)lineNo) break;
-		if (target->chunk.lines[i].line == (size_t)lineNo) {
-			last = target->chunk.lines[i].startOffset;
-			break;
+	breakpoints[index].inFunction = target;
+	breakpoints[index].offset = offset;
+	breakpoints[index].originalOpcode = target->chunk.code[offset];
+	breakpoints[index].flags = flags;
+	target->chunk.code[offset] = OP_BREAKPOINT;
+
+	return index;
+}
+
+int krk_debug_addBreakpointFileLine(KrkString * filename, size_t line, int flags) {
+
+	KrkFunction * target = NULL;
+
+	/* Examine all code objects to find one that matches the requested
+	 * filename and line number... */
+	KrkObj * object = vm.objects;
+	while (object) {
+		if (object->type == OBJ_FUNCTION) {
+			KrkChunk * chunk = &((KrkFunction*)object)->chunk;
+			if (filename == chunk->filename) {
+				/* We have a candidate. */
+				if (krk_lineNumber(chunk, 0) <= line &&
+				    krk_lineNumber(chunk,chunk->count) >= line) {
+					target = (KrkFunction*)object;
+					break;
+				}
+			}
 		}
-		last = target->chunk.lines[i].startOffset;
+		object = object->next;
 	}
 
-	breakpoints[index].inFunction = target;
-	breakpoints[index].offset = last;
-	breakpoints[index].originalOpcode = target->chunk.code[last];
-	target->chunk.code[last] = OP_BREAKPOINT;
+	/* No matching function was found... */
+	if (!target) return -1;
 
-	return INTEGER_VAL(index);
+	/* Find the right offset in this function */
+
+	size_t offset = 0;
+	for (size_t i = 0; i < target->chunk.linesCount; ++i) {
+		if (target->chunk.lines[i].line > line) break;
+		if (target->chunk.lines[i].line == line) {
+			offset = target->chunk.lines[i].startOffset;
+			break;
+		}
+		offset = target->chunk.lines[i].startOffset;
+	}
+
+	return krk_debug_addBreakpointCodeOffset(target, offset, flags);
+}
+
+int krk_debug_enableBreakpoint(int breakIndex) {
+	if (breakIndex < 0 || breakIndex >= breakpointsCount || breakpoints[breakIndex].inFunction == NULL)
+		return 1;
+	breakpoints[breakIndex].inFunction->chunk.code[breakpoints[breakIndex].offset] = OP_BREAKPOINT;
+	return 0;
+}
+KRK_FUNC(enablebreakpoint,{
+	CHECK_ARG(0,int,krk_integer_type,breakIndex);
+	if (krk_debug_enableBreakpoint(breakIndex))
+		return krk_runtimeError(vm.exceptions->indexError, "invalid breakpoint id");
 })
 
-static void debug_dumpTraceback(void) {
+int krk_debug_disableBreakpoint(int breakIndex) {
+	if (breakIndex < 0 || breakIndex >= breakpointsCount || breakpoints[breakIndex].inFunction == NULL)
+		return 1;
+	breakpoints[breakIndex].inFunction->chunk.code[breakpoints[breakIndex].offset] =
+		breakpoints[breakIndex].originalOpcode;
+	if (breakIndex == _repeatStack_top) {
+		_repeatStack_top = -1;
+	}
+	return 0;
+}
+KRK_FUNC(disablebreakpoint,{
+	CHECK_ARG(0,int,krk_integer_type,breakIndex);
+	if (krk_debug_disableBreakpoint(breakIndex))
+		return krk_runtimeError(vm.exceptions->indexError, "invalid breakpoint id");
+})
+
+int krk_debug_removeBreakpoint(int breakIndex) {
+	if (breakIndex < 0 || breakIndex >= breakpointsCount || breakpoints[breakIndex].inFunction == NULL)
+		return 1;
+	krk_debug_disableBreakpoint(breakIndex);
+	breakpoints[breakIndex].inFunction = NULL;
+	while (breakpointsCount && breakpoints[breakpointsCount-1].inFunction == NULL) {
+		breakpointsCount--;
+	}
+	return 0;
+}
+KRK_FUNC(delbreakpoint,{
+	CHECK_ARG(0,int,krk_integer_type,breakIndex);
+	if (krk_debug_removeBreakpoint(breakIndex))
+		return krk_runtimeError(vm.exceptions->indexError, "invalid breakpoint id");
+})
+
+KRK_FUNC(addbreakpoint,{
+	FUNCTION_TAKES_EXACTLY(2);
+	CHECK_ARG(1,int,krk_integer_type,lineNo);
+
+	int flags = KRK_BREAKPOINT_NORMAL;
+
+	if (hasKw) {
+		KrkValue flagsValue = NONE_VAL();
+		if (krk_tableGet(AS_DICT(argv[argc]), OBJECT_VAL(S("flags")), &flagsValue)) {
+			if (!IS_INTEGER(flagsValue))
+				return TYPE_ERROR(int,flagsValue);
+			flags = AS_INTEGER(flagsValue);
+		}
+	}
+
+	int result;
+	if (IS_STRING(argv[0])) {
+		result = krk_debug_addBreakpointFileLine(AS_STRING(argv[0]), lineNo, flags);
+	} else {
+		KrkFunction * target = NULL;
+		if (IS_CLOSURE(argv[0])) {
+			target = AS_CLOSURE(argv[0])->function;
+		} else if (IS_BOUND_METHOD(argv[0]) && IS_CLOSURE(OBJECT_VAL(AS_BOUND_METHOD(argv[0])->method))) {
+			target = AS_CLOSURE(OBJECT_VAL(AS_BOUND_METHOD(argv[0])->method))->function;
+		} else if (IS_FUNCTION(argv[0])) {
+			target = AS_FUNCTION(argv[0]);
+		} else {
+			return TYPE_ERROR(function or method or filename,argv[0]);
+		}
+		/* Figure out what instruction this should be on */
+		size_t last = 0;
+		for (size_t i = 0; i < target->chunk.linesCount; ++i) {
+			if (target->chunk.lines[i].line > (size_t)lineNo) break;
+			if (target->chunk.lines[i].line == (size_t)lineNo) {
+				last = target->chunk.lines[i].startOffset;
+				break;
+			}
+			last = target->chunk.lines[i].startOffset;
+		}
+		result = krk_debug_addBreakpointCodeOffset(target,last,flags);
+	}
+
+	if (result < 0)
+		return krk_runtimeError(vm.exceptions->baseException, "Could not add breakpoint.");
+
+	return INTEGER_VAL(result);
+})
+
+/*
+ * Begin debugger utility functions.
+ *
+ * These functions are exported for use in debuggers that
+ * are registered with krk_registerDebugger(...);
+ */
+
+/**
+ * @brief Safely print traceback data.
+ *
+ * Since traceback printing may involve calling into user code,
+ * we clear the debugging bits. Then we make a new exception
+ * to attach a traceback to.
+ */
+void krk_debug_dumpTraceback(void) {
 	int flagsBefore = krk_currentThread.flags;
-	debug_disableSingleStep();
+	krk_debug_disableSingleStep();
 	krk_push(krk_currentThread.currentException);
 
 	krk_runtimeError(vm.exceptions->baseException, "(breakpoint)");
@@ -322,148 +391,76 @@ static void debug_dumpTraceback(void) {
 	krk_currentThread.flags = flagsBefore;
 }
 
-static void debug_help(void) {
-	fprintf(stderr, " c = continue    s = step\n");
-	fprintf(stderr, " t = traceback   q = quit\n");
-	fprintf(stderr, " b FILE LINE = add breakpoint\n");
-	fprintf(stderr, " l = list breakpoints\n");
-	fprintf(stderr, " e X = enable breakpoint X\n");
-	fprintf(stderr, " d X = disable breakpoint X\n");
+void krk_debug_enableSingleStep(void) {
+	krk_currentThread.flags |= KRK_THREAD_SINGLE_STEP;
 }
 
-int (*krk_externalDebuggerHook)(void) = NULL;
-int krk_debuggerHook(void) {
-	if (krk_externalDebuggerHook) {
-		int mode = krk_externalDebuggerHook();
-		if (mode == 1) {
-			/* Continue */
-			debug_disableSingleStep();
-		} else if (mode == 2) {
-			debug_dumpTraceback();
-		}
-		return 0;
+void krk_debug_disableSingleStep(void) {
+	krk_currentThread.flags &= ~(KRK_THREAD_SINGLE_STEP);
+}
+
+int krk_debuggerHook(KrkCallFrame * frame) {
+	if (!_debugger_hook)
+		abort();
+
+	if (_repeatStack_top != -1) {
+		/* Re-enable stored repeat breakpoint */
+		krk_debug_enableBreakpoint(_repeatStack_top);
 	}
 
-	if (debuggerShowHello) {
-		debuggerShowHello = 0;
-		fprintf(stderr, "Entering debugger.\n");
-		debug_help();
+	_repeatStack_top = _repeatStack_bottom;
+	_repeatStack_bottom = -1;
+
+	if (!_thisWasForced) {
+		int result = _debugger_hook(frame);
+		switch (result) {
+			case KRK_DEBUGGER_CONTINUE:
+				krk_debug_disableSingleStep();
+				break;
+			case KRK_DEBUGGER_ABORT:
+				abort();
+				break;
+			case KRK_DEBUGGER_STEP:
+				krk_debug_enableSingleStep();
+				break;
+			case KRK_DEBUGGER_QUIT:
+				exit(0);
+				break;
+			case KRK_DEBUGGER_RAISE:
+				krk_runtimeError(vm.exceptions->baseException, "raise from debugger");
+				break;
+		}
+	} else {
+		/* If we weren't asked to step to the next breakpoint, we need to disable single stepping. */
+		krk_debug_disableSingleStep();
+		_thisWasForced = 0;
 	}
 
-	KrkCallFrame* frame = &krk_currentThread.frames[krk_currentThread.frameCount - 1];
-	fprintf(stderr, "At offset 0x%04lx of function '%s' from '%s' on line %lu:\n",
-		(unsigned long)(frame->ip - frame->closure->function->chunk.code),
-		frame->closure->function->name->chars,
-		frame->closure->function->chunk.filename->chars,
-		(unsigned long)krk_lineNumber(&frame->closure->function->chunk,
-			(unsigned long)(frame->ip - frame->closure->function->chunk.code)));
-	krk_disassembleInstruction(stderr, frame->closure->function,
-		(size_t)(frame->ip - frame->closure->function->chunk.code));
-
-	while (1) {
-		fprintf(stderr, " dbg> ");
-		fflush(stderr);
-
-		char buf[1024];
-		if (!fgets(buf,1024,stdin)) {
-			fprintf(stderr, "^D\n");
-			exit(1);
-		}
-
-		char * nl = strstr(buf,"\n");
-		if (nl) *nl = '\0';
-
-		if (nl && nl == buf && lastDebuggerCommand) {
-			sprintf(buf, "%s", lastDebuggerCommand);
-		} else {
-			if (lastDebuggerCommand != NULL) free(lastDebuggerCommand);
-			lastDebuggerCommand = strdup(buf);
-		}
-
-		if (!strcmp(buf,"c")) {
-			debug_disableSingleStep();
-			return 0;
-		} else if (!strcmp(buf,"s")) {
-			debug_enableSingleStep();
-			return 0;
-		} else if (!strcmp(buf,"q")) {
-			exit(1);
-		} else if (!strcmp(buf,"t")) {
-			debug_dumpTraceback();
-		} else if (!strcmp(buf,"l")) {
-			for (int i = 0; i < MAX_BREAKPOINTS; ++i) {
-				if (!breakpoints[i].inFunction) continue;
-				fprintf(stderr, "%-2d: %s+0x%04lx (line %d in %s) %s\n",
-					i,
-					breakpoints[i].inFunction->name->chars,
-					(unsigned long)breakpoints[i].offset,
-					(int)krk_lineNumber(&breakpoints[i].inFunction->chunk, breakpoints[i].offset),
-					breakpoints[i].inFunction->chunk.filename->chars,
-					breakpoints[i].inFunction->chunk.code[breakpoints[i].offset] == OP_BREAKPOINT ? "enabled" : "disabled"
-				);
-			}
-		} else if (!strcmp(buf,"h")) {
-			debug_help();
-		} else if (strstr(buf,"e ") == buf) {
-			int breakIndex = atoi(buf+2);
-			if (breakIndex <= breakpointsCount || breakpoints[breakIndex].inFunction == NULL) {
-				fprintf(stderr, "not a valid breakpoint index\n");
-			} else {
-				breakpoints[breakIndex].inFunction->chunk.code[breakpoints[breakIndex].offset] =
-					OP_BREAKPOINT;
-			}
-		} else if (strstr(buf,"d ") == buf) {
-			int breakIndex = atoi(buf+2);
-			if (breakIndex <= breakpointsCount || breakpoints[breakIndex].inFunction == NULL) {
-				fprintf(stderr, "not a valid breakpoint index\n");
-			} else {
-				breakpoints[breakIndex].inFunction->chunk.code[breakpoints[breakIndex].offset] =
-					breakpoints[breakIndex].originalOpcode;
-			}
-		} else if (strstr(buf,"b ") == buf) {
-			char * filename = buf+2;
-			char * afterFilename = strstr(filename, " ");
-			if (!afterFilename) {
-				fprintf(stderr, "expected a line number\n");
-			} else {
-				*afterFilename = '\0';
-				int lineNumber = atoi(afterFilename+1);
-
-				fprintf(stderr, "Trying to add breakpoint to '%s' at line %d\n", filename, lineNumber);
-				krk_push(OBJECT_VAL(krk_copyString(filename,strlen(filename))));
-				KrkValue result = FUNC_NAME(krk,addbreakpoint)(2,(KrkValue[]){krk_peek(0),INTEGER_VAL(lineNumber)},0);
-				krk_pop();
-				if (!IS_INTEGER(result)) {
-					fprintf(stderr, "That probably didn't work.\n");
-				} else {
-					fprintf(stderr, "add breakpoint %d\n", (int)AS_INTEGER(result));
-				}
-			}
-		} else if (strstr(buf,"p ") == buf) {
-			int flagsBefore = krk_currentThread.flags;
-			debug_disableSingleStep();
-			krk_push(krk_currentThread.currentException);
-			int previousExitFrame = krk_currentThread.exitOnFrame;
-			krk_currentThread.exitOnFrame = krk_currentThread.frameCount;
-
-			/* Compile expression */
-			KrkValue value = krk_interpret(buf+2,"<debugger>");
-			if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) {
-				fprintf(stderr," [raised exception %s]\n", krk_typeName(krk_currentThread.currentException));
-				krk_currentThread.frameCount = krk_currentThread.exitOnFrame;
-			} else {
-				fprintf(stderr," => ");
-				krk_printValue(stderr, value);
-				fprintf(stderr,"\n");
-			}
-
-			krk_currentThread.exitOnFrame = previousExitFrame;
-			krk_currentThread.currentException = krk_pop();
-			krk_currentThread.flags = flagsBefore;
-		} else {
-			fprintf(stderr, "unknown command\n");
-		}
+	/* If the top of the repeat stack is an index, we need to ensure we re-enable that breakpoint */
+	if (_repeatStack_top != -1 && !(krk_currentThread.flags & KRK_THREAD_SINGLE_STEP)) {
+		_thisWasForced = 1;
+		krk_debug_enableSingleStep();
 	}
+
+	return 0;
+}
+
+int krk_debug_registerCallback(KrkDebugCallback hook) {
+	if (_debugger_hook) return 1;
+	_debugger_hook = hook;
+	return 0;
+}
+
+int krk_debug_examineBreakpoint(int breakIndex, KrkFunction ** funcOut, size_t * offsetOut, int * flagsOut, int * enabled) {
+	if (breakIndex < 0 || breakIndex >= breakpointsCount)
+		return -1;
+	if (breakpoints[breakIndex].inFunction == NULL)
+		return -2;
+
+	if (funcOut) *funcOut = breakpoints[breakIndex].inFunction;
+	if (offsetOut) *offsetOut = breakpoints[breakIndex].offset;
+	if (flagsOut) *flagsOut = breakpoints[breakIndex].flags;
+	if (enabled) *enabled = (breakpoints[breakIndex].inFunction->chunk.code[breakpoints[breakIndex].offset] == OP_BREAKPOINT) || breakIndex == _repeatStack_top;
 
 	return 0;
 }
@@ -490,12 +487,18 @@ int krk_debugBreakpointHandler(void) {
 	/* Restore the instruction to its original state. If the debugger
 	 * wants to break here again it can set the breakpoint again */
 	callee->chunk.code[offset] = breakpoints[index].originalOpcode;
+
+	/* If this was a single-shot, we can remove it. */
+	if (breakpoints[index].flags == KRK_BREAKPOINT_ONCE) {
+		krk_debug_removeBreakpoint(index);
+	} else if (breakpoints[index].flags == KRK_BREAKPOINT_REPEAT) {
+		_repeatStack_bottom = index;
+	}
+
+	/* Rewind to rerun this instruction. */
 	frame->ip--;
 
-	debug_enableSingleStep();
-	debuggerShowHello = 1;
-
-	return 0;
+	return krk_debuggerHook(frame);
 }
 
 /**
@@ -650,6 +653,9 @@ void _createAndBind_disMod(void) {
 	BIND_FUNC(module, delbreakpoint);
 	BIND_FUNC(module, enablebreakpoint);
 	BIND_FUNC(module, disablebreakpoint);
+
+	krk_attachNamedValue(&module->fields, "BREAKPOINT_ONCE", INTEGER_VAL(KRK_BREAKPOINT_ONCE));
+	krk_attachNamedValue(&module->fields, "BREAKPOINT_REPEAT", INTEGER_VAL(KRK_BREAKPOINT_REPEAT));
 
 #define OPCODE(opc) krk_attachNamedValue(&module->fields, #opc, INTEGER_VAL(opc));
 #define SIMPLE(opc) OPCODE(opc)
