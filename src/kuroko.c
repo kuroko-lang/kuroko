@@ -522,7 +522,7 @@ _dbgQuit:
 
 static void handleSigint(int sigNum) {
 	if (krk_currentThread.frameCount) {
-		krk_runtimeError(vm.exceptions->keyboardInterrupt, "Keyboard interrupt.");
+		krk_currentThread.flags |= KRK_THREAD_SIGNALLED;
 	}
 
 	signal(sigNum, handleSigint);

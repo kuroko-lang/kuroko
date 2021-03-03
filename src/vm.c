@@ -1800,6 +1800,11 @@ static KrkValue run() {
 		if (krk_currentThread.flags & KRK_THREAD_SINGLE_STEP) {
 			krk_debuggerHook(frame);
 		}
+
+		if (krk_currentThread.flags & KRK_THREAD_SIGNALLED) {
+			krk_runtimeError(vm.exceptions->keyboardInterrupt, "Keyboard interrupt.");
+			goto _finishException;
+		}
 #endif
 
 #ifdef ENABLE_WATCHDOG
