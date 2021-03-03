@@ -23,6 +23,10 @@ ifndef KRK_ENABLE_STATIC
     # On POSIX-like platforms, link with libdl and assume -lkuroko gives us
     # our own library.
     LDLIBS  += -ldl -lpthread
+    ifeq (Darwin,$(shell uname -s))
+      # macOS needs us to link modules back to the main library at build time
+      MODLIBS = libkuroko.so
+    endif
   else
     # For Windows, disable format string warnings because gcc will get mad
     # about non-portable Windows format specifiers...
