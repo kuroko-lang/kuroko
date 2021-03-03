@@ -6,6 +6,57 @@
 #include "util.h"
 #include "compiler.h"
 
+/**
+ * When tracing is enabled, we will present the elements on the stack with
+ * a safe printer; the format of values printed by krk_printValueSafe will
+ * look different from those printed by printValue, but they guarantee that
+ * the VM will never be called to produce a string, which would result in
+ * a nasty infinite recursion if we did it while trying to trace the VM!
+ */
+void krk_debug_dumpStack(FILE * file, KrkCallFrame * frame) {
+	size_t i = 0;
+	for (KrkValue * slot = krk_currentThread.stack; slot < krk_currentThread.stackTop; slot++) {
+		fprintf(file, "[%c", frame->slots == i ? '*' : ' ');
+
+		for (size_t x = krk_currentThread.frameCount; x > 0; x--) {
+			if (krk_currentThread.frames[x-1].slots > i) continue;
+			KrkCallFrame * f = &krk_currentThread.frames[x-1];
+			size_t relative = i - f->slots;
+
+			/* Figure out the name of this value */
+			if (relative < (size_t)f->closure->function->requiredArgs) {
+				fprintf(file, "%s=", AS_CSTRING(f->closure->function->requiredArgNames.values[relative]));
+				break;
+			} else if (relative < (size_t)f->closure->function->requiredArgs + (size_t)f->closure->function->keywordArgs) {
+				fprintf(file, "%s=", AS_CSTRING(f->closure->function->keywordArgNames.values[relative - f->closure->function->requiredArgs]));
+				break;
+			} else {
+				int found = 0;
+				for (size_t j = 0; j < f->closure->function->localNameCount; ++j) {
+					if (relative == f->closure->function->localNames[j].id
+						/* Only display this name if it's currently valid */
+						&&  f->closure->function->localNames[j].birthday <= (size_t)(f->ip - f->closure->function->chunk.code)
+						) {
+						fprintf(file, "%s=", f->closure->function->localNames[j].name->chars);
+						found = 1;
+						break;
+					}
+				}
+				if (found) break;
+			}
+		}
+
+		krk_printValueSafe(file, *slot);
+		fprintf(file, " ]");
+		i++;
+	}
+	if (i == frame->slots) {
+		fprintf(file, " * ");
+	}
+	fprintf(file, "\n");
+}
+
+
 void krk_disassembleCodeObject(FILE * f, KrkFunction * func, const char * name) {
 	KrkChunk * chunk = &func->chunk;
 	/* Function header */

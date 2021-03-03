@@ -293,6 +293,8 @@ static int debuggerHook(KrkCallFrame * frame) {
 		frame->closure->function,
 		(size_t)(frame->ip - frame->closure->function->chunk.code));
 
+	krk_debug_dumpStack(stderr, frame);
+
 	while (1) {
 		char buf[4096] = {0};
 #ifndef NO_RLINE

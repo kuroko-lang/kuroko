@@ -212,6 +212,15 @@ extern void krk_debug_dumpTraceback(void);
 extern int krk_debug_examineBreakpoint(int breakIndex, KrkFunction ** funcOut, size_t * offsetOut, int * flagsOut, int *enabledOut);
 
 /**
+ * @brief Print the elements on the stack.
+ *
+ * Prints the elements on the stack for the current thread to @p file,
+ * highlighting @p frame as the activate call point and indicating
+ * where its arguments start.
+ */
+extern void krk_debug_dumpStack(FILE * f, KrkCallFrame * frame);
+
+/**
  * @def KRK_BREAKPOINT_NORMAL
  *
  * This breakpoint should fire once and then remain in the table
