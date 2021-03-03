@@ -35,8 +35,8 @@ ifndef KRK_ENABLE_STATIC
     # And we need to link this by name with extension because I don't want
     # to actually rename it to kuroko.dll or whatever.
     MODLIBS = libkuroko.so
-    LDLIBS += -l:libwinpthread.a -Wl,--require-defined=tc_malloc libtcmalloc_minimal.a -l:libpsapi.a -l:libstdc++.a
     ${OBJS}: CFLAGS += -DKRKINLIB
+    libkuroko.so: LDLIBS += -l:libwinpthread.a -Wl,--require-defined=tc_malloc libtcmalloc_minimal.a -l:libpsapi.a -l:libstdc++.a
     libkuroko.so: libtcmalloc_minimal.a
   endif
   KUROKO_LIBS = libkuroko.so
