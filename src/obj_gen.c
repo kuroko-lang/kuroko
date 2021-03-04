@@ -126,7 +126,7 @@ KRK_METHOD(generator,gi_running,{
 _noexport
 void _createAndBind_generatorClass(void) {
 	generator = ADD_BASE_CLASS(vm.baseClasses->generatorClass, "generator", vm.baseClasses->objectClass);
-	generator->allocSize = sizeof(KrkList);
+	generator->allocSize = sizeof(struct generator);
 	generator->_ongcscan = _generator_gcscan;
 	generator->_ongcsweep = _generator_gcsweep;
 	BIND_METHOD(generator,__iter__);
