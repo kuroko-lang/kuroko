@@ -622,6 +622,10 @@ static int compileFile(char * argv[], int flags, char * fileName) {
 #endif
 
 int main(int argc, char * argv[]) {
+#ifdef _WIN32
+	SetConsoleOutputCP(65001);
+	SetConsoleCP(65001);
+#endif
 	int flags = 0;
 	int moduleAsMain = 0;
 	int opt;
