@@ -125,6 +125,7 @@ typedef struct {
 	unsigned char collectsArguments:1;
 	unsigned char collectsKeywords:1;
 	unsigned char isClassMethod:1;
+	unsigned char isGenerator:1;
 	struct KrkInstance * globalsContext;
 } KrkFunction;
 

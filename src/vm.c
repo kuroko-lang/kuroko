@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <limits.h>
 #include <stdarg.h>
 #include <string.h>
@@ -744,6 +745,12 @@ _finishKwarg:
 		krk_push(KWARGS_VAL(0));
 		argCount++;
 	}
+	if (closure->function->isGenerator) {
+		KrkInstance * gen = krk_buildGenerator(closure, krk_currentThread.stackTop - argCount, argCount);
+		krk_currentThread.stackTop = krk_currentThread.stackTop - argCount - extra;
+		krk_push(OBJECT_VAL(gen));
+		return 1;
+	}
 	if (krk_currentThread.frameCount == KRK_CALL_FRAMES_MAX) {
 		krk_runtimeError(vm.exceptions->baseException, "Too many call frames.");
 		return 0;
@@ -1178,6 +1185,7 @@ void krk_initVM(int flags) {
 	_createAndBind_timeMod();
 	_createAndBind_osMod();
 	_createAndBind_fileioMod();
+	_createAndBind_generatorClass();
 #ifdef ENABLE_THREADING
 	_createAndBind_threadsMod();
 #endif
@@ -2083,6 +2091,13 @@ _resumeHook: (void)0;
 				krk_debugBreakpointHandler();
 				if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) goto _finishException;
 				goto _resumeHook;
+			}
+			case OP_YIELD: {
+				KrkValue result = krk_peek(0);
+				krk_currentThread.frameCount--;
+				assert(krk_currentThread.frameCount == (size_t)krk_currentThread.exitOnFrame);
+				/* Do NOT restore the stack */
+				return result;
 			}
 
 			/*

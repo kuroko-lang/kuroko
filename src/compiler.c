@@ -1588,6 +1588,20 @@ static void returnStatement() {
 	}
 }
 
+static void yieldStatement() {
+	if (current->type == TYPE_MODULE || current->type == TYPE_INIT || current->type == TYPE_CLASS) {
+		error("'yield' outside function");
+		return;
+	}
+	current->function->isGenerator = 1;
+	if (check(TOKEN_EOL) || check(TOKEN_EOF)) {
+		emitByte(OP_NONE);
+	} else {
+		expression();
+	}
+	emitByte(OP_YIELD);
+}
+
 static void tryStatement() {
 	size_t blockWidth = (parser.previous.type == TOKEN_INDENTATION) ? parser.previous.length : 0;
 	advance();
@@ -1780,6 +1794,8 @@ _anotherSimpleStatement:
 			raiseStatement();
 		} else if (match(TOKEN_RETURN)) {
 			returnStatement();
+		} else if (match(TOKEN_YIELD)) {
+			yieldStatement();
 		} else if (match(TOKEN_IMPORT)) {
 			importStatement();
 		} else if (match(TOKEN_FROM)) {
@@ -2425,6 +2441,7 @@ ParseRule krk_parseRules[] = {
 	RULE(TOKEN_CONTINUE,      NULL,     NULL,   PREC_NONE),
 	RULE(TOKEN_IMPORT,        NULL,     NULL,   PREC_NONE),
 	RULE(TOKEN_RAISE,         NULL,     NULL,   PREC_NONE),
+	RULE(TOKEN_YIELD,         NULL,     NULL,   PREC_NONE),
 
 	RULE(TOKEN_AT,            NULL,     NULL,   PREC_NONE),
 

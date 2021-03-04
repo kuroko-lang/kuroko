@@ -257,6 +257,7 @@ static KrkTokenType identifierType() {
 			case 'h': return checkKeyword(2, "ile", TOKEN_WHILE);
 			case 'i': return checkKeyword(2, "th", TOKEN_WITH);
 		} break;
+		case 'y': return checkKeyword(1, "ield", TOKEN_YIELD);
 	}
 	return TOKEN_IDENTIFIER;
 }

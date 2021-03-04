@@ -157,6 +157,7 @@ struct BaseClasses {
 	KrkClass * bytesiteratorClass;   /**< Iterator over the integer byte values of a bytes object. */
 	KrkClass * propertyClass;        /**< Magic object that calls a function when accessed from an instance through the dot operator. */
 	KrkClass * codeobjectClass;      /**< Static compiled bytecode container. */
+	KrkClass * generatorClass;       /**< Generator object. */
 };
 
 /**
@@ -773,4 +774,5 @@ extern void _createAndBind_threadsMod(void);
 extern KrkValue krk_operator_lt(KrkValue,KrkValue);
 extern KrkValue krk_operator_gt(KrkValue,KrkValue);
 
-
+extern void _createAndBind_generatorClass(void);
+extern KrkInstance * krk_buildGenerator(KrkClosure *, KrkValue *, size_t);
