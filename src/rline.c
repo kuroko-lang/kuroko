@@ -24,7 +24,7 @@
 #else
 #include <windows.h>
 #include <io.h>
-#include "wcwidth.hx"
+#include "wcwidth._h"
 #endif
 #ifdef __toaru__
 #include <toaru/rline.h>
