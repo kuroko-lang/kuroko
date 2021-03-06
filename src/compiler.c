@@ -2703,6 +2703,9 @@ static void call(int canAssign) {
 	startEatingWhitespace();
 	size_t argCount = 0, specialArgs = 0, keywordArgs = 0, seenKeywordUnpacking = 0;
 	if (!check(TOKEN_RIGHT_PAREN)) {
+		size_t chunkBefore = currentChunk()->count;
+		KrkScanner scannerBefore = krk_tellScanner();
+		Parser  parserBefore = parser;
 		do {
 			if (match(TOKEN_ASTERISK) || check(TOKEN_POW)) {
 				specialArgs++;
@@ -2755,6 +2758,16 @@ static void call(int canAssign) {
 				continue;
 			}
 			expression();
+			if (argCount == 0 && match(TOKEN_FOR)) {
+				currentChunk()->count = chunkBefore;
+				generatorExpression(scannerBefore, parserBefore);
+				argCount = 1;
+				if (match(TOKEN_COMMA)) {
+					error("Generator expression must be parenthesized");
+					return;
+				}
+				break;
+			}
 			argCount++;
 		} while (match(TOKEN_COMMA));
 	}
