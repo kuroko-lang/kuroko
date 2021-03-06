@@ -24,9 +24,7 @@
 #else
 #include <windows.h>
 #include <io.h>
-#define _O_U8TEXT 0x00040000
-/* How do we get this in Windows? Seems WT asks the font? */
-#define wcwidth(c) (1)
+#include "wcwidth._h"
 #endif
 #ifdef __toaru__
 #include <toaru/rline.h>
@@ -235,10 +233,27 @@ static int getch(int timeout) {
 #ifndef _WIN32
 	return fgetc(stdin);
 #else
-	TCHAR buf[1];
+	static int bytesRead = 0;
+	static char  buf8[8];
+	static uint8_t * b;
+
+	if (bytesRead) {
+		bytesRead--;
+		return *(b++);
+	}
+
 	DWORD dwRead;
-	while (!ReadConsole(GetStdHandle(STD_INPUT_HANDLE),buf,1,&dwRead,NULL));
-	return buf[0];
+	uint16_t buf16[8] = {0};
+	if (ReadConsoleW(GetStdHandle(STD_INPUT_HANDLE),buf16,2,&dwRead,NULL)) {
+		int r = WideCharToMultiByte(CP_UTF8, 0, buf16, -1, buf8, 8, 0, 0);
+		if (r > 1 && buf8[r-1] == '\0') r--;
+		b = (uint8_t*)buf8;
+		bytesRead = r - 1;
+		return *(b++);
+	} else {
+		fprintf(stderr, "error on console read\n");
+		return -1;
+	}
 #endif
 }
 
@@ -306,11 +321,6 @@ static int codepoint_width(int codepoint) {
 		/* Non-breaking space _ */
 		return 1;
 	}
-#ifdef _WIN32
-	if (codepoint > 127) {
-		return (codepoint < 0x10000) ? 8 : 10;
-	}
-#else
 	/* Skip wcwidth for anything under 256 */
 	if (codepoint > 256) {
 		/* Higher codepoints may be wider (eg. Japanese) */
@@ -319,7 +329,6 @@ static int codepoint_width(int codepoint) {
 		/* Invalid character, render as [U+ABCD] or [U+ABCDEF] */
 		return (codepoint < 0x10000) ? 8 : 10;
 	}
-#endif
 	return 1;
 }
 
@@ -544,7 +553,7 @@ char * syn_krk_keywords[] = {
 	"and","class","def","else","for","if","in","import","del",
 	"let","not","or","return","while","try","except","raise",
 	"continue","break","as","from","elif","lambda","with","is",
-	"pass","assert",
+	"pass","assert","yield",
 	NULL
 };
 
@@ -648,6 +657,52 @@ int syn_krk_calculate(struct syntax_state * state) {
 			return paint_krk_triple_string(state, '\'');
 	}
 	return -1;
+}
+
+char * syn_krk_dbg_commands[] = {
+	"s", "skip",
+	"c", "continue",
+	"q", "quit",
+	"e", "enable",
+	"d", "disable",
+	"r", "remove",
+	"bt", "backtrace",
+	"break",
+	"abort",
+	"help",
+	NULL,
+};
+
+char * syn_krk_dbg_info_types[] = {
+	"breakpoints",
+	NULL,
+};
+
+int syn_krk_dbg_calculate(struct syntax_state * state) {
+	if (state->state < 1) {
+		if (state->i == 0) {
+			if (match_and_paint(state, "p", FLAG_KEYWORD, c_keyword_qualifier) ||
+			    match_and_paint(state, "print", FLAG_KEYWORD, c_keyword_qualifier)) {
+				while (1) {
+					int result = syn_krk_calculate(state);
+					if (result == 0) continue;
+					if (result == -1) return -1;
+					return result + 1;
+				}
+			} else if (match_and_paint(state,"info", FLAG_KEYWORD, c_keyword_qualifier) ||
+			           match_and_paint(state,"i", FLAG_KEYWORD, c_keyword_qualifier)) {
+				skip();
+				find_keywords(state,syn_krk_dbg_info_types, FLAG_TYPE, c_keyword_qualifier);
+				return -1;
+			} else if (find_keywords(state, syn_krk_dbg_commands, FLAG_KEYWORD, c_keyword_qualifier)) {
+				return 0;
+			}
+		}
+		return -1;
+	} else {
+		state->state -= 1;
+		return syn_krk_calculate(state) + 1;
+	}
 }
 
 #ifdef __toaru__
@@ -1040,6 +1095,7 @@ struct syntax_definition {
 	int tabIndents;
 } syntaxes[] = {
 	{"krk",syn_krk_calculate, 1},
+	{"krk-dbg",syn_krk_dbg_calculate, 1},
 #ifdef __toaru__
 	{"python",syn_py_calculate, 1},
 	{"esh",syn_esh_calculate, 0},
@@ -1341,11 +1397,7 @@ static void render_line(void) {
 #endif
 			} else if (i > 0 && is_spaces && c.codepoint == ' ' && !(i % 4)) {
 				set_colors(COLOR_ALT_FG, COLOR_BG); /* Normal background so this is more subtle */
-#ifndef _WIN32
 				printf("▏");
-#else
-				printf("|");
-#endif
 				set_colors(last_color ? last_color : COLOR_FG, COLOR_BG);
 			} else {
 				/* Normal characters get output */
@@ -1943,14 +1995,12 @@ static int read_line(void) {
 	int this_buf[20];
 	uint32_t istate = 0;
 
-	#ifndef _WIN32
 	/* Let's disable this under Windows... */
 	set_colors(COLOR_ALT_FG, COLOR_ALT_BG);
 	fprintf(stdout, "◄\033[0m"); /* TODO: This could be retrieved from an envvar */
 	for (int i = 0; i < rline_terminal_width - 1; ++i) {
 		fprintf(stdout, " ");
 	}
-	#endif
 
 	if (rline_preload) {
 		char * c = rline_preload;
@@ -2081,7 +2131,11 @@ static int read_line(void) {
  * Read a line of text with interactive editing.
  */
 int rline(char * buffer, int buf_size) {
+#ifndef _WIN32
 	setlocale(LC_ALL, "");
+#else
+	setlocale(LC_ALL, "C.UTF-8");
+#endif
 	get_initial_termios();
 	set_unbuffered();
 	get_size();

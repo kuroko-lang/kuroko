@@ -15,6 +15,7 @@ KRKMODS  = $(wildcard modules/*.krk modules/*/*.krk modules/*/*/*.krk)
 
 ifndef KRK_ENABLE_STATIC
   # The normal build configuration is as a shared library or DLL (on Windows)
+  all: ${TARGET} ${MODULES} ${TOOLS}
   CFLAGS  += -fPIC
   ifeq (,$(findstring mingw,$(CC)))
     # We set rpath here mostly so you can run the locally-built interpreter
@@ -23,15 +24,21 @@ ifndef KRK_ENABLE_STATIC
     # On POSIX-like platforms, link with libdl and assume -lkuroko gives us
     # our own library.
     LDLIBS  += -ldl -lpthread
+    ifeq (Darwin,$(shell uname -s))
+      # macOS needs us to link modules back to the main library at build time
+      MODLIBS = libkuroko.so
+    endif
   else
     # For Windows, disable format string warnings because gcc will get mad
     # about non-portable Windows format specifiers...
-    CFLAGS  += -Wno-format
+    CFLAGS  += -Wno-format -static-libgcc
     # And we need to link this by name with extension because I don't want
     # to actually rename it to kuroko.dll or whatever.
     MODLIBS = libkuroko.so
+    ${OBJS}: CFLAGS += -DKRKINLIB
+    libkuroko.so: LDLIBS += -l:libwinpthread.a -Wl,--require-defined=tc_malloc libtcmalloc_minimal.a -l:libpsapi.a -l:libstdc++.a
+    libkuroko.so: libtcmalloc_minimal.a
   endif
-  all: ${TARGET} ${MODULES} ${TOOLS}
   KUROKO_LIBS = libkuroko.so
 else
   # Static builds are a little different...
@@ -120,6 +127,9 @@ clean:
 
 tags: $(wildcard src/*.c) $(wildcard src/*.h)
 	@ctags --c-kinds=+lx src/*.c src/*.h
+
+libtcmalloc_minimal.a:
+	curl -O https://klange.dev/libtcmalloc_minimal.a
 
 # Test targets run against all .krk files in the test/ directory, writing
 # stdout to `.expect` files, and then comparing with `git`.

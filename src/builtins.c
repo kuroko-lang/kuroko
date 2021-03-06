@@ -201,6 +201,69 @@ static KrkValue _globals(int argc, KrkValue argv[], int hasKw) {
 	return dict;
 }
 
+/**
+ * locals()
+ *
+ * This is a bit trickier. Local names are... complicated. But we can do this!
+ */
+static KrkValue _locals(int argc, KrkValue argv[], int hasKw) {
+	KrkValue dict = krk_dict_of(0, NULL, 0);
+	krk_push(dict);
+
+	int index = 1;
+	if (argc > 0 && IS_INTEGER(argv[0])) {
+		if (AS_INTEGER(argv[0]) < 1) {
+			return krk_runtimeError(vm.exceptions->indexError, "Frame index must be >= 1");
+		}
+		if (krk_currentThread.frameCount < (size_t)AS_INTEGER(argv[0])) {
+			return krk_runtimeError(vm.exceptions->indexError, "Frame index out of range");
+		}
+		index = AS_INTEGER(argv[0]);
+	}
+
+	KrkCallFrame * frame = &krk_currentThread.frames[krk_currentThread.frameCount-index];
+	KrkFunction * func = frame->closure->function;
+	size_t offset = frame->ip - func->chunk.code;
+
+	/* First, we'll populate with arguments */
+	size_t slot = 0;
+	for (short int i = 0; i < func->requiredArgs; ++i) {
+		krk_tableSet(AS_DICT(dict),
+			func->requiredArgNames.values[i],
+			krk_currentThread.stack[frame->slots + slot]);
+		slot++;
+	}
+	for (short int i = 0; i < func->keywordArgs; ++i) {
+		krk_tableSet(AS_DICT(dict),
+			func->keywordArgNames.values[i],
+			krk_currentThread.stack[frame->slots + slot]);
+		slot++;
+	}
+	if (func->collectsArguments) {
+		krk_tableSet(AS_DICT(dict),
+			func->requiredArgNames.values[func->requiredArgs],
+			krk_currentThread.stack[frame->slots + slot]);
+		slot++;
+	}
+	if (func->collectsKeywords) {
+		krk_tableSet(AS_DICT(dict),
+			func->keywordArgNames.values[func->keywordArgs],
+			krk_currentThread.stack[frame->slots + slot]);
+		slot++;
+	}
+	/* Now we need to find out what non-argument locals are valid... */
+	for (size_t i = 0; i < func->localNameCount; ++i) {
+		if (func->localNames[i].birthday <= offset &&
+			func->localNames[i].deathday >= offset) {
+			krk_tableSet(AS_DICT(dict),
+				OBJECT_VAL(func->localNames[i].name),
+				krk_currentThread.stack[frame->slots + func->localNames[i].id]);
+		}
+	}
+
+	return krk_pop();
+}
+
 static KrkValue _isinstance(int argc, KrkValue argv[], int hasKw) {
 	if (argc != 2) return krk_runtimeError(vm.exceptions->argumentError, "isinstance expects 2 arguments, got %d", argc);
 	if (IS_CLASS(argv[1])) {
@@ -439,6 +502,7 @@ void _createAndBind_builtins(void) {
 
 	BUILTIN_FUNCTION("isinstance", _isinstance, "Determine if an object is an instance of the given class or one if its subclasses.");
 	BUILTIN_FUNCTION("globals", _globals, "Return a mapping of names in the current global namespace.");
+	BUILTIN_FUNCTION("locals", _locals, "Return a mapping of names in the current local namespace.");
 	BUILTIN_FUNCTION("dir", _dir, "Return a list of known property names for a given object.");
 	BUILTIN_FUNCTION("len", _len, "Return the length of a given sequence object.");
 	BUILTIN_FUNCTION("repr", _repr, "Produce a string representation of the given object.");

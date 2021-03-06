@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <limits.h>
 #include <stdarg.h>
 #include <string.h>
@@ -78,10 +79,11 @@ KrkThreadState krk_currentThread;
 #endif
 
 /*
- * When threading is enabled, `krk_currentThread` becomes
- * a macro to call this outside of `vm.c` - we reference
- * the static TLS version above locally. When threading
- * is not enabled, there is a global `krk_currentThread`.
+ * In some threading configurations, particular on Windows,
+ * we can't have executables reference our thread-local thread
+ * state object directly; in order to provide a consistent API
+ * we make @ref krk_currentThread a macro outside of the core
+ * sources that will call this function.
  */
 KrkThreadState * krk_getCurrentThread(void) {
 	return &krk_currentThread;
@@ -103,61 +105,6 @@ void krk_resetStack() {
 	krk_currentThread.flags &= ~KRK_THREAD_HAS_EXCEPTION;
 	krk_currentThread.currentException = NONE_VAL();
 }
-
-#ifdef ENABLE_TRACING
-/**
- * When tracing is enabled, we will present the elements on the stack with
- * a safe printer; the format of values printed by krk_printValueSafe will
- * look different from those printed by printValue, but they guarantee that
- * the VM will never be called to produce a string, which would result in
- * a nasty infinite recursion if we did it while trying to trace the VM!
- */
-static void dumpStack(KrkCallFrame * frame) {
-	fprintf(stderr, "        | ");
-	size_t i = 0;
-	for (KrkValue * slot = krk_currentThread.stack; slot < krk_currentThread.stackTop; slot++) {
-		fprintf(stderr, "[ ");
-		if (i == frame->slots) fprintf(stderr, "*");
-
-		for (size_t x = krk_currentThread.frameCount; x > 0; x--) {
-			if (krk_currentThread.frames[x-1].slots > i) continue;
-			KrkCallFrame * f = &krk_currentThread.frames[x-1];
-			size_t relative = i - f->slots;
-			//fprintf(stderr, "(%s[%d])", f->closure->function->name->chars, (int)relative);
-			/* Should resolve here? */
-			if (relative < (size_t)f->closure->function->requiredArgs) {
-				fprintf(stderr, "%s=", AS_CSTRING(f->closure->function->requiredArgNames.values[relative]));
-				break;
-			} else if (relative < (size_t)f->closure->function->requiredArgs + (size_t)f->closure->function->keywordArgs) {
-				fprintf(stderr, "%s=", AS_CSTRING(f->closure->function->keywordArgNames.values[relative - f->closure->function->requiredArgs]));
-				break;
-			} else {
-				int found = 0;
-				for (size_t j = 0; j < f->closure->function->localNameCount; ++j) {
-					if (relative == f->closure->function->localNames[j].id
-						/* Only display this name if it's currently valid */
-						&&  f->closure->function->localNames[j].birthday <= (size_t)(f->ip - f->closure->function->chunk.code)
-						) {
-						fprintf(stderr,"%s=", f->closure->function->localNames[j].name->chars);
-						found = 1;
-						break;
-					}
-				}
-				if (found) break;
-			}
-		}
-
-		
-		krk_printValueSafe(stderr, *slot);
-		fprintf(stderr, " ]");
-		i++;
-	}
-	if (i == frame->slots) {
-		fprintf(stderr, " * ");
-	}
-	fprintf(stderr, "\n");
-}
-#endif
 
 /**
  * Display a traceback by scanning up the stack / call frames.
@@ -798,6 +745,12 @@ _finishKwarg:
 		krk_push(KWARGS_VAL(0));
 		argCount++;
 	}
+	if (closure->function->isGenerator) {
+		KrkInstance * gen = krk_buildGenerator(closure, krk_currentThread.stackTop - argCount, argCount);
+		krk_currentThread.stackTop = krk_currentThread.stackTop - argCount - extra;
+		krk_push(OBJECT_VAL(gen));
+		return 1;
+	}
 	if (krk_currentThread.frameCount == KRK_CALL_FRAMES_MAX) {
 		krk_runtimeError(vm.exceptions->baseException, "Too many call frames.");
 		return 0;
@@ -1200,9 +1153,6 @@ void krk_initVM(int flags) {
 		_(METHOD_GETSLICE, "__getslice__"),
 		_(METHOD_SETSLICE, "__setslice__"),
 		_(METHOD_DELSLICE, "__delslice__"),
-		_(METHOD_LIST_INT, "__list"),
-		_(METHOD_DICT_INT, "__dict"),
-		_(METHOD_INREPR, "__inrepr"),
 		_(METHOD_EQ, "__eq__"),
 		_(METHOD_ENTER, "__enter__"),
 		_(METHOD_EXIT, "__exit__"),
@@ -1235,6 +1185,7 @@ void krk_initVM(int flags) {
 	_createAndBind_timeMod();
 	_createAndBind_osMod();
 	_createAndBind_fileioMod();
+	_createAndBind_generatorClass();
 #ifdef ENABLE_THREADING
 	_createAndBind_threadsMod();
 #endif
@@ -1846,13 +1797,18 @@ static KrkValue run() {
 	while (1) {
 #ifdef ENABLE_TRACING
 		if (krk_currentThread.flags & KRK_THREAD_ENABLE_TRACING) {
-			if (krk_currentThread.flags & KRK_THREAD_SINGLE_STEP) {
-				krk_debuggerHook();
-			} else {
-				dumpStack(frame);
-				krk_disassembleInstruction(stderr, frame->closure->function,
-					(size_t)(frame->ip - frame->closure->function->chunk.code));
-			}
+			krk_debug_dumpStack(stderr, frame);
+			krk_disassembleInstruction(stderr, frame->closure->function,
+				(size_t)(frame->ip - frame->closure->function->chunk.code));
+		}
+
+		if (krk_currentThread.flags & KRK_THREAD_SINGLE_STEP) {
+			krk_debuggerHook(frame);
+		}
+
+		if (krk_currentThread.flags & KRK_THREAD_SIGNALLED) {
+			krk_runtimeError(vm.exceptions->keyboardInterrupt, "Keyboard interrupt.");
+			goto _finishException;
 		}
 #endif
 
@@ -1869,6 +1825,8 @@ static KrkValue run() {
 			vm.watchdog--;
 		}
 #endif
+
+_resumeHook: (void)0;
 
 		/* Each instruction begins with one opcode byte */
 		uint8_t opcode = READ_BYTE();
@@ -1912,6 +1870,9 @@ static KrkValue run() {
 				}
 				krk_currentThread.stackTop = &krk_currentThread.stack[frame->outSlots];
 				if (krk_currentThread.frameCount == (size_t)krk_currentThread.exitOnFrame) {
+					if (frame->closure->function->isGenerator) {
+						return KWARGS_VAL(0);
+					}
 					return result;
 				}
 				krk_push(result);
@@ -2131,7 +2092,15 @@ static KrkValue run() {
 			case OP_BREAKPOINT: {
 				/* First off, halt execution. */
 				krk_debugBreakpointHandler();
-				break;
+				if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) goto _finishException;
+				goto _resumeHook;
+			}
+			case OP_YIELD: {
+				KrkValue result = krk_peek(0);
+				krk_currentThread.frameCount--;
+				assert(krk_currentThread.frameCount == (size_t)krk_currentThread.exitOnFrame);
+				/* Do NOT restore the stack */
+				return result;
 			}
 
 			/*

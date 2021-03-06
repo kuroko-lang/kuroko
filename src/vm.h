@@ -76,9 +76,6 @@ typedef enum {
 	METHOD_DOC,
 	METHOD_BASE,
 	METHOD_GETSLICE,
-	METHOD_LIST_INT,
-	METHOD_DICT_INT,
-	METHOD_INREPR,
 	METHOD_ORD,
 	METHOD_CALL,
 	METHOD_EQ,
@@ -160,6 +157,7 @@ struct BaseClasses {
 	KrkClass * bytesiteratorClass;   /**< Iterator over the integer byte values of a bytes object. */
 	KrkClass * propertyClass;        /**< Magic object that calls a function when accessed from an instance through the dot operator. */
 	KrkClass * codeobjectClass;      /**< Static compiled bytecode container. */
+	KrkClass * generatorClass;       /**< Generator object. */
 };
 
 /**
@@ -226,6 +224,7 @@ typedef struct KrkVM {
 #define KRK_THREAD_ENABLE_SCAN_TRACING (1 << 2)
 #define KRK_THREAD_HAS_EXCEPTION       (1 << 3)
 #define KRK_THREAD_SINGLE_STEP         (1 << 4)
+#define KRK_THREAD_SIGNALLED           (1 << 5)
 
 /* Global flags */
 #define KRK_GLOBAL_ENABLE_STRESS_GC    (1 << 8)
@@ -243,7 +242,11 @@ typedef struct KrkVM {
  *
  * See @c KrkThreadState for more information.
  */
+#if defined(_WIN32) && !defined(KRKINLIB)
+#define krk_currentThread (*krk_getCurrentThread())
+#else
 extern threadLocal KrkThreadState krk_currentThread;
+#endif
 
 /**
  * @brief Singleton instance of the shared VM state.
@@ -771,4 +774,5 @@ extern void _createAndBind_threadsMod(void);
 extern KrkValue krk_operator_lt(KrkValue,KrkValue);
 extern KrkValue krk_operator_gt(KrkValue,KrkValue);
 
-
+extern void _createAndBind_generatorClass(void);
+extern KrkInstance * krk_buildGenerator(KrkClosure *, KrkValue *, size_t);

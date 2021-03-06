@@ -7,6 +7,13 @@
 #ifdef ENABLE_THREADING
 #include <pthread.h>
 #include <sched.h>
+
+#ifdef _WIN32
+#include <windows.h>
+#include <winnt.h>
+#define sched_yield() YieldProcessor()
+#endif
+
 static inline void _krk_internal_spin_lock(int volatile * lock) {
 	while(__sync_lock_test_and_set(lock, 0x01)) {
 		sched_yield();

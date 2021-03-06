@@ -1588,6 +1588,20 @@ static void returnStatement() {
 	}
 }
 
+static void yieldStatement() {
+	if (current->type == TYPE_MODULE || current->type == TYPE_INIT || current->type == TYPE_CLASS) {
+		error("'yield' outside function");
+		return;
+	}
+	current->function->isGenerator = 1;
+	if (check(TOKEN_EOL) || check(TOKEN_EOF)) {
+		emitByte(OP_NONE);
+	} else {
+		expression();
+	}
+	emitBytes(OP_YIELD, OP_POP);
+}
+
 static void tryStatement() {
 	size_t blockWidth = (parser.previous.type == TOKEN_INDENTATION) ? parser.previous.length : 0;
 	advance();
@@ -1780,6 +1794,8 @@ _anotherSimpleStatement:
 			raiseStatement();
 		} else if (match(TOKEN_RETURN)) {
 			returnStatement();
+		} else if (match(TOKEN_YIELD)) {
+			yieldStatement();
 		} else if (match(TOKEN_IMPORT)) {
 			importStatement();
 		} else if (match(TOKEN_FROM)) {
@@ -2236,6 +2252,106 @@ static void singleInner(ssize_t indLoopCounter) {
 	expression();
 }
 
+
+static void generatorInner(KrkScanner scannerBefore, Parser parserBefore) {
+	ssize_t loopInd = current->localCount;
+	ssize_t varCount = 0;
+	do {
+		defineVariable(parseVariable("Expected name for iteration variable."));
+		emitByte(OP_NONE);
+		defineVariable(loopInd);
+		varCount++;
+	} while (match(TOKEN_COMMA));
+
+	consume(TOKEN_IN, "Only iterator loops (for ... in ...) are allowed in generator expressions.");
+
+	beginScope();
+	parsePrecedence(PREC_OR); /* Otherwise we can get trapped on a ternary */
+	endScope();
+
+	size_t indLoopIter = current->localCount;
+	addLocal(syntheticToken(""));
+	defineVariable(indLoopIter);
+
+	emitByte(OP_INVOKE_ITER);
+	EMIT_CONSTANT_OP(OP_SET_LOCAL, indLoopIter);
+
+	int loopStart = currentChunk()->count;
+
+	EMIT_CONSTANT_OP(OP_GET_LOCAL, indLoopIter);
+	emitBytes(OP_CALL, 0);
+	EMIT_CONSTANT_OP(OP_SET_LOCAL, loopInd);
+
+	EMIT_CONSTANT_OP(OP_GET_LOCAL, indLoopIter);
+	emitByte(OP_EQUAL);
+	int exitJump = emitJump(OP_JUMP_IF_TRUE);
+	emitByte(OP_POP);
+
+	if (varCount > 1) {
+		EMIT_CONSTANT_OP(OP_GET_LOCAL, loopInd);
+		EMIT_CONSTANT_OP(OP_UNPACK, varCount);
+		for (ssize_t i = loopInd + varCount - 1; i >= loopInd; i--) {
+			EMIT_CONSTANT_OP(OP_SET_LOCAL, i);
+			emitByte(OP_POP);
+		}
+	}
+
+	if (match(TOKEN_IF)) {
+		parsePrecedence(PREC_OR);
+		int acceptJump = emitJump(OP_JUMP_IF_TRUE);
+		emitByte(OP_POP); /* Pop condition */
+		emitLoop(loopStart);
+		patchJump(acceptJump);
+		emitByte(OP_POP); /* Pop condition */
+	}
+
+	beginScope();
+	if (match(TOKEN_FOR)) {
+		generatorInner(scannerBefore, parserBefore);
+	} else {
+		KrkScanner scannerAfter = krk_tellScanner();
+		Parser  parserAfter = parser;
+		krk_rewindScanner(scannerBefore);
+		parser = parserBefore;
+		expression();
+		emitBytes(OP_YIELD, OP_POP);
+		krk_rewindScanner(scannerAfter);
+		parser = parserAfter;
+	}
+	endScope();
+
+	emitLoop(loopStart);
+	patchJump(exitJump);
+	emitByte(OP_POP);
+}
+
+/**
+ * @brief Parser a generator expression.
+ *
+ * This is essentially the same as a comprehension body, but
+ * without the added loop index or wrapping function call.
+ *
+ * After every inner expression, we yield.
+ */
+static void generatorExpression(KrkScanner scannerBefore, Parser parserBefore) {
+	parser.previous = syntheticToken("<genexpr>");
+	Compiler subcompiler;
+	initCompiler(&subcompiler, TYPE_FUNCTION);
+	subcompiler.function->chunk.filename = subcompiler.enclosing->function->chunk.filename;
+	subcompiler.function->isGenerator = 1;
+
+	beginScope();
+	generatorInner(scannerBefore, parserBefore);
+	endScope();
+
+	KrkFunction *subfunction = endCompiler();
+	size_t indFunc = krk_addConstant(currentChunk(), OBJECT_VAL(subfunction));
+	EMIT_CONSTANT_OP(OP_CLOSURE, indFunc);
+	doUpvalues(&subcompiler, subfunction);
+	freeCompiler(&subcompiler);
+	emitBytes(OP_CALL, 0);
+}
+
 static void grouping(int canAssign) {
 	startEatingWhitespace();
 	if (check(TOKEN_RIGHT_PAREN)) {
@@ -2247,7 +2363,7 @@ static void grouping(int canAssign) {
 		expression();
 		if (match(TOKEN_FOR)) {
 			currentChunk()->count = chunkBefore;
-			comprehension(scannerBefore, parserBefore, "tupleOf", singleInner);
+			generatorExpression(scannerBefore, parserBefore);
 		} else if (match(TOKEN_COMMA)) {
 			size_t argCount = 1;
 			if (!check(TOKEN_RIGHT_PAREN)) {
@@ -2425,6 +2541,7 @@ ParseRule krk_parseRules[] = {
 	RULE(TOKEN_CONTINUE,      NULL,     NULL,   PREC_NONE),
 	RULE(TOKEN_IMPORT,        NULL,     NULL,   PREC_NONE),
 	RULE(TOKEN_RAISE,         NULL,     NULL,   PREC_NONE),
+	RULE(TOKEN_YIELD,         NULL,     NULL,   PREC_NONE),
 
 	RULE(TOKEN_AT,            NULL,     NULL,   PREC_NONE),
 
@@ -2594,6 +2711,9 @@ static void call(int canAssign) {
 	startEatingWhitespace();
 	size_t argCount = 0, specialArgs = 0, keywordArgs = 0, seenKeywordUnpacking = 0;
 	if (!check(TOKEN_RIGHT_PAREN)) {
+		size_t chunkBefore = currentChunk()->count;
+		KrkScanner scannerBefore = krk_tellScanner();
+		Parser  parserBefore = parser;
 		do {
 			if (match(TOKEN_ASTERISK) || check(TOKEN_POW)) {
 				specialArgs++;
@@ -2646,6 +2766,16 @@ static void call(int canAssign) {
 				continue;
 			}
 			expression();
+			if (argCount == 0 && match(TOKEN_FOR)) {
+				currentChunk()->count = chunkBefore;
+				generatorExpression(scannerBefore, parserBefore);
+				argCount = 1;
+				if (match(TOKEN_COMMA)) {
+					error("Generator expression must be parenthesized");
+					return;
+				}
+				break;
+			}
 			argCount++;
 		} while (match(TOKEN_COMMA));
 	}

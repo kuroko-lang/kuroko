@@ -276,9 +276,253 @@ _cleanup:
 }
 #endif
 
+static char * lastDebugCommand = NULL;
+static int debuggerHook(KrkCallFrame * frame) {
+
+	/* File information */
+	fprintf(stderr, "At offset 0x%04lx of function '%s' from '%s' on line %lu:\n",
+		(unsigned long)(frame->ip - frame->closure->function->chunk.code),
+		frame->closure->function->name->chars,
+		frame->closure->function->chunk.filename->chars,
+		(unsigned long)krk_lineNumber(&frame->closure->function->chunk,
+			(unsigned long)(frame->ip - frame->closure->function->chunk.code)));
+
+	/* Opcode trace */
+	krk_disassembleInstruction(
+		stderr,
+		frame->closure->function,
+		(size_t)(frame->ip - frame->closure->function->chunk.code));
+
+	krk_debug_dumpStack(stderr, frame);
+
+	while (1) {
+		char buf[4096] = {0};
+#ifndef NO_RLINE
+		if (enableRline) {
+			rline_exit_string="";
+			rline_exp_set_prompts("(dbg) ", "", 6, 0);
+			rline_exp_set_syntax("krk-dbg");
+			rline_exp_set_tab_complete_func(NULL);
+			if (rline(buf, 4096) == 0) goto _dbgQuit;
+		} else {
+#endif
+			fprintf(stderr, "(dbg) ");
+			fflush(stderr);
+			char * out = fgets(buf, 4096, stdin);
+			if (!out || !strlen(buf)) {
+				fprintf(stdout, "^D\n");
+				goto _dbgQuit;
+			}
+#ifndef NO_RLINE
+		}
+#endif
+
+		char * nl = strstr(buf,"\n");
+		if (nl) *nl = '\0';
+
+		if (!strlen(buf)) {
+			if (lastDebugCommand) {
+				strcpy(buf, lastDebugCommand);
+			} else {
+				continue;
+			}
+		} else {
+#ifndef NO_RLINE
+			if (enableRline) rline_history_insert(strdup(buf));
+#endif
+			if (lastDebugCommand) free(lastDebugCommand);
+			lastDebugCommand = strdup(buf);
+		}
+
+		/* Try to tokenize the first bit */
+		char * arg = NULL;
+		char * sp = strstr(buf," ");
+		if (sp) {
+			*sp = '\0';
+			arg = sp + 1;
+		}
+		/* Now check commands */
+		if (!strcmp(buf, "c") || !strcmp(buf,"continue")) {
+			return KRK_DEBUGGER_CONTINUE;
+		} else if (!strcmp(buf, "s") || !strcmp(buf, "step")) {
+			return KRK_DEBUGGER_STEP;
+		} else if (!strcmp(buf, "abort")) {
+			return KRK_DEBUGGER_ABORT;
+		} else if (!strcmp(buf, "q") || !strcmp(buf, "quit")) {
+			return KRK_DEBUGGER_QUIT;
+		} else if (!strcmp(buf, "bt") || !strcmp(buf, "backtrace")) {
+			krk_debug_dumpTraceback();
+		} else if (!strcmp(buf, "p") || !strcmp(buf, "print")) {
+			if (!arg) {
+				fprintf(stderr, "print requires an argument\n");
+			} else {
+				size_t frameCount = krk_currentThread.frameCount;
+				/* Compile statement */
+				KrkFunction * expression = krk_compile(arg,"<debugger>");
+				if (expression) {
+					/* Make sure stepping is disabled first. */
+					krk_debug_disableSingleStep();
+					/* Turn our compiled expression into a callable. */
+					krk_push(OBJECT_VAL(expression));
+					krk_push(OBJECT_VAL(krk_newClosure(expression)));
+					/* Stack silliness, don't ask. */
+					krk_push(NONE_VAL());
+					krk_pop();
+					/* Call the compiled expression with no args, but claim 2 method extras. */
+					krk_push(krk_callSimple(krk_peek(0), 0, 2));
+					fprintf(stderr, "\033[1;30m=> ");
+					krk_printValue(stderr, krk_peek(0));
+					fprintf(stderr, "\033[0m\n");
+					krk_pop();
+				}
+				if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) {
+					krk_dumpTraceback();
+					krk_currentThread.flags &= ~(KRK_THREAD_HAS_EXCEPTION);
+				}
+				krk_currentThread.frameCount = frameCount;
+			}
+		} else if (!strcmp(buf, "break") || !strcmp(buf, "b")) {
+			char * filename = arg;
+			if (!filename) {
+				fprintf(stderr, "usage: break FILE LINE [type]\n");
+				continue;
+			}
+
+			char * lineno = strstr(filename, " ");
+			if (!lineno) {
+				fprintf(stderr, "usage: break FILE LINE [type]\n");
+				continue;
+			}
+
+			/* Advance whitespace */
+			*lineno = '\0';
+			lineno++;
+
+			/* collect optional type */
+			int flags = KRK_BREAKPOINT_NORMAL;
+			char * type = strstr(lineno, " ");
+			if (type) {
+				*type = '\0'; type++;
+				if (!strcmp(type, "repeat") || !strcmp(type,"r")) {
+					flags = KRK_BREAKPOINT_REPEAT;
+				} else if (!strcmp(type, "once") || !strcmp(type,"o")) {
+					flags = KRK_BREAKPOINT_ONCE;
+				} else {
+					fprintf(stderr, "Unrecognized breakpoint type: %s\n", type);
+					continue;
+				}
+			}
+
+			int lineInt = atoi(lineno);
+			int result = krk_debug_addBreakpointFileLine(krk_copyString(filename, strlen(filename)), lineInt, flags);
+
+			if (result == -1) {
+				fprintf(stderr, "Sorry, couldn't add breakpoint.\n");
+			} else {
+				fprintf(stderr, "Breakpoint %d enabled.\n", result);
+			}
+
+		} else if (!strcmp(buf, "i") || !strcmp(buf, "info")) {
+			if (!arg) {
+				fprintf(stderr, " info breakpoints - Show breakpoints.\n");
+				continue;
+			}
+
+			if (!strcmp(arg,"breakpoints")) {
+				KrkFunction * codeObject = NULL;
+				size_t offset = 0;
+				int flags = 0;
+				int enabled = 0;
+				int breakIndex = 0;
+				while (1) {
+					int result = krk_debug_examineBreakpoint(breakIndex, &codeObject, &offset, &flags, &enabled);
+					if (result == -1) break;
+					if (result == -2) continue;
+
+					fprintf(stderr, "%-4d in %s+%d %s %s\n",
+						breakIndex,
+						codeObject->name->chars,
+						(int)offset,
+						flags == KRK_BREAKPOINT_NORMAL ? "normal":
+								flags == KRK_BREAKPOINT_REPEAT ? "repeat" :
+									flags == KRK_BREAKPOINT_ONCE ? "once" : "?",
+						enabled ? "enabled" : "disabled");
+
+					breakIndex++;
+				}
+			} else {
+				fprintf(stderr, "Unrecognized info object: %s\n", arg);
+			}
+
+		} else if (!strcmp(buf, "e") || !strcmp(buf, "enable")) {
+			if (!arg) {
+				fprintf(stderr, "enable requires an argument\n");
+				continue;
+			}
+
+			int breakIndex = atoi(arg);
+
+			if (krk_debug_enableBreakpoint(breakIndex)) {
+				fprintf(stderr, "Invalid breakpoint handle.\n");
+			} else {
+				fprintf(stderr, "Breakpoint %d enabled.\n", breakIndex);
+			}
+		} else if (!strcmp(buf, "d") || !strcmp(buf, "disable")) {
+			if (!arg) {
+				fprintf(stderr, "disable requires an argument\n");
+				continue;
+			}
+
+			int breakIndex = atoi(arg);
+
+			if (krk_debug_disableBreakpoint(breakIndex)) {
+				fprintf(stderr, "Invalid breakpoint handle.\n");
+			} else {
+				fprintf(stderr, "Breakpoint %d disabled.\n", breakIndex);
+			}
+		} else if (!strcmp(buf, "r") || !strcmp(buf, "remove")) {
+			if (!arg) {
+				fprintf(stderr, "remove requires an argument\n");
+				continue;
+			}
+
+			int breakIndex = atoi(arg);
+
+			if (krk_debug_removeBreakpoint(breakIndex)) {
+				fprintf(stderr, "Invalid breakpoint handle.\n");
+			} else {
+				fprintf(stderr, "Breakpoint %d removed.\n", breakIndex);
+			}
+		} else if (!strcmp(buf, "help")) {
+			fprintf(stderr,
+				"Kuroko Interactive Debugger\n"
+				"  c   continue  - Continue until the next breakpoint.\n"
+				"  s   step      - Execute this instruction and return to the debugger.\n"
+				"  bt  backtrace - Print a backtrace.\n"
+				"  q   quit      - Exit the interpreter.\n"
+				"      abort     - Abort the interpreter (may create a core dump).\n"
+				"  b   break ... - Set a breakpoint.\n"
+				"  e   enable N  - Enable breakpoint 'N'.\n"
+				"  d   disable N - Disable breakpoint 'N'.\n"
+				"  r   remove N  - Remove breakpoint 'N'.\n"
+				"  i   info ...  - See information about breakpoints.\n"
+				"\n"
+				"Empty input lines will repeat the last command.\n"
+			);
+		} else {
+			fprintf(stderr, "Unrecognized command: %s\n", buf);
+		}
+
+	}
+
+	return KRK_DEBUGGER_CONTINUE;
+_dbgQuit:
+	return KRK_DEBUGGER_QUIT;
+}
+
 static void handleSigint(int sigNum) {
 	if (krk_currentThread.frameCount) {
-		krk_runtimeError(vm.exceptions->keyboardInterrupt, "Keyboard interrupt.");
+		krk_currentThread.flags |= KRK_THREAD_SIGNALLED;
 	}
 
 	signal(sigNum, handleSigint);
@@ -289,10 +533,11 @@ static void findInterpreter(char * argv[]) {
 	vm.binpath = strdup(_pgmptr);
 #else
 	/* Try asking /proc */
-	char * binpath = realpath("/proc/self/exe", NULL);
+	char tmp[4096];
+	char * binpath = realpath("/proc/self/exe", tmp);
 	if (!binpath || (access(binpath, X_OK) != 0)) {
 		if (strchr(argv[0], '/')) {
-			binpath = realpath(argv[0], NULL);
+			binpath = realpath(argv[0], tmp);
 		} else {
 			/* Search PATH for argv[0] */
 			char * _path = strdup(getenv("PATH"));
@@ -301,10 +546,9 @@ static void findInterpreter(char * argv[]) {
 				char * next = strchr(path,':');
 				if (next) *next++ = '\0';
 
-				char tmp[4096];
 				snprintf(tmp, 4096, "%s/%s", path, argv[0]);
 				if (access(tmp, X_OK) == 0) {
-					binpath = strdup(tmp);
+					binpath = tmp;
 					break;
 				}
 				path = next;
@@ -378,6 +622,10 @@ static int compileFile(char * argv[], int flags, char * fileName) {
 #endif
 
 int main(int argc, char * argv[]) {
+#ifdef _WIN32
+	SetConsoleOutputCP(65001);
+	SetConsoleCP(65001);
+#endif
 	int flags = 0;
 	int moduleAsMain = 0;
 	int opt;
@@ -399,7 +647,7 @@ int main(int argc, char * argv[]) {
 				break;
 			case 'S':
 				flags |= KRK_THREAD_SINGLE_STEP;
-				/* fallthrough - single step requires tracing */
+				break;
 			case 't':
 				/* Disassemble instructions as they are executed. */
 				flags |= KRK_THREAD_ENABLE_TRACING;
@@ -453,6 +701,8 @@ _finishArgs:
 	findInterpreter(argv);
 	krk_initVM(flags);
 
+	krk_debug_registerCallback(debuggerHook);
+
 	/* Attach kuroko.argv - argv[0] will be set to an empty string for the repl */
 	if (argc == optind) krk_push(OBJECT_VAL(krk_copyString("",0)));
 	for (int arg = optind; arg < argc; ++arg) {
@@ -494,15 +744,6 @@ _finishArgs:
 		krk_startModule("__main__");
 		krk_attachNamedValue(&krk_currentThread.module->fields,"__doc__", NONE_VAL());
 
-#ifndef NO_RLINE
-		/* Set ^D to send EOF */
-		rline_exit_string="";
-		/* Enable syntax highlight for Kuroko */
-		rline_exp_set_syntax("krk");
-		/* Bind a callback for \t */
-		rline_exp_set_tab_complete_func(tab_complete_func);
-#endif
-
 		/**
 		 * Python stores version info in a built-in module called `sys`.
 		 * We are not Python, we'll use `sys` to pretend to be Python
@@ -538,6 +779,12 @@ _finishArgs:
 #ifndef NO_RLINE
 			/* Main prompt is >>> like in Python */
 			rline_exp_set_prompts(PROMPT_MAIN, "", 4, 0);
+			/* Set ^D to send EOF */
+			rline_exit_string="";
+			/* Enable syntax highlight for Kuroko */
+			rline_exp_set_syntax("krk");
+			/* Bind a callback for \t */
+			rline_exp_set_tab_complete_func(tab_complete_func);
 #endif
 
 			while (1) {
