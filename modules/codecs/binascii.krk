@@ -40,7 +40,12 @@ class InverseBase64IncrementalEncoder(IncrementalEncoder): # read: Base64 decode
         let offset = 0
         let out = ByteCatenator()
         while 1:
-            let raw_substring = string[offset:(offset + 4)]
+            let raw_substring = ""
+            let suboffset = offset
+            while (len(raw_substring) < 4) and suboffset < len(string):
+                if string[suboffset].strip():
+                    raw_substring += string[suboffset]
+                suboffset += 1
             if len(raw_substring) == 0:
                 return out.getvalue()
             else if len(raw_substring) < 4 and not final:
@@ -61,7 +66,7 @@ class InverseBase64IncrementalEncoder(IncrementalEncoder): # read: Base64 decode
                 strange = _base64_alphabet.index(ord(substring[3]))
             except ValueError:
                 # Ignore the error specifier
-                raise UnicodeEncodeError(self.name, string, offset, offset + len(raw_substring),
+                raise UnicodeEncodeError(self.name, string, offset, suboffset,
                                     "not Base64")
             let high = (charm << 2) | (up >> 4)
             let mid = ((up & 0xF) << 4) | (down >> 2)
@@ -74,9 +79,9 @@ class InverseBase64IncrementalEncoder(IncrementalEncoder): # read: Base64 decode
                 out.add(bytes([high]))
             else:
                 # Ignore the error specifier
-                raise UnicodeEncodeError(self.name, string, offset, offset + len(raw_substring),
+                raise UnicodeEncodeError(self.name, string, offset, suboffset,
                                     "Base64 truncated or with invalid number of pad characters")
-            offset += 4
+            offset = suboffset
     def reset(): self.pending = ""
     def getstate(): return self.pending
     def setstate(state): self.pending = state
