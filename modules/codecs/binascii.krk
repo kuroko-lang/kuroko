@@ -85,3 +85,59 @@ register_kuroko_codec(["inverse-base64"],
     InverseBase64IncrementalEncoder, InverseBase64IncrementalDecoder)
 
 
+class InverseQuoPriIncrementalDecoder(IncrementalDecoder): # read: QuoPri encoder
+    name = "inverse-quopri"
+    def decode(data, final = False):
+        let offset = 0
+        let out = StringCatenator()
+        while 1:
+            if (offset == len(data)) or ((offset + 1) == len(data) and not final):
+                return out.getvalue()
+            let i = data[offset]
+            let next_eol = (offset + 1 == len(data)) or (data[offset + 1] in (0x0A, 0x0D))
+            if i > 0x20 and i < 0x7F and i != b"="[0]:
+                if self.linelength >= 75 and not next_eol:
+                    out.add("=\r\n")
+                    self.linelength = 0
+                out.add(chr(i))
+                self.linelength += 1
+            else if i in (0x0A, 0x0D):
+                out.add(chr(i))
+                self.linelength = 0
+            else if i in (0x09, 0x20):
+                if next_eol:
+                    if self.linelength > 73:
+                        out.add("=\r\n")
+                        out.add(chr(i))
+                        self.linelength = 1
+                    else:
+                        let hexbit = hex(i)[2:].upper()
+                        if len(hexbit) == 1: hexbit = "0" + hexbit
+                        out.add("=" + hexbit)
+                        self.linelength += 3
+                else:
+                    out.add(chr(i))
+                    self.linelength += 1
+            else:
+                if (self.linelength > 73) or (self.linelength > 72 and not next_eol):
+                    out.add("=\r\n")
+                    self.linelength = 0
+                let hexbit = hex(i)[2:].upper()
+                if len(hexbit) == 1: hexbit = "0" + hexbit
+                out.add("=" + hexbit)
+                self.linelength += 3
+            offset += 1
+    def reset():
+        self.linelength = 0
+    def getstate():
+        return self.linelength
+    def setstate(state):
+        self.linelength = state
+
+register_kuroko_codec(["inverse-quopri"],
+    None, InverseQuoPriIncrementalDecoder)
+
+
+
+
+
