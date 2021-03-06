@@ -1599,7 +1599,7 @@ static void yieldStatement() {
 	} else {
 		expression();
 	}
-	emitByte(OP_YIELD);
+	emitBytes(OP_YIELD, OP_POP);
 }
 
 static void tryStatement() {
@@ -2314,7 +2314,7 @@ static void generatorInner(KrkScanner scannerBefore, Parser parserBefore) {
 		krk_rewindScanner(scannerBefore);
 		parser = parserBefore;
 		expression();
-		emitByte(OP_YIELD);
+		emitBytes(OP_YIELD, OP_POP);
 		krk_rewindScanner(scannerAfter);
 		parser = parserAfter;
 	}

@@ -101,7 +101,7 @@ KRK_METHOD(generator,__call__,{
 		size_t newArgs = stackAfter - stackBefore;
 		self->args = realloc(self->args, sizeof(KrkValue) * (self->argCount + newArgs));
 		self->argCount += newArgs;
-	} else if (stackAfter <= stackBefore) {
+	} else if (stackAfter < stackBefore) {
 		_set_generator_done(self);
 		return OBJECT_VAL(self);
 	}
