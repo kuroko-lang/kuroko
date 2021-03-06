@@ -163,7 +163,9 @@ class InverseQuoPriIncrementalEncoder(IncrementalEncoder): # read: QuoPri decode
                 # Leniency to LF not CRLF in soft line break (following Python behaviour)
                 offset += 2
             else if len(substring) >= 2 and substring[1] == "\r" and substring[2:3] != "\n":
-                # Leniency to CR not CRLF in soft line break (following Python behaviour)
+                # Leniency to CR not CRLF in soft line break
+                # Python behaviour will actually swallow any data between =\r and \n, which is
+                #   BAD. I am not following suit.
                 offset += 2
             else if len(substring) < 3 or procsubst[1] not in hexd or procsubst[2] not in hexd:
                 # Leniency to = which doesn't start a QuoPri escape
