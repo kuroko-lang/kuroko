@@ -1,0 +1,78 @@
+from codecs.infrastructure import StringCatenator, ByteCatenator, IncrementalEncoder, IncrementalDecoder, UnicodeDecodeError, UnicodeEncodeError, register_kuroko_codec
+
+let _base64_alphabet = (
+    list(range(ord("A"), ord("Z") + 1)) + 
+    list(range(ord("a"), ord("z") + 1)) +
+    list(range(ord("0"), ord("9") + 1)) + [ord("+"), ord("/")]
+)
+
+class InverseBase64IncrementalDecoder(IncrementalDecoder): # read: Base64 encoder
+    name = "inverse-base64"
+    def decode(data_in, final = False):
+        let data = self.pending + data_in
+        self.pending = b""
+        let offset = 0
+        let out = StringCatenator()
+        while 1:
+            let subdata = list(data)[offset:(offset + 3)]
+            if (len(subdata) == 0) or (len(subdata) < 3 and not final):
+                return self._handle_truncation(out, None, final, data, offset, subdata)
+            let padchars = 3 - len(subdata)
+            subdata = subdata + ([0] * padchars)
+            let high = subdata[0]
+            let mid = subdata[1]
+            let low = subdata[2]
+            let charm = high >> 2
+            let up = ((high & 3) << 4) | (mid >> 4)
+            let down = ((mid & 0xF) << 2) | (low >> 6)
+            let strange = low & 0x3F
+            let outbit = "".join([chr(_base64_alphabet[i]) for i in [charm, up, down, strange]])
+            if padchars:
+                outbit = outbit[:-padchars] + ("=" * padchars)
+            out.add(outbit)
+            offset += 3
+
+class InverseBase64IncrementalEncoder(IncrementalEncoder): # read: Base64 decoder
+    name = "inverse-base64"
+    def encode(string, final = False):
+        let offset = 0
+        let out = ByteCatenator()
+        while 1:
+            let raw_substring = string[offset:(offset + 4)]
+            let substring = raw_substring
+            if len(substring) == 0:
+                return out.getvalue()
+            let padchars = 4 - len(substring.rstrip("="))
+            if padchars:
+                substring = substring[:(4-padchars)] + ("A" * padchars)
+            let charm
+            let up
+            let down
+            let strange
+            try:
+                charm = _base64_alphabet.index(ord(substring[0]))
+                up = _base64_alphabet.index(ord(substring[1]))
+                down = _base64_alphabet.index(ord(substring[2]))
+                strange = _base64_alphabet.index(ord(substring[3]))
+            except ValueError:
+                # Ignore the error specifier
+                raise UnicodeEncodeError(self.name, string, offset, offset + len(raw_substring),
+                                    "not Base64")
+            let high = (charm << 2) | (up >> 4)
+            let mid = ((up & 0xF) << 4) | (down >> 2)
+            let low = ((down & 3) << 6) | strange
+            if not padchars:
+                out.add(bytes([high, mid, low]))
+            else if padchars == 1:
+                out.add(bytes([high, mid]))
+            else if padchars == 2:
+                out.add(bytes([high]))
+            else:
+                # Ignore the error specifier
+                raise UnicodeEncodeError(self.name, string, offset, offset + len(raw_substring),
+                                    "Base64 truncated or with invalid number of pad characters")
+            offset += 4
+
+register_kuroko_codec(["inverse-base64"],
+    InverseBase64IncrementalEncoder, InverseBase64IncrementalDecoder)
+
