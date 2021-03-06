@@ -2252,23 +2252,8 @@ static void singleInner(ssize_t indLoopCounter) {
 	expression();
 }
 
-/**
- * @brief Parser a generator expression.
- *
- * This is essentially the same as a comprehension body, but
- * without the added loop index or wrapping function call.
- *
- * After every inner expression, we yield.
- */
-static void generatorExpression(KrkScanner scannerBefore, Parser parserBefore) {
-	parser.previous = syntheticToken("<genexpr>");
-	Compiler subcompiler;
-	initCompiler(&subcompiler, TYPE_FUNCTION);
-	subcompiler.function->chunk.filename = subcompiler.enclosing->function->chunk.filename;
-	subcompiler.function->isGenerator = 1;
 
-	beginScope();
-
+static void generatorInner(KrkScanner scannerBefore, Parser parserBefore) {
 	ssize_t loopInd = current->localCount;
 	ssize_t varCount = 0;
 	do {
@@ -2320,21 +2305,43 @@ static void generatorExpression(KrkScanner scannerBefore, Parser parserBefore) {
 		emitByte(OP_POP); /* Pop condition */
 	}
 
-	KrkScanner scannerAfter = krk_tellScanner();
-	Parser  parserAfter = parser;
-	krk_rewindScanner(scannerBefore);
-	parser = parserBefore;
-
 	beginScope();
-	expression();
-	emitByte(OP_YIELD);
+	if (match(TOKEN_FOR)) {
+		generatorInner(scannerBefore, parserBefore);
+	} else {
+		KrkScanner scannerAfter = krk_tellScanner();
+		Parser  parserAfter = parser;
+		krk_rewindScanner(scannerBefore);
+		parser = parserBefore;
+		expression();
+		emitByte(OP_YIELD);
+		krk_rewindScanner(scannerAfter);
+		parser = parserAfter;
+	}
 	endScope();
-
-	krk_rewindScanner(scannerAfter);
-	parser = parserAfter;
 
 	emitLoop(loopStart);
 	patchJump(exitJump);
+}
+
+/**
+ * @brief Parser a generator expression.
+ *
+ * This is essentially the same as a comprehension body, but
+ * without the added loop index or wrapping function call.
+ *
+ * After every inner expression, we yield.
+ */
+static void generatorExpression(KrkScanner scannerBefore, Parser parserBefore) {
+	parser.previous = syntheticToken("<genexpr>");
+	Compiler subcompiler;
+	initCompiler(&subcompiler, TYPE_FUNCTION);
+	subcompiler.function->chunk.filename = subcompiler.enclosing->function->chunk.filename;
+	subcompiler.function->isGenerator = 1;
+
+	beginScope();
+	generatorInner(scannerBefore, parserBefore);
+	endScope();
 
 	KrkFunction *subfunction = endCompiler();
 	size_t indFunc = krk_addConstant(currentChunk(), OBJECT_VAL(subfunction));
