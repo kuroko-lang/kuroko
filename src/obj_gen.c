@@ -90,6 +90,11 @@ KRK_METHOD(generator,__call__,{
 	size_t stackAfter = krk_currentThread.stackTop - krk_currentThread.stack;
 	self->running = 0;
 
+	if (IS_KWARGS(result) && AS_INTEGER(result) == 0) {
+		_set_generator_done(self);
+		return OBJECT_VAL(self);
+	}
+
 	/* Was there an exception? */
 	if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) {
 		_set_generator_done(self);
@@ -102,8 +107,9 @@ KRK_METHOD(generator,__call__,{
 		self->args = realloc(self->args, sizeof(KrkValue) * (self->argCount + newArgs));
 		self->argCount += newArgs;
 	} else if (stackAfter < stackBefore) {
-		_set_generator_done(self);
-		return OBJECT_VAL(self);
+		size_t deadArgs = stackBefore - stackAfter;
+		self->args = realloc(self->args, sizeof(KrkValue) * (self->argCount - deadArgs));
+		self->argCount -= deadArgs;
 	}
 
 	/* Save stack entries */

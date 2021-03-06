@@ -2322,6 +2322,7 @@ static void generatorInner(KrkScanner scannerBefore, Parser parserBefore) {
 
 	emitLoop(loopStart);
 	patchJump(exitJump);
+	emitByte(OP_POP);
 }
 
 /**

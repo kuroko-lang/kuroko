@@ -1870,6 +1870,9 @@ _resumeHook: (void)0;
 				}
 				krk_currentThread.stackTop = &krk_currentThread.stack[frame->outSlots];
 				if (krk_currentThread.frameCount == (size_t)krk_currentThread.exitOnFrame) {
+					if (frame->closure->function->isGenerator) {
+						return KWARGS_VAL(0);
+					}
 					return result;
 				}
 				krk_push(result);
