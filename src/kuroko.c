@@ -533,10 +533,11 @@ static void findInterpreter(char * argv[]) {
 	vm.binpath = strdup(_pgmptr);
 #else
 	/* Try asking /proc */
-	char * binpath = realpath("/proc/self/exe", NULL);
+	char tmp[4096];
+	char * binpath = realpath("/proc/self/exe", tmp);
 	if (!binpath || (access(binpath, X_OK) != 0)) {
 		if (strchr(argv[0], '/')) {
-			binpath = realpath(argv[0], NULL);
+			binpath = realpath(argv[0], tmp);
 		} else {
 			/* Search PATH for argv[0] */
 			char * _path = strdup(getenv("PATH"));
@@ -545,10 +546,9 @@ static void findInterpreter(char * argv[]) {
 				char * next = strchr(path,':');
 				if (next) *next++ = '\0';
 
-				char tmp[4096];
 				snprintf(tmp, 4096, "%s/%s", path, argv[0]);
 				if (access(tmp, X_OK) == 0) {
-					binpath = strdup(tmp);
+					binpath = tmp;
 					break;
 				}
 				path = next;
