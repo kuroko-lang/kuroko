@@ -1,0 +1,14 @@
+def doTheThing(excp):
+    try:
+        try:
+            raise excp
+        except (TypeError, ValueError) as e:
+            print("Caught a", repr(e))
+    except NameError:
+        print("That's a name error!")
+
+
+doTheThing(TypeError("A type error"))
+doTheThing(ValueError("A value error"))
+doTheThing(NameError("A name error"))
+

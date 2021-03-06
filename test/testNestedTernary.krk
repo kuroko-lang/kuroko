@@ -1,0 +1,5 @@
+print('a' if False else 'b' if False else 'c')
+print('a' if False else 'b' if True else 'c')
+print('a' if True else 'b' if False else 'c')
+print('a' if True else 'b' if True else 'c')
+

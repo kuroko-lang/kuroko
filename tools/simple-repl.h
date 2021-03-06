@@ -99,7 +99,7 @@ static int runSimpleRepl(void) {
 		}
 		FREE_ARRAY(char *, lines, lineCapacity);
 		if (valid) {
-			KrkValue result = krk_interpret(allData, 0, "<module>","<stdin>");
+			KrkValue result = krk_interpret(allData, "<stdin>");
 			if (!IS_NONE(result)) {
 				KrkClass * type = krk_getType(result);
 				const char * formatStr = " \033[1;30m=> %s\033[0m\n";
@@ -115,10 +115,10 @@ static int runSimpleRepl(void) {
 				} else {
 					fprintf(stdout, formatStr, AS_CSTRING(result));
 				}
-				krk_resetStack();
-			} else if (krk_currentThread.flags & KRK_HAS_EXCEPTION) {
+			} else if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) {
 				krk_dumpTraceback();
 			}
+			krk_resetStack();
 			free(allData);
 		}
 

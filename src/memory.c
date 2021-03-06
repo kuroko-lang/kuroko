@@ -8,9 +8,9 @@
 void * krk_reallocate(void * ptr, size_t old, size_t new) {
 	vm.bytesAllocated += new - old;
 
-	if (new > old && ptr != krk_currentThread.stack && &krk_currentThread == vm.threads && !(vm.globalFlags & KRK_GC_PAUSED)) {
+	if (new > old && ptr != krk_currentThread.stack && &krk_currentThread == vm.threads && !(vm.globalFlags & KRK_GLOBAL_GC_PAUSED)) {
 #ifdef ENABLE_STRESS_GC
-		if (vm.globalFlags & KRK_ENABLE_STRESS_GC) {
+		if (vm.globalFlags & KRK_GLOBAL_ENABLE_STRESS_GC) {
 			krk_collectGarbage();
 		}
 #endif
@@ -239,7 +239,7 @@ void krk_markTable(KrkTable * table) {
 	}
 }
 
-void krk_tableRemoveWhite(KrkTable * table) {
+static void tableRemoveWhite(KrkTable * table) {
 	for (size_t i = 0; i < table->capacity; ++i) {
 		KrkTableEntry * entry = &table->entries[i];
 		if (IS_OBJECT(entry->key) && !(AS_OBJECT(entry->key))->isMarked) {
@@ -259,7 +259,7 @@ static void markThreadRoots(KrkThreadState * thread) {
 
 	if (thread->module)  krk_markObject((KrkObj*)thread->module);
 
-	for (int i = 0; i < THREAD_SCRATCH_SIZE; ++i) {
+	for (int i = 0; i < KRK_THREAD_SCRATCH_SIZE; ++i) {
 		krk_markValue(thread->scratchSpace[i]);
 	}
 }
@@ -287,7 +287,7 @@ static void markRoots() {
 size_t krk_collectGarbage(void) {
 	markRoots();
 	traceReferences();
-	krk_tableRemoveWhite(&vm.strings);
+	tableRemoveWhite(&vm.strings);
 	size_t out = sweep();
 	vm.nextGC = vm.bytesAllocated * 2;
 	return out;
@@ -318,12 +318,12 @@ static KrkValue krk_generations(int argc, KrkValue argv[], int hasKw) {
 }
 
 static KrkValue _gc_pause(int argc, KrkValue argv[], int hasKw) {
-	vm.globalFlags |= (KRK_GC_PAUSED);
+	vm.globalFlags |= (KRK_GLOBAL_GC_PAUSED);
 	return NONE_VAL();
 }
 
 static KrkValue _gc_resume(int argc, KrkValue argv[], int hasKw) {
-	vm.globalFlags &= ~(KRK_GC_PAUSED);
+	vm.globalFlags &= ~(KRK_GLOBAL_GC_PAUSED);
 	return NONE_VAL();
 }
 
@@ -338,10 +338,15 @@ void _createAndBind_gcMod(void) {
 	krk_attachNamedObject(&vm.modules, "gc", (KrkObj*)gcModule);
 	krk_attachNamedObject(&gcModule->fields, "__name__", (KrkObj*)S("gc"));
 	krk_attachNamedValue(&gcModule->fields, "__file__", NONE_VAL());
-	krk_defineNative(&gcModule->fields, "collect", krk_collectGarbage_wrapper);
-	krk_defineNative(&gcModule->fields, "generations", krk_generations);
-	krk_defineNative(&gcModule->fields, "pause", _gc_pause);
-	krk_defineNative(&gcModule->fields, "resume", _gc_resume);
 	krk_attachNamedObject(&gcModule->fields, "__doc__",
-		(KrkObj*)S("Namespace containing methods for controlling the garbge collector."));
+		(KrkObj*)S("@brief Namespace containing methods for controlling the garbge collector."));
+
+	krk_defineNative(&gcModule->fields, "collect", krk_collectGarbage_wrapper)->doc =
+		"@brief Triggers one cycle of garbage collection.";
+	krk_defineNative(&gcModule->fields, "generations", krk_generations)->doc =
+		"@brief Returns a 4-tuple of the counts of objects in each stage of garbage collection.";
+	krk_defineNative(&gcModule->fields, "pause", _gc_pause)->doc =
+		"@brief Disables automatic garbage collection until @ref resume is called.";
+	krk_defineNative(&gcModule->fields, "resume", _gc_resume)->doc =
+		"@brief Re-enable automatic garbage collection after it was stopped by @ref pause ";
 }

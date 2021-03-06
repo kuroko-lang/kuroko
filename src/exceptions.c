@@ -1,47 +1,97 @@
+/**
+ * @file exceptions.c
+ * @brief Definitions and native method bindings for error types.
+ */
 #include <string.h>
 #include "vm.h"
 #include "value.h"
 #include "memory.h"
 #include "util.h"
 
-#define ADD_EXCEPTION_CLASS(obj, name, baseClass) do { \
+/**
+ * @def ADD_EXCEPTION_CLASS(obj,name,baseClass)
+ *
+ * Convenience macro for creating exception types.
+ */
+#define ADD_EXCEPTION_CLASS(obj,name,baseClass) do { \
 	obj = krk_newClass(S(name), baseClass); \
 	krk_attachNamedObject(&vm.builtins->fields, name, (KrkObj*)obj); \
 	krk_finalizeClass(obj); \
 } while (0)
 
 /**
- * Exception.__init__(arg)
+ * @brief Initialize an exception object.
+ *
+ * Native binding for Exception.__init__
+ *
+ * @param arg Optional string to attach to the exception object.
  */
 static KrkValue krk_initException(int argc, KrkValue argv[], int hasKw) {
 	KrkInstance * self = AS_INSTANCE(argv[0]);
-
-	if (argc > 1) {
-		krk_attachNamedValue(&self->fields, "arg", argv[1]);
-	} else {
-		krk_attachNamedValue(&self->fields, "arg", NONE_VAL());
-	}
-
+	krk_attachNamedValue(&self->fields, "arg", argc > 1 ? argv[1] : NONE_VAL());
 	return argv[0];
 }
 
+/**
+ * @brief Create a string representation of an Exception.
+ *
+ * Native binding for @c Exception.__repr__
+ *
+ * Generates a string representation of the form @c "Exception(arg)" .
+ */
 static KrkValue _exception_repr(int argc, KrkValue argv[], int hasKw) {
 	KrkInstance * self = AS_INSTANCE(argv[0]);
-	/* .arg */
+	KrkValue arg;
+	struct StringBuilder sb = {0};
+
+	pushStringBuilderStr(&sb, self->_class->name->chars, self->_class->name->length);
+	pushStringBuilder(&sb, '(');
+
+	if (krk_tableGet(&self->fields, OBJECT_VAL(S("arg")), &arg)) {
+		/* repr it */
+		krk_push(arg);
+		KrkValue repred = krk_callSimple(OBJECT_VAL(krk_getType(arg)->_reprer), 1, 0);
+		pushStringBuilderStr(&sb, AS_CSTRING(repred), AS_STRING(repred)->length);
+	}
+
+	pushStringBuilder(&sb, ')');
+
+	return finishStringBuilder(&sb);
+}
+
+/**
+ * @brief Obtain a descriptive string from an exception.
+ *
+ * Native binding for @c Exception.__str__
+ *
+ * For most exceptions, this is the 'arg' value attached at initialization
+ * and is printed during a traceback after the name of the exception type.
+ */
+static KrkValue _exception_str(int argc, KrkValue argv[], int hasKw) {
+	KrkInstance * self = AS_INSTANCE(argv[0]);
 	KrkValue arg;
 	if (!krk_tableGet(&self->fields, OBJECT_VAL(S("arg")), &arg) || IS_NONE(arg)) {
-		return OBJECT_VAL(self->_class->name);
-	} else {
-		krk_push(OBJECT_VAL(self->_class->name));
-		krk_push(OBJECT_VAL(S(": ")));
-		krk_addObjects();
+		return NONE_VAL();
+	} else if (!IS_STRING(arg)) {
 		krk_push(arg);
-		krk_addObjects();
-		return krk_pop();
+		return krk_callSimple(OBJECT_VAL(krk_getType(arg)->_tostr), 1, 0);
+	} else {
+		return arg;
 	}
 }
 
-static KrkValue _syntaxerror_repr(int argc, KrkValue argv[], int hasKw) {
+/**
+ * @brief Generate printable text for a syntax error.
+ *
+ * Native binding for @c SyntaxError.__str__
+ *
+ * Syntax errors are handled specially by the traceback generator so that they
+ * can print the original source line containing the erroneous input, so instead
+ * of printing {Exception.__class__.__name__}: {str(Exception)} we just print
+ * {str(Exception)} for syntax errors and they handle the rest. This is a bit
+ * of a kludge, but it works for now.
+ */
+static KrkValue _syntaxerror_str(int argc, KrkValue argv[], int hasKw) {
 	KrkInstance * self = AS_INSTANCE(argv[0]);
 	/* .arg */
 	KrkValue file, line, lineno, colno, arg, func;
@@ -80,6 +130,13 @@ _badSyntaxError:
 	return OBJECT_VAL(S("SyntaxError: invalid syntax"));
 }
 
+
+/**
+ * @brief Bind native methods and classes for exceptions.
+ *
+ * Called on VM initialization to create the base classes for exception types
+ * and bind the native methods for exception objects.
+ */
 _noexport
 void _createAndBind_exceptions(void) {
 	/* Add exception classes */
@@ -87,6 +144,7 @@ void _createAndBind_exceptions(void) {
 	/* base exception class gets an init that takes an optional string */
 	krk_defineNative(&vm.exceptions->baseException->methods, ".__init__", krk_initException);
 	krk_defineNative(&vm.exceptions->baseException->methods, ".__repr__", _exception_repr);
+	krk_defineNative(&vm.exceptions->baseException->methods, ".__str__", _exception_str);
 	krk_finalizeClass(vm.exceptions->baseException);
 	ADD_EXCEPTION_CLASS(vm.exceptions->typeError, "TypeError", vm.exceptions->baseException);
 	ADD_EXCEPTION_CLASS(vm.exceptions->argumentError, "ArgumentError", vm.exceptions->baseException);
@@ -100,8 +158,9 @@ void _createAndBind_exceptions(void) {
 	ADD_EXCEPTION_CLASS(vm.exceptions->keyboardInterrupt, "KeyboardInterrupt", vm.exceptions->baseException);
 	ADD_EXCEPTION_CLASS(vm.exceptions->zeroDivisionError, "ZeroDivisionError", vm.exceptions->baseException);
 	ADD_EXCEPTION_CLASS(vm.exceptions->notImplementedError, "NotImplementedError", vm.exceptions->baseException);
+	ADD_EXCEPTION_CLASS(vm.exceptions->assertionError, "AssertionError", vm.exceptions->baseException);
 	ADD_EXCEPTION_CLASS(vm.exceptions->syntaxError, "SyntaxError", vm.exceptions->baseException);
-	krk_defineNative(&vm.exceptions->syntaxError->methods, ".__repr__", _syntaxerror_repr);
+	krk_defineNative(&vm.exceptions->syntaxError->methods, ".__str__", _syntaxerror_str);
 	krk_finalizeClass(vm.exceptions->syntaxError);
 }
 

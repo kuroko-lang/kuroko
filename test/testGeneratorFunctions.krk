@@ -1,0 +1,45 @@
+def infinite_sequence(num=0):
+    print("Called")
+    yield
+    while num < 20:
+        print("Yielding")
+        yield num
+        if num == 15:
+            raise ValueError()
+        num += 1
+    print("All out of yields?")
+
+print('function infinite_sequence' in str(infinite_sequence))
+print('generator object infinite_sequence' in str(infinite_sequence()))
+
+def foo(o=None):
+    try:
+        o = infinite_sequence()
+        for i in o:
+            print(i)
+    except:
+        pass
+    print('===')
+    print(o.gi_running)
+    print('---')
+    # It's empty now.
+    for i in o:
+        print(i)
+
+foo()
+
+# We should also be able to make generator methods
+
+class Foo():
+    def __init__(self):
+        self.bar = "baz"
+    def generatorMethod(self):
+        for c in self.bar:
+            print('yielding',c)
+            yield c
+
+let f = Foo()
+for entry in f.generatorMethod():
+    print('got',entry)
+for entry in f.generatorMethod():
+    print('got',entry)

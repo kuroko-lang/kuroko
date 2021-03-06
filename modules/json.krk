@@ -1,8 +1,11 @@
 """
-JSON parser
+@brief JSON parser
+
+Provides methods for parsing the JSON data interchange format.
 """
 
 def loads(s):
+    '''@brief Parse @p s as a JSON string.'''
     let i = 0
     let value # okay dumb scoping thing, but we'll assign this to _value later...
     def peek():

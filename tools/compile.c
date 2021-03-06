@@ -87,7 +87,7 @@ static void findInterpreter(char * argv[]) {
 				if (next) *next++ = '\0';
 
 				char tmp[4096];
-				sprintf(tmp, "%s/%s", path, argv[0]);
+				snprintf(tmp, 4096, "%s/%s", path, argv[0]);
 				if (access(tmp, X_OK) == 0) {
 					binpath = strdup(tmp);
 					break;
@@ -368,9 +368,9 @@ static int compileFile(char * fileName) {
 
 
 	krk_startModule("__main__");
-	KrkFunction * func = krk_compile(buf, 0, fileName);
+	KrkFunction * func = krk_compile(buf, fileName);
 
-	if (krk_currentThread.flags & KRK_HAS_EXCEPTION) {
+	if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) {
 		fprintf(stderr, "%s: exception during compilation:\n", fileName);
 		krk_dumpTraceback();
 		return 3;

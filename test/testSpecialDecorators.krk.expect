@@ -3,6 +3,6 @@ No args!
 48
 Called as a setter: [102]
 102
-<type 'Foo'> test
-<type 'Foo'> test
-<type 'Bar'> test
+<class '__main__.Foo'> test
+<class '__main__.Foo'> test
+<class '__main__.Bar'> test

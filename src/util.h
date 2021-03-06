@@ -1,12 +1,12 @@
+#pragma once
 /**
- * Utilities for creating native bindings.
+ * @file util.h
+ * @brief Utilities for creating native bindings.
  *
  * This is intended for use in C extensions to provide a uniform interface
  * for defining extension methods and ensuring they have consistent argument
  * and keyword argument usage.
  */
-#pragma once
-
 #include "object.h"
 #include "vm.h"
 #include "memory.h"
@@ -90,17 +90,26 @@ static inline const char * _method_name(const char * func) {
 
 /* This assumes you have a KrkInstance called `module` in the current scope. */
 #define MAKE_CLASS(klass) do { krk_makeClass(module,&klass,#klass,vm.baseClasses->objectClass); klass ->allocSize = sizeof(struct klass); } while (0)
-#define BIND_METHOD(klass,method) do { krk_defineNative(&klass->methods, "." #method, _ ## klass ## _ ## method); } while (0)
-#define BIND_FIELD(klass,method) do { krk_defineNative(&klass->methods, ":" #method, _ ## klass ## _ ## method); } while (0)
-#define BIND_PROP(klass,method) do { krk_defineNativeProperty(&klass->fields, #method, _ ## klass ## _ ## method); } while (0)
-#define BIND_FUNC(module,func) do { krk_defineNative(&module->fields, #func, _krk_ ## func); } while (0)
+#define BIND_METHOD(klass,method) krk_defineNative(&klass->methods, "." #method, _ ## klass ## _ ## method)
+#define BIND_FIELD(klass,method) krk_defineNative(&klass->methods, ":" #method, _ ## klass ## _ ## method)
+#define BIND_PROP(klass,method) krk_defineNativeProperty(&klass->fields, #method, _ ## klass ## _ ## method)
+#define BIND_FUNC(module,func) krk_defineNative(&module->fields, #func, _krk_ ## func)
 
+/**
+ * @brief Inline flexible string array.
+ */
 struct StringBuilder {
 	size_t capacity;
 	size_t length;
 	char * bytes;
 };
 
+/**
+ * @brief Add a character to the end of a string builder.
+ *
+ * @param sb String builder to append to.
+ * @param c  Character to append.
+ */
 static inline void pushStringBuilder(struct StringBuilder * sb, char c) {
 	if (sb->capacity < sb->length + 1) {
 		size_t old = sb->capacity;
@@ -110,6 +119,13 @@ static inline void pushStringBuilder(struct StringBuilder * sb, char c) {
 	sb->bytes[sb->length++] = c;
 }
 
+/**
+ * @brief Append a string to the end of a string builder.
+ *
+ * @param sb String builder to append to.
+ * @param str C string to add.
+ * @param len Length of the C string.
+ */
 static inline void pushStringBuilderStr(struct StringBuilder * sb, char *str, size_t len) {
 	if (sb->capacity < sb->length + len) {
 		while (sb->capacity < sb->length + len) {
@@ -123,18 +139,47 @@ static inline void pushStringBuilderStr(struct StringBuilder * sb, char *str, si
 	}
 }
 
+/**
+ * @brief Finalize a string builder into a string object.
+ *
+ * Creates a string object from the contents of the string builder and
+ * frees the space allocated for the builder, returning a value representing
+ * the newly created string object.
+ *
+ * @param sb String builder to finalize.
+ * @return A value representing a string object.
+ */
 static inline KrkValue finishStringBuilder(struct StringBuilder * sb) {
 	KrkValue out = OBJECT_VAL(krk_copyString(sb->bytes, sb->length));
 	FREE_ARRAY(char,sb->bytes, sb->capacity);
 	return out;
 }
 
+/**
+ * @brief Finalize a string builder in a bytes object.
+ *
+ * Converts the contents of a string builder into a bytes object and
+ * frees the space allocated for the builder.
+ *
+ * @param sb String builder to finalize.
+ * @return A value representing a bytes object.
+ */
 static inline KrkValue finishStringBuilderBytes(struct StringBuilder * sb) {
 	KrkValue out = OBJECT_VAL(krk_newBytes(sb->length, (uint8_t*)sb->bytes));
 	FREE_ARRAY(char,sb->bytes, sb->capacity);
 	return out;
 }
 
+/**
+ * @brief Discard the contents of a string builder.
+ *
+ * Frees the resources allocated for the string builder without converting
+ * it to a string or bytes object. Call this when an error has been encountered
+ * and the contents of a string builder are no longer needed.
+ *
+ * @param  sb String builder to discard.
+ * @return None, as a convenience.
+ */
 static inline KrkValue discardStringBuilder(struct StringBuilder * sb) {
 	FREE_ARRAY(char,sb->bytes, sb->capacity);
 	return NONE_VAL();
@@ -169,4 +214,48 @@ static inline KrkValue discardStringBuilder(struct StringBuilder * sb) {
 
 #define IS_dictkeys(o) krk_isInstanceOf(o,vm.baseClasses->dictkeysClass)
 #define AS_dictkeys(o) ((struct DictKeys*)AS_OBJECT(o))
+
+#define IS_bytesiterator(o) (krk_isInstanceOf(o,vm.baseClasses->bytesiteratorClass))
+#define AS_bytesiterator(o) (AS_INSTANCE(o))
+
+#ifndef unpackError
+#define unpackError(fromInput) return krk_runtimeError(vm.exceptions->typeError, "'%s' object is not iterable", krk_typeName(fromInput));
+#endif
+
+#define unpackIterable(fromInput) do { \
+	KrkClass * type = krk_getType(fromInput); \
+	if (type->_iter) { \
+		size_t stackOffset = krk_currentThread.stackTop - krk_currentThread.stack; \
+		krk_push(fromInput); \
+		krk_push(krk_callSimple(OBJECT_VAL(type->_iter), 1, 0)); \
+		do { \
+			krk_push(krk_currentThread.stack[stackOffset]); \
+			krk_push(krk_callSimple(krk_peek(0), 0, 1)); \
+			if (krk_valuesSame(krk_currentThread.stack[stackOffset], krk_peek(0))) { \
+				krk_pop(); \
+				krk_pop(); \
+				break; \
+			} \
+			unpackArray(1,krk_peek(0)); \
+			krk_pop(); \
+		} while (1); \
+	} else { \
+		unpackError(fromInput); \
+	} \
+} while (0)
+
+#define unpackIterableFast(fromInput) do { \
+	KrkValue iterableValue = (fromInput); \
+	if (IS_TUPLE(iterableValue)) { \
+		unpackArray(AS_TUPLE(iterableValue)->values.count, AS_TUPLE(iterableValue)->values.values[i]); \
+	} else if (IS_INSTANCE(iterableValue) && AS_INSTANCE(iterableValue)->_class == vm.baseClasses->listClass) { \
+		unpackArray(AS_LIST(iterableValue)->count, AS_LIST(iterableValue)->values[i]); \
+	} else if (IS_INSTANCE(iterableValue) && AS_INSTANCE(iterableValue)->_class == vm.baseClasses->dictClass) { \
+		unpackArray(AS_DICT(iterableValue)->count, krk_dict_nth_key_fast(AS_DICT(iterableValue)->capacity, AS_DICT(iterableValue)->entries, i)); \
+	} else if (IS_STRING(iterableValue)) { \
+		unpackArray(AS_STRING(iterableValue)->codesLength, krk_string_get(2,(KrkValue[]){iterableValue,INTEGER_VAL(i)},0)); \
+	} else { \
+		unpackIterable(iterableValue); \
+	} \
+} while (0)
 

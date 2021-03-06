@@ -125,7 +125,7 @@ static KrkValue _hex(int argc, KrkValue argv[], int hasKw) {
 	if (argc != 1 || !IS_INTEGER(argv[0])) return krk_runtimeError(vm.exceptions->argumentError, "hex() expects one int argument");
 	char tmp[20];
 	krk_integer_type x = AS_INTEGER(argv[0]);
-	size_t len = sprintf(tmp, "%s0x" PRIkrk_hex, x < 0 ? "-" : "", x < 0 ? -x : x);
+	size_t len = snprintf(tmp, 20, "%s0x" PRIkrk_hex, x < 0 ? "-" : "", x < 0 ? -x : x);
 	return OBJECT_VAL(krk_copyString(tmp,len));
 }
 
@@ -135,44 +135,7 @@ static KrkValue _any(int argc, KrkValue argv[], int hasKw) {
 		if (!krk_isFalsey(indexer)) return BOOLEAN_VAL(1); \
 	} \
 } while (0)
-	KrkValue value = argv[0];
-	if (IS_TUPLE(value)) {
-		unpackArray(AS_TUPLE(value)->values.count, AS_TUPLE(value)->values.values[i]);
-	} else if (IS_INSTANCE(value) && AS_INSTANCE(value)->_class == vm.baseClasses->listClass) {
-		unpackArray(AS_LIST(value)->count, AS_LIST(value)->values[i]);
-	} else if (IS_INSTANCE(value) && AS_INSTANCE(value)->_class == vm.baseClasses->dictClass) {
-		unpackArray(AS_DICT(value)->count, krk_dict_nth_key_fast(AS_DICT(value)->capacity, AS_DICT(value)->entries, i));
-	} else if (IS_STRING(value)) {
-		unpackArray(AS_STRING(value)->codesLength, krk_string_get(2,(KrkValue[]){value,INTEGER_VAL(i)},0));
-	} else {
-		KrkClass * type = krk_getType(argv[0]);
-		if (type->_iter) {
-			/* Create the iterator */
-			size_t stackOffset = krk_currentThread.stackTop - krk_currentThread.stack;
-			krk_push(argv[1]);
-			krk_push(krk_callSimple(OBJECT_VAL(type->_iter), 1, 0));
-
-			do {
-				/* Call it until it gives us itself */
-				krk_push(krk_currentThread.stack[stackOffset]);
-				krk_push(krk_callSimple(krk_peek(0), 0, 1));
-				if (krk_valuesSame(krk_currentThread.stack[stackOffset], krk_peek(0))) {
-					/* We're done. */
-					krk_pop(); /* The result of iteration */
-					krk_pop(); /* The iterator */
-					break;
-				}
-				if (!krk_isFalsey(krk_peek(0))) {
-					krk_pop();
-					krk_pop();
-					return BOOLEAN_VAL(1);
-				}
-				krk_pop();
-			} while (1);
-		} else {
-			return krk_runtimeError(vm.exceptions->typeError, "'%s' object is not iterable", krk_typeName(value));
-		}
-	}
+	unpackIterableFast(argv[0]);
 #undef unpackArray
 	return BOOLEAN_VAL(0);
 }
@@ -183,44 +146,7 @@ static KrkValue _all(int argc, KrkValue argv[], int hasKw) {
 		if (krk_isFalsey(indexer)) return BOOLEAN_VAL(0); \
 	} \
 } while (0)
-	KrkValue value = argv[0];
-	if (IS_TUPLE(value)) {
-		unpackArray(AS_TUPLE(value)->values.count, AS_TUPLE(value)->values.values[i]);
-	} else if (IS_INSTANCE(value) && AS_INSTANCE(value)->_class == vm.baseClasses->listClass) {
-		unpackArray(AS_LIST(value)->count, AS_LIST(value)->values[i]);
-	} else if (IS_INSTANCE(value) && AS_INSTANCE(value)->_class == vm.baseClasses->dictClass) {
-		unpackArray(AS_DICT(value)->count, krk_dict_nth_key_fast(AS_DICT(value)->capacity, AS_DICT(value)->entries, i));
-	} else if (IS_STRING(value)) {
-		unpackArray(AS_STRING(value)->codesLength, krk_string_get(2,(KrkValue[]){value,INTEGER_VAL(i)},0));
-	} else {
-		KrkClass * type = krk_getType(argv[0]);
-		if (type->_iter) {
-			/* Create the iterator */
-			size_t stackOffset = krk_currentThread.stackTop - krk_currentThread.stack;
-			krk_push(argv[1]);
-			krk_push(krk_callSimple(OBJECT_VAL(type->_iter), 1, 0));
-
-			do {
-				/* Call it until it gives us itself */
-				krk_push(krk_currentThread.stack[stackOffset]);
-				krk_push(krk_callSimple(krk_peek(0), 0, 1));
-				if (krk_valuesSame(krk_currentThread.stack[stackOffset], krk_peek(0))) {
-					/* We're done. */
-					krk_pop(); /* The result of iteration */
-					krk_pop(); /* The iterator */
-					break;
-				}
-				if (krk_isFalsey(krk_peek(0))) {
-					krk_pop();
-					krk_pop();
-					return BOOLEAN_VAL(0);
-				}
-				krk_pop();
-			} while (1);
-		} else {
-			return krk_runtimeError(vm.exceptions->typeError, "'%s' object is not iterable", krk_typeName(value));
-		}
-	}
+	unpackIterableFast(argv[0]);
 #undef unpackArray
 	return BOOLEAN_VAL(1);
 }
@@ -275,11 +201,83 @@ static KrkValue _globals(int argc, KrkValue argv[], int hasKw) {
 	return dict;
 }
 
+/**
+ * locals()
+ *
+ * This is a bit trickier. Local names are... complicated. But we can do this!
+ */
+static KrkValue _locals(int argc, KrkValue argv[], int hasKw) {
+	KrkValue dict = krk_dict_of(0, NULL, 0);
+	krk_push(dict);
+
+	int index = 1;
+	if (argc > 0 && IS_INTEGER(argv[0])) {
+		if (AS_INTEGER(argv[0]) < 1) {
+			return krk_runtimeError(vm.exceptions->indexError, "Frame index must be >= 1");
+		}
+		if (krk_currentThread.frameCount < (size_t)AS_INTEGER(argv[0])) {
+			return krk_runtimeError(vm.exceptions->indexError, "Frame index out of range");
+		}
+		index = AS_INTEGER(argv[0]);
+	}
+
+	KrkCallFrame * frame = &krk_currentThread.frames[krk_currentThread.frameCount-index];
+	KrkFunction * func = frame->closure->function;
+	size_t offset = frame->ip - func->chunk.code;
+
+	/* First, we'll populate with arguments */
+	size_t slot = 0;
+	for (short int i = 0; i < func->requiredArgs; ++i) {
+		krk_tableSet(AS_DICT(dict),
+			func->requiredArgNames.values[i],
+			krk_currentThread.stack[frame->slots + slot]);
+		slot++;
+	}
+	for (short int i = 0; i < func->keywordArgs; ++i) {
+		krk_tableSet(AS_DICT(dict),
+			func->keywordArgNames.values[i],
+			krk_currentThread.stack[frame->slots + slot]);
+		slot++;
+	}
+	if (func->collectsArguments) {
+		krk_tableSet(AS_DICT(dict),
+			func->requiredArgNames.values[func->requiredArgs],
+			krk_currentThread.stack[frame->slots + slot]);
+		slot++;
+	}
+	if (func->collectsKeywords) {
+		krk_tableSet(AS_DICT(dict),
+			func->keywordArgNames.values[func->keywordArgs],
+			krk_currentThread.stack[frame->slots + slot]);
+		slot++;
+	}
+	/* Now we need to find out what non-argument locals are valid... */
+	for (size_t i = 0; i < func->localNameCount; ++i) {
+		if (func->localNames[i].birthday <= offset &&
+			func->localNames[i].deathday >= offset) {
+			krk_tableSet(AS_DICT(dict),
+				OBJECT_VAL(func->localNames[i].name),
+				krk_currentThread.stack[frame->slots + func->localNames[i].id]);
+		}
+	}
+
+	return krk_pop();
+}
+
 static KrkValue _isinstance(int argc, KrkValue argv[], int hasKw) {
 	if (argc != 2) return krk_runtimeError(vm.exceptions->argumentError, "isinstance expects 2 arguments, got %d", argc);
-	if (!IS_CLASS(argv[1])) return krk_runtimeError(vm.exceptions->typeError, "isinstance() arg 2 must be class");
-
-	return BOOLEAN_VAL(krk_isInstanceOf(argv[0], AS_CLASS(argv[1])));
+	if (IS_CLASS(argv[1])) {
+		return BOOLEAN_VAL(krk_isInstanceOf(argv[0], AS_CLASS(argv[1])));
+	} else if (IS_TUPLE(argv[1])) {
+		for (size_t i = 0; i < AS_TUPLE(argv[1])->values.count; ++i) {
+			if (IS_CLASS(AS_TUPLE(argv[1])->values.values[i]) && krk_isInstanceOf(argv[0], AS_CLASS(AS_TUPLE(argv[1])->values.values[i]))) {
+				return BOOLEAN_VAL(1);
+			}
+		}
+		return BOOLEAN_VAL(0);
+	} else {
+		return krk_runtimeError(vm.exceptions->typeError, "isinstance() arg 2 must be class or tuple");
+	}
 }
 
 static KrkValue _module_repr(int argc, KrkValue argv[], int hasKw) {
@@ -295,14 +293,16 @@ static KrkValue _module_repr(int argc, KrkValue argv[], int hasKw) {
 	KrkValue file = NONE_VAL();
 	krk_tableGet(&self->fields, vm.specialMethodNames[METHOD_FILE], &file);
 
-	char * tmp = malloc(50 + AS_STRING(name)->length + (IS_STRING(file) ? AS_STRING(file)->length : 20));
+	size_t allocSize = 50 + AS_STRING(name)->length + (IS_STRING(file) ? AS_STRING(file)->length : 20);
+	char * tmp = malloc(allocSize);
+	size_t len;
 	if (IS_STRING(file)) {
-		sprintf(tmp, "<module '%s' from '%s'>", AS_CSTRING(name), AS_CSTRING(file));
+		len = snprintf(tmp, allocSize, "<module '%s' from '%s'>", AS_CSTRING(name), AS_CSTRING(file));
 	} else {
-		sprintf(tmp, "<module '%s' (built-in)>", AS_CSTRING(name));
+		len = snprintf(tmp, allocSize, "<module '%s' (built-in)>", AS_CSTRING(name));
 	}
 
-	KrkValue out = OBJECT_VAL(krk_copyString(tmp, strlen(tmp)));
+	KrkValue out = OBJECT_VAL(krk_copyString(tmp, len));
 	free(tmp);
 	return out;
 }
@@ -326,14 +326,15 @@ static KrkValue obj_hash(int argc, KrkValue argv[], int hasKw) {
  */
 static KrkValue _strBase(int argc, KrkValue argv[], int hasKw) {
 	KrkClass * type = krk_getType(argv[0]);
-	size_t len = sizeof("<instance of . at 0x1234567812345678>") + type->name->length;
-	char * tmp = malloc(len);
+	size_t allocSize = sizeof("<instance of . at 0x1234567812345678>") + type->name->length;
+	char * tmp = malloc(allocSize);
+	size_t len;
 	if (IS_OBJECT(argv[0])) {
-		sprintf(tmp, "<instance of %s at %p>", type->name->chars, (void*)AS_OBJECT(argv[0]));
+		len = snprintf(tmp, allocSize, "<instance of %s at %p>", type->name->chars, (void*)AS_OBJECT(argv[0]));
 	} else {
-		sprintf(tmp, "<instance of %s>", type->name->chars);
+		len = snprintf(tmp, allocSize, "<instance of %s>", type->name->chars);
 	}
-	KrkValue out = OBJECT_VAL(krk_copyString(tmp, strlen(tmp)));
+	KrkValue out = OBJECT_VAL(krk_copyString(tmp, len));
 	free(tmp);
 	return out;
 }
@@ -341,6 +342,14 @@ static KrkValue _strBase(int argc, KrkValue argv[], int hasKw) {
 static KrkValue _type(int argc, KrkValue argv[], int hasKw) {
 	return OBJECT_VAL(krk_getType(argv[0]));
 }
+
+KRK_FUNC(getattr,{
+	FUNCTION_TAKES_AT_LEAST(2);
+	KrkValue object = argv[0];
+	CHECK_ARG(1,str,KrkString*,property);
+	return krk_valueGetAttribute(object, property->chars);
+})
+
 
 #define IS_Helper(o)  (krk_isInstanceOf(o, Helper))
 #define AS_Helper(o)  (AS_INSTANCE(o))
@@ -394,6 +403,50 @@ KRK_METHOD(LicenseReader,__call__,{
 	return krk_runtimeError(vm.exceptions->typeError, "unexpected error");
 })
 
+static KrkValue _property_repr(int argc, KrkValue argv[], int hasKw) {
+	if (argc != 1 || !IS_PROPERTY(argv[0])) return krk_runtimeError(vm.exceptions->typeError, "?");
+	struct StringBuilder sb = {0};
+	pushStringBuilderStr(&sb, "Property(", 9);
+
+	KrkValue method = AS_PROPERTY(argv[0])->method;
+
+	if (IS_NATIVE(method)) {
+		pushStringBuilderStr(&sb, (char*)AS_NATIVE(method)->name, strlen(AS_NATIVE(method)->name));
+	} else if (IS_CLOSURE(method)) {
+		pushStringBuilderStr(&sb, AS_CLOSURE(method)->function->name->chars, AS_CLOSURE(method)->function->name->length);
+	}
+
+	pushStringBuilder(&sb,')');
+	return finishStringBuilder(&sb);
+}
+
+static KrkValue _property_doc(int argc, KrkValue argv[], int hasKw) {
+	if (argc != 1 || !IS_PROPERTY(argv[0])) return krk_runtimeError(vm.exceptions->typeError, "?");
+	KrkValue method = AS_PROPERTY(argv[0])->method;
+	if (IS_NATIVE(method) && AS_NATIVE(method)->doc) {
+		return OBJECT_VAL(krk_copyString(AS_NATIVE(method)->doc, strlen(AS_NATIVE(method)->doc)));
+	} else if (IS_CLOSURE(method)) {
+		return OBJECT_VAL(AS_CLOSURE(method)->function->docstring);
+	}
+	return NONE_VAL();
+}
+
+static KrkValue _property_name(int argc, KrkValue argv[], int hasKw) {
+	if (argc != 1 || !IS_PROPERTY(argv[0])) return krk_runtimeError(vm.exceptions->typeError, "?");
+	KrkValue method = AS_PROPERTY(argv[0])->method;
+	if (IS_NATIVE(method) && AS_NATIVE(method)->name) {
+		return OBJECT_VAL(krk_copyString(AS_NATIVE(method)->name, strlen(AS_NATIVE(method)->name)));
+	} else if (IS_CLOSURE(method)) {
+		return OBJECT_VAL(AS_CLOSURE(method)->function->name);
+	}
+	return NONE_VAL();
+}
+
+static KrkValue _property_method(int argc, KrkValue argv[], int hasKw) {
+	if (argc != 1 || !IS_PROPERTY(argv[0])) return krk_runtimeError(vm.exceptions->typeError, "?");
+	return AS_PROPERTY(argv[0])->method;
+}
+
 _noexport
 void _createAndBind_builtins(void) {
 	vm.baseClasses->objectClass = krk_newClass(S("object"), NULL);
@@ -412,7 +465,7 @@ void _createAndBind_builtins(void) {
 	krk_defineNative(&vm.baseClasses->moduleClass->methods, ".__repr__", _module_repr);
 	krk_defineNative(&vm.baseClasses->moduleClass->methods, ".__str__", _module_repr);
 	krk_finalizeClass(vm.baseClasses->moduleClass);
-	vm.baseClasses->moduleClass->docstring = S("");
+	vm.baseClasses->moduleClass->docstring = S("Type of imported modules and packages.");
 
 	vm.builtins = krk_newInstance(vm.baseClasses->moduleClass);
 	krk_attachNamedObject(&vm.modules, "__builtins__", (KrkObj*)vm.builtins);
@@ -425,20 +478,31 @@ void _createAndBind_builtins(void) {
 	krk_attachNamedObject(&vm.builtins->fields, "__doc__",
 		(KrkObj*)S("Internal module containing built-in functions and classes."));
 
+	krk_makeClass(vm.builtins, &vm.baseClasses->propertyClass, "Property", vm.baseClasses->objectClass);
+	krk_defineNative(&vm.baseClasses->propertyClass->methods, ".__repr__", _property_repr);
+	krk_defineNative(&vm.baseClasses->propertyClass->methods, ":__doc__", _property_doc);
+	krk_defineNative(&vm.baseClasses->propertyClass->methods, ":__name__", _property_name);
+	krk_defineNative(&vm.baseClasses->propertyClass->methods, ":__method__", _property_method);
+	krk_finalizeClass(vm.baseClasses->propertyClass);
+
 	krk_makeClass(vm.builtins, &Helper, "Helper", vm.baseClasses->objectClass);
-	BIND_METHOD(Helper,__call__);
+	Helper->docstring = S("Special object that prints a helpful message when passed to @ref repr");
+	BIND_METHOD(Helper,__call__)->doc = "@arguments obj=None\nPrints the help documentation attached to @p obj or "
+		"starts the interactive help system.";
 	BIND_METHOD(Helper,__repr__);
 	krk_finalizeClass(Helper);
 	krk_attachNamedObject(&vm.builtins->fields, "help", (KrkObj*)krk_newInstance(Helper));
 
 	krk_makeClass(vm.builtins, &LicenseReader, "LicenseReader", vm.baseClasses->objectClass);
-	BIND_METHOD(LicenseReader,__call__);
+	LicenseReader->docstring = S("Special object that prints Kuroko's copyright information when passed to @ref repr");
+	BIND_METHOD(LicenseReader,__call__)->doc = "Print the full license statement.";
 	BIND_METHOD(LicenseReader,__repr__);
 	krk_finalizeClass(LicenseReader);
 	krk_attachNamedObject(&vm.builtins->fields, "license", (KrkObj*)krk_newInstance(LicenseReader));
 
 	BUILTIN_FUNCTION("isinstance", _isinstance, "Determine if an object is an instance of the given class or one if its subclasses.");
 	BUILTIN_FUNCTION("globals", _globals, "Return a mapping of names in the current global namespace.");
+	BUILTIN_FUNCTION("locals", _locals, "Return a mapping of names in the current local namespace.");
 	BUILTIN_FUNCTION("dir", _dir, "Return a list of known property names for a given object.");
 	BUILTIN_FUNCTION("len", _len, "Return the length of a given sequence object.");
 	BUILTIN_FUNCTION("repr", _repr, "Produce a string representation of the given object.");
@@ -448,5 +512,6 @@ void _createAndBind_builtins(void) {
 	BUILTIN_FUNCTION("hex", _hex, "Convert an integer value to a hexadecimal string.");
 	BUILTIN_FUNCTION("any", _any, "Returns True if at least one element in the given iterable is truthy, False otherwise.");
 	BUILTIN_FUNCTION("all", _all, "Returns True if every element in the given iterable is truthy, False otherwise.");
+	BUILTIN_FUNCTION("getattr", FUNC_NAME(krk,getattr), "Obtain a property of an object as if it were accessed by the dot operator.");
 }
 

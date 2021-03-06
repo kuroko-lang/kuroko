@@ -15,6 +15,11 @@
 
 static KrkClass * File = NULL;
 static KrkClass * BinaryFile = NULL;
+
+/**
+ * @brief Object for a C `FILE*` stream.
+ * @extends KrkInstance
+ */
 struct File {
 	KrkInstance inst;
 	FILE * filePtr;
@@ -27,6 +32,10 @@ struct File {
 #define AS_BinaryFile(o) ((struct File*)AS_OBJECT(o))
 
 static KrkClass * Directory = NULL;
+/**
+ * @brief OBject for a C `DIR*` stream.
+ * @extends KrkInstance
+ */
 struct Directory {
 	KrkInstance inst;
 	DIR * dirPtr;
@@ -34,7 +43,6 @@ struct Directory {
 
 #define IS_Directory(o) (krk_isInstanceOf(o,Directory))
 #define AS_Directory(o) ((struct Directory*)AS_OBJECT(o))
-
 
 #define CURRENT_CTYPE struct File *
 #define CURRENT_NAME  self
@@ -93,9 +101,10 @@ KRK_METHOD(File,__str__,{
 	KrkValue modestr;
 	if (!krk_tableGet(&self->inst.fields, OBJECT_VAL(S("filename")), &filename) || !IS_STRING(filename)) return krk_runtimeError(vm.exceptions->baseException, "Corrupt File");
 	if (!krk_tableGet(&self->inst.fields, OBJECT_VAL(S("modestr")), &modestr) || !IS_STRING(modestr)) return krk_runtimeError(vm.exceptions->baseException, "Corrupt File");
-	char * tmp = malloc(AS_STRING(filename)->length + AS_STRING(modestr)->length + 100); /* safety */
-	sprintf(tmp, "<%s file '%s', mode '%s' at %p>", self->filePtr ? "open" : "closed", AS_CSTRING(filename), AS_CSTRING(modestr), (void*)self);
-	KrkString * out = krk_copyString(tmp, strlen(tmp));
+	size_t allocSize = AS_STRING(filename)->length + AS_STRING(modestr)->length + 100;
+	char * tmp = malloc(allocSize);
+	size_t len = snprintf(tmp, allocSize, "<%s file '%s', mode '%s' at %p>", self->filePtr ? "open" : "closed", AS_CSTRING(filename), AS_CSTRING(modestr), (void*)self);
+	KrkString * out = krk_copyString(tmp, len);
 	free(tmp);
 	return OBJECT_VAL(out);
 })
@@ -455,8 +464,9 @@ KRK_METHOD(Directory,__repr__,{
 	if (!krk_tableGet(&self->inst.fields, OBJECT_VAL(S("path")), &path) || !IS_STRING(path))
 		return krk_runtimeError(vm.exceptions->valueError, "corrupt Directory");
 
-	char * tmp = malloc(AS_STRING(path)->length + 100);
-	size_t len = sprintf(tmp, "<%s directory '%s' at %p>", self->dirPtr ? "open" : "closed", AS_CSTRING(path), (void*)self);
+	size_t allocSize = AS_STRING(path)->length + 100;
+	char * tmp = malloc(allocSize);
+	size_t len = snprintf(tmp, allocSize, "<%s directory '%s' at %p>", self->dirPtr ? "open" : "closed", AS_CSTRING(path), (void*)self);
 	KrkString * out = krk_copyString(tmp, len);
 	free(tmp);
 	return OBJECT_VAL(out);
@@ -473,29 +483,45 @@ void _createAndBind_fileioMod(void) {
 	krk_attachNamedObject(&vm.modules, "fileio", (KrkObj*)module);
 	krk_attachNamedObject(&module->fields, "__name__", (KrkObj*)S("fileio"));
 	krk_attachNamedValue(&module->fields, "__file__", NONE_VAL());
-	krk_attachNamedObject(&module->fields, "__doc__",
-		(KrkObj*)S("Provides access to C <stdio> buffered file I/O functions."));
+	krk_attachNamedObject(&module->fields, "__doc__", (KrkObj*)S(
+		"@brief Provides access to C <stdio> buffered file I/O functions.\n\n"
+		"The @c fileio module provides classes and functions for reading "
+		"and writing files using the system's buffer I/O interfaces, as "
+		"well as classes for listing the contents of directories."
+	));
 
 	/* Define a class to represent files. (Should this be a helper method?) */
 	krk_makeClass(module, &File, "File", vm.baseClasses->objectClass);
+	File->docstring = S(
+		"Interface to a buffered file stream."
+	);
 	File->allocSize = sizeof(struct File);
 	File->_ongcsweep = _file_sweep;
 
 	/* Add methods to it... */
-	BIND_METHOD(File,read);
-	BIND_METHOD(File,readline);
-	BIND_METHOD(File,readlines);
-	BIND_METHOD(File,write);
-	BIND_METHOD(File,close);
-	BIND_METHOD(File,flush);
+	BIND_METHOD(File,read)->doc = "@brief Read from the stream.\n"
+		"@arguments bytes=-1\n\n"
+		"Reads up to @p bytes bytes from the stream. If @p bytes is @c -1 then reading "
+		"will continue until the system returns _end of file_.";
+	BIND_METHOD(File,readline)->doc = "@brief Read one line from the stream.";
+	BIND_METHOD(File,readlines)->doc = "@brief Read the entire stream and return a list of lines.";
+	BIND_METHOD(File,write)->doc = "@brief Write to the stream.\n"
+		"@arguments data\n\n"
+		"Writes the contents of @p data to the stream.";
+	BIND_METHOD(File,close)->doc = "@brief Close the stream and flush any remaining buffered writes.";
+	BIND_METHOD(File,flush)->doc = "@brief Flush unbuffered writes to the stream.";
 	BIND_METHOD(File,__str__);
-	BIND_METHOD(File,__init__);
+	BIND_METHOD(File,__init__)->doc = "@bsnote{%File objects can not be initialized using this constructor. "
+		"Use the <a class=\"el\" href=\"#open\">open()</a> function instead.}";
 	BIND_METHOD(File,__enter__);
 	BIND_METHOD(File,__exit__);
 	krk_defineNative(&File->methods, ".__repr__", FUNC_NAME(File,__str__));
 	krk_finalizeClass(File);
 
 	krk_makeClass(module, &BinaryFile, "BinaryFile", File);
+	BinaryFile->docstring = S(
+		"Equivalent to @ref File but using @ref bytes instead of string @ref str."
+	);
 	BIND_METHOD(BinaryFile,read);
 	BIND_METHOD(BinaryFile,readline);
 	BIND_METHOD(BinaryFile,readlines);
@@ -503,14 +529,18 @@ void _createAndBind_fileioMod(void) {
 	krk_finalizeClass(BinaryFile);
 
 	krk_makeClass(module, &Directory, "Directory", vm.baseClasses->objectClass);
+	Directory->docstring = S(
+		"Represents an opened file system directory."
+	);
 	Directory->allocSize = sizeof(struct Directory);
 	Directory->_ongcsweep = _dir_sweep;
 	BIND_METHOD(Directory,__repr__);
-	BIND_METHOD(Directory,__iter__);
-	BIND_METHOD(Directory,__call__);
+	BIND_METHOD(Directory,__iter__)->doc = "@brief Iterates over the contents of the directory.\n\n"
+		"Each iteration returns @ref dict with two entries: <i>\"name\"</i> and <i>\"inode\"</i>.";
+	BIND_METHOD(Directory,__call__)->doc = "@brief Yields one iteration through the directory.";
 	BIND_METHOD(Directory,__enter__);
-	BIND_METHOD(Directory,__exit__);
-	BIND_METHOD(Directory,close);
+	BIND_METHOD(Directory,__exit__)->doc = "@brief Closes the directory upon exit from a @c with block.";
+	BIND_METHOD(Directory,close)->doc = "@brief Close the directory.\n\nFurther reads can not be made after the directory has been closed.";
 	krk_finalizeClass(Directory);
 
 	/* Make an instance for stdout, stderr, and stdin */
@@ -519,6 +549,13 @@ void _createAndBind_fileioMod(void) {
 	makeFileInstance(module, "stderr", stderr);
 
 	/* Our base will be the open method */
-	BIND_FUNC(module,open);
-	BIND_FUNC(module,opendir);
+	BIND_FUNC(module,open)->doc = "@brief Open a file.\n"
+		"@arguments path,mode=\"r\"\n\n"
+		"Opens @p path using the modestring @p mode. Supported modestring characters depend on the system implementation. "
+		"If the last character of @p mode is @c 'b' a @ref BinaryFile will be returned. If the file could not be opened, "
+		"an @ref IOError will be raised.";
+	BIND_FUNC(module,opendir)->doc = "@brief Open a directory for scanning.\n"
+		"@arguments path\n\n"
+		"Opens the directory at @p path and returns a @ref Directory object. If @p path could not be opened or is not "
+		"a directory, @ref IOError will be raised.";
 }

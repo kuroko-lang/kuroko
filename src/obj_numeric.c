@@ -21,6 +21,7 @@
 KRK_METHOD(int,__init__,{
 	METHOD_TAKES_AT_MOST(1);
 	if (argc < 2) return INTEGER_VAL(0);
+	if (IS_BOOLEAN(argv[1])) return INTEGER_VAL(AS_INTEGER(argv[1]));
 	if (IS_INTEGER(argv[1])) return argv[1];
 	if (IS_STRING(argv[1])) return krk_string_int(argc-1,&argv[1],0);
 	if (IS_FLOATING(argv[1])) return INTEGER_VAL(AS_FLOATING(argv[1]));
@@ -30,7 +31,7 @@ KRK_METHOD(int,__init__,{
 
 KRK_METHOD(int,__str__,{
 	char tmp[100];
-	size_t l = sprintf(tmp, PRIkrk_int, self);
+	size_t l = snprintf(tmp, 100, PRIkrk_int, self);
 	return OBJECT_VAL(krk_copyString(tmp, l));
 })
 
@@ -60,14 +61,25 @@ KRK_METHOD(float,__init__,{
 KRK_METHOD(float,__int__,{ return INTEGER_VAL(self); })
 KRK_METHOD(float,__float__,{ return argv[0]; })
 
+static int isDigits(const char * c) {
+	while (*c) {
+		if (*c < '0' || *c > '9') return 0;
+		c++;
+	}
+	return 1;
+}
+
 KRK_METHOD(float,__str__,{
 	char tmp[100];
-	size_t l = sprintf(tmp, "%g", self);
+	size_t l = snprintf(tmp, 97, "%.16g", self);
+	if (!strstr(tmp,".") && isDigits(tmp)) {
+		l = snprintf(tmp,100,"%.16g.0",self);
+	}
 	return OBJECT_VAL(krk_copyString(tmp, l));
 })
 
 #undef CURRENT_CTYPE
-#define CURRENT_CTYPE char
+#define CURRENT_CTYPE krk_integer_type
 
 KRK_METHOD(bool,__init__,{
 	METHOD_TAKES_AT_MOST(1);
@@ -106,7 +118,7 @@ void _createAndBind_numericClasses(void) {
 	krk_finalizeClass(_float);
 	_float->docstring = S("Convert a number or string type to a float representation.");
 
-	KrkClass * _bool = ADD_BASE_CLASS(vm.baseClasses->boolClass, "bool", vm.baseClasses->objectClass);
+	KrkClass * _bool = ADD_BASE_CLASS(vm.baseClasses->boolClass, "bool", vm.baseClasses->intClass);
 	BIND_METHOD(bool,__init__);
 	BIND_METHOD(bool,__str__);
 	krk_defineNative(&_bool->methods, ".__repr__", FUNC_NAME(bool,__str__));

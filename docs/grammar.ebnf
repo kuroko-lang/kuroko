@@ -1,0 +1,208 @@
+/**
+ * This is a pseudo description of the grammar of Kuroko in
+ * EBNF form. It is not necessarily a complete and accurate
+ * grammar and should not be used to develop parsers, but
+ * instead as an overview of how the existing Pratt parser
+ * handles precedence and recursion.
+ *
+ * <identifier>, <string>, and <indentation> are special token
+ * types from the scanner. <indentation> has special rules
+ * regarding width that must remain consistent throughout
+ * a block which can not be easily represented in an EBNF
+ * grammar like this. Python opts for using an "indent" and
+ * "dedent" symbol...
+ */
+<primary> ::= <number> | <string> | <identifier> | "True" | "False" | "None"
+
+<number> ::= <octal> | <hexadecimal> | <binary> | <integer> | <float>
+
+<octal> ::= "0" ("o" | "o") [0-7]+
+
+<hexadecimal> ::= "0" ("x" | "X") ([0-9] | [a-f] | [A-F])+
+
+<binary> ::= "0" ("b" | "B") ("0" | "1")+
+
+<integer> ::= [0-9]+
+
+<float> ::= [0-9]+ "." [0-9]+
+
+<expression> ::= <assignment>
+
+<assignment> ::= <ternary>
+               ( ("=" <assignment>)
+               | ("|=" <assignment>)
+               | ("^=" <assignment>)
+               | ("&=" <assignment>)
+               | ("<<=" <assignment>)
+               | (">>=" <assignment>)
+               | ("+=" <assignment>)
+               | ("-=" <assignment>)
+               | ("*=" <assignment>)
+               | ("**=" <assignment>)
+               | ("/=" <assignment>)
+               | ("%=" <assignment>)
+               | ("++")
+               | ("--") )?
+
+<ternary> ::= <or> ("if" <or> "else" <ternary>)?
+
+<or> ::= <and> ("or" <or>)?
+
+<and> ::= <comparison> ("and" <and>)?
+
+<comparison> ::= <bitor>
+               ( ("<" <comparison>)
+               | (">" <comparison>)
+               | ("<=" <comparison>)
+               | (">=" <comparison>)
+               | ("in" <comparison>)
+               | ("not" "in" <comparison>)
+               | ("!=" <comparison>)
+               | ("==" <comparison>)
+               | ("is" <comparison>)
+               )?
+
+<bitor> ::= <bitxor> ("|" <bitor>)?
+
+<bitxor> ::= <bitand> ("^" <bitxor>)?
+
+<bitand> ::= <shift> ("&" <bitand>)?
+
+<shift> ::= <term>
+          ( ("<<" <shift>)
+          | (">>" <shift>) )?
+
+<term> ::= <factor>
+         ( ("+" <term>)
+         | ("-" <term>) )?
+
+<factor> ::= <unary>
+           ( ("*" <factor>)
+           | ("/" <factor>)
+           | ("%" <factor>) )?
+
+<unary> ::= <exponent>
+          | ("!" <unary>)
+          | ("-" <unary>)
+          | ("not" <unary>)
+          | <primary>
+          | <grouping>
+          | <tuple>
+          | <list>
+          | <dict>
+          | <set>
+          | <lambda>
+
+<lambda> ::= "lambda" (<identifier> ("," <identifier>)* )? ":" <expression>
+
+<exponent> ::= <call> ("**" <exponent>)?
+
+<call> ::= <unary>
+         ( ("." <identifier>)
+         | ("(" <argumentlist> ")")
+         | ("[" <expression> "]")
+         | ("[" (<expression>)? ":" (<expression>)? "]") )?
+
+<argumentlist> ::= <argumententry> ("," <argumententry>)*
+
+<argumententry> ::= (<identifier> "=" <expression>)
+                  | <expression>
+                  | ("*" <expression>)
+                  | ("**" <expression>)
+
+<grouping> ::= "(" <expression> ")"
+
+<comprehension> ::= <identifiers> "in" <or> ("if" <or>)?
+
+<identifiers> ::= <identifier> ("," <identifier>)*
+
+<tuple> ::= "()"
+          | ( "(" <expression> "," ")" )
+          | ( "(" <expression> "," <expression> ("," <expression>)* (",")? ")" )
+          | ( "(" <expression> "for" <comprehension> ")" )
+
+<list> ::= "[]"
+         | ( "[" <expression> ("," <expression>)* (",")? "]" )
+         | ( "[" <expression> "for" <comprehension> "]" )
+
+<dict> ::= "{}"
+         | ( "{" <expression> ":" <expression> ("," <expression> ":" <expression>)* (",")? "}" )
+         | ( "{" <expression> ":" <expression> "for" <comprehension> "}" )
+
+<set> ::= ("{" <expression> ("," <expression>)* "}")
+        | ("{" <expression> "for" <comprehension> "}")
+
+<declaration> ::= <def> | <let> | <class> | <decorator> | <statement> | "\n"
+
+<def> ::= "def" <identifier> <function>
+
+<function> ::= "(" <signaturearguments> ")" ":" <block>
+
+<signaturearguments> ::= <args> ("," <stararg>)?
+
+<args> ::= (<identifier> ("," <identifier>)*)
+         | ( (<identifier> ("," <identifier>)* ",")? <identifier> "=" <expression> ("," <identifier> "=" <expression>)* )
+
+<stararg> ::= ("*" <identifier>)
+            | ("**" <identifier>)
+            | ("*" <identifier> "," "**" <identifier>)
+
+<let> ::= "let" <identifier> ("," <identifier>)* ("=" <expression> ("," <expression>)*)?
+
+<class> ::= "class" <identifier> "(" (<expression>)? ")" ":" <classblock>
+
+<classblock> ::= "\n" (<indentation> <method>)*
+
+<method> ::= "\n"
+           | <decorator>
+           | (<identifier> "=" <expression> "\n")
+           | ("pass" "\n")
+           | <def>
+
+<decorator> ::= "@" <expression> "\n" (<decorator> | <def> | <class>)
+
+<statement> ::= <if>
+              | <while>
+              | <for>
+              | <try>
+              | <with>
+              | (<simplestatement> "\n")
+
+<simplestatement> ::= (<simplestatement> ";" <simplestatement>)
+                    | ("raise" <expression>)
+                    | (<return> (<expression>)?)
+                    | <import>
+                    | <fromimport>
+                    | "break"
+                    | "continue"
+                    | "pass"
+                    | <del>
+                    | <expression>
+
+<if> ::= "if" <ifbody>
+
+<ifbody> ::= <expression> ":" <block> (<else>)?
+
+<else> ::= ("else" "if" <ifbody>)
+         | ("elif" <ifbody>)
+         | ("else" ":" <block>)
+
+<while> ::= "while" <expression> ":" <block>
+
+<for> ::= ("for" <identifier> ("," <identifier>)* "in" <expression> ":" <block>)
+        | ("for" <identifier> ("=" <expression>)? ("," <identifier> ("=" <expression>)?)* ";" <expression> (";" <expression> ("," <expression>)*)? ":" <block>
+
+<try> ::= "try" ":" <block> ("except" (<expression>)? ("as" <identifier>)? ":" <block>)?
+
+<with> ::= "with" <expression> ("as" <identifier>)? ":" <block>
+
+<import> ::= "import" <dottedname> ("as" <identifier>)? ("," <dottedname> ("as" <identifier>)?)*
+
+<fromimport> ::= "from" <dottedname> "import" <identifier> ("as" <identifier>)? ("," <identifier> ("as" <identifier>)?)*
+
+<dottedname> ::= <identifier> ("." <identifier>)*
+
+<del> ::= "del" <expression> ("," <expression>)*
+
+<block> ::= ("\n" (<indentation> <declaration>)*) | <statement>
+

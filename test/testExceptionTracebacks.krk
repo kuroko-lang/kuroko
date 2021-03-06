@@ -1,0 +1,17 @@
+def doTheThing(excp):
+    try:
+        try:
+            raise excp
+        except (TypeError, ValueError):
+            print("Caught a", repr(exception))
+            for i in exception.traceback:
+                let func, instr = i
+                print(f"  File '{func.__file__}', line {func._ip_to_line(instr)}, in {func.__name__}")
+    except NameError:
+        print("That's a name error!")
+
+
+doTheThing(TypeError("A type error"))
+doTheThing(ValueError("A value error"))
+doTheThing(NameError("A name error"))
+

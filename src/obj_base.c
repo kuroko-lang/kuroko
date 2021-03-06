@@ -36,8 +36,24 @@ static KrkValue krk_docOfClass(int argc, KrkValue argv[], int hasKw) {
 /* Class.__str__() (and Class.__repr__) */
 static KrkValue _class_to_str(int argc, KrkValue argv[], int hasKw) {
 	if (!IS_CLASS(argv[0])) return krk_runtimeError(vm.exceptions->typeError, "expected class");
-	char * tmp = malloc(sizeof("<type ''>") + AS_CLASS(argv[0])->name->length);
-	size_t l = sprintf(tmp, "<type '%s'>", AS_CLASS(argv[0])->name->chars);
+
+	/* Determine if this class has a module */
+	KrkValue module = NONE_VAL();
+	krk_tableGet(&AS_CLASS(argv[0])->fields, OBJECT_VAL(S("__module__")), &module);
+
+	KrkValue qualname = NONE_VAL();
+	krk_tableGet(&AS_CLASS(argv[0])->fields, OBJECT_VAL(S("__qualname__")), &qualname);
+	KrkString * name = IS_STRING(qualname) ? AS_STRING(qualname) : AS_CLASS(argv[0])->name;
+
+	int includeModule = !(IS_NONE(module) || (IS_STRING(module) && AS_STRING(module) == S("__builtins__")));
+
+	size_t allocSize = sizeof("<class ''>") + name->length;
+	if (IS_STRING(module)) allocSize += AS_STRING(module)->length + 1;
+	char * tmp = malloc(allocSize);
+	size_t l = snprintf(tmp, allocSize, "<class '%s%s%s'>",
+		includeModule ? AS_CSTRING(module) : "",
+		includeModule ? "." : "",
+		name->chars);
 	KrkString * out = krk_copyString(tmp,l);
 	free(tmp);
 	return OBJECT_VAL(out);

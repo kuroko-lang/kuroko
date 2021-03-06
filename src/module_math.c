@@ -155,55 +155,92 @@ KrkValue krk_module_onload_math(void) {
 	KrkInstance * module = krk_newInstance(vm.baseClasses->moduleClass);
 	krk_push(OBJECT_VAL(module));
 
-	bind(ceil);
-	bind(floor);
+	krk_attachNamedObject(&module->fields, "__doc__",(KrkObj*)
+		S("Provides access to floating-point mathematical functions from the system `libm`."));
+
+	bind(ceil)->doc  = "Returns the smallest integer value not less than the input.\n"
+		"@arguments x";
+	bind(floor)->doc = "Returns the largest integer value not greater than the input.\n"
+		"@arguments x";
 #ifdef _math_trunc
-	bind(trunc);
+	bind(trunc)->doc = "Rounds the input towards zero to an integer.\n"
+		"@arguments x";
 #endif
-	bind(exp);
+	bind(exp)->doc   = "Returns the base-e exponentiation of the input.\n"
+		"@arguments x";
 #ifdef _math_expm1
-	bind(expm1);
+	bind(expm1)->doc = "Equivalent to `exp(x) - 1`.\n"
+		"@arguments x";
 #endif
-	bind(log2);
-	bind(log10);
-	bind(sqrt);
-	bind(acos);
-	bind(asin);
-	bind(atan);
-	bind(cos);
-	bind(sin);
-	bind(tan);
+	bind(log2)->doc  = "Calculates the base-2 logarithm of the input.\n"
+		"@arguments x";
+	bind(log10)->doc = "Calculates the base-10 logarithm of the input.\n"
+		"@arguments x";
+	bind(sqrt)->doc  = "Calculates the square root of the input.\n"
+		"@arguments x";
+	bind(acos)->doc  = "Calculates the arc-cosine of the radian input.\n"
+		"@arguments x";
+	bind(asin)->doc  = "Calculates the arc-sine of the radian input.\n"
+		"@arguments x";
+	bind(atan)->doc  = "Calculates the arc-tangent of the radian input.\n"
+		"@arguments x";
+	bind(cos)->doc   = "Calculates the cosine of the radian input.\n"
+		"@arguments x";
+	bind(sin)->doc   = "Calculates the sine of the radian input.\n"
+		"@arguments x";
+	bind(tan)->doc   = "Calculates the tangent of the radian input.\n"
+		"@arguments x";
 #ifdef _math_acosh
-	bind(acosh);
-	bind(asinh);
-	bind(atanh);
+	bind(acosh)->doc = "Calculates the inverse hyperbolic cosine of the input.\n"
+		"@arguments x";
+	bind(asinh)->doc = "Calculates the inverse hyperbolic sine of the input.\n"
+		"@arguments x";
+	bind(atanh)->doc = "Calculates the inverse hyperbolic tangent of the input.\n"
+		"@arguments x";
 #endif
-	bind(cosh);
-	bind(sinh);
-	bind(tanh);
+	bind(cosh)->doc  = "Calculates the hyperbolic cosine of the input.\n"
+		"@arguments x";
+	bind(sinh)->doc  = "Calculates the hyperbolic sine of the input.\n"
+		"@arguments x";
+	bind(tanh)->doc  = "Calculates the hyperbolic tangent of the input.\n"
+		"@arguments x";
 #ifdef _math_erf
-	bind(erf);
-	bind(erfc);
+	bind(erf)->doc   = "Calculates the error function of the input.\n"
+		"@arguments x";
+	bind(erfc)->doc  = "Calculates the complementary error function of the input.\n"
+		"@arguments x";
 #endif
 #ifdef _math_gamma
-	bind(gamma);
-	bind(lgamma);
+	bind(gamma)->doc  = "Calculates the gamma of the input.\n"
+		"@arguments x";
+	bind(lgamma)->doc = "Calculates the log gamma of the input.\n"
+		"@arguments x";
 #endif
 #ifdef _math_copysign
-	bind(copysign);
+	bind(copysign)->doc = "Copies the sign from @p x to @p y\n"
+		"@arguments x,y";
 #endif
-	bind(fmod);
+	bind(fmod)->doc = "Returns the floating point remainder of @p x over @p y\n"
+		"@arguments x,y";
 #ifdef _math_remainder
-	bind(remainder);
+	bind(remainder)->doc = "Somehow different from `fmod`.";
 #endif
-	bind(log1p);
-	bind(pow);
-	bind(atan2);
-	bind(frexp);
+	bind(log1p)->doc = "Equivalent to `log(x) + 1`\n"
+		"@arguments x";
+	bind(pow)->doc   = "Calculates `x^p`\n"
+		"@arguments x,p";
+	bind(atan2)->doc = "Calculates the arctangent of `x` and `y`\n"
+		"@arguments x,y";
+	bind(frexp)->doc = "Converts a floating point input to a fractional and integer component pair, returned as a tuple.\n"
+		"@arguments x\n"
+		"@returns @ref tuple of two @ref int";
 #ifdef isfinite
-	bind(isfinite);
-	bind(isinf);
-	bind(isnan);
+	bind(isfinite)->doc = "Determines if the input is finite.\n"
+		"@arguments x\n";
+	bind(isinf)->doc = "Determines if the input is infinite.\n"
+		"@arguments x\n";
+	bind(isnan)->doc = "Determines if the input is the floating point `NaN`.\n"
+		"@arguments x\n";
 #endif
 
 	/**

@@ -28,33 +28,6 @@ void krk_freeValueArray(KrkValueArray * array) {
 }
 
 void krk_printValue(FILE * f, KrkValue printable) {
-	if (!IS_OBJECT(printable)) {
-		switch (printable.type) {
-			case VAL_INTEGER:  fprintf(f, PRIkrk_int, AS_INTEGER(printable)); break;
-			case VAL_BOOLEAN:  fprintf(f, "%s", AS_BOOLEAN(printable) ? "True" : "False"); break;
-			case VAL_FLOATING: fprintf(f, "%g", AS_FLOATING(printable)); break;
-			case VAL_NONE:     fprintf(f, "None"); break;
-			case VAL_HANDLER:  fprintf(f, "{%s->%d}", AS_HANDLER(printable).type == OP_PUSH_TRY ? "try" : "with", (int)AS_HANDLER(printable).target); break;
-			case VAL_KWARGS: {
-				if (AS_INTEGER(printable) == LONG_MAX) {
-					fprintf(f, "{unpack single}");
-				} else if (AS_INTEGER(printable) == LONG_MAX-1) {
-					fprintf(f, "{unpack list}");
-				} else if (AS_INTEGER(printable) == LONG_MAX-2) {
-					fprintf(f, "{unpack dict}");
-				} else if (AS_INTEGER(printable) == LONG_MAX-3) {
-					fprintf(f, "{unpack nil}");
-				} else if (AS_INTEGER(printable) == 0) {
-					fprintf(f, "{unset default}");
-				} else {
-					fprintf(f, "{sentinel=" PRIkrk_int "}",AS_INTEGER(printable));
-				}
-				break;
-			}
-			default: break;
-		}
-		return;
-	}
 	KrkClass * type = krk_getType(printable);
 	if (type->_tostr) {
 		krk_push(printable);
@@ -75,7 +48,30 @@ void krk_printValue(FILE * f, KrkValue printable) {
 
 void krk_printValueSafe(FILE * f, KrkValue printable) {
 	if (!IS_OBJECT(printable)) {
-		krk_printValue(f,printable);
+		switch (printable.type) {
+			case VAL_INTEGER:  fprintf(f, PRIkrk_int, AS_INTEGER(printable)); break;
+			case VAL_BOOLEAN:  fprintf(f, "%s", AS_BOOLEAN(printable) ? "True" : "False"); break;
+			case VAL_FLOATING: fprintf(f, "%.16g", AS_FLOATING(printable)); break;
+			case VAL_NONE:     fprintf(f, "None"); break;
+			case VAL_HANDLER:  fprintf(f, "{%s->%d}", AS_HANDLER(printable).type == OP_PUSH_TRY ? "try" : "with", (int)AS_HANDLER(printable).target); break;
+			case VAL_KWARGS: {
+				if (AS_INTEGER(printable) == LONG_MAX) {
+					fprintf(f, "{unpack single}");
+				} else if (AS_INTEGER(printable) == LONG_MAX-1) {
+					fprintf(f, "{unpack list}");
+				} else if (AS_INTEGER(printable) == LONG_MAX-2) {
+					fprintf(f, "{unpack dict}");
+				} else if (AS_INTEGER(printable) == LONG_MAX-3) {
+					fprintf(f, "{unpack nil}");
+				} else if (AS_INTEGER(printable) == 0) {
+					fprintf(f, "{unset default}");
+				} else {
+					fprintf(f, "{sentinel=" PRIkrk_int "}",AS_INTEGER(printable));
+				}
+				break;
+			}
+			default: break;
+		}
 	} else if (IS_STRING(printable)) {
 		fprintf(f, "'");
 		/*

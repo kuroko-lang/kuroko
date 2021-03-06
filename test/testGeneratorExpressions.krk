@@ -1,0 +1,23 @@
+def _sum(iterable):
+    let total = 0
+    for i in iterable:
+        total += i
+    return total
+
+print(_sum([x * x for x in range(10)]))
+print(_sum((x * x for x in range(10))))
+
+print('generator object' in str((x * x for x in range(10))))
+
+# Should be directly usable as function argument
+print(_sum(x * x for x in range(10)))
+
+import dis
+# Should have a compile error:
+try:
+    dis.build('_sum(x * x for x in range(10), 2, 3)')
+except SyntaxError as e:
+    print('parenthesized' in str(e))
+
+let matrix = [[1,2,3,4],[5,6,7,8],[9,10,11,12],[13,14,15,16]]
+print(list(entry for row in matrix for entry in row))

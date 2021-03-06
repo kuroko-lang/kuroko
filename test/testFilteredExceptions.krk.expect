@@ -1,0 +1,3 @@
+Caught a TypeError('A type error')
+Caught a ValueError('A value error')
+That's a name error!

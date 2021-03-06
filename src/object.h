@@ -1,7 +1,9 @@
 #pragma once
-
+/**
+ * @file object.h
+ * @brief Struct definitions for core object types.
+ */
 #include <stdio.h>
-
 #include "kuroko.h"
 #include "value.h"
 #include "chunk.h"
@@ -10,30 +12,6 @@
 #ifdef ENABLE_THREADING
 #include <pthread.h>
 #endif
-
-#define OBJECT_TYPE(value) (AS_OBJECT(value)->type)
-#define IS_STRING(value)   isObjType(value, OBJ_STRING)
-#define AS_STRING(value)   ((KrkString *)AS_OBJECT(value))
-#define AS_CSTRING(value)  (((KrkString *)AS_OBJECT(value))->chars)
-#define IS_BYTES(value)    isObjType(value, OBJ_BYTES)
-#define AS_BYTES(value)    ((KrkBytes*)AS_OBJECT(value))
-#define IS_FUNCTION(value) isObjType(value, OBJ_FUNCTION)
-#define AS_FUNCTION(value) ((KrkFunction *)AS_OBJECT(value))
-#define IS_NATIVE(value)   isObjType(value, OBJ_NATIVE)
-#define AS_NATIVE(value)   ((KrkNative *)AS_OBJECT(value))
-#define IS_CLOSURE(value)  isObjType(value, OBJ_CLOSURE)
-#define AS_CLOSURE(value)  ((KrkClosure *)AS_OBJECT(value))
-#define IS_CLASS(value)    isObjType(value, OBJ_CLASS)
-#define AS_CLASS(value)    ((KrkClass *)AS_OBJECT(value))
-#define IS_INSTANCE(value) isObjType(value, OBJ_INSTANCE)
-#define AS_INSTANCE(value) ((KrkInstance *)AS_OBJECT(value))
-#define IS_BOUND_METHOD(value) isObjType(value, OBJ_BOUND_METHOD)
-#define AS_BOUND_METHOD(value) ((KrkBoundMethod*)AS_OBJECT(value))
-
-#define IS_TUPLE(value)    isObjType(value, OBJ_TUPLE)
-#define AS_TUPLE(value)    ((KrkTuple *)AS_OBJECT(value))
-#define IS_PROPERTY(value) isObjType(value, OBJ_PROPERTY)
-#define AS_PROPERTY(value) ((KrkProperty *)AS_OBJECT(value))
 
 typedef enum {
 	OBJ_FUNCTION,
@@ -49,15 +27,22 @@ typedef enum {
 	OBJ_PROPERTY,
 } ObjType;
 
-struct Obj {
+#undef KrkObj
+/**
+ * @brief The most basic object type.
+ *
+ * This is the base of all object types and contains
+ * the core structures for garbage collection.
+ */
+typedef struct KrkObj {
 	ObjType type;
 	unsigned char isMarked:1;
 	unsigned char inRepr:1;
 	unsigned char generation:2;
 	unsigned char isImmortal:1;
 	uint32_t hash;
-	struct Obj * next;
-};
+	struct KrkObj * next;
+} KrkObj;
 
 typedef enum {
 	KRK_STRING_ASCII = 0,
@@ -67,29 +52,48 @@ typedef enum {
 	KRK_STRING_INVALID = 5,
 } KrkStringType;
 
-struct ObjString {
+#undef KrkString
+/**
+ * @brief Immutable sequence of Unicode codepoints.
+ * @extends KrkObj
+ */
+typedef struct KrkString {
 	KrkObj obj;
 	KrkStringType type;
 	size_t length;
 	size_t codesLength;
 	char * chars;
 	void * codes;
-};
+} KrkString;
 
+/**
+ * @brief Immutable sequence of bytes.
+ * @extends KrkObj
+ */
 typedef struct {
 	KrkObj obj;
 	size_t length;
 	uint8_t * bytes;
 } KrkBytes;
 
+/**
+ * @brief Storage for values referenced from nested functions.
+ * @extends KrkObj
+ */
 typedef struct KrkUpvalue {
 	KrkObj obj;
 	int location;
 	KrkValue   closed;
 	struct KrkUpvalue * next;
-	struct ThreadState * owner;
+	struct KrkThreadState * owner;
 } KrkUpvalue;
 
+/**
+ * @brief Metadata on a local variable name in a function.
+ *
+ * This is used by the disassembler to print the names of
+ * locals when they are referenced by instructions.
+ */
 typedef struct {
 	size_t id;
 	size_t birthday;
@@ -99,6 +103,12 @@ typedef struct {
 
 struct KrkInstance;
 
+/**
+ * @brief Code object.
+ * @extends KrkObj
+ *
+ * Contains the static data associated with a chunk of bytecode.
+ */
 typedef struct {
 	KrkObj obj;
 	short requiredArgs;
@@ -114,9 +124,17 @@ typedef struct {
 	KrkLocalEntry * localNames;
 	unsigned char collectsArguments:1;
 	unsigned char collectsKeywords:1;
+	unsigned char isClassMethod:1;
+	unsigned char isGenerator:1;
 	struct KrkInstance * globalsContext;
 } KrkFunction;
 
+/**
+ * @brief Function object.
+ * @extends KrkObj
+ *
+ * Not to be confused with code objects, a closure is a single instance of a function.
+ */
 typedef struct {
 	KrkObj obj;
 	KrkFunction * function;
@@ -126,6 +144,13 @@ typedef struct {
 
 typedef void (*KrkCleanupCallback)(struct KrkInstance *);
 
+/**
+ * @brief Type object.
+ * @extends KrkObj
+ *
+ * Represents classes defined in user code as well as classes defined
+ * by C extensions to represent method tables for new types.
+ */
 typedef struct KrkClass {
 	KrkObj obj;
 	KrkString * name;
@@ -156,14 +181,31 @@ typedef struct KrkClass {
 	KrkObj * _dir;
 	KrkObj * _setslice;
 	KrkObj * _delslice;
+	KrkObj * _contains;
 } KrkClass;
 
+/**
+ * @brief An object of a class.
+ * @extends KrkObj
+ *
+ * Created by class initializers, instances are the standard type of objects
+ * built by managed code. Not all objects are instances, but all instances are
+ * objects, and all instances have well-defined class.
+ */
 typedef struct KrkInstance {
 	KrkObj obj;
 	KrkClass * _class;
 	KrkTable fields;
 } KrkInstance;
 
+/**
+ * @brief A function that has been attached to an object to serve as a method.
+ * @extends KrkObj
+ *
+ * When a bound method is called, its receiver is implicitly extracted as
+ * the first argument. Bound methods are created whenever a method is retreived
+ * from the class of a value.
+ */
 typedef struct {
 	KrkObj obj;
 	KrkValue receiver;
@@ -171,6 +213,13 @@ typedef struct {
 } KrkBoundMethod;
 
 typedef KrkValue (*NativeFn)(int argCount, KrkValue* args, int hasKwargs);
+
+/**
+ * @brief Managed binding to a C function.
+ * @extends KrkObj
+ *
+ * Represents a C function that has been exposed to managed code.
+ */
 typedef struct {
 	KrkObj obj;
 	NativeFn function;
@@ -179,16 +228,38 @@ typedef struct {
 	int isMethod;
 } KrkNative;
 
+/**
+ * @brief Immutable sequence of arbitrary values.
+ * @extends KrkObj
+ *
+ * Tuples are fixed-length non-mutable collections of values intended
+ * for use in situations where the flexibility of a list is not needed.
+ */
 typedef struct {
 	KrkObj obj;
 	KrkValueArray values;
 } KrkTuple;
 
+/**
+ * @brief Dynamic property.
+ * @extends KrkObj
+ *
+ * A property is a value that is determined at runtime by a function and
+ * for which modifications using the dot operator and an assignment result
+ * in a function call.
+ */
 typedef struct {
 	KrkObj obj;
 	KrkValue method;
 } KrkProperty;
 
+/**
+ * @brief Mutable array of values.
+ * @extends KrkInstance
+ *
+ * A list is a flexible array of values that can be extended, cleared,
+ * sorted, rearranged, iterated over, etc.
+ */
 typedef struct {
 	KrkInstance inst;
 	KrkValueArray values;
@@ -197,6 +268,12 @@ typedef struct {
 #endif
 } KrkList;
 
+/**
+ * @brief Flexible mapping type.
+ * @extends KrkInstance
+ *
+ * Provides key-to-value mappings as a first-class object type.
+ */
 typedef struct {
 	KrkInstance inst;
 	KrkTable entries;
@@ -214,27 +291,100 @@ struct DictKeys {
 	size_t i;
 };
 
-#define AS_LIST(value) (&((KrkList *)AS_OBJECT(value))->values)
-#define AS_DICT(value) (&((KrkDict *)AS_OBJECT(value))->entries)
-
-static inline int isObjType(KrkValue value, ObjType type) {
-	return IS_OBJECT(value) && AS_OBJECT(value)->type == type;
-}
-
+/**
+ * @brief Yield ownership of a C string to the GC and obtain a string object.
+ * @memberof KrkString
+ *
+ * Creates a string object represented by the characters in 'chars' and of
+ * length 'length'. The source string must be nil-terminated and must
+ * remain valid for the lifetime of the object, as its ownership is yielded
+ * to the GC. Useful for strings which were allocated on the heap by
+ * other mechanisms.
+ *
+ * 'chars' must be a nil-terminated C string representing a UTF-8
+ * character sequence.
+ *
+ * @param chars  C string to take ownership of.
+ * @param length Length of the C string.
+ * @return A string object.
+ */
 extern KrkString * krk_takeString(char * chars, size_t length);
+
+/**
+ * @brief Obtain a string object representation of the given C string.
+ * @memberof KrkString
+ *
+ * Converts the C string 'chars' into a string object by checking the
+ * string table for it. If the string table does not have an equivalent
+ * string, a new one will be created by copying 'chars'.
+ *
+ * 'chars' must be a nil-terminated C string representing a UTF-8
+ * character sequence.
+ *
+ * @param chars  C string to convert to a string object.
+ * @param length Length of the C string.
+ * @return A string object.
+ */
 extern KrkString * krk_copyString(const char * chars, size_t length);
+
+/**
+ * @brief Ensure that a codepoint representation of a string is available.
+ * @memberof KrkString
+ *
+ * Obtain an untyped pointer to the codepoint representation of a string.
+ * If the string does not have a codepoint representation allocated, it will
+ * be generated by this function and remain with the string for the duration
+ * of its lifetime.
+ *
+ * @param string String to obtain the codepoint representation of.
+ * @return A pointer to the bytes of the codepoint representation.
+ */
+extern void * krk_unicodeString(KrkString * string);
+
+/**
+ * @brief Obtain the codepoint at a given index in a string.
+ * @memberof KrkString
+ *
+ * This is a convenience function which ensures that a Unicode codepoint
+ * representation has been generated and returns the codepoint value at
+ * the requested index. If you need to find multiple codepoints, it
+ * is recommended that you use the KRK_STRING_FAST macro after calling
+ * krk_unicodeString instead.
+ *
+ * @note This function does not perform any bounds checking.
+ *
+ * @param string String to index into.
+ * @param index  Offset of the codepoint to obtain.
+ * @return Integer representation of the codepoint at the requested index.
+ */
+extern uint32_t krk_unicodeCodepoint(KrkString * string, size_t index);
+
+/**
+ * @brief Convert an integer codepoint to a UTF-8 byte representation.
+ * @memberof KrkString
+ *
+ * Converts a single codepoint to a sequence of bytes containing the
+ * UTF-8 representation. 'out' must be allocated by the caller.
+ *
+ * @param value Codepoint to encode.
+ * @param out   Array to write UTF-8 sequence into.
+ * @return The length of the UTF-8 sequence, in bytes.
+ */
+extern size_t krk_codepointToBytes(krk_integer_type value, unsigned char * out);
+
+/* Internal stuff. */
 extern KrkFunction *    krk_newFunction(void);
-extern KrkNative * krk_newNative(NativeFn function, const char * name, int type);
+extern KrkNative *      krk_newNative(NativeFn function, const char * name, int type);
 extern KrkClosure *     krk_newClosure(KrkFunction * function);
 extern KrkUpvalue *     krk_newUpvalue(int slot);
 extern KrkClass *       krk_newClass(KrkString * name, KrkClass * base);
 extern KrkInstance *    krk_newInstance(KrkClass * _class);
 extern KrkBoundMethod * krk_newBoundMethod(KrkValue receiver, KrkObj * method);
 extern KrkTuple *       krk_newTuple(size_t length);
-extern KrkProperty * krk_newProperty(KrkValue method);
-
-extern void * krk_unicodeString(KrkString * string);
-extern uint32_t krk_unicodeCodepoint(KrkString * string, size_t index);
+extern KrkProperty *    krk_newProperty(KrkValue method);
+extern KrkBytes *       krk_newBytes(size_t length, uint8_t * source);
+extern void krk_bytesUpdateHash(KrkBytes * bytes);
+extern void krk_tupleUpdateHash(KrkTuple * self);
 
 #define KRK_STRING_FAST(string,offset)  (uint32_t)\
 	(string->type <= 1 ? ((uint8_t*)string->codes)[offset] : \
@@ -243,8 +393,29 @@ extern uint32_t krk_unicodeCodepoint(KrkString * string, size_t index);
 
 #define CODEPOINT_BYTES(cp) (cp < 0x80 ? 1 : (cp < 0x800 ? 2 : (cp < 0x10000 ? 3 : 4)))
 
-extern KrkBytes * krk_newBytes(size_t length, uint8_t * source);
-extern void krk_bytesUpdateHash(KrkBytes * bytes);
-extern size_t krk_codepointToBytes(krk_integer_type value, unsigned char * out);
+#define isObjType(v,t) (IS_OBJECT(v) && (AS_OBJECT(v)->type == (t)))
+#define OBJECT_TYPE(value) (AS_OBJECT(value)->type)
+#define IS_STRING(value)   isObjType(value, OBJ_STRING)
+#define AS_STRING(value)   ((KrkString *)AS_OBJECT(value))
+#define AS_CSTRING(value)  (((KrkString *)AS_OBJECT(value))->chars)
+#define IS_BYTES(value)    isObjType(value, OBJ_BYTES)
+#define AS_BYTES(value)    ((KrkBytes*)AS_OBJECT(value))
+#define IS_FUNCTION(value) isObjType(value, OBJ_FUNCTION)
+#define AS_FUNCTION(value) ((KrkFunction *)AS_OBJECT(value))
+#define IS_NATIVE(value)   isObjType(value, OBJ_NATIVE)
+#define AS_NATIVE(value)   ((KrkNative *)AS_OBJECT(value))
+#define IS_CLOSURE(value)  isObjType(value, OBJ_CLOSURE)
+#define AS_CLOSURE(value)  ((KrkClosure *)AS_OBJECT(value))
+#define IS_CLASS(value)    isObjType(value, OBJ_CLASS)
+#define AS_CLASS(value)    ((KrkClass *)AS_OBJECT(value))
+#define IS_INSTANCE(value) isObjType(value, OBJ_INSTANCE)
+#define AS_INSTANCE(value) ((KrkInstance *)AS_OBJECT(value))
+#define IS_BOUND_METHOD(value) isObjType(value, OBJ_BOUND_METHOD)
+#define AS_BOUND_METHOD(value) ((KrkBoundMethod*)AS_OBJECT(value))
+#define IS_TUPLE(value)    isObjType(value, OBJ_TUPLE)
+#define AS_TUPLE(value)    ((KrkTuple *)AS_OBJECT(value))
+#define IS_PROPERTY(value) isObjType(value, OBJ_PROPERTY)
+#define AS_PROPERTY(value) ((KrkProperty *)AS_OBJECT(value))
+#define AS_LIST(value) (&((KrkList *)AS_OBJECT(value))->values)
+#define AS_DICT(value) (&((KrkDict *)AS_OBJECT(value))->entries)
 
-extern void krk_tupleUpdateHash(KrkTuple * self);

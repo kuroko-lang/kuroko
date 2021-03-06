@@ -50,9 +50,10 @@ typedef struct {
 typedef enum {
 	PREC_NONE,
 	PREC_ASSIGNMENT, /* = */
-	PREC_TERNARY,
+	PREC_TERNARY,    /* TrueBranch if Condition else FalseBranch */
 	PREC_OR,         /* or */
 	PREC_AND,        /* and */
+	PREC_NOT,        /* not */
 	PREC_COMPARISON, /* < > <= >= in 'not in' */
 	PREC_BITOR,      /* | */
 	PREC_BITXOR,     /* ^ */
@@ -60,8 +61,10 @@ typedef enum {
 	PREC_SHIFT,      /* << >> */
 	PREC_TERM,       /* + - */
 	PREC_FACTOR,     /* * / % */
-	PREC_UNARY,      /* ! - not */
+	PREC_UNARY,      /* + - */
+	PREC_BITUNARY,   /* ~ ! */
 	PREC_EXPONENT,   /* ** */
+	PREC_SUBSCRIPT,  /* [ ] */
 	PREC_CALL,       /* . () */
 	PREC_PRIMARY
 } Precedence;
@@ -94,6 +97,8 @@ typedef enum {
 	TYPE_LAMBDA,
 	TYPE_STATIC,
 	TYPE_PROPERTY,
+	TYPE_CLASS,
+	TYPE_CLASSMETHOD,
 } FunctionType;
 
 typedef struct Compiler {
@@ -191,7 +196,7 @@ static void and_(int canAssign);
 static KrkToken classDeclaration();
 static void declareVariable();
 static void namedVariable(KrkToken name, int canAssign);
-static void addLocal(KrkToken name);
+static size_t addLocal(KrkToken name);
 static void string(int canAssign);
 static KrkToken decorator(size_t level, FunctionType type);
 static void call(int canAssign);
@@ -231,7 +236,7 @@ static void advance() {
 			(parser.current.type == TOKEN_INDENTATION || parser.current.type == TOKEN_EOL)) continue;
 
 #ifdef ENABLE_SCAN_TRACING
-		if (krk_currentThread.flags & KRK_ENABLE_SCAN_TRACING) {
+		if (krk_currentThread.flags & KRK_THREAD_ENABLE_SCAN_TRACING) {
 			fprintf(stderr, "[%s<%d> %d:%d '%.*s'] ",
 				getRule(parser.current.type)->name,
 				(int)parser.current.type,
@@ -306,7 +311,7 @@ static void emitReturn() {
 	} else if (current->type == TYPE_MODULE) {
 		/* Un-pop the last stack value */
 		emitBytes(OP_GET_LOCAL, 0);
-	} else if (current->type != TYPE_LAMBDA) {
+	} else if (current->type != TYPE_LAMBDA && current->type != TYPE_CLASS) {
 		emitByte(OP_NONE);
 	}
 	emitByte(OP_RETURN);
@@ -344,7 +349,7 @@ static KrkFunction * endCompiler() {
 		KrkValue value = OBJECT_VAL(krk_copyString(current->locals[args].name.start,
 			current->locals[args].name.length));
 		krk_push(value);
-		krk_writeValueArray(&function->keywordArgNames, value);
+		krk_writeValueArray(&function->requiredArgNames, value);
 		krk_pop();
 		args++;
 	}
@@ -358,35 +363,8 @@ static KrkFunction * endCompiler() {
 	}
 
 #ifdef ENABLE_DISASSEMBLY
-	if ((krk_currentThread.flags & KRK_ENABLE_DISASSEMBLY) && !parser.hadError) {
-		krk_disassembleChunk(stderr, function, function->name ? function->name->chars : "<module>");
-		fprintf(stderr, "Function metadata: requiredArgs=%d keywordArgs=%d upvalueCount=%d\n",
-			function->requiredArgs, function->keywordArgs, (int)function->upvalueCount);
-		fprintf(stderr, "__doc__: \"%s\"\n", function->docstring ? function->docstring->chars : "");
-		fprintf(stderr, "Constants: ");
-		for (size_t i = 0; i < currentChunk()->constants.count; ++i) {
-			fprintf(stderr, "%d: ", (int)i);
-			krk_printValueSafe(stderr, currentChunk()->constants.values[i]);
-			if (i != currentChunk()->constants.count - 1) {
-				fprintf(stderr, ", ");
-			}
-		}
-		fprintf(stderr, "\nRequired arguments: ");
-		int i = 0;
-		for (; i < function->requiredArgs; ++i) {
-			fprintf(stderr, "%.*s%s",
-				(int)current->locals[i].name.length,
-				current->locals[i].name.start,
-				(i == function->requiredArgs - 1) ? "" : ", ");
-		}
-		fprintf(stderr, "\nKeyword arguments: ");
-		for (; i < function->requiredArgs + function->keywordArgs; ++i) {
-			fprintf(stderr, "%.*s=None%s",
-				(int)current->locals[i].name.length,
-				current->locals[i].name.start,
-				(i == function->keywordArgs - 1) ? "" : ", ");
-		}
-		fprintf(stderr, "\n");
+	if ((krk_currentThread.flags & KRK_THREAD_ENABLE_DISASSEMBLY) && !parser.hadError) {
+		krk_disassembleCodeObject(stderr, function, function->name ? function->name->chars : "(module)");
 	}
 #endif
 
@@ -650,11 +628,7 @@ _dotDone:
 
 static void in_(int canAssign) {
 	parsePrecedence(PREC_COMPARISON);
-	KrkToken contains = syntheticToken("__contains__");
-	ssize_t ind = identifierConstant(&contains);
-	EMIT_CONSTANT_OP(OP_GET_PROPERTY, ind);
-	emitByte(OP_SWAP);
-	emitBytes(OP_CALL,1);
+	emitByte(OP_INVOKE_CONTAINS);
 }
 
 static void not_(int canAssign) {
@@ -864,7 +838,7 @@ static void block(size_t indentation, const char * blockName) {
 				}
 			};
 #ifdef ENABLE_SCAN_TRACING
-			if (krk_currentThread.flags & KRK_ENABLE_SCAN_TRACING) {
+			if (krk_currentThread.flags & KRK_THREAD_ENABLE_SCAN_TRACING) {
 				fprintf(stderr, "\n\nfinished with block %s (ind=%d) on line %d, sitting on a %s (len=%d)\n\n",
 					blockName, (int)indentation, (int)parser.current.line,
 					getRule(parser.current.type)->name, (int)parser.current.length);
@@ -948,6 +922,10 @@ static void function(FunctionType type, size_t blockWidth) {
 				emitByte(OP_POP); /* comparison value */
 				continue;
 			}
+			if (hasCollectors) {
+				error("arguments follow catch-all collector");
+				break;
+			}
 			ssize_t paramConstant = parseVariable("Expect parameter name.");
 			defineVariable(paramConstant);
 			if (match(TOKEN_EQUAL)) {
@@ -974,6 +952,10 @@ static void function(FunctionType type, size_t blockWidth) {
 				emitByte(OP_POP);
 				current->function->keywordArgs++;
 			} else {
+				if (current->function->keywordArgs) {
+					error("non-keyword argument follows keyword argument");
+					break;
+				}
 				current->function->requiredArgs++;
 			}
 		} while (match(TOKEN_COMMA));
@@ -1032,13 +1014,52 @@ static void method(size_t blockWidth) {
 	}
 }
 
+#define ATTACH_PROPERTY(propName,how,propValue) do { \
+	emitBytes(OP_DUP, 0); \
+	KrkToken val_tok = syntheticToken(propValue); \
+	size_t val_ind = identifierConstant(&val_tok); \
+	EMIT_CONSTANT_OP(how, val_ind); \
+	KrkToken name_tok = syntheticToken(propName); \
+	size_t name_ind = identifierConstant(&name_tok); \
+	EMIT_CONSTANT_OP(OP_SET_PROPERTY, name_ind); \
+	emitByte(OP_POP); \
+} while (0)
+
+static char * calculateQualName(void) {
+	static char space[1024]; /* We'll just truncate if we need to */
+	space[1023] = '\0';
+	char * writer = &space[1023];
+
+#define WRITE(s) do { \
+	size_t len = strlen(s); \
+	if (writer - len < space) break; \
+	writer -= len; \
+	memcpy(writer, s, len); \
+} while (0)
+
+	WRITE(current->function->name->chars);
+	/* Go up by _compiler_, ignore class compilers as we don't need them. */
+	Compiler * ptr = current->enclosing;
+	while (ptr->enclosing) { /* Ignores the top level module */
+		if (ptr->type != TYPE_CLASS) {
+			/* We must be the locals of a function. */
+			WRITE("<locals>.");
+		}
+		WRITE(".");
+		WRITE(ptr->function->name->chars);
+		ptr = ptr->enclosing;
+	}
+
+	return writer;
+}
+
 static KrkToken classDeclaration() {
 	size_t blockWidth = (parser.previous.type == TOKEN_INDENTATION) ? parser.previous.length : 0;
 	advance(); /* Collect the `class` */
 
 	consume(TOKEN_IDENTIFIER, "Expected class name.");
 	Compiler subcompiler;
-	initCompiler(&subcompiler, TYPE_LAMBDA);
+	initCompiler(&subcompiler, TYPE_CLASS);
 	subcompiler.function->chunk.filename = subcompiler.enclosing->function->chunk.filename;
 
 	beginScope();
@@ -1084,6 +1105,12 @@ static KrkToken classDeclaration() {
 	namedVariable(className, 0);
 
 	consume(TOKEN_COLON, "Expected colon after class");
+
+	/* Set Class.__module__ to the value of __name__, which is the string
+	 * name of the current module. */
+	ATTACH_PROPERTY("__module__", OP_GET_GLOBAL, "__name__");
+	ATTACH_PROPERTY("__qualname__", OP_CONSTANT, calculateQualName());
+
 	if (match(TOKEN_EOL)) {
 		if (check(TOKEN_INDENTATION)) {
 			size_t currentIndentation = parser.current.length;
@@ -1107,7 +1134,7 @@ static KrkToken classDeclaration() {
 				method(currentIndentation);
 			}
 #ifdef ENABLE_SCAN_TRACING
-			if (krk_currentThread.flags & KRK_ENABLE_SCAN_TRACING) fprintf(stderr, "Exiting from class definition on %s\n", getRule(parser.current.type)->name);
+			if (krk_currentThread.flags & KRK_THREAD_ENABLE_SCAN_TRACING) fprintf(stderr, "Exiting from class definition on %s\n", getRule(parser.current.type)->name);
 #endif
 			/* Exit from block */
 		}
@@ -1175,6 +1202,7 @@ static KrkToken decorator(size_t level, FunctionType type) {
 	/* hol'up, let's special case some stuff */
 	KrkToken at_staticmethod = syntheticToken("staticmethod");
 	KrkToken at_property = syntheticToken("property");
+	KrkToken at_classmethod = syntheticToken("classmethod");
 	if (identifiersEqual(&at_staticmethod, &parser.current)) {
 		if (level != 0 || type != TYPE_METHOD) {
 			error("Invalid use of @staticmethod, which must be the top decorator of a class method.");
@@ -1191,6 +1219,13 @@ static KrkToken decorator(size_t level, FunctionType type) {
 		advance();
 		type = TYPE_PROPERTY;
 		emitBytes(OP_DUP, 0);
+	} else if (identifiersEqual(&at_classmethod, &parser.current)) {
+		if (level != 0 || type != TYPE_METHOD) {
+			error("Invalid use of @classmethod, which must be the top decorator of a class method.");
+			return funcName;
+		}
+		advance();
+		type = TYPE_CLASSMETHOD;
 	} else {
 		/* Collect an identifier */
 		expression();
@@ -1238,6 +1273,10 @@ static KrkToken decorator(size_t level, FunctionType type) {
 			size_t ind = identifierConstant(&funcName);
 			EMIT_CONSTANT_OP(OP_SET_PROPERTY, ind);
 			emitByte(OP_POP);
+		} else if (type == TYPE_CLASSMETHOD) {
+			emitByte(OP_CREATE_CLASSMETHOD);
+			size_t ind = identifierConstant(&funcName);
+			EMIT_CONSTANT_OP(OP_METHOD, ind);
 		} else if (type == TYPE_PROPERTY) {
 			emitByte(OP_CREATE_PROPERTY);
 			size_t ind = identifierConstant(&funcName);
@@ -1464,10 +1503,7 @@ static void forStatement() {
 		addLocal(_it);
 		defineVariable(indLoopIter);
 
-		KrkToken _iter = syntheticToken("__iter__");
-		ssize_t ind = identifierConstant(&_iter);
-		EMIT_CONSTANT_OP(OP_GET_PROPERTY, ind);
-		emitBytes(OP_CALL, 0);
+		emitByte(OP_INVOKE_ITER);
 
 		/* assign */
 		EMIT_CONSTANT_OP(OP_SET_LOCAL, indLoopIter);
@@ -1502,9 +1538,7 @@ static void forStatement() {
 		loopStart = currentChunk()->count;
 
 		beginScope();
-		do {
-			expression(); /* condition */
-		} while (match(TOKEN_COMMA));
+		expression(); /* condition */
 		endScope();
 		exitJump = emitJump(OP_JUMP_IF_FALSE);
 		emitByte(OP_POP);
@@ -1515,10 +1549,9 @@ static void forStatement() {
 			int incrementStart = currentChunk()->count;
 			beginScope();
 			do {
-				expression();
+				expressionStatement();
 			} while (match(TOKEN_COMMA));
 			endScope();
-			emitByte(OP_POP);
 
 			emitLoop(loopStart);
 			loopStart = incrementStart;
@@ -1555,6 +1588,20 @@ static void returnStatement() {
 	}
 }
 
+static void yieldStatement() {
+	if (current->type == TYPE_MODULE || current->type == TYPE_INIT || current->type == TYPE_CLASS) {
+		error("'yield' outside function");
+		return;
+	}
+	current->function->isGenerator = 1;
+	if (check(TOKEN_EOL) || check(TOKEN_EOF)) {
+		emitByte(OP_NONE);
+	} else {
+		expression();
+	}
+	emitBytes(OP_YIELD, OP_POP);
+}
+
 static void tryStatement() {
 	size_t blockWidth = (parser.previous.type == TOKEN_INDENTATION) ? parser.previous.length : 0;
 	advance();
@@ -1563,7 +1610,9 @@ static void tryStatement() {
 	/* Make sure we are in a local scope so this ends up on the stack */
 	beginScope();
 	int tryJump = emitJump(OP_PUSH_TRY);
-	addLocal(syntheticToken("exception"));
+	/* We'll rename this later, but it needs to be on the stack now as it represents the exception handler */
+	size_t localNameCount = current->function->localNameCount;
+	size_t exceptionObject = addLocal(syntheticToken(""));
 	defineVariable(0);
 
 	beginScope();
@@ -1580,6 +1629,23 @@ static void tryStatement() {
 			advance();
 		}
 		if (match(TOKEN_EXCEPT)) {
+			/* Match filter expression (should be class or tuple) */
+			if (!check(TOKEN_COLON) && !check(TOKEN_AS)) {
+				expression();
+				emitByte(OP_FILTER_EXCEPT);
+			}
+
+			/* Match 'as' to rename exception */
+			if (match(TOKEN_AS)) {
+				consume(TOKEN_IDENTIFIER, "Expected identifier after 'as'");
+				current->locals[exceptionObject].name = parser.previous;
+			} else {
+				/* XXX Should we remove this now? */
+				current->locals[exceptionObject].name = syntheticToken("exception");
+			}
+			/* Make sure we update the local name for debugging */
+			current->function->localNames[localNameCount].name = krk_copyString(current->locals[exceptionObject].name.start, current->locals[exceptionObject].name.length);
+
 			consume(TOKEN_COLON, "Expect ':' after except.");
 			beginScope();
 			block(blockWidth,"except");
@@ -1685,6 +1751,27 @@ static void delStatement() {
 	inDel = 0;
 }
 
+static void assertStatement() {
+	expression();
+	int elseJump = emitJump(OP_JUMP_IF_TRUE);
+
+	KrkToken assertionError = syntheticToken("AssertionError");
+	size_t ind = identifierConstant(&assertionError);
+	EMIT_CONSTANT_OP(OP_GET_GLOBAL, ind);
+	int args = 0;
+
+	if (match(TOKEN_COMMA)) {
+		expression();
+		args = 1;
+	}
+
+	EMIT_CONSTANT_OP(OP_CALL, args);
+	emitByte(OP_RAISE);
+
+	patchJump(elseJump);
+	emitByte(OP_POP);
+}
+
 static void statement() {
 	if (match(TOKEN_EOL) || match(TOKEN_EOF)) {
 		return; /* Meaningless blank line */
@@ -1707,6 +1794,8 @@ _anotherSimpleStatement:
 			raiseStatement();
 		} else if (match(TOKEN_RETURN)) {
 			returnStatement();
+		} else if (match(TOKEN_YIELD)) {
+			yieldStatement();
 		} else if (match(TOKEN_IMPORT)) {
 			importStatement();
 		} else if (match(TOKEN_FROM)) {
@@ -1717,6 +1806,8 @@ _anotherSimpleStatement:
 			continueStatement();
 		} else if (match(TOKEN_DEL)) {
 			delStatement();
+		} else if (match(TOKEN_ASSERT)) {
+			assertStatement();
 		} else if (match(TOKEN_PASS)) {
 			/* Do nothing. */
 		} else {
@@ -1729,21 +1820,27 @@ _anotherSimpleStatement:
 	}
 }
 
+static void unot_(int canAssign) {
+	parsePrecedence(PREC_NOT);
+	emitByte(OP_NOT);
+}
+
+static void bitunary(int canAssign) {
+	KrkTokenType operatorType = parser.previous.type;
+	parsePrecedence(PREC_BITUNARY);
+	switch (operatorType) {
+		case TOKEN_TILDE: emitByte(OP_BITNEGATE); break;
+		case TOKEN_BANG:  emitByte(OP_NOT); break;
+		default: return;
+	}
+}
+
 static void unary(int canAssign) {
 	KrkTokenType operatorType = parser.previous.type;
-
 	parsePrecedence(PREC_UNARY);
-
 	switch (operatorType) {
+		case TOKEN_PLUS: break; /* no op, but explicitly listed here for clarity */
 		case TOKEN_MINUS: emitByte(OP_NEGATE); break;
-		case TOKEN_TILDE: emitByte(OP_BITNEGATE); break;
-
-		/* These are equivalent */
-		case TOKEN_BANG:
-		case TOKEN_NOT:
-			emitByte(OP_NOT);
-			break;
-
 		default: return;
 	}
 }
@@ -2051,10 +2148,7 @@ static void comprehension(KrkScanner scannerBefore, Parser parserBefore, const c
 	defineVariable(indLoopIter);
 
 	/* Now try to call .__iter__ on the result to produce our iterator */
-	KrkToken _iter = syntheticToken("__iter__");
-	ssize_t ind = identifierConstant(&_iter);
-	EMIT_CONSTANT_OP(OP_GET_PROPERTY, ind);
-	emitBytes(OP_CALL, 0);
+	emitByte(OP_INVOKE_ITER);
 
 	/* Assign the resulting iterator to indLoopIter */
 	EMIT_CONSTANT_OP(OP_SET_LOCAL, indLoopIter);
@@ -2158,6 +2252,106 @@ static void singleInner(ssize_t indLoopCounter) {
 	expression();
 }
 
+
+static void generatorInner(KrkScanner scannerBefore, Parser parserBefore) {
+	ssize_t loopInd = current->localCount;
+	ssize_t varCount = 0;
+	do {
+		defineVariable(parseVariable("Expected name for iteration variable."));
+		emitByte(OP_NONE);
+		defineVariable(loopInd);
+		varCount++;
+	} while (match(TOKEN_COMMA));
+
+	consume(TOKEN_IN, "Only iterator loops (for ... in ...) are allowed in generator expressions.");
+
+	beginScope();
+	parsePrecedence(PREC_OR); /* Otherwise we can get trapped on a ternary */
+	endScope();
+
+	size_t indLoopIter = current->localCount;
+	addLocal(syntheticToken(""));
+	defineVariable(indLoopIter);
+
+	emitByte(OP_INVOKE_ITER);
+	EMIT_CONSTANT_OP(OP_SET_LOCAL, indLoopIter);
+
+	int loopStart = currentChunk()->count;
+
+	EMIT_CONSTANT_OP(OP_GET_LOCAL, indLoopIter);
+	emitBytes(OP_CALL, 0);
+	EMIT_CONSTANT_OP(OP_SET_LOCAL, loopInd);
+
+	EMIT_CONSTANT_OP(OP_GET_LOCAL, indLoopIter);
+	emitByte(OP_EQUAL);
+	int exitJump = emitJump(OP_JUMP_IF_TRUE);
+	emitByte(OP_POP);
+
+	if (varCount > 1) {
+		EMIT_CONSTANT_OP(OP_GET_LOCAL, loopInd);
+		EMIT_CONSTANT_OP(OP_UNPACK, varCount);
+		for (ssize_t i = loopInd + varCount - 1; i >= loopInd; i--) {
+			EMIT_CONSTANT_OP(OP_SET_LOCAL, i);
+			emitByte(OP_POP);
+		}
+	}
+
+	if (match(TOKEN_IF)) {
+		parsePrecedence(PREC_OR);
+		int acceptJump = emitJump(OP_JUMP_IF_TRUE);
+		emitByte(OP_POP); /* Pop condition */
+		emitLoop(loopStart);
+		patchJump(acceptJump);
+		emitByte(OP_POP); /* Pop condition */
+	}
+
+	beginScope();
+	if (match(TOKEN_FOR)) {
+		generatorInner(scannerBefore, parserBefore);
+	} else {
+		KrkScanner scannerAfter = krk_tellScanner();
+		Parser  parserAfter = parser;
+		krk_rewindScanner(scannerBefore);
+		parser = parserBefore;
+		expression();
+		emitBytes(OP_YIELD, OP_POP);
+		krk_rewindScanner(scannerAfter);
+		parser = parserAfter;
+	}
+	endScope();
+
+	emitLoop(loopStart);
+	patchJump(exitJump);
+	emitByte(OP_POP);
+}
+
+/**
+ * @brief Parser a generator expression.
+ *
+ * This is essentially the same as a comprehension body, but
+ * without the added loop index or wrapping function call.
+ *
+ * After every inner expression, we yield.
+ */
+static void generatorExpression(KrkScanner scannerBefore, Parser parserBefore) {
+	parser.previous = syntheticToken("<genexpr>");
+	Compiler subcompiler;
+	initCompiler(&subcompiler, TYPE_FUNCTION);
+	subcompiler.function->chunk.filename = subcompiler.enclosing->function->chunk.filename;
+	subcompiler.function->isGenerator = 1;
+
+	beginScope();
+	generatorInner(scannerBefore, parserBefore);
+	endScope();
+
+	KrkFunction *subfunction = endCompiler();
+	size_t indFunc = krk_addConstant(currentChunk(), OBJECT_VAL(subfunction));
+	EMIT_CONSTANT_OP(OP_CLOSURE, indFunc);
+	doUpvalues(&subcompiler, subfunction);
+	freeCompiler(&subcompiler);
+	emitBytes(OP_CALL, 0);
+}
+
 static void grouping(int canAssign) {
 	startEatingWhitespace();
 	if (check(TOKEN_RIGHT_PAREN)) {
@@ -2169,7 +2363,7 @@ static void grouping(int canAssign) {
 		expression();
 		if (match(TOKEN_FOR)) {
 			currentChunk()->count = chunkBefore;
-			comprehension(scannerBefore, parserBefore, "tupleOf", singleInner);
+			generatorExpression(scannerBefore, parserBefore);
 		} else if (match(TOKEN_COMMA)) {
 			size_t argCount = 1;
 			if (!check(TOKEN_RIGHT_PAREN)) {
@@ -2298,19 +2492,19 @@ ParseRule krk_parseRules[] = {
 	RULE(TOKEN_RIGHT_PAREN,   NULL,     NULL,   PREC_NONE),
 	RULE(TOKEN_LEFT_BRACE,    dict,     NULL,   PREC_NONE),
 	RULE(TOKEN_RIGHT_BRACE,   NULL,     NULL,   PREC_NONE),
-	RULE(TOKEN_LEFT_SQUARE,   list,     get_,   PREC_CALL),
+	RULE(TOKEN_LEFT_SQUARE,   list,     get_,   PREC_SUBSCRIPT),
 	RULE(TOKEN_RIGHT_SQUARE,  NULL,     NULL,   PREC_NONE),
 	RULE(TOKEN_COLON,         NULL,     NULL,   PREC_NONE),
 	RULE(TOKEN_COMMA,         NULL,     NULL,   PREC_NONE),
 	RULE(TOKEN_DOT,           NULL,     dot,    PREC_CALL),
 	RULE(TOKEN_MINUS,         unary,    binary, PREC_TERM),
-	RULE(TOKEN_PLUS,          NULL,     binary, PREC_TERM),
+	RULE(TOKEN_PLUS,          unary,    binary, PREC_TERM),
 	RULE(TOKEN_SEMICOLON,     NULL,     NULL,   PREC_NONE),
 	RULE(TOKEN_SOLIDUS,       NULL,     binary, PREC_FACTOR),
 	RULE(TOKEN_ASTERISK,      NULL,     binary, PREC_FACTOR),
 	RULE(TOKEN_POW,           NULL,     binary, PREC_EXPONENT),
 	RULE(TOKEN_MODULO,        NULL,     binary, PREC_FACTOR),
-	RULE(TOKEN_BANG,          unary,    NULL,   PREC_NONE),
+	RULE(TOKEN_BANG,          bitunary, NULL,   PREC_NONE),
 	RULE(TOKEN_BANG_EQUAL,    NULL,     binary, PREC_COMPARISON),
 	RULE(TOKEN_EQUAL,         NULL,     NULL,   PREC_NONE),
 	RULE(TOKEN_EQUAL_EQUAL,   NULL,     binary, PREC_COMPARISON),
@@ -2335,7 +2529,7 @@ ParseRule krk_parseRules[] = {
 	RULE(TOKEN_IN,            NULL,     in_,    PREC_COMPARISON),
 	RULE(TOKEN_LET,           NULL,     NULL,   PREC_NONE),
 	RULE(TOKEN_NONE,          literal,  NULL,   PREC_NONE),
-	RULE(TOKEN_NOT,           unary,    not_,   PREC_COMPARISON),
+	RULE(TOKEN_NOT,           unot_,    not_,   PREC_COMPARISON),
 	RULE(TOKEN_IS,            NULL,     is_,    PREC_COMPARISON),
 	RULE(TOKEN_OR,            NULL,     or_,    PREC_OR),
 	RULE(TOKEN_RETURN,        NULL,     NULL,   PREC_NONE),
@@ -2347,10 +2541,11 @@ ParseRule krk_parseRules[] = {
 	RULE(TOKEN_CONTINUE,      NULL,     NULL,   PREC_NONE),
 	RULE(TOKEN_IMPORT,        NULL,     NULL,   PREC_NONE),
 	RULE(TOKEN_RAISE,         NULL,     NULL,   PREC_NONE),
+	RULE(TOKEN_YIELD,         NULL,     NULL,   PREC_NONE),
 
 	RULE(TOKEN_AT,            NULL,     NULL,   PREC_NONE),
 
-	RULE(TOKEN_TILDE,         unary,    NULL,   PREC_NONE),
+	RULE(TOKEN_TILDE,         bitunary, NULL,   PREC_NONE),
 	RULE(TOKEN_PIPE,          NULL,     binary, PREC_BITOR),
 	RULE(TOKEN_CARET,         NULL,     binary, PREC_BITXOR),
 	RULE(TOKEN_AMPERSAND,     NULL,     binary, PREC_BITAND),
@@ -2389,7 +2584,7 @@ static void actualTernary(size_t count, KrkScanner oldScanner, Parser oldParser)
 	emitByte(OP_POP); /* Pop the condition */
 	consume(TOKEN_ELSE, "Expected 'else' after ternary condition");
 
-	parsePrecedence(PREC_OR);
+	parsePrecedence(PREC_TERNARY);
 
 	KrkScanner outScanner = krk_tellScanner();
 	Parser outParser = parser;
@@ -2455,12 +2650,13 @@ static ssize_t resolveLocal(Compiler * compiler, KrkToken * name) {
 	return -1;
 }
 
-static void addLocal(KrkToken name) {
+static size_t addLocal(KrkToken name) {
 	if (current->localCount + 1 > current->localsSpace) {
 		size_t old = current->localsSpace;
 		current->localsSpace = GROW_CAPACITY(old);
 		current->locals = GROW_ARRAY(Local,current->locals,old,current->localsSpace);
 	}
+	size_t out = current->localCount;
 	Local * local = &current->locals[current->localCount++];
 	local->name = name;
 	local->depth = -1;
@@ -2476,6 +2672,7 @@ static void addLocal(KrkToken name) {
 	current->function->localNames[current->function->localNameCount].deathday = 0;
 	current->function->localNames[current->function->localNameCount].name = krk_copyString(name.start, name.length);
 	current->function->localNameCount++;
+	return out;
 }
 
 static void declareVariable() {
@@ -2514,6 +2711,9 @@ static void call(int canAssign) {
 	startEatingWhitespace();
 	size_t argCount = 0, specialArgs = 0, keywordArgs = 0, seenKeywordUnpacking = 0;
 	if (!check(TOKEN_RIGHT_PAREN)) {
+		size_t chunkBefore = currentChunk()->count;
+		KrkScanner scannerBefore = krk_tellScanner();
+		Parser  parserBefore = parser;
 		do {
 			if (match(TOKEN_ASTERISK) || check(TOKEN_POW)) {
 				specialArgs++;
@@ -2558,13 +2758,24 @@ static void call(int canAssign) {
 			} else if (keywordArgs) {
 				error("Positional argument follows keyword argument");
 				return;
-			} else if (specialArgs) {
+			}
+			if (specialArgs) {
 				emitBytes(OP_EXPAND_ARGS, 0);
 				expression();
 				specialArgs++;
 				continue;
 			}
 			expression();
+			if (argCount == 0 && match(TOKEN_FOR)) {
+				currentChunk()->count = chunkBefore;
+				generatorExpression(scannerBefore, parserBefore);
+				argCount = 1;
+				if (match(TOKEN_COMMA)) {
+					error("Generator expression must be parenthesized");
+					return;
+				}
+				break;
+			}
 			argCount++;
 		} while (match(TOKEN_COMMA));
 	}
@@ -2615,15 +2826,14 @@ static ParseRule * getRule(KrkTokenType type) {
 static volatile int _compilerLock = 0;
 #endif
 
-KrkFunction * krk_compile(const char * src, int newScope, char * fileName) {
+KrkFunction * krk_compile(const char * src, char * fileName) {
 	_obtain_lock(_compilerLock);
 
 	krk_initScanner(src);
 	Compiler compiler;
 	initCompiler(&compiler, TYPE_MODULE);
 	compiler.function->chunk.filename = krk_copyString(fileName, strlen(fileName));
-
-	if (newScope) beginScope();
+	compiler.function->name = krk_copyString("<module>",8);
 
 	parser.hadError = 0;
 	parser.panicMode = 0;

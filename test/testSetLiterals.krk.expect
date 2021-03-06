@@ -5,4 +5,4 @@ True
 True
 True
 True
-['1', '2', '3', "<type 'object'>", 'None', 'True', 'test']
+['1', '2', '3', "<class 'object'>", 'None', 'True', 'test']

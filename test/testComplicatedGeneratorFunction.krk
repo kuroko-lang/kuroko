@@ -1,0 +1,16 @@
+def agenerator(a=42):
+    print("First yield")
+    yield 1
+    if True:
+        yield 2
+    yield 3
+    print("Into the loops")
+    for i in range(a):
+        yield i
+        print("nest loop", i, a)
+        for j in range(a):
+            print("yielding",j)
+            yield j
+        print("Done with inner nest from",i)
+
+print(list(agenerator()))

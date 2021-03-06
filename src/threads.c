@@ -19,6 +19,16 @@
 
 KrkClass * ThreadError;
 KrkClass * Thread;
+/**
+ * @brief Object representation of a system thread.
+ * @extends KrkInstance
+ *
+ * Except for the main thread, each new thread spawned by the virtual machine
+ * is represented by a thread object. As long as the thread is active, its
+ * own thread object will live on its stac and avoid being garbage collected.
+ * When a thread terminates, its thread object can be released if not referenced
+ * from another thread.
+ */
 struct Thread {
 	KrkInstance inst;
 	KrkThreadState * threadState;
@@ -29,6 +39,12 @@ struct Thread {
 };
 
 KrkClass * Lock;
+/**
+ * @brief Simple atomic structure for waiting.
+ * @extends KrkInstance
+ *
+ * Provides direct access to a mutex for managed code.
+ */
 struct Lock {
 	KrkInstance inst;
 	pthread_mutex_t mutex;
@@ -47,7 +63,7 @@ KRK_FUNC(current_thread,{
 static volatile int _threadLock = 0;
 static void * _startthread(void * _threadObj) {
 	memset(&krk_currentThread, 0, sizeof(KrkThreadState));
-	krk_currentThread.frames = calloc(FRAMES_MAX,sizeof(CallFrame));
+	krk_currentThread.frames = calloc(KRK_CALL_FRAMES_MAX,sizeof(KrkCallFrame));
 
 	_obtain_lock(_threadLock);
 	if (vm.threads->next) {
@@ -156,7 +172,7 @@ KRK_METHOD(Lock,__repr__,{
 	/* Address of lock object */
 	{
 		char tmp[100];
-		size_t len = sprintf(tmp, "%p", (void*)self);
+		size_t len = snprintf(tmp, 100, "%p", (void*)self);
 		pushStringBuilderStr(&sb, tmp, len);
 	}
 
@@ -191,26 +207,37 @@ void _createAndBind_threadsMod(void) {
 	krk_attachNamedObject(&threadsModule->fields, "__name__", (KrkObj*)S("threading"));
 	krk_attachNamedValue(&threadsModule->fields, "__file__", NONE_VAL());
 	krk_attachNamedObject(&threadsModule->fields, "__doc__",
-		(KrkObj*)S("Methods for dealing with threads."));
+		(KrkObj*)S("Methods and classes for creating platform threads."));
 
-	BIND_FUNC(threadsModule, current_thread);
+	BIND_FUNC(threadsModule, current_thread)->doc = "@arguments \nReturns the @ref Thread object associated with the calling thread, if one exists.";
 
 	krk_makeClass(threadsModule, &ThreadError, "ThreadError", vm.exceptions->baseException);
+	ThreadError->docstring = S(
+		"Raised in various situations when an action on a thread is invalid."
+	);
 	krk_finalizeClass(ThreadError);
 
 	krk_makeClass(threadsModule, &Thread, "Thread", vm.baseClasses->objectClass);
+	Thread->docstring = S(
+		"Base class for building threaded execution contexts.\n\n"
+		"The @ref Thread class should be subclassed and the subclass should implement a @c run method."
+	);
 	Thread->allocSize = sizeof(struct Thread);
-	BIND_METHOD(Thread,start);
-	BIND_METHOD(Thread,join);
-	BIND_METHOD(Thread,is_alive);
-	BIND_PROP(Thread,tid);
+	BIND_METHOD(Thread,start)->doc = "Start the thread. A thread may only be started once.";
+	BIND_METHOD(Thread,join)->doc  = "Join the thread. Does not return until the thread finishes.";
+	BIND_METHOD(Thread,is_alive)->doc = "Query the status of the thread.";
+	AS_NATIVE(BIND_PROP(Thread,tid)->method)->doc = "The platform-specific thread identifier, if available. Usually an integer.";
 	krk_finalizeClass(Thread);
 
 	krk_makeClass(threadsModule, &Lock, "Lock", vm.baseClasses->objectClass);
+	Lock->docstring = S(
+		"Represents an atomic mutex.\n\n"
+		"@ref Lock objects allow for exclusive access to a resource and can be used in a @c with block."
+	);
 	Lock->allocSize = sizeof(struct Lock);
-	BIND_METHOD(Lock,__init__);
-	BIND_METHOD(Lock,__enter__);
-	BIND_METHOD(Lock,__exit__);
+	BIND_METHOD(Lock,__init__)->doc  = "Initialize a system mutex.";
+	BIND_METHOD(Lock,__enter__)->doc = "Acquire the lock.";
+	BIND_METHOD(Lock,__exit__)->doc  = "Release the lock.";
 	BIND_METHOD(Lock,__repr__);
 	krk_finalizeClass(Lock);
 }
