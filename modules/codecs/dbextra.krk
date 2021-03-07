@@ -3,7 +3,7 @@ This module includes some additional variable-width or wide encodings not specif
 such, none of the codecs in this module should be used in HTML.
 """
 
-from codecs.dbextra_data_8bit import encode_nbyte_ebcdic, decode_nbyte_ebcdic, encode_johab_ascii, decode_johab_ascii, encode_johab_ebcdic, decode_johab_ebcdic, encode_euc90, encode_euc04, decode_euc04, encode_sjis04, decode_sjis04, encode_big5_nonetenkana, decode_big5_nonetenkana
+from codecs.dbextra_data_8bit import encode_gb8, decode_gb8, encode_nbyte_ebcdic, decode_nbyte_ebcdic, encode_johab_ascii, decode_johab_ascii, encode_johab_ebcdic, decode_johab_ebcdic, encode_euc90, encode_euc04, decode_euc04, encode_sjis04, decode_sjis04, encode_big5_nonetenkana, decode_big5_nonetenkana
 from codecs.dbextra_data_7bit import encode_lat1supp, decode_lat1supp, encode_greksupp, decode_greksupp, encode_jis78, decode_jis78, encode_jis90p2, decode_jis90p2, encode_jis00, decode_jis00, encode_jis00p2, decode_jis00p2, encode_jis04, decode_jis04, encode_jis7katakana, encode_gb7, decode_gb7, encode_ksc7, decode_ksc7, encode_csic1, decode_csic1, encode_csic2, decode_csic2
 from codecs.dbextra_data_7bit_cnext import encode_t101chinese, decode_t101chinese, encode_csic3, decode_csic3, encode_csic4, decode_csic4, encode_csic5, decode_csic5, encode_csic6, decode_csic6, encode_csic7, decode_csic7
 
@@ -92,35 +92,6 @@ class XMacChineseTradIncrementalDecoder(AsciiIncrementalDecoder):
 register_kuroko_codec(["x-mac-chinesetrad", "x-mac-trad-chinese"],
     XMacChineseTradIncrementalEncoder, XMacChineseTradIncrementalDecoder)
 
-
-let encode_gb8 = xraydict(encode_gbk, {
-        0xFE10: (0xA6, 0xD9),
-        0xFE12: (0xA6, 0xDA),
-        0xFE11: (0xA6, 0xDB),
-        0xFE13: (0xA6, 0xDC),
-        0xFE14: (0xA6, 0xDD),
-        0xFE15: (0xA6, 0xDE),
-        0xFE16: (0xA6, 0xDF),
-        0xFE17: (0xA6, 0xEC),
-        0xFE18: (0xA6, 0xED),
-        0xFE19: (0xA6, 0xF3),
-    }, [i for i in encode_gbk.keys() if 
-        len(encode_gbk[i]) != 2 or
-        (not (0xA1 <= encode_gbk[i][0] and encode_gbk[i][0] <= 0xFC)) or
-        encode_gbk[i][1] < 0xA1])
-
-let decode_gb8 = xraydict(decode_gbk, {
-        (0xA6, 0xD9): 0xFE10,
-        (0xA6, 0xDA): 0xFE12,
-        (0xA6, 0xDB): 0xFE11,
-        (0xA6, 0xDC): 0xFE13,
-        (0xA6, 0xDD): 0xFE14,
-        (0xA6, 0xDE): 0xFE15,
-        (0xA6, 0xDF): 0xFE16,
-        (0xA6, 0xEC): 0xFE17,
-        (0xA6, 0xED): 0xFE18,
-        (0xA6, 0xF3): 0xFE19,
-    })
 
 class XMacChineseSimpIncrementalEncoder(AsciiIncrementalEncoder):
     name = "x-mac-chinesesimp"

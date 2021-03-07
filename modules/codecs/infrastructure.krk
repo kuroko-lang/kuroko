@@ -589,6 +589,62 @@ register_kuroko_codec(
     UndefinedIncrementalDecoder)
 
 
+class encodesto7bit:
+    def __init__(base):
+        self.base = base
+    def __contains__(key):
+        if key not in self.base: return False
+        let value = self.base[key]
+        if not isinstance(value, tuple): return False
+        if len(value) != 2: return False
+        let i, j = value
+        if not (isinstance(i, int) and isinstance(j, int)): return False
+        if i < 0xA1 or i > 0xFE or j < 0xA1 or j > 0xFE: return False
+        return True
+    def __get__(key):
+        if key not in self:
+            raise KeyError(f"element {key!r} not in 7-bit wrapper dict")
+        let i, j = self.base[key]
+        return (i &~ 0x80, j &~ 0x80)
+    def keys():
+        let ret = []
+        for i in self.base.keys():
+            let val = self.base[i]
+            if isinstance(val, tuple) and len(val) == 2:
+                let j, k = val
+                if 0xA1 <= j and j <= 0xFE and 0xA1 <= k and k <= 0xFE:
+                    ret.append(i)
+        return ret
+    def __iter__():
+        return self.keys().__iter__()
+
+
+class decodesto7bit:
+    def __init__(base):
+        self.base = base
+    def __contains__(key):
+        if not isinstance(key, tuple): return False
+        if len(key) != 2: return False
+        let i, j = key
+        if not (isinstance(i, int) and isinstance(j, int)): return False
+        if i < 0x21 or i > 0x7E or j < 0x21 or j > 0x7E: return False
+        return (i | 0x80, j | 0x80) in self.base
+    def __get__(key):
+        if key not in self:
+            raise KeyError(f"element {key!r} not in 7-bit wrapper dict")
+        let i, j = key
+        return self.base[(i | 0x80, j | 0x80)]
+    def keys():
+        let ret = []
+        for i in self.base.keys():
+            if isinstance(i, tuple) and len(i) == 2:
+                let j, k = i
+                if 0xA1 <= j and j <= 0xFE and 0xA1 <= k and k <= 0xFE:
+                    ret.append((j &~ 0x80, k &~ 0x80))
+        return ret
+    def __iter__():
+        return self.keys().__iter__()
+
 
 
 
