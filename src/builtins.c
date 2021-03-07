@@ -129,6 +129,14 @@ static KrkValue _hex(int argc, KrkValue argv[], int hasKw) {
 	return OBJECT_VAL(krk_copyString(tmp,len));
 }
 
+static KrkValue _oct(int argc, KrkValue argv[], int hasKw) {
+	if (argc != 1 || !IS_INTEGER(argv[0])) return krk_runtimeError(vm.exceptions->argumentError, "oct() expects one int argument");
+	char tmp[20];
+	krk_integer_type x = AS_INTEGER(argv[0]);
+	size_t len = snprintf(tmp, 20, "%s0o%llo", x < 0 ? "-" : "", x < 0 ? (long long int)-x : (long long int)x);
+	return OBJECT_VAL(krk_copyString(tmp,len));
+}
+
 static KrkValue _any(int argc, KrkValue argv[], int hasKw) {
 #define unpackArray(counter, indexer) do { \
 	for (size_t i = 0; i < counter; ++i) { \
@@ -149,6 +157,70 @@ static KrkValue _all(int argc, KrkValue argv[], int hasKw) {
 	unpackIterableFast(argv[0]);
 #undef unpackArray
 	return BOOLEAN_VAL(1);
+}
+
+extern KrkValue krk_operator_add (KrkValue a, KrkValue b);
+static KrkValue _sum(int argc, KrkValue argv[], int hasKw) {
+	KrkValue base = INTEGER_VAL(0);
+	if (hasKw) {
+		krk_tableGet(AS_DICT(argv[argc]), OBJECT_VAL(S("start")), &base);
+	}
+#define unpackArray(counter, indexer) do { \
+	for (size_t i = 0; i < counter; ++i) { \
+		base = krk_operator_add(base, indexer); \
+	} \
+} while (0)
+	unpackIterableFast(argv[0]);
+#undef unpackArray
+	return base;
+}
+
+extern KrkValue krk_operator_lt(KrkValue a, KrkValue b);
+static KrkValue _min(int argc, KrkValue argv[], int hasKw) {
+	if (argc == 0) return krk_runtimeError(vm.exceptions->argumentError, "expected at least one argument");
+	KrkValue base = KWARGS_VAL(0);
+#define unpackArray(counter, indexer) do { \
+	for (size_t i = 0; i < counter; ++i) { \
+		if (IS_KWARGS(base)) base = indexer; \
+		else { \
+			KrkValue check = krk_operator_lt(indexer, base); \
+			if (!IS_BOOLEAN(check)) return NONE_VAL(); \
+			else if (AS_BOOLEAN(check) == 1) base = indexer; \
+		} \
+	} \
+} while (0)
+	if (argc > 1) {
+		unpackArray((size_t)argc,argv[i]);
+	} else {
+		unpackIterableFast(argv[0]);
+	}
+#undef unpackArray
+	if (IS_KWARGS(base)) return krk_runtimeError(vm.exceptions->valueError, "empty argument to min()");
+	return base;
+}
+
+extern KrkValue krk_operator_gt(KrkValue a, KrkValue b);
+static KrkValue _max(int argc, KrkValue argv[], int hasKw) {
+	if (argc == 0) return krk_runtimeError(vm.exceptions->argumentError, "expected at least one argument");
+	KrkValue base = KWARGS_VAL(0);
+#define unpackArray(counter, indexer) do { \
+	for (size_t i = 0; i < counter; ++i) { \
+		if (IS_KWARGS(base)) base = indexer; \
+		else { \
+			KrkValue check = krk_operator_gt(indexer, base); \
+			if (!IS_BOOLEAN(check)) return NONE_VAL(); \
+			else if (AS_BOOLEAN(check) == 1) base = indexer; \
+		} \
+	} \
+} while (0)
+	if (argc > 1) {
+		unpackArray((size_t)argc,argv[i]);
+	} else {
+		unpackIterableFast(argv[0]);
+	}
+#undef unpackArray
+	if (IS_KWARGS(base)) return krk_runtimeError(vm.exceptions->valueError, "empty argument to max()");
+	return base;
 }
 
 static KrkValue _print(int argc, KrkValue argv[], int hasKw) {
@@ -447,6 +519,18 @@ static KrkValue _property_method(int argc, KrkValue argv[], int hasKw) {
 	return AS_PROPERTY(argv[0])->method;
 }
 
+static KrkValue _id(int argc, KrkValue argv[], int hasKw) {
+	if (argc != 1) return krk_runtimeError(vm.exceptions->argumentError, "expected exactly one argument");
+	if (!IS_OBJECT(argv[0])) return krk_runtimeError(vm.exceptions->typeError, "'%s' is a primitive type and has no identity", krk_typeName(argv[0]));
+	return INTEGER_VAL((size_t)AS_OBJECT(argv[0]));
+}
+
+static KrkValue _hash(int argc, KrkValue argv[], int hasKw) {
+	/* This is equivalent to the method version */
+	if (argc != 1) return krk_runtimeError(vm.exceptions->argumentError, "expected exactly one argument");
+	return INTEGER_VAL(krk_hashValue(argv[0]));
+}
+
 _noexport
 void _createAndBind_builtins(void) {
 	vm.baseClasses->objectClass = krk_newClass(S("object"), NULL);
@@ -510,8 +594,14 @@ void _createAndBind_builtins(void) {
 	BUILTIN_FUNCTION("ord", _ord, "Obtain the ordinal integer value of a codepoint or byte.");
 	BUILTIN_FUNCTION("chr", _chr, "Convert an integer codepoint to its string representation.");
 	BUILTIN_FUNCTION("hex", _hex, "Convert an integer value to a hexadecimal string.");
+	BUILTIN_FUNCTION("oct", _oct, "Convert an integer value to an octal string.");
 	BUILTIN_FUNCTION("any", _any, "Returns True if at least one element in the given iterable is truthy, False otherwise.");
 	BUILTIN_FUNCTION("all", _all, "Returns True if every element in the given iterable is truthy, False otherwise.");
 	BUILTIN_FUNCTION("getattr", FUNC_NAME(krk,getattr), "Obtain a property of an object as if it were accessed by the dot operator.");
+	BUILTIN_FUNCTION("sum", _sum, "Add the elements of an iterable.");
+	BUILTIN_FUNCTION("min", _min, "Return the lowest value in an iterable or the passed arguments.");
+	BUILTIN_FUNCTION("max", _max, "Return the highest value in an iterable or the passed arguments.");
+	BUILTIN_FUNCTION("id", _id, "Returns the identity of an object.");
+	BUILTIN_FUNCTION("hash", _hash, "Returns the hash of a value, used for table indexing.");
 }
 
