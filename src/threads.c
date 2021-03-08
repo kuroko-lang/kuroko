@@ -17,8 +17,9 @@
 #define gettid() -1
 #endif
 
-KrkClass * ThreadError;
-KrkClass * Thread;
+static KrkClass * ThreadError;
+static KrkClass * Thread;
+
 /**
  * @brief Object representation of a system thread.
  * @extends KrkInstance
@@ -38,7 +39,8 @@ struct Thread {
 	unsigned int    alive:1;
 };
 
-KrkClass * Lock;
+static KrkClass * Lock;
+
 /**
  * @brief Simple atomic structure for waiting.
  * @extends KrkInstance
@@ -192,8 +194,6 @@ KRK_METHOD(Lock,__exit__,{
 	pthread_mutex_unlock(&self->mutex);
 })
 
-KrkInstance * threadsModule;
-
 _noexport
 void _createAndBind_threadsMod(void) {
 	/**
@@ -201,7 +201,7 @@ void _createAndBind_threadsMod(void) {
 	 *
 	 * Methods for dealing with threads.
 	 */
-	threadsModule = krk_newInstance(vm.baseClasses->moduleClass);
+	KrkInstance * threadsModule = krk_newInstance(vm.baseClasses->moduleClass);
 
 	krk_attachNamedObject(&vm.modules, "threading", (KrkObj*)threadsModule);
 	krk_attachNamedObject(&threadsModule->fields, "__name__", (KrkObj*)S("threading"));

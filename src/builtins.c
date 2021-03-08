@@ -5,8 +5,8 @@
 #include "util.h"
 #include "debug.h"
 
-KrkClass * Helper;
-KrkClass * LicenseReader;
+static KrkClass * Helper;
+static KrkClass * LicenseReader;
 
 KrkValue krk_dirObject(int argc, KrkValue argv[], int hasKw) {
 	if (argc != 1) return krk_runtimeError(vm.exceptions->argumentError, "wrong number of arguments or bad type, got %d\n", argc);

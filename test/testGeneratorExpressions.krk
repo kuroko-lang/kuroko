@@ -1,21 +1,15 @@
-def _sum(iterable):
-    let total = 0
-    for i in iterable:
-        total += i
-    return total
-
-print(_sum([x * x for x in range(10)]))
-print(_sum((x * x for x in range(10))))
+print(sum([x * x for x in range(10)]))
+print(sum((x * x for x in range(10))))
 
 print('generator object' in str((x * x for x in range(10))))
 
 # Should be directly usable as function argument
-print(_sum(x * x for x in range(10)))
+print(sum(x * x for x in range(10)))
 
 import dis
 # Should have a compile error:
 try:
-    dis.build('_sum(x * x for x in range(10), 2, 3)')
+    dis.build('sum(x * x for x in range(10), 2, 3)')
 except SyntaxError as e:
     print('parenthesized' in str(e))
 
