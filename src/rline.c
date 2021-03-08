@@ -562,9 +562,10 @@ char * syn_krk_types[] = {
 	"self", "super", /* implicit in a class method */
 	"len", "str", "int", "float", "dir", "repr", /* global functions from __builtins__ */
 	"list","dict","range", /* builtin classes */
-	"object","exception","isinstance","type","tuple",
-	"print","set","any","all","bool","ord","chr","hex",
-	"sorted","bytes","getattr",
+	"object","exception","isinstance","type","tuple","reversed",
+	"print","set","any","all","bool","ord","chr","hex","oct","filter",
+	"sorted","bytes","getattr","sum","min","max","id","hash","map","bin",
+	"enumerate","zip",
 	NULL
 };
 

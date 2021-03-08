@@ -325,9 +325,10 @@ KRK_METHOD(str,__mul__,{
 	for (size_t i = 0; i < counter; ++i) { \
 		if (!IS_STRING(indexer)) { errorStr = krk_typeName(indexer); goto _expectedString; } \
 		krk_push(indexer); \
-		if (i > 0) pushStringBuilderStr(&sb, self->chars, self->length); \
+		if (rIndex > 0) pushStringBuilderStr(&sb, self->chars, self->length); \
 		pushStringBuilderStr(&sb, AS_CSTRING(indexer), AS_STRING(indexer)->length); \
 		krk_pop(); \
+		rIndex++; \
 	} \
 } while (0)
 
@@ -338,6 +339,7 @@ KRK_METHOD(str,join,{
 	const char * errorStr = NULL;
 	struct StringBuilder sb = {0};
 
+	size_t rIndex = 0;
 	unpackIterableFast(argv[1]);
 
 	return finishStringBuilder(&sb);

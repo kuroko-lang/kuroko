@@ -59,6 +59,7 @@ static KrkValue _class_to_str(int argc, KrkValue argv[], int hasKw) {
 	return OBJECT_VAL(out);
 }
 
+_noexport
 void _createAndBind_type(void) {
 	ADD_BASE_CLASS(vm.baseClasses->typeClass, "type", vm.baseClasses->objectClass);
 	krk_defineNative(&vm.baseClasses->typeClass->methods, ":__base__", krk_baseOfClass);

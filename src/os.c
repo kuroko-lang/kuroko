@@ -21,8 +21,8 @@
 /* Did you know this is actually specified to not exist in a header? */
 extern char ** environ;
 
-KrkClass * OSError = NULL;
-KrkClass * stat_result = NULL;
+static KrkClass * OSError = NULL;
+static KrkClass * stat_result = NULL;
 
 #define DO_KEY(key) krk_attachNamedObject(AS_DICT(result), #key, (KrkObj*)krk_copyString(buf. key, strlen(buf .key)))
 #define S_KEY(key,val) krk_attachNamedObject(AS_DICT(result), #key, (KrkObj*)val);
@@ -89,7 +89,7 @@ KRK_FUNC(uname,{
 })
 #endif
 
-KrkClass * environClass;
+static KrkClass * environClass;
 
 KrkValue krk_os_setenviron(int argc, KrkValue argv[], int hasKw) {
 	if (argc < 3 || !krk_isInstanceOf(argv[0], environClass) ||

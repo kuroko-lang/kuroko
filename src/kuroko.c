@@ -566,6 +566,7 @@ static int runString(char * argv[], int flags, char * string) {
 	findInterpreter(argv);
 	krk_initVM(flags);
 	krk_startModule("__main__");
+	krk_attachNamedValue(&krk_currentThread.module->fields,"__doc__", NONE_VAL());
 	krk_interpret(string, "<stdin>");
 	krk_freeVM();
 	return 0;

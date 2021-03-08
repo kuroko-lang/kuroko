@@ -125,6 +125,7 @@ KRK_METHOD(list,__repr__,{
 			for (size_t i = 0; i < counter; ++i) { \
 				positionals->values[positionals->count] = indexer; \
 				positionals->count++; \
+				if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) goto _break_loop; \
 			} \
 		} while (0)
 KRK_METHOD(list,extend,{
@@ -132,6 +133,7 @@ KRK_METHOD(list,extend,{
 	pthread_rwlock_wrlock(&self->rwlock);
 	KrkValueArray *  positionals = AS_LIST(argv[0]);
 	unpackIterableFast(argv[1]);
+_break_loop:
 	pthread_rwlock_unlock(&self->rwlock);
 })
 #undef unpackArray
@@ -447,12 +449,25 @@ _corrupt:
 
 
 static KrkValue _sorted(int argc, KrkValue argv[], int hasKw) {
-	if (argc != 1) return krk_runtimeError(vm.exceptions->argumentError,"%s() takes %s %d argument%s (%d given)","sorted","exactly",1,argc);
+	if (argc != 1) return krk_runtimeError(vm.exceptions->argumentError,"%s() takes %s %d argument%s (%d given)","sorted","exactly",1,"",argc);
 	KrkValue listOut = krk_list_of(0,NULL,0);
 	krk_push(listOut);
 	FUNC_NAME(list,extend)(2,(KrkValue[]){listOut,argv[0]},0);
 	if (!IS_NONE(krk_currentThread.currentException)) return NONE_VAL();
 	FUNC_NAME(list,sort)(1,&listOut,0);
+	if (!IS_NONE(krk_currentThread.currentException)) return NONE_VAL();
+	return krk_pop();
+}
+
+static KrkValue _reversed(int argc, KrkValue argv[], int hasKw) {
+	/* FIXME The Python reversed() function produces an iterator and only works for things with indexing or a __reversed__ method;
+	 *       Building a list and reversing it like we do here is not correct! */
+	if (argc != 1) return krk_runtimeError(vm.exceptions->argumentError,"%s() takes %s %d argument%s (%d given)","reversed","exactly",1,"",argc);
+	KrkValue listOut = krk_list_of(0,NULL,0);
+	krk_push(listOut);
+	FUNC_NAME(list,extend)(2,(KrkValue[]){listOut,argv[0]},0);
+	if (!IS_NONE(krk_currentThread.currentException)) return NONE_VAL();
+	FUNC_NAME(list,reverse)(1,&listOut,0);
 	if (!IS_NONE(krk_currentThread.currentException)) return NONE_VAL();
 	return krk_pop();
 }
@@ -493,6 +508,7 @@ void _createAndBind_listClass(void) {
 
 	BUILTIN_FUNCTION("listOf", krk_list_of, "Convert argument sequence to list object.");
 	BUILTIN_FUNCTION("sorted", _sorted, "Return a sorted representation of an iterable.");
+	BUILTIN_FUNCTION("reversed", _reversed, "Return a reversed representation of an iterable.");
 
 	KrkClass * listiterator = ADD_BASE_CLASS(vm.baseClasses->listiteratorClass, "listiterator", vm.baseClasses->objectClass);
 	BIND_METHOD(listiterator,__init__);

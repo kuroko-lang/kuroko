@@ -49,26 +49,6 @@ for l in lines:
     let i = seat_id(l)
     taken[i] = 1
 
-def min(iter):
-    let l # Silly way to get the first value of an iterable that doesn't do []
-    for v in iter:
-        l = v
-        break
-    for v in iter:
-        if v < l:
-            l = v
-    return l
-
-def max(iter):
-    let l # Silly way to get the first value of an iterable that doesn't do []
-    for v in iter:
-        l = v
-        break
-    for v in iter:
-        if v > l:
-            l = v
-    return l
-
 print("---")
 for i in range(min(taken.keys()), max(taken.keys())):
     if (i - 1) in taken and (i + 1) in taken and i not in taken:
