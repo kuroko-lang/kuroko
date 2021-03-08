@@ -138,6 +138,35 @@ static KrkValue _oct(int argc, KrkValue argv[], int hasKw) {
 	return OBJECT_VAL(krk_copyString(tmp,len));
 }
 
+KRK_FUNC(bin,{
+	FUNCTION_TAKES_EXACTLY(1);
+	CHECK_ARG(0,int,krk_integer_type,val);
+
+	krk_integer_type original = val;
+	if (val < 0) val = -val;
+
+	struct StringBuilder sb = {0};
+
+	if (!val) pushStringBuilder(&sb, '0');
+	while (val) {
+		pushStringBuilder(&sb, (val & 1) ? '1' : '0');
+		val = val >> 1;
+	}
+
+	pushStringBuilder(&sb, 'b');
+	pushStringBuilder(&sb, '0');
+	if (original < 0) pushStringBuilder(&sb,'-');
+
+	/* Flip it */
+	for (size_t i = 0; i < sb.length / 2; ++i) {
+		char t = sb.bytes[i];
+		sb.bytes[i] = sb.bytes[sb.length - i - 1];
+		sb.bytes[sb.length - i - 1] = t;
+	}
+
+	return finishStringBuilder(&sb);
+})
+
 static KrkValue _any(int argc, KrkValue argv[], int hasKw) {
 #define unpackArray(counter, indexer) do { \
 	for (size_t i = 0; i < counter; ++i) { \
@@ -759,5 +788,6 @@ void _createAndBind_builtins(void) {
 	BUILTIN_FUNCTION("hash", _hash, "Returns the hash of a value, used for table indexing.");
 	BUILTIN_FUNCTION("map", FUNC_NAME(krk,map), "Return an iterator that applies a function to a series of iterables");
 	BUILTIN_FUNCTION("filter", FUNC_NAME(krk,filter), "Return an iterator that returns only the items from an iterable for which the given function returns true.");
+	BUILTIN_FUNCTION("bin", FUNC_NAME(krk,bin), "Convert an integer value to a binary string.");
 }
 
