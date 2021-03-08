@@ -242,8 +242,6 @@ KRK_METHOD(mapobject,__call__,{
 	if (!krk_tableGet(&self->fields, OBJECT_VAL(S("_function")), &function)) return krk_runtimeError(vm.exceptions->valueError, "corrupt map object");
 	if (!krk_tableGet(&self->fields, OBJECT_VAL(S("_iterables")), &iterators) || !IS_TUPLE(iterators)) return krk_runtimeError(vm.exceptions->valueError, "corrupt map object");
 
-	krk_push(function);
-
 	/* Go through each iterator */
 	for (size_t i = 0; i < AS_TUPLE(iterators)->values.count; ++i) {
 		/* Obtain the next value and push it */
@@ -251,7 +249,9 @@ KRK_METHOD(mapobject,__call__,{
 		krk_push(krk_callSimple(AS_TUPLE(iterators)->values.values[i], 0, 0));
 		if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) return NONE_VAL();
 		/* End iteration whenever one runs out */
-		if (krk_valuesEqual(krk_peek(0), AS_TUPLE(iterators)->values.values[i])) return OBJECT_VAL(self);
+		if (krk_valuesEqual(krk_peek(0), AS_TUPLE(iterators)->values.values[i])) {
+			return OBJECT_VAL(self);
+		}
 	}
 
 	/* Call the function */
@@ -263,6 +263,22 @@ KRK_METHOD(mapobject,__repr__,{
 	char tmp[1024];
 	size_t len = sprintf(tmp, "<map object at %p>", (void*)self);
 	return OBJECT_VAL(krk_copyString(tmp,len));
+})
+
+KRK_FUNC(zip,{
+	if (!argc) return NONE_VAL(); /* uh, new empty tuple maybe? */
+	KrkValue map = NONE_VAL();
+	KrkValue tupleOfFunc = NONE_VAL();
+
+	krk_tableGet(&vm.builtins->fields, OBJECT_VAL(S("map")), &map);
+	krk_tableGet(&vm.builtins->fields, OBJECT_VAL(S("tupleOf")), &tupleOfFunc);
+
+	krk_push(tupleOfFunc);
+	for (int i = 0; i < argc; ++i) {
+		krk_push(argv[i]);
+	}
+
+	return krk_callSimple(map, argc+1, 0);
 })
 
 #define IS_filterobject(o) (krk_isInstanceOf(o,filterobject))
@@ -311,15 +327,12 @@ KRK_METHOD(filterobject,__call__,{
 				continue;
 			}
 		} else {
-			krk_push(function);
 			krk_push(krk_peek(1));
 			KrkValue result = krk_callSimple(function, 1, 0);
 			if (krk_isFalsey(result)) {
-				krk_pop(); /* function? */
 				krk_pop(); /* iterator result */
 				continue;
 			}
-			krk_pop(); /* function on stack */
 		}
 
 		return krk_pop();
@@ -372,7 +385,9 @@ KRK_METHOD(enumerateobject,__call__,{
 	if (!krk_tableGet(&self->fields, OBJECT_VAL(S("_counter")), &counter)) return krk_runtimeError(vm.exceptions->valueError, "corrupt enumerate object");
 	if (!krk_tableGet(&self->fields, OBJECT_VAL(S("_iterator")), &iterator)) return krk_runtimeError(vm.exceptions->valueError, "corrupt enumerate object");
 
-	krk_push(counter);
+	KrkTuple * tupleOut = krk_newTuple(2);
+	krk_push(OBJECT_VAL(tupleOut));
+
 	krk_push(iterator);
 	krk_push(krk_callSimple(iterator, 0, 0));
 
@@ -384,11 +399,10 @@ KRK_METHOD(enumerateobject,__call__,{
 	}
 
 	/* Make a tuple */
-	KrkTuple * tupleOut = krk_newTuple(2);
-	krk_push(OBJECT_VAL(tupleOut));
-	tupleOut->values.values[tupleOut->values.count++] = krk_peek(2);
-	tupleOut->values.values[tupleOut->values.count++] = krk_peek(1);
-	krk_push(krk_operator_add(krk_peek(2), INTEGER_VAL(1)));
+	tupleOut->values.values[tupleOut->values.count++] = counter;
+	tupleOut->values.values[tupleOut->values.count++] = krk_pop();
+
+	krk_push(krk_operator_add(counter, INTEGER_VAL(1)));
 	krk_attachNamedValue(&self->fields, "_counter", krk_pop());
 
 	return krk_pop();
@@ -863,5 +877,6 @@ void _createAndBind_builtins(void) {
 	BUILTIN_FUNCTION("filter", FUNC_NAME(krk,filter), "Return an iterator that returns only the items from an iterable for which the given function returns true.");
 	BUILTIN_FUNCTION("enumerate", FUNC_NAME(krk,enumerate), "Return an iterator that produces a tuple with a count the iterated values of the passed iteratable.");
 	BUILTIN_FUNCTION("bin", FUNC_NAME(krk,bin), "Convert an integer value to a binary string.");
+	BUILTIN_FUNCTION("zip", FUNC_NAME(krk,zip), "Returns an iterator that produces tuples of the nth element of each passed iterable.");
 }
 
