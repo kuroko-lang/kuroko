@@ -333,7 +333,74 @@ KRK_METHOD(filterobject,__repr__,{
 	return OBJECT_VAL(krk_copyString(tmp,len));
 })
 
+#define IS_enumerateobject(o) (krk_isInstanceOf(o,enumerateobject))
+#define AS_enumerateobject(o) (AS_INSTANCE(o))
+static KrkClass * enumerateobject;
+KRK_FUNC(enumerate,{
+	FUNCTION_TAKES_EXACTLY(1);
+	KrkValue start = INTEGER_VAL(0);
+	if (hasKw) krk_tableGet(AS_DICT(argv[argc]), OBJECT_VAL(S("start")), &start);
+
+	/* Make a enumerate object */
+	krk_push(OBJECT_VAL(krk_newInstance(enumerateobject)));
+	krk_attachNamedValue(&AS_INSTANCE(krk_peek(0))->fields, "_counter", start);
+
+	/* Attach iterator */
+	KrkClass * type = krk_getType(argv[0]);
+	if (!type->_iter) {
+		return krk_runtimeError(vm.exceptions->typeError, "'%s' is not iterable", krk_typeName(argv[1]));
+	}
+	krk_push(argv[0]);
+	KrkValue asIter = krk_callSimple(OBJECT_VAL(type->_iter), 1, 0);
+	if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) return NONE_VAL();
+	krk_attachNamedValue(&AS_INSTANCE(krk_peek(0))->fields, "_iterator", asIter);
+
+	return krk_pop();
+})
+
+KRK_METHOD(enumerateobject,__iter__,{
+	METHOD_TAKES_NONE();
+	return OBJECT_VAL(self);
+})
+
 extern KrkValue krk_operator_add (KrkValue a, KrkValue b);
+KRK_METHOD(enumerateobject,__call__,{
+	METHOD_TAKES_NONE();
+	KrkValue counter = NONE_VAL();
+	KrkValue iterator = NONE_VAL();
+
+	if (!krk_tableGet(&self->fields, OBJECT_VAL(S("_counter")), &counter)) return krk_runtimeError(vm.exceptions->valueError, "corrupt enumerate object");
+	if (!krk_tableGet(&self->fields, OBJECT_VAL(S("_iterator")), &iterator)) return krk_runtimeError(vm.exceptions->valueError, "corrupt enumerate object");
+
+	krk_push(counter);
+	krk_push(iterator);
+	krk_push(krk_callSimple(iterator, 0, 0));
+
+	if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) {
+		return NONE_VAL();
+	}
+	if (krk_valuesEqual(iterator, krk_peek(0))) {
+		return OBJECT_VAL(self);
+	}
+
+	/* Make a tuple */
+	KrkTuple * tupleOut = krk_newTuple(2);
+	krk_push(OBJECT_VAL(tupleOut));
+	tupleOut->values.values[tupleOut->values.count++] = krk_peek(2);
+	tupleOut->values.values[tupleOut->values.count++] = krk_peek(1);
+	krk_push(krk_operator_add(krk_peek(2), INTEGER_VAL(1)));
+	krk_attachNamedValue(&self->fields, "_counter", krk_pop());
+
+	return krk_pop();
+})
+
+KRK_METHOD(enumerateobject,__repr__,{
+	METHOD_TAKES_NONE();
+	char tmp[1024];
+	size_t len = sprintf(tmp, "<enumerate object at %p>", (void*)self);
+	return OBJECT_VAL(krk_copyString(tmp,len));
+})
+
 static KrkValue _sum(int argc, KrkValue argv[], int hasKw) {
 	KrkValue base = INTEGER_VAL(0);
 	if (hasKw) {
@@ -767,6 +834,12 @@ void _createAndBind_builtins(void) {
 	BIND_METHOD(filterobject,__repr__);
 	krk_finalizeClass(filterobject);
 
+	krk_makeClass(vm.builtins, &enumerateobject, "enumerateobject", vm.baseClasses->objectClass);
+	BIND_METHOD(enumerateobject,__iter__);
+	BIND_METHOD(enumerateobject,__call__);
+	BIND_METHOD(enumerateobject,__repr__);
+	krk_finalizeClass(enumerateobject);
+
 	BUILTIN_FUNCTION("isinstance", _isinstance, "Determine if an object is an instance of the given class or one if its subclasses.");
 	BUILTIN_FUNCTION("globals", _globals, "Return a mapping of names in the current global namespace.");
 	BUILTIN_FUNCTION("locals", _locals, "Return a mapping of names in the current local namespace.");
@@ -788,6 +861,7 @@ void _createAndBind_builtins(void) {
 	BUILTIN_FUNCTION("hash", _hash, "Returns the hash of a value, used for table indexing.");
 	BUILTIN_FUNCTION("map", FUNC_NAME(krk,map), "Return an iterator that applies a function to a series of iterables");
 	BUILTIN_FUNCTION("filter", FUNC_NAME(krk,filter), "Return an iterator that returns only the items from an iterable for which the given function returns true.");
+	BUILTIN_FUNCTION("enumerate", FUNC_NAME(krk,enumerate), "Return an iterator that produces a tuple with a count the iterated values of the passed iteratable.");
 	BUILTIN_FUNCTION("bin", FUNC_NAME(krk,bin), "Convert an integer value to a binary string.");
 }
 
