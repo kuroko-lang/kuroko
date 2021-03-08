@@ -125,7 +125,7 @@ KRK_METHOD(list,__repr__,{
 			for (size_t i = 0; i < counter; ++i) { \
 				positionals->values[positionals->count] = indexer; \
 				positionals->count++; \
-				if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) break; \
+				if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) return NONE_VAL(); \
 			} \
 		} while (0)
 KRK_METHOD(list,extend,{
