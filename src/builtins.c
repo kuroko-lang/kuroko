@@ -193,10 +193,11 @@ KRK_FUNC(map,{
 	return krk_pop();
 })
 
-#define IS_mapobject(o) (krk_isInstanceOf(o,mapobject))
-#define AS_mapobject(o) (AS_INSTANCE(o))
 #define CURRENT_CTYPE KrkInstance *
 #define CURRENT_NAME  self
+
+#define IS_mapobject(o) (krk_isInstanceOf(o,mapobject))
+#define AS_mapobject(o) (AS_INSTANCE(o))
 KRK_METHOD(mapobject,__iter__,{
 	METHOD_TAKES_NONE();
 	return OBJECT_VAL(self);
@@ -234,8 +235,74 @@ KRK_METHOD(mapobject,__repr__,{
 	size_t len = sprintf(tmp, "<map object at %p>", (void*)self);
 	return OBJECT_VAL(krk_copyString(tmp,len));
 })
-#undef CURRENT_CTYPE
-#undef CURRENT_NAME
+
+#define IS_filterobject(o) (krk_isInstanceOf(o,filterobject))
+#define AS_filterobject(o) (AS_INSTANCE(o))
+static KrkClass * filterobject;
+KRK_FUNC(filter,{
+	FUNCTION_TAKES_EXACTLY(2);
+	/* Make a filter object */
+	krk_push(OBJECT_VAL(krk_newInstance(filterobject)));
+	krk_attachNamedValue(&AS_INSTANCE(krk_peek(0))->fields, "_function", argv[0]);
+	KrkClass * type = krk_getType(argv[1]);
+	if (!type->_iter) {
+		return krk_runtimeError(vm.exceptions->typeError, "'%s' is not iterable", krk_typeName(argv[1]));
+	}
+	krk_push(argv[1]);
+	KrkValue asIter = krk_callSimple(OBJECT_VAL(type->_iter), 1, 0);
+	if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) return NONE_VAL();
+	krk_attachNamedValue(&AS_INSTANCE(krk_peek(0))->fields, "_iterator", asIter);
+
+	return krk_pop();
+})
+
+KRK_METHOD(filterobject,__iter__,{
+	METHOD_TAKES_NONE();
+	return OBJECT_VAL(self);
+})
+
+KRK_METHOD(filterobject,__call__,{
+	METHOD_TAKES_NONE();
+	KrkValue function = NONE_VAL();
+	KrkValue iterator = NONE_VAL();
+
+	if (!krk_tableGet(&self->fields, OBJECT_VAL(S("_function")), &function)) return krk_runtimeError(vm.exceptions->valueError, "corrupt filter object");
+	if (!krk_tableGet(&self->fields, OBJECT_VAL(S("_iterator")), &iterator)) return krk_runtimeError(vm.exceptions->valueError, "corrupt filter object");
+
+	while (1) {
+		krk_push(iterator);
+		krk_push(krk_callSimple(iterator, 0, 0));
+
+		if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) return NONE_VAL();
+		if (krk_valuesEqual(iterator, krk_peek(0))) return OBJECT_VAL(self);
+
+		if (IS_NONE(function)) {
+			if (krk_isFalsey(krk_peek(0))) {
+				krk_pop(); /* iterator result */
+				continue;
+			}
+		} else {
+			krk_push(function);
+			krk_push(krk_peek(1));
+			KrkValue result = krk_callSimple(function, 1, 0);
+			if (krk_isFalsey(result)) {
+				krk_pop(); /* function? */
+				krk_pop(); /* iterator result */
+				continue;
+			}
+			krk_pop(); /* function on stack */
+		}
+
+		return krk_pop();
+	}
+})
+
+KRK_METHOD(filterobject,__repr__,{
+	METHOD_TAKES_NONE();
+	char tmp[1024];
+	size_t len = sprintf(tmp, "<filter object at %p>", (void*)self);
+	return OBJECT_VAL(krk_copyString(tmp,len));
+})
 
 extern KrkValue krk_operator_add (KrkValue a, KrkValue b);
 static KrkValue _sum(int argc, KrkValue argv[], int hasKw) {
@@ -506,9 +573,6 @@ KRK_FUNC(getattr,{
 #define IS_LicenseReader(o) (krk_isInstanceOf(o, LicenseReader))
 #define AS_LicenseReader(o) (AS_INSTANCE(o))
 
-#define CURRENT_CTYPE KrkInstance *
-#define CURRENT_NAME  self
-
 KRK_METHOD(Helper,__repr__,{
 	return OBJECT_VAL(S("Type help() for more help, or help(obj) to describe an object."));
 })
@@ -668,6 +732,12 @@ void _createAndBind_builtins(void) {
 	BIND_METHOD(mapobject,__repr__);
 	krk_finalizeClass(mapobject);
 
+	krk_makeClass(vm.builtins, &filterobject, "filterobject", vm.baseClasses->objectClass);
+	BIND_METHOD(filterobject,__iter__);
+	BIND_METHOD(filterobject,__call__);
+	BIND_METHOD(filterobject,__repr__);
+	krk_finalizeClass(filterobject);
+
 	BUILTIN_FUNCTION("isinstance", _isinstance, "Determine if an object is an instance of the given class or one if its subclasses.");
 	BUILTIN_FUNCTION("globals", _globals, "Return a mapping of names in the current global namespace.");
 	BUILTIN_FUNCTION("locals", _locals, "Return a mapping of names in the current local namespace.");
@@ -688,5 +758,6 @@ void _createAndBind_builtins(void) {
 	BUILTIN_FUNCTION("id", _id, "Returns the identity of an object.");
 	BUILTIN_FUNCTION("hash", _hash, "Returns the hash of a value, used for table indexing.");
 	BUILTIN_FUNCTION("map", FUNC_NAME(krk,map), "Return an iterator that applies a function to a series of iterables");
+	BUILTIN_FUNCTION("filter", FUNC_NAME(krk,filter), "Return an iterator that returns only the items from an iterable for which the given function returns true.");
 }
 
