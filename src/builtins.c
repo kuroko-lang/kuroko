@@ -3,6 +3,7 @@
 #include "value.h"
 #include "memory.h"
 #include "util.h"
+#include "debug.h"
 
 KrkClass * Helper;
 KrkClass * LicenseReader;
@@ -158,6 +159,83 @@ static KrkValue _all(int argc, KrkValue argv[], int hasKw) {
 #undef unpackArray
 	return BOOLEAN_VAL(1);
 }
+
+static KrkClass * mapobject;
+KRK_FUNC(map,{
+	FUNCTION_TAKES_AT_LEAST(2);
+
+	/* Make a map object */
+	krk_push(OBJECT_VAL(krk_newInstance(mapobject)));
+
+	/* Attach the function to it */
+	krk_attachNamedValue(&AS_INSTANCE(krk_peek(0))->fields, "_function", argv[0]);
+
+	/* Make the iter objects */
+	KrkTuple * iters = krk_newTuple(argc - 1);
+	krk_push(OBJECT_VAL(iters));
+
+	/* Attach the tuple to the object */
+	krk_attachNamedValue(&AS_INSTANCE(krk_peek(1))->fields, "_iterables", krk_peek(0));
+	krk_pop();
+
+	for (int i = 1; i < argc; ++i) {
+		KrkClass * type = krk_getType(argv[i]);
+		if (!type->_iter) {
+			return krk_runtimeError(vm.exceptions->typeError, "'%s' is not iterable", krk_typeName(argv[i]));
+		}
+		krk_push(argv[i]);
+		KrkValue asIter = krk_callSimple(OBJECT_VAL(type->_iter), 1, 0);
+		if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) return NONE_VAL();
+		/* Attach it to the tuple */
+		iters->values.values[iters->values.count++] = asIter;
+	}
+
+	return krk_pop();
+})
+
+#define IS_mapobject(o) (krk_isInstanceOf(o,mapobject))
+#define AS_mapobject(o) (AS_INSTANCE(o))
+#define CURRENT_CTYPE KrkInstance *
+#define CURRENT_NAME  self
+KRK_METHOD(mapobject,__iter__,{
+	METHOD_TAKES_NONE();
+	return OBJECT_VAL(self);
+})
+
+KRK_METHOD(mapobject,__call__,{
+	METHOD_TAKES_NONE();
+
+	/* Get members */
+	KrkValue function = NONE_VAL();
+	KrkValue iterators = NONE_VAL();
+
+	if (!krk_tableGet(&self->fields, OBJECT_VAL(S("_function")), &function)) return krk_runtimeError(vm.exceptions->valueError, "corrupt map object");
+	if (!krk_tableGet(&self->fields, OBJECT_VAL(S("_iterables")), &iterators) || !IS_TUPLE(iterators)) return krk_runtimeError(vm.exceptions->valueError, "corrupt map object");
+
+	krk_push(function);
+
+	/* Go through each iterator */
+	for (size_t i = 0; i < AS_TUPLE(iterators)->values.count; ++i) {
+		/* Obtain the next value and push it */
+		krk_push(AS_TUPLE(iterators)->values.values[i]);
+		krk_push(krk_callSimple(AS_TUPLE(iterators)->values.values[i], 0, 0));
+		if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) return NONE_VAL();
+		/* End iteration whenever one runs out */
+		if (krk_valuesEqual(krk_peek(0), AS_TUPLE(iterators)->values.values[i])) return OBJECT_VAL(self);
+	}
+
+	/* Call the function */
+	return krk_callSimple(function, AS_TUPLE(iterators)->values.count, 0);
+})
+
+KRK_METHOD(mapobject,__repr__,{
+	METHOD_TAKES_NONE();
+	char tmp[1024];
+	size_t len = sprintf(tmp, "<map object at %p>", (void*)self);
+	return OBJECT_VAL(krk_copyString(tmp,len));
+})
+#undef CURRENT_CTYPE
+#undef CURRENT_NAME
 
 extern KrkValue krk_operator_add (KrkValue a, KrkValue b);
 static KrkValue _sum(int argc, KrkValue argv[], int hasKw) {
@@ -584,6 +662,12 @@ void _createAndBind_builtins(void) {
 	krk_finalizeClass(LicenseReader);
 	krk_attachNamedObject(&vm.builtins->fields, "license", (KrkObj*)krk_newInstance(LicenseReader));
 
+	krk_makeClass(vm.builtins, &mapobject, "mapobject", vm.baseClasses->objectClass);
+	BIND_METHOD(mapobject,__iter__);
+	BIND_METHOD(mapobject,__call__);
+	BIND_METHOD(mapobject,__repr__);
+	krk_finalizeClass(mapobject);
+
 	BUILTIN_FUNCTION("isinstance", _isinstance, "Determine if an object is an instance of the given class or one if its subclasses.");
 	BUILTIN_FUNCTION("globals", _globals, "Return a mapping of names in the current global namespace.");
 	BUILTIN_FUNCTION("locals", _locals, "Return a mapping of names in the current local namespace.");
@@ -603,5 +687,6 @@ void _createAndBind_builtins(void) {
 	BUILTIN_FUNCTION("max", _max, "Return the highest value in an iterable or the passed arguments.");
 	BUILTIN_FUNCTION("id", _id, "Returns the identity of an object.");
 	BUILTIN_FUNCTION("hash", _hash, "Returns the hash of a value, used for table indexing.");
+	BUILTIN_FUNCTION("map", FUNC_NAME(krk,map), "Return an iterator that applies a function to a series of iterables");
 }
 
