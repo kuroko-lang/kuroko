@@ -838,7 +838,7 @@ _finishArgs:
 	 * Add general builtins that aren't part of the core VM.
 	 * This is where we provide @c input in particular.
 	 */
-	BIND_FUNC(vm.builtins,input)->doc = "@brief Read a line of input.\n"
+	KRK_DOC(BIND_FUNC(vm.builtins,input), "@brief Read a line of input.\n"
 		"@arguments [prompt], promptwidth=None, syntax=None\n\n"
 		"Read a line of input from @c stdin. If the @c rline library is available, "
 		"it will be used to gather input. Input reading stops on end-of file or when "
@@ -850,7 +850,7 @@ _finishArgs:
 		"characters with multi-column East-Asian Character Width be sure to pass a value "
 		"for @p promptwidth that reflects the display width of your prompt. "
 		"If provided, @p syntax specifies the name of an @c rline syntax module to "
-		"provide color highlighting of the input line.";
+		"provide color highlighting of the input line.");
 
 	if (moduleAsMain) {
 		krk_push(OBJECT_VAL(krk_copyString("__main__",8)));
@@ -864,14 +864,14 @@ _finishArgs:
 		return out;
 	} else if (optind == argc) {
 		/* Add builtins for the repl, but hide them from the globals() list. */
-		BIND_FUNC(vm.builtins,exit)->doc = "@brief Exit the interactive repl.\n\n"
-			"Only available from the interactive interpreter; exits the repl.";
-		BIND_FUNC(vm.builtins,paste)->doc = "@brief Toggle paste mode.\n"
+		KRK_DOC(BIND_FUNC(vm.builtins,exit), "@brief Exit the interactive repl.\n\n"
+			"Only available from the interactive interpreter; exits the repl.");
+		KRK_DOC(BIND_FUNC(vm.builtins,paste), "@brief Toggle paste mode.\n"
 			"@arguments enabled=None\n\n"
 			"Toggles paste-safe mode, disabling automatic indentation in the repl. "
 			"If @p enabled is specified, the mode can be directly specified, otherwise "
 			"it will be set to the opposite of the current mode. The new mode will be "
-			"printed to stderr.";
+			"printed to stderr.");
 
 		/* The repl runs in the context of a top-level module so each input
 		 * line can share a globals state with the others. */

@@ -38,15 +38,14 @@ void _createAndBind_timeMod(void) {
 	krk_attachNamedObject(&vm.modules, "time", (KrkObj*)module);
 	krk_attachNamedObject(&module->fields, "__name__", (KrkObj*)S("time"));
 	krk_attachNamedValue(&module->fields, "__file__", NONE_VAL());
-	krk_attachNamedObject(&module->fields, "__doc__",
-		(KrkObj*)S("@brief Provides timekeeping functions."));
-	BIND_FUNC(module,sleep)->doc = "@brief Pause execution of the current thread.\n"
+	KRK_DOC(module, "@brief Provides timekeeping functions.");
+	KRK_DOC(BIND_FUNC(module,sleep), "@brief Pause execution of the current thread.\n"
 		"@arguments secs\n\n"
 		"Uses the system @c usleep() function to sleep for @p secs seconds, which may be a @ref float or @ref int. "
-		"The available precision is platform-dependent.";
-	BIND_FUNC(module,time)->doc = "@brief Return the elapsed seconds since the system epoch.\n\n"
+		"The available precision is platform-dependent.");
+	KRK_DOC(BIND_FUNC(module,time), "@brief Return the elapsed seconds since the system epoch.\n\n"
 		"Returns a @ref float representation of the number of seconds since the platform's epoch date. "
 		"On POSIX platforms, this is the number of seconds since 1 January 1970. "
-		"The precision of the return value is platform-dependent.";
+		"The precision of the return value is platform-dependent.");
 }
 

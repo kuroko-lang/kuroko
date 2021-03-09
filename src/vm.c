@@ -1201,30 +1201,36 @@ void krk_initVM(int flags) {
 	krk_attachNamedObject(&vm.modules, "kuroko", (KrkObj*)vm.system);
 	krk_attachNamedObject(&vm.system->fields, "__name__", (KrkObj*)S("kuroko"));
 	krk_attachNamedValue(&vm.system->fields, "__file__", NONE_VAL()); /* (built-in) */
-	krk_attachNamedObject(&vm.system->fields, "__doc__", (KrkObj*)S("System module."));
+	KRK_DOC(vm.system, "@brief System module.");
 	krk_attachNamedObject(&vm.system->fields, "version",
 		(KrkObj*)S(KRK_VERSION_MAJOR "." KRK_VERSION_MINOR "." KRK_VERSION_PATCH KRK_VERSION_EXTRA));
 	krk_attachNamedObject(&vm.system->fields, "buildenv", (KrkObj*)S(KRK_BUILD_COMPILER));
 	krk_attachNamedObject(&vm.system->fields, "builddate", (KrkObj*)S(KRK_BUILD_DATE));
-	krk_defineNative(&vm.system->fields, "getsizeof", krk_getsize)->doc = "Calculate the approximate size of an object in bytes.\n"
+	KRK_DOC(krk_defineNative(&vm.system->fields, "getsizeof", krk_getsize),
+		"@brief Calculate the approximate size of an object in bytes.\n"
 		"@arguments value\n\n"
-		"@param value Value to examine.";
-	krk_defineNative(&vm.system->fields, "set_clean_output", krk_setclean)->doc = "Disables terminal escapes in some output from the VM.\n"
+		"@param value Value to examine.");
+	KRK_DOC(krk_defineNative(&vm.system->fields, "set_clean_output", krk_setclean),
+		"@brief Disables terminal escapes in some output from the VM.\n"
 		"@arguments clean=True\n\n"
-		"@param clean Whether to remove escapes.";
-	krk_defineNative(&vm.system->fields, "set_tracing", krk_set_tracing)->doc = "Toggle debugging modes.\n"
+		"@param clean Whether to remove escapes.");
+	KRK_DOC(krk_defineNative(&vm.system->fields, "set_tracing", krk_set_tracing),
+		"@brief Toggle debugging modes.\n"
 		"@arguments tracing=None,disassembly=None,scantracing=None,stressgc=None\n\n"
 		"Enables or disables tracing options for the current thread.\n\n"
 		"@param tracing Enables instruction tracing.\n"
 		"@param disassembly Prints bytecode disassembly after compilation.\n"
 		"@param scantracing Prints debug output from the token scanner during compilation.\n"
-		"@param stressgc Forces a garbage collection cycle on each heap allocation.";
-	krk_defineNative(&vm.system->fields, "importmodule", krk_import_wrapper)->doc = "Import a module by string name\n"
+		"@param stressgc Forces a garbage collection cycle on each heap allocation.");
+	KRK_DOC(krk_defineNative(&vm.system->fields, "importmodule", krk_import_wrapper),
+		"@brief Import a module by string name\n"
 		"@arguments module\n\n"
 		"Imports the dot-separated module @p module as if it were imported by the @c import statement and returns the resulting module object.\n\n"
-		"@param module A string with a dot-separated package or module name";
-	krk_defineNative(&vm.system->fields, "modules", krk_module_list)->doc = "Get the list of valid names from the module table";
-	krk_defineNative(&vm.system->fields, "unload", krk_unload)->doc = "Removes a module from the module table. It is not necessarily garbage collected if other references to it exist.";
+		"@param module A string with a dot-separated package or module name");
+	KRK_DOC(krk_defineNative(&vm.system->fields, "modules", krk_module_list),
+		"Get the list of valid names from the module table");
+	KRK_DOC(krk_defineNative(&vm.system->fields, "unload", krk_unload),
+		"Removes a module from the module table. It is not necessarily garbage collected if other references to it exist.");
 	krk_attachNamedObject(&vm.system->fields, "module", (KrkObj*)vm.baseClasses->moduleClass);
 	krk_attachNamedObject(&vm.system->fields, "path_sep", (KrkObj*)S(PATH_SEP));
 	KrkValue module_paths = krk_list_of(0,NULL,0);

@@ -924,7 +924,7 @@ void _createAndBind_strClass(void) {
 	krk_defineNative(&str->methods,".__delslice__",FUNC_NAME(str,__set__));
 	krk_defineNative(&str->methods,".__delitem__",FUNC_NAME(str,__set__));
 	krk_finalizeClass(str);
-	str->docstring = S("Obtain a string representation of an object.");
+	KRK_DOC(str, "Obtain a string representation of an object.");
 
 	KrkClass * striterator = ADD_BASE_CLASS(vm.baseClasses->striteratorClass, "striterator", vm.baseClasses->objectClass);
 	BIND_METHOD(striterator,__init__);

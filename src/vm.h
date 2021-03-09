@@ -371,6 +371,16 @@ extern KrkValue krk_pop(void);
 extern KrkValue krk_peek(int distance);
 
 /**
+ * @brief Swap the top of the stack of the value @p distance slots down.
+ *
+ * Exchanges the values at the top of the stack and @p distance slots from the top
+ * without removing or shuffling anything in between.
+ *
+ * @param distance How from down from the top of the stack to swap (0 = the top)
+ */
+extern void krk_swap(int distance);
+
+/**
  * @brief Get the name of the type of a value.
  * @memberof KrkValue
  *

@@ -504,7 +504,7 @@ void _createAndBind_listClass(void) {
 	krk_defineNative(&list->methods, ".__delitem__", FUNC_NAME(list,pop));
 	krk_defineNative(&list->methods, ".__str__", FUNC_NAME(list,__repr__));
 	krk_finalizeClass(list);
-	list->docstring = S("Mutable sequence of arbitrary values.");
+	KRK_DOC(list, "Mutable sequence of arbitrary values.");
 
 	BUILTIN_FUNCTION("listOf", krk_list_of, "Convert argument sequence to list object.");
 	BUILTIN_FUNCTION("sorted", _sorted, "Return a sorted representation of an iterable.");

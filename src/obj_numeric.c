@@ -107,7 +107,7 @@ void _createAndBind_numericClasses(void) {
 	BIND_METHOD(int,__float__);
 	krk_defineNative(&_int->methods, ".__repr__", FUNC_NAME(int,__str__));
 	krk_finalizeClass(_int);
-	_int->docstring = S("Convert a number or string type to an integer representation.");
+	KRK_DOC(_int, "Convert a number or string type to an integer representation.");
 
 	KrkClass * _float = ADD_BASE_CLASS(vm.baseClasses->floatClass, "float", vm.baseClasses->objectClass);
 	BIND_METHOD(float,__init__);
@@ -116,14 +116,14 @@ void _createAndBind_numericClasses(void) {
 	BIND_METHOD(float,__str__);
 	krk_defineNative(&_float->methods, ".__repr__", FUNC_NAME(float,__str__));
 	krk_finalizeClass(_float);
-	_float->docstring = S("Convert a number or string type to a float representation.");
+	KRK_DOC(_float, "Convert a number or string type to a float representation.");
 
 	KrkClass * _bool = ADD_BASE_CLASS(vm.baseClasses->boolClass, "bool", vm.baseClasses->intClass);
 	BIND_METHOD(bool,__init__);
 	BIND_METHOD(bool,__str__);
 	krk_defineNative(&_bool->methods, ".__repr__", FUNC_NAME(bool,__str__));
 	krk_finalizeClass(_bool);
-	_bool->docstring = S("Returns False if the argument is 'falsey', otherwise True.");
+	KRK_DOC(_bool, "Returns False if the argument is 'falsey', otherwise True.");
 
 	KrkClass * _NoneType = ADD_BASE_CLASS(vm.baseClasses->noneTypeClass, "NoneType", vm.baseClasses->objectClass);
 	BIND_METHOD(NoneType, __str__);

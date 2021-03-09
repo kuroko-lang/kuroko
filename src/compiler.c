@@ -72,7 +72,9 @@ typedef enum {
 typedef void (*ParseFn)(int);
 
 typedef struct {
+#ifdef ENABLE_SCAN_TRACING
 	const char * name;
+#endif
 	ParseFn prefix;
 	ParseFn infix;
 	Precedence precedence;
@@ -2485,7 +2487,11 @@ static void dict(int canAssign) {
 	consume(TOKEN_RIGHT_BRACE,"Expected } at end of dict expression.");
 }
 
-#define RULE(token, a, b, c) [token] = {# token, a, b, c}
+#ifndef ENABLE_SCAN_TRACING
+# define RULE(token, a, b, c) [token] = {a, b, c}
+#else
+# define RULE(token, a, b, c) [token] = {# token, a, b, c}
+#endif
 
 ParseRule krk_parseRules[] = {
 	RULE(TOKEN_LEFT_PAREN,    grouping, call,   PREC_CALL),

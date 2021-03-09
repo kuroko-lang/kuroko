@@ -387,7 +387,7 @@ void _createAndBind_dictClass(void) {
 	BIND_METHOD(dict,update);
 	krk_defineNative(&dict->methods, ".__str__", FUNC_NAME(dict,__repr__));
 	krk_finalizeClass(dict);
-	dict->docstring = S("Mapping of arbitrary keys to values.");
+	KRK_DOC(dict, "Mapping of arbitrary keys to values.");
 
 	BUILTIN_FUNCTION("dictOf", krk_dict_of, "Convert argument sequence to dict object.");
 

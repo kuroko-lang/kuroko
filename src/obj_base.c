@@ -70,5 +70,5 @@ void _createAndBind_type(void) {
 	krk_defineNative(&vm.baseClasses->typeClass->methods, ".__str__", _class_to_str);
 	krk_defineNative(&vm.baseClasses->typeClass->methods, ".__repr__", _class_to_str);
 	krk_finalizeClass(vm.baseClasses->typeClass);
-	vm.baseClasses->typeClass->docstring = S("Obtain the object representation of the class of an object.");
+	KRK_DOC(vm.baseClasses->typeClass, "Obtain the object representation of the class of an object.");
 }

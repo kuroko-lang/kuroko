@@ -794,14 +794,18 @@ void _createAndBind_builtins(void) {
 	krk_defineNative(&vm.baseClasses->objectClass->methods, ".__repr__", _strBase); /* Override if necesary */
 	krk_defineNative(&vm.baseClasses->objectClass->methods, ".__hash__", obj_hash);
 	krk_finalizeClass(vm.baseClasses->objectClass);
-	vm.baseClasses->objectClass->docstring = S("Base class for all types.");
+	KRK_DOC(vm.baseClasses->objectClass,
+		"@brief Base class for all types.\n\n"
+		"The @c object base class provides the fallback implementations of methods like "
+		"@ref object___dir__ \"__dir__\". All object and primitive types eventually inherit from @c object."
+	);
 
 	vm.baseClasses->moduleClass = krk_newClass(S("module"), vm.baseClasses->objectClass);
 	krk_push(OBJECT_VAL(vm.baseClasses->moduleClass));
 	krk_defineNative(&vm.baseClasses->moduleClass->methods, ".__repr__", _module_repr);
 	krk_defineNative(&vm.baseClasses->moduleClass->methods, ".__str__", _module_repr);
 	krk_finalizeClass(vm.baseClasses->moduleClass);
-	vm.baseClasses->moduleClass->docstring = S("Type of imported modules and packages.");
+	KRK_DOC(vm.baseClasses->moduleClass, "Type of imported modules and packages.");
 
 	vm.builtins = krk_newInstance(vm.baseClasses->moduleClass);
 	krk_attachNamedObject(&vm.modules, "__builtins__", (KrkObj*)vm.builtins);
@@ -811,8 +815,18 @@ void _createAndBind_builtins(void) {
 
 	krk_attachNamedObject(&vm.builtins->fields, "__name__", (KrkObj*)S("__builtins__"));
 	krk_attachNamedValue(&vm.builtins->fields, "__file__", NONE_VAL());
-	krk_attachNamedObject(&vm.builtins->fields, "__doc__",
-		(KrkObj*)S("Internal module containing built-in functions and classes."));
+	KRK_DOC(vm.builtins,
+		"@brief Internal module containing built-in functions and classes.\n\n"
+		"Classes and functions from the @c \\__builtins__ module are generally available from "
+		"all global namespaces. Built-in names can still be shadowed by module-level globals "
+		"and function-level locals, so none the names in this module are not reserved. When "
+		"a built-in name has been shadowed, the original can be referenced directly as "
+		" @c \\__builtins__.name instead.\n\n"
+		"Built-in names may be bound from several sources. Most come from the core interpreter "
+		"directly, but some may come from loaded C extension modules or the interpreter binary. "
+		"Kuroko source modules are also free to append new names to the built-in name space by "
+		"attaching new properties to the @c \\__builtins__ instance."
+	);
 
 	krk_makeClass(vm.builtins, &vm.baseClasses->propertyClass, "Property", vm.baseClasses->objectClass);
 	krk_defineNative(&vm.baseClasses->propertyClass->methods, ".__repr__", _property_repr);
@@ -822,16 +836,21 @@ void _createAndBind_builtins(void) {
 	krk_finalizeClass(vm.baseClasses->propertyClass);
 
 	krk_makeClass(vm.builtins, &Helper, "Helper", vm.baseClasses->objectClass);
-	Helper->docstring = S("Special object that prints a helpful message when passed to @ref repr");
-	BIND_METHOD(Helper,__call__)->doc = "@arguments obj=None\nPrints the help documentation attached to @p obj or "
-		"starts the interactive help system.";
+	KRK_DOC(Helper,
+		"@brief Special object that prints a helpeful message.\n\n"
+		"Object that prints help summary when passed to @ref repr.");
+	KRK_DOC(BIND_METHOD(Helper,__call__),
+		"@brief Prints help text.\n"
+		"@arguments obj=None\n\n"
+		"Prints the help documentation attached to @p obj or starts the interactive help system by "
+		"importing the @ref mod_help module.");
 	BIND_METHOD(Helper,__repr__);
 	krk_finalizeClass(Helper);
 	krk_attachNamedObject(&vm.builtins->fields, "help", (KrkObj*)krk_newInstance(Helper));
 
 	krk_makeClass(vm.builtins, &LicenseReader, "LicenseReader", vm.baseClasses->objectClass);
-	LicenseReader->docstring = S("Special object that prints Kuroko's copyright information when passed to @ref repr");
-	BIND_METHOD(LicenseReader,__call__)->doc = "Print the full license statement.";
+	KRK_DOC(LicenseReader, "Special object that prints Kuroko's copyright information when passed to @ref repr");
+	KRK_DOC(BIND_METHOD(LicenseReader,__call__), "Print the full license statement.");
 	BIND_METHOD(LicenseReader,__repr__);
 	krk_finalizeClass(LicenseReader);
 	krk_attachNamedObject(&vm.builtins->fields, "license", (KrkObj*)krk_newInstance(LicenseReader));
