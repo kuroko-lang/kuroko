@@ -666,7 +666,6 @@ FUNC_SIG(krk,examine) {
 		krk_pop();
 
 		if (size == 0) {
-			fprintf(stderr, "offset = %ld, chunk->count = %ld, found size = 0?\n", offset, chunk->count);
 			abort();
 		}
 
