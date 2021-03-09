@@ -1875,11 +1875,21 @@ static unsigned int _EOF  = 4;
 static void get_initial_termios(void) {
 }
 static void set_unbuffered(void) {
+	/* Disables line input, echo, ^C processing, and a few others. */
 	SetConsoleMode(GetStdHandle(STD_INPUT_HANDLE), ENABLE_VIRTUAL_TERMINAL_INPUT);
 	SetConsoleMode(GetStdHandle(STD_OUTPUT_HANDLE), ENABLE_PROCESSED_OUTPUT | ENABLE_VIRTUAL_TERMINAL_PROCESSING | ENABLE_WRAP_AT_EOL_OUTPUT);
 }
 static void set_buffered(void) {
-	SetConsoleMode(GetStdHandle(STD_INPUT_HANDLE), ENABLE_LINE_INPUT | ENABLE_PROCESSED_INPUT);
+	/* These are the defaults */
+	SetConsoleMode(GetStdHandle(STD_INPUT_HANDLE),
+		ENABLE_ECHO_INPUT |
+		ENABLE_INSERT_MODE |
+		ENABLE_LINE_INPUT |
+		ENABLE_MOUSE_INPUT |
+		ENABLE_PROCESSED_INPUT |
+		ENABLE_QUICK_EDIT_MODE |
+		ENABLE_VIRTUAL_TERMINAL_INPUT
+	);
 }
 #endif
 

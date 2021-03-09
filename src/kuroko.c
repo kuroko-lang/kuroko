@@ -29,23 +29,74 @@
 #include "memory.h"
 #include "scanner.h"
 #include "compiler.h"
+#include "util.h"
 
 #define PROMPT_MAIN  ">>> "
 #define PROMPT_BLOCK "  > "
 
 static int enableRline = 1;
 static int exitRepl = 0;
-static KrkValue exitFunc(int argc, KrkValue argv[], int hasKw) {
-	exitRepl = 1;
-	return NONE_VAL();
-}
-
 static int pasteEnabled = 0;
-static KrkValue paste(int argc, KrkValue argv[], int hasKw) {
-	pasteEnabled = !pasteEnabled;
+
+KRK_FUNC(exit,{
+	FUNCTION_TAKES_NONE();
+	exitRepl = 1;
+})
+
+KRK_FUNC(paste,{
+	FUNCTION_TAKES_AT_MOST(1);
+	if (argc) {
+		CHECK_ARG(0,bool,int,enabled);
+		pasteEnabled = enabled;
+	} else {
+		pasteEnabled = !pasteEnabled;
+	}
 	fprintf(stderr, "Pasting is %s.\n", pasteEnabled ? "enabled" : "disabled");
-	return NONE_VAL();
-}
+})
+
+/**
+ * @brief Read a line of input.
+ *
+ * In an interactive session, presents the configured prompt without
+ * a trailing linefeed.
+ */
+KRK_FUNC(input,{
+	FUNCTION_TAKES_AT_MOST(1);
+	if (argc) {
+		CHECK_ARG(0,str,KrkString*,prompt);
+		fprintf(stdout, "%s", prompt->chars);
+		fflush(stdout);
+	}
+
+	struct StringBuilder sb = {0};
+
+	/* Read a line of input using a method that we can guarantee will be
+	 * interrupted by signal delivery. */
+	while (1) {
+		char buf[4096];
+		ssize_t bytesRead = read(STDIN_FILENO, buf, 4096);
+		if (krk_currentThread.flags & KRK_THREAD_SIGNALLED) goto _exit;
+		if (bytesRead < 0) {
+			krk_runtimeError(vm.exceptions->ioError, "%s", strerror(errno));
+			goto _exit;
+		} else if (bytesRead == 0 && !sb.length) {
+			krk_runtimeError(vm.exceptions->baseException, "EOF");
+			goto _exit;
+		} else {
+			pushStringBuilderStr(&sb, buf, bytesRead);
+		}
+		/* Strip a trailing newline, if one is present */
+		if (sb.length && sb.bytes[sb.length-1] == '\n') {
+			sb.length--;
+			break;
+		}
+	}
+
+	return finishStringBuilder(&sb);
+
+_exit:
+	discardStringBuilder(&sb);
+})
 
 #ifndef NO_RLINE
 /**
@@ -521,11 +572,23 @@ _dbgQuit:
 }
 
 static void handleSigint(int sigNum) {
-	if (krk_currentThread.frameCount) {
-		krk_currentThread.flags |= KRK_THREAD_SIGNALLED;
-	}
+	/* Don't set the signal flag if the VM is not running */
+	if (!krk_currentThread.frameCount) return;
+	krk_currentThread.flags |= KRK_THREAD_SIGNALLED;
+}
 
-	signal(sigNum, handleSigint);
+static void bindSignalHandlers(void) {
+#ifndef _WIN32
+	struct sigaction sigIntAction = {0};
+	sigIntAction.sa_handler = handleSigint;
+	sigIntAction.sa_flags = 0; /* Do not restore the default, do not restart syscalls, do not pass go, do not collect $500 */
+	sigaction(
+		SIGINT, /* ^C for keyboard interrupts */
+		&sigIntAction,
+		NULL);
+#else
+	signal(SIGINT, handleSigint);
+#endif
 }
 
 static void findInterpreter(char * argv[]) {
@@ -716,7 +779,7 @@ _finishArgs:
 	for (int arg = optind; arg < argc + (optind == argc); ++arg) krk_pop();
 
 	/* Bind interrupt signal */
-	signal(SIGINT, handleSigint);
+	bindSignalHandlers();
 
 #ifdef BUNDLE_LIBS
 	/* Add any other modules you want to include that are normally built as shared objects. */
@@ -724,6 +787,12 @@ _finishArgs:
 #endif
 
 	KrkValue result = INTEGER_VAL(0);
+
+	/**
+	 * Add general builtins that aren't part of the core VM.
+	 * This is where we provide @c input in particular.
+	 */
+	BIND_FUNC(vm.builtins,input);
 
 	if (moduleAsMain) {
 		krk_push(OBJECT_VAL(krk_copyString("__main__",8)));
@@ -737,8 +806,8 @@ _finishArgs:
 		return out;
 	} else if (optind == argc) {
 		/* Add builtins for the repl, but hide them from the globals() list. */
-		krk_defineNative(&vm.builtins->fields, "exit", exitFunc);
-		krk_defineNative(&vm.builtins->fields, "paste", paste);
+		BIND_FUNC(vm.builtins,exit);
+		BIND_FUNC(vm.builtins,paste);
 
 		/* The repl runs in the context of a top-level module so each input
 		 * line can share a globals state with the others. */
