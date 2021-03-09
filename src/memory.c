@@ -63,7 +63,6 @@ static void freeObject(KrkObj * object) {
 		case OBJ_CLASS: {
 			KrkClass * _class = (KrkClass*)object;
 			krk_freeTable(&_class->methods);
-			krk_freeTable(&_class->fields);
 			FREE(KrkClass, object);
 			break;
 		}
@@ -163,7 +162,6 @@ static void blackenObject(KrkObj * object) {
 			krk_markObject((KrkObj*)_class->docstring);
 			krk_markObject((KrkObj*)_class->base);
 			krk_markTable(&_class->methods);
-			krk_markTable(&_class->fields);
 			break;
 		}
 		case OBJ_INSTANCE: {

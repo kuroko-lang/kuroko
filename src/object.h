@@ -126,6 +126,7 @@ typedef struct {
 	unsigned char collectsKeywords:1;
 	unsigned char isClassMethod:1;
 	unsigned char isGenerator:1;
+	unsigned char isStaticMethod:1;
 	struct KrkInstance * globalsContext;
 } KrkFunction;
 
@@ -158,7 +159,6 @@ typedef struct KrkClass {
 	KrkString * docstring;
 	struct KrkClass * base;
 	KrkTable methods;
-	KrkTable fields;
 	size_t allocSize;
 	KrkCleanupCallback _ongcscan;
 	KrkCleanupCallback _ongcsweep;

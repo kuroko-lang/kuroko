@@ -88,7 +88,7 @@ static inline const char * _method_name(const char * func) {
 #define MAKE_CLASS(klass) do { krk_makeClass(module,&klass,#klass,vm.baseClasses->objectClass); klass ->allocSize = sizeof(struct klass); } while (0)
 #define BIND_METHOD(klass,method) krk_defineNative(&klass->methods, "." #method, _ ## klass ## _ ## method)
 #define BIND_FIELD(klass,method) krk_defineNative(&klass->methods, ":" #method, _ ## klass ## _ ## method)
-#define BIND_PROP(klass,method) krk_defineNativeProperty(&klass->fields, #method, _ ## klass ## _ ## method)
+#define BIND_PROP(klass,method) krk_defineNativeProperty(&klass->methods, #method, _ ## klass ## _ ## method)
 #define BIND_FUNC(module,func) krk_defineNative(&module->fields, #func, _krk_ ## func)
 
 /**

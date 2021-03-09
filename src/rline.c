@@ -565,7 +565,7 @@ char * syn_krk_types[] = {
 	"object","exception","isinstance","type","tuple","reversed",
 	"print","set","any","all","bool","ord","chr","hex","oct","filter",
 	"sorted","bytes","getattr","sum","min","max","id","hash","map","bin",
-	"enumerate","zip",
+	"enumerate","zip","setattr","property","staticmethod","classmethod",
 	NULL
 };
 

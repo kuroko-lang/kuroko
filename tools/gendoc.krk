@@ -205,7 +205,7 @@ def processModules(modules):
                 if isinstance(obj, function) and member not in seen:
                     seen.append(member)
                     methods.append(Pair(member,obj))
-                else if isinstance(obj, Property) and member not in seen:
+                else if isinstance(obj, property) and member not in seen:
                     seen.append(member)
                     properties.append(Pair(member,obj.__method__))
             if methods:

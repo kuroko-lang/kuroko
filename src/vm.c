@@ -371,7 +371,7 @@ KrkClass * krk_makeClass(KrkInstance * module, KrkClass ** _class, const char * 
 		/* Now give it a __module__ */
 		KrkValue moduleName = NONE_VAL();
 		krk_tableGet(&module->fields, OBJECT_VAL(S("__name__")), &moduleName);
-		krk_attachNamedValue(&(*_class)->fields,"__module__",moduleName);
+		krk_attachNamedValue(&(*_class)->methods,"__module__",moduleName);
 		krk_pop();
 	}
 	krk_pop();
@@ -414,7 +414,12 @@ void krk_finalizeClass(KrkClass * _class) {
 	};
 
 	for (struct TypeMap * entry = specials; entry->method; ++entry) {
-		if (krk_tableGet(&_class->methods, vm.specialMethodNames[entry->index], &tmp)) {
+		KrkClass * _base = _class;
+		while (_base) {
+			if (krk_tableGet(&_base->methods, vm.specialMethodNames[entry->index], &tmp)) break;
+			_base = _base->base;
+		}
+		if (_base && (IS_CLOSURE(tmp) || IS_NATIVE(tmp))) {
 			*entry->method = AS_OBJECT(tmp);
 		}
 	}
@@ -894,13 +899,25 @@ KrkValue krk_callSimple(KrkValue value, int argCount, int isMethod) {
  */
 int krk_bindMethod(KrkClass * _class, KrkString * name) {
 	KrkValue method, out;
-	if (!krk_tableGet(&_class->methods, OBJECT_VAL(name), &method)) return 0;
+	while (_class) {
+		if (krk_tableGet(&_class->methods, OBJECT_VAL(name), &method)) break;
+		_class = _class->base;
+	}
+	if (!_class) return 0;
 	if (IS_NATIVE(method) && ((KrkNative*)AS_OBJECT(method))->isMethod == 2) {
 		out = AS_NATIVE(method)->function(1, (KrkValue[]){krk_peek(0)}, 0);
+	} else if (IS_PROPERTY(method)) {
+		/* Need to push for property object */
+		krk_push(krk_peek(0));
+		out = krk_callSimple(AS_PROPERTY(method)->method, 1, 0);
 	} else if (IS_CLOSURE(method) && (AS_CLOSURE(method)->function->isClassMethod)) {
 		out = OBJECT_VAL(krk_newBoundMethod(OBJECT_VAL(_class), AS_OBJECT(method)));
-	} else {
+	} else if (IS_CLOSURE(method) && (AS_CLOSURE(method)->function->isStaticMethod)) {
+		out = method;
+	} else if (IS_CLOSURE(method) || IS_NATIVE(method)) {
 		out = OBJECT_VAL(krk_newBoundMethod(krk_peek(0), AS_OBJECT(method)));
+	} else {
+		out = method;
 	}
 	krk_pop();
 	krk_push(out);
@@ -1039,8 +1056,7 @@ static KrkValue krk_getsize(int argc, KrkValue argv[], int hasKw) {
 		}
 		case OBJ_CLASS: {
 			KrkClass * self = AS_CLASS(argv[0]);
-			mySize += sizeof(KrkClass) + sizeof(KrkTableEntry) * self->fields.capacity
-			+ sizeof(KrkTableEntry) * self->methods.capacity;
+			mySize += sizeof(KrkClass) + sizeof(KrkTableEntry) * self->methods.capacity;
 			break;
 		}
 		case OBJ_NATIVE: {
@@ -1699,11 +1715,6 @@ static int valueGetProperty(KrkString * name) {
 	if (IS_INSTANCE(krk_peek(0))) {
 		KrkInstance * instance = AS_INSTANCE(krk_peek(0));
 		if (krk_tableGet(&instance->fields, OBJECT_VAL(name), &value)) {
-			if (IS_PROPERTY(value)) {
-				/* Properties retreived from instances are magic. */
-				krk_push(krk_callSimple(AS_PROPERTY(value)->method, 1, 0));
-				return 1;
-			}
 			krk_pop();
 			krk_push(value);
 			return 1;
@@ -1711,10 +1722,13 @@ static int valueGetProperty(KrkString * name) {
 		objectClass = instance->_class;
 	} else if (IS_CLASS(krk_peek(0))) {
 		KrkClass * _class = AS_CLASS(krk_peek(0));
-		if (krk_tableGet(&_class->fields, OBJECT_VAL(name), &value) ||
-			krk_tableGet(&_class->methods, OBJECT_VAL(name), &value)) {
+		while (_class) {
+			if (krk_tableGet(&_class->methods, OBJECT_VAL(name), &value)) break;
+			_class = _class->base;
+		}
+		if (_class) {
 			if (IS_CLOSURE(value) && AS_CLOSURE(value)->function->isClassMethod) {
-				value = OBJECT_VAL(krk_newBoundMethod(OBJECT_VAL(_class), AS_OBJECT(value)));
+				value = OBJECT_VAL(krk_newBoundMethod(krk_peek(0), AS_OBJECT(value)));
 			}
 			krk_pop();
 			krk_push(value);
@@ -1760,7 +1774,7 @@ static int valueDelProperty(KrkString * name) {
 		return 1;
 	} else if (IS_CLASS(krk_peek(0))) {
 		KrkClass * _class = AS_CLASS(krk_peek(0));
-		if (!krk_tableDelete(&_class->fields, OBJECT_VAL(name))) {
+		if (!krk_tableDelete(&_class->methods, OBJECT_VAL(name))) {
 			return 0;
 		}
 		krk_pop(); /* the original value */
@@ -1768,6 +1782,46 @@ static int valueDelProperty(KrkString * name) {
 	}
 	/* TODO del on values? */
 	return 0;
+}
+
+static int valueSetProperty(KrkString * name) {
+	KrkValue owner = krk_peek(1);
+	KrkValue value = krk_peek(0);
+	if (IS_INSTANCE(owner)) {
+		if (krk_tableSet(&AS_INSTANCE(owner)->fields, OBJECT_VAL(name), value)) {
+			KrkClass * _class = AS_INSTANCE(owner)->_class;
+			KrkValue method;
+			while (_class) {
+				if (krk_tableGet(&_class->methods, OBJECT_VAL(name), &method)) break;
+				_class = _class->base;
+			}
+			if (_class && IS_PROPERTY(method)) {
+				krk_tableDelete(&AS_INSTANCE(owner)->fields, OBJECT_VAL(name));
+				krk_push(krk_callSimple(AS_PROPERTY(method)->method, 2, 0));
+				return 1;
+			}
+		}
+	} else if (IS_CLASS(owner)) {
+		krk_tableSet(&AS_CLASS(owner)->methods, OBJECT_VAL(name), value);
+	} else {
+		/* TODO: Setters for other things */
+		return 0;
+	}
+	krk_swap(1);
+	krk_pop();
+	return 1;
+}
+
+KrkValue krk_valueSetAttribute(KrkValue owner, char * name, KrkValue to) {
+	krk_push(OBJECT_VAL(krk_copyString(name,strlen(name))));
+	krk_push(owner);
+	krk_push(to);
+	if (!valueSetProperty(AS_STRING(krk_peek(2)))) {
+		return krk_runtimeError(vm.exceptions->attributeError, "'%s' object has no attribute '%s'", krk_typeName(krk_peek(1)), name);
+	}
+	krk_swap(1);
+	krk_pop(); /* String */
+	return krk_pop();
 }
 
 #define READ_BYTE() (*frame->ip++)
@@ -2043,8 +2097,6 @@ _resumeHook: (void)0;
 				}
 				KrkClass * subclass = AS_CLASS(krk_peek(0));
 				subclass->base = AS_CLASS(superclass);
-				krk_tableAddAll(&AS_CLASS(superclass)->methods, &subclass->methods);
-				krk_tableAddAll(&AS_CLASS(superclass)->fields, &subclass->fields);
 				subclass->allocSize = AS_CLASS(superclass)->allocSize;
 				subclass->_ongcsweep = AS_CLASS(superclass)->_ongcsweep;
 				subclass->_ongcscan = AS_CLASS(superclass)->_ongcscan;
@@ -2059,21 +2111,6 @@ _resumeHook: (void)0;
 			case OP_SWAP:
 				krk_swap(1);
 				break;
-			case OP_CREATE_PROPERTY: {
-				KrkProperty * newProperty = krk_newProperty(krk_peek(0));
-				krk_pop();
-				krk_push(OBJECT_VAL(newProperty));
-				break;
-			}
-			case OP_CREATE_CLASSMETHOD: {
-				if (!IS_CLOSURE(krk_peek(0))) {
-					krk_runtimeError(vm.exceptions->typeError, "Classmethod must be a method, not '%s'",
-						krk_typeName(krk_peek(0)));
-					goto _finishException;
-				}
-				AS_CLOSURE(krk_peek(0))->function->isClassMethod = 1;
-				break;
-			}
 			case OP_FILTER_EXCEPT: {
 				int isMatch = 0;
 				if (IS_CLASS(krk_peek(0)) && krk_isInstanceOf(krk_peek(1), AS_CLASS(krk_peek(0)))) {
@@ -2275,7 +2312,7 @@ _resumeHook: (void)0;
 				KrkClass * _class = krk_newClass(name, vm.baseClasses->objectClass);
 				krk_push(OBJECT_VAL(_class));
 				_class->filename = frame->closure->function->chunk.filename;
-				krk_attachNamedObject(&_class->fields, "__func__", (KrkObj*)frame->closure);
+				krk_attachNamedObject(&_class->methods, "__func__", (KrkObj*)frame->closure);
 				break;
 			}
 			case OP_IMPORT_FROM_LONG:
@@ -2322,27 +2359,14 @@ _resumeHook: (void)0;
 			case OP_SET_PROPERTY_LONG:
 			case OP_SET_PROPERTY: {
 				KrkString * name = READ_STRING(OPERAND);
-				KrkTable * table = NULL;
-				if (IS_INSTANCE(krk_peek(1))) table = &AS_INSTANCE(krk_peek(1))->fields;
-				else if (IS_CLASS(krk_peek(1))) table = &AS_CLASS(krk_peek(1))->fields;
-				if (table) {
-					KrkValue previous;
-					if (krk_tableGet(table, OBJECT_VAL(name), &previous) && IS_PROPERTY(previous)) {
-						krk_push(krk_callSimple(AS_PROPERTY(previous)->method, 2, 0));
-						break;
-					} else {
-						krk_tableSet(table, OBJECT_VAL(name), krk_peek(0));
-					}
-				} else {
-					krk_runtimeError(vm.exceptions->attributeError, "'%s' object has no attribute '%s'", krk_typeName(krk_peek(0)), name->chars);
+				if (unlikely(!valueSetProperty(name))) {
+					krk_runtimeError(vm.exceptions->attributeError, "'%s' object has no attribute '%s'", krk_typeName(krk_peek(1)), name->chars);
 					goto _finishException;
 				}
-				krk_swap(1);
-				krk_pop();
 				break;
 			}
-			case OP_METHOD_LONG:
-			case OP_METHOD: {
+			case OP_CLASS_PROPERTY_LONG:
+			case OP_CLASS_PROPERTY: {
 				KrkValue method = krk_peek(0);
 				KrkClass * _class = AS_CLASS(krk_peek(1));
 				KrkValue name = OBJECT_VAL(READ_STRING(OPERAND));

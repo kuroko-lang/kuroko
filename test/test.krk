@@ -123,6 +123,8 @@ class SuperClass():
         print("This is a great " + self.a + "!")
     def __str__(self):
         return "(I am a " + self.a + ")"
+    def __repr__(self):
+        return "(I am a " + self.a + ")"
     def __get__(self, ind):
         return "(get[" + str(ind) + "])"
     def __set__(self, ind, val):

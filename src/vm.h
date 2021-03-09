@@ -594,6 +594,14 @@ extern KrkValue krk_dict_of(int argc, KrkValue argv[], int hasKw);
 extern KrkValue krk_tuple_of(int argc, KrkValue argv[], int hasKw);
 
 /**
+ * @brief Create a set object.
+ * @memberof Set
+ *
+ * This is the native function bound to @c setOf
+ */
+extern KrkValue krk_set_of(int argc, KrkValue argv[], int hasKw);
+
+/**
  * @brief Call a callable and manage VM state to obtain the return value.
  * @memberof KrkValue
  *
@@ -734,6 +742,22 @@ extern int krk_isFalsey(KrkValue value);
  *         not found.
  */
 extern KrkValue krk_valueGetAttribute(KrkValue value, char * name);
+
+/**
+ * @brief Set a property of an object by name.
+ * @memberof KrkValue
+ *
+ * This is a convenience function that works in essentially the
+ * same way as the OP_SET_PROPERTY instruction.
+ *
+ * @param owner The owner of the property to modify.
+ * @param name  C-string of the property name to modify.
+ * @param to    The value to assign.
+ * @return The set value, or None with an @ref AttributeError
+ *         exception set in the current thread if the object can
+ *         not have a property set.
+ */
+extern KrkValue krk_valueSetAttribute(KrkValue owner, char * name, KrkValue to);
 
 /**
  * @brief Concatenate two strings.

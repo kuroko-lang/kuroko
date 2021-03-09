@@ -8,6 +8,9 @@
 static KrkClass * Helper;
 static KrkClass * LicenseReader;
 
+FUNC_SIG(list,__init__);
+FUNC_SIG(list,sort);
+
 KrkValue krk_dirObject(int argc, KrkValue argv[], int hasKw) {
 	if (argc != 1) return krk_runtimeError(vm.exceptions->argumentError, "wrong number of arguments or bad type, got %d\n", argc);
 
@@ -18,51 +21,52 @@ KrkValue krk_dirObject(int argc, KrkValue argv[], int hasKw) {
 	if (IS_INSTANCE(argv[0])) {
 		/* Obtain self-reference */
 		KrkInstance * self = AS_INSTANCE(argv[0]);
-
-		/* First add each method of the class */
-		for (size_t i = 0; i < self->_class->methods.capacity; ++i) {
-			if (self->_class->methods.entries[i].key.type != VAL_KWARGS) {
-				krk_writeValueArray(AS_LIST(myList),
-					self->_class->methods.entries[i].key);
-			}
-		}
-
-		/* Then add each field of the instance */
 		for (size_t i = 0; i < self->fields.capacity; ++i) {
 			if (self->fields.entries[i].key.type != VAL_KWARGS) {
+				
 				krk_writeValueArray(AS_LIST(myList),
 					self->fields.entries[i].key);
 			}
 		}
-	} else {
-		if (IS_CLASS(argv[0])) {
-			KrkClass * _class = AS_CLASS(argv[0]);
+	} else if (IS_CLASS(argv[0])) {
+		KrkClass * _class = AS_CLASS(argv[0]);
+		while (_class) {
 			for (size_t i = 0; i < _class->methods.capacity; ++i) {
 				if (_class->methods.entries[i].key.type != VAL_KWARGS) {
 					krk_writeValueArray(AS_LIST(myList),
 						_class->methods.entries[i].key);
 				}
 			}
-			for (size_t i = 0; i < _class->fields.capacity; ++i) {
-				if (_class->fields.entries[i].key.type != VAL_KWARGS) {
-					krk_writeValueArray(AS_LIST(myList),
-						_class->fields.entries[i].key);
-				}
-			}
+			_class = _class->base;
 		}
-		KrkClass * type = krk_getType(argv[0]);
+	}
 
+	KrkClass * type = krk_getType(argv[0]);
+
+	while (type) {
 		for (size_t i = 0; i < type->methods.capacity; ++i) {
 			if (type->methods.entries[i].key.type != VAL_KWARGS) {
 				krk_writeValueArray(AS_LIST(myList),
 					type->methods.entries[i].key);
 			}
 		}
+		type = type->base;
 	}
 
-	/* Prepare output value */
+	/* Throw it at a set to get unique, unordered results */
+	krk_push(krk_set_of(AS_LIST(myList)->count, AS_LIST(myList)->values, 0));
+	krk_swap(1);
 	krk_pop();
-	return myList;
+
+	/* Now build a fresh list */
+	myList = krk_list_of(0,NULL,0);
+	krk_push(myList);
+	krk_swap(1);
+	FUNC_NAME(list,__init__)(2,(KrkValue[]){krk_peek(1), krk_peek(0)},0);
+	FUNC_NAME(list,sort)(1,(KrkValue[]){krk_peek(1)},0);
+	krk_pop();
+
+	return krk_pop();
 }
 
 
@@ -674,7 +678,21 @@ KRK_FUNC(getattr,{
 	FUNCTION_TAKES_AT_LEAST(2);
 	KrkValue object = argv[0];
 	CHECK_ARG(1,str,KrkString*,property);
-	return krk_valueGetAttribute(object, property->chars);
+	KrkValue result = krk_valueGetAttribute(object, property->chars);
+	if (argc == 3 && krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION &&
+		krk_isInstanceOf(krk_currentThread.currentException, vm.exceptions->attributeError)) {
+		krk_currentThread.flags &= ~(KRK_THREAD_HAS_EXCEPTION);
+		result = argv[2];
+	}
+	return result;
+})
+
+KRK_FUNC(setattr,{
+	FUNCTION_TAKES_EXACTLY(3);
+	KrkValue object = argv[0];
+	CHECK_ARG(1,str,KrkString*,property);
+	KrkValue value = argv[2];
+	return krk_valueSetAttribute(object, property->chars, value);
 })
 
 
@@ -726,6 +744,14 @@ KRK_METHOD(LicenseReader,__call__,{
 
 	return krk_runtimeError(vm.exceptions->typeError, "unexpected error");
 })
+
+static KrkValue _property_init(int argc, KrkValue argv[], int hasKw) {
+	if (argc != 2) {
+		return krk_runtimeError(vm.exceptions->notImplementedError, "Additional arguments to @property() are not supported.");
+	}
+
+	return OBJECT_VAL(krk_newProperty(argv[1]));
+}
 
 static KrkValue _property_repr(int argc, KrkValue argv[], int hasKw) {
 	if (argc != 1 || !IS_PROPERTY(argv[0])) return krk_runtimeError(vm.exceptions->typeError, "?");
@@ -828,7 +854,8 @@ void _createAndBind_builtins(void) {
 		"attaching new properties to the @c \\__builtins__ instance."
 	);
 
-	krk_makeClass(vm.builtins, &vm.baseClasses->propertyClass, "Property", vm.baseClasses->objectClass);
+	krk_makeClass(vm.builtins, &vm.baseClasses->propertyClass, "property", vm.baseClasses->objectClass);
+	krk_defineNative(&vm.baseClasses->propertyClass->methods, ".__init__", _property_init);
 	krk_defineNative(&vm.baseClasses->propertyClass->methods, ".__repr__", _property_repr);
 	krk_defineNative(&vm.baseClasses->propertyClass->methods, ":__doc__", _property_doc);
 	krk_defineNative(&vm.baseClasses->propertyClass->methods, ":__name__", _property_name);
@@ -887,6 +914,7 @@ void _createAndBind_builtins(void) {
 	BUILTIN_FUNCTION("any", _any, "Returns True if at least one element in the given iterable is truthy, False otherwise.");
 	BUILTIN_FUNCTION("all", _all, "Returns True if every element in the given iterable is truthy, False otherwise.");
 	BUILTIN_FUNCTION("getattr", FUNC_NAME(krk,getattr), "Obtain a property of an object as if it were accessed by the dot operator.");
+	BUILTIN_FUNCTION("setattr", FUNC_NAME(krk,setattr), "Set a property of an object as if it were accessed by the dot operator.");
 	BUILTIN_FUNCTION("sum", _sum, "Add the elements of an iterable.");
 	BUILTIN_FUNCTION("min", _min, "Return the lowest value in an iterable or the passed arguments.");
 	BUILTIN_FUNCTION("max", _max, "Return the highest value in an iterable or the passed arguments.");

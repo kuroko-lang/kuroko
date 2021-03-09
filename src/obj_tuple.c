@@ -9,6 +9,9 @@
 	if (index < 0 || index >= (krk_integer_type)self->values.count) return krk_runtimeError(vm.exceptions->indexError, "tuple index out of range: " PRIkrk_int, index)
 
 static KrkValue _tuple_init(int argc, KrkValue argv[], int hasKw) {
+	if (argc == 1) {
+		return OBJECT_VAL(krk_newTuple(0));
+	}
 	return krk_runtimeError(vm.exceptions->typeError,"tuple() initializier unsupported");
 }
 
