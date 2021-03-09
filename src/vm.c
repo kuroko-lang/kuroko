@@ -1807,6 +1807,7 @@ static KrkValue run() {
 		}
 
 		if (krk_currentThread.flags & KRK_THREAD_SIGNALLED) {
+			krk_currentThread.flags &= ~(KRK_THREAD_SIGNALLED); /* Clear signal flag */
 			krk_runtimeError(vm.exceptions->keyboardInterrupt, "Keyboard interrupt.");
 			goto _finishException;
 		}
