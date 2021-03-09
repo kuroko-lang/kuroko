@@ -1,4 +1,5 @@
 #include <string.h>
+#include <limits.h>
 #include "vm.h"
 #include "value.h"
 #include "memory.h"
@@ -11,8 +12,18 @@
 static KrkValue _tuple_init(int argc, KrkValue argv[], int hasKw) {
 	if (argc == 1) {
 		return OBJECT_VAL(krk_newTuple(0));
+	} else if (argc == 2) {
+		/* Convert this to a call to tupleOf(*arg) */
+		KrkValue tupleOf;
+		krk_tableGet(&vm.builtins->fields, OBJECT_VAL(S("tupleOf")), &tupleOf);
+		krk_push(KWARGS_VAL(LONG_MAX-1));
+		krk_push(argv[1]);
+		krk_push(KWARGS_VAL(1));
+		krk_push(krk_callSimple(tupleOf, 3, 0));
+		return krk_pop();
+	} else {
+		return krk_runtimeError(vm.exceptions->argumentError, "tuple() takes at most one argument");
 	}
-	return krk_runtimeError(vm.exceptions->typeError,"tuple() initializier unsupported");
 }
 
 inline void krk_tupleUpdateHash(KrkTuple * self) {
