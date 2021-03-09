@@ -756,7 +756,7 @@ static KrkValue _property_init(int argc, KrkValue argv[], int hasKw) {
 static KrkValue _property_repr(int argc, KrkValue argv[], int hasKw) {
 	if (argc != 1 || !IS_PROPERTY(argv[0])) return krk_runtimeError(vm.exceptions->typeError, "?");
 	struct StringBuilder sb = {0};
-	pushStringBuilderStr(&sb, "Property(", 9);
+	pushStringBuilderStr(&sb, "property(", 9);
 
 	KrkValue method = AS_PROPERTY(argv[0])->method;
 

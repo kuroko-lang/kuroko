@@ -1,0 +1,63 @@
+def base():
+    class A:
+        val=45
+        @property
+        def p(self,*args):
+            print('p retrieved from',self.__class__.__name__)
+            if args: print('actually a setter')
+            return {"a": self.val}
+        #@p.setter
+        #def p(self, fuck):
+        #    print('called setter with', fuck)
+        def method(self):
+            return self.val
+        def mrod(self):
+            return self.val
+
+
+    class AA(A):
+        val=90
+        @property
+        def p(self,*args):
+            print('calling property from subclass')
+            if args: print('actually a setter')
+            return super().p
+        #@p.setter
+        #def p(self, val):
+        #    print('setting p to',val)
+        def method(self):
+            return self.val
+        def withsup(self):
+            return super().val
+
+    def foo(a=None,aa=None):
+        print('property' in str(A.p))
+        print('property' in str(AA.p))
+        print(dir(A.p))
+
+        a = A()
+        print(a.p)
+
+        aa = AA()
+        print(aa.p)
+
+        aa.p = 42
+
+        print(a.val)
+        print(aa.val)
+
+        print(a.method())
+        print(aa.method())
+
+        aa.val = 42
+        print(aa.withsup())
+        print(aa.method())
+        print(aa.mrod())
+        aa.method = "nope, lol"
+
+        print(A.val)
+
+    foo()
+
+if __name__ == '__main__':
+    base()

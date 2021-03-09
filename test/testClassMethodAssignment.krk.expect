@@ -1,0 +1,6 @@
+Called bar
+<bound method Foo.other>
+Called other
+<bound method Foo.noargs>
+noargs() takes exactly 0 arguments (1 given)
+I can be called

@@ -1,0 +1,32 @@
+class Foo:
+	def bar(self):
+		print("Called bar")
+
+let f = Foo()
+f.bar()
+
+def other(instance):
+	print("Called other")
+
+def noargs():
+	print("Uh oh, binding will work but call will fail.")
+
+Foo.other = other
+Foo.noargs = noargs
+
+print(f.other)
+f.other()
+
+print(f.noargs)
+try:
+	f.noargs()
+except Exception as e:
+	print(e)
+
+class SomethingCallable():
+	def __call__(self):
+		print("I can be called")
+
+Foo.callable = SomethingCallable()
+
+f.callable()

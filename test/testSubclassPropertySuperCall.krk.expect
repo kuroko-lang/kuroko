@@ -1,0 +1,19 @@
+True
+True
+['__class__', '__dir__', '__doc__', '__hash__', '__init__', '__method__', '__module__', '__name__', '__repr__', '__str__']
+p retrieved from A
+{'a': 45}
+calling property from subclass
+p retrieved from AA
+{'a': 90}
+calling property from subclass
+actually a setter
+p retrieved from AA
+45
+90
+45
+90
+45
+42
+42
+45
