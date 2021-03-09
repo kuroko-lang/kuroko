@@ -54,27 +54,36 @@ KRK_FUNC(paste,{
 	fprintf(stderr, "Pasting is %s.\n", pasteEnabled ? "enabled" : "disabled");
 })
 
-/**
- * @brief Read a line of input.
- *
- * In an interactive session, presents the configured prompt without
- * a trailing linefeed.
- */
-KRK_FUNC(input,{
-	FUNCTION_TAKES_AT_MOST(1);
-	if (argc) {
-		CHECK_ARG(0,str,KrkString*,prompt);
-		fprintf(stdout, "%s", prompt->chars);
+static int doRead(char * buf, size_t bufSize) {
+#ifndef NO_RLINE
+	if (enableRline)
+		return rline(buf, bufSize);
+	else
+#endif
+		return read(STDIN_FILENO, buf, bufSize);
+}
+
+static KrkValue readLine(char * prompt, int promptWidth, char * syntaxHighlighter) {
+	struct StringBuilder sb = {0};
+
+#ifndef NO_RLINE
+	if (enableRline) {
+		rline_exit_string = "";
+		rline_exp_set_prompts(prompt, "", promptWidth, 0);
+		rline_exp_set_syntax(syntaxHighlighter);
+		rline_exp_set_tab_complete_func(NULL);
+	} else
+#endif
+	{
+		fprintf(stdout, "%s", prompt);
 		fflush(stdout);
 	}
-
-	struct StringBuilder sb = {0};
 
 	/* Read a line of input using a method that we can guarantee will be
 	 * interrupted by signal delivery. */
 	while (1) {
 		char buf[4096];
-		ssize_t bytesRead = read(STDIN_FILENO, buf, 4096);
+		ssize_t bytesRead = doRead(buf, 4096);
 		if (krk_currentThread.flags & KRK_THREAD_SIGNALLED) goto _exit;
 		if (bytesRead < 0) {
 			krk_runtimeError(vm.exceptions->ioError, "%s", strerror(errno));
@@ -85,7 +94,7 @@ KRK_FUNC(input,{
 		} else {
 			pushStringBuilderStr(&sb, buf, bytesRead);
 		}
-		/* Strip a trailing newline, if one is present */
+		/* Was there a linefeed? Then we can exit. */
 		if (sb.length && sb.bytes[sb.length-1] == '\n') {
 			sb.length--;
 			break;
@@ -96,6 +105,43 @@ KRK_FUNC(input,{
 
 _exit:
 	discardStringBuilder(&sb);
+	return NONE_VAL();
+}
+
+/**
+ * @brief Read a line of input.
+ *
+ * In an interactive session, presents the configured prompt without
+ * a trailing linefeed.
+ */
+KRK_FUNC(input,{
+	FUNCTION_TAKES_AT_MOST(1);
+
+	char * prompt = "";
+	int promptLength = 0;
+	char * syntaxHighlighter = NULL;
+
+	if (argc) {
+		CHECK_ARG(0,str,KrkString*,_prompt);
+		prompt = _prompt->chars;
+		promptLength = _prompt->codesLength;
+	}
+
+	if (hasKw) {
+		KrkValue promptwidth;
+		if (krk_tableGet(AS_DICT(argv[argc]), OBJECT_VAL(S("promptwidth")), &promptwidth)) {
+			if (!IS_INTEGER(promptwidth)) return TYPE_ERROR(int,promptwidth);
+			promptLength = AS_INTEGER(promptwidth);
+		}
+
+		KrkValue syntax;
+		if (krk_tableGet(AS_DICT(argv[argc]), OBJECT_VAL(S("syntax")), &syntax)) {
+			if (!IS_STRING(syntax)) return TYPE_ERROR(str,syntax);
+			syntaxHighlighter = AS_CSTRING(syntax);
+		}
+	}
+
+	return readLine(prompt, promptLength, syntaxHighlighter);
 })
 
 #ifndef NO_RLINE
@@ -792,7 +838,19 @@ _finishArgs:
 	 * Add general builtins that aren't part of the core VM.
 	 * This is where we provide @c input in particular.
 	 */
-	BIND_FUNC(vm.builtins,input);
+	BIND_FUNC(vm.builtins,input)->doc = "@brief Read a line of input.\n"
+		"@arguments [prompt], promptwidth=None, syntax=None\n\n"
+		"Read a line of input from @c stdin. If the @c rline library is available, "
+		"it will be used to gather input. Input reading stops on end-of file or when "
+		"a read ends with a line feed, which will be removed from the returned string. "
+		"If a prompt is provided, it will be printed without a line feed before requesting "
+		"input. If @c rline is available, the prompt will be passed to the library as the "
+		"left-hand prompt string. If not provided, @p promptwidth will default to the width "
+		"of @p prompt in codepoints; if you are providing a prompt with escape characters or "
+		"characters with multi-column East-Asian Character Width be sure to pass a value "
+		"for @p promptwidth that reflects the display width of your prompt. "
+		"If provided, @p syntax specifies the name of an @c rline syntax module to "
+		"provide color highlighting of the input line.";
 
 	if (moduleAsMain) {
 		krk_push(OBJECT_VAL(krk_copyString("__main__",8)));
@@ -806,8 +864,14 @@ _finishArgs:
 		return out;
 	} else if (optind == argc) {
 		/* Add builtins for the repl, but hide them from the globals() list. */
-		BIND_FUNC(vm.builtins,exit);
-		BIND_FUNC(vm.builtins,paste);
+		BIND_FUNC(vm.builtins,exit)->doc = "@brief Exit the interactive repl.\n\n"
+			"Only available from the interactive interpreter; exits the repl.";
+		BIND_FUNC(vm.builtins,paste)->doc = "@brief Toggle paste mode.\n"
+			"@arguments enabled=None\n\n"
+			"Toggles paste-safe mode, disabling automatic indentation in the repl. "
+			"If @p enabled is specified, the mode can be directly specified, otherwise "
+			"it will be set to the opposite of the current mode. The new mode will be "
+			"printed to stderr.";
 
 		/* The repl runs in the context of a top-level module so each input
 		 * line can share a globals state with the others. */

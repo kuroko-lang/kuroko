@@ -1107,6 +1107,10 @@ struct syntax_definition {
 static struct syntax_definition * syntax;
 
 int rline_exp_set_syntax(char * name) {
+	if (!name) {
+		syntax = NULL;
+		return 0;
+	}
 	for (struct syntax_definition * s = syntaxes; s->name; ++s) {
 		if (!strcmp(name,s->name)) {
 			syntax = s;
