@@ -130,11 +130,14 @@ KRK_METHOD(File,readline,{
 		char * target = &buffer[sizeRead];
 		while (sizeRead < spaceAvailable) {
 			int c = fgetc(file);
+			if (krk_currentThread.flags & KRK_THREAD_SIGNALLED) break;
 			if (c < 0) break;
 			sizeRead++;
 			*target++ = c;
 			if (c == '\n') goto _finish_line;
 		}
+
+		if (krk_currentThread.flags & KRK_THREAD_SIGNALLED) break;
 	} while (!feof(file));
 
 _finish_line: (void)0;
@@ -157,6 +160,7 @@ KRK_METHOD(File,readlines,{
 	for (;;) {
 		KrkValue line = FUNC_NAME(File,readline)(1, argv, 0);
 		if (IS_NONE(line)) break;
+		if (krk_currentThread.flags & KRK_THREAD_SIGNALLED) break;
 
 		krk_push(line);
 		krk_writeValueArray(AS_LIST(myList), line);
@@ -198,6 +202,7 @@ KRK_METHOD(File,read,{
 
 			char * target = &buffer[sizeRead];
 			size_t newlyRead = fread(target, 1, BLOCK_SIZE, file);
+			if (krk_currentThread.flags & KRK_THREAD_SIGNALLED) break;
 
 			if (newlyRead < BLOCK_SIZE) {
 				if (ferror(file)) {
@@ -291,11 +296,14 @@ KRK_METHOD(BinaryFile,readline,{
 		char * target = &buffer[sizeRead];
 		while (sizeRead < spaceAvailable) {
 			int c = fgetc(file);
+			if (krk_currentThread.flags & KRK_THREAD_SIGNALLED) break;
 			if (c < 0) break;
 			sizeRead++;
 			*target++ = c;
 			if (c == '\n') goto _finish_line;
 		}
+
+		if (krk_currentThread.flags & KRK_THREAD_SIGNALLED) break;
 	} while (!feof(file));
 
 _finish_line: (void)0;
@@ -318,6 +326,7 @@ KRK_METHOD(BinaryFile,readlines,{
 	for (;;) {
 		KrkValue line = FUNC_NAME(BinaryFile,readline)(1, argv, 0);
 		if (IS_NONE(line)) break;
+		if (krk_currentThread.flags & KRK_THREAD_SIGNALLED) break;
 
 		krk_push(line);
 		krk_writeValueArray(AS_LIST(myList), line);
@@ -359,6 +368,8 @@ KRK_METHOD(BinaryFile,read,{
 
 			char * target = &buffer[sizeRead];
 			size_t newlyRead = fread(target, 1, BLOCK_SIZE, file);
+
+			if (krk_currentThread.flags & KRK_THREAD_SIGNALLED) break;
 
 			if (newlyRead < BLOCK_SIZE) {
 				if (ferror(file)) {
