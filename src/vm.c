@@ -1764,6 +1764,19 @@ KrkValue krk_valueGetAttribute(KrkValue value, char * name) {
 	return krk_pop();
 }
 
+KrkValue krk_valueGetAttribute_default(KrkValue value, char * name, KrkValue defaultVal) {
+	krk_push(OBJECT_VAL(krk_copyString(name,strlen(name))));
+	krk_push(value);
+	if (!valueGetProperty(AS_STRING(krk_peek(1)))) {
+		krk_pop();
+		krk_pop();
+		return defaultVal;
+	}
+	krk_swap(1);
+	krk_pop(); /* String */
+	return krk_pop();
+}
+
 static int valueDelProperty(KrkString * name) {
 	if (IS_INSTANCE(krk_peek(0))) {
 		KrkInstance* instance = AS_INSTANCE(krk_peek(0));

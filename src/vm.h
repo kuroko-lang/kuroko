@@ -744,6 +744,11 @@ extern int krk_isFalsey(KrkValue value);
 extern KrkValue krk_valueGetAttribute(KrkValue value, char * name);
 
 /**
+ * @brief See @ref krk_valueGetAttribute
+ */
+extern KrkValue krk_valueGetAttribute_default(KrkValue value, char * name, KrkValue defaultVal);
+
+/**
  * @brief Set a property of an object by name.
  * @memberof KrkValue
  *

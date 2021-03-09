@@ -678,13 +678,11 @@ KRK_FUNC(getattr,{
 	FUNCTION_TAKES_AT_LEAST(2);
 	KrkValue object = argv[0];
 	CHECK_ARG(1,str,KrkString*,property);
-	KrkValue result = krk_valueGetAttribute(object, property->chars);
-	if (argc == 3 && krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION &&
-		krk_isInstanceOf(krk_currentThread.currentException, vm.exceptions->attributeError)) {
-		krk_currentThread.flags &= ~(KRK_THREAD_HAS_EXCEPTION);
-		result = argv[2];
+	if (argc == 3) {
+		return krk_valueGetAttribute_default(object, property->chars, argv[2]);
+	} else {
+		return krk_valueGetAttribute(object, property->chars);
 	}
-	return result;
 })
 
 KRK_FUNC(setattr,{
