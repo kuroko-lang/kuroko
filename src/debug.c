@@ -15,6 +15,7 @@
  */
 void krk_debug_dumpStack(FILE * file, KrkCallFrame * frame) {
 	size_t i = 0;
+	if (!frame) frame = &krk_currentThread.frames[krk_currentThread.frameCount-1];
 	for (KrkValue * slot = krk_currentThread.stack; slot < krk_currentThread.stackTop; slot++) {
 		fprintf(file, "[%c", frame->slots == i ? '*' : ' ');
 
