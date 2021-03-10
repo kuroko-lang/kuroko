@@ -207,7 +207,7 @@ def processModules(modules):
                     methods.append(Pair(member,obj))
                 else if isinstance(obj, property) and member not in seen:
                     seen.append(member)
-                    properties.append(Pair(member,obj.__method__))
+                    properties.append(Pair(member,obj.fget))
             if methods:
                 methods.sort()
                 for methodName, method in methods:
