@@ -7,6 +7,10 @@
 
 static KrkClass * Helper;
 static KrkClass * LicenseReader;
+static KrkClass * property;
+
+FUNC_SIG(list,__init__);
+FUNC_SIG(list,sort);
 
 KrkValue krk_dirObject(int argc, KrkValue argv[], int hasKw) {
 	if (argc != 1) return krk_runtimeError(vm.exceptions->argumentError, "wrong number of arguments or bad type, got %d\n", argc);
@@ -18,51 +22,52 @@ KrkValue krk_dirObject(int argc, KrkValue argv[], int hasKw) {
 	if (IS_INSTANCE(argv[0])) {
 		/* Obtain self-reference */
 		KrkInstance * self = AS_INSTANCE(argv[0]);
-
-		/* First add each method of the class */
-		for (size_t i = 0; i < self->_class->methods.capacity; ++i) {
-			if (self->_class->methods.entries[i].key.type != VAL_KWARGS) {
-				krk_writeValueArray(AS_LIST(myList),
-					self->_class->methods.entries[i].key);
-			}
-		}
-
-		/* Then add each field of the instance */
 		for (size_t i = 0; i < self->fields.capacity; ++i) {
 			if (self->fields.entries[i].key.type != VAL_KWARGS) {
+				
 				krk_writeValueArray(AS_LIST(myList),
 					self->fields.entries[i].key);
 			}
 		}
-	} else {
-		if (IS_CLASS(argv[0])) {
-			KrkClass * _class = AS_CLASS(argv[0]);
+	} else if (IS_CLASS(argv[0])) {
+		KrkClass * _class = AS_CLASS(argv[0]);
+		while (_class) {
 			for (size_t i = 0; i < _class->methods.capacity; ++i) {
 				if (_class->methods.entries[i].key.type != VAL_KWARGS) {
 					krk_writeValueArray(AS_LIST(myList),
 						_class->methods.entries[i].key);
 				}
 			}
-			for (size_t i = 0; i < _class->fields.capacity; ++i) {
-				if (_class->fields.entries[i].key.type != VAL_KWARGS) {
-					krk_writeValueArray(AS_LIST(myList),
-						_class->fields.entries[i].key);
-				}
-			}
+			_class = _class->base;
 		}
-		KrkClass * type = krk_getType(argv[0]);
+	}
 
+	KrkClass * type = krk_getType(argv[0]);
+
+	while (type) {
 		for (size_t i = 0; i < type->methods.capacity; ++i) {
 			if (type->methods.entries[i].key.type != VAL_KWARGS) {
 				krk_writeValueArray(AS_LIST(myList),
 					type->methods.entries[i].key);
 			}
 		}
+		type = type->base;
 	}
 
-	/* Prepare output value */
+	/* Throw it at a set to get unique, unordered results */
+	krk_push(krk_set_of(AS_LIST(myList)->count, AS_LIST(myList)->values, 0));
+	krk_swap(1);
 	krk_pop();
-	return myList;
+
+	/* Now build a fresh list */
+	myList = krk_list_of(0,NULL,0);
+	krk_push(myList);
+	krk_swap(1);
+	FUNC_NAME(list,__init__)(2,(KrkValue[]){krk_peek(1), krk_peek(0)},0);
+	FUNC_NAME(list,sort)(1,(KrkValue[]){krk_peek(1)},0);
+	krk_pop();
+
+	return krk_pop();
 }
 
 
@@ -327,7 +332,7 @@ KRK_METHOD(filterobject,__call__,{
 				continue;
 			}
 		} else {
-			krk_push(krk_peek(1));
+			krk_push(krk_peek(0));
 			KrkValue result = krk_callSimple(function, 1, 0);
 			if (krk_isFalsey(result)) {
 				krk_pop(); /* iterator result */
@@ -674,7 +679,19 @@ KRK_FUNC(getattr,{
 	FUNCTION_TAKES_AT_LEAST(2);
 	KrkValue object = argv[0];
 	CHECK_ARG(1,str,KrkString*,property);
-	return krk_valueGetAttribute(object, property->chars);
+	if (argc == 3) {
+		return krk_valueGetAttribute_default(object, property->chars, argv[2]);
+	} else {
+		return krk_valueGetAttribute(object, property->chars);
+	}
+})
+
+KRK_FUNC(setattr,{
+	FUNCTION_TAKES_EXACTLY(3);
+	KrkValue object = argv[0];
+	CHECK_ARG(1,str,KrkString*,property);
+	KrkValue value = argv[2];
+	return krk_valueSetAttribute(object, property->chars, value);
 })
 
 
@@ -727,49 +744,70 @@ KRK_METHOD(LicenseReader,__call__,{
 	return krk_runtimeError(vm.exceptions->typeError, "unexpected error");
 })
 
-static KrkValue _property_repr(int argc, KrkValue argv[], int hasKw) {
-	if (argc != 1 || !IS_PROPERTY(argv[0])) return krk_runtimeError(vm.exceptions->typeError, "?");
-	struct StringBuilder sb = {0};
-	pushStringBuilderStr(&sb, "Property(", 9);
+#define IS_property(o) (krk_isInstanceOf(o,property))
+#define AS_property(o) (AS_INSTANCE(o))
+KRK_METHOD(property,__init__,{
+	METHOD_TAKES_AT_LEAST(1);
+	METHOD_TAKES_AT_MOST(2); /* TODO fdel */
+	krk_attachNamedValue(&self->fields, "fget", argv[1]);
 
-	KrkValue method = AS_PROPERTY(argv[0])->method;
-
-	if (IS_NATIVE(method)) {
-		pushStringBuilderStr(&sb, (char*)AS_NATIVE(method)->name, strlen(AS_NATIVE(method)->name));
-	} else if (IS_CLOSURE(method)) {
-		pushStringBuilderStr(&sb, AS_CLOSURE(method)->function->name->chars, AS_CLOSURE(method)->function->name->length);
+	/* Try to attach doc */
+	if (IS_NATIVE(argv[1]) && AS_NATIVE(argv[1])->doc) {
+		krk_attachNamedValue(&self->fields, "__doc__",
+			OBJECT_VAL(krk_copyString(AS_NATIVE(argv[1])->doc, strlen(AS_NATIVE(argv[1])->doc))));
+	} else if (IS_CLOSURE(argv[1])) {
+		krk_attachNamedValue(&self->fields, "__doc__",
+			OBJECT_VAL(AS_CLOSURE(argv[1])->function->docstring));
 	}
 
-	pushStringBuilder(&sb,')');
-	return finishStringBuilder(&sb);
-}
-
-static KrkValue _property_doc(int argc, KrkValue argv[], int hasKw) {
-	if (argc != 1 || !IS_PROPERTY(argv[0])) return krk_runtimeError(vm.exceptions->typeError, "?");
-	KrkValue method = AS_PROPERTY(argv[0])->method;
-	if (IS_NATIVE(method) && AS_NATIVE(method)->doc) {
-		return OBJECT_VAL(krk_copyString(AS_NATIVE(method)->doc, strlen(AS_NATIVE(method)->doc)));
-	} else if (IS_CLOSURE(method)) {
-		return OBJECT_VAL(AS_CLOSURE(method)->function->docstring);
+	/* Try to attach name */
+	if (IS_NATIVE(argv[1]) && AS_NATIVE(argv[1])->name) {
+		krk_attachNamedValue(&self->fields, "__name__",
+			OBJECT_VAL(krk_copyString(AS_NATIVE(argv[1])->name, strlen(AS_NATIVE(argv[1])->name))));
+	} else if (IS_CLOSURE(argv[1])) {
+		krk_attachNamedValue(&self->fields, "__name__",
+			OBJECT_VAL(AS_CLOSURE(argv[1])->function->name));
 	}
-	return NONE_VAL();
-}
 
-static KrkValue _property_name(int argc, KrkValue argv[], int hasKw) {
-	if (argc != 1 || !IS_PROPERTY(argv[0])) return krk_runtimeError(vm.exceptions->typeError, "?");
-	KrkValue method = AS_PROPERTY(argv[0])->method;
-	if (IS_NATIVE(method) && AS_NATIVE(method)->name) {
-		return OBJECT_VAL(krk_copyString(AS_NATIVE(method)->name, strlen(AS_NATIVE(method)->name)));
-	} else if (IS_CLOSURE(method)) {
-		return OBJECT_VAL(AS_CLOSURE(method)->function->name);
-	}
-	return NONE_VAL();
-}
+	if (argc > 2)
+		krk_attachNamedValue(&self->fields, "fset", argv[2]);
 
-static KrkValue _property_method(int argc, KrkValue argv[], int hasKw) {
-	if (argc != 1 || !IS_PROPERTY(argv[0])) return krk_runtimeError(vm.exceptions->typeError, "?");
-	return AS_PROPERTY(argv[0])->method;
-}
+	return argv[0];
+})
+
+KRK_METHOD(property,setter,{
+	METHOD_TAKES_EXACTLY(1);
+	krk_attachNamedValue(&self->fields, "fset", argv[1]);
+	return argv[0]; /* Return the original property */
+})
+
+KRK_METHOD(property,__get__,{
+	METHOD_TAKES_EXACTLY(1); /* the owner */
+
+	KrkValue fget;
+	if (!krk_tableGet(&self->fields, OBJECT_VAL(S("fget")), &fget))
+		return krk_runtimeError(vm.exceptions->valueError, "property object is missing 'fget' attribute");
+
+	krk_push(argv[1]);
+	return krk_callSimple(fget, 1, 0);
+})
+
+KRK_METHOD(property,__set__,{
+	METHOD_TAKES_EXACTLY(2); /* the owner and the value */
+
+	krk_push(argv[1]);
+	krk_push(argv[2]);
+
+	KrkValue fset;
+	if (krk_tableGet(&self->fields, OBJECT_VAL(S("fset")), &fset))
+		return krk_callSimple(fset, 2, 0);
+
+	KrkValue fget;
+	if (krk_tableGet(&self->fields, OBJECT_VAL(S("fget")), &fget))
+		return krk_callSimple(fget, 2, 0);
+
+	return krk_runtimeError(vm.exceptions->attributeError, "attribute can not be set");
+})
 
 static KrkValue _id(int argc, KrkValue argv[], int hasKw) {
 	if (argc != 1) return krk_runtimeError(vm.exceptions->argumentError, "expected exactly one argument");
@@ -794,14 +832,18 @@ void _createAndBind_builtins(void) {
 	krk_defineNative(&vm.baseClasses->objectClass->methods, ".__repr__", _strBase); /* Override if necesary */
 	krk_defineNative(&vm.baseClasses->objectClass->methods, ".__hash__", obj_hash);
 	krk_finalizeClass(vm.baseClasses->objectClass);
-	vm.baseClasses->objectClass->docstring = S("Base class for all types.");
+	KRK_DOC(vm.baseClasses->objectClass,
+		"@brief Base class for all types.\n\n"
+		"The @c object base class provides the fallback implementations of methods like "
+		"@ref object___dir__ \"__dir__\". All object and primitive types eventually inherit from @c object."
+	);
 
 	vm.baseClasses->moduleClass = krk_newClass(S("module"), vm.baseClasses->objectClass);
 	krk_push(OBJECT_VAL(vm.baseClasses->moduleClass));
 	krk_defineNative(&vm.baseClasses->moduleClass->methods, ".__repr__", _module_repr);
 	krk_defineNative(&vm.baseClasses->moduleClass->methods, ".__str__", _module_repr);
 	krk_finalizeClass(vm.baseClasses->moduleClass);
-	vm.baseClasses->moduleClass->docstring = S("Type of imported modules and packages.");
+	KRK_DOC(vm.baseClasses->moduleClass, "Type of imported modules and packages.");
 
 	vm.builtins = krk_newInstance(vm.baseClasses->moduleClass);
 	krk_attachNamedObject(&vm.modules, "__builtins__", (KrkObj*)vm.builtins);
@@ -811,27 +853,68 @@ void _createAndBind_builtins(void) {
 
 	krk_attachNamedObject(&vm.builtins->fields, "__name__", (KrkObj*)S("__builtins__"));
 	krk_attachNamedValue(&vm.builtins->fields, "__file__", NONE_VAL());
-	krk_attachNamedObject(&vm.builtins->fields, "__doc__",
-		(KrkObj*)S("Internal module containing built-in functions and classes."));
+	KRK_DOC(vm.builtins,
+		"@brief Internal module containing built-in functions and classes.\n\n"
+		"Classes and functions from the @c \\__builtins__ module are generally available from "
+		"all global namespaces. Built-in names can still be shadowed by module-level globals "
+		"and function-level locals, so none the names in this module are not reserved. When "
+		"a built-in name has been shadowed, the original can be referenced directly as "
+		" @c \\__builtins__.name instead.\n\n"
+		"Built-in names may be bound from several sources. Most come from the core interpreter "
+		"directly, but some may come from loaded C extension modules or the interpreter binary. "
+		"Kuroko source modules are also free to append new names to the built-in name space by "
+		"attaching new properties to the @c \\__builtins__ instance."
+	);
 
-	krk_makeClass(vm.builtins, &vm.baseClasses->propertyClass, "Property", vm.baseClasses->objectClass);
-	krk_defineNative(&vm.baseClasses->propertyClass->methods, ".__repr__", _property_repr);
-	krk_defineNative(&vm.baseClasses->propertyClass->methods, ":__doc__", _property_doc);
-	krk_defineNative(&vm.baseClasses->propertyClass->methods, ":__name__", _property_name);
-	krk_defineNative(&vm.baseClasses->propertyClass->methods, ":__method__", _property_method);
-	krk_finalizeClass(vm.baseClasses->propertyClass);
+	property = krk_makeClass(vm.builtins, &vm.baseClasses->propertyClass, "property", vm.baseClasses->objectClass);
+	KRK_DOC(BIND_METHOD(property,__init__),
+		"@brief Create a property object.\n"
+		"@arguments fget,[fset]\n\n"
+		"When a property object is obtained from an instance of the class in which it is defined, "
+		"the function or method assigned to @p fget is called with the instance as an argument. "
+		"If @p fset is provided, it will be called with the instance and a value when the property "
+		"object is assigned to through an instance. For legacy compatibility reasons, a property "
+		"object's @p fget method may also accept an additional argument to act as a setter if "
+		"@p fset is not provided, but this functionality may be removed in the future.\n\n"
+		"The typical use for @c property is as a decorator on methods in a class. See also "
+		"@ref property_setter \"property.setter\" for the newer Python-style approach to decorating a companion "
+		"setter method.");
+	BIND_METHOD(property,__get__);
+	BIND_METHOD(property,__set__);
+	KRK_DOC(BIND_METHOD(property,setter),
+		"@brief Assign the setter method of a property object.\n"
+		"@arguments fset\n\n"
+		"This should be used as a decorator from an existing property object as follows:\n\n"
+		"```\n"
+		"class Foo():\n"
+		"    @property\n"
+		"    def bar(self):\n"
+		"        return 42\n"
+		"    @bar.setter\n"
+		"    def bar(self, val):\n"
+		"        print('setting bar to',val)\n"
+		"```\n"
+		"Be sure to apply the decorator to a function or method with the same name, as this "
+		"name will be used to assign the property to the class's attribute table; using a "
+		"different name will create a duplicate alias.");
+	krk_finalizeClass(property);
 
 	krk_makeClass(vm.builtins, &Helper, "Helper", vm.baseClasses->objectClass);
-	Helper->docstring = S("Special object that prints a helpful message when passed to @ref repr");
-	BIND_METHOD(Helper,__call__)->doc = "@arguments obj=None\nPrints the help documentation attached to @p obj or "
-		"starts the interactive help system.";
+	KRK_DOC(Helper,
+		"@brief Special object that prints a helpeful message.\n\n"
+		"Object that prints help summary when passed to @ref repr.");
+	KRK_DOC(BIND_METHOD(Helper,__call__),
+		"@brief Prints help text.\n"
+		"@arguments obj=None\n\n"
+		"Prints the help documentation attached to @p obj or starts the interactive help system by "
+		"importing the @ref mod_help module.");
 	BIND_METHOD(Helper,__repr__);
 	krk_finalizeClass(Helper);
 	krk_attachNamedObject(&vm.builtins->fields, "help", (KrkObj*)krk_newInstance(Helper));
 
 	krk_makeClass(vm.builtins, &LicenseReader, "LicenseReader", vm.baseClasses->objectClass);
-	LicenseReader->docstring = S("Special object that prints Kuroko's copyright information when passed to @ref repr");
-	BIND_METHOD(LicenseReader,__call__)->doc = "Print the full license statement.";
+	KRK_DOC(LicenseReader, "Special object that prints Kuroko's copyright information when passed to @ref repr");
+	KRK_DOC(BIND_METHOD(LicenseReader,__call__), "Print the full license statement.");
 	BIND_METHOD(LicenseReader,__repr__);
 	krk_finalizeClass(LicenseReader);
 	krk_attachNamedObject(&vm.builtins->fields, "license", (KrkObj*)krk_newInstance(LicenseReader));
@@ -868,6 +951,7 @@ void _createAndBind_builtins(void) {
 	BUILTIN_FUNCTION("any", _any, "Returns True if at least one element in the given iterable is truthy, False otherwise.");
 	BUILTIN_FUNCTION("all", _all, "Returns True if every element in the given iterable is truthy, False otherwise.");
 	BUILTIN_FUNCTION("getattr", FUNC_NAME(krk,getattr), "Obtain a property of an object as if it were accessed by the dot operator.");
+	BUILTIN_FUNCTION("setattr", FUNC_NAME(krk,setattr), "Set a property of an object as if it were accessed by the dot operator.");
 	BUILTIN_FUNCTION("sum", _sum, "Add the elements of an iterable.");
 	BUILTIN_FUNCTION("min", _min, "Return the lowest value in an iterable or the passed arguments.");
 	BUILTIN_FUNCTION("max", _max, "Return the highest value in an iterable or the passed arguments.");

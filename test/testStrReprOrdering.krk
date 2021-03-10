@@ -1,0 +1,12 @@
+class Foo(object):
+	def __str__(self):
+		return '<str>'
+	def __repr__(self):
+		return '<repr>'
+print('Foo:',Foo())
+
+print(str(Foo()))
+print(repr(Foo()))
+
+print(Foo().__str__)
+print(Foo().__repr__)

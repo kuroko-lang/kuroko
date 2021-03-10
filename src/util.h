@@ -37,10 +37,6 @@ static inline const char * _method_name(const char * func) {
 
 #define ADD_BASE_CLASS(obj, name, baseClass) krk_makeClass(vm.builtins, &obj, name, baseClass)
 
-#define BUILTIN_FUNCTION(name, func, docStr) do { \
-	krk_defineNative(&vm.builtins->fields, name, func)->doc = docStr; \
-} while (0)
-
 /* _method_name works for this, but let's skip the inlined function call where possible */
 #define _function_name(f) (f+5)
 
@@ -92,7 +88,7 @@ static inline const char * _method_name(const char * func) {
 #define MAKE_CLASS(klass) do { krk_makeClass(module,&klass,#klass,vm.baseClasses->objectClass); klass ->allocSize = sizeof(struct klass); } while (0)
 #define BIND_METHOD(klass,method) krk_defineNative(&klass->methods, "." #method, _ ## klass ## _ ## method)
 #define BIND_FIELD(klass,method) krk_defineNative(&klass->methods, ":" #method, _ ## klass ## _ ## method)
-#define BIND_PROP(klass,method) krk_defineNativeProperty(&klass->fields, #method, _ ## klass ## _ ## method)
+#define BIND_PROP(klass,method) krk_defineNativeProperty(&klass->methods, #method, _ ## klass ## _ ## method)
 #define BIND_FUNC(module,func) krk_defineNative(&module->fields, #func, _krk_ ## func)
 
 /**
@@ -258,4 +254,40 @@ static inline KrkValue discardStringBuilder(struct StringBuilder * sb) {
 		unpackIterable(iterableValue); \
 	} \
 } while (0)
+
+static inline void _setDoc_class(KrkClass * thing, const char * text, size_t size) {
+	thing->docstring = krk_copyString(text, size);
+}
+static inline void _setDoc_instance(KrkInstance * thing, const char * text, size_t size) {
+	krk_attachNamedObject(&thing->fields, "__doc__", (KrkObj*)krk_copyString(text, size));
+}
+static inline void _setDoc_native(KrkNative * thing, const char * text, size_t size) {
+	(void)size;
+	thing->doc = text;
+}
+
+/**
+ * @def KRK_DOC(thing,text)
+ * @brief Attach documentation to a thing of various types.
+ *
+ * Classes store their docstrings directly, rather than in their attribute tables.
+ * Instances use the attribute table and store strings with the name @c \__doc__.
+ * Native functions store direct C string pointers for documentation.
+ *
+ * This macro provides a generic interface for applying documentation strings to
+ * any of the above types, and handles not attaching documentation when built
+ * with KRK_NO_DOCUMENTATION.
+ */
+#ifdef KRK_NO_DOCUMENTATION
+# define KRK_DOC(thing, text) (thing);
+#else
+# define KRK_DOC(thing, text) \
+	_Generic(&((thing)[0]), \
+		KrkClass*: _setDoc_class, \
+		KrkInstance*: _setDoc_instance, \
+		KrkNative*: _setDoc_native \
+	)(thing,text,sizeof(text)-1)
+#endif
+
+#define BUILTIN_FUNCTION(name, func, docStr) KRK_DOC(krk_defineNative(&vm.builtins->fields, name, func), docStr)
 

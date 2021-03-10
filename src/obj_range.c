@@ -107,7 +107,7 @@ void _createAndBind_rangeClass(void) {
 	krk_defineNative(&vm.baseClasses->rangeClass->methods, ".__iter__", _range_iter);
 	krk_defineNative(&vm.baseClasses->rangeClass->methods, ".__repr__", _range_repr);
 	krk_finalizeClass(vm.baseClasses->rangeClass);
-	vm.baseClasses->rangeClass->docstring = S("range(max), range(min, max[, step]): "
+	KRK_DOC(vm.baseClasses->rangeClass, "range(max), range(min, max[, step]): "
 		"An iterable object that produces numeric values. "
 		"'min' is inclusive, 'max' is exclusive.");
 

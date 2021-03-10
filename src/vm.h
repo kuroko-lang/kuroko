@@ -88,6 +88,8 @@ typedef enum {
 	METHOD_SETSLICE,
 	METHOD_DELSLICE,
 	METHOD_CONTAINS,
+	METHOD_DESCGET,
+	METHOD_DESCSET,
 
 	METHOD__MAX,
 } KrkSpecialMethods;
@@ -371,6 +373,16 @@ extern KrkValue krk_pop(void);
 extern KrkValue krk_peek(int distance);
 
 /**
+ * @brief Swap the top of the stack of the value @p distance slots down.
+ *
+ * Exchanges the values at the top of the stack and @p distance slots from the top
+ * without removing or shuffling anything in between.
+ *
+ * @param distance How from down from the top of the stack to swap (0 = the top)
+ */
+extern void krk_swap(int distance);
+
+/**
  * @brief Get the name of the type of a value.
  * @memberof KrkValue
  *
@@ -413,7 +425,7 @@ extern KrkNative * krk_defineNative(KrkTable * table, const char * name, NativeF
  * @param func     Native function pointer to attach
  * @return A pointer to the property object created.
  */
-extern KrkProperty * krk_defineNativeProperty(KrkTable * table, const char * name, NativeFn func);
+extern KrkNative * krk_defineNativeProperty(KrkTable * table, const char * name, NativeFn func);
 
 /**
  * @brief Attach a value to an attribute table.
@@ -584,6 +596,14 @@ extern KrkValue krk_dict_of(int argc, KrkValue argv[], int hasKw);
 extern KrkValue krk_tuple_of(int argc, KrkValue argv[], int hasKw);
 
 /**
+ * @brief Create a set object.
+ * @memberof Set
+ *
+ * This is the native function bound to @c setOf
+ */
+extern KrkValue krk_set_of(int argc, KrkValue argv[], int hasKw);
+
+/**
  * @brief Call a callable and manage VM state to obtain the return value.
  * @memberof KrkValue
  *
@@ -726,6 +746,27 @@ extern int krk_isFalsey(KrkValue value);
 extern KrkValue krk_valueGetAttribute(KrkValue value, char * name);
 
 /**
+ * @brief See @ref krk_valueGetAttribute
+ */
+extern KrkValue krk_valueGetAttribute_default(KrkValue value, char * name, KrkValue defaultVal);
+
+/**
+ * @brief Set a property of an object by name.
+ * @memberof KrkValue
+ *
+ * This is a convenience function that works in essentially the
+ * same way as the OP_SET_PROPERTY instruction.
+ *
+ * @param owner The owner of the property to modify.
+ * @param name  C-string of the property name to modify.
+ * @param to    The value to assign.
+ * @return The set value, or None with an @ref AttributeError
+ *         exception set in the current thread if the object can
+ *         not have a property set.
+ */
+extern KrkValue krk_valueSetAttribute(KrkValue owner, char * name, KrkValue to);
+
+/**
  * @brief Concatenate two strings.
  *
  * This is a convenience function which calls @c str.__add__ on the top stack
@@ -738,8 +779,8 @@ extern void krk_addObjects(void);
  * FIXME This stuff needs to be moved to another header! FIXME
  */
 
-extern KrkValue _str___get__(int argc, KrkValue argv[], int hasKw);
-#define krk_string_get _str___get__
+extern KrkValue _str___getitem__(int argc, KrkValue argv[], int hasKw);
+#define krk_string_get _str___getitem__
 extern KrkValue _str___int__(int argc, KrkValue argv[], int hasKw);
 #define krk_string_int _str___int__
 extern KrkValue _str___float__(int argc, KrkValue argv[], int hasKw);

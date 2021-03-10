@@ -98,13 +98,14 @@ static KrkValue _closure_str(int argc, KrkValue argv[], int hasKw) {
 /* method.__str__ / method.__repr__ */
 static KrkValue _bound_str(int argc, KrkValue argv[], int hasKw) {
 	KrkValue s = _bound_get_name(argc, argv, hasKw);
+	if (!IS_STRING(s)) return NONE_VAL();
 	krk_push(s);
 
 	const char * typeName = krk_typeName(AS_BOUND_METHOD(argv[0])->receiver);
 
-	size_t len = AS_STRING(s)->length + sizeof("<method >") + strlen(typeName) + 1;
+	size_t len = AS_STRING(s)->length + sizeof("<bound method >") + strlen(typeName) + 1;
 	char * tmp = malloc(len);
-	snprintf(tmp, len, "<method %s.%s>", typeName, AS_CSTRING(s));
+	snprintf(tmp, len, "<bound method %s.%s>", typeName, AS_CSTRING(s));
 	s = OBJECT_VAL(krk_copyString(tmp,len-1));
 	free(tmp);
 	krk_pop();
@@ -167,6 +168,20 @@ static KrkValue _bound_get_argnames(int argc, KrkValue argv[], int hasKw) {
 }
 
 
+KRK_FUNC(staticmethod,{
+	FUNCTION_TAKES_EXACTLY(1);
+	CHECK_ARG(0,CLOSURE,KrkClosure*,method);
+	method->function->isStaticMethod = 1;
+	return argv[0];
+})
+
+KRK_FUNC(classmethod,{
+	FUNCTION_TAKES_EXACTLY(1);
+	CHECK_ARG(0,CLOSURE,KrkClosure*,method);
+	method->function->isClassMethod = 1;
+	return argv[0];
+})
+
 _noexport
 void _createAndBind_functionClass(void) {
 	ADD_BASE_CLASS(vm.baseClasses->codeobjectClass, "codeobject", vm.baseClasses->objectClass);
@@ -195,4 +210,7 @@ void _createAndBind_functionClass(void) {
 	krk_defineNative(&vm.baseClasses->methodClass->methods, ":__args__", _bound_get_argnames);
 	krk_defineNative(&vm.baseClasses->methodClass->methods, "_ip_to_line", _bound_ip_to_line);
 	krk_finalizeClass(vm.baseClasses->methodClass);
+
+	BUILTIN_FUNCTION("staticmethod", FUNC_NAME(krk,staticmethod), "A static method does not take an implicit self or cls argument.");
+	BUILTIN_FUNCTION("classmethod", FUNC_NAME(krk,classmethod), "A class method takes an implicit cls argument, instead of self.");
 }

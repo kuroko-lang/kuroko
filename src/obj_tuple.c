@@ -1,4 +1,5 @@
 #include <string.h>
+#include <limits.h>
 #include "vm.h"
 #include "value.h"
 #include "memory.h"
@@ -9,7 +10,20 @@
 	if (index < 0 || index >= (krk_integer_type)self->values.count) return krk_runtimeError(vm.exceptions->indexError, "tuple index out of range: " PRIkrk_int, index)
 
 static KrkValue _tuple_init(int argc, KrkValue argv[], int hasKw) {
-	return krk_runtimeError(vm.exceptions->typeError,"tuple() initializier unsupported");
+	if (argc == 1) {
+		return OBJECT_VAL(krk_newTuple(0));
+	} else if (argc == 2) {
+		/* Convert this to a call to tupleOf(*arg) */
+		KrkValue tupleOf;
+		krk_tableGet(&vm.builtins->fields, OBJECT_VAL(S("tupleOf")), &tupleOf);
+		krk_push(KWARGS_VAL(LONG_MAX-1));
+		krk_push(argv[1]);
+		krk_push(KWARGS_VAL(1));
+		krk_push(krk_callSimple(tupleOf, 3, 0));
+		return krk_pop();
+	} else {
+		return krk_runtimeError(vm.exceptions->argumentError, "tuple() takes at most one argument");
+	}
 }
 
 inline void krk_tupleUpdateHash(KrkTuple * self) {
@@ -52,7 +66,7 @@ KRK_METHOD(tuple,__len__,{
 	return INTEGER_VAL(self->values.count);
 })
 
-KRK_METHOD(tuple,__get__,{
+KRK_METHOD(tuple,__getitem__,{
 	METHOD_TAKES_EXACTLY(1);
 	CHECK_ARG(1,int,krk_integer_type,index);
 	TUPLE_WRAP_INDEX();
@@ -143,7 +157,7 @@ _noexport
 void _createAndBind_tupleClass(void) {
 	KrkClass * tuple = ADD_BASE_CLASS(vm.baseClasses->tupleClass, "tuple", vm.baseClasses->objectClass);
 	BIND_METHOD(tuple,__repr__);
-	BIND_METHOD(tuple,__get__);
+	BIND_METHOD(tuple,__getitem__);
 	BIND_METHOD(tuple,__len__);
 	BIND_METHOD(tuple,__contains__);
 	BIND_METHOD(tuple,__iter__);

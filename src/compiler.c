@@ -72,7 +72,9 @@ typedef enum {
 typedef void (*ParseFn)(int);
 
 typedef struct {
+#ifdef ENABLE_SCAN_TRACING
 	const char * name;
+#endif
 	ParseFn prefix;
 	ParseFn infix;
 	Precedence precedence;
@@ -101,6 +103,11 @@ typedef enum {
 	TYPE_CLASSMETHOD,
 } FunctionType;
 
+struct IndexWithNext {
+	size_t ind;
+	struct IndexWithNext * next;
+};
+
 typedef struct Compiler {
 	struct Compiler * enclosing;
 	KrkFunction * function;
@@ -121,6 +128,8 @@ typedef struct Compiler {
 	int * continues;
 
 	size_t localNameCapacity;
+
+	struct IndexWithNext * properties;
 } Compiler;
 
 typedef struct ClassCompiler {
@@ -165,6 +174,7 @@ static void initCompiler(Compiler * compiler, FunctionType type) {
 	compiler->continues = NULL;
 	compiler->loopLocalCount = 0;
 	compiler->localNameCapacity = 0;
+	compiler->properties = NULL;
 
 	if (type != TYPE_MODULE) {
 		current->function->name = krk_copyString(parser.previous.start, parser.previous.length);
@@ -178,6 +188,14 @@ static void initCompiler(Compiler * compiler, FunctionType type) {
 		local->name.length = 4;
 	}
 }
+
+static void rememberClassProperty(size_t ind) {
+	struct IndexWithNext * me = malloc(sizeof(struct IndexWithNext));
+	me->ind = ind;
+	me->next = current->properties;
+	current->properties = me;
+}
+
 
 static void parsePrecedence(Precedence precedence);
 static ssize_t parseVariable(const char * errorMessage);
@@ -377,6 +395,12 @@ static void freeCompiler(Compiler * compiler) {
 	FREE_ARRAY(Upvalue,compiler->upvalues, compiler->upvaluesSpace);
 	FREE_ARRAY(int,compiler->breaks, compiler->breakSpace);
 	FREE_ARRAY(int,compiler->continues, compiler->continueSpace);
+
+	while (compiler->properties) {
+		void * tmp = compiler->properties;
+		compiler->properties = compiler->properties->next;
+		free(tmp);
+	}
 }
 
 static size_t emitConstant(KrkValue value) {
@@ -987,12 +1011,11 @@ static void method(size_t blockWidth) {
 	if (check(TOKEN_AT)) {
 		decorator(0, TYPE_METHOD);
 	} else if (match(TOKEN_IDENTIFIER)) {
-		emitBytes(OP_DUP, 0); /* SET_PROPERTY will pop class */
 		size_t ind = identifierConstant(&parser.previous);
 		consume(TOKEN_EQUAL, "Class field must have value.");
 		expression();
-		EMIT_CONSTANT_OP(OP_SET_PROPERTY, ind);
-		emitByte(OP_POP); /* Value of expression replaces dup of class*/
+		rememberClassProperty(ind);
+		EMIT_CONSTANT_OP(OP_CLASS_PROPERTY, ind);
 		if (!match(TOKEN_EOL) && !match(TOKEN_EOF)) {
 			errorAtCurrent("Expected end of line after class attribut declaration");
 		}
@@ -1010,7 +1033,8 @@ static void method(size_t blockWidth) {
 		}
 
 		function(type, blockWidth);
-		EMIT_CONSTANT_OP(OP_METHOD, ind);
+		rememberClassProperty(ind);
+		EMIT_CONSTANT_OP(OP_CLASS_PROPERTY, ind);
 	}
 }
 
@@ -1197,40 +1221,14 @@ static KrkToken decorator(size_t level, FunctionType type) {
 	advance(); /* Collect the `@` */
 
 	KrkToken funcName = {0};
-	int haveCallable = 0;
 
-	/* hol'up, let's special case some stuff */
 	KrkToken at_staticmethod = syntheticToken("staticmethod");
-	KrkToken at_property = syntheticToken("property");
-	KrkToken at_classmethod = syntheticToken("classmethod");
-	if (identifiersEqual(&at_staticmethod, &parser.current)) {
-		if (level != 0 || type != TYPE_METHOD) {
-			error("Invalid use of @staticmethod, which must be the top decorator of a class method.");
-			return funcName;
-		}
-		advance();
-		type = TYPE_STATIC;
-		emitBytes(OP_DUP, 0); /* SET_PROPERTY will pop class */
-	} else if (identifiersEqual(&at_property, &parser.current)) {
-		if (level != 0 || type != TYPE_METHOD) {
-			error("Invalid use of @property, which must be the top decorator of a class method.");
-			return funcName;
-		}
-		advance();
-		type = TYPE_PROPERTY;
-		emitBytes(OP_DUP, 0);
-	} else if (identifiersEqual(&at_classmethod, &parser.current)) {
-		if (level != 0 || type != TYPE_METHOD) {
-			error("Invalid use of @classmethod, which must be the top decorator of a class method.");
-			return funcName;
-		}
-		advance();
-		type = TYPE_CLASSMETHOD;
-	} else {
-		/* Collect an identifier */
-		expression();
-		haveCallable = 1;
-	}
+	KrkToken at_classmethod  = syntheticToken("classmethod");
+
+	if (identifiersEqual(&at_staticmethod, &parser.current)) type = TYPE_STATIC;
+	if (identifiersEqual(&at_classmethod, &parser.current)) type = TYPE_CLASSMETHOD;
+
+	expression();
 
 	consume(TOKEN_EOL, "Expected line feed after decorator.");
 	if (blockWidth) {
@@ -1260,8 +1258,7 @@ static KrkToken decorator(size_t level, FunctionType type) {
 		return funcName;
 	}
 
-	if (haveCallable)
-		emitBytes(OP_CALL, 1);
+	emitBytes(OP_CALL, 1);
 
 	if (level == 0) {
 		if (type == TYPE_FUNCTION) {
@@ -1269,22 +1266,10 @@ static KrkToken decorator(size_t level, FunctionType type) {
 			declareVariable();
 			size_t ind = (current->scopeDepth > 0) ? 0 : identifierConstant(&funcName);
 			defineVariable(ind);
-		} else if (type == TYPE_STATIC) {
-			size_t ind = identifierConstant(&funcName);
-			EMIT_CONSTANT_OP(OP_SET_PROPERTY, ind);
-			emitByte(OP_POP);
-		} else if (type == TYPE_CLASSMETHOD) {
-			emitByte(OP_CREATE_CLASSMETHOD);
-			size_t ind = identifierConstant(&funcName);
-			EMIT_CONSTANT_OP(OP_METHOD, ind);
-		} else if (type == TYPE_PROPERTY) {
-			emitByte(OP_CREATE_PROPERTY);
-			size_t ind = identifierConstant(&funcName);
-			EMIT_CONSTANT_OP(OP_SET_PROPERTY, ind);
-			emitByte(OP_POP);
 		} else {
 			size_t ind = identifierConstant(&funcName);
-			EMIT_CONSTANT_OP(OP_METHOD, ind);
+			rememberClassProperty(ind);
+			EMIT_CONSTANT_OP(OP_CLASS_PROPERTY, ind);
 		}
 	}
 
@@ -1721,9 +1706,14 @@ static void importStatement() {
 }
 
 static void fromImportStatement() {
+	int expectCloseParen = 0;
 	KrkToken startOfName;
 	importModule(&startOfName);
 	consume(TOKEN_IMPORT, "Expected 'import' after module name");
+	if (match(TOKEN_LEFT_PAREN)) {
+		expectCloseParen = 1;
+		startEatingWhitespace();
+	}
 	do {
 		consume(TOKEN_IDENTIFIER, "Expected member name");
 		size_t member = identifierConstant(&parser.previous);
@@ -1739,7 +1729,11 @@ static void fromImportStatement() {
 		}
 		declareVariable();
 		defineVariable(member);
-	} while (match(TOKEN_COMMA));
+	} while (match(TOKEN_COMMA) && !check(TOKEN_RIGHT_PAREN));
+	if (expectCloseParen) {
+		stopEatingWhitespace();
+		consume(TOKEN_RIGHT_PAREN, "Expected ) after import list");
+	}
 	emitByte(OP_POP); /* Pop the remaining copy of the module. */
 }
 
@@ -2074,6 +2068,20 @@ static ssize_t resolveUpvalue(Compiler * compiler, KrkToken * name) {
 	} } while (0)
 
 static void namedVariable(KrkToken name, int canAssign) {
+	if (current->type == TYPE_CLASS) {
+		/* Only at the class body level, see if this is a class property. */
+		struct IndexWithNext * properties = current->properties;
+		while (properties) {
+			KrkString * constant = AS_STRING(currentChunk()->constants.values[properties->ind]);
+			if (constant->length == name.length && !memcmp(constant->chars, name.start, name.length)) {
+				ssize_t arg = properties->ind;
+				EMIT_CONSTANT_OP(OP_GET_LOCAL, 0);
+				DO_VARIABLE(OP_SET_PROPERTY, OP_GET_PROPERTY, OP_NONE);
+				return;
+			}
+			properties = properties->next;
+		}
+	}
 	ssize_t arg = resolveLocal(current, &name);
 	if (arg != -1) {
 		DO_VARIABLE(OP_SET_LOCAL, OP_GET_LOCAL, OP_NONE);
@@ -2485,7 +2493,11 @@ static void dict(int canAssign) {
 	consume(TOKEN_RIGHT_BRACE,"Expected } at end of dict expression.");
 }
 
-#define RULE(token, a, b, c) [token] = {# token, a, b, c}
+#ifndef ENABLE_SCAN_TRACING
+# define RULE(token, a, b, c) [token] = {a, b, c}
+#else
+# define RULE(token, a, b, c) [token] = {# token, a, b, c}
+#endif
 
 ParseRule krk_parseRules[] = {
 	RULE(TOKEN_LEFT_PAREN,    grouping, call,   PREC_CALL),

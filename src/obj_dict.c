@@ -43,7 +43,7 @@ KRK_METHOD(dict,__init__,{
 	return argv[0];
 })
 
-KRK_METHOD(dict,__get__,{
+KRK_METHOD(dict,__getitem__,{
 	METHOD_TAKES_EXACTLY(1);
 	KrkValue out;
 	if (!krk_tableGet(&self->entries, argv[1], &out))
@@ -51,7 +51,7 @@ KRK_METHOD(dict,__get__,{
 	return out;
 })
 
-KRK_METHOD(dict,__set__,{
+KRK_METHOD(dict,__setitem__,{
 	METHOD_TAKES_EXACTLY(2);
 	krk_tableSet(&self->entries, argv[1], argv[2]);
 })
@@ -371,8 +371,8 @@ void _createAndBind_dictClass(void) {
 	dict->_ongcsweep = _dict_gcsweep;
 	BIND_METHOD(dict,__init__);
 	BIND_METHOD(dict,__repr__);
-	BIND_METHOD(dict,__get__);
-	BIND_METHOD(dict,__set__);
+	BIND_METHOD(dict,__getitem__);
+	BIND_METHOD(dict,__setitem__);
 	BIND_METHOD(dict,__or__);
 	BIND_METHOD(dict,__delitem__);
 	BIND_METHOD(dict,__len__);
@@ -387,7 +387,7 @@ void _createAndBind_dictClass(void) {
 	BIND_METHOD(dict,update);
 	krk_defineNative(&dict->methods, ".__str__", FUNC_NAME(dict,__repr__));
 	krk_finalizeClass(dict);
-	dict->docstring = S("Mapping of arbitrary keys to values.");
+	KRK_DOC(dict, "Mapping of arbitrary keys to values.");
 
 	BUILTIN_FUNCTION("dictOf", krk_dict_of, "Convert argument sequence to dict object.");
 

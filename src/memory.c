@@ -63,7 +63,6 @@ static void freeObject(KrkObj * object) {
 		case OBJ_CLASS: {
 			KrkClass * _class = (KrkClass*)object;
 			krk_freeTable(&_class->methods);
-			krk_freeTable(&_class->fields);
 			FREE(KrkClass, object);
 			break;
 		}
@@ -86,10 +85,6 @@ static void freeObject(KrkObj * object) {
 			KrkBytes * bytes = (KrkBytes*)object;
 			FREE_ARRAY(uint8_t, bytes->bytes, bytes->length);
 			FREE(KrkBytes, bytes);
-			break;
-		}
-		case OBJ_PROPERTY: {
-			FREE(KrkProperty, object);
 			break;
 		}
 	}
@@ -163,7 +158,6 @@ static void blackenObject(KrkObj * object) {
 			krk_markObject((KrkObj*)_class->docstring);
 			krk_markObject((KrkObj*)_class->base);
 			krk_markTable(&_class->methods);
-			krk_markTable(&_class->fields);
 			break;
 		}
 		case OBJ_INSTANCE: {
@@ -181,11 +175,6 @@ static void blackenObject(KrkObj * object) {
 		case OBJ_TUPLE: {
 			KrkTuple * tuple = (KrkTuple *)object;
 			markArray(&tuple->values);
-			break;
-		}
-		case OBJ_PROPERTY: {
-			KrkProperty * property = (KrkProperty *)object;
-			krk_markValue(property->method);
 			break;
 		}
 		case OBJ_NATIVE:
@@ -293,14 +282,16 @@ size_t krk_collectGarbage(void) {
 	return out;
 }
 
-static KrkValue krk_collectGarbage_wrapper(int argc, KrkValue argv[], int hasKw) {
+KRK_FUNC(collect,{
+	FUNCTION_TAKES_NONE();
 	if (&krk_currentThread != vm.threads) return krk_runtimeError(vm.exceptions->valueError, "only the main thread can do that");
 	return INTEGER_VAL(krk_collectGarbage());
-}
+})
 
-static KrkValue krk_generations(int argc, KrkValue argv[], int hasKw) {
 #define MAX_GEN 4
-	krk_integer_type generations[MAX_GEN] = {0,0,0,0};
+KRK_FUNC(generations,{
+	FUNCTION_TAKES_NONE();
+	krk_integer_type generations[MAX_GEN] = {0};
 	KrkObj * object = vm.objects;
 	while (object) {
 		generations[object->generation]++;
@@ -315,17 +306,17 @@ static KrkValue krk_generations(int argc, KrkValue argv[], int hasKw) {
 	outTuple->values.count = MAX_GEN;
 	krk_tupleUpdateHash(outTuple);
 	return OBJECT_VAL(outTuple);
-}
+})
 
-static KrkValue _gc_pause(int argc, KrkValue argv[], int hasKw) {
+KRK_FUNC(pause,{
+	FUNCTION_TAKES_NONE();
 	vm.globalFlags |= (KRK_GLOBAL_GC_PAUSED);
-	return NONE_VAL();
-}
+})
 
-static KrkValue _gc_resume(int argc, KrkValue argv[], int hasKw) {
+KRK_FUNC(resume,{
+	FUNCTION_TAKES_NONE();
 	vm.globalFlags &= ~(KRK_GLOBAL_GC_PAUSED);
-	return NONE_VAL();
-}
+})
 
 _noexport
 void _createAndBind_gcMod(void) {
@@ -338,15 +329,14 @@ void _createAndBind_gcMod(void) {
 	krk_attachNamedObject(&vm.modules, "gc", (KrkObj*)gcModule);
 	krk_attachNamedObject(&gcModule->fields, "__name__", (KrkObj*)S("gc"));
 	krk_attachNamedValue(&gcModule->fields, "__file__", NONE_VAL());
-	krk_attachNamedObject(&gcModule->fields, "__doc__",
-		(KrkObj*)S("@brief Namespace containing methods for controlling the garbge collector."));
+	KRK_DOC(gcModule, "@brief Namespace containing methods for controlling the garbge collector.");
 
-	krk_defineNative(&gcModule->fields, "collect", krk_collectGarbage_wrapper)->doc =
-		"@brief Triggers one cycle of garbage collection.";
-	krk_defineNative(&gcModule->fields, "generations", krk_generations)->doc =
-		"@brief Returns a 4-tuple of the counts of objects in each stage of garbage collection.";
-	krk_defineNative(&gcModule->fields, "pause", _gc_pause)->doc =
-		"@brief Disables automatic garbage collection until @ref resume is called.";
-	krk_defineNative(&gcModule->fields, "resume", _gc_resume)->doc =
-		"@brief Re-enable automatic garbage collection after it was stopped by @ref pause ";
+	KRK_DOC(BIND_FUNC(gcModule,collect),
+		"@brief Triggers one cycle of garbage collection.");
+	KRK_DOC(BIND_FUNC(gcModule,generations),
+		"@brief Returns a 4-tuple of the counts of objects in each stage of garbage collection.");
+	KRK_DOC(BIND_FUNC(gcModule,pause),
+		"@brief Disables automatic garbage collection until @ref resume is called.");
+	KRK_DOC(BIND_FUNC(gcModule,resume),
+		"@brief Re-enable automatic garbage collection after it was stopped by @ref pause ");
 }

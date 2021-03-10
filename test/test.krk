@@ -123,9 +123,11 @@ class SuperClass():
         print("This is a great " + self.a + "!")
     def __str__(self):
         return "(I am a " + self.a + ")"
-    def __get__(self, ind):
+    def __repr__(self):
+        return "(I am a " + self.a + ")"
+    def __getitem__(self, ind):
         return "(get[" + str(ind) + "])"
-    def __set__(self, ind, val):
+    def __setitem__(self, ind, val):
         print("(set[" + str(ind) + "] = " + val + ")")
 
 class SubClass(SuperClass):
@@ -146,7 +148,7 @@ subclass.aMethod()
 
 print("Subclass says:", subclass)
 
-subclass.__get__(123)
+subclass.__getitem__(123)
 print(subclass[123])
 subclass[456] = "test"
 

@@ -1,0 +1,5 @@
+Foo: <str>
+<str>
+<repr>
+<bound method Foo.__str__>
+<bound method Foo.__repr__>

@@ -1,0 +1,41 @@
+
+def intDescriptor(inst, *args):
+    if args:
+        print("Setter called on",inst,"with value",args)
+    else:
+        print("Getter called on",inst)
+        return inst * inst
+
+int.foo = property(intDescriptor)
+
+print(2.foo)
+2.foo = 72
+
+# Now let's try an example straight from the Python docs
+
+class LoggedAgeAccess:
+    def __get__(self, obj, objtype=None):
+        let value = obj._age
+        print("Accessing 'age' of", obj.name)
+        return value
+    def __set__(self, obj, value):
+        print("Updating 'age' of", obj.name, "to", value)
+        obj._age = value
+
+class Person:
+    age = LoggedAgeAccess()
+    def __init__(self, name, age):
+        self.name = name
+        self.age = age
+    def birthday(self):
+        self.age += 1
+
+let mary = Person('Mary M', 30)
+let dave = Person('Dave D', 40)
+print(*(x for x in dir(mary) if x not in dir(type(mary))))
+print(*(x for x in dir(dave) if x not in dir(type(dave))))
+
+print(mary.age)
+mary.birthday()
+print(dave.age)
+

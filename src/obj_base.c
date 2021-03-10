@@ -39,10 +39,10 @@ static KrkValue _class_to_str(int argc, KrkValue argv[], int hasKw) {
 
 	/* Determine if this class has a module */
 	KrkValue module = NONE_VAL();
-	krk_tableGet(&AS_CLASS(argv[0])->fields, OBJECT_VAL(S("__module__")), &module);
+	krk_tableGet(&AS_CLASS(argv[0])->methods, OBJECT_VAL(S("__module__")), &module);
 
 	KrkValue qualname = NONE_VAL();
-	krk_tableGet(&AS_CLASS(argv[0])->fields, OBJECT_VAL(S("__qualname__")), &qualname);
+	krk_tableGet(&AS_CLASS(argv[0])->methods, OBJECT_VAL(S("__qualname__")), &qualname);
 	KrkString * name = IS_STRING(qualname) ? AS_STRING(qualname) : AS_CLASS(argv[0])->name;
 
 	int includeModule = !(IS_NONE(module) || (IS_STRING(module) && AS_STRING(module) == S("__builtins__")));
@@ -70,5 +70,5 @@ void _createAndBind_type(void) {
 	krk_defineNative(&vm.baseClasses->typeClass->methods, ".__str__", _class_to_str);
 	krk_defineNative(&vm.baseClasses->typeClass->methods, ".__repr__", _class_to_str);
 	krk_finalizeClass(vm.baseClasses->typeClass);
-	vm.baseClasses->typeClass->docstring = S("Obtain the object representation of the class of an object.");
+	KRK_DOC(vm.baseClasses->typeClass, "Obtain the object representation of the class of an object.");
 }

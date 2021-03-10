@@ -47,7 +47,7 @@ KrkValue krk_list_of(int argc, KrkValue argv[], int hasKw) {
 #define CURRENT_CTYPE KrkList *
 #define CURRENT_NAME  self
 
-KRK_METHOD(list,__get__,{
+KRK_METHOD(list,__getitem__,{
 	METHOD_TAKES_EXACTLY(1);
 	CHECK_ARG(1,int,krk_integer_type,index);
 	pthread_rwlock_rdlock(&self->rwlock);
@@ -57,7 +57,7 @@ KRK_METHOD(list,__get__,{
 	return result;
 })
 
-KRK_METHOD(list,__set__,{
+KRK_METHOD(list,__setitem__,{
 	METHOD_TAKES_EXACTLY(2);
 	CHECK_ARG(1,int,krk_integer_type,index);
 	pthread_rwlock_rdlock(&self->rwlock);
@@ -479,8 +479,8 @@ void _createAndBind_listClass(void) {
 	list->_ongcscan = _list_gcscan;
 	list->_ongcsweep = _list_gcsweep;
 	BIND_METHOD(list,__init__);
-	BIND_METHOD(list,__get__);
-	BIND_METHOD(list,__set__);
+	BIND_METHOD(list,__getitem__);
+	BIND_METHOD(list,__setitem__);
 	BIND_METHOD(list,__len__);
 	BIND_METHOD(list,__repr__);
 	BIND_METHOD(list,__contains__);
@@ -504,7 +504,7 @@ void _createAndBind_listClass(void) {
 	krk_defineNative(&list->methods, ".__delitem__", FUNC_NAME(list,pop));
 	krk_defineNative(&list->methods, ".__str__", FUNC_NAME(list,__repr__));
 	krk_finalizeClass(list);
-	list->docstring = S("Mutable sequence of arbitrary values.");
+	KRK_DOC(list, "Mutable sequence of arbitrary values.");
 
 	BUILTIN_FUNCTION("listOf", krk_list_of, "Convert argument sequence to list object.");
 	BUILTIN_FUNCTION("sorted", _sorted, "Return a sorted representation of an iterable.");

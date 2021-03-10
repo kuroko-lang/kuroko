@@ -24,7 +24,6 @@ typedef enum {
 	OBJ_BOUND_METHOD,
 	OBJ_TUPLE,
 	OBJ_BYTES,
-	OBJ_PROPERTY,
 } ObjType;
 
 #undef KrkObj
@@ -126,6 +125,7 @@ typedef struct {
 	unsigned char collectsKeywords:1;
 	unsigned char isClassMethod:1;
 	unsigned char isGenerator:1;
+	unsigned char isStaticMethod:1;
 	struct KrkInstance * globalsContext;
 } KrkFunction;
 
@@ -158,7 +158,6 @@ typedef struct KrkClass {
 	KrkString * docstring;
 	struct KrkClass * base;
 	KrkTable methods;
-	KrkTable fields;
 	size_t allocSize;
 	KrkCleanupCallback _ongcscan;
 	KrkCleanupCallback _ongcsweep;
@@ -182,6 +181,8 @@ typedef struct KrkClass {
 	KrkObj * _setslice;
 	KrkObj * _delslice;
 	KrkObj * _contains;
+	KrkObj * _descget;
+	KrkObj * _descset;
 } KrkClass;
 
 /**
@@ -239,19 +240,6 @@ typedef struct {
 	KrkObj obj;
 	KrkValueArray values;
 } KrkTuple;
-
-/**
- * @brief Dynamic property.
- * @extends KrkObj
- *
- * A property is a value that is determined at runtime by a function and
- * for which modifications using the dot operator and an assignment result
- * in a function call.
- */
-typedef struct {
-	KrkObj obj;
-	KrkValue method;
-} KrkProperty;
 
 /**
  * @brief Mutable array of values.
@@ -381,7 +369,6 @@ extern KrkClass *       krk_newClass(KrkString * name, KrkClass * base);
 extern KrkInstance *    krk_newInstance(KrkClass * _class);
 extern KrkBoundMethod * krk_newBoundMethod(KrkValue receiver, KrkObj * method);
 extern KrkTuple *       krk_newTuple(size_t length);
-extern KrkProperty *    krk_newProperty(KrkValue method);
 extern KrkBytes *       krk_newBytes(size_t length, uint8_t * source);
 extern void krk_bytesUpdateHash(KrkBytes * bytes);
 extern void krk_tupleUpdateHash(KrkTuple * self);
@@ -414,8 +401,6 @@ extern void krk_tupleUpdateHash(KrkTuple * self);
 #define AS_BOUND_METHOD(value) ((KrkBoundMethod*)AS_OBJECT(value))
 #define IS_TUPLE(value)    isObjType(value, OBJ_TUPLE)
 #define AS_TUPLE(value)    ((KrkTuple *)AS_OBJECT(value))
-#define IS_PROPERTY(value) isObjType(value, OBJ_PROPERTY)
-#define AS_PROPERTY(value) ((KrkProperty *)AS_OBJECT(value))
 #define AS_LIST(value) (&((KrkList *)AS_OBJECT(value))->values)
 #define AS_DICT(value) (&((KrkDict *)AS_OBJECT(value))->entries)
 

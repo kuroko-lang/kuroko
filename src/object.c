@@ -278,30 +278,17 @@ KrkUpvalue * krk_newUpvalue(int slot) {
 	return upvalue;
 }
 
-KrkProperty * krk_newProperty(KrkValue method) {
-	KrkProperty * property = ALLOCATE_OBJECT(KrkProperty, OBJ_PROPERTY);
-	property->method = method;
-	return property;
-}
-
 KrkClass * krk_newClass(KrkString * name, KrkClass * baseClass) {
 	KrkClass * _class = ALLOCATE_OBJECT(KrkClass, OBJ_CLASS);
 	_class->name = name;
 	_class->allocSize = sizeof(KrkInstance);
 	krk_initTable(&_class->methods);
-	krk_initTable(&_class->fields);
 
 	if (baseClass) {
-		krk_push(OBJECT_VAL(_class));
 		_class->base = baseClass;
 		_class->allocSize = baseClass->allocSize;
-
 		_class->_ongcscan = baseClass->_ongcscan;
 		_class->_ongcsweep = baseClass->_ongcsweep;
-
-		krk_tableAddAll(&baseClass->methods, &_class->methods);
-		krk_tableAddAll(&baseClass->fields, &_class->fields);
-		krk_pop();
 	}
 
 	return _class;
@@ -311,11 +298,6 @@ KrkInstance * krk_newInstance(KrkClass * _class) {
 	KrkInstance * instance = (KrkInstance*)allocateObject(_class->allocSize, OBJ_INSTANCE);
 	instance->_class = _class;
 	krk_initTable(&instance->fields);
-	if (_class) {
-		krk_push(OBJECT_VAL(instance));
-		krk_tableAddAll(&_class->fields, &instance->fields);
-		krk_pop();
-	}
 	return instance;
 }
 

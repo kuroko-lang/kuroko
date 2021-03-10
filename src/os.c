@@ -94,7 +94,7 @@ static KrkClass * environClass;
 KrkValue krk_os_setenviron(int argc, KrkValue argv[], int hasKw) {
 	if (argc < 3 || !krk_isInstanceOf(argv[0], environClass) ||
 		!IS_STRING(argv[1]) || !IS_STRING(argv[2])) {
-		return krk_runtimeError(vm.exceptions->argumentError, "Invalid arguments to environ.__set__");
+		return krk_runtimeError(vm.exceptions->argumentError, "Invalid arguments to environ.__setitem__");
 	}
 	/* Set environment variable */
 	size_t len = AS_STRING(argv[1])->length + AS_STRING(argv[2])->length + 2;
@@ -140,7 +140,7 @@ static void _loadEnviron(KrkInstance * module) {
 	krk_pop(); /* className */
 
 	/* Add our set method that should also call dict's set method */
-	krk_defineNative(&environClass->methods, ".__set__", krk_os_setenviron);
+	krk_defineNative(&environClass->methods, ".__setitem__", krk_os_setenviron);
 	krk_defineNative(&environClass->methods, ".__delitem__", krk_os_unsetenviron);
 	krk_finalizeClass(environClass);
 
@@ -623,8 +623,7 @@ void _createAndBind_osMod(void) {
 	krk_attachNamedObject(&vm.modules, "os", (KrkObj*)module);
 	krk_attachNamedObject(&module->fields, "__name__", (KrkObj*)S("os"));
 	krk_attachNamedValue(&module->fields, "__file__", NONE_VAL());
-	krk_attachNamedObject(&module->fields, "__doc__",
-		(KrkObj*)S("@brief Provides access to low-level system operations."));
+	KRK_DOC(module, "@brief Provides access to low-level system operations.");
 
 #ifdef _WIN32
 	krk_attachNamedObject(&module->fields, "name", (KrkObj*)S("nt"));
@@ -684,121 +683,153 @@ void _createAndBind_osMod(void) {
 #endif
 
 	krk_makeClass(module, &OSError, "OSError", vm.exceptions->baseException);
-	OSError->docstring = S(
+	KRK_DOC(OSError,
 		"Raised when system functions return a failure code. @p Exception.arg will provide a textual description of the error."
 	);
 	krk_finalizeClass(OSError);
 
-	BIND_FUNC(module,uname)->doc = "@brief Returns a @ref dict of attributes describing the current platform.\n\n"
+	KRK_DOC(BIND_FUNC(module,uname),
+		"@brief Returns a @ref dict of attributes describing the current platform.\n\n"
 		"On POSIX platforms, the result should match the contents and layout of a standard @c uname() call. "
-		"On Windows, values are synthesized from available information.";
-	BIND_FUNC(module,system)->doc = "@brief Call the system shell.\n"
+		"On Windows, values are synthesized from available information.");
+	KRK_DOC(BIND_FUNC(module,system),
+		"@brief Call the system shell.\n"
 		"@arguments cmd\n\n"
-		"Runs @p cmd using the system shell and returns the platform-dependent return value.";
-	BIND_FUNC(module,getcwd)->doc = "@brief Get the name of the current working directory.";
-	BIND_FUNC(module,chdir)->doc = "@brief Change the current working directory.\n"
+		"Runs @p cmd using the system shell and returns the platform-dependent return value.");
+	KRK_DOC(BIND_FUNC(module,getcwd),
+		"@brief Get the name of the current working directory.");
+	KRK_DOC(BIND_FUNC(module,chdir),
+		"@brief Change the current working directory.\n"
 		"@arguments newcwd\n\n"
-		"Attempts to change the working directory to @p newcwd. Raises @ref OSError on failure.";
-	BIND_FUNC(module,getpid)->doc = "@brief Obtain the system process identifier.";
-	BIND_FUNC(module,strerror)->doc = "@brief Convert an integer error code to a string.\n"
+		"Attempts to change the working directory to @p newcwd. Raises @ref OSError on failure.");
+	KRK_DOC(BIND_FUNC(module,getpid),
+		"@brief Obtain the system process identifier.");
+	KRK_DOC(BIND_FUNC(module,strerror),
+		"@brief Convert an integer error code to a string.\n"
 		"@arguments errorno\n\n"
-		"Provides the string description for the error code specified by @p errorno.";
-	BIND_FUNC(module,abort)->doc = "@brief Abort the current process.\n\n"
-		"@bsnote{This will exit the interpreter without calling cleanup routines.}";
-	BIND_FUNC(module,remove)->doc = "@brief Delete a file.\n"
+		"Provides the string description for the error code specified by @p errorno.");
+	KRK_DOC(BIND_FUNC(module,abort),
+		"@brief Abort the current process.\n\n"
+		"@bsnote{This will exit the interpreter without calling cleanup routines.}");
+	KRK_DOC(BIND_FUNC(module,remove),
+		"@brief Delete a file.\n"
 		"@arguments path\n\n"
-		"Attempts to delete the file at @p path.";
-	BIND_FUNC(module,truncate)->doc = "@brief Resize a file.\n"
+		"Attempts to delete the file at @p path.");
+	KRK_DOC(BIND_FUNC(module,truncate),
+		"@brief Resize a file.\n"
 		"@arguments path,length\n\n"
-		"Attempts to resize the file at @p path to @p length bytes.";
-	BIND_FUNC(module,dup)->doc = "@brief Duplicate a file descriptor.\n"
+		"Attempts to resize the file at @p path to @p length bytes.");
+	KRK_DOC(BIND_FUNC(module,dup),
+		"@brief Duplicate a file descriptor.\n"
 		"@arguments fd\n\n"
-		"Returns a new file descriptor pointing to the same file as @p fd.";
-	BIND_FUNC(module,dup2)->doc = "@brief Duplicate a file descriptor.\n"
+		"Returns a new file descriptor pointing to the same file as @p fd.");
+	KRK_DOC(BIND_FUNC(module,dup2),
+		"@brief Duplicate a file descriptor.\n"
 		"@arguments oldfd,newfd\n\n"
-		"Like @ref dup but the new file descriptor is placed at @p newfd.\n";
-	BIND_FUNC(module,isatty)->doc = "@brief Determine if a file descriptor is a terminal.\n"
+		"Like @ref dup but the new file descriptor is placed at @p newfd.\n");
+	KRK_DOC(BIND_FUNC(module,isatty),
+		"@brief Determine if a file descriptor is a terminal.\n"
 		"@arguments fd\n\n"
-		"Returns a @ref bool indicating whether the open file descriptor @p fd refers to a terminal.";
-	BIND_FUNC(module,lseek)->doc = "@brief Seek an open file descriptor.\n"
+		"Returns a @ref bool indicating whether the open file descriptor @p fd refers to a terminal.");
+	KRK_DOC(BIND_FUNC(module,lseek),
+		"@brief Seek an open file descriptor.\n"
 		"@arguments fd,pos,how\n\n"
 		"Seeks the open file descriptor @p fd by @p pos bytes as specified in @p how. "
-		"Use the values @c SEEK_SET, @c SEEK_CUR, and @c SEEK_END for @p how.";
-	BIND_FUNC(module,open)->doc = "@brief Open a file.\n"
+		"Use the values @c SEEK_SET, @c SEEK_CUR, and @c SEEK_END for @p how.");
+	KRK_DOC(BIND_FUNC(module,open),
+		"@brief Open a file.\n"
 		"@arguments path,flags,mode=0o777\n\n"
 		"Opens the file at @p path with the specified @p flags and @p mode. Returns a file descriptor.\n\n"
-		"@bsnote{Not to be confused with <a class=\"el\" href=\"mod_fileio.html#open\">fileio.open</a>}";
-	BIND_FUNC(module,close)->doc = "@brief Close an open file descriptor.\n"
-		"@arguments fd";
-	BIND_FUNC(module,read)->doc = "@brief Read from an open file descriptor.\n"
+		"@bsnote{Not to be confused with <a class=\"el\" href=\"mod_fileio.html#open\">fileio.open</a>}");
+	KRK_DOC(BIND_FUNC(module,close),
+		"@brief Close an open file descriptor.\n"
+		"@arguments fd");
+	KRK_DOC(BIND_FUNC(module,read),
+		"@brief Read from an open file descriptor.\n"
 		"@arguments fd,n\n\n"
-		"Reads at most @p n bytes from the open file descriptor @p fd.";
-	BIND_FUNC(module,write)->doc = "@brief Write to an open file descriptor.\n"
+		"Reads at most @p n bytes from the open file descriptor @p fd.");
+	KRK_DOC(BIND_FUNC(module,write),
+		"@brief Write to an open file descriptor.\n"
 		"@arguments fd,data\n\n"
-		"Writes the @ref bytes object @p data to the open file descriptor @p fd.";
-	BIND_FUNC(module,mkdir)->doc = "@brief Create a directory.\n"
+		"Writes the @ref bytes object @p data to the open file descriptor @p fd.");
+	KRK_DOC(BIND_FUNC(module,mkdir),
+		"@brief Create a directory.\n"
 		"@arguments path,mode=0o777\n\n"
-		"Creates a directory at @p path.";
+		"Creates a directory at @p path.");
 
-	BIND_FUNC(module,execl)->doc = "@brief Replace the current process.\n"
+	KRK_DOC(BIND_FUNC(module,execl),
+		"@brief Replace the current process.\n"
 		"@arguments path,[args...]\n\n"
 		"The @c exec* family of functions replaces the calling process's image with a new one. "
 		"@c execl takes a @p path to a binary and an arbitrary number of @ref str arguments to "
-		"pass to the new executable.";
-	BIND_FUNC(module,execle)->doc = "@brief Replace the current process.\n"
+		"pass to the new executable.");
+	KRK_DOC(BIND_FUNC(module,execle),
+		"@brief Replace the current process.\n"
 		"@arguments path,[args...],env\n\n"
 		"The @c exec* family of functions replaces the calling process's image with a new one. "
 		"@c execle takes a @p path to a binary, an arbitrary number of @ref str arguments to "
 		"pass to the new executable, and @ref list of @c 'KEY=VALUE' pairs to set as the new "
-		"environment.";
-	BIND_FUNC(module,execlp)->doc = "@brief Replace the current process.\n"
+		"environment.");
+	KRK_DOC(BIND_FUNC(module,execlp),
+		"@brief Replace the current process.\n"
 		"@arguments filename,[args...]\n\n"
 		"The @c exec* family of functions replaces the calling process's image with a new one. "
 		"@c execlp takes a @p filename of a binary and an arbitrary number of @ref str arguments to "
-		"pass to the new executable. @p filename will be searched for in @c $PATH.";
-	BIND_FUNC(module,execv)->doc = "@brief Replace the current process.\n"
+		"pass to the new executable. @p filename will be searched for in @c $PATH.");
+	KRK_DOC(BIND_FUNC(module,execv),
+		"@brief Replace the current process.\n"
 		"@arguments path,args\n\n"
 		"The @c exec* family of functions replaces the calling process's image with a new one. "
 		"@c execv takes a @p path to a binary and a @ref list @p args of @ref str arguments to "
-		"pass to the new executable.";
-	BIND_FUNC(module,execvp)->doc = "@brief Replace the current process.\n"
+		"pass to the new executable.");
+	KRK_DOC(BIND_FUNC(module,execvp),
+		"@brief Replace the current process.\n"
 		"@arguments filename,args\n\n"
 		"The @c exec* family of functions replaces the calling process's image with a new one. "
 		"@c execvp takes a @p filename of a binary and a @ref list @p args of @ref str arguments to "
-		"pass to the new executable. @p filename will be searched for in @c $PATH.";
+		"pass to the new executable. @p filename will be searched for in @c $PATH.");
 
 	DO_INT(F_OK);
 	DO_INT(R_OK);
 	DO_INT(W_OK);
 	DO_INT(X_OK);
-	BIND_FUNC(module,access)->doc = "@brief Determine if a file can be accessed.\n"
+	KRK_DOC(BIND_FUNC(module,access),
+		"@brief Determine if a file can be accessed.\n"
 		"@arguments path,mask\n\n"
 		"Use the values @c F_OK, @c R_OK, @c W_OK, and @c X_OK to construct @p mask and check if the current "
 		"process has sufficient access rights to perform the requested operations on the file "
-		"at @p path.";
+		"at @p path.");
 
 #ifndef _WIN32
-	BIND_FUNC(module,pipe)->doc = "@brief Create a pipe.\n\n"
-		"Creates a _pipe_, returning a two-tuple of file descriptors for the read and write ends respectively.";
-	BIND_FUNC(module,kill)->doc = "@brief Send a signal to a process.\n"
+	KRK_DOC(BIND_FUNC(module,pipe),
+		"@brief Create a pipe.\n\n"
+		"Creates a _pipe_, returning a two-tuple of file descriptors for the read and write ends respectively.");
+	KRK_DOC(BIND_FUNC(module,kill),
+		"@brief Send a signal to a process.\n"
 		"@arguments pid,signum\n\n"
-		"Send the signal @p signum to the process at @p pid.\n";
-	BIND_FUNC(module,fork)->doc = "@brief Fork the current process.\n\n"
-		"Returns the PID of the new child process in the original process and @c 0 in the child.";
-	BIND_FUNC(module,symlink)->doc = "@brief Create a symbolic link.\n"
+		"Send the signal @p signum to the process at @p pid.\n");
+	KRK_DOC(BIND_FUNC(module,fork),
+		"@brief Fork the current process.\n\n"
+		"Returns the PID of the new child process in the original process and @c 0 in the child.");
+	KRK_DOC(BIND_FUNC(module,symlink),
+		"@brief Create a symbolic link.\n"
 		"@arguments src,dst\n\n"
-		"Creates a symbolic link at @p src pointing to @p dst.";
-	BIND_FUNC(module,sync)->doc = "@brief Commit filesystem caches to disk.";
+		"Creates a symbolic link at @p src pointing to @p dst.");
+	KRK_DOC(BIND_FUNC(module,sync),
+		"@brief Commit filesystem caches to disk.");
 
-	BIND_FUNC(module,tcgetpgrp)->doc = "@brief Get the terminal foreground process group.\n"
+	KRK_DOC(BIND_FUNC(module,tcgetpgrp),
+		"@brief Get the terminal foreground process group.\n"
 		"@arguments fd\n\n"
-		"Return the PID representing the foreground process group of the terminal specified by the file descriptor @p fd.";
-	BIND_FUNC(module,tcsetpgrp)->doc = "@brief %Set the terminal foreground process group.\n"
+		"Return the PID representing the foreground process group of the terminal specified by the file descriptor @p fd.");
+	KRK_DOC(BIND_FUNC(module,tcsetpgrp),
+		"@brief %Set the terminal foreground process group.\n"
 		"@arguments fd,pgrp\n\n"
-		"%Set the PID representing the foreground process group of the terminal specified by the file descriptor @p fd to @p pgrp.";
-	BIND_FUNC(module,ttyname)->doc = "@brief Get the path to a terminal device.\n"
+		"%Set the PID representing the foreground process group of the terminal specified by the file descriptor @p fd to @p pgrp.");
+	KRK_DOC(BIND_FUNC(module,ttyname),
+		"@brief Get the path to a terminal device.\n"
 		"@arguments fd\n\n"
-		"Returns a @ref str representing the path to the terminal device provided by the file descriptor @p fd.";
+		"Returns a @ref str representing the path to the terminal device provided by the file descriptor @p fd.");
 #endif
 
 	_loadEnviron(module);
@@ -808,16 +839,17 @@ void _createAndBind_osMod(void) {
 	BIND_METHOD(stat_result,__repr__);
 	krk_finalizeClass(stat_result);
 
-	BIND_FUNC(module,stat)->doc = "@brief Get the status of a file\n"
+	KRK_DOC(BIND_FUNC(module,stat),
+		"@brief Get the status of a file\n"
 		"@arguments path\n\n"
-		"Runs the @c stat system call on @p path. Returns a @ref stat_result.\n";
+		"Runs the @c stat system call on @p path. Returns a @ref stat_result.\n");
 
 	module = krk_newInstance(vm.baseClasses->moduleClass);
 	krk_attachNamedObject(&vm.modules, "stat", (KrkObj*)module);
 	krk_attachNamedObject(&module->fields, "__name__", (KrkObj*)S("stat"));
 	krk_attachNamedValue(&module->fields, "__file__", NONE_VAL());
-	krk_attachNamedObject(&module->fields, "__doc__",
-		(KrkObj*)S("@brief Functions to check results from @ref stat calls."));
+	KRK_DOC(module,
+		"@brief Functions to check results from @ref stat calls.");
 
 	BIND_FUNC(module,S_ISBLK);
 	BIND_FUNC(module,S_ISCHR);

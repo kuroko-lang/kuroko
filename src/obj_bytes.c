@@ -100,7 +100,7 @@ KRK_METHOD(bytes,__repr__,{
 	return finishStringBuilder(&sb);
 })
 
-KRK_METHOD(bytes,__get__,{
+KRK_METHOD(bytes,__getitem__,{
 	METHOD_TAKES_EXACTLY(1);
 	CHECK_ARG(1,int,krk_integer_type,asInt);
 
@@ -215,14 +215,15 @@ _corrupt:
 _noexport
 void _createAndBind_bytesClass(void) {
 	KrkClass * bytes = ADD_BASE_CLASS(vm.baseClasses->bytesClass, "bytes", vm.baseClasses->objectClass);
-	BIND_METHOD(bytes,__init__)->doc =
-		"@arguments iter=None\n"
+	KRK_DOC(BIND_METHOD(bytes,__init__),
+		"@brief An array of bytes.\n"
+		"@arguments iter=None\n\n"
 		"Creates a new @ref bytes object. If @p iter is provided, it should be a @ref tuple or @ref list "
-		"of integers within the range @c 0 and @c 255.";
+		"of integers within the range @c 0 and @c 255.");
 	BIND_METHOD(bytes,__repr__);
 	BIND_METHOD(bytes,__len__);
 	BIND_METHOD(bytes,__contains__);
-	BIND_METHOD(bytes,__get__);
+	BIND_METHOD(bytes,__getitem__);
 	BIND_METHOD(bytes,__eq__);
 	BIND_METHOD(bytes,__add__);
 	BIND_METHOD(bytes,__iter__);

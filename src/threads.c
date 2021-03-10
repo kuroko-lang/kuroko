@@ -206,38 +206,41 @@ void _createAndBind_threadsMod(void) {
 	krk_attachNamedObject(&vm.modules, "threading", (KrkObj*)threadsModule);
 	krk_attachNamedObject(&threadsModule->fields, "__name__", (KrkObj*)S("threading"));
 	krk_attachNamedValue(&threadsModule->fields, "__file__", NONE_VAL());
-	krk_attachNamedObject(&threadsModule->fields, "__doc__",
-		(KrkObj*)S("Methods and classes for creating platform threads."));
+	KRK_DOC(threadsModule,
+		"@brief Methods and classes for creating platform threads.");
 
-	BIND_FUNC(threadsModule, current_thread)->doc = "@arguments \nReturns the @ref Thread object associated with the calling thread, if one exists.";
+	KRK_DOC(BIND_FUNC(threadsModule, current_thread),
+		"@brief Obtain a reference to the current thread.\n"
+		"@arguments \n\n"
+		"Returns the @ref Thread object associated with the calling thread, if one exists.");
 
 	krk_makeClass(threadsModule, &ThreadError, "ThreadError", vm.exceptions->baseException);
-	ThreadError->docstring = S(
+	KRK_DOC(ThreadError,
 		"Raised in various situations when an action on a thread is invalid."
 	);
 	krk_finalizeClass(ThreadError);
 
 	krk_makeClass(threadsModule, &Thread, "Thread", vm.baseClasses->objectClass);
-	Thread->docstring = S(
+	KRK_DOC(Thread,
 		"Base class for building threaded execution contexts.\n\n"
 		"The @ref Thread class should be subclassed and the subclass should implement a @c run method."
 	);
 	Thread->allocSize = sizeof(struct Thread);
-	BIND_METHOD(Thread,start)->doc = "Start the thread. A thread may only be started once.";
-	BIND_METHOD(Thread,join)->doc  = "Join the thread. Does not return until the thread finishes.";
-	BIND_METHOD(Thread,is_alive)->doc = "Query the status of the thread.";
-	AS_NATIVE(BIND_PROP(Thread,tid)->method)->doc = "The platform-specific thread identifier, if available. Usually an integer.";
+	KRK_DOC(BIND_METHOD(Thread,start), "Start the thread. A thread may only be started once.");
+	KRK_DOC(BIND_METHOD(Thread,join), "Join the thread. Does not return until the thread finishes.");
+	KRK_DOC(BIND_METHOD(Thread,is_alive), "Query the status of the thread.");
+	KRK_DOC(BIND_PROP(Thread,tid), "The platform-specific thread identifier, if available. Usually an integer.");
 	krk_finalizeClass(Thread);
 
 	krk_makeClass(threadsModule, &Lock, "Lock", vm.baseClasses->objectClass);
-	Lock->docstring = S(
+	KRK_DOC(Lock,
 		"Represents an atomic mutex.\n\n"
 		"@ref Lock objects allow for exclusive access to a resource and can be used in a @c with block."
 	);
 	Lock->allocSize = sizeof(struct Lock);
-	BIND_METHOD(Lock,__init__)->doc  = "Initialize a system mutex.";
-	BIND_METHOD(Lock,__enter__)->doc = "Acquire the lock.";
-	BIND_METHOD(Lock,__exit__)->doc  = "Release the lock.";
+	KRK_DOC(BIND_METHOD(Lock,__init__), "Initialize a system mutex.");
+	KRK_DOC(BIND_METHOD(Lock,__enter__),"Acquire the lock.");
+	KRK_DOC(BIND_METHOD(Lock,__exit__), "Release the lock.");
 	BIND_METHOD(Lock,__repr__);
 	krk_finalizeClass(Lock);
 }

@@ -15,6 +15,7 @@
  */
 void krk_debug_dumpStack(FILE * file, KrkCallFrame * frame) {
 	size_t i = 0;
+	if (!frame) frame = &krk_currentThread.frames[krk_currentThread.frameCount-1];
 	for (KrkValue * slot = krk_currentThread.stack; slot < krk_currentThread.stackTop; slot++) {
 		fprintf(file, "[%c", frame->slots == i ? '*' : ' ');
 
@@ -576,7 +577,7 @@ KRK_FUNC(dis,{
 		}
 	} else if (IS_CLASS(argv[0])) {
 		KrkValue code;
-		if (krk_tableGet(&AS_CLASS(argv[0])->fields, OBJECT_VAL(S("__func__")), &code) && IS_CLOSURE(code)) {
+		if (krk_tableGet(&AS_CLASS(argv[0])->methods, OBJECT_VAL(S("__func__")), &code) && IS_CLOSURE(code)) {
 			KrkFunction * func = AS_CLOSURE(code)->function;
 			krk_disassembleCodeObject(stdout, func, AS_CLASS(argv[0])->name->chars);
 		}
@@ -666,7 +667,6 @@ FUNC_SIG(krk,examine) {
 		krk_pop();
 
 		if (size == 0) {
-			fprintf(stderr, "offset = %ld, chunk->count = %ld, found size = 0?\n", offset, chunk->count);
 			abort();
 		}
 
@@ -690,20 +690,63 @@ void _createAndBind_disMod(void) {
 	krk_attachNamedObject(&vm.modules, "dis", (KrkObj*)module);
 	krk_attachNamedObject(&module->fields, "__name__", (KrkObj*)S("dis"));
 	krk_attachNamedValue(&module->fields, "__file__", NONE_VAL());
-	krk_attachNamedObject(&module->fields, "__doc__",
-		(KrkObj*)S("@brief Provides tools for disassembling bytecode."));
-	BIND_FUNC(module, dis)->doc = "@brief Disassemble an object.\n"
+	KRK_DOC(module,
+		"@brief Provides tools for disassembling bytecode.\n\n"
+		"### Code Disassembly in Kuroko\n\n"
+		"The @c dis module contains functions for dealing with _code objects_ which "
+		"represent the compiled bytecode of a Kuroko function. The bytecode compilation "
+		"process is entirely static and bytecode analysis can be performed without calling "
+		"into the VM to run dynamic code.\n\n"
+		"### Debugger Breakpoints\n\n"
+		"Kuroko interpreters can provide a debugger hook through the C API's "
+		"@ref krk_debug_registerCallback() function. Breakpoints can be managed both "
+		"from the C API and from this module's @ref addbreakpoint, @ref delbreakpoint, "
+		"@ref enablebreakpoint, and @ref disablebreakpoint methods."
+	);
+
+	KRK_DOC(BIND_FUNC(module, dis),
+		"@brief Disassemble an object.\n"
 		"@arguments obj\n\n"
 		"Dumps a disassembly of the bytecode in the code object associated with @p obj. "
-		"If @p obj can not be disassembled, a @ref TypeError is raised.";
+		"If @p obj can not be disassembled, a @ref TypeError is raised.");
 
-	BIND_FUNC(module, build);
-	BIND_FUNC(module, examine);
+	KRK_DOC(BIND_FUNC(module, build),
+		"@brief Compile a string to a code object.\n"
+		"@arguments code\n\n"
+		"Compiles the string @p code and returns a code object. If a syntax "
+		"error is encountered, it will be raised.");
 
-	BIND_FUNC(module, addbreakpoint);
-	BIND_FUNC(module, delbreakpoint);
-	BIND_FUNC(module, enablebreakpoint);
-	BIND_FUNC(module, disablebreakpoint);
+	KRK_DOC(BIND_FUNC(module, examine),
+		"@brief Convert a code object to a list of instructions.\n"
+		"@arguments func\n\n"
+		"Examines the code object @p func and returns a list representation of its instructions. "
+		"Each instruction entry is a tuple of the opcode, total instruction size in bytes, and "
+		"the operand of the argument, either as an integer for jump offsets, the actual value for "
+		"constant operands, or the name of a local or global variable if available.");
+
+	KRK_DOC(BIND_FUNC(module, addbreakpoint),
+		"@brief Attach a breakpoint to a code object.\n"
+		"@arguments func, line\n\n"
+		"@p func may be a filename string, or a function, method, or code object. Returns "
+		"the new breakpoint index, or raises @ref Exception if a breakpoint code not be added.");
+
+	KRK_DOC(BIND_FUNC(module, delbreakpoint),
+		"@brief Delete a breakpoint.\n"
+		"@arguments handle\n\n"
+		"Delete the breakpoint specified by @p handle, disabling it if it was enabled. "
+		"May raise @ref IndexError if @p handle is not a valid breakpoint handle.");
+
+	KRK_DOC(BIND_FUNC(module, enablebreakpoint),
+		"@brief Enable a breakpoint.\n"
+		"@arguments handle\n\n"
+		"Enable the breakpoint specified by @p handle. May raise @ref IndexError if "
+		"@p handle is not a valid breakpoint handle.");
+
+	KRK_DOC(BIND_FUNC(module, disablebreakpoint),
+		"@brief Disable a breakpoint.\n"
+		"@arguments handle\n\n"
+		"Disable the breakpoint specified by @p handle. May raise @ref IndexError if "
+		"@p handle is not a valid breakpoint handle.");
 
 	krk_attachNamedValue(&module->fields, "BREAKPOINT_ONCE", INTEGER_VAL(KRK_BREAKPOINT_ONCE));
 	krk_attachNamedValue(&module->fields, "BREAKPOINT_REPEAT", INTEGER_VAL(KRK_BREAKPOINT_REPEAT));

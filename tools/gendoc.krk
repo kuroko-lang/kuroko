@@ -25,7 +25,7 @@ let blacklistedMethods = [
 let specialMethods = {
     '__contains__': lambda cls, args: f'{args or "<i>needle</i>"} <b>in</b> {cls}',
     '__init__': lambda cls, args: f'let <i>x</i> = <b>{cls}</b>({args})',
-    '__get__': lambda cls, args: f'{cls}[{args or "<i>key</i>"}]',
+    '__getitem__': lambda cls, args: f'{cls}[{args or "<i>key</i>"}]',
     '__delitem__': lambda cls, args: f'<b>del</b> {cls}[{args or "<i>key</i>"}]',
     '__add__': lambda cls, args: f'{cls} + {args or "<i>other</i>"}',
     '__len__': lambda cls, args: f'<b>len</b>({cls})',
@@ -205,9 +205,9 @@ def processModules(modules):
                 if isinstance(obj, function) and member not in seen:
                     seen.append(member)
                     methods.append(Pair(member,obj))
-                else if isinstance(obj, Property) and member not in seen:
+                else if isinstance(obj, property) and member not in seen:
                     seen.append(member)
-                    properties.append(Pair(member,obj.__method__))
+                    properties.append(Pair(member,obj.fget))
             if methods:
                 methods.sort()
                 for methodName, method in methods:
