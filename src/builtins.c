@@ -867,10 +867,36 @@ void _createAndBind_builtins(void) {
 	);
 
 	property = krk_makeClass(vm.builtins, &vm.baseClasses->propertyClass, "property", vm.baseClasses->objectClass);
-	BIND_METHOD(property,__init__);
+	KRK_DOC(BIND_METHOD(property,__init__),
+		"@brief Create a property object.\n"
+		"@arguments fget,[fset]\n\n"
+		"When a property object is obtained from an instance of the class in which it is defined, "
+		"the function or method assigned to @p fget is called with the instance as an argument. "
+		"If @p fset is provided, it will be called with the instance and a value when the property "
+		"object is assigned to through an instance. For legacy compatibility reasons, a property "
+		"object's @p fget method may also accept an additional argument to act as a setter if "
+		"@p fset is not provided, but this functionality may be removed in the future.\n\n"
+		"The typical use for @c property is as a decorator on methods in a class. See also "
+		"@ref property_setter \"property.setter\" for the newer Python-style approach to decorating a companion "
+		"setter method.");
 	BIND_METHOD(property,__get__);
 	BIND_METHOD(property,__set__);
-	BIND_METHOD(property,setter);
+	KRK_DOC(BIND_METHOD(property,setter),
+		"@brief Assign the setter method of a property object.\n"
+		"@arguments fset\n\n"
+		"This should be used as a decorator from an existing property object as follows:\n\n"
+		"```\n"
+		"class Foo():\n"
+		"    @property\n"
+		"    def bar(self):\n"
+		"        return 42\n"
+		"    @bar.setter\n"
+		"    def bar(self, val):\n"
+		"        print('setting bar to',val)\n"
+		"```\n"
+		"Be sure to apply the decorator to a function or method with the same name, as this "
+		"name will be used to assign the property to the class's attribute table; using a "
+		"different name will create a duplicate alias.");
 	krk_finalizeClass(property);
 
 	krk_makeClass(vm.builtins, &Helper, "Helper", vm.baseClasses->objectClass);
