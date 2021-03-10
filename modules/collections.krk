@@ -253,7 +253,7 @@ class xraydict:
         self.exclude = exclude
     def __contains__(thing):
         return thing not in self.exclude and (thing in self.base or thing in self.overlay)
-    def __get__(key):
+    def __getitem__(key):
         if key in self.exclude:
             raise KeyError(f"element with key {key!r} excluded from xraydict")
         if key in self.overlay:

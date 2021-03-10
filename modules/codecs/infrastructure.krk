@@ -601,7 +601,7 @@ class encodesto7bit:
         if not (isinstance(i, int) and isinstance(j, int)): return False
         if i < 0xA1 or i > 0xFE or j < 0xA1 or j > 0xFE: return False
         return True
-    def __get__(key):
+    def __getitem__(key):
         if key not in self:
             raise KeyError(f"element {key!r} not in 7-bit wrapper dict")
         let i, j = self.base[key]
@@ -629,7 +629,7 @@ class decodesto7bit:
         if not (isinstance(i, int) and isinstance(j, int)): return False
         if i < 0x21 or i > 0x7E or j < 0x21 or j > 0x7E: return False
         return (i | 0x80, j | 0x80) in self.base
-    def __get__(key):
+    def __getitem__(key):
         if key not in self:
             raise KeyError(f"element {key!r} not in 7-bit wrapper dict")
         let i, j = key
