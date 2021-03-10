@@ -332,7 +332,7 @@ KRK_METHOD(filterobject,__call__,{
 				continue;
 			}
 		} else {
-			krk_push(krk_peek(1));
+			krk_push(krk_peek(0));
 			KrkValue result = krk_callSimple(function, 1, 0);
 			if (krk_isFalsey(result)) {
 				krk_pop(); /* iterator result */
