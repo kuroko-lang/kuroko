@@ -1706,9 +1706,14 @@ static void importStatement() {
 }
 
 static void fromImportStatement() {
+	int expectCloseParen = 0;
 	KrkToken startOfName;
 	importModule(&startOfName);
 	consume(TOKEN_IMPORT, "Expected 'import' after module name");
+	if (match(TOKEN_LEFT_PAREN)) {
+		expectCloseParen = 1;
+		startEatingWhitespace();
+	}
 	do {
 		consume(TOKEN_IDENTIFIER, "Expected member name");
 		size_t member = identifierConstant(&parser.previous);
@@ -1724,7 +1729,11 @@ static void fromImportStatement() {
 		}
 		declareVariable();
 		defineVariable(member);
-	} while (match(TOKEN_COMMA));
+	} while (match(TOKEN_COMMA) && !check(TOKEN_RIGHT_PAREN));
+	if (expectCloseParen) {
+		stopEatingWhitespace();
+		consume(TOKEN_RIGHT_PAREN, "Expected ) after import list");
+	}
 	emitByte(OP_POP); /* Pop the remaining copy of the module. */
 }
 
