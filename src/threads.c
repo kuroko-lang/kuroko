@@ -229,7 +229,7 @@ void _createAndBind_threadsMod(void) {
 	KRK_DOC(BIND_METHOD(Thread,start), "Start the thread. A thread may only be started once.");
 	KRK_DOC(BIND_METHOD(Thread,join), "Join the thread. Does not return until the thread finishes.");
 	KRK_DOC(BIND_METHOD(Thread,is_alive), "Query the status of the thread.");
-	KRK_DOC(AS_NATIVE(BIND_PROP(Thread,tid)->method), "The platform-specific thread identifier, if available. Usually an integer.");
+	KRK_DOC(BIND_PROP(Thread,tid), "The platform-specific thread identifier, if available. Usually an integer.");
 	krk_finalizeClass(Thread);
 
 	krk_makeClass(threadsModule, &Lock, "Lock", vm.baseClasses->objectClass);

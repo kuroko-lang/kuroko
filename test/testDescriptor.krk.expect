@@ -1,0 +1,13 @@
+Getter called on 2
+4
+Setter called on 2 with value [72]
+Updating 'age' of Mary M to 30
+Updating 'age' of Dave D to 40
+_age name
+_age name
+Accessing 'age' of Mary M
+30
+Accessing 'age' of Mary M
+Updating 'age' of Mary M to 31
+Accessing 'age' of Dave D
+40

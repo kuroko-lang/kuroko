@@ -6,3 +6,8 @@ Called as a setter: [102]
 <class '__main__.Foo'> test
 <class '__main__.Foo'> test
 <class '__main__.Bar'> test
+I am a Python-style @property!
+42
+I am a Python-style @property's setter called with 3735928559
+I am a Python-style @property!
+3735928559

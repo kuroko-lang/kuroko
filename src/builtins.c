@@ -7,6 +7,7 @@
 
 static KrkClass * Helper;
 static KrkClass * LicenseReader;
+static KrkClass * property;
 
 FUNC_SIG(list,__init__);
 FUNC_SIG(list,sort);
@@ -743,57 +744,70 @@ KRK_METHOD(LicenseReader,__call__,{
 	return krk_runtimeError(vm.exceptions->typeError, "unexpected error");
 })
 
-static KrkValue _property_init(int argc, KrkValue argv[], int hasKw) {
-	if (argc != 2) {
-		return krk_runtimeError(vm.exceptions->notImplementedError, "Additional arguments to @property() are not supported.");
+#define IS_property(o) (krk_isInstanceOf(o,property))
+#define AS_property(o) (AS_INSTANCE(o))
+KRK_METHOD(property,__init__,{
+	METHOD_TAKES_AT_LEAST(1);
+	METHOD_TAKES_AT_MOST(2); /* TODO fdel */
+	krk_attachNamedValue(&self->fields, "fget", argv[1]);
+
+	/* Try to attach doc */
+	if (IS_NATIVE(argv[1]) && AS_NATIVE(argv[1])->doc) {
+		krk_attachNamedValue(&self->fields, "__doc__",
+			OBJECT_VAL(krk_copyString(AS_NATIVE(argv[1])->doc, strlen(AS_NATIVE(argv[1])->doc))));
+	} else if (IS_CLOSURE(argv[1])) {
+		krk_attachNamedValue(&self->fields, "__doc__",
+			OBJECT_VAL(AS_CLOSURE(argv[1])->function->docstring));
 	}
 
-	return OBJECT_VAL(krk_newProperty(argv[1]));
-}
-
-static KrkValue _property_repr(int argc, KrkValue argv[], int hasKw) {
-	if (argc != 1 || !IS_PROPERTY(argv[0])) return krk_runtimeError(vm.exceptions->typeError, "?");
-	struct StringBuilder sb = {0};
-	pushStringBuilderStr(&sb, "property(", 9);
-
-	KrkValue method = AS_PROPERTY(argv[0])->method;
-
-	if (IS_NATIVE(method)) {
-		pushStringBuilderStr(&sb, (char*)AS_NATIVE(method)->name, strlen(AS_NATIVE(method)->name));
-	} else if (IS_CLOSURE(method)) {
-		pushStringBuilderStr(&sb, AS_CLOSURE(method)->function->name->chars, AS_CLOSURE(method)->function->name->length);
+	/* Try to attach name */
+	if (IS_NATIVE(argv[1]) && AS_NATIVE(argv[1])->name) {
+		krk_attachNamedValue(&self->fields, "__name__",
+			OBJECT_VAL(krk_copyString(AS_NATIVE(argv[1])->name, strlen(AS_NATIVE(argv[1])->name))));
+	} else if (IS_CLOSURE(argv[1])) {
+		krk_attachNamedValue(&self->fields, "__name__",
+			OBJECT_VAL(AS_CLOSURE(argv[1])->function->name));
 	}
 
-	pushStringBuilder(&sb,')');
-	return finishStringBuilder(&sb);
-}
+	if (argc > 2)
+		krk_attachNamedValue(&self->fields, "fset", argv[2]);
 
-static KrkValue _property_doc(int argc, KrkValue argv[], int hasKw) {
-	if (argc != 1 || !IS_PROPERTY(argv[0])) return krk_runtimeError(vm.exceptions->typeError, "?");
-	KrkValue method = AS_PROPERTY(argv[0])->method;
-	if (IS_NATIVE(method) && AS_NATIVE(method)->doc) {
-		return OBJECT_VAL(krk_copyString(AS_NATIVE(method)->doc, strlen(AS_NATIVE(method)->doc)));
-	} else if (IS_CLOSURE(method)) {
-		return OBJECT_VAL(AS_CLOSURE(method)->function->docstring);
-	}
-	return NONE_VAL();
-}
+	return argv[0];
+})
 
-static KrkValue _property_name(int argc, KrkValue argv[], int hasKw) {
-	if (argc != 1 || !IS_PROPERTY(argv[0])) return krk_runtimeError(vm.exceptions->typeError, "?");
-	KrkValue method = AS_PROPERTY(argv[0])->method;
-	if (IS_NATIVE(method) && AS_NATIVE(method)->name) {
-		return OBJECT_VAL(krk_copyString(AS_NATIVE(method)->name, strlen(AS_NATIVE(method)->name)));
-	} else if (IS_CLOSURE(method)) {
-		return OBJECT_VAL(AS_CLOSURE(method)->function->name);
-	}
-	return NONE_VAL();
-}
+KRK_METHOD(property,setter,{
+	METHOD_TAKES_EXACTLY(1);
+	krk_attachNamedValue(&self->fields, "fset", argv[1]);
+	return argv[0]; /* Return the original property */
+})
 
-static KrkValue _property_method(int argc, KrkValue argv[], int hasKw) {
-	if (argc != 1 || !IS_PROPERTY(argv[0])) return krk_runtimeError(vm.exceptions->typeError, "?");
-	return AS_PROPERTY(argv[0])->method;
-}
+KRK_METHOD(property,__get__,{
+	METHOD_TAKES_EXACTLY(1); /* the owner */
+
+	KrkValue fget;
+	if (!krk_tableGet(&self->fields, OBJECT_VAL(S("fget")), &fget))
+		return krk_runtimeError(vm.exceptions->valueError, "property object is missing 'fget' attribute");
+
+	krk_push(argv[1]);
+	return krk_callSimple(fget, 1, 0);
+})
+
+KRK_METHOD(property,__set__,{
+	METHOD_TAKES_EXACTLY(2); /* the owner and the value */
+
+	krk_push(argv[1]);
+	krk_push(argv[2]);
+
+	KrkValue fset;
+	if (krk_tableGet(&self->fields, OBJECT_VAL(S("fset")), &fset))
+		return krk_callSimple(fset, 2, 0);
+
+	KrkValue fget;
+	if (krk_tableGet(&self->fields, OBJECT_VAL(S("fget")), &fget))
+		return krk_callSimple(fget, 2, 0);
+
+	return krk_runtimeError(vm.exceptions->attributeError, "attribute can not be set");
+})
 
 static KrkValue _id(int argc, KrkValue argv[], int hasKw) {
 	if (argc != 1) return krk_runtimeError(vm.exceptions->argumentError, "expected exactly one argument");
@@ -852,13 +866,12 @@ void _createAndBind_builtins(void) {
 		"attaching new properties to the @c \\__builtins__ instance."
 	);
 
-	krk_makeClass(vm.builtins, &vm.baseClasses->propertyClass, "property", vm.baseClasses->objectClass);
-	krk_defineNative(&vm.baseClasses->propertyClass->methods, ".__init__", _property_init);
-	krk_defineNative(&vm.baseClasses->propertyClass->methods, ".__repr__", _property_repr);
-	krk_defineNative(&vm.baseClasses->propertyClass->methods, ":__doc__", _property_doc);
-	krk_defineNative(&vm.baseClasses->propertyClass->methods, ":__name__", _property_name);
-	krk_defineNative(&vm.baseClasses->propertyClass->methods, ":__method__", _property_method);
-	krk_finalizeClass(vm.baseClasses->propertyClass);
+	property = krk_makeClass(vm.builtins, &vm.baseClasses->propertyClass, "property", vm.baseClasses->objectClass);
+	BIND_METHOD(property,__init__);
+	BIND_METHOD(property,__get__);
+	BIND_METHOD(property,__set__);
+	BIND_METHOD(property,setter);
+	krk_finalizeClass(property);
 
 	krk_makeClass(vm.builtins, &Helper, "Helper", vm.baseClasses->objectClass);
 	KRK_DOC(Helper,

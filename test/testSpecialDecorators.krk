@@ -27,3 +27,19 @@ print(f.bar)
 Foo.fromString("test")
 f.fromString("test")
 Bar.fromString("test")
+
+class Baz(object):
+    myBar = 42
+    @property
+    def bar(self):
+        print("I am a Python-style @property!")
+        return self.myBar
+    @bar.setter
+    def bar(self,value):
+        print("I am a Python-style @property's setter called with", value)
+        self.myBar = value
+
+let b = Baz()
+print(b.bar)
+b.bar = 0xDEADBEEF
+print(b.bar)

@@ -278,12 +278,6 @@ KrkUpvalue * krk_newUpvalue(int slot) {
 	return upvalue;
 }
 
-KrkProperty * krk_newProperty(KrkValue method) {
-	KrkProperty * property = ALLOCATE_OBJECT(KrkProperty, OBJ_PROPERTY);
-	property->method = method;
-	return property;
-}
-
 KrkClass * krk_newClass(KrkString * name, KrkClass * baseClass) {
 	KrkClass * _class = ALLOCATE_OBJECT(KrkClass, OBJ_CLASS);
 	_class->name = name;

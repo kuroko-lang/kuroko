@@ -88,6 +88,8 @@ typedef enum {
 	METHOD_SETSLICE,
 	METHOD_DELSLICE,
 	METHOD_CONTAINS,
+	METHOD_DESCGET,
+	METHOD_DESCSET,
 
 	METHOD__MAX,
 } KrkSpecialMethods;
@@ -423,7 +425,7 @@ extern KrkNative * krk_defineNative(KrkTable * table, const char * name, NativeF
  * @param func     Native function pointer to attach
  * @return A pointer to the property object created.
  */
-extern KrkProperty * krk_defineNativeProperty(KrkTable * table, const char * name, NativeFn func);
+extern KrkNative * krk_defineNativeProperty(KrkTable * table, const char * name, NativeFn func);
 
 /**
  * @brief Attach a value to an attribute table.

@@ -348,13 +348,14 @@ KrkNative * krk_defineNative(KrkTable * table, const char * name, NativeFn funct
  * be used with the "fields" table rather than the methods table. This will eventually replace
  * the ":field" option for defineNative().
  */
-KrkProperty * krk_defineNativeProperty(KrkTable * table, const char * name, NativeFn function) {
+KrkNative * krk_defineNativeProperty(KrkTable * table, const char * name, NativeFn function) {
 	KrkNative * func = krk_newNative(function, name, 1);
 	krk_push(OBJECT_VAL(func));
-	KrkProperty * property = krk_newProperty(krk_peek(0));
+	KrkInstance * property = krk_newInstance(vm.baseClasses->propertyClass);
 	krk_attachNamedObject(table, name, (KrkObj*)property);
+	krk_attachNamedObject(&property->fields, "fget", (KrkObj*)func);
 	krk_pop();
-	return property;
+	return func;
 }
 
 /**
@@ -410,6 +411,8 @@ void krk_finalizeClass(KrkClass * _class) {
 		{&_class->_getattr, METHOD_GETATTR},
 		{&_class->_dir, METHOD_DIR},
 		{&_class->_contains, METHOD_CONTAINS},
+		{&_class->_descget, METHOD_DESCGET},
+		{&_class->_descset, METHOD_DESCSET},
 		{NULL, 0},
 	};
 
@@ -481,8 +484,6 @@ inline KrkClass * krk_getType(KrkValue of) {
 					return vm.baseClasses->tupleClass;
 				case OBJ_BYTES:
 					return vm.baseClasses->bytesClass;
-				case OBJ_PROPERTY:
-					return vm.baseClasses->propertyClass;
 				case OBJ_INSTANCE:
 					return AS_INSTANCE(of)->_class;
 				default:
@@ -906,10 +907,6 @@ int krk_bindMethod(KrkClass * _class, KrkString * name) {
 	if (!_class) return 0;
 	if (IS_NATIVE(method) && ((KrkNative*)AS_OBJECT(method))->isMethod == 2) {
 		out = AS_NATIVE(method)->function(1, (KrkValue[]){krk_peek(0)}, 0);
-	} else if (IS_PROPERTY(method)) {
-		/* Need to push for property object */
-		krk_push(krk_peek(0));
-		out = krk_callSimple(AS_PROPERTY(method)->method, 1, 0);
 	} else if (IS_CLOSURE(method) && (AS_CLOSURE(method)->function->isClassMethod)) {
 		out = OBJECT_VAL(krk_newBoundMethod(OBJECT_VAL(_class), AS_OBJECT(method)));
 	} else if (IS_CLOSURE(method) && (AS_CLOSURE(method)->function->isStaticMethod)) {
@@ -917,6 +914,14 @@ int krk_bindMethod(KrkClass * _class, KrkString * name) {
 	} else if (IS_CLOSURE(method) || IS_NATIVE(method)) {
 		out = OBJECT_VAL(krk_newBoundMethod(krk_peek(0), AS_OBJECT(method)));
 	} else {
+		/* Does it have a descriptor __get__? */
+		KrkClass * type = krk_getType(method);
+		if (type->_descget) {
+			krk_push(method);
+			krk_swap(1);
+			krk_push(krk_callSimple(OBJECT_VAL(type->_descget), 2, 0));
+			return 1;
+		}
 		out = method;
 	}
 	krk_pop();
@@ -1186,6 +1191,9 @@ void krk_initVM(int flags) {
 		/* Attribute access */
 		_(METHOD_GETATTR, "__getattr__"),
 		_(METHOD_DIR, "__dir__"),
+		/* Descriptor methods */
+		_(METHOD_DESCGET, "__get__"),
+		_(METHOD_DESCSET, "__set__"),
 	#undef _
 	};
 	for (size_t i = 0; i < METHOD__MAX; ++i) {
@@ -1806,28 +1814,41 @@ static int valueDelProperty(KrkString * name) {
 	return 0;
 }
 
+static int trySetDescriptor(KrkValue owner, KrkString * name, KrkValue value) {
+	KrkClass * _class = krk_getType(owner);
+	KrkValue property;
+	while (_class) {
+		if (krk_tableGet(&_class->methods, OBJECT_VAL(name), &property)) break;
+		_class = _class->base;
+	}
+	if (_class) {
+		KrkClass * type = krk_getType(property);
+		if (type->_descset) {
+			/* Need to rearrange arguments */
+			krk_push(property); /* owner value property */
+			krk_swap(2);        /* property value owner */
+			krk_swap(1);        /* property owner value */
+			krk_push(krk_callSimple(OBJECT_VAL(type->_descset), 3, 0));
+			return 1;
+		}
+	}
+	return 0;
+}
+
 static int valueSetProperty(KrkString * name) {
 	KrkValue owner = krk_peek(1);
 	KrkValue value = krk_peek(0);
 	if (IS_INSTANCE(owner)) {
 		if (krk_tableSet(&AS_INSTANCE(owner)->fields, OBJECT_VAL(name), value)) {
-			KrkClass * _class = AS_INSTANCE(owner)->_class;
-			KrkValue method;
-			while (_class) {
-				if (krk_tableGet(&_class->methods, OBJECT_VAL(name), &method)) break;
-				_class = _class->base;
-			}
-			if (_class && IS_PROPERTY(method)) {
+			if (trySetDescriptor(owner, name, value)) {
 				krk_tableDelete(&AS_INSTANCE(owner)->fields, OBJECT_VAL(name));
-				krk_push(krk_callSimple(AS_PROPERTY(method)->method, 2, 0));
 				return 1;
 			}
 		}
 	} else if (IS_CLASS(owner)) {
 		krk_tableSet(&AS_CLASS(owner)->methods, OBJECT_VAL(name), value);
 	} else {
-		/* TODO: Setters for other things */
-		return 0;
+		return (trySetDescriptor(owner,name,value));
 	}
 	krk_swap(1);
 	krk_pop();
