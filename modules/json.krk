@@ -113,8 +113,8 @@ def loads(s):
             if peek() not in '0123456789':
                 raise ValueError("Expected digit")
             while peek() in '0123456789':
-                value = value + multiplier * int(peek())
-                multiplier = multiplier * 0.1
+                value = value + mult * int(peek())
+                mult = mult * 0.1
                 advance()
         if peek() in 'eE':
             raise NotImplementedError("Exponent values are not implemented.")
