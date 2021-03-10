@@ -43,7 +43,7 @@ KRK_METHOD(dict,__init__,{
 	return argv[0];
 })
 
-KRK_METHOD(dict,__get__,{
+KRK_METHOD(dict,__getitem__,{
 	METHOD_TAKES_EXACTLY(1);
 	KrkValue out;
 	if (!krk_tableGet(&self->entries, argv[1], &out))
@@ -51,7 +51,7 @@ KRK_METHOD(dict,__get__,{
 	return out;
 })
 
-KRK_METHOD(dict,__set__,{
+KRK_METHOD(dict,__setitem__,{
 	METHOD_TAKES_EXACTLY(2);
 	krk_tableSet(&self->entries, argv[1], argv[2]);
 })
@@ -371,8 +371,8 @@ void _createAndBind_dictClass(void) {
 	dict->_ongcsweep = _dict_gcsweep;
 	BIND_METHOD(dict,__init__);
 	BIND_METHOD(dict,__repr__);
-	BIND_METHOD(dict,__get__);
-	BIND_METHOD(dict,__set__);
+	BIND_METHOD(dict,__getitem__);
+	BIND_METHOD(dict,__setitem__);
 	BIND_METHOD(dict,__or__);
 	BIND_METHOD(dict,__delitem__);
 	BIND_METHOD(dict,__len__);

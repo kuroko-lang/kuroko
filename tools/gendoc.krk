@@ -25,7 +25,7 @@ let blacklistedMethods = [
 let specialMethods = {
     '__contains__': lambda cls, args: f'{args or "<i>needle</i>"} <b>in</b> {cls}',
     '__init__': lambda cls, args: f'let <i>x</i> = <b>{cls}</b>({args})',
-    '__get__': lambda cls, args: f'{cls}[{args or "<i>key</i>"}]',
+    '__getitem__': lambda cls, args: f'{cls}[{args or "<i>key</i>"}]',
     '__delitem__': lambda cls, args: f'<b>del</b> {cls}[{args or "<i>key</i>"}]',
     '__add__': lambda cls, args: f'{cls} + {args or "<i>other</i>"}',
     '__len__': lambda cls, args: f'<b>len</b>({cls})',

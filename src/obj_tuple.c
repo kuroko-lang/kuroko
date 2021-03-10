@@ -66,7 +66,7 @@ KRK_METHOD(tuple,__len__,{
 	return INTEGER_VAL(self->values.count);
 })
 
-KRK_METHOD(tuple,__get__,{
+KRK_METHOD(tuple,__getitem__,{
 	METHOD_TAKES_EXACTLY(1);
 	CHECK_ARG(1,int,krk_integer_type,index);
 	TUPLE_WRAP_INDEX();
@@ -157,7 +157,7 @@ _noexport
 void _createAndBind_tupleClass(void) {
 	KrkClass * tuple = ADD_BASE_CLASS(vm.baseClasses->tupleClass, "tuple", vm.baseClasses->objectClass);
 	BIND_METHOD(tuple,__repr__);
-	BIND_METHOD(tuple,__get__);
+	BIND_METHOD(tuple,__getitem__);
 	BIND_METHOD(tuple,__len__);
 	BIND_METHOD(tuple,__contains__);
 	BIND_METHOD(tuple,__iter__);

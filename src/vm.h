@@ -777,8 +777,8 @@ extern void krk_addObjects(void);
  * FIXME This stuff needs to be moved to another header! FIXME
  */
 
-extern KrkValue _str___get__(int argc, KrkValue argv[], int hasKw);
-#define krk_string_get _str___get__
+extern KrkValue _str___getitem__(int argc, KrkValue argv[], int hasKw);
+#define krk_string_get _str___getitem__
 extern KrkValue _str___int__(int argc, KrkValue argv[], int hasKw);
 #define krk_string_int _str___int__
 extern KrkValue _str___float__(int argc, KrkValue argv[], int hasKw);

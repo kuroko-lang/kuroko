@@ -66,7 +66,7 @@ KRK_METHOD(str,__len__,{
 	return INTEGER_VAL(self->codesLength);
 })
 
-KRK_METHOD(str,__set__,{
+KRK_METHOD(str,__setitem__,{
 	return krk_runtimeError(vm.exceptions->typeError, "Strings are not mutable.");
 })
 
@@ -135,7 +135,7 @@ KRK_METHOD(str,__float__,{
 	return FLOATING_VAL(strtod(AS_CSTRING(argv[0]),NULL));
 })
 
-KRK_METHOD(str,__get__,{
+KRK_METHOD(str,__getitem__,{
 	METHOD_TAKES_EXACTLY(1);
 	CHECK_ARG(1,int,krk_integer_type,asInt);
 	if (asInt < 0) asInt += (int)AS_STRING(argv[0])->codesLength;
@@ -867,7 +867,7 @@ KRK_METHOD(striterator,__call__,{
 		return argv[0];
 	} else {
 		krk_attachNamedValue(&self->fields, "i", INTEGER_VAL(AS_INTEGER(_counter)+1));
-		return FUNC_NAME(str,__get__)(2,(KrkValue[]){_str,_counter},3);
+		return FUNC_NAME(str,__getitem__)(2,(KrkValue[]){_str,_counter},3);
 	}
 _corrupt:
 	return krk_runtimeError(vm.exceptions->typeError, "Corrupt str iterator: %s", errorStr);
@@ -882,8 +882,8 @@ void _createAndBind_strClass(void) {
 	BIND_METHOD(str,__int__);
 	BIND_METHOD(str,__float__);
 	BIND_METHOD(str,__getslice__);
-	BIND_METHOD(str,__get__);
-	BIND_METHOD(str,__set__);
+	BIND_METHOD(str,__getitem__);
+	BIND_METHOD(str,__setitem__);
 	BIND_METHOD(str,__add__);
 	BIND_METHOD(str,__len__);
 	BIND_METHOD(str,__mul__);
@@ -920,9 +920,9 @@ void _createAndBind_strClass(void) {
 	BIND_METHOD(str,upper);
 	BIND_METHOD(str,title);
 
-	krk_defineNative(&str->methods,".__setslice__",FUNC_NAME(str,__set__));
-	krk_defineNative(&str->methods,".__delslice__",FUNC_NAME(str,__set__));
-	krk_defineNative(&str->methods,".__delitem__",FUNC_NAME(str,__set__));
+	krk_defineNative(&str->methods,".__setslice__",FUNC_NAME(str,__setitem__));
+	krk_defineNative(&str->methods,".__delslice__",FUNC_NAME(str,__setitem__));
+	krk_defineNative(&str->methods,".__delitem__",FUNC_NAME(str,__setitem__));
 	krk_finalizeClass(str);
 	KRK_DOC(str, "Obtain a string representation of an object.");
 

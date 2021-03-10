@@ -1151,32 +1151,41 @@ void krk_initVM(int flags) {
 	struct { const char * s; size_t len; } _methods[] = {
 	#define _(m,s) [m] = {s,sizeof(s)-1}
 		_(METHOD_INIT, "__init__"),
+		/* String conversion */
 		_(METHOD_STR, "__str__"),
 		_(METHOD_REPR, "__repr__"),
-		_(METHOD_GET, "__get__"),
-		_(METHOD_SET, "__set__"),
+		/* Subscripting / Indexing */
+		_(METHOD_LEN, "__len__"),
+		_(METHOD_GET, "__getitem__"),
+		_(METHOD_SET, "__setitem__"),
+		_(METHOD_DELITEM, "__delitem__"),
+		/* Slice subscripting */
+		_(METHOD_GETSLICE, "__getslice__"),
+		_(METHOD_SETSLICE, "__setslice__"),
+		_(METHOD_DELSLICE, "__delslice__"),
+		/* Dynamic properties */
 		_(METHOD_CLASS, "__class__"),
 		_(METHOD_NAME, "__name__"),
 		_(METHOD_FILE, "__file__"),
+		_(METHOD_DOC, "__doc__"),
+		_(METHOD_BASE, "__base__"),
+		/* Numeric conversions */
 		_(METHOD_INT, "__int__"),
 		_(METHOD_CHR, "__chr__"),
 		_(METHOD_ORD, "__ord__"),
 		_(METHOD_FLOAT, "__float__"),
-		_(METHOD_LEN, "__len__"),
-		_(METHOD_DOC, "__doc__"),
-		_(METHOD_BASE, "__base__"),
+		/* General overridable methods */
 		_(METHOD_CALL, "__call__"),
-		_(METHOD_GETSLICE, "__getslice__"),
-		_(METHOD_SETSLICE, "__setslice__"),
-		_(METHOD_DELSLICE, "__delslice__"),
 		_(METHOD_EQ, "__eq__"),
+		/* Iterables */
+		_(METHOD_ITER, "__iter__"),
+		_(METHOD_CONTAINS, "__contains__"),
+		/* Context managers */
 		_(METHOD_ENTER, "__enter__"),
 		_(METHOD_EXIT, "__exit__"),
-		_(METHOD_DELITEM, "__delitem__"),
-		_(METHOD_ITER, "__iter__"),
+		/* Attribute access */
 		_(METHOD_GETATTR, "__getattr__"),
 		_(METHOD_DIR, "__dir__"),
-		_(METHOD_CONTAINS, "__contains__"),
 	#undef _
 	};
 	for (size_t i = 0; i < METHOD__MAX; ++i) {

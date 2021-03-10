@@ -94,7 +94,7 @@ static KrkClass * environClass;
 KrkValue krk_os_setenviron(int argc, KrkValue argv[], int hasKw) {
 	if (argc < 3 || !krk_isInstanceOf(argv[0], environClass) ||
 		!IS_STRING(argv[1]) || !IS_STRING(argv[2])) {
-		return krk_runtimeError(vm.exceptions->argumentError, "Invalid arguments to environ.__set__");
+		return krk_runtimeError(vm.exceptions->argumentError, "Invalid arguments to environ.__setitem__");
 	}
 	/* Set environment variable */
 	size_t len = AS_STRING(argv[1])->length + AS_STRING(argv[2])->length + 2;
@@ -140,7 +140,7 @@ static void _loadEnviron(KrkInstance * module) {
 	krk_pop(); /* className */
 
 	/* Add our set method that should also call dict's set method */
-	krk_defineNative(&environClass->methods, ".__set__", krk_os_setenviron);
+	krk_defineNative(&environClass->methods, ".__setitem__", krk_os_setenviron);
 	krk_defineNative(&environClass->methods, ".__delitem__", krk_os_unsetenviron);
 	krk_finalizeClass(environClass);
 

@@ -13,12 +13,12 @@ class defaultdict(dict):
         '''Automatically called to create default values when @p key is not found.'''
         if not self.default_factory: raise KeyError(key)
         let result = self.default_factory()
-        self.__set__(key, result)
+        self.__setitem__(key, result)
         return result
-    def __get__(self, key):
+    def __getitem__(self, key):
         if key not in self:
             return self.__missing__(key)
-        return super().__get__(key)
+        return super().__getitem__(key)
 
 class deque():
     '''
@@ -184,7 +184,7 @@ class deque():
             s = s[2]
             return out
         return _
-    def __get__(self, index):
+    def __getitem__(self, index):
         if index >= self._size or index < -self._size: raise IndexError("Invalid index")
         if index == 0: return self._head[1]
         if index > 0:
