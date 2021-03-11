@@ -353,7 +353,7 @@ KrkToken krk_scanToken() {
 		case '=': return makeToken(match('=') ? TOKEN_EQUAL_EQUAL   : TOKEN_EQUAL);
 		case '<': return makeToken(match('=') ? TOKEN_LESS_EQUAL    : (match('<') ? (match('=') ? TOKEN_LSHIFT_EQUAL : TOKEN_LEFT_SHIFT) :  TOKEN_LESS));
 		case '>': return makeToken(match('=') ? TOKEN_GREATER_EQUAL : (match('>') ? (match('=') ? TOKEN_RSHIFT_EQUAL : TOKEN_RIGHT_SHIFT) : TOKEN_GREATER));
-		case '-': return makeToken(match('=') ? TOKEN_MINUS_EQUAL   : (match('-') ? TOKEN_MINUS_MINUS : TOKEN_MINUS));
+		case '-': return makeToken(match('=') ? TOKEN_MINUS_EQUAL   : (match('-') ? TOKEN_MINUS_MINUS : (match('>') ? TOKEN_ARROW : TOKEN_MINUS)));
 		case '+': return makeToken(match('=') ? TOKEN_PLUS_EQUAL    : (match('+') ? TOKEN_PLUS_PLUS   : TOKEN_PLUS));
 		case '^': return makeToken(match('=') ? TOKEN_CARET_EQUAL   : TOKEN_CARET);
 		case '|': return makeToken(match('=') ? TOKEN_PIPE_EQUAL    : TOKEN_PIPE);

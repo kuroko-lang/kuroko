@@ -1,0 +1,9 @@
+I am a function.
+[42]
+{'return': <class 'list'>, 'a': <class 'int'>, 'b': <class 'float'>}
+{'return': None, 'anint': <class 'int'>, 'self': <class '__main__.Foo'>, 'adict': 'dict[str,object]'}
+I am a method taking a dict.
+None
+{'astr': <class 'str'>, 'abool': <class 'bool'>}
+I return a Foo? Amazing!
+True

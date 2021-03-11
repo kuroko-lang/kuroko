@@ -130,6 +130,8 @@ typedef struct Compiler {
 	size_t localNameCapacity;
 
 	struct IndexWithNext * properties;
+	struct Compiler * enclosed;
+	size_t annotationCount;
 } Compiler;
 
 typedef struct ClassCompiler {
@@ -203,6 +205,8 @@ static void initCompiler(Compiler * compiler, FunctionType type) {
 	compiler->loopLocalCount = 0;
 	compiler->localNameCapacity = 0;
 	compiler->properties = NULL;
+	compiler->enclosed = NULL;
+	compiler->annotationCount = 0;
 
 	if (type != TYPE_MODULE) {
 		current->function->name = krk_copyString(parser.previous.start, parser.previous.length);
@@ -925,6 +929,26 @@ static void doUpvalues(Compiler * compiler, KrkFunction * function) {
 	}
 }
 
+static void typeHint(KrkToken name) {
+	current->enclosing->enclosed = current;
+	current = current->enclosing;
+
+	if (!current->enclosed->annotationCount) {
+		KrkToken dictOf = syntheticToken("dictOf");
+		size_t ind = identifierConstant(&dictOf);
+		EMIT_CONSTANT_OP(OP_GET_GLOBAL, ind);
+	}
+
+	current->enclosed->annotationCount++;
+
+	/* Emit name */
+	emitConstant(OBJECT_VAL(krk_copyString(name.start, name.length)));
+	expression();
+
+	current = current->enclosed;
+	current->enclosing->enclosed = NULL;
+}
+
 static void function(FunctionType type, size_t blockWidth) {
 	Compiler compiler;
 	initCompiler(&compiler, type);
@@ -943,6 +967,11 @@ static void function(FunctionType type, size_t blockWidth) {
 			if (match(TOKEN_SELF)) {
 				if (!isMethod(type)) {
 					error("Invalid use of `self` as a function paramenter.");
+				}
+				if (check(TOKEN_COLON)) {
+					KrkToken name = parser.previous;
+					match(TOKEN_COLON);
+					typeHint(name);
 				}
 				continue;
 			}
@@ -965,6 +994,11 @@ static void function(FunctionType type, size_t blockWidth) {
 				/* Collect a name, specifically "args" or "kwargs" are commont */
 				ssize_t paramConstant = parseVariable("Expect parameter name.");
 				defineVariable(paramConstant);
+				if (check(TOKEN_COLON)) {
+					KrkToken name = parser.previous;
+					match(TOKEN_COLON);
+					typeHint(name);
+				}
 				/* Make that a valid local for this function */
 				size_t myLocal = current->localCount - 1;
 				EMIT_CONSTANT_OP(OP_GET_LOCAL, myLocal);
@@ -991,6 +1025,11 @@ static void function(FunctionType type, size_t blockWidth) {
 			}
 			ssize_t paramConstant = parseVariable("Expect parameter name.");
 			defineVariable(paramConstant);
+			if (check(TOKEN_COLON)) {
+				KrkToken name = parser.previous;
+				match(TOKEN_COLON);
+				typeHint(name);
+			}
 			if (match(TOKEN_EQUAL)) {
 				/*
 				 * We inline default arguments by checking if they are equal
@@ -1026,13 +1065,24 @@ static void function(FunctionType type, size_t blockWidth) {
 	stopEatingWhitespace();
 	consume(TOKEN_RIGHT_PAREN, "Expected end of parameter list.");
 
+	if (match(TOKEN_ARROW)) {
+		typeHint(syntheticToken("return"));
+	}
+
 	consume(TOKEN_COLON, "Expected colon after function signature.");
 	block(blockWidth,"def");
-
 	KrkFunction * function = endCompiler();
+	if (compiler.annotationCount) {
+		EMIT_CONSTANT_OP(OP_CALL,compiler.annotationCount * 2);
+	}
 	size_t ind = krk_addConstant(currentChunk(), OBJECT_VAL(function));
 	EMIT_CONSTANT_OP(OP_CLOSURE, ind);
 	doUpvalues(&compiler, function);
+
+	if (compiler.annotationCount) {
+		emitByte(OP_ANNOTATE);
+	}
+
 	freeCompiler(&compiler);
 }
 
@@ -1082,14 +1132,12 @@ static void method(size_t blockWidth) {
 }
 
 #define ATTACH_PROPERTY(propName,how,propValue) do { \
-	emitBytes(OP_DUP, 0); \
 	KrkToken val_tok = syntheticToken(propValue); \
 	size_t val_ind = identifierConstant(&val_tok); \
 	EMIT_CONSTANT_OP(how, val_ind); \
 	KrkToken name_tok = syntheticToken(propName); \
 	size_t name_ind = identifierConstant(&name_tok); \
-	EMIT_CONSTANT_OP(OP_SET_PROPERTY, name_ind); \
-	emitByte(OP_POP); \
+	EMIT_CONSTANT_OP(OP_CLASS_PROPERTY, name_ind); \
 } while (0)
 
 static KrkToken classDeclaration() {
@@ -2902,6 +2950,7 @@ KrkFunction * krk_compile(const char * src, char * fileName) {
 void krk_markCompilerRoots() {
 	Compiler * compiler = current;
 	while (compiler != NULL) {
+		if (compiler->enclosed) krk_markObject((KrkObj*)compiler->enclosed->function);
 		krk_markObject((KrkObj*)compiler->function);
 		compiler = compiler->enclosing;
 	}

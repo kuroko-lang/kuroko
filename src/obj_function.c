@@ -139,6 +139,12 @@ KRK_METHOD(function,__args__,{
 	return OBJECT_VAL(tuple);
 })
 
+KRK_METHOD(function,__annotations__,{
+	METHOD_TAKES_NONE();
+	if (!IS_CLOSURE(self)) return NONE_VAL();
+	return AS_CLOSURE(self)->annotations;
+})
+
 #undef CURRENT_CTYPE
 #define CURRENT_CTYPE KrkFunction*
 
@@ -223,6 +229,12 @@ KRK_METHOD(method,__doc__,{
 	return FUNC_NAME(function,__doc__)(1,(KrkValue[]){OBJECT_VAL(self->method)},0);
 })
 
+KRK_METHOD(method,__annotations__,{
+	METHOD_TAKES_NONE();
+	return FUNC_NAME(function,__annotations__)(1,(KrkValue[]){OBJECT_VAL(self->method)},0);
+})
+
+
 KRK_FUNC(staticmethod,{
 	FUNCTION_TAKES_EXACTLY(1);
 	CHECK_ARG(0,CLOSURE,KrkClosure*,method);
@@ -232,6 +244,7 @@ KRK_FUNC(staticmethod,{
 	for (size_t i = 0; i < method->upvalueCount; ++i) {
 		AS_CLOSURE(krk_peek(0))->upvalues[i] = method->upvalues[i];
 	}
+	AS_CLOSURE(krk_peek(0))->annotations = method->annotations;
 	AS_CLOSURE(krk_peek(0))->isStaticMethod = 1;
 	return krk_pop();
 })
@@ -245,6 +258,7 @@ KRK_FUNC(classmethod,{
 	for (size_t i = 0; i < method->upvalueCount; ++i) {
 		AS_CLOSURE(krk_peek(0))->upvalues[i] = method->upvalues[i];
 	}
+	AS_CLOSURE(krk_peek(0))->annotations = method->annotations;
 	AS_CLOSURE(krk_peek(0))->isClassMethod = 1;
 	return krk_pop();
 })
@@ -266,6 +280,7 @@ void _createAndBind_functionClass(void) {
 	BIND_PROP(function,__qualname__);
 	BIND_PROP(function,__file__);
 	BIND_PROP(function,__args__);
+	BIND_PROP(function,__annotations__);
 	krk_defineNative(&function->methods, ".__repr__", FUNC_NAME(function,__str__));
 	krk_finalizeClass(function);
 
@@ -277,6 +292,7 @@ void _createAndBind_functionClass(void) {
 	BIND_PROP(method,__qualname__);
 	BIND_PROP(method,__file__);
 	BIND_PROP(method,__args__);
+	BIND_PROP(method,__annotations__);
 	krk_defineNative(&method->methods, ".__repr__", FUNC_NAME(method,__str__));
 	krk_finalizeClass(method);
 

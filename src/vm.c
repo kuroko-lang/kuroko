@@ -2202,6 +2202,15 @@ _resumeHook: (void)0;
 				/* Do NOT restore the stack */
 				return result;
 			}
+			case OP_ANNOTATE: {
+				if (!IS_CLOSURE(krk_peek(0))) {
+					krk_runtimeError(vm.exceptions->typeError, "Can not annotate '%s'.", krk_typeName(krk_peek(0)));
+					goto _finishException;
+				}
+				krk_swap(1);
+				AS_CLOSURE(krk_peek(1))->annotations = krk_pop();
+				break;
+			}
 
 			/*
 			 * Two-byte operands

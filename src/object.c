@@ -266,6 +266,7 @@ KrkClosure * krk_newClosure(KrkFunction * function) {
 	closure->function = function;
 	closure->upvalues = upvalues;
 	closure->upvalueCount = function->upvalueCount;
+	closure->annotations = krk_dict_of(0,NULL,0);
 	return closure;
 }
 

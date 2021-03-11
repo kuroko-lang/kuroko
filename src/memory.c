@@ -132,6 +132,7 @@ static void blackenObject(KrkObj * object) {
 			for (size_t i = 0; i < closure->upvalueCount; ++i) {
 				krk_markObject((KrkObj*)closure->upvalues[i]);
 			}
+			krk_markValue(closure->annotations);
 			break;
 		}
 		case OBJ_FUNCTION: {

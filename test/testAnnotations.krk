@@ -1,0 +1,24 @@
+def foo(a: int, b: float) -> list:
+    print("I am a function.")
+    return [42]
+
+print(foo(1,2.0))
+print(foo.__annotations__)
+
+
+# Okay, now let's try some methods
+
+class Foo:
+    def amethod(self: Foo, anint: int, adict: dict[str,object]) -> None:
+        print("I am a method taking a dict.")
+
+    @staticmethod
+    def astatic(abool: bool, astr: str):
+        print("I return a Foo? Amazing!")
+        return Foo()
+
+print(Foo().amethod.__annotations__)
+print(Foo().amethod(1,{'two': 3}))
+
+print(Foo.astatic.__annotations__)
+print(isinstance(Foo.astatic(True,"yes"),Foo))
