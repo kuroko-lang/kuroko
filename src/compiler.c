@@ -943,7 +943,7 @@ static void typeHint(KrkToken name) {
 
 	/* Emit name */
 	emitConstant(OBJECT_VAL(krk_copyString(name.start, name.length)));
-	expression();
+	parsePrecedence(PREC_TERNARY);
 
 	current = current->enclosed;
 	current->enclosing->enclosed = NULL;
