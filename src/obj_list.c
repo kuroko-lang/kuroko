@@ -472,6 +472,8 @@ static KrkValue _reversed(int argc, KrkValue argv[], int hasKw) {
 	return krk_pop();
 }
 
+extern NativeFn GenericAlias;
+
 _noexport
 void _createAndBind_listClass(void) {
 	KrkClass * list = ADD_BASE_CLASS(vm.baseClasses->listClass, "list", vm.baseClasses->objectClass);
@@ -503,6 +505,7 @@ void _createAndBind_listClass(void) {
 	BIND_METHOD(list,sort);
 	krk_defineNative(&list->methods, ".__delitem__", FUNC_NAME(list,pop));
 	krk_defineNative(&list->methods, ".__str__", FUNC_NAME(list,__repr__));
+	krk_defineNative(&list->methods, ".__class_getitem__", GenericAlias);
 	krk_finalizeClass(list);
 	KRK_DOC(list, "Mutable sequence of arbitrary values.");
 

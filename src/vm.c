@@ -413,6 +413,7 @@ void krk_finalizeClass(KrkClass * _class) {
 		{&_class->_contains, METHOD_CONTAINS},
 		{&_class->_descget, METHOD_DESCGET},
 		{&_class->_descset, METHOD_DESCSET},
+		{&_class->_classgetitem, METHOD_CLASSGETITEM},
 		{NULL, 0},
 	};
 
@@ -1194,6 +1195,8 @@ void krk_initVM(int flags) {
 		/* Descriptor methods */
 		_(METHOD_DESCGET, "__get__"),
 		_(METHOD_DESCSET, "__set__"),
+		/* Very special thing */
+		_(METHOD_CLASSGETITEM, "__class_getitem__"),
 	#undef _
 	};
 	for (size_t i = 0; i < METHOD__MAX; ++i) {
@@ -2056,6 +2059,8 @@ _resumeHook: (void)0;
 				KrkClass * type = krk_getType(krk_peek(1));
 				if (likely(type->_getter)) {
 					krk_push(krk_callSimple(OBJECT_VAL(type->_getter), 2, 0));
+				} else if (IS_CLASS(krk_peek(1)) && AS_CLASS(krk_peek(1))->_classgetitem) {
+					krk_push(krk_callSimple(OBJECT_VAL(AS_CLASS(krk_peek(1))->_classgetitem), 2, 0));
 				} else {
 					krk_runtimeError(vm.exceptions->attributeError, "'%s' object is not subscriptable", krk_typeName(krk_peek(1)));
 				}
@@ -2422,6 +2427,9 @@ _resumeHook: (void)0;
 				KrkClass * _class = AS_CLASS(krk_peek(1));
 				KrkValue name = OBJECT_VAL(READ_STRING(OPERAND));
 				krk_tableSet(&_class->methods, name, method);
+				if (AS_STRING(name) == S("__class_getitem__") && IS_CLOSURE(method)) {
+					AS_CLOSURE(method)->isClassMethod = 1;
+				}
 				krk_pop();
 				break;
 			}

@@ -184,6 +184,7 @@ typedef struct KrkClass {
 	KrkObj * _contains;
 	KrkObj * _descget;
 	KrkObj * _descset;
+	KrkObj * _classgetitem;
 } KrkClass;
 
 /**

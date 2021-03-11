@@ -544,6 +544,15 @@ static void get_(int canAssign) {
 		isSlice = 1;
 	} else {
 		expression();
+		/* Quietly support tuples here... */
+		if (check(TOKEN_COMMA)) {
+			size_t count = 1;
+			while (match(TOKEN_COMMA)) {
+				expression();
+				count++;
+			}
+			EMIT_CONSTANT_OP(OP_TUPLE, count);
+		}
 	}
 	if (isSlice || match(TOKEN_COLON)) {
 		if (isSlice && match(TOKEN_COLON)) {
@@ -1060,6 +1069,10 @@ static void method(size_t blockWidth) {
 
 		if (parser.previous.length == 8 && memcmp(parser.previous.start, "__init__", 8) == 0) {
 			type = TYPE_INIT;
+		} else if (parser.previous.length == 17 && memcmp(parser.previous.start, "__class_getitem__", 17) == 0) {
+			/* This magic method is implicitly always a class method,
+			 * so mark it as such so we don't do implicit self for it. */
+			type = TYPE_CLASSMETHOD;
 		}
 
 		function(type, blockWidth);
