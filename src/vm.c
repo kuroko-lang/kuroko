@@ -1847,6 +1847,10 @@ static int valueSetProperty(KrkString * name) {
 		}
 	} else if (IS_CLASS(owner)) {
 		krk_tableSet(&AS_CLASS(owner)->methods, OBJECT_VAL(name), value);
+		if (name->length && name->chars[0] == '_') {
+			/* Quietly call finalizeClass to update special method table if this looks like it might be one */
+			krk_finalizeClass(AS_CLASS(owner));
+		}
 	} else {
 		return (trySetDescriptor(owner,name,value));
 	}
