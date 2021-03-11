@@ -29,7 +29,7 @@ Let's do some classes.
 <class '__main__.Test'>
 yay: bax
 bar
-<bound method Test.doAThing>
+True
 yay: bar
 This is a great teapot!
 Subclass says: (I am a teapot)

@@ -1,4 +1,4 @@
-print(*[1,2,3],*['test',object,lambda x: x * 5],7,9,10,end=';\n',**{'sep':', '})
+print(*[1,2,3],*['test',object],7,9,10,end=';\n',**{'sep':', '})
 
 let l = [1,2,3]
 let d = {'sep': ', '}

@@ -153,6 +153,34 @@ static int isMethod(int type) {
 	return type == TYPE_METHOD || type == TYPE_INIT || type == TYPE_PROPERTY;
 }
 
+static char * calculateQualName(void) {
+	static char space[1024]; /* We'll just truncate if we need to */
+	space[1023] = '\0';
+	char * writer = &space[1023];
+
+#define WRITE(s) do { \
+	size_t len = strlen(s); \
+	if (writer - len < space) break; \
+	writer -= len; \
+	memcpy(writer, s, len); \
+} while (0)
+
+	WRITE(current->function->name->chars);
+	/* Go up by _compiler_, ignore class compilers as we don't need them. */
+	Compiler * ptr = current->enclosing;
+	while (ptr->enclosing) { /* Ignores the top level module */
+		if (ptr->type != TYPE_CLASS) {
+			/* We must be the locals of a function. */
+			WRITE("<locals>.");
+		}
+		WRITE(".");
+		WRITE(ptr->function->name->chars);
+		ptr = ptr->enclosing;
+	}
+
+	return writer;
+}
+
 static void initCompiler(Compiler * compiler, FunctionType type) {
 	compiler->enclosing = current;
 	current = compiler;
@@ -178,6 +206,8 @@ static void initCompiler(Compiler * compiler, FunctionType type) {
 
 	if (type != TYPE_MODULE) {
 		current->function->name = krk_copyString(parser.previous.start, parser.previous.length);
+		char * qualname = calculateQualName();
+		current->function->qualname = krk_copyString(qualname, strlen(qualname));
 	}
 
 	if (isMethod(type)) {
@@ -1048,34 +1078,6 @@ static void method(size_t blockWidth) {
 	EMIT_CONSTANT_OP(OP_SET_PROPERTY, name_ind); \
 	emitByte(OP_POP); \
 } while (0)
-
-static char * calculateQualName(void) {
-	static char space[1024]; /* We'll just truncate if we need to */
-	space[1023] = '\0';
-	char * writer = &space[1023];
-
-#define WRITE(s) do { \
-	size_t len = strlen(s); \
-	if (writer - len < space) break; \
-	writer -= len; \
-	memcpy(writer, s, len); \
-} while (0)
-
-	WRITE(current->function->name->chars);
-	/* Go up by _compiler_, ignore class compilers as we don't need them. */
-	Compiler * ptr = current->enclosing;
-	while (ptr->enclosing) { /* Ignores the top level module */
-		if (ptr->type != TYPE_CLASS) {
-			/* We must be the locals of a function. */
-			WRITE("<locals>.");
-		}
-		WRITE(".");
-		WRITE(ptr->function->name->chars);
-		ptr = ptr->enclosing;
-	}
-
-	return writer;
-}
 
 static KrkToken classDeclaration() {
 	size_t blockWidth = (parser.previous.type == TOKEN_INDENTATION) ? parser.previous.length : 0;

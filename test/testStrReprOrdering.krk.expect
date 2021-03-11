@@ -1,5 +1,5 @@
 Foo: <str>
 <str>
 <repr>
-<bound method Foo.__str__>
-<bound method Foo.__repr__>
+<bound method Foo.__str__ of <repr>>
+<bound method Foo.__repr__ of <repr>>

@@ -907,9 +907,9 @@ int krk_bindMethod(KrkClass * _class, KrkString * name) {
 	if (!_class) return 0;
 	if (IS_NATIVE(method) && ((KrkNative*)AS_OBJECT(method))->isMethod == 2) {
 		out = AS_NATIVE(method)->function(1, (KrkValue[]){krk_peek(0)}, 0);
-	} else if (IS_CLOSURE(method) && (AS_CLOSURE(method)->function->isClassMethod)) {
+	} else if (IS_CLOSURE(method) && (AS_CLOSURE(method)->isClassMethod)) {
 		out = OBJECT_VAL(krk_newBoundMethod(OBJECT_VAL(_class), AS_OBJECT(method)));
-	} else if (IS_CLOSURE(method) && (AS_CLOSURE(method)->function->isStaticMethod)) {
+	} else if (IS_CLOSURE(method) && (AS_CLOSURE(method)->isStaticMethod)) {
 		out = method;
 	} else if (IS_CLOSURE(method) || IS_NATIVE(method)) {
 		out = OBJECT_VAL(krk_newBoundMethod(krk_peek(0), AS_OBJECT(method)));
@@ -1744,7 +1744,7 @@ static int valueGetProperty(KrkString * name) {
 			_class = _class->base;
 		}
 		if (_class) {
-			if (IS_CLOSURE(value) && AS_CLOSURE(value)->function->isClassMethod) {
+			if (IS_CLOSURE(value) && AS_CLOSURE(value)->isClassMethod) {
 				value = OBJECT_VAL(krk_newBoundMethod(krk_peek(0), AS_OBJECT(value)));
 			}
 			krk_pop();

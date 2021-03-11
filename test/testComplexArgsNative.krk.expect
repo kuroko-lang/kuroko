@@ -1,4 +1,4 @@
-1, 2, 3, test, <class 'object'>, <function <lambda>>, 7, 9, 10;
+1, 2, 3, test, <class 'object'>, 7, 9, 10;
 a, b, 1, 2, 3, 7, 1, 2, 3test
 1 apples <class 'object'>
 got multiple values for argument 'a'

@@ -4,7 +4,7 @@ def foo(default="bacon"):
         print("hello")
     return test
 
-print(foo())
+print('<function foo.<locals>.test' in str(foo()))
 foo("sports")
 
 def fillValues(a=1,b=2,c="c",d=None,e=2.71828):

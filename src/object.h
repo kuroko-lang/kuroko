@@ -123,10 +123,9 @@ typedef struct {
 	KrkLocalEntry * localNames;
 	unsigned char collectsArguments:1;
 	unsigned char collectsKeywords:1;
-	unsigned char isClassMethod:1;
 	unsigned char isGenerator:1;
-	unsigned char isStaticMethod:1;
 	struct KrkInstance * globalsContext;
+	KrkString * qualname;
 } KrkFunction;
 
 /**
@@ -140,6 +139,8 @@ typedef struct {
 	KrkFunction * function;
 	KrkUpvalue ** upvalues;
 	size_t upvalueCount;
+	unsigned char isClassMethod:1;
+	unsigned char isStaticMethod:1;
 } KrkClosure;
 
 typedef void (*KrkCleanupCallback)(struct KrkInstance *);

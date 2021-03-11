@@ -658,13 +658,26 @@ static KrkValue obj_hash(int argc, KrkValue argv[], int hasKw) {
  */
 static KrkValue _strBase(int argc, KrkValue argv[], int hasKw) {
 	KrkClass * type = krk_getType(argv[0]);
-	size_t allocSize = sizeof("<instance of . at 0x1234567812345678>") + type->name->length;
+
+	KrkValue module = NONE_VAL();
+	krk_tableGet(&type->methods, OBJECT_VAL(S("__module__")), &module);
+	KrkValue qualname = NONE_VAL();
+	krk_tableGet(&type->methods, OBJECT_VAL(S("__qualname__")), &qualname);
+	KrkString * name = IS_STRING(qualname) ? AS_STRING(qualname) : type->name;
+	int includeModule = !(IS_NONE(module) || (IS_STRING(module) && AS_STRING(module) == S("__builtins__")));
+
+	size_t allocSize = sizeof("<. object at 0x1234567812345678>") + name->length;
+	if (includeModule) allocSize += AS_STRING(module)->length + 1;
 	char * tmp = malloc(allocSize);
 	size_t len;
 	if (IS_OBJECT(argv[0])) {
-		len = snprintf(tmp, allocSize, "<instance of %s at %p>", type->name->chars, (void*)AS_OBJECT(argv[0]));
+		len = snprintf(tmp, allocSize, "<%s%s%s object at %p>",
+			includeModule ? AS_CSTRING(module) : "",
+			includeModule ? "." : "",
+			name->chars,
+			(void*)AS_OBJECT(argv[0]));
 	} else {
-		len = snprintf(tmp, allocSize, "<instance of %s>", type->name->chars);
+		len = snprintf(tmp, allocSize, "<%s object>", name->chars);
 	}
 	KrkValue out = OBJECT_VAL(krk_copyString(tmp, len));
 	free(tmp);
