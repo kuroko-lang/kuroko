@@ -1629,6 +1629,7 @@ static void tryStatement() {
 				current->locals[exceptionObject].name = syntheticToken("exception");
 			}
 			/* Make sure we update the local name for debugging */
+			current->function->localNames[localNameCount].birthday = currentChunk()->count;
 			current->function->localNames[localNameCount].name = krk_copyString(current->locals[exceptionObject].name.start, current->locals[exceptionObject].name.length);
 
 			consume(TOKEN_COLON, "Expect ':' after except.");
