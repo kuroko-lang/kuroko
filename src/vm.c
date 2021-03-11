@@ -2031,7 +2031,11 @@ _resumeHook: (void)0;
 			case OP_NOT:   krk_push(BOOLEAN_VAL(krk_isFalsey(krk_pop()))); break;
 			case OP_POP:   krk_pop(); break;
 			case OP_RAISE: {
-				krk_currentThread.currentException = krk_pop();
+				if (IS_CLASS(krk_peek(0))) {
+					krk_currentThread.currentException = krk_callSimple(krk_peek(0), 0, 1);
+				} else {
+					krk_currentThread.currentException = krk_pop();
+				}
 				attachTraceback();
 				krk_currentThread.flags |= KRK_THREAD_HAS_EXCEPTION;
 				goto _finishException;
