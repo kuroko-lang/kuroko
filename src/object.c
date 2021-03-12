@@ -226,6 +226,7 @@ KrkString * krk_copyString(const char * chars, size_t length) {
 	memcpy(heapChars, chars, length);
 	heapChars[length] = '\0';
 	KrkString * result = allocateString(heapChars, length, hash);
+	if (result->chars != heapChars) free(heapChars);
 	_release_lock(_stringLock);
 	return result;
 }
