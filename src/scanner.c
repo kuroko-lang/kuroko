@@ -271,7 +271,6 @@ static KrkToken identifier() {
 void krk_ungetToken(KrkToken token) {
 	if (scanner.hasUnget) {
 		fprintf(stderr, "(internal error) Tried to unget multiple times, this is not valid.\n");
-		exit(1);
 	}
 	scanner.hasUnget = 1;
 	scanner.unget = token;
