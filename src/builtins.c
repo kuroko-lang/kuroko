@@ -950,22 +950,61 @@ void _createAndBind_builtins(void) {
 	BIND_METHOD(enumerateobject,__repr__);
 	krk_finalizeClass(enumerateobject);
 
-	BUILTIN_FUNCTION("isinstance", _isinstance, "Determine if an object is an instance of the given class or one if its subclasses.");
-	BUILTIN_FUNCTION("globals", _globals, "Return a mapping of names in the current global namespace.");
-	BUILTIN_FUNCTION("locals", _locals, "Return a mapping of names in the current local namespace.");
+	BUILTIN_FUNCTION("isinstance", _isinstance,
+		"@brief Check if an object is an instance of a type.\n"
+		"@arguments inst, cls\n\n"
+		"Determine if an object @p inst is an instance of the given class @p cls or one if its subclasses. "
+		"@p cls may be a single class or a tuple of classes.");
+	BUILTIN_FUNCTION("globals", _globals,
+		"@brief Update and a return a mapping of names in the global namespace.\n\n"
+		"Produces a dict mapping all of the names of the current globals namespace to their values. "
+		"Updating this dict has no meaning, but modifying mutable values within it can affect the global namespace.");
+	BUILTIN_FUNCTION("locals", _locals,
+		"@brief Update and return a mapping of names in the current local scope.\n"
+		"@arguments callDepth=1\n\n"
+		"Produces a dict mapping the names of the requested locals scope to their current stack values. "
+		"If @p callDepth is provided, the locals of an outer call frame will be returned. If the requested "
+		"call depth is out of range, an exception will be raised.");
 	BUILTIN_FUNCTION("dir", _dir, "Return a list of known property names for a given object.");
 	BUILTIN_FUNCTION("len", _len, "Return the length of a given sequence object.");
 	BUILTIN_FUNCTION("repr", _repr, "Produce a string representation of the given object.");
-	BUILTIN_FUNCTION("print", _print, "Print values to the standard output descriptor.");
+	BUILTIN_FUNCTION("print", _print,
+		"@brief Print text to the standard output.\n"
+		"@arguments *args,sep=' ',end='\\n'\n\n"
+		"Prints the string representation of each argument to the standard output. "
+		"The keyword argument @p sep specifies the string to print between values. "
+		"The keyword argument @p end specifies the string to print after all of the values have been printed.");
 	BUILTIN_FUNCTION("ord", _ord, "Obtain the ordinal integer value of a codepoint or byte.");
 	BUILTIN_FUNCTION("chr", _chr, "Convert an integer codepoint to its string representation.");
 	BUILTIN_FUNCTION("hex", _hex, "Convert an integer value to a hexadecimal string.");
 	BUILTIN_FUNCTION("oct", _oct, "Convert an integer value to an octal string.");
 	BUILTIN_FUNCTION("any", _any, "Returns True if at least one element in the given iterable is truthy, False otherwise.");
 	BUILTIN_FUNCTION("all", _all, "Returns True if every element in the given iterable is truthy, False otherwise.");
-	BUILTIN_FUNCTION("getattr", FUNC_NAME(krk,getattr), "Obtain a property of an object as if it were accessed by the dot operator.");
-	BUILTIN_FUNCTION("setattr", FUNC_NAME(krk,setattr), "Set a property of an object as if it were accessed by the dot operator.");
-	BUILTIN_FUNCTION("sum", _sum, "Add the elements of an iterable.");
+	BUILTIN_FUNCTION("getattr", FUNC_NAME(krk,getattr),
+		"@brief Perform attribute lookup on an object using a string.\n"
+		"@arguments obj,attribute,[default]\n\n"
+		"Obtains the attributed named @p attribute from the object @p obj, if such an "
+		"attribute exists. Attribute lookup ordering is complex and includes direct "
+		"attribute tables of instances, dynamic attributes from classes, and so on. "
+		"The use of @c getattr is equivalent to a dotted access. If @p attribute refers "
+		"to a method of @p obj's class, a bound method will be obtained. If @p default "
+		"is provided then the value supplied will be returned in the case where @p obj "
+		"does not have an attribute named @p attribute, otherwise an @ref AttributeError "
+		"will be raised.");
+	BUILTIN_FUNCTION("setattr", FUNC_NAME(krk,setattr),
+		"@brief Set an attribute of an object using a string name.\n"
+		"@arguments obj,attribute,value\n\n"
+		"Sets the attribute named by @p attribute of the object @p obj to @p value. "
+		"If @p attribute refers to a @ref property object or other descriptor, the "
+		"descriptor's @c \\__set__ method will be called. If @p obj is a class, instance, "
+		"or other type with its own attribute table, then the field will be updated. If "
+		"@p obj is a type without an attribute table and no class property provides an "
+		"overriding setter for @p attribute, an @ref AttributeError will be raised.");
+	BUILTIN_FUNCTION("sum", _sum,
+		"@brief add the elements of an iterable.\n"
+		"@arguments iterable,start=0\n\n"
+		"Continuously adds all of the elements from @p iterable to @p start and returns the result "
+		"when @p iterable has been exhausted.");
 	BUILTIN_FUNCTION("min", _min, "Return the lowest value in an iterable or the passed arguments.");
 	BUILTIN_FUNCTION("max", _max, "Return the highest value in an iterable or the passed arguments.");
 	BUILTIN_FUNCTION("id", _id, "Returns the identity of an object.");
