@@ -1915,6 +1915,7 @@ static void string(int type) {
 	for (size_t i = 0; i < n; ++i) { \
 		if (c + i + 2 == end || !isHex(c[i+2])) { \
 			error("truncated \\%c escape", type); \
+			FREE_ARRAY(char,stringBytes,stringCapacity); \
 			return; \
 		} \
 		tmpbuf[i] = c[i+2]; \
