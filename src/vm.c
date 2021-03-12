@@ -1313,10 +1313,15 @@ void krk_freeVM() {
 	krk_freeTable(&vm.strings);
 	krk_freeTable(&vm.modules);
 	memset(_specialMethodNames,0,sizeof(_specialMethodNames));
+	memset(&_exceptions,0,sizeof(_exceptions));
+	memset(&_baseClasses,0,sizeof(_baseClasses));
 	krk_freeObjects();
 
 	/* for thread in threads... */
 	FREE_ARRAY(size_t, krk_currentThread.stack, krk_currentThread.stackSize);
+	memset(&krk_vm,0,sizeof(krk_vm));
+	free(krk_currentThread.frames);
+	memset(&krk_currentThread,0,sizeof(KrkThreadState));
 }
 
 /**
