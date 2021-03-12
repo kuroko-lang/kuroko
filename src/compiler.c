@@ -933,12 +933,6 @@ static void typeHint(KrkToken name) {
 	current->enclosing->enclosed = current;
 	current = current->enclosing;
 
-	if (!current->enclosed->annotationCount) {
-		KrkToken dictOf = syntheticToken("dictOf");
-		size_t ind = identifierConstant(&dictOf);
-		EMIT_CONSTANT_OP(OP_GET_GLOBAL, ind);
-	}
-
 	current->enclosed->annotationCount++;
 
 	/* Emit name */
@@ -1008,9 +1002,8 @@ static void function(FunctionType type, size_t blockWidth) {
 				int jumpIndex = emitJump(OP_JUMP_IF_FALSE);
 				/* And if it is, set it to the appropriate type */
 				beginScope();
-				KrkToken synth = syntheticToken(hasCollectors == 1 ? "listOf" : "dictOf");
-				namedVariable(synth, 0);
-				emitBytes(OP_CALL, 0);
+				if (hasCollectors == 1) EMIT_CONSTANT_OP(OP_MAKE_LIST,0);
+				else EMIT_CONSTANT_OP(OP_MAKE_DICT,0);
 				EMIT_CONSTANT_OP(OP_SET_LOCAL, myLocal);
 				emitByte(OP_POP); /* local value */
 				endScope();
@@ -1073,7 +1066,7 @@ static void function(FunctionType type, size_t blockWidth) {
 	block(blockWidth,"def");
 	KrkFunction * function = endCompiler();
 	if (compiler.annotationCount) {
-		EMIT_CONSTANT_OP(OP_CALL,compiler.annotationCount * 2);
+		EMIT_CONSTANT_OP(OP_MAKE_DICT, compiler.annotationCount * 2);
 	}
 	size_t ind = krk_addConstant(currentChunk(), OBJECT_VAL(function));
 	EMIT_CONSTANT_OP(OP_CLOSURE, ind);
@@ -2184,148 +2177,7 @@ static void super_(int canAssign) {
 	EMIT_CONSTANT_OP(OP_GET_SUPER, ind);
 }
 
-static void comprehension(KrkScanner scannerBefore, Parser parserBefore, const char buildFunc[], void (*inner)(ssize_t loopCounter)) {
-	/* Compile list comprehension as a function */
-	Compiler subcompiler;
-	initCompiler(&subcompiler, TYPE_FUNCTION);
-	subcompiler.function->chunk.filename = subcompiler.enclosing->function->chunk.filename;
-
-	beginScope();
-
-	/* for i=0, */
-	emitConstant(INTEGER_VAL(0));
-	size_t indLoopCounter = current->localCount;
-	addLocal(syntheticToken(""));
-	defineVariable(indLoopCounter);
-
-	/* x in... */
-	ssize_t loopInd = current->localCount;
-	ssize_t varCount = 0;
-	do {
-		defineVariable(parseVariable("Expected name for iteration variable."));
-		emitByte(OP_NONE);
-		defineVariable(loopInd);
-		varCount++;
-	} while (match(TOKEN_COMMA));
-
-	consume(TOKEN_IN, "Only iterator loops (for ... in ...) are allowed in comprehensions.");
-
-	beginScope();
-	parsePrecedence(PREC_OR); /* Otherwise we can get trapped on a ternary */
-	endScope();
-
-	/* iterable... */
-	size_t indLoopIter = current->localCount;
-	addLocal(syntheticToken(""));
-	defineVariable(indLoopIter);
-
-	/* Now try to call .__iter__ on the result to produce our iterator */
-	emitByte(OP_INVOKE_ITER);
-
-	/* Assign the resulting iterator to indLoopIter */
-	EMIT_CONSTANT_OP(OP_SET_LOCAL, indLoopIter);
-
-	/* Mark the start of the loop */
-	int loopStart = currentChunk()->count;
-
-	/* Call the iterator to get a value for our list */
-	EMIT_CONSTANT_OP(OP_GET_LOCAL, indLoopIter);
-	emitBytes(OP_CALL, 0);
-
-	/* Assign the result to our loop index */
-	EMIT_CONSTANT_OP(OP_SET_LOCAL, loopInd);
-
-	/* Compare the iterator to the loop index;
-	 * our iterators return themselves to say they are done;
-	 * this allows them to return None without any issue,
-	 * and there's no feasible way they can return themselves without
-	 * our intended sentinel meaning, right? Surely? */
-	EMIT_CONSTANT_OP(OP_GET_LOCAL, indLoopIter);
-	emitByte(OP_EQUAL);
-	int exitJump = emitJump(OP_JUMP_IF_TRUE);
-	emitByte(OP_POP);
-
-	/* Unpack tuple */
-	if (varCount > 1) {
-		EMIT_CONSTANT_OP(OP_GET_LOCAL, loopInd);
-		EMIT_CONSTANT_OP(OP_UNPACK, varCount);
-		for (ssize_t i = loopInd + varCount - 1; i >= loopInd; i--) {
-			EMIT_CONSTANT_OP(OP_SET_LOCAL, i);
-			emitByte(OP_POP);
-		}
-	}
-
-	if (match(TOKEN_IF)) {
-		parsePrecedence(PREC_OR);
-		int acceptJump = emitJump(OP_JUMP_IF_TRUE);
-		emitByte(OP_POP); /* Pop condition */
-		emitLoop(loopStart);
-		patchJump(acceptJump);
-		emitByte(OP_POP); /* Pop condition */
-	}
-
-	/* Now we can rewind the scanner to have it parse the original
-	 * expression that uses our iterated values! */
-	KrkScanner scannerAfter = krk_tellScanner();
-	Parser  parserAfter = parser;
-	krk_rewindScanner(scannerBefore);
-	parser = parserBefore;
-
-	beginScope();
-	inner(indLoopCounter);
-	endScope();
-
-	/* Then we can put the parser back to where it was at the end of
-	 * the iterator expression and continue. */
-	krk_rewindScanner(scannerAfter);
-	parser = parserAfter;
-
-	/* We keep a counter so we can keep track of how many arguments
-	 * are on the stack, which we need in order to find the listOf()
-	 * method above; having run the expression and generated an
-	 * item which is now on the stack, increment the counter */
-	EMIT_CONSTANT_OP(OP_INC, indLoopCounter);
-	/* ... and loop back to the iterator call. */
-	emitLoop(loopStart);
-
-	/* Finally, at this point, we've seen the iterator produce itself
-	 * and we're done receiving objects, so mark this instruction
-	 * offset as the exit target for the OP_JUMP_IF_FALSE above */
-	patchJump(exitJump);
-	/* Pop the last loop expression result which was already stored */
-	emitByte(OP_POP);
-	/* Pull in listOf from the global namespace */
-	KrkToken collectionBuilder = syntheticToken(buildFunc);
-	size_t indList = identifierConstant(&collectionBuilder);
-	EMIT_CONSTANT_OP(OP_GET_GLOBAL, indList);
-	/* And move it into where we were storing the loop iterator */
-	EMIT_CONSTANT_OP(OP_SET_LOCAL, indLoopIter);
-	/* (And pop it from the top of the stack) */
-	emitByte(OP_POP);
-	/* Then get the counter for our arg count */
-	EMIT_CONSTANT_OP(OP_GET_LOCAL, indLoopCounter);
-	/* And then call the native method which should be ^ that many items down */
-	emitByte(OP_CALL_STACK);
-	/* And return the result back to the original scope */
-	emitByte(OP_RETURN);
-	/* Now because we made a function we need to fill out its upvalues
-	 * and write the closure call for it. */
-	KrkFunction *subfunction = endCompiler();
-	size_t indFunc = krk_addConstant(currentChunk(), OBJECT_VAL(subfunction));
-	EMIT_CONSTANT_OP(OP_CLOSURE, indFunc);
-	doUpvalues(&subcompiler, subfunction);
-	freeCompiler(&subcompiler);
-
-	/* And finally we can call the subfunction and get the result. */
-	emitBytes(OP_CALL, 0);
-}
-
-static void singleInner(ssize_t indLoopCounter) {
-	expression();
-}
-
-
-static void generatorInner(KrkScanner scannerBefore, Parser parserBefore) {
+static void generatorInner(KrkScanner scannerBefore, Parser parserBefore, void (*body)(size_t), size_t arg) {
 	ssize_t loopInd = current->localCount;
 	ssize_t varCount = 0;
 	do {
@@ -2379,14 +2231,15 @@ static void generatorInner(KrkScanner scannerBefore, Parser parserBefore) {
 
 	beginScope();
 	if (match(TOKEN_FOR)) {
-		generatorInner(scannerBefore, parserBefore);
+		generatorInner(scannerBefore, parserBefore, body, arg);
 	} else {
 		KrkScanner scannerAfter = krk_tellScanner();
 		Parser  parserAfter = parser;
 		krk_rewindScanner(scannerBefore);
 		parser = parserBefore;
-		expression();
-		emitBytes(OP_YIELD, OP_POP);
+
+		body(arg);
+
 		krk_rewindScanner(scannerAfter);
 		parser = parserAfter;
 	}
@@ -2397,6 +2250,12 @@ static void generatorInner(KrkScanner scannerBefore, Parser parserBefore) {
 	emitByte(OP_POP);
 }
 
+static void yieldInner(size_t arg) {
+	(void)arg;
+	expression();
+	emitBytes(OP_YIELD, OP_POP);
+}
+
 /**
  * @brief Parser a generator expression.
  *
@@ -2405,7 +2264,7 @@ static void generatorInner(KrkScanner scannerBefore, Parser parserBefore) {
  *
  * After every inner expression, we yield.
  */
-static void generatorExpression(KrkScanner scannerBefore, Parser parserBefore) {
+static void generatorExpression(KrkScanner scannerBefore, Parser parserBefore, void (*body)(size_t)) {
 	parser.previous = syntheticToken("<genexpr>");
 	Compiler subcompiler;
 	initCompiler(&subcompiler, TYPE_FUNCTION);
@@ -2413,8 +2272,36 @@ static void generatorExpression(KrkScanner scannerBefore, Parser parserBefore) {
 	subcompiler.function->isGenerator = 1;
 
 	beginScope();
-	generatorInner(scannerBefore, parserBefore);
+	generatorInner(scannerBefore, parserBefore, body, 0);
 	endScope();
+
+	KrkFunction *subfunction = endCompiler();
+	size_t indFunc = krk_addConstant(currentChunk(), OBJECT_VAL(subfunction));
+	EMIT_CONSTANT_OP(OP_CLOSURE, indFunc);
+	doUpvalues(&subcompiler, subfunction);
+	freeCompiler(&subcompiler);
+	emitBytes(OP_CALL, 0);
+}
+
+static void comprehensionExpression(KrkScanner scannerBefore, Parser parserBefore, void (*body)(size_t), int type) {
+	Compiler subcompiler;
+	initCompiler(&subcompiler, TYPE_FUNCTION);
+	subcompiler.function->chunk.filename = subcompiler.enclosing->function->chunk.filename;
+
+	beginScope();
+	emitBytes(type,0);
+
+	/* Make a variable to store our list */
+	KrkToken blank = syntheticToken("");
+	size_t ind = current->localCount;
+	addLocal(blank);
+	defineVariable(ind);
+
+	beginScope();
+	generatorInner(scannerBefore, parserBefore, body, ind);
+	endScope();
+
+	emitByte(OP_RETURN);
 
 	KrkFunction *subfunction = endCompiler();
 	size_t indFunc = krk_addConstant(currentChunk(), OBJECT_VAL(subfunction));
@@ -2435,7 +2322,7 @@ static void grouping(int canAssign) {
 		expression();
 		if (match(TOKEN_FOR)) {
 			currentChunk()->count = chunkBefore;
-			generatorExpression(scannerBefore, parserBefore);
+			generatorExpression(scannerBefore, parserBefore, yieldInner);
 		} else if (match(TOKEN_COMMA)) {
 			size_t argCount = 1;
 			if (!check(TOKEN_RIGHT_PAREN)) {
@@ -2451,14 +2338,15 @@ static void grouping(int canAssign) {
 	consume(TOKEN_RIGHT_PAREN, "Expect ')' after expression.");
 }
 
+static void listInner(size_t arg) {
+	expression();
+	EMIT_CONSTANT_OP(OP_LIST_APPEND, arg);
+}
+
 static void list(int canAssign) {
 	size_t     chunkBefore = currentChunk()->count;
 
 	startEatingWhitespace();
-
-	KrkToken listOf = syntheticToken("listOf");
-	size_t ind = identifierConstant(&listOf);
-	EMIT_CONSTANT_OP(OP_GET_GLOBAL, ind);
 
 	if (!check(TOKEN_RIGHT_SQUARE)) {
 		KrkScanner scannerBefore = krk_tellScanner();
@@ -2475,29 +2363,35 @@ static void list(int canAssign) {
 		if (match(TOKEN_FOR)) {
 			/* Roll back the earlier compiler */
 			currentChunk()->count = chunkBefore;
-
-			comprehension(scannerBefore, parserBefore, "listOf", singleInner);
+			/* Nested fun times */
+			parser.previous = syntheticToken("<listcomp>");
+			comprehensionExpression(scannerBefore, parserBefore, listInner, OP_MAKE_LIST);
 		} else {
 			size_t argCount = 1;
 			while (match(TOKEN_COMMA) && !check(TOKEN_RIGHT_SQUARE)) {
 				expression();
 				argCount++;
 			}
-			EMIT_CONSTANT_OP(OP_CALL, argCount);
+			EMIT_CONSTANT_OP(OP_MAKE_LIST, argCount);
 		}
 	} else {
 		/* Empty list expression */
-		emitBytes(OP_CALL, 0);
+		EMIT_CONSTANT_OP(OP_MAKE_LIST, 0);
 	}
 	stopEatingWhitespace();
 	consume(TOKEN_RIGHT_SQUARE,"Expected ] at end of list expression.");
 }
 
-static void dictInner(ssize_t indLoopCounter) {
+static void dictInner(size_t arg) {
 	expression();
 	consume(TOKEN_COLON, "Expect colon after dict key.");
 	expression();
-	EMIT_CONSTANT_OP(OP_INC, indLoopCounter);
+	EMIT_CONSTANT_OP(OP_DICT_SET, arg);
+}
+
+static void setInner(size_t arg) {
+	expression();
+	EMIT_CONSTANT_OP(OP_SET_ADD, arg);
 }
 
 static void dict(int canAssign) {
@@ -2505,31 +2399,22 @@ static void dict(int canAssign) {
 
 	startEatingWhitespace();
 
-	KrkToken dictOf = syntheticToken("dictOf");
-	size_t ind = identifierConstant(&dictOf);
-	EMIT_CONSTANT_OP(OP_GET_GLOBAL, ind);
-
 	if (!check(TOKEN_RIGHT_BRACE)) {
 		KrkScanner scannerBefore = krk_tellScanner();
 		Parser  parserBefore = parser;
 
 		expression();
 		if (match(TOKEN_COMMA) || match(TOKEN_RIGHT_BRACE)) {
-			krk_rewindScanner(scannerBefore);
-			parser = parserBefore;
-			currentChunk()->count = chunkBefore;
-			KrkToken setOf = syntheticToken("setOf");
-			size_t ind = identifierConstant(&setOf);
-			EMIT_CONSTANT_OP(OP_GET_GLOBAL, ind);
-			size_t argCount = 0;
+			size_t argCount = 1;
 			do {
 				expression();
 				argCount++;
 			} while (match(TOKEN_COMMA));
-			EMIT_CONSTANT_OP(OP_CALL, argCount);
+			EMIT_CONSTANT_OP(OP_MAKE_SET, argCount);
 		} else if (match(TOKEN_FOR)) {
 			currentChunk()->count = chunkBefore;
-			comprehension(scannerBefore, parserBefore, "setOf", singleInner);
+			parser.previous = syntheticToken("<setcomp>");
+			comprehensionExpression(scannerBefore, parserBefore, setInner, OP_MAKE_SET);
 		} else {
 			consume(TOKEN_COLON, "Expect colon after dict key.");
 			expression();
@@ -2537,8 +2422,8 @@ static void dict(int canAssign) {
 			if (match(TOKEN_FOR)) {
 				/* Roll back the earlier compiler */
 				currentChunk()->count = chunkBefore;
-
-				comprehension(scannerBefore, parserBefore, "dictOf", dictInner);
+				parser.previous = syntheticToken("<dictcomp>");
+				comprehensionExpression(scannerBefore, parserBefore, dictInner, OP_MAKE_DICT);
 			} else {
 				size_t argCount = 2;
 				while (match(TOKEN_COMMA) && !check(TOKEN_RIGHT_BRACE)) {
@@ -2547,11 +2432,11 @@ static void dict(int canAssign) {
 					expression();
 					argCount += 2;
 				}
-				EMIT_CONSTANT_OP(OP_CALL, argCount);
+				EMIT_CONSTANT_OP(OP_MAKE_DICT, argCount);
 			}
 		}
 	} else {
-		emitBytes(OP_CALL, 0);
+		EMIT_CONSTANT_OP(OP_MAKE_DICT, 0);
 	}
 	stopEatingWhitespace();
 	consume(TOKEN_RIGHT_BRACE,"Expected } at end of dict expression.");
@@ -2844,7 +2729,7 @@ static void call(int canAssign) {
 			expression();
 			if (argCount == 0 && match(TOKEN_FOR)) {
 				currentChunk()->count = chunkBefore;
-				generatorExpression(scannerBefore, parserBefore);
+				generatorExpression(scannerBefore, parserBefore, yieldInner);
 				argCount = 1;
 				if (match(TOKEN_COMMA)) {
 					error("Generator expression must be parenthesized");

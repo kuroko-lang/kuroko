@@ -29,7 +29,6 @@ typedef enum {
 	OP_BITNEGATE,
 	OP_BITOR,
 	OP_BITXOR,
-	OP_CALL_STACK,
 	OP_CLEANUP_WITH,
 	OP_CLOSE_UPVALUE,
 	OP_DIVIDE,
@@ -67,7 +66,7 @@ typedef enum {
 	OP_BREAKPOINT, /* NEVER output this instruction in the compiler or bad things can happen */
 	OP_YIELD,
 	OP_ANNOTATE,
-	/* current highest: 45 */
+	/* current highest: 44 */
 
 	OP_CALL = 64,
 	OP_CLASS,
@@ -94,6 +93,12 @@ typedef enum {
 	OP_SET_UPVALUE,
 	OP_TUPLE,
 	OP_UNPACK,
+	OP_LIST_APPEND,
+	OP_DICT_SET,
+	OP_SET_ADD,
+	OP_MAKE_LIST,
+	OP_MAKE_DICT,
+	OP_MAKE_SET,
 
 	OP_JUMP_IF_FALSE = 128,
 	OP_JUMP_IF_TRUE,
@@ -127,6 +132,12 @@ typedef enum {
 	OP_SET_UPVALUE_LONG,
 	OP_TUPLE_LONG,
 	OP_UNPACK_LONG,
+	OP_LIST_APPEND_LONG,
+	OP_DICT_SET_LONG,
+	OP_SET_ADD_LONG,
+	OP_MAKE_LIST_LONG,
+	OP_MAKE_DICT_LONG,
+	OP_MAKE_SET_LONG,
 } KrkOpCode;
 
 /**

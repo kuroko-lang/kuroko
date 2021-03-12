@@ -1898,6 +1898,10 @@ static inline size_t readBytes(KrkCallFrame * frame, int num) {
 	return out;
 }
 
+extern FUNC_SIG(list,append);
+extern FUNC_SIG(dict,__setitem__);
+extern FUNC_SIG(set,add);
+
 /**
  * VM main loop.
  */
@@ -2042,14 +2046,6 @@ _resumeHook: (void)0;
 				attachTraceback();
 				krk_currentThread.flags |= KRK_THREAD_HAS_EXCEPTION;
 				goto _finishException;
-			}
-			/* This version of the call instruction takes its arity from the
-			 * top of the stack, so we don't have to calculate arity at compile time. */
-			case OP_CALL_STACK: {
-				int argCount = AS_INTEGER(krk_pop());
-				if (unlikely(!krk_callValue(krk_peek(argCount), argCount, 1))) goto _finishException;
-				frame = &krk_currentThread.frames[krk_currentThread.frameCount - 1];
-				break;
 			}
 			case OP_CLOSE_UPVALUE:
 				closeUpvalues((krk_currentThread.stackTop - krk_currentThread.stack)-1);
@@ -2462,20 +2458,62 @@ _resumeHook: (void)0;
 				krk_push(KWARGS_VAL(OPERAND));
 				break;
 			}
+#define doMake(func) { \
+	size_t count = OPERAND; \
+	krk_reserve_stack(4); \
+	KrkValue collection = func(count, &krk_currentThread.stackTop[-count], 0); \
+	if (count) { \
+		krk_currentThread.stackTop[-count] = collection; \
+		while (count > 1) { \
+			krk_pop(); count--; \
+		} \
+	} else { \
+		krk_push(collection); \
+	} \
+}
 			case OP_TUPLE_LONG:
 			case OP_TUPLE: {
-				size_t count = OPERAND;
-				krk_reserve_stack(4);
-				KrkValue tuple = krk_tuple_of(count,&krk_currentThread.stackTop[-count],0);
-				if (count) {
-					krk_currentThread.stackTop[-count] = tuple;
-					while (count > 1) {
-						krk_pop();
-						count--;
-					}
-				} else {
-					krk_push(tuple);
-				}
+				doMake(krk_tuple_of);
+				break;
+			}
+			case OP_MAKE_LIST_LONG:
+			case OP_MAKE_LIST: {
+				doMake(krk_list_of);
+				break;
+			}
+			case OP_MAKE_DICT_LONG:
+			case OP_MAKE_DICT: {
+				doMake(krk_dict_of);
+				break;
+			}
+			case OP_MAKE_SET_LONG:
+			case OP_MAKE_SET: {
+				doMake(krk_set_of);
+				break;
+			}
+			case OP_LIST_APPEND_LONG:
+			case OP_LIST_APPEND: {
+				uint32_t slot = OPERAND;
+				KrkValue list = krk_currentThread.stack[frame->slots + slot];
+				FUNC_NAME(list,append)(2,(KrkValue[]){list,krk_peek(0)},0);
+				krk_pop();
+				break;
+			}
+			case OP_DICT_SET_LONG:
+			case OP_DICT_SET: {
+				uint32_t slot = OPERAND;
+				KrkValue dict = krk_currentThread.stack[frame->slots + slot];
+				FUNC_NAME(dict,__setitem__)(3,(KrkValue[]){dict,krk_peek(1),krk_peek(0)},0);
+				krk_pop();
+				krk_pop();
+				break;
+			}
+			case OP_SET_ADD_LONG:
+			case OP_SET_ADD: {
+				uint32_t slot = OPERAND;
+				KrkValue set = krk_currentThread.stack[frame->slots + slot];
+				FUNC_NAME(set,add)(2,(KrkValue[]){set,krk_peek(0)},0);
+				krk_pop();
 				break;
 			}
 			case OP_UNPACK_LONG:
