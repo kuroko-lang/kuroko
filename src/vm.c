@@ -1949,7 +1949,7 @@ static KrkValue run() {
 _resumeHook: (void)0;
 
 		/* Each instruction begins with one opcode byte */
-		uint8_t opcode = READ_BYTE();
+		KrkOpCode opcode = READ_BYTE();
 
 		/* The top two bits of the opcode indicate how many bytes
 		 * of operands it takes: 0, 1, 2, or 3 (naturally) */
@@ -2342,7 +2342,7 @@ _resumeHook: (void)0;
 				frame = &krk_currentThread.frames[krk_currentThread.frameCount - 1];
 				break;
 			}
-			/* EXPAND_ARGS_LONG? */
+			case OP_EXPAND_ARGS_LONG:
 			case OP_EXPAND_ARGS: {
 				int type = OPERAND;
 				krk_push(KWARGS_VAL(LONG_MAX-type));
