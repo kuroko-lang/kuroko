@@ -50,6 +50,9 @@ typedef struct {
 typedef enum {
 	PREC_NONE,
 	PREC_ASSIGNMENT, /* = */
+	PREC_COMMA,      /* , */
+	PREC_MUST_ASSIGN,/*   special   */
+	PREC_CAN_ASSIGN, /*   inside parens */
 	PREC_TERNARY,    /* TrueBranch if Condition else FalseBranch */
 	PREC_OR,         /* or */
 	PREC_AND,        /* and */
@@ -245,6 +248,7 @@ static void statement();
 static void declaration();
 static void or_(int canAssign);
 static void ternary(int canAssign);
+static void comma(int canAssign);
 static void and_(int canAssign);
 static KrkToken classDeclaration();
 static void declareVariable();
@@ -517,7 +521,7 @@ static void assignmentValue(void) {
 	if (type == TOKEN_PLUS_PLUS || type == TOKEN_MINUS_MINUS) {
 		emitConstant(INTEGER_VAL(1));
 	} else {
-		expression();
+		parsePrecedence(PREC_COMMA); /* But adding a tuple is maybe not defined */
 	}
 
 	switch (type) {
@@ -548,16 +552,7 @@ static void get_(int canAssign) {
 		emitByte(OP_NONE);
 		isSlice = 1;
 	} else {
-		expression();
-		/* Quietly support tuples here... */
-		if (check(TOKEN_COMMA)) {
-			size_t count = 1;
-			while (match(TOKEN_COMMA)) {
-				expression();
-				count++;
-			}
-			EMIT_CONSTANT_OP(OP_TUPLE, count);
-		}
+		parsePrecedence(PREC_COMMA);
 	}
 	if (isSlice || match(TOKEN_COLON)) {
 		if (isSlice && match(TOKEN_COLON)) {
@@ -567,11 +562,20 @@ static void get_(int canAssign) {
 		if (match(TOKEN_RIGHT_SQUARE)) {
 			emitByte(OP_NONE);
 		} else {
-			expression();
+			parsePrecedence(PREC_COMMA);
 			consume(TOKEN_RIGHT_SQUARE, "Expected ending square bracket after slice.");
 		}
-		if (canAssign && match(TOKEN_EQUAL)) {
-			expression();
+		if (canAssign == 2) {
+			if (match(TOKEN_COMMA) || check(TOKEN_EQUAL)) {
+				EMIT_CONSTANT_OP(OP_DUP, 3);
+				emitByte(OP_INVOKE_SETSLICE);
+				emitByte(OP_POP);
+				return;
+			}
+			canAssign = 0;
+		}
+		if (canAssign && (match(TOKEN_EQUAL))) {
+			parsePrecedence(PREC_ASSIGNMENT);
 			emitByte(OP_INVOKE_SETSLICE);
 		} else if (canAssign && matchAssignment()) {
 			/* o s e */
@@ -589,8 +593,17 @@ static void get_(int canAssign) {
 		}
 	} else {
 		consume(TOKEN_RIGHT_SQUARE, "Expected ending square bracket after index.");
+		if (canAssign == 2) {
+			if (match(TOKEN_COMMA) || check(TOKEN_EQUAL)) {
+				EMIT_CONSTANT_OP(OP_DUP, 2);
+				emitByte(OP_INVOKE_SETTER);
+				emitByte(OP_POP);
+				return;
+			}
+			canAssign = 0;
+		}
 		if (canAssign && match(TOKEN_EQUAL)) {
-			expression();
+			parsePrecedence(PREC_ASSIGNMENT);
 			emitByte(OP_INVOKE_SETTER);
 		} else if (canAssign && matchAssignment()) {
 			emitBytes(OP_DUP, 1); /* o e o */
@@ -631,6 +644,11 @@ static void dot(int canAssign) {
 
 		stopEatingWhitespace();
 		consume(TOKEN_RIGHT_PAREN, "Expected ) after attribute list");
+
+		if (canAssign == 2) {
+			error("Can not use .( in multiple target list");
+			goto _dotDone;
+		}
 
 		if (canAssign && match(TOKEN_EQUAL)) {
 			size_t expressionCount = 0;
@@ -674,8 +692,17 @@ _dotDone:
 	}
 	consume(TOKEN_IDENTIFIER, "Expected property name");
 	size_t ind = identifierConstant(&parser.previous);
+	if (canAssign == 2) {
+		if (match(TOKEN_COMMA) || check(TOKEN_EQUAL)) {
+			EMIT_CONSTANT_OP(OP_DUP, 1);
+			EMIT_CONSTANT_OP(OP_SET_PROPERTY, ind);
+			emitByte(OP_POP);
+			return;
+		}
+		canAssign = 0;
+	}
 	if (canAssign && match(TOKEN_EQUAL)) {
-		expression();
+		parsePrecedence(PREC_ASSIGNMENT);
 		EMIT_CONSTANT_OP(OP_SET_PROPERTY, ind);
 	} else if (canAssign && matchAssignment()) {
 		emitBytes(OP_DUP, 0); /* Duplicate the object */
@@ -722,7 +749,7 @@ static void literal(int canAssign) {
 }
 
 static void expression() {
-	parsePrecedence(PREC_ASSIGNMENT);
+	parsePrecedence(PREC_TERNARY);
 }
 
 static void letDeclaration(void) {
@@ -847,7 +874,7 @@ static void declaration() {
 }
 
 static void expressionStatement() {
-	expression();
+	parsePrecedence(PREC_ASSIGNMENT);
 	emitByte(OP_POP);
 }
 
@@ -1129,7 +1156,7 @@ static void method(size_t blockWidth) {
 			emitBytes(OP_INVOKE_SETTER, OP_POP);
 		}
 		consume(TOKEN_EQUAL, "Class field must have value.");
-		expression();
+		parsePrecedence(PREC_COMMA);
 		rememberClassProperty(ind);
 		EMIT_CONSTANT_OP(OP_CLASS_PROPERTY, ind);
 		if (!match(TOKEN_EOL) && !match(TOKEN_EOF)) {
@@ -1829,7 +1856,7 @@ static void fromImportStatement() {
 static void delStatement() {
 	do {
 		inDel = 1;
-		expression();
+		parsePrecedence(PREC_CAN_ASSIGN);
 	} while (match(TOKEN_COMMA));
 	inDel = 0;
 }
@@ -2143,8 +2170,15 @@ static ssize_t resolveUpvalue(Compiler * compiler, KrkToken * name) {
 
 #define OP_NONE_LONG -1
 #define DO_VARIABLE(opset,opget,opdel) do { \
+	if (canAssign == 2) { \
+		if (match(TOKEN_COMMA) || check(TOKEN_EQUAL)) { \
+			EMIT_CONSTANT_OP(opset, arg); \
+			break; \
+		} \
+		canAssign = 0; \
+	} \
 	if (canAssign && match(TOKEN_EQUAL)) { \
-		expression(); \
+		parsePrecedence(PREC_ASSIGNMENT); \
 		EMIT_CONSTANT_OP(opset, arg); \
 	} else if (canAssign && matchAssignment()) { \
 		EMIT_CONSTANT_OP(opget, arg); \
@@ -2352,7 +2386,7 @@ static void grouping(int canAssign) {
 		size_t chunkBefore = currentChunk()->count;
 		KrkScanner scannerBefore = krk_tellScanner();
 		Parser  parserBefore = parser;
-		expression();
+		parsePrecedence(PREC_CAN_ASSIGN);
 		if (match(TOKEN_FOR)) {
 			currentChunk()->count = chunkBefore;
 			generatorExpression(scannerBefore, parserBefore, yieldInner);
@@ -2368,7 +2402,12 @@ static void grouping(int canAssign) {
 		}
 	}
 	stopEatingWhitespace();
-	consume(TOKEN_RIGHT_PAREN, "Expect ')' after expression.");
+	if (!match(TOKEN_RIGHT_PAREN)) {
+		switch (parser.current.type) {
+			case TOKEN_EQUAL: error("Assignment value expression must be enclosed in parentheses."); break;
+			default: error("Expected ')'");
+		}
+	}
 }
 
 static void listInner(size_t arg) {
@@ -2489,7 +2528,7 @@ ParseRule krk_parseRules[] = {
 	RULE(TOKEN_LEFT_SQUARE,   list,     get_,   PREC_SUBSCRIPT),
 	RULE(TOKEN_RIGHT_SQUARE,  NULL,     NULL,   PREC_NONE),
 	RULE(TOKEN_COLON,         NULL,     NULL,   PREC_NONE),
-	RULE(TOKEN_COMMA,         NULL,     NULL,   PREC_NONE),
+	RULE(TOKEN_COMMA,         NULL,     comma,  PREC_COMMA),
 	RULE(TOKEN_DOT,           NULL,     dot,    PREC_CALL),
 	RULE(TOKEN_MINUS,         unary,    binary, PREC_TERM),
 	RULE(TOKEN_PLUS,          unary,    binary, PREC_TERM),
@@ -2501,6 +2540,7 @@ ParseRule krk_parseRules[] = {
 	RULE(TOKEN_BANG,          bitunary, NULL,   PREC_NONE),
 	RULE(TOKEN_BANG_EQUAL,    NULL,     binary, PREC_COMPARISON),
 	RULE(TOKEN_EQUAL,         NULL,     NULL,   PREC_NONE),
+	RULE(TOKEN_WALRUS,        NULL,     NULL,   PREC_NONE),
 	RULE(TOKEN_EQUAL_EQUAL,   NULL,     binary, PREC_COMPARISON),
 	RULE(TOKEN_GREATER,       NULL,     binary, PREC_COMPARISON),
 	RULE(TOKEN_GREATER_EQUAL, NULL,     binary, PREC_COMPARISON),
@@ -2597,6 +2637,51 @@ static void actualTernary(size_t count, KrkScanner oldScanner, Parser oldParser)
 	parser = outParser;
 }
 
+static void complexAssignment(size_t count, KrkScanner oldScanner, Parser oldParser, size_t targetCount) {
+	currentChunk()->count = count;
+	parsePrecedence(PREC_ASSIGNMENT);
+	emitBytes(OP_DUP, 0);
+	EMIT_CONSTANT_OP(OP_UNPACK,targetCount);
+	EMIT_CONSTANT_OP(OP_REVERSE,targetCount);
+
+	/* Store end state */
+	KrkScanner outScanner = krk_tellScanner();
+	Parser outParser = parser;
+
+	/* Rewind */
+	krk_rewindScanner(oldScanner);
+	parser = oldParser;
+
+	/* Parse assignment targets */
+	size_t checkTargetCount = 0;
+	do {
+		if (match(TOKEN_EQUAL)) break;
+		checkTargetCount++;
+		parsePrecedence(PREC_MUST_ASSIGN);
+		emitByte(OP_POP);
+	} while (parser.previous.type == TOKEN_COMMA);
+
+	/* Restore end state */
+	krk_rewindScanner(outScanner);
+	parser = outParser;
+}
+
+static void actualComma(int canAssign, size_t count, KrkScanner oldScanner, Parser oldParser) {
+	size_t expressionCount = 1;
+	do {
+		expressionCount++;
+		parsePrecedence(PREC_TERNARY);
+	} while (match(TOKEN_COMMA) && !(check(TOKEN_EOL) || check(TOKEN_EOF)));
+
+	EMIT_CONSTANT_OP(OP_TUPLE,expressionCount);
+
+	if (canAssign == 1 && match(TOKEN_EQUAL)) {
+		complexAssignment(count, oldScanner, oldParser, expressionCount);
+	}
+}
+
+static void comma(int canAssign) { }
+
 static void parsePrecedence(Precedence precedence) {
 	size_t count = currentChunk()->count;
 	KrkScanner oldScanner = krk_tellScanner();
@@ -2605,23 +2690,29 @@ static void parsePrecedence(Precedence precedence) {
 	advance();
 	ParseFn prefixRule = getRule(parser.previous.type)->prefix;
 	if (prefixRule == NULL) {
-		errorAtCurrent("Unexpected token.");
+		errorAtCurrent("Unexpected token (parse precedence rule = NULL)");
 		return;
 	}
-	int canAssign = precedence <= PREC_ASSIGNMENT;
+	int canAssign = (precedence <= PREC_ASSIGNMENT || precedence == PREC_CAN_ASSIGN);
+	if (precedence == PREC_MUST_ASSIGN) canAssign = 2;
 	prefixRule(canAssign);
 	while (precedence <= getRule(parser.current.type)->precedence) {
 		advance();
 		ParseFn infixRule = getRule(parser.previous.type)->infix;
 		if (infixRule == ternary) {
 			actualTernary(count, oldScanner, oldParser);
+		} else if (infixRule == comma) {
+			actualComma(canAssign, count, oldScanner, oldParser);
 		} else {
 			infixRule(canAssign);
 		}
 	}
 
-	if (canAssign && matchAssignment()) {
-		error("invalid assignment target");
+	if (canAssign == 1 && matchAssignment()) {
+		switch (precedence) {
+			case PREC_COMMA: error("Can not assign to this?"); break;
+			default: error("Invalid assignment target (prec=%d)", precedence); break;
+		}
 	}
 	if (inDel == 1 && matchEndOfDel()) {
 		error("invalid del target");

@@ -1,0 +1,29 @@
+def foo(a=None,b=None,c=None,d=None):
+    a = 1
+    print(a)
+
+    a = 1, 2, 3
+    print(a)
+
+    a, b, c = 7, 8, 9
+    print(a,b,c)
+
+    a, b, a, b, a, b = 1, 2, 3, 4, 5, 6
+    print(a,b,c)
+
+    a, b, c = (4,5,6)
+    print(a,b,c)
+
+    class Thing:
+        pass
+
+    a = Thing()
+
+    a.one, a.two, a.three = "日本語"
+    print(a.one,a.two,a.three)
+
+    d = a, b = c = [1,2]
+    print(d,a,b,c)
+
+
+foo()

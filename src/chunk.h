@@ -99,6 +99,7 @@ typedef enum {
 	OP_MAKE_LIST,
 	OP_MAKE_DICT,
 	OP_MAKE_SET,
+	OP_REVERSE,
 
 	OP_JUMP_IF_FALSE = 128,
 	OP_JUMP_IF_TRUE,
@@ -138,6 +139,7 @@ typedef enum {
 	OP_MAKE_LIST_LONG,
 	OP_MAKE_DICT_LONG,
 	OP_MAKE_SET_LONG,
+	OP_REVERSE_LONG,
 } KrkOpCode;
 
 /**

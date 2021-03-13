@@ -2525,6 +2525,17 @@ _resumeHook: (void)0;
 				krk_pop();
 				break;
 			}
+			case OP_REVERSE_LONG:
+			case OP_REVERSE: {
+				krk_push(NONE_VAL()); /* Storage space */
+				for (size_t i = 0; i < OPERAND / 2; ++i) {
+					krk_currentThread.stackTop[-1] = krk_currentThread.stackTop[-i-2];
+					krk_currentThread.stackTop[-i-2] = krk_currentThread.stackTop[-(OPERAND-i)-1];
+					krk_currentThread.stackTop[-(OPERAND-i)-1] = krk_currentThread.stackTop[-1];
+				}
+				krk_pop();
+				break;
+			}
 			case OP_UNPACK_LONG:
 			case OP_UNPACK: {
 				size_t count = OPERAND;
