@@ -6,8 +6,13 @@ let _base64_alphabet = (
     list(range(ord("0"), ord("9") + 1)) + [ord("+"), ord("/")]
 )
 
-class InverseBase64IncrementalDecoder(IncrementalDecoder): # read: Base64 encoder
+let _base64_alphabet_uu = list(range(0x20, 0x60))
+let _base64_alphabet_hqx = [ord(i) for i in
+        "!\"#$%&'()*+,-012345689@ABCDEFGHIJKLMNPQRSTUVXYZ[`abcdefhijklmpqr"]
+
+class InverseBase64IncrementalCreator(IncrementalDecoder):
     name = "inverse-base64"
+    alphabet = _base64_alphabet
     def decode(data_in, final = False):
         let data = self.pending + data_in
         self.pending = b""
@@ -26,14 +31,15 @@ class InverseBase64IncrementalDecoder(IncrementalDecoder): # read: Base64 encode
             let up = ((high & 3) << 4) | (mid >> 4)
             let down = ((mid & 0xF) << 2) | (low >> 6)
             let strange = low & 0x3F
-            let outbit = "".join([chr(_base64_alphabet[i]) for i in [charm, up, down, strange]])
+            let outbit = "".join([chr(self.alphabet[i]) for i in [charm, up, down, strange]])
             if padchars:
                 outbit = outbit[:-padchars] + ("=" * padchars)
             out.add(outbit)
             offset += 3
 
-class InverseBase64IncrementalEncoder(IncrementalEncoder): # read: Base64 decoder
+class InverseBase64IncrementalParser(IncrementalEncoder):
     name = "inverse-base64"
+    alphabet = _base64_alphabet
     def encode(string_in, final = False):
         let string = self.pending + string_in
         self.pending = ""
@@ -60,10 +66,10 @@ class InverseBase64IncrementalEncoder(IncrementalEncoder): # read: Base64 decode
             let down
             let strange
             try:
-                charm = _base64_alphabet.index(ord(substring[0]))
-                up = _base64_alphabet.index(ord(substring[1]))
-                down = _base64_alphabet.index(ord(substring[2]))
-                strange = _base64_alphabet.index(ord(substring[3]))
+                charm = self.alphabet.index(ord(substring[0]))
+                up = self.alphabet.index(ord(substring[1]))
+                down = self.alphabet.index(ord(substring[2]))
+                strange = self.alphabet.index(ord(substring[3]))
             except ValueError:
                 # Ignore the error specifier
                 raise UnicodeEncodeError(self.name, string, offset, suboffset,
@@ -87,16 +93,41 @@ class InverseBase64IncrementalEncoder(IncrementalEncoder): # read: Base64 decode
     def setstate(state): self.pending = state
 
 register_kuroko_codec(["inverse-base64"],
-    InverseBase64IncrementalEncoder, InverseBase64IncrementalDecoder)
+    InverseBase64IncrementalParser, InverseBase64IncrementalCreator)
+
+class InverseBase64UUIncrementalCreator(InverseBase64IncrementalCreator):
+    name = "inverse-base64uu"
+    alphabet = _base64_alphabet_uu
+
+class InverseBase64UUIncrementalParser(InverseBase64IncrementalParser):
+    name = "inverse-base64uu"
+    alphabet = _base64_alphabet_uu
+
+register_kuroko_codec(["inverse-base64uu"],
+    InverseBase64UUIncrementalParser, InverseBase64UUIncrementalCreator)
+
+class InverseBase64HQXIncrementalCreator(InverseBase64IncrementalCreator):
+    name = "inverse-base64hqx"
+    alphabet = _base64_alphabet_hqx
+
+class InverseBase64HQXIncrementalParser(InverseBase64IncrementalParser):
+    name = "inverse-base64hqx"
+    alphabet = _base64_alphabet_hqx
+
+register_kuroko_codec(["inverse-base64hqx"],
+    InverseBase64HQXIncrementalParser, InverseBase64HQXIncrementalCreator)
 
 
-class InverseQuoPriIncrementalDecoder(IncrementalDecoder): # read: QuoPri encoder
+class InverseQuoPriIncrementalCreator(IncrementalDecoder):
     name = "inverse-quopri"
-    def decode(data, final = False):
+    def decode(data_in, final = False):
+        let data = self.pending + data_in
+        self.pending = b""
         let offset = 0
         let out = StringCatenator()
         while 1:
             if (offset == len(data)) or ((offset + 1) == len(data) and not final):
+                self.pending = bytes(list(data)[offset:])
                 return out.getvalue()
             let i = data[offset]
             let next_eol = (offset + 1 == len(data)) or (data[offset + 1] in (0x0A, 0x0D))
@@ -134,12 +165,14 @@ class InverseQuoPriIncrementalDecoder(IncrementalDecoder): # read: QuoPri encode
             offset += 1
     def reset():
         self.linelength = 0
+        self.pending = b""
     def getstate():
-        return self.linelength
+        return (self.linelength, self.pending)
     def setstate(state):
-        self.linelength = state
+        self.linelength = state[0]
+        self.pending = state[1]
 
-class InverseQuoPriIncrementalEncoder(IncrementalEncoder): # read: QuoPri decoder
+class InverseQuoPriIncrementalParser(IncrementalEncoder):
     name = "inverse-quopri"
     def encode(string_in, final = False):
         let string = self.pending + string_in
@@ -185,7 +218,7 @@ class InverseQuoPriIncrementalEncoder(IncrementalEncoder): # read: QuoPri decode
     def setstate(state): self.pending = state
 
 register_kuroko_codec(["inverse-quopri"],
-    InverseQuoPriIncrementalEncoder, InverseQuoPriIncrementalDecoder)
+    InverseQuoPriIncrementalParser, InverseQuoPriIncrementalCreator)
 
 
 
