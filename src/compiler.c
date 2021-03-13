@@ -137,6 +137,7 @@ typedef struct Compiler {
 typedef struct ClassCompiler {
 	struct ClassCompiler * enclosing;
 	KrkToken name;
+	int hasAnnotations;
 } ClassCompiler;
 
 static Parser parser;
@@ -739,8 +740,23 @@ static void letDeclaration(void) {
 		if (current->scopeDepth > 0) {
 			/* Need locals space */
 			args[argCount++] = current->localCount - 1;
+			if (match(TOKEN_COLON)) {
+				error("Annotation on scoped variable declaration is meaningless.");
+				goto _letDone;
+			}
 		} else {
 			args[argCount++] = ind;
+			if (check(TOKEN_COLON)) {
+				KrkToken name = parser.previous;
+				match(TOKEN_COLON);
+				/* Get __annotations__ from globals */
+				KrkToken annotations = syntheticToken("__annotations__");
+				size_t ind = identifierConstant(&annotations);
+				EMIT_CONSTANT_OP(OP_GET_GLOBAL, ind);
+				emitConstant(OBJECT_VAL(krk_copyString(name.start, name.length)));
+				parsePrecedence(PREC_TERNARY);
+				emitBytes(OP_INVOKE_SETTER, OP_POP);
+			}
 		}
 	} while (match(TOKEN_COMMA));
 
@@ -1094,6 +1110,24 @@ static void method(size_t blockWidth) {
 		decorator(0, TYPE_METHOD);
 	} else if (match(TOKEN_IDENTIFIER)) {
 		size_t ind = identifierConstant(&parser.previous);
+		if (check(TOKEN_COLON)) {
+			KrkToken name = parser.previous;
+			match(TOKEN_COLON);
+			/* Get __annotations__ from class */
+			emitBytes(OP_DUP, 0);
+			KrkToken annotations = syntheticToken("__annotations__");
+			size_t ind = identifierConstant(&annotations);
+			if (!currentClass->hasAnnotations) {
+				EMIT_CONSTANT_OP(OP_MAKE_DICT, 0);
+				EMIT_CONSTANT_OP(OP_SET_PROPERTY, ind);
+				currentClass->hasAnnotations = 1;
+			} else {
+				EMIT_CONSTANT_OP(OP_GET_PROPERTY, ind);
+			}
+			emitConstant(OBJECT_VAL(krk_copyString(name.start, name.length)));
+			parsePrecedence(PREC_TERNARY);
+			emitBytes(OP_INVOKE_SETTER, OP_POP);
+		}
 		consume(TOKEN_EQUAL, "Class field must have value.");
 		expression();
 		rememberClassProperty(ind);
@@ -1156,6 +1190,7 @@ static KrkToken classDeclaration() {
 	classCompiler.enclosing = currentClass;
 	currentClass = &classCompiler;
 	int hasSuperclass = 0;
+	classCompiler.hasAnnotations = 0;
 
 	if (match(TOKEN_LEFT_PAREN)) {
 		startEatingWhitespace();
@@ -1177,12 +1212,9 @@ static KrkToken classDeclaration() {
 	addLocal(syntheticToken("super"));
 	defineVariable(0);
 
-	if (hasSuperclass) {
-		namedVariable(className, 0);
-		emitByte(OP_INHERIT);
-	}
-
 	namedVariable(className, 0);
+
+	emitByte(OP_INHERIT);
 
 	consume(TOKEN_COLON, "Expected colon after class");
 

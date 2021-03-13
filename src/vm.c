@@ -2157,7 +2157,6 @@ _resumeHook: (void)0;
 				subclass->allocSize = AS_CLASS(superclass)->allocSize;
 				subclass->_ongcsweep = AS_CLASS(superclass)->_ongcsweep;
 				subclass->_ongcscan = AS_CLASS(superclass)->_ongcscan;
-				krk_pop();
 				break;
 			}
 			case OP_DOCSTRING: {
@@ -2204,12 +2203,17 @@ _resumeHook: (void)0;
 				return result;
 			}
 			case OP_ANNOTATE: {
-				if (!IS_CLOSURE(krk_peek(0))) {
+				if (IS_CLOSURE(krk_peek(0))) {
+					krk_swap(1);
+					AS_CLOSURE(krk_peek(1))->annotations = krk_pop();
+				} else if (IS_NONE(krk_peek(0))) {
+					krk_swap(1);
+					fprintf(stderr, "TODO: Global annotation.\n");
+					krk_pop();
+				} else {
 					krk_runtimeError(vm.exceptions->typeError, "Can not annotate '%s'.", krk_typeName(krk_peek(0)));
 					goto _finishException;
 				}
-				krk_swap(1);
-				AS_CLOSURE(krk_peek(1))->annotations = krk_pop();
 				break;
 			}
 
@@ -2626,6 +2630,7 @@ KrkInstance * krk_startModule(const char * name) {
 	krk_attachNamedObject(&vm.modules, name, (KrkObj*)module);
 	krk_attachNamedObject(&module->fields, "__builtins__", (KrkObj*)vm.builtins);
 	krk_attachNamedObject(&module->fields, "__name__", (KrkObj*)krk_copyString(name,strlen(name)));
+	krk_attachNamedValue(&module->fields, "__annotations__", krk_dict_of(0,NULL,0));
 	return module;
 }
 
