@@ -2560,6 +2560,7 @@ ParseRule krk_parseRules[] = {
 	RULE(TOKEN_MODULO_EQUAL,  NULL,     NULL,   PREC_NONE),
 
 	RULE(TOKEN_LAMBDA,        lambda,   NULL,   PREC_NONE),
+	RULE(TOKEN_ARROW,         NULL,     NULL,   PREC_NONE),
 
 	/* This is going to get interesting */
 	RULE(TOKEN_INDENTATION,   NULL,     NULL,   PREC_NONE),
