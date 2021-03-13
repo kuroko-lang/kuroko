@@ -73,7 +73,7 @@ print("Returned from f.decorated()")
 
 def decoratorWithArgument(decoratorArg):
     def theActualDecorator(func):
-        print("I am decorating",func,"with this argument:",decoratorArg)
+        print("I am decorating",func.__qualname__,"with this argument:",decoratorArg)
         def wrapped():
             print("This wrapper captured this decorator arg:", decoratorArg)
             func()
@@ -88,7 +88,7 @@ decoratedWithArgument()
 
 def methodDecoratorWithArguments(decoratorArgA, decoratorArgB):
     def theActualDecorator(method):
-        print("I am decorating", method, "with these args:", decoratorArgA, decoratorArgB)
+        print("I am decorating", method.__qualname__, "with these args:", decoratorArgA, decoratorArgB)
         def wrapped(instance, wrapperArg):
             print("I captured these from the decorator:", decoratorArgA, decoratorArgB)
             print("I also take my own argument:", wrapperArg)

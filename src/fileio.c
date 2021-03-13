@@ -23,6 +23,7 @@ static KrkClass * BinaryFile = NULL;
 struct File {
 	KrkInstance inst;
 	FILE * filePtr;
+	int unowned;
 };
 
 #define IS_File(o) (krk_isInstanceOf(o, File))
@@ -268,6 +269,7 @@ static void makeFileInstance(KrkInstance * module, const char name[], FILE * fil
 
 	krk_attachNamedValue(&fileObject->fields, "filename", filename);
 	((struct File*)fileObject)->filePtr = file;
+	((struct File*)fileObject)->unowned = 1;
 
 	krk_attachNamedObject(&module->fields, name, (KrkObj*)fileObject);
 
@@ -409,7 +411,7 @@ KRK_METHOD(BinaryFile,write,{
 
 static void _file_sweep(KrkInstance * self) {
 	struct File * me = (void *)self;
-	if (me->filePtr) {
+	if (me->filePtr && !me->unowned) {
 		fclose(me->filePtr);
 		me->filePtr = NULL;
 	}

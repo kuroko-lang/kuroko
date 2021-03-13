@@ -22,10 +22,10 @@ I need an extra arg: butts
 (decorated) self.foo =  bar
 Done.
 Returned from f.decorated()
-I am decorating <function decoratedWithArgument> with this argument: foo
+I am decorating decoratedWithArgument with this argument: foo
 This wrapper captured this decorator arg: foo
 I don't take any args of mine own, and nor does my wrapper.
-I am decorating <function superDecoratedMethod> with these args: foo bar
+I am decorating Bar.superDecoratedMethod with these args: foo bar
 I captured these from the decorator: foo bar
 I also take my own argument: this arg goes to the wrapper
 I am method, so I can access myself weee and also my own argument which is now and modify this one

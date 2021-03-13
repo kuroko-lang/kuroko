@@ -1,0 +1,2 @@
+{'a': <class 'int'>, 'b': <class 'float'>, 's': <class 'str'>, 'd': <class 'bool'>}
+84

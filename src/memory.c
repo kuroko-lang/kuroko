@@ -92,11 +92,25 @@ static void freeObject(KrkObj * object) {
 
 void krk_freeObjects() {
 	KrkObj * object = vm.objects;
+	KrkObj * other = NULL;
+
 	while (object) {
 		KrkObj * next = object->next;
-		freeObject(object);
+		if (object->type == OBJ_INSTANCE) {
+			freeObject(object);
+		} else {
+			object->next = other;
+			other = object;
+		}
 		object = next;
 	}
+
+	while (other) {
+		KrkObj * next = other->next;
+		freeObject(other);
+		other = next;
+	}
+
 	free(vm.grayStack);
 }
 
@@ -132,11 +146,13 @@ static void blackenObject(KrkObj * object) {
 			for (size_t i = 0; i < closure->upvalueCount; ++i) {
 				krk_markObject((KrkObj*)closure->upvalues[i]);
 			}
+			krk_markValue(closure->annotations);
 			break;
 		}
 		case OBJ_FUNCTION: {
 			KrkFunction * function = (KrkFunction *)object;
 			krk_markObject((KrkObj*)function->name);
+			krk_markObject((KrkObj*)function->qualname);
 			krk_markObject((KrkObj*)function->docstring);
 			krk_markObject((KrkObj*)function->chunk.filename);
 			krk_markObject((KrkObj*)function->globalsContext);

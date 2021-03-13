@@ -123,10 +123,9 @@ typedef struct {
 	KrkLocalEntry * localNames;
 	unsigned char collectsArguments:1;
 	unsigned char collectsKeywords:1;
-	unsigned char isClassMethod:1;
 	unsigned char isGenerator:1;
-	unsigned char isStaticMethod:1;
 	struct KrkInstance * globalsContext;
+	KrkString * qualname;
 } KrkFunction;
 
 /**
@@ -140,6 +139,9 @@ typedef struct {
 	KrkFunction * function;
 	KrkUpvalue ** upvalues;
 	size_t upvalueCount;
+	unsigned char isClassMethod:1;
+	unsigned char isStaticMethod:1;
+	KrkValue annotations;
 } KrkClosure;
 
 typedef void (*KrkCleanupCallback)(struct KrkInstance *);
@@ -183,6 +185,7 @@ typedef struct KrkClass {
 	KrkObj * _contains;
 	KrkObj * _descget;
 	KrkObj * _descset;
+	KrkObj * _classgetitem;
 } KrkClass;
 
 /**
@@ -361,6 +364,7 @@ extern uint32_t krk_unicodeCodepoint(KrkString * string, size_t index);
 extern size_t krk_codepointToBytes(krk_integer_type value, unsigned char * out);
 
 /* Internal stuff. */
+extern NativeFn KrkGenericAlias;
 extern KrkFunction *    krk_newFunction(void);
 extern KrkNative *      krk_newNative(NativeFn function, const char * name, int type);
 extern KrkClosure *     krk_newClosure(KrkFunction * function);

@@ -1,0 +1,10 @@
+class Foo(object):
+    a:int = 42
+    b:float = 96.8
+    s:str = "test"
+    def method(self, foo: type(a)) -> type(a):
+        return self.a + foo
+    d:bool = False
+
+print(Foo.__annotations__)
+print(Foo().method(42))

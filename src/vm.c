@@ -413,6 +413,7 @@ void krk_finalizeClass(KrkClass * _class) {
 		{&_class->_contains, METHOD_CONTAINS},
 		{&_class->_descget, METHOD_DESCGET},
 		{&_class->_descset, METHOD_DESCSET},
+		{&_class->_classgetitem, METHOD_CLASSGETITEM},
 		{NULL, 0},
 	};
 
@@ -907,9 +908,9 @@ int krk_bindMethod(KrkClass * _class, KrkString * name) {
 	if (!_class) return 0;
 	if (IS_NATIVE(method) && ((KrkNative*)AS_OBJECT(method))->isMethod == 2) {
 		out = AS_NATIVE(method)->function(1, (KrkValue[]){krk_peek(0)}, 0);
-	} else if (IS_CLOSURE(method) && (AS_CLOSURE(method)->function->isClassMethod)) {
+	} else if (IS_CLOSURE(method) && (AS_CLOSURE(method)->isClassMethod)) {
 		out = OBJECT_VAL(krk_newBoundMethod(OBJECT_VAL(_class), AS_OBJECT(method)));
-	} else if (IS_CLOSURE(method) && (AS_CLOSURE(method)->function->isStaticMethod)) {
+	} else if (IS_CLOSURE(method) && (AS_CLOSURE(method)->isStaticMethod)) {
 		out = method;
 	} else if (IS_CLOSURE(method) || IS_NATIVE(method)) {
 		out = OBJECT_VAL(krk_newBoundMethod(krk_peek(0), AS_OBJECT(method)));
@@ -1194,6 +1195,8 @@ void krk_initVM(int flags) {
 		/* Descriptor methods */
 		_(METHOD_DESCGET, "__get__"),
 		_(METHOD_DESCSET, "__set__"),
+		/* Very special thing */
+		_(METHOD_CLASSGETITEM, "__class_getitem__"),
 	#undef _
 	};
 	for (size_t i = 0; i < METHOD__MAX; ++i) {
@@ -1310,10 +1313,15 @@ void krk_freeVM() {
 	krk_freeTable(&vm.strings);
 	krk_freeTable(&vm.modules);
 	memset(_specialMethodNames,0,sizeof(_specialMethodNames));
+	memset(&_exceptions,0,sizeof(_exceptions));
+	memset(&_baseClasses,0,sizeof(_baseClasses));
 	krk_freeObjects();
 
 	/* for thread in threads... */
 	FREE_ARRAY(size_t, krk_currentThread.stack, krk_currentThread.stackSize);
+	memset(&krk_vm,0,sizeof(krk_vm));
+	free(krk_currentThread.frames);
+	memset(&krk_currentThread,0,sizeof(KrkThreadState));
 }
 
 /**
@@ -1744,7 +1752,7 @@ static int valueGetProperty(KrkString * name) {
 			_class = _class->base;
 		}
 		if (_class) {
-			if (IS_CLOSURE(value) && AS_CLOSURE(value)->function->isClassMethod) {
+			if (IS_CLOSURE(value) && AS_CLOSURE(value)->isClassMethod) {
 				value = OBJECT_VAL(krk_newBoundMethod(krk_peek(0), AS_OBJECT(value)));
 			}
 			krk_pop();
@@ -1847,6 +1855,10 @@ static int valueSetProperty(KrkString * name) {
 		}
 	} else if (IS_CLASS(owner)) {
 		krk_tableSet(&AS_CLASS(owner)->methods, OBJECT_VAL(name), value);
+		if (name->length && name->chars[0] == '_') {
+			/* Quietly call finalizeClass to update special method table if this looks like it might be one */
+			krk_finalizeClass(AS_CLASS(owner));
+		}
 	} else {
 		return (trySetDescriptor(owner,name,value));
 	}
@@ -1890,6 +1902,10 @@ static inline size_t readBytes(KrkCallFrame * frame, int num) {
 	}
 	return out;
 }
+
+extern FUNC_SIG(list,append);
+extern FUNC_SIG(dict,__setitem__);
+extern FUNC_SIG(set,add);
 
 /**
  * VM main loop.
@@ -2027,18 +2043,14 @@ _resumeHook: (void)0;
 			case OP_NOT:   krk_push(BOOLEAN_VAL(krk_isFalsey(krk_pop()))); break;
 			case OP_POP:   krk_pop(); break;
 			case OP_RAISE: {
-				krk_currentThread.currentException = krk_pop();
+				if (IS_CLASS(krk_peek(0))) {
+					krk_currentThread.currentException = krk_callSimple(krk_peek(0), 0, 1);
+				} else {
+					krk_currentThread.currentException = krk_pop();
+				}
 				attachTraceback();
 				krk_currentThread.flags |= KRK_THREAD_HAS_EXCEPTION;
 				goto _finishException;
-			}
-			/* This version of the call instruction takes its arity from the
-			 * top of the stack, so we don't have to calculate arity at compile time. */
-			case OP_CALL_STACK: {
-				int argCount = AS_INTEGER(krk_pop());
-				if (unlikely(!krk_callValue(krk_peek(argCount), argCount, 1))) goto _finishException;
-				frame = &krk_currentThread.frames[krk_currentThread.frameCount - 1];
-				break;
 			}
 			case OP_CLOSE_UPVALUE:
 				closeUpvalues((krk_currentThread.stackTop - krk_currentThread.stack)-1);
@@ -2048,6 +2060,8 @@ _resumeHook: (void)0;
 				KrkClass * type = krk_getType(krk_peek(1));
 				if (likely(type->_getter)) {
 					krk_push(krk_callSimple(OBJECT_VAL(type->_getter), 2, 0));
+				} else if (IS_CLASS(krk_peek(1)) && AS_CLASS(krk_peek(1))->_classgetitem) {
+					krk_push(krk_callSimple(OBJECT_VAL(AS_CLASS(krk_peek(1))->_classgetitem), 2, 0));
 				} else {
 					krk_runtimeError(vm.exceptions->attributeError, "'%s' object is not subscriptable", krk_typeName(krk_peek(1)));
 				}
@@ -2143,7 +2157,6 @@ _resumeHook: (void)0;
 				subclass->allocSize = AS_CLASS(superclass)->allocSize;
 				subclass->_ongcsweep = AS_CLASS(superclass)->_ongcsweep;
 				subclass->_ongcscan = AS_CLASS(superclass)->_ongcscan;
-				krk_pop();
 				break;
 			}
 			case OP_DOCSTRING: {
@@ -2188,6 +2201,20 @@ _resumeHook: (void)0;
 				assert(krk_currentThread.frameCount == (size_t)krk_currentThread.exitOnFrame);
 				/* Do NOT restore the stack */
 				return result;
+			}
+			case OP_ANNOTATE: {
+				if (IS_CLOSURE(krk_peek(0))) {
+					krk_swap(1);
+					AS_CLOSURE(krk_peek(1))->annotations = krk_pop();
+				} else if (IS_NONE(krk_peek(0))) {
+					krk_swap(1);
+					fprintf(stderr, "TODO: Global annotation.\n");
+					krk_pop();
+				} else {
+					krk_runtimeError(vm.exceptions->typeError, "Can not annotate '%s'.", krk_typeName(krk_peek(0)));
+					goto _finishException;
+				}
+				break;
 			}
 
 			/*
@@ -2414,6 +2441,9 @@ _resumeHook: (void)0;
 				KrkClass * _class = AS_CLASS(krk_peek(1));
 				KrkValue name = OBJECT_VAL(READ_STRING(OPERAND));
 				krk_tableSet(&_class->methods, name, method);
+				if (AS_STRING(name) == S("__class_getitem__") && IS_CLOSURE(method)) {
+					AS_CLOSURE(method)->isClassMethod = 1;
+				}
 				krk_pop();
 				break;
 			}
@@ -2437,20 +2467,62 @@ _resumeHook: (void)0;
 				krk_push(KWARGS_VAL(OPERAND));
 				break;
 			}
+#define doMake(func) { \
+	size_t count = OPERAND; \
+	krk_reserve_stack(4); \
+	KrkValue collection = func(count, &krk_currentThread.stackTop[-count], 0); \
+	if (count) { \
+		krk_currentThread.stackTop[-count] = collection; \
+		while (count > 1) { \
+			krk_pop(); count--; \
+		} \
+	} else { \
+		krk_push(collection); \
+	} \
+}
 			case OP_TUPLE_LONG:
 			case OP_TUPLE: {
-				size_t count = OPERAND;
-				krk_reserve_stack(4);
-				KrkValue tuple = krk_tuple_of(count,&krk_currentThread.stackTop[-count],0);
-				if (count) {
-					krk_currentThread.stackTop[-count] = tuple;
-					while (count > 1) {
-						krk_pop();
-						count--;
-					}
-				} else {
-					krk_push(tuple);
-				}
+				doMake(krk_tuple_of);
+				break;
+			}
+			case OP_MAKE_LIST_LONG:
+			case OP_MAKE_LIST: {
+				doMake(krk_list_of);
+				break;
+			}
+			case OP_MAKE_DICT_LONG:
+			case OP_MAKE_DICT: {
+				doMake(krk_dict_of);
+				break;
+			}
+			case OP_MAKE_SET_LONG:
+			case OP_MAKE_SET: {
+				doMake(krk_set_of);
+				break;
+			}
+			case OP_LIST_APPEND_LONG:
+			case OP_LIST_APPEND: {
+				uint32_t slot = OPERAND;
+				KrkValue list = krk_currentThread.stack[frame->slots + slot];
+				FUNC_NAME(list,append)(2,(KrkValue[]){list,krk_peek(0)},0);
+				krk_pop();
+				break;
+			}
+			case OP_DICT_SET_LONG:
+			case OP_DICT_SET: {
+				uint32_t slot = OPERAND;
+				KrkValue dict = krk_currentThread.stack[frame->slots + slot];
+				FUNC_NAME(dict,__setitem__)(3,(KrkValue[]){dict,krk_peek(1),krk_peek(0)},0);
+				krk_pop();
+				krk_pop();
+				break;
+			}
+			case OP_SET_ADD_LONG:
+			case OP_SET_ADD: {
+				uint32_t slot = OPERAND;
+				KrkValue set = krk_currentThread.stack[frame->slots + slot];
+				FUNC_NAME(set,add)(2,(KrkValue[]){set,krk_peek(0)},0);
+				krk_pop();
 				break;
 			}
 			case OP_UNPACK_LONG:
@@ -2558,6 +2630,7 @@ KrkInstance * krk_startModule(const char * name) {
 	krk_attachNamedObject(&vm.modules, name, (KrkObj*)module);
 	krk_attachNamedObject(&module->fields, "__builtins__", (KrkObj*)vm.builtins);
 	krk_attachNamedObject(&module->fields, "__name__", (KrkObj*)krk_copyString(name,strlen(name)));
+	krk_attachNamedValue(&module->fields, "__annotations__", krk_dict_of(0,NULL,0));
 	return module;
 }
 

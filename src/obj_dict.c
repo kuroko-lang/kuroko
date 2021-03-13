@@ -386,6 +386,7 @@ void _createAndBind_dictClass(void) {
 	BIND_METHOD(dict,setdefault);
 	BIND_METHOD(dict,update);
 	krk_defineNative(&dict->methods, ".__str__", FUNC_NAME(dict,__repr__));
+	krk_defineNative(&dict->methods, ".__class_getitem__", KrkGenericAlias);
 	krk_finalizeClass(dict);
 	KRK_DOC(dict, "Mapping of arbitrary keys to values.");
 

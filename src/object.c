@@ -226,6 +226,7 @@ KrkString * krk_copyString(const char * chars, size_t length) {
 	memcpy(heapChars, chars, length);
 	heapChars[length] = '\0';
 	KrkString * result = allocateString(heapChars, length, hash);
+	if (result->chars != heapChars) free(heapChars);
 	_release_lock(_stringLock);
 	return result;
 }
@@ -266,6 +267,7 @@ KrkClosure * krk_newClosure(KrkFunction * function) {
 	closure->function = function;
 	closure->upvalues = upvalues;
 	closure->upvalueCount = function->upvalueCount;
+	closure->annotations = krk_dict_of(0,NULL,0);
 	return closure;
 }
 
