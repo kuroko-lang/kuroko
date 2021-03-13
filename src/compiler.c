@@ -749,7 +749,7 @@ static void literal(int canAssign) {
 }
 
 static void expression() {
-	parsePrecedence(PREC_TERNARY);
+	parsePrecedence(PREC_CAN_ASSIGN);
 }
 
 static void letDeclaration(void) {
