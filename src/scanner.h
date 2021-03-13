@@ -29,6 +29,7 @@ typedef enum {
 	TOKEN_GREATER,
 	TOKEN_LESS,
 	TOKEN_ARROW, /* -> */
+	TOKEN_WALRUS, /* := */
 
 	/* Comparisons */
 	TOKEN_GREATER_EQUAL,

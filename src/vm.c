@@ -1949,7 +1949,7 @@ static KrkValue run() {
 _resumeHook: (void)0;
 
 		/* Each instruction begins with one opcode byte */
-		uint8_t opcode = READ_BYTE();
+		KrkOpCode opcode = READ_BYTE();
 
 		/* The top two bits of the opcode indicate how many bytes
 		 * of operands it takes: 0, 1, 2, or 3 (naturally) */
@@ -2342,7 +2342,7 @@ _resumeHook: (void)0;
 				frame = &krk_currentThread.frames[krk_currentThread.frameCount - 1];
 				break;
 			}
-			/* EXPAND_ARGS_LONG? */
+			case OP_EXPAND_ARGS_LONG:
 			case OP_EXPAND_ARGS: {
 				int type = OPERAND;
 				krk_push(KWARGS_VAL(LONG_MAX-type));
@@ -2522,6 +2522,17 @@ _resumeHook: (void)0;
 				uint32_t slot = OPERAND;
 				KrkValue set = krk_currentThread.stack[frame->slots + slot];
 				FUNC_NAME(set,add)(2,(KrkValue[]){set,krk_peek(0)},0);
+				krk_pop();
+				break;
+			}
+			case OP_REVERSE_LONG:
+			case OP_REVERSE: {
+				krk_push(NONE_VAL()); /* Storage space */
+				for (size_t i = 0; i < OPERAND / 2; ++i) {
+					krk_currentThread.stackTop[-1] = krk_currentThread.stackTop[-i-2];
+					krk_currentThread.stackTop[-i-2] = krk_currentThread.stackTop[-(OPERAND-i)-1];
+					krk_currentThread.stackTop[-(OPERAND-i)-1] = krk_currentThread.stackTop[-1];
+				}
 				krk_pop();
 				break;
 			}
