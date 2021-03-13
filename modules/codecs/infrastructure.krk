@@ -194,25 +194,19 @@ register_error("xmlcharrefreplace", xmlcharrefreplace_errors)
 
 class ByteCatenator:
     def __init__():
-        self.first = self.second = b""
-    def add(string):
-        if len(self.second) >= len(self.first):
-            self.first += self.second
-            self.second = b""
-        self.second += string
+        self.list = []
+    def add(data):
+        self.list.append(data)
     def getvalue():
-        return self.first + self.second
+        return b"".join(self.list)
 
 class StringCatenator:
     def __init__():
-        self.first = self.second = ""
+        self.list = []
     def add(string):
-        if len(self.second) >= len(self.first):
-            self.first += self.second
-            self.second = ""
-        self.second += string
+        self.list.append(string)
     def getvalue():
-        return self.first + self.second
+        return "".join(self.list)
 
 class IncrementalEncoder:
     name = None
