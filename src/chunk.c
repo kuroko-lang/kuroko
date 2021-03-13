@@ -45,9 +45,6 @@ void krk_freeChunk(KrkChunk * chunk) {
 }
 
 size_t krk_addConstant(KrkChunk * chunk, KrkValue value) {
-	for (size_t i = 0; i < chunk->constants.count; ++i) {
-		if (krk_valuesSame(chunk->constants.values[i], value)) return i;
-	}
 	krk_push(value);
 	krk_writeValueArray(&chunk->constants, value);
 	krk_pop();
