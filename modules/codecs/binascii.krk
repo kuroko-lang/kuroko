@@ -10,7 +10,7 @@ let _base64_alphabet_uu = list(range(0x20, 0x60))
 let _base64_alphabet_hqx = [ord(i) for i in
         "!\"#$%&'()*+,-012345689@ABCDEFGHIJKLMNPQRSTUVXYZ[`abcdefhijklmpqr"]
 
-class InverseBase64IncrementalCreator(IncrementalDecoder):
+class Base64IncrementalCreator(IncrementalDecoder):
     name = "inverse-base64"
     alphabet = _base64_alphabet
     def decode(data_in, final = False):
@@ -37,7 +37,7 @@ class InverseBase64IncrementalCreator(IncrementalDecoder):
             out.add(outbit)
             offset += 3
 
-class InverseBase64IncrementalParser(IncrementalEncoder):
+class Base64IncrementalParser(IncrementalEncoder):
     name = "inverse-base64"
     alphabet = _base64_alphabet
     def encode(string_in, final = False):
@@ -93,32 +93,32 @@ class InverseBase64IncrementalParser(IncrementalEncoder):
     def setstate(state): self.pending = state
 
 register_kuroko_codec(["inverse-base64"],
-    InverseBase64IncrementalParser, InverseBase64IncrementalCreator)
+    Base64IncrementalParser, Base64IncrementalCreator)
 
-class InverseBase64UUIncrementalCreator(InverseBase64IncrementalCreator):
+class Base64UUIncrementalCreator(Base64IncrementalCreator):
     name = "inverse-base64uu"
     alphabet = _base64_alphabet_uu
 
-class InverseBase64UUIncrementalParser(InverseBase64IncrementalParser):
+class Base64UUIncrementalParser(Base64IncrementalParser):
     name = "inverse-base64uu"
     alphabet = _base64_alphabet_uu
 
 register_kuroko_codec(["inverse-base64uu"],
-    InverseBase64UUIncrementalParser, InverseBase64UUIncrementalCreator)
+    Base64UUIncrementalParser, Base64UUIncrementalCreator)
 
-class InverseBase64HQXIncrementalCreator(InverseBase64IncrementalCreator):
+class Base64HQXIncrementalCreator(Base64IncrementalCreator):
     name = "inverse-base64hqx"
     alphabet = _base64_alphabet_hqx
 
-class InverseBase64HQXIncrementalParser(InverseBase64IncrementalParser):
+class Base64HQXIncrementalParser(Base64IncrementalParser):
     name = "inverse-base64hqx"
     alphabet = _base64_alphabet_hqx
 
 register_kuroko_codec(["inverse-base64hqx"],
-    InverseBase64HQXIncrementalParser, InverseBase64HQXIncrementalCreator)
+    Base64HQXIncrementalParser, Base64HQXIncrementalCreator)
 
 
-class InverseQuoPriIncrementalCreator(IncrementalDecoder):
+class QuoPriIncrementalCreator(IncrementalDecoder):
     name = "inverse-quopri"
     def decode(data_in, final = False):
         let data = self.pending + data_in
@@ -126,6 +126,9 @@ class InverseQuoPriIncrementalCreator(IncrementalDecoder):
         let offset = 0
         let out = StringCatenator()
         while 1:
+            # Unless we're final, stop one byte short of the end of the input and shove the
+            #   last byte in pending. We need to know if a line end follows (end of the *final*
+            #   input would count as a line end).
             if (offset == len(data)) or ((offset + 1) == len(data) and not final):
                 self.pending = bytes(list(data)[offset:])
                 return out.getvalue()
@@ -172,7 +175,7 @@ class InverseQuoPriIncrementalCreator(IncrementalDecoder):
         self.linelength = state[0]
         self.pending = state[1]
 
-class InverseQuoPriIncrementalParser(IncrementalEncoder):
+class QuoPriIncrementalParser(IncrementalEncoder):
     name = "inverse-quopri"
     def encode(string_in, final = False):
         let string = self.pending + string_in
@@ -218,9 +221,41 @@ class InverseQuoPriIncrementalParser(IncrementalEncoder):
     def setstate(state): self.pending = state
 
 register_kuroko_codec(["inverse-quopri"],
-    InverseQuoPriIncrementalParser, InverseQuoPriIncrementalCreator)
+    QuoPriIncrementalParser, QuoPriIncrementalCreator)
 
 
+def base64_file_create(data, filename=None, mode=0o666):
+    let out = []
+    let creator = Base64IncrementalCreator("strict")
+    if filename != None:
+        let octmode = oct(mode)[2:]
+        out.append(f"begin-base64 {octmode} {filename}\n")
+    let offset = 0
+    while offset < len(data):
+        let segment = bytes(list(data)[offset:offset+57])
+        out.append(creator.decode(segment, True))
+        out.append("\n")
+        offset += 57
+    if filename != None:
+        out.append("====\n")
+    return "".join(out)
+
+
+def uu_file_create(data, filename="-", mode=0o666):
+    let out = []
+    let creator = Base64UUIncrementalCreator("strict")
+    let octmode = oct(mode)[2:]
+    out.append(f"begin {octmode} {filename}\n")
+    let offset = 0
+    while offset < len(data):
+        let segment = bytes(list(data)[offset:offset+45])
+        out.append(chr(_base64_alphabet_uu[len(segment)]))
+        out.append(creator.decode(segment, True))
+        out.append("\n")
+        offset += 45
+    if filename != None:
+        out.append("`\nend\n")
+    return "".join(out)
 
 
 
