@@ -89,67 +89,71 @@ KRK_FUNC(uname,{
 })
 #endif
 
-static KrkClass * environClass;
+static KrkClass * Environ;
+#define _Environ cls_Environ
 
-KrkValue krk_os_setenviron(int argc, KrkValue argv[], int hasKw) {
-	if (argc < 3 || !krk_isInstanceOf(argv[0], environClass) ||
-		!IS_STRING(argv[1]) || !IS_STRING(argv[2])) {
-		return krk_runtimeError(vm.exceptions->argumentError, "Invalid arguments to environ.__setitem__");
-	}
-	/* Set environment variable */
-	size_t len = AS_STRING(argv[1])->length + AS_STRING(argv[2])->length + 2;
+#define AS_Environ(o) (AS_INSTANCE(o))
+#define IS_Environ(o) (krk_isInstanceOf(o,Environ))
+#define CURRENT_CTYPE KrkInstance*
+
+KRK_METHOD(Environ,__setitem__,{
+	METHOD_TAKES_EXACTLY(2);
+	CHECK_ARG(1,str,KrkString*,key);
+	CHECK_ARG(2,str,KrkString*,val);
+	size_t len = key->length + val->length;
 	char * tmp = malloc(len);
-	snprintf(tmp, len, "%s=%s", AS_CSTRING(argv[1]), AS_CSTRING(argv[2]));
+	snprintf(tmp, len, "%s=%s", key->chars, val->chars);
 	int r = putenv(tmp);
 	if (r == 0) {
-		/* Make super call */
 		krk_push(argv[0]);
 		krk_push(argv[1]);
 		krk_push(argv[2]);
 		return krk_callSimple(OBJECT_VAL(vm.baseClasses->dictClass->_setter), 3, 0);
-	} else {
-		return krk_runtimeError(OSError, strerror(errno));
 	}
-}
 
-KrkValue krk_os_unsetenviron(int argc, KrkValue argv[], int hasKw) {
-	if (argc < 2 || !krk_isInstanceOf(argv[0], environClass) ||
-		!IS_STRING(argv[1])) {
-		return krk_runtimeError(vm.exceptions->argumentError, "Invalid arguments to environ.__delitem__");
-	}
+	return krk_runtimeError(OSError, strerror(errno));
+})
+
+static void _unsetVar(KrkString * str) {
 #ifndef _WIN32
-	unsetenv(AS_CSTRING(argv[1]));
+	unsetenv(str->chars);
 #else
-	size_t len = AS_STRING(argv[1])->length + 2;
+	size_t len = str->length + 2;
 	char * tmp = malloc(len);
-	snprintf(tmp, len, "%s=", AS_CSTRING(argv[1]));
+	snprintf(tmp, len, "%s", str->chars);
 	putenv(tmp);
 	free(tmp);
 #endif
+}
+
+KRK_METHOD(Environ,__delitem__,{
+	METHOD_TAKES_EXACTLY(1);
+	CHECK_ARG(1,str,KrkString*,key);
+	_unsetVar(key);
 	krk_push(argv[0]);
 	krk_push(argv[1]);
 	return krk_callSimple(OBJECT_VAL(vm.baseClasses->dictClass->_delitem), 2, 0);
-}
+})
 
 static void _loadEnviron(KrkInstance * module) {
 	/* Create a new class to subclass `dict` */
 	KrkString * className = S("_Environ");
 	krk_push(OBJECT_VAL(className));
-	environClass = krk_newClass(className, vm.baseClasses->dictClass);
-	krk_attachNamedObject(&module->fields, "_Environ", (KrkObj*)environClass);
+	Environ = krk_newClass(className, vm.baseClasses->dictClass);
+	krk_attachNamedObject(&module->fields, "_Environ", (KrkObj*)Environ);
 	krk_pop(); /* className */
 
 	/* Add our set method that should also call dict's set method */
-	krk_defineNative(&environClass->methods, ".__setitem__", krk_os_setenviron);
-	krk_defineNative(&environClass->methods, ".__delitem__", krk_os_unsetenviron);
-	krk_finalizeClass(environClass);
+	BIND_METHOD(Environ,__setitem__);
+	BIND_METHOD(Environ,__delitem__);
+	krk_finalizeClass(Environ);
 
 	/* Start with an empty dictionary */
 	KrkInstance * environObj = AS_INSTANCE(krk_dict_of(0,NULL,0));
 	krk_push(OBJECT_VAL(environObj));
 
 	/* Transform it into an _Environ */
-	environObj->_class = environClass;
+	environObj->_class = Environ;
 
 	/* And attach it to the module */
 	krk_attachNamedObject(&module->fields, "environ", (KrkObj*)environObj);
@@ -540,7 +544,6 @@ KRK_FUNC(stat,{
 #define IS_stat_result(o) (krk_isInstanceOf(o,stat_result))
 #define AS_stat_result(o) AS_INSTANCE(o)
 #define CURRENT_NAME  self
-#define CURRENT_CTYPE KrkInstance *
 
 #define getProp(name) \
 	KrkValue name = NONE_VAL(); \
