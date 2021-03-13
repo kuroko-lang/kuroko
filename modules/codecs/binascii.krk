@@ -13,6 +13,7 @@ let _base64_alphabet_hqx = [ord(i) for i in
 class Base64IncrementalCreator(IncrementalDecoder):
     name = "inverse-base64"
     alphabet = _base64_alphabet
+    padchar = "="
     def decode(data_in, final = False):
         let data = self.pending + data_in
         self.pending = b""
@@ -33,13 +34,14 @@ class Base64IncrementalCreator(IncrementalDecoder):
             let strange = low & 0x3F
             let outbit = "".join([chr(self.alphabet[i]) for i in [charm, up, down, strange]])
             if padchars:
-                outbit = outbit[:-padchars] + ("=" * padchars)
+                outbit = outbit[:-padchars] + (self.padchar * padchars)
             out.add(outbit)
             offset += 3
 
 class Base64IncrementalParser(IncrementalEncoder):
     name = "inverse-base64"
     alphabet = _base64_alphabet
+    padchar = "="
     def encode(string_in, final = False):
         let string = self.pending + string_in
         self.pending = ""
@@ -58,9 +60,9 @@ class Base64IncrementalParser(IncrementalEncoder):
                 self.pending = raw_substring
                 return out.getvalue()
             let substring = raw_substring
-            let padchars = 4 - len(substring.rstrip("="))
+            let padchars = 4 - len(substring.rstrip(self.padchar))
             if padchars:
-                substring = substring[:(4-padchars)] + ("A" * padchars)
+                substring = substring[:(4-padchars)] + (chr(self.alphabet[0]) * padchars)
             let charm
             let up
             let down
@@ -98,10 +100,12 @@ register_kuroko_codec(["inverse-base64"],
 class Base64UUIncrementalCreator(Base64IncrementalCreator):
     name = "inverse-base64uu"
     alphabet = _base64_alphabet_uu
+    padchar = " "
 
 class Base64UUIncrementalParser(Base64IncrementalParser):
     name = "inverse-base64uu"
     alphabet = _base64_alphabet_uu
+    padchar = " "
 
 register_kuroko_codec(["inverse-base64uu"],
     Base64UUIncrementalParser, Base64UUIncrementalCreator)
@@ -225,37 +229,36 @@ register_kuroko_codec(["inverse-quopri"],
 
 
 def base64_file_create(data, filename=None, mode=0o666):
-    let out = []
+    let out = StringCatenator()
     let creator = Base64IncrementalCreator("strict")
     if filename != None:
         let octmode = oct(mode)[2:]
-        out.append(f"begin-base64 {octmode} {filename}\n")
+        out.add(f"begin-base64 {octmode} {filename}\n")
     let offset = 0
     while offset < len(data):
         let segment = bytes(list(data)[offset:offset+57])
-        out.append(creator.decode(segment, True))
-        out.append("\n")
+        out.add(creator.decode(segment, True))
+        out.add("\n")
         offset += 57
     if filename != None:
-        out.append("====\n")
-    return "".join(out)
+        out.add("====\n")
+    return out.getvalue()
 
 
 def uu_file_create(data, filename="-", mode=0o666):
-    let out = []
+    let out = StringCatenator()
     let creator = Base64UUIncrementalCreator("strict")
     let octmode = oct(mode)[2:]
-    out.append(f"begin {octmode} {filename}\n")
+    out.add(f"begin {octmode} {filename}\n")
     let offset = 0
     while offset < len(data):
         let segment = bytes(list(data)[offset:offset+45])
-        out.append(chr(_base64_alphabet_uu[len(segment)]))
-        out.append(creator.decode(segment, True))
-        out.append("\n")
+        out.add(chr(_base64_alphabet_uu[len(segment)]))
+        out.add(creator.decode(segment, True))
+        out.add("\n")
         offset += 45
-    if filename != None:
-        out.append("`\nend\n")
-    return "".join(out)
+    out.add("`\nend\n")
+    return out.getvalue()
 
 
 
