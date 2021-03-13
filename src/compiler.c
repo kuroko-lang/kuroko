@@ -257,6 +257,7 @@ static size_t addLocal(KrkToken name);
 static void string(int canAssign);
 static KrkToken decorator(size_t level, FunctionType type);
 static void call(int canAssign);
+static void complexAssignment(size_t count, KrkScanner oldScanner, Parser oldParser, size_t targetCount);
 
 static void finishError(KrkToken * token) {
 	size_t i = 0;
@@ -516,6 +517,12 @@ static int matchEndOfDel(void) {
 	return check(TOKEN_COMMA) || check(TOKEN_EOL) || check(TOKEN_EOF) || check(TOKEN_SEMICOLON);
 }
 
+static int matchComplexEnd(void) {
+	return match(TOKEN_COMMA) ||
+			match(TOKEN_EQUAL) ||
+			match(TOKEN_RIGHT_PAREN);
+}
+
 static void assignmentValue(void) {
 	KrkTokenType type = parser.previous.type;
 	if (type == TOKEN_PLUS_PLUS || type == TOKEN_MINUS_MINUS) {
@@ -566,7 +573,7 @@ static void get_(int canAssign) {
 			consume(TOKEN_RIGHT_SQUARE, "Expected ending square bracket after slice.");
 		}
 		if (canAssign == 2) {
-			if (match(TOKEN_COMMA) || check(TOKEN_EQUAL)) {
+			if (matchComplexEnd()) {
 				EMIT_CONSTANT_OP(OP_DUP, 3);
 				emitByte(OP_INVOKE_SETSLICE);
 				emitByte(OP_POP);
@@ -594,7 +601,7 @@ static void get_(int canAssign) {
 	} else {
 		consume(TOKEN_RIGHT_SQUARE, "Expected ending square bracket after index.");
 		if (canAssign == 2) {
-			if (match(TOKEN_COMMA) || check(TOKEN_EQUAL)) {
+			if (matchComplexEnd()) {
 				EMIT_CONSTANT_OP(OP_DUP, 2);
 				emitByte(OP_INVOKE_SETTER);
 				emitByte(OP_POP);
@@ -693,7 +700,7 @@ _dotDone:
 	consume(TOKEN_IDENTIFIER, "Expected property name");
 	size_t ind = identifierConstant(&parser.previous);
 	if (canAssign == 2) {
-		if (match(TOKEN_COMMA) || check(TOKEN_EQUAL)) {
+		if (matchComplexEnd()) {
 			EMIT_CONSTANT_OP(OP_DUP, 1);
 			EMIT_CONSTANT_OP(OP_SET_PROPERTY, ind);
 			emitByte(OP_POP);
@@ -822,7 +829,8 @@ static void letDeclaration(void) {
 
 _letDone:
 	if (!match(TOKEN_EOL) && !match(TOKEN_EOF)) {
-		error("Expected end of line after 'let' statement.");
+		errorAtCurrent("Expected end of line after 'let' statement, not '%.*s'",
+			(int)parser.current.length, parser.current.start);
 	}
 
 	FREE_ARRAY(ssize_t,args,argSpace);
@@ -2171,7 +2179,7 @@ static ssize_t resolveUpvalue(Compiler * compiler, KrkToken * name) {
 #define OP_NONE_LONG -1
 #define DO_VARIABLE(opset,opget,opdel) do { \
 	if (canAssign == 2) { \
-		if (match(TOKEN_COMMA) || check(TOKEN_EQUAL)) { \
+		if (matchComplexEnd()) { \
 			EMIT_CONSTANT_OP(opset, arg); \
 			break; \
 		} \
@@ -2379,19 +2387,23 @@ static void comprehensionExpression(KrkScanner scannerBefore, Parser parserBefor
 }
 
 static void grouping(int canAssign) {
+	int maybeValidAssignment = 0;
+	size_t chunkBefore = currentChunk()->count;
+	KrkScanner scannerBefore = krk_tellScanner();
+	Parser  parserBefore = parser;
+	size_t argCount = 0;
 	startEatingWhitespace();
 	if (check(TOKEN_RIGHT_PAREN)) {
 		emitBytes(OP_TUPLE,0);
 	} else {
-		size_t chunkBefore = currentChunk()->count;
-		KrkScanner scannerBefore = krk_tellScanner();
-		Parser  parserBefore = parser;
 		parsePrecedence(PREC_CAN_ASSIGN);
+		maybeValidAssignment = 1;
+		argCount = 1;
 		if (match(TOKEN_FOR)) {
+			maybeValidAssignment = 0;
 			currentChunk()->count = chunkBefore;
 			generatorExpression(scannerBefore, parserBefore, yieldInner);
 		} else if (match(TOKEN_COMMA)) {
-			size_t argCount = 1;
 			if (!check(TOKEN_RIGHT_PAREN)) {
 				do {
 					expression();
@@ -2407,6 +2419,17 @@ static void grouping(int canAssign) {
 			case TOKEN_EQUAL: error("Assignment value expression must be enclosed in parentheses."); break;
 			default: error("Expected ')'");
 		}
+	}
+	if (canAssign == 1 && match(TOKEN_EQUAL)) {
+		if (!argCount) {
+			error("Can not assign to empty target list.");
+		} else if (!maybeValidAssignment) {
+			error("Can not assign to generator expression.");
+		} else {
+			complexAssignment(chunkBefore, scannerBefore, parserBefore, argCount);
+		}
+	} else if (canAssign == 2 && (match(TOKEN_EQUAL) || match(TOKEN_COMMA))) {
+		error("Assignment to nested parenthesized target list unsupported.");
 	}
 }
 
@@ -2641,8 +2664,10 @@ static void complexAssignment(size_t count, KrkScanner oldScanner, Parser oldPar
 	currentChunk()->count = count;
 	parsePrecedence(PREC_ASSIGNMENT);
 	emitBytes(OP_DUP, 0);
-	EMIT_CONSTANT_OP(OP_UNPACK,targetCount);
-	EMIT_CONSTANT_OP(OP_REVERSE,targetCount);
+	if (targetCount > 1) {
+		EMIT_CONSTANT_OP(OP_UNPACK,targetCount);
+		EMIT_CONSTANT_OP(OP_REVERSE,targetCount);
+	}
 
 	/* Store end state */
 	KrkScanner outScanner = krk_tellScanner();
@@ -2655,10 +2680,28 @@ static void complexAssignment(size_t count, KrkScanner oldScanner, Parser oldPar
 	/* Parse assignment targets */
 	size_t checkTargetCount = 0;
 	do {
-		if (match(TOKEN_EQUAL)) break;
 		checkTargetCount++;
 		parsePrecedence(PREC_MUST_ASSIGN);
 		emitByte(OP_POP);
+		if (checkTargetCount == targetCount) {
+			if (parser.previous.type == TOKEN_RIGHT_PAREN &&
+				match(TOKEN_EQUAL)) {
+				break;
+			}
+			if (parser.previous.type == TOKEN_COMMA &&
+				match(TOKEN_EQUAL)) {
+				break;
+			}
+			if (parser.previous.type == TOKEN_COMMA &&
+				match(TOKEN_RIGHT_PAREN) && match(TOKEN_EQUAL)) {
+				break;
+			}
+		}
+		if ((parser.previous.type != TOKEN_COMMA && parser.current.type == TOKEN_COMMA)
+			|| (parser.current.type == TOKEN_EQUAL)) {
+			error("Invalid assignment target");
+			break;
+		}
 	} while (parser.previous.type == TOKEN_COMMA);
 
 	/* Restore end state */
@@ -2669,9 +2712,10 @@ static void complexAssignment(size_t count, KrkScanner oldScanner, Parser oldPar
 static void actualComma(int canAssign, size_t count, KrkScanner oldScanner, Parser oldParser) {
 	size_t expressionCount = 1;
 	do {
+		if (!getRule(parser.current.type)->prefix) break;
 		expressionCount++;
 		parsePrecedence(PREC_TERNARY);
-	} while (match(TOKEN_COMMA) && !(check(TOKEN_EOL) || check(TOKEN_EOF)));
+	} while (match(TOKEN_COMMA));
 
 	EMIT_CONSTANT_OP(OP_TUPLE,expressionCount);
 
@@ -2690,13 +2734,15 @@ static void parsePrecedence(Precedence precedence) {
 	advance();
 	ParseFn prefixRule = getRule(parser.previous.type)->prefix;
 	if (prefixRule == NULL) {
-		errorAtCurrent("Unexpected token (parse precedence rule = NULL)");
+		error("Unexpected token ('%.*s' does not start an expression)",
+			(int)parser.previous.length, parser.previous.start);
 		return;
 	}
 	int canAssign = (precedence <= PREC_ASSIGNMENT || precedence == PREC_CAN_ASSIGN);
 	if (precedence == PREC_MUST_ASSIGN) canAssign = 2;
 	prefixRule(canAssign);
 	while (precedence <= getRule(parser.current.type)->precedence) {
+		if (precedence == PREC_MUST_ASSIGN && parser.previous.type == TOKEN_EQUAL) break;
 		advance();
 		ParseFn infixRule = getRule(parser.previous.type)->infix;
 		if (infixRule == ternary) {
@@ -2709,10 +2755,7 @@ static void parsePrecedence(Precedence precedence) {
 	}
 
 	if (canAssign == 1 && matchAssignment()) {
-		switch (precedence) {
-			case PREC_COMMA: error("Can not assign to this?"); break;
-			default: error("Invalid assignment target (prec=%d)", precedence); break;
-		}
+		error("Invalid assignment target");
 	}
 	if (inDel == 1 && matchEndOfDel()) {
 		error("invalid del target");
