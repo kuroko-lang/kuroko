@@ -563,7 +563,7 @@ KRK_FUNC(dis,{
 		KrkCodeObject * func = AS_CLOSURE(argv[0])->function;
 		krk_disassembleCodeObject(stdout, func, func->name ? func->name->chars : "(unnamed)");
 	} else if (IS_BOUND_METHOD(argv[0])) {
-		if (AS_BOUND_METHOD(argv[0])->method->type == OBJ_CLOSURE) {
+		if (AS_BOUND_METHOD(argv[0])->method->type == KRK_OBJ_CLOSURE) {
 			KrkCodeObject * func = ((KrkClosure*)AS_BOUND_METHOD(argv[0])->method)->function;
 			const char * methodName = func->name ? func->name->chars : "(unnamed)";
 			const char * typeName = IS_CLASS(AS_BOUND_METHOD(argv[0])->receiver) ? AS_CLASS(AS_BOUND_METHOD(argv[0])->receiver)->name->chars : krk_typeName(AS_BOUND_METHOD(argv[0])->receiver);

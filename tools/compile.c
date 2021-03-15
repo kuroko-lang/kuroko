@@ -303,12 +303,12 @@ static int doSecondPass(FILE * out) {
 		for (size_t i = 0; i < func->chunk.constants.count; ++i) {
 			KrkValue * val = &func->chunk.constants.values[i];
 			switch (val->type) {
-				case VAL_OBJECT:
+				case KRK_VAL_OBJECT:
 					switch (AS_OBJECT(*val)->type) {
-						case OBJ_STRING:
+						case KRK_OBJ_STRING:
 							WRITE_STRING(AS_STRING(*val));
 							break;
-						case OBJ_BYTES:
+						case KRK_OBJ_BYTES:
 							WRITE_BYTES(AS_BYTES(*val));
 							break;
 						case KRK_OBJ_CODEOBJECT:
@@ -322,14 +322,14 @@ static int doSecondPass(FILE * out) {
 							return 1;
 					}
 					break;
-				case VAL_KWARGS:
+				case KRK_VAL_KWARGS:
 					WRITE_KWARGS(AS_INTEGER(*val));
 					fwrite("k", 1, 1, out);
 					break;
-				case VAL_INTEGER:
+				case KRK_VAL_INTEGER:
 					WRITE_INTEGER(AS_INTEGER(*val));
 					break;
-				case VAL_FLOATING:
+				case KRK_VAL_FLOATING:
 					WRITE_FLOATING(AS_FLOATING(*val));
 					break;
 				default:

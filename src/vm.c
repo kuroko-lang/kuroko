@@ -460,32 +460,32 @@ static KrkValue krk_set_tracing(int argc, KrkValue argv[], int hasKw) {
  */
 inline KrkClass * krk_getType(KrkValue of) {
 	switch (of.type) {
-		case VAL_INTEGER:
+		case KRK_VAL_INTEGER:
 			return vm.baseClasses->intClass;
-		case VAL_FLOATING:
+		case KRK_VAL_FLOATING:
 			return vm.baseClasses->floatClass;
-		case VAL_BOOLEAN:
+		case KRK_VAL_BOOLEAN:
 			return vm.baseClasses->boolClass;
-		case VAL_NONE:
+		case KRK_VAL_NONE:
 			return vm.baseClasses->noneTypeClass;
-		case VAL_OBJECT:
+		case KRK_VAL_OBJECT:
 			switch (AS_OBJECT(of)->type) {
-				case OBJ_CLASS:
+				case KRK_OBJ_CLASS:
 					return vm.baseClasses->typeClass;
 				case KRK_OBJ_CODEOBJECT:
 					return vm.baseClasses->codeobjectClass;
-				case OBJ_NATIVE:
-				case OBJ_CLOSURE:
+				case KRK_OBJ_NATIVE:
+				case KRK_OBJ_CLOSURE:
 					return vm.baseClasses->functionClass;
-				case OBJ_BOUND_METHOD:
+				case KRK_OBJ_BOUND_METHOD:
 					return vm.baseClasses->methodClass;
-				case OBJ_STRING:
+				case KRK_OBJ_STRING:
 					return vm.baseClasses->strClass;
-				case OBJ_TUPLE:
+				case KRK_OBJ_TUPLE:
 					return vm.baseClasses->tupleClass;
-				case OBJ_BYTES:
+				case KRK_OBJ_BYTES:
 					return vm.baseClasses->bytesClass;
-				case OBJ_INSTANCE:
+				case KRK_OBJ_INSTANCE:
 					return AS_INSTANCE(of)->_class;
 				default:
 					return vm.baseClasses->objectClass;
@@ -577,7 +577,7 @@ int krk_processComplexArguments(int argCount, KrkValueArray * positionals, KrkTa
 				}
 				for (size_t i = 0; i < AS_DICT(value)->capacity; ++i) {
 					KrkTableEntry * entry = &AS_DICT(value)->entries[i];
-					if (entry->key.type != VAL_KWARGS) {
+					if (entry->key.type != KRK_VAL_KWARGS) {
 						if (!IS_STRING(entry->key)) {
 							krk_runtimeError(vm.exceptions->typeError, "**expression contains non-string key");
 							return 0;
@@ -675,7 +675,7 @@ static int call(KrkClosure * closure, int argCount, int extra) {
 		/* Now place keyword arguments */
 		for (size_t i = 0; i < keywords->capacity; ++i) {
 			KrkTableEntry * entry = &keywords->entries[i];
-			if (entry->key.type != VAL_KWARGS) {
+			if (entry->key.type != KRK_VAL_KWARGS) {
 				KrkValue name = entry->key;
 				KrkValue value = entry->value;
 				/* See if we can place it */
@@ -802,9 +802,9 @@ _errorAfterKeywords:
 int krk_callValue(KrkValue callee, int argCount, int extra) {
 	if (IS_OBJECT(callee)) {
 		switch (OBJECT_TYPE(callee)) {
-			case OBJ_CLOSURE:
+			case KRK_OBJ_CLOSURE:
 				return call(AS_CLOSURE(callee), argCount, extra);
-			case OBJ_NATIVE: {
+			case KRK_OBJ_NATIVE: {
 				NativeFn native = (NativeFn)AS_NATIVE(callee)->function;
 				if (argCount && IS_KWARGS(krk_currentThread.stackTop[-1])) {
 					KrkValue myList = krk_list_of(0,NULL,0);
@@ -837,7 +837,7 @@ int krk_callValue(KrkValue callee, int argCount, int extra) {
 				}
 				return 2;
 			}
-			case OBJ_INSTANCE: {
+			case KRK_OBJ_INSTANCE: {
 				KrkClass * _class = AS_INSTANCE(callee)->_class;
 				KrkValue callFunction;
 				if (_class->_call) {
@@ -849,7 +849,7 @@ int krk_callValue(KrkValue callee, int argCount, int extra) {
 					return 0;
 				}
 			}
-			case OBJ_CLASS: {
+			case KRK_OBJ_CLASS: {
 				KrkClass * _class = AS_CLASS(callee);
 				KrkInstance * newInstance = krk_newInstance(_class);
 				krk_currentThread.stackTop[-argCount - 1] = OBJECT_VAL(newInstance);
@@ -864,7 +864,7 @@ int krk_callValue(KrkValue callee, int argCount, int extra) {
 				}
 				return 1;
 			}
-			case OBJ_BOUND_METHOD: {
+			case KRK_OBJ_BOUND_METHOD: {
 				KrkBoundMethod * bound = AS_BOUND_METHOD(callee);
 				krk_currentThread.stackTop[-argCount - 1] = bound->receiver;
 				if (!bound->method) {
@@ -1005,14 +1005,14 @@ void krk_attachNamedValue(KrkTable * table, const char name[], KrkValue obj) {
  */
 int krk_isFalsey(KrkValue value) {
 	switch (value.type) {
-		case VAL_NONE: return 1;
-		case VAL_BOOLEAN: return !AS_BOOLEAN(value);
-		case VAL_INTEGER: return !AS_INTEGER(value);
-		case VAL_FLOATING: return !AS_FLOATING(value);
-		case VAL_OBJECT: {
+		case KRK_VAL_NONE: return 1;
+		case KRK_VAL_BOOLEAN: return !AS_BOOLEAN(value);
+		case KRK_VAL_INTEGER: return !AS_INTEGER(value);
+		case KRK_VAL_FLOATING: return !AS_FLOATING(value);
+		case KRK_VAL_OBJECT: {
 			switch (AS_OBJECT(value)->type) {
-				case OBJ_STRING: return !AS_STRING(value)->codesLength;
-				case OBJ_TUPLE: return !AS_TUPLE(value)->values.count;
+				case KRK_OBJ_STRING: return !AS_STRING(value)->codesLength;
+				case KRK_OBJ_TUPLE: return !AS_TUPLE(value)->values.count;
 				default: break;
 			}
 		}
@@ -1033,18 +1033,18 @@ static KrkValue krk_getsize(int argc, KrkValue argv[], int hasKw) {
 	if (!IS_OBJECT(argv[0])) return INTEGER_VAL(sizeof(KrkValue));
 	size_t mySize = sizeof(KrkValue);
 	switch (AS_OBJECT(argv[0])->type) {
-		case OBJ_STRING: {
+		case KRK_OBJ_STRING: {
 			KrkString * self = AS_STRING(argv[0]);
 			mySize += sizeof(KrkString) + self->length /* For the UTF8 */
 			+ ((self->codes && (self->chars != self->codes)) ? (self->type * self->codesLength) : 0);
 			break;
 		}
-		case OBJ_BYTES: {
+		case KRK_OBJ_BYTES: {
 			KrkBytes * self = AS_BYTES(argv[0]);
 			mySize += sizeof(KrkBytes) + self->length;
 			break;
 		}
-		case OBJ_INSTANCE: {
+		case KRK_OBJ_INSTANCE: {
 			KrkInstance * self = AS_INSTANCE(argv[0]);
 			mySize += sizeof(KrkTableEntry) * self->fields.capacity;
 			KrkClass * type = krk_getType(argv[0]);
@@ -1060,26 +1060,26 @@ static KrkValue krk_getsize(int argc, KrkValue argv[], int hasKw) {
 			}
 			break;
 		}
-		case OBJ_CLASS: {
+		case KRK_OBJ_CLASS: {
 			KrkClass * self = AS_CLASS(argv[0]);
 			mySize += sizeof(KrkClass) + sizeof(KrkTableEntry) * self->methods.capacity;
 			break;
 		}
-		case OBJ_NATIVE: {
+		case KRK_OBJ_NATIVE: {
 			KrkNative * self = (KrkNative*)AS_OBJECT(argv[0]);
 			mySize += sizeof(KrkNative) + strlen(self->name) + 1;
 			break;
 		}
-		case OBJ_TUPLE: {
+		case KRK_OBJ_TUPLE: {
 			KrkTuple * self = AS_TUPLE(argv[0]);
 			mySize += sizeof(KrkTuple) + sizeof(KrkValue) * self->values.capacity;
 			break;
 		}
-		case OBJ_BOUND_METHOD: {
+		case KRK_OBJ_BOUND_METHOD: {
 			mySize += sizeof(KrkBoundMethod);
 			break;
 		}
-		case OBJ_CLOSURE: {
+		case KRK_OBJ_CLOSURE: {
 			KrkClosure * self = AS_CLOSURE(argv[0]);
 			mySize += sizeof(KrkClosure) + sizeof(KrkUpvalue*) * self->function->upvalueCount;
 			break;
