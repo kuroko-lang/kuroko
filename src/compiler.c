@@ -295,7 +295,7 @@ static void advance() {
 
 #ifdef ENABLE_SCAN_TRACING
 		if (krk_currentThread.flags & KRK_THREAD_ENABLE_SCAN_TRACING) {
-			fprintf(stderr, "[%s<%d> %d:%d '%.*s'] ",
+			fprintf(stderr, "  [%s<%d> %d:%d '%.*s']\n",
 				getRule(parser.current.type)->name,
 				(int)parser.current.type,
 				(int)parser.current.line,
@@ -2428,7 +2428,7 @@ static void grouping(int canAssign) {
 		} else {
 			complexAssignment(chunkBefore, scannerBefore, parserBefore, argCount);
 		}
-	} else if (canAssign == 2 && (match(TOKEN_EQUAL) || match(TOKEN_COMMA))) {
+	} else if (canAssign == 2 && (check(TOKEN_EQUAL) || check(TOKEN_COMMA) || check(TOKEN_RIGHT_PAREN))) {
 		error("Assignment to nested parenthesized target list unsupported.");
 	}
 }
@@ -2661,6 +2661,8 @@ static void actualTernary(size_t count, KrkScanner oldScanner, Parser oldParser)
 }
 
 static void complexAssignment(size_t count, KrkScanner oldScanner, Parser oldParser, size_t targetCount) {
+	int parenthesizedTargets = (oldParser.previous.type == TOKEN_LEFT_PAREN);
+
 	currentChunk()->count = count;
 	parsePrecedence(PREC_ASSIGNMENT);
 	emitBytes(OP_DUP, 0);
@@ -2668,6 +2670,7 @@ static void complexAssignment(size_t count, KrkScanner oldScanner, Parser oldPar
 		EMIT_CONSTANT_OP(OP_UNPACK,targetCount);
 		EMIT_CONSTANT_OP(OP_REVERSE,targetCount);
 	}
+
 
 	/* Store end state */
 	KrkScanner outScanner = krk_tellScanner();
@@ -2683,26 +2686,21 @@ static void complexAssignment(size_t count, KrkScanner oldScanner, Parser oldPar
 		checkTargetCount++;
 		parsePrecedence(PREC_MUST_ASSIGN);
 		emitByte(OP_POP);
-		if (checkTargetCount == targetCount) {
-			if (parser.previous.type == TOKEN_RIGHT_PAREN &&
-				match(TOKEN_EQUAL)) {
-				break;
-			}
-			if (parser.previous.type == TOKEN_COMMA &&
-				match(TOKEN_EQUAL)) {
-				break;
-			}
-			if (parser.previous.type == TOKEN_COMMA &&
-				match(TOKEN_RIGHT_PAREN) && match(TOKEN_EQUAL)) {
+
+		if (checkTargetCount == targetCount && parenthesizedTargets) {
+			if (parser.previous.type != TOKEN_RIGHT_PAREN || !match(TOKEN_EQUAL)) {
+				errorAtCurrent("Expected to rescan closing paren, not '%.*s'",
+					(int)parser.current.length, parser.current.start);
 				break;
 			}
 		}
-		if ((parser.previous.type != TOKEN_COMMA && parser.current.type == TOKEN_COMMA)
-			|| (parser.current.type == TOKEN_EQUAL)) {
-			error("Invalid assignment target");
+
+		if (check(TOKEN_COMMA) || check(TOKEN_EQUAL) || check(TOKEN_RIGHT_PAREN)) {
+			error("Invalid complex assignment target.");
 			break;
 		}
-	} while (parser.previous.type == TOKEN_COMMA);
+
+	} while (parser.previous.type != TOKEN_EQUAL && !parser.hadError);
 
 	/* Restore end state */
 	krk_rewindScanner(outScanner);
@@ -2742,7 +2740,8 @@ static void parsePrecedence(Precedence precedence) {
 	if (precedence == PREC_MUST_ASSIGN) canAssign = 2;
 	prefixRule(canAssign);
 	while (precedence <= getRule(parser.current.type)->precedence) {
-		if (precedence == PREC_MUST_ASSIGN && parser.previous.type == TOKEN_EQUAL) break;
+		if (canAssign == 2 && (parser.previous.type == TOKEN_COMMA ||
+			parser.previous.type == TOKEN_EQUAL)) break;
 		advance();
 		ParseFn infixRule = getRule(parser.previous.type)->infix;
 		if (infixRule == ternary) {
