@@ -2661,7 +2661,7 @@ static void actualTernary(size_t count, KrkScanner oldScanner, Parser oldParser)
 }
 
 static void complexAssignment(size_t count, KrkScanner oldScanner, Parser oldParser, size_t targetCount) {
-	int parenthesizedTargets = (oldParser.previous.type == TOKEN_LEFT_PAREN);
+	int parenthesizedTargets = (oldParser.previous.length && oldParser.previous.type == TOKEN_LEFT_PAREN);
 
 	currentChunk()->count = count;
 	parsePrecedence(PREC_ASSIGNMENT);
@@ -2670,7 +2670,6 @@ static void complexAssignment(size_t count, KrkScanner oldScanner, Parser oldPar
 		EMIT_CONSTANT_OP(OP_UNPACK,targetCount);
 		EMIT_CONSTANT_OP(OP_REVERSE,targetCount);
 	}
-
 
 	/* Store end state */
 	KrkScanner outScanner = krk_tellScanner();
@@ -2687,6 +2686,14 @@ static void complexAssignment(size_t count, KrkScanner oldScanner, Parser oldPar
 		parsePrecedence(PREC_MUST_ASSIGN);
 		emitByte(OP_POP);
 
+		if (checkTargetCount == targetCount && parser.previous.type == TOKEN_COMMA) {
+			if (!match(parenthesizedTargets ? TOKEN_RIGHT_PAREN : TOKEN_EQUAL)) {
+				errorAtCurrent("Expected to rescan end of target list, not '%.*s'",
+					(int)parser.current.length, parser.current.start);
+				break;
+			}
+		}
+
 		if (checkTargetCount == targetCount && parenthesizedTargets) {
 			if (parser.previous.type != TOKEN_RIGHT_PAREN || !match(TOKEN_EQUAL)) {
 				errorAtCurrent("Expected to rescan closing paren, not '%.*s'",
@@ -2696,7 +2703,7 @@ static void complexAssignment(size_t count, KrkScanner oldScanner, Parser oldPar
 		}
 
 		if (check(TOKEN_COMMA) || check(TOKEN_EQUAL) || check(TOKEN_RIGHT_PAREN)) {
-			error("Invalid complex assignment target.");
+			error("Invalid complex assignment target (target #%d)", checkTargetCount+1);
 			break;
 		}
 
