@@ -25,7 +25,7 @@ static KrkValue nativeFunctionName(KrkValue func) {
 #define CURRENT_CTYPE KrkValue
 
 KRK_METHOD(function,__doc__,{
-	METHOD_TAKES_NONE();
+	ATTRIBUTE_NOT_ASSIGNABLE();
 
 	if (IS_NATIVE(self) && AS_NATIVE(self)->doc) {
 		return OBJECT_VAL(krk_copyString(AS_NATIVE(self)->doc, strlen(AS_NATIVE(self)->doc)));
@@ -35,7 +35,7 @@ KRK_METHOD(function,__doc__,{
 })
 
 KRK_METHOD(function,__name__,{
-	METHOD_TAKES_NONE();
+	ATTRIBUTE_NOT_ASSIGNABLE();
 
 	if (IS_NATIVE(self)) {
 		return nativeFunctionName(self);
@@ -47,7 +47,7 @@ KRK_METHOD(function,__name__,{
 })
 
 KRK_METHOD(function,__qualname__,{
-	METHOD_TAKES_NONE();
+	ATTRIBUTE_NOT_ASSIGNABLE();
 
 	if (IS_CLOSURE(self) && AS_CLOSURE(self)->function->qualname) {
 		return OBJECT_VAL(AS_CLOSURE(self)->function->qualname);
@@ -93,7 +93,7 @@ KRK_METHOD(function,__str__,{
 })
 
 KRK_METHOD(function,__file__,{
-	METHOD_TAKES_NONE();
+	ATTRIBUTE_NOT_ASSIGNABLE();
 
 	if (IS_NATIVE(self)) return OBJECT_VAL(S("<builtin>"));
 
@@ -103,6 +103,7 @@ KRK_METHOD(function,__file__,{
 })
 
 KRK_METHOD(function,__args__,{
+	ATTRIBUTE_NOT_ASSIGNABLE();
 	if (!IS_CLOSURE(self)) return OBJECT_VAL(krk_newTuple(0));
 	KrkFunction * _self = AS_CLOSURE(self)->function;
 	KrkTuple * tuple = krk_newTuple(_self->requiredArgs + _self->keywordArgs + _self->collectsArguments + _self->collectsKeywords);
@@ -140,7 +141,7 @@ KRK_METHOD(function,__args__,{
 })
 
 KRK_METHOD(function,__annotations__,{
-	METHOD_TAKES_NONE();
+	ATTRIBUTE_NOT_ASSIGNABLE();
 	if (!IS_CLOSURE(self)) return NONE_VAL();
 	return AS_CLOSURE(self)->annotations;
 })
@@ -149,7 +150,7 @@ KRK_METHOD(function,__annotations__,{
 #define CURRENT_CTYPE KrkFunction*
 
 KRK_METHOD(codeobject,__name__,{
-	METHOD_TAKES_NONE();
+	ATTRIBUTE_NOT_ASSIGNABLE();
 	return self->name ? OBJECT_VAL(self->name) : OBJECT_VAL(S(""));
 })
 
@@ -180,12 +181,12 @@ KRK_METHOD(codeobject,_ip_to_line,{
 #define CURRENT_CTYPE KrkBoundMethod*
 
 KRK_METHOD(method,__name__,{
-	METHOD_TAKES_NONE();
+	ATTRIBUTE_NOT_ASSIGNABLE();
 	return FUNC_NAME(function,__name__)(1,(KrkValue[]){OBJECT_VAL(self->method)},0);
 })
 
 KRK_METHOD(method,__qualname__,{
-	METHOD_TAKES_NONE();
+	ATTRIBUTE_NOT_ASSIGNABLE();
 	return FUNC_NAME(function,__qualname__)(1,(KrkValue[]){OBJECT_VAL(self->method)},0);
 })
 
@@ -215,22 +216,22 @@ KRK_METHOD(method,__str__,{
 })
 
 KRK_METHOD(method,__file__,{
-	METHOD_TAKES_NONE();
+	ATTRIBUTE_NOT_ASSIGNABLE();
 	return FUNC_NAME(function,__file__)(1,(KrkValue[]){OBJECT_VAL(self->method)},0);
 })
 
 KRK_METHOD(method,__args__,{
-	METHOD_TAKES_NONE();
+	ATTRIBUTE_NOT_ASSIGNABLE();
 	return FUNC_NAME(function,__args__)(1,(KrkValue[]){OBJECT_VAL(self->method)},0);
 })
 
 KRK_METHOD(method,__doc__,{
-	METHOD_TAKES_NONE();
+	ATTRIBUTE_NOT_ASSIGNABLE();
 	return FUNC_NAME(function,__doc__)(1,(KrkValue[]){OBJECT_VAL(self->method)},0);
 })
 
 KRK_METHOD(method,__annotations__,{
-	METHOD_TAKES_NONE();
+	ATTRIBUTE_NOT_ASSIGNABLE();
 	return FUNC_NAME(function,__annotations__)(1,(KrkValue[]){OBJECT_VAL(self->method)},0);
 })
 

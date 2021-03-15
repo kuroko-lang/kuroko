@@ -142,6 +142,7 @@ typedef struct {
 	unsigned char isClassMethod:1;
 	unsigned char isStaticMethod:1;
 	KrkValue annotations;
+	KrkTable fields;
 } KrkClosure;
 
 typedef void (*KrkCleanupCallback)(struct KrkInstance *);

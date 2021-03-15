@@ -53,6 +53,7 @@ static void freeObject(KrkObj * object) {
 		case OBJ_CLOSURE: {
 			KrkClosure * closure = (KrkClosure*)object;
 			FREE_ARRAY(KrkUpvalue*,closure->upvalues,closure->upvalueCount);
+			krk_freeTable(&closure->fields);
 			FREE(KrkClosure, object);
 			break;
 		}
@@ -147,6 +148,7 @@ static void blackenObject(KrkObj * object) {
 				krk_markObject((KrkObj*)closure->upvalues[i]);
 			}
 			krk_markValue(closure->annotations);
+			krk_markTable(&closure->fields);
 			break;
 		}
 		case OBJ_FUNCTION: {

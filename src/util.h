@@ -40,6 +40,9 @@ static inline const char * _method_name(const char * func) {
 /* _method_name works for this, but let's skip the inlined function call where possible */
 #define _function_name(f) (f+5)
 
+#define ATTRIBUTE_NOT_ASSIGNABLE() do { if (argc != 1) return krk_runtimeError(vm.exceptions->attributeError, "attribute '%s' is not assignable", \
+	_method_name(__func__)); } while (0)
+
 #define METHOD_TAKES_NONE() do { if (argc != 1) return krk_runtimeError(vm.exceptions->argumentError, "%s() takes no arguments (%d given)", \
 	_method_name(__func__), (argc-1)); } while (0)
 

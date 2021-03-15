@@ -1760,6 +1760,14 @@ static int valueGetProperty(KrkString * name) {
 			return 1;
 		}
 		objectClass = krk_getType(krk_peek(0));
+	} else if (IS_CLOSURE(krk_peek(0))) {
+		KrkClosure * closure = AS_CLOSURE(krk_peek(0));
+		if (krk_tableGet(&closure->fields, OBJECT_VAL(name), &value)) {
+			krk_pop();
+			krk_push(value);
+			return 1;
+		}
+		objectClass = vm.baseClasses->functionClass;
 	} else {
 		objectClass = krk_getType(krk_peek(0));
 	}
@@ -1858,6 +1866,14 @@ static int valueSetProperty(KrkString * name) {
 		if (name->length && name->chars[0] == '_') {
 			/* Quietly call finalizeClass to update special method table if this looks like it might be one */
 			krk_finalizeClass(AS_CLASS(owner));
+		}
+	} else if (IS_CLOSURE(owner)) {
+		/* Closures shouldn't have descriptors, but let's let this happen anyway... */
+		if (krk_tableSet(&AS_CLOSURE(owner)->fields, OBJECT_VAL(name), value)) {
+			if (trySetDescriptor(owner, name, value)) {
+				krk_tableDelete(&AS_CLOSURE(owner)->fields, OBJECT_VAL(name));
+				return 1;
+			}
 		}
 	} else {
 		return (trySetDescriptor(owner,name,value));

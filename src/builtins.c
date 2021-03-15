@@ -24,7 +24,15 @@ KrkValue krk_dirObject(int argc, KrkValue argv[], int hasKw) {
 		KrkInstance * self = AS_INSTANCE(argv[0]);
 		for (size_t i = 0; i < self->fields.capacity; ++i) {
 			if (self->fields.entries[i].key.type != VAL_KWARGS) {
-				
+				krk_writeValueArray(AS_LIST(myList),
+					self->fields.entries[i].key);
+			}
+		}
+	} else if (IS_CLOSURE(argv[0])) {
+		/* Why not just make closures instances... */
+		KrkClosure * self = AS_CLOSURE(argv[0]);
+		for (size_t i = 0; i < self->fields.capacity; ++i) {
+			if (self->fields.entries[i].key.type != VAL_KWARGS) {
 				krk_writeValueArray(AS_LIST(myList),
 					self->fields.entries[i].key);
 			}
