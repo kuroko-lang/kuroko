@@ -562,7 +562,7 @@ static KrkValue _locals(int argc, KrkValue argv[], int hasKw) {
 	}
 
 	KrkCallFrame * frame = &krk_currentThread.frames[krk_currentThread.frameCount-index];
-	KrkFunction * func = frame->closure->function;
+	KrkCodeObject * func = frame->closure->function;
 	size_t offset = frame->ip - func->chunk.code;
 
 	/* First, we'll populate with arguments */

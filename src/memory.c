@@ -36,14 +36,14 @@ static void freeObject(KrkObj * object) {
 			FREE(KrkString, object);
 			break;
 		}
-		case OBJ_FUNCTION: {
-			KrkFunction * function = (KrkFunction*)object;
+		case KRK_OBJ_CODEOBJECT: {
+			KrkCodeObject * function = (KrkCodeObject*)object;
 			krk_freeChunk(&function->chunk);
 			krk_freeValueArray(&function->requiredArgNames);
 			krk_freeValueArray(&function->keywordArgNames);
 			FREE_ARRAY(KrkLocalEntry, function->localNames, function->localNameCount);
 			function->localNameCount = 0;
-			FREE(KrkFunction, object);
+			FREE(KrkCodeObject, object);
 			break;
 		}
 		case OBJ_NATIVE: {
@@ -151,8 +151,8 @@ static void blackenObject(KrkObj * object) {
 			krk_markTable(&closure->fields);
 			break;
 		}
-		case OBJ_FUNCTION: {
-			KrkFunction * function = (KrkFunction *)object;
+		case KRK_OBJ_CODEOBJECT: {
+			KrkCodeObject * function = (KrkCodeObject *)object;
 			krk_markObject((KrkObj*)function->name);
 			krk_markObject((KrkObj*)function->qualname);
 			krk_markObject((KrkObj*)function->docstring);

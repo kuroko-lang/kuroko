@@ -133,7 +133,7 @@ void krk_dumpTraceback() {
 
 				/* Get the function and instruction index from this traceback entry */
 				KrkClosure * closure = AS_CLOSURE(entry->values.values[0]);
-				KrkFunction * function = closure->function;
+				KrkCodeObject * function = closure->function;
 				size_t instruction = AS_INTEGER(entry->values.values[1]);
 
 				/* Calculate the line number */
@@ -472,7 +472,7 @@ inline KrkClass * krk_getType(KrkValue of) {
 			switch (AS_OBJECT(of)->type) {
 				case OBJ_CLASS:
 					return vm.baseClasses->typeClass;
-				case OBJ_FUNCTION:
+				case KRK_OBJ_CODEOBJECT:
 					return vm.baseClasses->codeobjectClass;
 				case OBJ_NATIVE:
 				case OBJ_CLOSURE:
@@ -2366,7 +2366,7 @@ _resumeHook: (void)0;
 			}
 			case OP_CLOSURE_LONG:
 			case OP_CLOSURE: {
-				KrkFunction * function = AS_FUNCTION(READ_CONSTANT(OPERAND));
+				KrkCodeObject * function = AS_codeobject(READ_CONSTANT(OPERAND));
 				KrkClosure * closure = krk_newClosure(function);
 				krk_push(OBJECT_VAL(closure));
 				for (size_t i = 0; i < closure->upvalueCount; ++i) {
@@ -2662,7 +2662,7 @@ KrkInstance * krk_startModule(const char * name) {
 }
 
 KrkValue krk_interpret(const char * src, char * fromFile) {
-	KrkFunction * function = krk_compile(src, fromFile);
+	KrkCodeObject * function = krk_compile(src, fromFile);
 	if (!function) {
 		if (!krk_currentThread.frameCount) handleException();
 		return NONE_VAL();

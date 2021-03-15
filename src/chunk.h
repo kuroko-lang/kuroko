@@ -161,7 +161,7 @@ typedef struct {
  * @brief Opcode chunk of a code object.
  *
  * Opcode chunks are internal to code objects and I'm not really
- * sure why we're still separating them from the KrkFunction objects.
+ * sure why we're still separating them from the KrkCodeObjects.
  *
  * Stores four flexible arrays using three different formats:
  * - Code, representing opcodes and operands.

@@ -231,8 +231,8 @@ KrkString * krk_copyString(const char * chars, size_t length) {
 	return result;
 }
 
-KrkFunction * krk_newFunction(void) {
-	KrkFunction * function = ALLOCATE_OBJECT(KrkFunction, OBJ_FUNCTION);
+KrkCodeObject * krk_newCodeObject(void) {
+	KrkCodeObject * function = ALLOCATE_OBJECT(KrkCodeObject, KRK_OBJ_CODEOBJECT);
 	function->requiredArgs = 0;
 	function->keywordArgs = 0;
 	function->upvalueCount = 0;
@@ -258,7 +258,7 @@ KrkNative * krk_newNative(NativeFn function, const char * name, int type) {
 	return native;
 }
 
-KrkClosure * krk_newClosure(KrkFunction * function) {
+KrkClosure * krk_newClosure(KrkCodeObject * function) {
 	KrkUpvalue ** upvalues = ALLOCATE(KrkUpvalue*, function->upvalueCount);
 	for (size_t i = 0; i < function->upvalueCount; ++i) {
 		upvalues[i] = NULL;

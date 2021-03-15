@@ -13,11 +13,9 @@ static KrkValue nativeFunctionName(KrkValue func) {
 	return OBJECT_VAL(krk_copyString(string,len));
 }
 
-#define IS_codeobject(o) IS_FUNCTION(o)
 #define IS_method(o)     IS_BOUND_METHOD(o)
 #define IS_function(o)   (IS_CLOSURE(o)|IS_NATIVE(o))
 
-#define AS_codeobject(o) AS_FUNCTION(o)
 #define AS_method(o)     AS_BOUND_METHOD(o)
 #define AS_function(o)   (o)
 
@@ -105,7 +103,7 @@ KRK_METHOD(function,__file__,{
 KRK_METHOD(function,__args__,{
 	ATTRIBUTE_NOT_ASSIGNABLE();
 	if (!IS_CLOSURE(self)) return OBJECT_VAL(krk_newTuple(0));
-	KrkFunction * _self = AS_CLOSURE(self)->function;
+	KrkCodeObject * _self = AS_CLOSURE(self)->function;
 	KrkTuple * tuple = krk_newTuple(_self->requiredArgs + _self->keywordArgs + _self->collectsArguments + _self->collectsKeywords);
 	krk_push(OBJECT_VAL(tuple));
 
@@ -147,7 +145,7 @@ KRK_METHOD(function,__annotations__,{
 })
 
 #undef CURRENT_CTYPE
-#define CURRENT_CTYPE KrkFunction*
+#define CURRENT_CTYPE KrkCodeObject*
 
 KRK_METHOD(codeobject,__name__,{
 	ATTRIBUTE_NOT_ASSIGNABLE();

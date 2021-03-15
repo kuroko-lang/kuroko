@@ -14,7 +14,7 @@
 #endif
 
 typedef enum {
-	OBJ_FUNCTION,
+	KRK_OBJ_CODEOBJECT,
 	OBJ_NATIVE,
 	OBJ_CLOSURE,
 	OBJ_STRING,
@@ -126,7 +126,7 @@ typedef struct {
 	unsigned char isGenerator:1;
 	struct KrkInstance * globalsContext;
 	KrkString * qualname;
-} KrkFunction;
+} KrkCodeObject;
 
 /**
  * @brief Function object.
@@ -136,7 +136,7 @@ typedef struct {
  */
 typedef struct {
 	KrkObj obj;
-	KrkFunction * function;
+	KrkCodeObject * function;
 	KrkUpvalue ** upvalues;
 	size_t upvalueCount;
 	unsigned char isClassMethod:1;
@@ -366,9 +366,9 @@ extern size_t krk_codepointToBytes(krk_integer_type value, unsigned char * out);
 
 /* Internal stuff. */
 extern NativeFn KrkGenericAlias;
-extern KrkFunction *    krk_newFunction(void);
+extern KrkCodeObject *    krk_newCodeObject(void);
 extern KrkNative *      krk_newNative(NativeFn function, const char * name, int type);
-extern KrkClosure *     krk_newClosure(KrkFunction * function);
+extern KrkClosure *     krk_newClosure(KrkCodeObject * function);
 extern KrkUpvalue *     krk_newUpvalue(int slot);
 extern KrkClass *       krk_newClass(KrkString * name, KrkClass * base);
 extern KrkInstance *    krk_newInstance(KrkClass * _class);
@@ -392,8 +392,6 @@ extern void krk_tupleUpdateHash(KrkTuple * self);
 #define AS_CSTRING(value)  (((KrkString *)AS_OBJECT(value))->chars)
 #define IS_BYTES(value)    isObjType(value, OBJ_BYTES)
 #define AS_BYTES(value)    ((KrkBytes*)AS_OBJECT(value))
-#define IS_FUNCTION(value) isObjType(value, OBJ_FUNCTION)
-#define AS_FUNCTION(value) ((KrkFunction *)AS_OBJECT(value))
 #define IS_NATIVE(value)   isObjType(value, OBJ_NATIVE)
 #define AS_NATIVE(value)   ((KrkNative *)AS_OBJECT(value))
 #define IS_CLOSURE(value)  isObjType(value, OBJ_CLOSURE)
@@ -409,3 +407,5 @@ extern void krk_tupleUpdateHash(KrkTuple * self);
 #define AS_LIST(value) (&((KrkList *)AS_OBJECT(value))->values)
 #define AS_DICT(value) (&((KrkDict *)AS_OBJECT(value))->entries)
 
+#define IS_codeobject(value) isObjType(value, KRK_OBJ_CODEOBJECT)
+#define AS_codeobject(value) ((KrkCodeObject *)AS_OBJECT(value))

@@ -58,7 +58,7 @@ void krk_debug_dumpStack(FILE * file, KrkCallFrame * frame) {
 }
 
 
-void krk_disassembleCodeObject(FILE * f, KrkFunction * func, const char * name) {
+void krk_disassembleCodeObject(FILE * f, KrkCodeObject * func, const char * name) {
 	KrkChunk * chunk = &func->chunk;
 	/* Function header */
 	fprintf(f, "<%s(", name);
@@ -87,7 +87,7 @@ static inline const char * opcodeClean(const char * opc) {
 	return &opc[3];
 }
 
-static int isJumpTarget(KrkFunction * func, size_t startPoint) {
+static int isJumpTarget(KrkCodeObject * func, size_t startPoint) {
 	KrkChunk * chunk = &func->chunk;
 	size_t offset = 0;
 
@@ -100,7 +100,7 @@ static int isJumpTarget(KrkFunction * func, size_t startPoint) {
 	case opc ## _LONG: { size = 4; more; break; }
 #define JUMP(opc,sign) case opc: { uint16_t jump = (chunk->code[offset + 1] << 8) | (chunk->code[offset + 2]); \
 	if ((size_t)(offset + 3 sign jump) == startPoint) return 1; size = 3; break; }
-#define CLOSURE_MORE size += AS_FUNCTION(chunk->constants.values[constant])->upvalueCount * 2
+#define CLOSURE_MORE size += AS_codeobject(chunk->constants.values[constant])->upvalueCount * 2
 #define EXPAND_ARGS_MORE
 #define LOCAL_MORE
 
@@ -149,7 +149,7 @@ static int isJumpTarget(KrkFunction * func, size_t startPoint) {
 	size = 3; break; }
 
 #define CLOSURE_MORE \
-	KrkFunction * function = AS_FUNCTION(chunk->constants.values[constant]); \
+	KrkCodeObject * function = AS_codeobject(chunk->constants.values[constant]); \
 	fprintf(f, " "); \
 	for (size_t j = 0; j < function->upvalueCount; ++j) { \
 		int isLocal = chunk->code[offset++ + 2]; \
@@ -191,7 +191,7 @@ size_t krk_lineNumber(KrkChunk * chunk, size_t offset) {
 	return line;
 }
 
-size_t krk_disassembleInstruction(FILE * f, KrkFunction * func, size_t offset) {
+size_t krk_disassembleInstruction(FILE * f, KrkCodeObject * func, size_t offset) {
 	KrkChunk * chunk = &func->chunk;
 	if (offset > 0 && krk_lineNumber(chunk, offset) == krk_lineNumber(chunk, offset - 1)) {
 		fprintf(f, "     ");
@@ -242,7 +242,7 @@ size_t krk_disassembleInstruction(FILE * f, KrkFunction * func, size_t offset) {
 #undef EXPAND_ARGS_MORE
 
 struct BreakpointEntry {
-	KrkFunction * inFunction;
+	KrkCodeObject * inFunction;
 	size_t offset;
 	int flags;
 	uint8_t originalOpcode;
@@ -259,7 +259,7 @@ static threadLocal int _repeatStack_top    = -1;
 static threadLocal int _repeatStack_bottom = -1;
 static threadLocal int _thisWasForced = 0;
 
-int krk_debug_addBreakpointCodeOffset(KrkFunction * target, size_t offset, int flags) {
+int krk_debug_addBreakpointCodeOffset(KrkCodeObject * target, size_t offset, int flags) {
 	int index = breakpointsCount;
 	if (breakpointsCount == MAX_BREAKPOINTS) {
 		/* See if any are available */
@@ -287,19 +287,19 @@ int krk_debug_addBreakpointCodeOffset(KrkFunction * target, size_t offset, int f
 
 int krk_debug_addBreakpointFileLine(KrkString * filename, size_t line, int flags) {
 
-	KrkFunction * target = NULL;
+	KrkCodeObject * target = NULL;
 
 	/* Examine all code objects to find one that matches the requested
 	 * filename and line number... */
 	KrkObj * object = vm.objects;
 	while (object) {
-		if (object->type == OBJ_FUNCTION) {
-			KrkChunk * chunk = &((KrkFunction*)object)->chunk;
+		if (object->type == KRK_OBJ_CODEOBJECT) {
+			KrkChunk * chunk = &((KrkCodeObject*)object)->chunk;
 			if (filename == chunk->filename) {
 				/* We have a candidate. */
 				if (krk_lineNumber(chunk, 0) <= line &&
 				    krk_lineNumber(chunk,chunk->count) >= line) {
-					target = (KrkFunction*)object;
+					target = (KrkCodeObject*)object;
 					break;
 				}
 			}
@@ -388,13 +388,13 @@ KRK_FUNC(addbreakpoint,{
 	if (IS_STRING(argv[0])) {
 		result = krk_debug_addBreakpointFileLine(AS_STRING(argv[0]), lineNo, flags);
 	} else {
-		KrkFunction * target = NULL;
+		KrkCodeObject * target = NULL;
 		if (IS_CLOSURE(argv[0])) {
 			target = AS_CLOSURE(argv[0])->function;
 		} else if (IS_BOUND_METHOD(argv[0]) && IS_CLOSURE(OBJECT_VAL(AS_BOUND_METHOD(argv[0])->method))) {
 			target = AS_CLOSURE(OBJECT_VAL(AS_BOUND_METHOD(argv[0])->method))->function;
-		} else if (IS_FUNCTION(argv[0])) {
-			target = AS_FUNCTION(argv[0]);
+		} else if (IS_codeobject(argv[0])) {
+			target = AS_codeobject(argv[0]);
 		} else {
 			return TYPE_ERROR(function or method or filename,argv[0]);
 		}
@@ -503,7 +503,7 @@ int krk_debug_registerCallback(KrkDebugCallback hook) {
 	return 0;
 }
 
-int krk_debug_examineBreakpoint(int breakIndex, KrkFunction ** funcOut, size_t * offsetOut, int * flagsOut, int * enabled) {
+int krk_debug_examineBreakpoint(int breakIndex, KrkCodeObject ** funcOut, size_t * offsetOut, int * flagsOut, int * enabled) {
 	if (breakIndex < 0 || breakIndex >= breakpointsCount)
 		return -1;
 	if (breakpoints[breakIndex].inFunction == NULL)
@@ -521,7 +521,7 @@ int krk_debugBreakpointHandler(void) {
 	int index = -1;
 
 	KrkCallFrame * frame = &krk_currentThread.frames[krk_currentThread.frameCount-1];
-	KrkFunction * callee = frame->closure->function;
+	KrkCodeObject * callee = frame->closure->function;
 	size_t offset        = (frame->ip - 1) - callee->chunk.code;
 
 	for (int i = 0; i < breakpointsCount; ++i) {
@@ -560,11 +560,11 @@ KRK_FUNC(dis,{
 	FUNCTION_TAKES_EXACTLY(1);
 
 	if (IS_CLOSURE(argv[0])) {
-		KrkFunction * func = AS_CLOSURE(argv[0])->function;
+		KrkCodeObject * func = AS_CLOSURE(argv[0])->function;
 		krk_disassembleCodeObject(stdout, func, func->name ? func->name->chars : "(unnamed)");
 	} else if (IS_BOUND_METHOD(argv[0])) {
 		if (AS_BOUND_METHOD(argv[0])->method->type == OBJ_CLOSURE) {
-			KrkFunction * func = ((KrkClosure*)AS_BOUND_METHOD(argv[0])->method)->function;
+			KrkCodeObject * func = ((KrkClosure*)AS_BOUND_METHOD(argv[0])->method)->function;
 			const char * methodName = func->name ? func->name->chars : "(unnamed)";
 			const char * typeName = IS_CLASS(AS_BOUND_METHOD(argv[0])->receiver) ? AS_CLASS(AS_BOUND_METHOD(argv[0])->receiver)->name->chars : krk_typeName(AS_BOUND_METHOD(argv[0])->receiver);
 			size_t allocSize = strlen(methodName) + strlen(typeName) + 2;
@@ -578,7 +578,7 @@ KRK_FUNC(dis,{
 	} else if (IS_CLASS(argv[0])) {
 		KrkValue code;
 		if (krk_tableGet(&AS_CLASS(argv[0])->methods, OBJECT_VAL(S("__func__")), &code) && IS_CLOSURE(code)) {
-			KrkFunction * func = AS_CLOSURE(code)->function;
+			KrkCodeObject * func = AS_CLOSURE(code)->function;
 			krk_disassembleCodeObject(stdout, func, AS_CLASS(argv[0])->name->chars);
 		}
 		/* TODO Methods! */
@@ -597,7 +597,7 @@ KRK_FUNC(build,{
 	krk_push(OBJECT_VAL(krk_currentThread.module));
 	KrkInstance * module = krk_currentThread.module;
 	krk_currentThread.module = NULL;
-	KrkFunction * c = krk_compile(code->chars,"<source>");
+	KrkCodeObject * c = krk_compile(code->chars,"<source>");
 	krk_currentThread.module = module;
 	krk_pop();
 	if (c) return OBJECT_VAL(c);
@@ -613,12 +613,12 @@ KRK_FUNC(build,{
 	(chunk->code[offset + 2] << 8) | (chunk->code[offset + 3]); size = 4; more; break; }
 #define JUMP(opc,sign) case opc: { jump = 0 sign ((chunk->code[offset + 1] << 8) | (chunk->code[offset + 2])); \
 	size = 3; break; }
-#define CLOSURE_MORE size += AS_FUNCTION(chunk->constants.values[constant])->upvalueCount * 2
+#define CLOSURE_MORE size += AS_codeobject(chunk->constants.values[constant])->upvalueCount * 2
 #define EXPAND_ARGS_MORE
 #define LOCAL_MORE local = operand;
 FUNC_SIG(krk,examine) {
 	FUNCTION_TAKES_EXACTLY(1);
-	CHECK_ARG(0,FUNCTION,KrkFunction*,func);
+	CHECK_ARG(0,codeobject,KrkCodeObject*,func);
 
 	KrkValue output = krk_list_of(0,NULL,0);
 	krk_push(output);

@@ -30,7 +30,7 @@
  * @param func  Code object to disassemble.
  * @param name  Function name to display in disassembly output.
  */
-extern void krk_disassembleCodeObject(FILE * f, KrkFunction * func, const char * name);
+extern void krk_disassembleCodeObject(FILE * f, KrkCodeObject * func, const char * name);
 
 /**
  * @brief Print a disassembly of a single opcode instruction.
@@ -44,7 +44,7 @@ extern void krk_disassembleCodeObject(FILE * f, KrkFunction * func, const char *
  * @param offset Byte offset of the instruction to disassemble.
  * @return The size of the instruction in bytes.
  */
-extern size_t krk_disassembleInstruction(FILE * f, KrkFunction * func, size_t offset);
+extern size_t krk_disassembleInstruction(FILE * f, KrkCodeObject * func, size_t offset);
 
 /**
  * @brief Obtain the line number for a byte offset into a bytecode chunk.
@@ -135,12 +135,12 @@ extern int krk_debug_addBreakpointFileLine(KrkString * filename, size_t line, in
  * portion of an instruction, and not an operand, or the
  * attempt to add a breakpoint can corrupt the bytecode.
  *
- * @param codeObject KrkFunction* for the code object to break on.
+ * @param codeObject KrkCodeObject* for the code object to break on.
  * @param offset Bytecode offset to insert the breakpoint at.
  * @param flags Allows configuring the disposition of the breakpoint.
  * @return A breakpoint identifier handle on success, or -1 on failure.
  */
-extern int krk_debug_addBreakpointCodeOffset(KrkFunction * codeObject, size_t offset, int flags);
+extern int krk_debug_addBreakpointCodeOffset(KrkCodeObject * codeObject, size_t offset, int flags);
 
 /**
  * @brief Remove a breakpoint from the breakpoint table.
@@ -209,7 +209,7 @@ extern void krk_debug_dumpTraceback(void);
  * @param enabledOut (Out) Whether the breakpoint is enabled or not.
  * @return 0 on success, -1 on out of range, -2 if the selected slot was removed.
  */
-extern int krk_debug_examineBreakpoint(int breakIndex, KrkFunction ** funcOut, size_t * offsetOut, int * flagsOut, int *enabledOut);
+extern int krk_debug_examineBreakpoint(int breakIndex, KrkCodeObject ** funcOut, size_t * offsetOut, int * flagsOut, int *enabledOut);
 
 /**
  * @brief Print the elements on the stack.

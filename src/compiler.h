@@ -14,7 +14,7 @@
  * @param fileName Path name of the source file or a representative string like "<stdin>"
  * @return The code object resulting from the compilation, or NULL if compilation failed.
  */
-extern KrkFunction * krk_compile(const char * src, char * fileName);
+extern KrkCodeObject * krk_compile(const char * src, char * fileName);
 
 /**
  * @brief Mark objects owned by the compiler as in use.
