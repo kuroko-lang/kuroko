@@ -109,11 +109,14 @@ void krk_printValueSafe(FILE * f, KrkValue printable) {
 			case KRK_OBJ_CLOSURE: fprintf(f, "<function %s>", AS_CLOSURE(printable)->function->name->chars); break;
 			case KRK_OBJ_BYTES: fprintf(f, "<bytes of len %ld>", (long)AS_BYTES(printable)->length); break;
 			case KRK_OBJ_TUPLE: {
-				fprintf(f, "<tuple (");
+				fprintf(f, "(");
 				for (size_t i = 0; i < AS_TUPLE(printable)->values.count; ++i) {
 					krk_printValueSafe(f, AS_TUPLE(printable)->values.values[i]);
+					if (i + 1 != AS_TUPLE(printable)->values.count) {
+						fprintf(f, ",");
+					}
 				}
-				fprintf(f, ")>");
+				fprintf(f, ")");
 			} break;
 			case KRK_OBJ_BOUND_METHOD: fprintf(f, "<method %s>",
 				AS_BOUND_METHOD(printable)->method ? (
