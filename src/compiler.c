@@ -1697,7 +1697,7 @@ static void returnStatement() {
 		if (current->type == TYPE_INIT) {
 			error("Can not return values from __init__");
 		}
-		expression();
+		parsePrecedence(PREC_ASSIGNMENT);
 		emitByte(OP_RETURN);
 	}
 }
@@ -1711,7 +1711,7 @@ static void yieldStatement() {
 	if (check(TOKEN_EOL) || check(TOKEN_EOF)) {
 		emitByte(OP_NONE);
 	} else {
-		expression();
+		parsePrecedence(PREC_ASSIGNMENT);
 	}
 	emitBytes(OP_YIELD, OP_POP);
 }
@@ -1781,7 +1781,7 @@ static void tryStatement() {
 }
 
 static void raiseStatement() {
-	expression();
+	parsePrecedence(PREC_ASSIGNMENT);
 	emitByte(OP_RAISE);
 }
 
@@ -2078,7 +2078,7 @@ static void string(int type) {
 				KrkScanner inner = (KrkScanner){.start=c+1, .cur=c+1, .linePtr=lineBefore, .line=lineNo, .startOfLine = 0, .hasUnget = 0};
 				krk_rewindScanner(inner);
 				advance();
-				expression();
+				parsePrecedence(PREC_COMMA); /* allow unparen'd tuples, but not assignments, as expressions in f-strings */
 				if (parser.hadError) {
 					FREE_ARRAY(char,stringBytes,stringCapacity);
 					return;
