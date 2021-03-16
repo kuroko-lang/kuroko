@@ -55,13 +55,8 @@ class Pair():
     def __repr__():
         return f'Pair({self.left!r},{self.right!r})'
     def __iter__():
-        let x = -1
-        def _():
-            x++
-            if x == 0: return self.left
-            elif x == 1: return self.right
-            else: return _
-        return _
+        yield self.left
+        yield self.right
 
 let modules = [
     # Integrated stuff
