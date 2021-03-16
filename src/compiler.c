@@ -260,7 +260,8 @@ static size_t addLocal(KrkToken name);
 static void string(int canAssign);
 static KrkToken decorator(size_t level, FunctionType type);
 static void call(int canAssign);
-static void complexAssignment(size_t count, KrkScanner oldScanner, Parser oldParser, size_t targetCount);
+static void complexAssignment(size_t count, KrkScanner oldScanner, Parser oldParser, size_t targetCount, int parenthesized);
+static void complexAssignmentTargets(size_t count, KrkScanner oldScanner, Parser oldParser, size_t targetCount, int parenthesized);
 
 static void finishError(KrkToken * token) {
 	size_t i = 0;
@@ -2431,10 +2432,20 @@ static void grouping(int canAssign) {
 		} else if (!maybeValidAssignment) {
 			error("Can not assign to generator expression.");
 		} else {
-			complexAssignment(chunkBefore, scannerBefore, parserBefore, argCount);
+			complexAssignment(chunkBefore, scannerBefore, parserBefore, argCount, 1);
 		}
 	} else if (canAssign == 2 && (check(TOKEN_EQUAL) || check(TOKEN_COMMA) || check(TOKEN_RIGHT_PAREN))) {
-		error("Assignment to nested parenthesized target list unsupported.");
+		if (!argCount) {
+			error("Can not assign to empty target list.");
+		} else if (!maybeValidAssignment) {
+			error("Can not assign to generator expression.");
+		} else {
+			currentChunk()->count = chunkBefore;
+			complexAssignmentTargets(chunkBefore, scannerBefore, parserBefore, argCount, 2);
+			if (!matchComplexEnd()) {
+				errorAtCurrent("Unexpected end of nested target list");
+			}
+		}
 	}
 }
 
@@ -2665,20 +2676,13 @@ static void actualTernary(size_t count, KrkScanner oldScanner, Parser oldParser)
 	parser = outParser;
 }
 
-static void complexAssignment(size_t count, KrkScanner oldScanner, Parser oldParser, size_t targetCount) {
-	int parenthesizedTargets = (oldParser.previous.length && oldParser.previous.type == TOKEN_LEFT_PAREN);
-
-	currentChunk()->count = count;
-	parsePrecedence(PREC_ASSIGNMENT);
+static void complexAssignmentTargets(size_t count, KrkScanner oldScanner, Parser oldParser, size_t targetCount, int parenthesized) {
 	emitBytes(OP_DUP, 0);
+
 	if (targetCount > 1) {
 		EMIT_CONSTANT_OP(OP_UNPACK,targetCount);
 		EMIT_CONSTANT_OP(OP_REVERSE,targetCount);
 	}
-
-	/* Store end state */
-	KrkScanner outScanner = krk_tellScanner();
-	Parser outParser = parser;
 
 	/* Rewind */
 	krk_rewindScanner(oldScanner);
@@ -2692,27 +2696,45 @@ static void complexAssignment(size_t count, KrkScanner oldScanner, Parser oldPar
 		emitByte(OP_POP);
 
 		if (checkTargetCount == targetCount && parser.previous.type == TOKEN_COMMA) {
-			if (!match(parenthesizedTargets ? TOKEN_RIGHT_PAREN : TOKEN_EQUAL)) {
-				errorAtCurrent("Expected to rescan end of target list, not '%.*s'",
-					(int)parser.current.length, parser.current.start);
-				break;
+			if (!match(parenthesized ? TOKEN_RIGHT_PAREN : TOKEN_EQUAL)) {
+				goto _errorAtCurrent;
 			}
 		}
 
-		if (checkTargetCount == targetCount && parenthesizedTargets) {
-			if (parser.previous.type != TOKEN_RIGHT_PAREN || !match(TOKEN_EQUAL)) {
-				errorAtCurrent("Expected to rescan closing paren, not '%.*s'",
-					(int)parser.current.length, parser.current.start);
-				break;
+		if (checkTargetCount == targetCount && parenthesized) {
+			if (parser.previous.type != TOKEN_RIGHT_PAREN) {
+				goto _errorAtCurrent;
 			}
 		}
+
+		if (checkTargetCount == targetCount && parenthesized) {
+			if (parenthesized == 1 && !match(TOKEN_EQUAL)) {
+				goto _errorAtCurrent;
+			}
+		}
+
+		if (checkTargetCount == targetCount) return;
 
 		if (check(TOKEN_COMMA) || check(TOKEN_EQUAL) || check(TOKEN_RIGHT_PAREN)) {
-			error("Invalid complex assignment target (target #%d)", checkTargetCount+1);
-			break;
+			goto _errorAtCurrent;
 		}
 
 	} while (parser.previous.type != TOKEN_EQUAL && !parser.hadError);
+
+_errorAtCurrent:
+	errorAtCurrent("Invalid complex assignment target");
+}
+
+static void complexAssignment(size_t count, KrkScanner oldScanner, Parser oldParser, size_t targetCount, int parenthesized) {
+
+	currentChunk()->count = count;
+	parsePrecedence(PREC_ASSIGNMENT);
+
+	/* Store end state */
+	KrkScanner outScanner = krk_tellScanner();
+	Parser outParser = parser;
+
+	complexAssignmentTargets(count,oldScanner,oldParser,targetCount,parenthesized);
 
 	/* Restore end state */
 	krk_rewindScanner(outScanner);
@@ -2730,7 +2752,7 @@ static void actualComma(int canAssign, size_t count, KrkScanner oldScanner, Pars
 	EMIT_CONSTANT_OP(OP_TUPLE,expressionCount);
 
 	if (canAssign == 1 && match(TOKEN_EQUAL)) {
-		complexAssignment(count, oldScanner, oldParser, expressionCount);
+		complexAssignment(count, oldScanner, oldParser, expressionCount, 0);
 	}
 }
 
