@@ -756,7 +756,7 @@ _finishKwarg:
 		KrkInstance * gen = krk_buildGenerator(closure, krk_currentThread.stackTop - argCount, argCount);
 		krk_currentThread.stackTop = krk_currentThread.stackTop - argCount - extra;
 		krk_push(OBJECT_VAL(gen));
-		return 1;
+		return 2;
 	}
 	if (krk_currentThread.frameCount == KRK_CALL_FRAMES_MAX) {
 		krk_runtimeError(vm.exceptions->baseException, "Too many call frames.");
