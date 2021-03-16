@@ -111,6 +111,11 @@ struct IndexWithNext {
 	struct IndexWithNext * next;
 };
 
+struct LoopExit {
+	int offset;
+	KrkToken token;
+};
+
 typedef struct Compiler {
 	struct Compiler * enclosing;
 	KrkCodeObject * codeobject;
@@ -125,10 +130,10 @@ typedef struct Compiler {
 	size_t loopLocalCount;
 	size_t breakCount;
 	size_t breakSpace;
-	int * breaks;
+	struct LoopExit * breaks;
 	size_t continueCount;
 	size_t continueSpace;
-	int * continues;
+	struct LoopExit * continues;
 
 	size_t localNameCapacity;
 
@@ -148,9 +153,7 @@ static Compiler * current = NULL;
 static ClassCompiler * currentClass = NULL;
 static int inDel = 0;
 
-static KrkChunk * currentChunk() {
-	return &current->codeobject->chunk;
-}
+#define currentChunk() (&current->codeobject->chunk)
 
 #define EMIT_CONSTANT_OP(opc, arg) do { if (arg < 256) { emitBytes(opc, arg); } \
 	else { emitBytes(opc ## _LONG, arg >> 16); emitBytes(arg >> 8, arg); } } while (0)
@@ -386,6 +389,8 @@ static KrkCodeObject * endCompiler() {
 	current->codeobject->localNames = GROW_ARRAY(KrkLocalEntry, current->codeobject->localNames, \
 		current->localNameCapacity, current->codeobject->localNameCount); /* Shorten this down for runtime */
 
+	if (current->continueCount) { parser.previous = current->continues[0].token; error("continue without loop"); }
+	if (current->breakCount) { parser.previous = current->breaks[0].token; error("break without loop"); }
 	emitReturn();
 
 	/* Attach contants for arguments */
@@ -433,8 +438,8 @@ static KrkCodeObject * endCompiler() {
 static void freeCompiler(Compiler * compiler) {
 	FREE_ARRAY(Local,compiler->locals, compiler->localsSpace);
 	FREE_ARRAY(Upvalue,compiler->upvalues, compiler->upvaluesSpace);
-	FREE_ARRAY(int,compiler->breaks, compiler->breakSpace);
-	FREE_ARRAY(int,compiler->continues, compiler->continueSpace);
+	FREE_ARRAY(struct LoopExit,compiler->breaks, compiler->breakSpace);
+	FREE_ARRAY(struct LoopExit,compiler->continues, compiler->continueSpace);
 
 	while (compiler->properties) {
 		void * tmp = compiler->properties;
@@ -734,7 +739,7 @@ static void in_(int canAssign) {
 }
 
 static void not_(int canAssign) {
-	consume(TOKEN_IN, "infix not must be followed by in\n");
+	consume(TOKEN_IN, "infix not must be followed by 'in'");
 	in_(canAssign);
 	emitByte(OP_NOT);
 }
@@ -1402,8 +1407,8 @@ static KrkToken decorator(size_t level, FunctionType type) {
 static void emitLoop(int loopStart) {
 
 	/* Patch continue statements to point to here, before the loop operation (yes that's silly) */
-	while (current->continueCount > 0 && current->continues[current->continueCount-1] > loopStart) {
-		patchJump(current->continues[current->continueCount-1]);
+	while (current->continueCount > 0 && current->continues[current->continueCount-1].offset > loopStart) {
+		patchJump(current->continues[current->continueCount-1].offset);
 		current->continueCount--;
 	}
 
@@ -1516,8 +1521,8 @@ static void ifStatement() {
 
 static void patchBreaks(int loopStart) {
 	/* Patch break statements to go here, after the loop operation and operand. */
-	while (current->breakCount > 0 && current->breaks[current->breakCount-1] > loopStart) {
-		patchJump(current->breaks[current->breakCount-1]);
+	while (current->breakCount > 0 && current->breaks[current->breakCount-1].offset > loopStart) {
+		patchJump(current->breaks[current->breakCount-1].offset);
 		current->breakCount--;
 	}
 }
@@ -1526,26 +1531,26 @@ static void breakStatement() {
 	if (current->breakSpace < current->breakCount + 1) {
 		size_t old = current->breakSpace;
 		current->breakSpace = GROW_CAPACITY(old);
-		current->breaks = GROW_ARRAY(int,current->breaks,old,current->breakSpace);
+		current->breaks = GROW_ARRAY(struct LoopExit,current->breaks,old,current->breakSpace);
 	}
 
 	for (size_t i = current->loopLocalCount; i < current->localCount; ++i) {
 		emitByte(OP_POP);
 	}
-	current->breaks[current->breakCount++] = emitJump(OP_JUMP);
+	current->breaks[current->breakCount++] = (struct LoopExit){emitJump(OP_JUMP),parser.previous};
 }
 
 static void continueStatement() {
 	if (current->continueSpace < current->continueCount + 1) {
 		size_t old = current->continueSpace;
 		current->continueSpace = GROW_CAPACITY(old);
-		current->continues = GROW_ARRAY(int,current->continues,old,current->continueSpace);
+		current->continues = GROW_ARRAY(struct LoopExit,current->continues,old,current->continueSpace);
 	}
 
 	for (size_t i = current->loopLocalCount; i < current->localCount; ++i) {
 		emitByte(OP_POP);
 	}
-	current->continues[current->continueCount++] = emitJump(OP_JUMP);
+	current->continues[current->continueCount++] = (struct LoopExit){emitJump(OP_JUMP),parser.previous};
 }
 
 static void whileStatement() {
