@@ -196,6 +196,7 @@ static void initCompiler(Compiler * compiler, FunctionType type) {
 	compiler->codeobject = NULL;
 	compiler->type = type;
 	compiler->scopeDepth = 0;
+	compiler->enclosed = NULL;
 	compiler->codeobject = krk_newCodeObject();
 	compiler->codeobject->globalsContext = (KrkInstance*)krk_currentThread.module;
 	compiler->localCount = 0;
@@ -212,7 +213,6 @@ static void initCompiler(Compiler * compiler, FunctionType type) {
 	compiler->loopLocalCount = 0;
 	compiler->localNameCapacity = 0;
 	compiler->properties = NULL;
-	compiler->enclosed = NULL;
 	compiler->annotationCount = 0;
 
 	if (type != TYPE_MODULE) {
@@ -3036,7 +3036,7 @@ KrkCodeObject * krk_compile(const char * src, char * fileName) {
 void krk_markCompilerRoots() {
 	Compiler * compiler = current;
 	while (compiler != NULL) {
-		if (compiler->enclosed) krk_markObject((KrkObj*)compiler->enclosed->codeobject);
+		if (compiler->enclosed && compiler->enclosed->codeobject) krk_markObject((KrkObj*)compiler->enclosed->codeobject);
 		krk_markObject((KrkObj*)compiler->codeobject);
 		compiler = compiler->enclosing;
 	}
