@@ -1455,6 +1455,10 @@ static void withStatement() {
 
 	consume(TOKEN_COLON, "Expected ':' after with statement");
 
+	/* Storage for return / exception */
+	addLocal(syntheticToken(""));
+
+	/* Handler object */
 	addLocal(syntheticToken(""));
 	int withJump = emitJump(OP_PUSH_WITH);
 	markInitialized();

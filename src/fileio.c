@@ -258,7 +258,7 @@ KRK_METHOD(File,__init__,{
 
 KRK_METHOD(File,__enter__,{})
 KRK_METHOD(File,__exit__,{
-	return FUNC_NAME(File,close)(argc,argv,0);
+	return FUNC_NAME(File,close)(1,argv,0);
 })
 
 static void makeFileInstance(KrkInstance * module, const char name[], FILE * file) {
@@ -487,7 +487,7 @@ KRK_METHOD(Directory,__repr__,{
 
 KRK_METHOD(Directory,__enter__,{})
 KRK_METHOD(Directory,__exit__,{
-	return FUNC_NAME(Directory,close)(argc,argv,0);
+	return FUNC_NAME(Directory,close)(1,argv,0);
 })
 
 _noexport

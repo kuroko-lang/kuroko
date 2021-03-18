@@ -190,7 +190,6 @@ KRK_METHOD(Lock,__enter__,{
 })
 
 KRK_METHOD(Lock,__exit__,{
-	METHOD_TAKES_NONE();
 	pthread_mutex_unlock(&self->mutex);
 })
 

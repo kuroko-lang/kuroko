@@ -1,0 +1,36 @@
+class Context:
+    def __enter__(self):
+        print("Entering")
+    def __exit__(self, *args):
+        print("Exiting with",[type(x) for x in args])
+
+def simple():
+    print("Before")
+    with Context() as c:
+        print("In context")
+    print("After")
+
+simple()
+
+def withReturn():
+    print("Before")
+    with Context() as c:
+        print("in context")
+        return 42
+        print("after return")
+    print("After")
+
+print(withReturn())
+
+def withException():
+    print("Before")
+    with Context() as c:
+        print("Raising")
+        raise ValueError()
+        print("Don't print me")
+    print("After")
+
+try:
+    withException()
+except Exception as e:
+    print(repr(e))

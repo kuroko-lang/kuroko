@@ -5,7 +5,7 @@ class ContextManager:
         self.title = title
     def __enter__():
         print("Enter context manager", self.title)
-    def __exit__():
+    def __exit__(type,value,traceback):
         print("Exit context manager", self.title)
 
 

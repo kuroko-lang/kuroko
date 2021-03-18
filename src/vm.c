@@ -1434,6 +1434,7 @@ static int handleException() {
 	for (stackOffset = (int)(krk_currentThread.stackTop - krk_currentThread.stack - 1);
 		stackOffset >= exitSlot &&
 		!IS_TRY_HANDLER(krk_currentThread.stack[stackOffset]) &&
+		!IS_WITH_HANDLER(krk_currentThread.stack[stackOffset]) &&
 		!IS_EXCEPT_HANDLER(krk_currentThread.stack[stackOffset])
 		; stackOffset--);
 	if (stackOffset < exitSlot) {
@@ -1979,14 +1980,33 @@ _resumeHook: (void)0;
 			case OP_CLEANUP_WITH: {
 				/* Top of stack is a HANDLER that should have had something loaded into it if it was still valid */
 				KrkValue handler = krk_peek(0);
-				KrkValue contextManager = krk_peek(1);
+				KrkValue exceptionObject = krk_peek(1);
+				KrkValue contextManager = krk_peek(2);
 				KrkClass * type = krk_getType(contextManager);
 				krk_push(contextManager);
-				krk_callSimple(OBJECT_VAL(type->_exit), 1, 0);
-				/* Top of stack is now either someone else's problem or a return value */
+				if (AS_HANDLER(handler).type == OP_RAISE) {
+					krk_push(OBJECT_VAL(krk_getType(exceptionObject)));
+					krk_push(exceptionObject);
+					KrkValue tracebackEntries = NONE_VAL();
+					if (IS_INSTANCE(exceptionObject))
+						krk_tableGet(&AS_INSTANCE(exceptionObject)->fields, OBJECT_VAL(S("traceback")), &tracebackEntries);
+					krk_push(tracebackEntries);
+					krk_callSimple(OBJECT_VAL(type->_exit), 4, 0);
+					/* Top of stack is now either someone else's problem or a return value */
+					if (!(krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION)) {
+						krk_pop(); /* Handler object */
+						krk_currentThread.currentException = krk_pop(); /* Original exception */
+						krk_currentThread.flags |= KRK_THREAD_HAS_EXCEPTION;
+					}
+					goto _finishException;
+				} else {
+					krk_push(NONE_VAL());
+					krk_push(NONE_VAL());
+					krk_push(NONE_VAL());
+					krk_callSimple(OBJECT_VAL(type->_exit), 4, 0);
+				}
 				if (AS_HANDLER(handler).type != OP_RETURN) break;
 				krk_pop(); /* handler */
-				krk_pop(); /* contextManager */
 			} /* fallthrough */
 			case OP_RETURN: {
 _finishReturn: (void)0;
@@ -2003,15 +2023,8 @@ _finishReturn: (void)0;
 				if (stackOffset >= (int)frame->slots) {
 					krk_currentThread.stackTop = &krk_currentThread.stack[stackOffset + 1];
 					frame->ip = frame->closure->function->chunk.code + AS_HANDLER(krk_peek(0)).target;
-					int wasWith = (IS_WITH_HANDLER(krk_peek(0)));
 					AS_HANDLER(krk_currentThread.stackTop[-1]).type = OP_RETURN;
-					krk_push(result);
-					krk_swap(2);
-					if (wasWith) {
-						krk_swap(1);
-					} else {
-						krk_pop();
-					}
+					krk_currentThread.stackTop[-2] = result;
 					break;
 				}
 				krk_currentThread.frameCount--;
@@ -2317,6 +2330,7 @@ _finishReturn: (void)0;
 				krk_push(contextManager);
 				krk_callSimple(OBJECT_VAL(type->_enter), 1, 0);
 				/* Ignore result; don't need to pop */
+				krk_push(NONE_VAL());
 				KrkValue handler = HANDLER_VAL(OP_PUSH_WITH, cleanupTarget);
 				krk_push(handler);
 				break;
