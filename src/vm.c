@@ -300,7 +300,10 @@ inline void krk_push(KrkValue value) {
 inline KrkValue krk_pop() {
 	krk_currentThread.stackTop--;
 	if (unlikely(krk_currentThread.stackTop < krk_currentThread.stack)) {
-		fprintf(stderr, "Fatal error: stack underflow detected in VM.\n");
+		fprintf(stderr, "Fatal error: stack underflow detected in VM (krk_currentThread.stackTop = %p, krk_currentThread.stack = %p)\n",
+			(void*)krk_currentThread.stackTop,
+			(void*)krk_currentThread.stack);
+		abort();
 		return NONE_VAL();
 	}
 	return *krk_currentThread.stackTop;
@@ -738,8 +741,10 @@ _finishKwarg:
 		/* We can't have had any kwargs. */
 		if ((size_t)argCount > potentialPositionalArgs && closure->function->collectsArguments) {
 			krk_push(NONE_VAL()); krk_push(NONE_VAL()); krk_pop(); krk_pop();
-			startOfPositionals[offsetOfExtraArgs] = krk_list_of(argCount - potentialPositionalArgs,
+			KrkValue tmp = krk_list_of(argCount - potentialPositionalArgs,
 				&startOfPositionals[potentialPositionalArgs], 0);
+			startOfPositionals = &krk_currentThread.stackTop[-argCount];
+			startOfPositionals[offsetOfExtraArgs] = tmp;
 			argCount = closure->function->requiredArgs + 1;
 			argCountX = argCount - 1;
 			while (krk_currentThread.stackTop > startOfPositionals + argCount) krk_pop();
@@ -2004,6 +2009,7 @@ _resumeHook: (void)0;
 					krk_push(NONE_VAL());
 					krk_push(NONE_VAL());
 					krk_callSimple(OBJECT_VAL(type->_exit), 4, 0);
+					if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) goto _finishException;
 				}
 				if (AS_HANDLER(handler).type != OP_RETURN) break;
 				krk_pop(); /* handler */

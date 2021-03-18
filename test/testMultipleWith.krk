@@ -1,0 +1,39 @@
+class Context:
+    def __init__(self,name):
+        self.name = name
+    def __enter__(self):
+        print("Entering",self.name)
+    def __exit__(self, *args):
+        print("Exiting",self.name,"with",[type(x) for x in args])
+
+def nested():
+    print("Before")
+    with Context('a') as a:
+        with Context('b') as b:
+            with Context('c') as c:
+                print("Hello, world.")
+    print("After")
+
+nested()
+
+def simple():
+    print("Before")
+    with Context('a') as a, Context('b') as b, Context('c') as c:
+        print("Hello, world.")
+    print("After")
+
+simple()
+
+
+def exceptional():
+    print("Before")
+    with Context('a') as a, Context('b') as b, Context('c') as c:
+        print("Prior")
+        raise ValueError("oh no")
+        print("Shouldn't happen")
+    print("After")
+
+try:
+    exceptional()
+except Exception as e:
+    print("Raised",repr(e))

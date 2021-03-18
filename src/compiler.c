@@ -1435,6 +1435,7 @@ static void withStatement() {
 
 	/* We only need this for block() */
 	size_t blockWidth = (parser.previous.type == TOKEN_INDENTATION) ? parser.previous.length : 0;
+	KrkToken myPrevious = parser.previous;
 
 	/* Collect the with token that started this statement */
 	advance();
@@ -1453,19 +1454,25 @@ static void withStatement() {
 		markInitialized();
 	}
 
-	consume(TOKEN_COLON, "Expected ':' after with statement");
-
 	/* Storage for return / exception */
 	addLocal(syntheticToken(""));
+	markInitialized();
 
 	/* Handler object */
 	addLocal(syntheticToken(""));
 	int withJump = emitJump(OP_PUSH_WITH);
 	markInitialized();
 
-	beginScope();
-	block(blockWidth,"with");
-	endScope();
+	if (check(TOKEN_COMMA)) {
+		parser.previous = myPrevious;
+		withStatement(); /* Keep nesting */
+	} else {
+		consume(TOKEN_COLON, "Expected ',' or ':' after with statement");
+
+		beginScope();
+		block(blockWidth,"with");
+		endScope();
+	}
 
 	patchJump(withJump);
 	emitByte(OP_CLEANUP_WITH);
