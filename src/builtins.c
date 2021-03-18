@@ -79,8 +79,8 @@ KrkValue krk_dirObject(int argc, KrkValue argv[], int hasKw) {
 }
 
 
-static KrkValue _len(int argc, KrkValue argv[], int hasKw) {
-	if (argc != 1) return krk_runtimeError(vm.exceptions->argumentError, "len() takes exactly one argument");
+KRK_FUNC(len,{
+	FUNCTION_TAKES_EXACTLY(1);
 	/* Shortcuts */
 	if (IS_STRING(argv[0])) return INTEGER_VAL(AS_STRING(argv[0])->codesLength);
 	if (IS_TUPLE(argv[0])) return INTEGER_VAL(AS_TUPLE(argv[0])->values.count);
@@ -90,66 +90,63 @@ static KrkValue _len(int argc, KrkValue argv[], int hasKw) {
 	krk_push(argv[0]);
 
 	return krk_callSimple(OBJECT_VAL(type->_len), 1, 0);
-}
+})
 
-static KrkValue _dir(int argc, KrkValue argv[], int hasKw) {
-	if (argc != 1) return krk_runtimeError(vm.exceptions->argumentError, "dir() takes exactly one argument");
+KRK_FUNC(dir,{
+	FUNCTION_TAKES_EXACTLY(1);
 	KrkClass * type = krk_getType(argv[0]);
 	if (!type->_dir) {
 		return krk_dirObject(argc,argv,hasKw); /* Fallback */
 	}
 	krk_push(argv[0]);
 	return krk_callSimple(OBJECT_VAL(type->_dir), 1, 0);
-}
+})
 
-static KrkValue _repr(int argc, KrkValue argv[], int hasKw) {
-	if (argc != 1) return krk_runtimeError(vm.exceptions->argumentError, "repr() takes exactly one argument");
-
+KRK_FUNC(repr,{
+	FUNCTION_TAKES_EXACTLY(1);
 	/* Everything should have a __repr__ */
 	KrkClass * type = krk_getType(argv[0]);
 	krk_push(argv[0]);
 	return krk_callSimple(OBJECT_VAL(type->_reprer), 1, 0);
-}
+})
 
-static KrkValue _ord(int argc, KrkValue argv[], int hasKw) {
-	if (argc != 1) return krk_runtimeError(vm.exceptions->argumentError, "ord() takes exactly one argument");
-
+KRK_FUNC(ord,{
+	FUNCTION_TAKES_EXACTLY(1);
 	KrkClass * type = krk_getType(argv[0]);
 	KrkValue method;
 	if (krk_tableGet(&type->methods, vm.specialMethodNames[METHOD_ORD], &method)) {
 		krk_push(argv[0]);
 		return krk_callSimple(method, 1, 0);
 	}
-	return krk_runtimeError(vm.exceptions->argumentError, "ord() expected string of length 1, but got %s", krk_typeName(argv[0]));
-}
+	return TYPE_ERROR(string of length 1,argv[0]);
+})
 
-static KrkValue _chr(int argc, KrkValue argv[], int hasKw) {
-	if (argc != 1) return krk_runtimeError(vm.exceptions->argumentError, "chr() takes exactly one argument");
-
+KRK_FUNC(chr,{
+	FUNCTION_TAKES_EXACTLY(1);
 	KrkClass * type = krk_getType(argv[0]);
 	KrkValue method;
 	if (krk_tableGet(&type->methods, vm.specialMethodNames[METHOD_CHR], &method)) {
 		krk_push(argv[0]);
 		return krk_callSimple(method, 1, 0);
 	}
-	return krk_runtimeError(vm.exceptions->argumentError, "chr() expected an integer, but got %s", krk_typeName(argv[0]));
-}
+	return TYPE_ERROR(int,argv[0]);
+})
 
-static KrkValue _hex(int argc, KrkValue argv[], int hasKw) {
-	if (argc != 1 || !IS_INTEGER(argv[0])) return krk_runtimeError(vm.exceptions->argumentError, "hex() expects one int argument");
+KRK_FUNC(hex,{
+	FUNCTION_TAKES_EXACTLY(1);
+	CHECK_ARG(0,int,krk_integer_type,x);
 	char tmp[20];
-	krk_integer_type x = AS_INTEGER(argv[0]);
 	size_t len = snprintf(tmp, 20, "%s0x" PRIkrk_hex, x < 0 ? "-" : "", x < 0 ? -x : x);
 	return OBJECT_VAL(krk_copyString(tmp,len));
-}
+})
 
-static KrkValue _oct(int argc, KrkValue argv[], int hasKw) {
-	if (argc != 1 || !IS_INTEGER(argv[0])) return krk_runtimeError(vm.exceptions->argumentError, "oct() expects one int argument");
+KRK_FUNC(oct,{
+	FUNCTION_TAKES_EXACTLY(1);
+	CHECK_ARG(0,int,krk_integer_type,x);
 	char tmp[20];
-	krk_integer_type x = AS_INTEGER(argv[0]);
 	size_t len = snprintf(tmp, 20, "%s0o%llo", x < 0 ? "-" : "", x < 0 ? (long long int)-x : (long long int)x);
 	return OBJECT_VAL(krk_copyString(tmp,len));
-}
+})
 
 KRK_FUNC(bin,{
 	FUNCTION_TAKES_EXACTLY(1);
@@ -180,27 +177,29 @@ KRK_FUNC(bin,{
 	return finishStringBuilder(&sb);
 })
 
-static KrkValue _any(int argc, KrkValue argv[], int hasKw) {
 #define unpackArray(counter, indexer) do { \
 	for (size_t i = 0; i < counter; ++i) { \
 		if (!krk_isFalsey(indexer)) return BOOLEAN_VAL(1); \
 	} \
 } while (0)
+KRK_FUNC(any,{
+	FUNCTION_TAKES_EXACTLY(1);
 	unpackIterableFast(argv[0]);
-#undef unpackArray
 	return BOOLEAN_VAL(0);
-}
+})
+#undef unpackArray
 
-static KrkValue _all(int argc, KrkValue argv[], int hasKw) {
 #define unpackArray(counter, indexer) do { \
 	for (size_t i = 0; i < counter; ++i) { \
 		if (krk_isFalsey(indexer)) return BOOLEAN_VAL(0); \
 	} \
 } while (0)
+KRK_FUNC(all,{
+	FUNCTION_TAKES_EXACTLY(1);
 	unpackIterableFast(argv[0]);
-#undef unpackArray
 	return BOOLEAN_VAL(1);
-}
+})
+#undef unpackArray
 
 static KrkClass * mapobject;
 KRK_FUNC(map,{
@@ -428,25 +427,23 @@ KRK_METHOD(enumerateobject,__repr__,{
 	return OBJECT_VAL(krk_copyString(tmp,len));
 })
 
-static KrkValue _sum(int argc, KrkValue argv[], int hasKw) {
-	KrkValue base = INTEGER_VAL(0);
-	if (hasKw) {
-		krk_tableGet(AS_DICT(argv[argc]), OBJECT_VAL(S("start")), &base);
-	}
 #define unpackArray(counter, indexer) do { \
 	for (size_t i = 0; i < counter; ++i) { \
 		base = krk_operator_add(base, indexer); \
 	} \
 } while (0)
+KRK_FUNC(sum,{
+	FUNCTION_TAKES_AT_LEAST(1);
+	KrkValue base = INTEGER_VAL(0);
+	if (hasKw) {
+		krk_tableGet(AS_DICT(argv[argc]), OBJECT_VAL(S("start")), &base);
+	}
 	unpackIterableFast(argv[0]);
-#undef unpackArray
 	return base;
-}
+})
+#undef unpackArray
 
 extern KrkValue krk_operator_lt(KrkValue a, KrkValue b);
-static KrkValue _min(int argc, KrkValue argv[], int hasKw) {
-	if (argc == 0) return krk_runtimeError(vm.exceptions->argumentError, "expected at least one argument");
-	KrkValue base = KWARGS_VAL(0);
 #define unpackArray(counter, indexer) do { \
 	for (size_t i = 0; i < counter; ++i) { \
 		if (IS_KWARGS(base)) base = indexer; \
@@ -457,20 +454,20 @@ static KrkValue _min(int argc, KrkValue argv[], int hasKw) {
 		} \
 	} \
 } while (0)
+KRK_FUNC(min,{
+	FUNCTION_TAKES_AT_LEAST(1);
+	KrkValue base = KWARGS_VAL(0);
 	if (argc > 1) {
 		unpackArray((size_t)argc,argv[i]);
 	} else {
 		unpackIterableFast(argv[0]);
 	}
-#undef unpackArray
-	if (IS_KWARGS(base)) return krk_runtimeError(vm.exceptions->valueError, "empty argument to min()");
+	if (IS_KWARGS(base)) return krk_runtimeError(vm.exceptions->valueError, "empty argument to %s()", "min");
 	return base;
-}
+})
+#undef unpackArray
 
 extern KrkValue krk_operator_gt(KrkValue a, KrkValue b);
-static KrkValue _max(int argc, KrkValue argv[], int hasKw) {
-	if (argc == 0) return krk_runtimeError(vm.exceptions->argumentError, "expected at least one argument");
-	KrkValue base = KWARGS_VAL(0);
 #define unpackArray(counter, indexer) do { \
 	for (size_t i = 0; i < counter; ++i) { \
 		if (IS_KWARGS(base)) base = indexer; \
@@ -481,15 +478,18 @@ static KrkValue _max(int argc, KrkValue argv[], int hasKw) {
 		} \
 	} \
 } while (0)
+KRK_FUNC(max,{
+	FUNCTION_TAKES_AT_LEAST(1);
+	KrkValue base = KWARGS_VAL(0);
 	if (argc > 1) {
 		unpackArray((size_t)argc,argv[i]);
 	} else {
 		unpackIterableFast(argv[0]);
 	}
-#undef unpackArray
-	if (IS_KWARGS(base)) return krk_runtimeError(vm.exceptions->valueError, "empty argument to max()");
+	if (IS_KWARGS(base)) return krk_runtimeError(vm.exceptions->valueError, "empty argument to %s()", "max");
 	return base;
-}
+})
+#undef unpackArray
 
 static KrkValue _print(int argc, KrkValue argv[], int hasKw) {
 	KrkValue sepVal, endVal;
@@ -530,7 +530,8 @@ static KrkValue _print(int argc, KrkValue argv[], int hasKw) {
  *
  * Returns a dict of names -> values for all the globals.
  */
-static KrkValue _globals(int argc, KrkValue argv[], int hasKw) {
+KRK_FUNC(globals,{
+	FUNCTION_TAKES_NONE();
 	/* Make a new empty dict */
 	KrkValue dict = krk_dict_of(0, NULL, 0);
 	krk_push(dict);
@@ -539,14 +540,15 @@ static KrkValue _globals(int argc, KrkValue argv[], int hasKw) {
 	krk_pop();
 
 	return dict;
-}
+})
 
 /**
  * locals()
  *
  * This is a bit trickier. Local names are... complicated. But we can do this!
  */
-static KrkValue _locals(int argc, KrkValue argv[], int hasKw) {
+KRK_FUNC(locals,{
+	FUNCTION_TAKES_AT_MOST(1);
 	KrkValue dict = krk_dict_of(0, NULL, 0);
 	krk_push(dict);
 
@@ -602,10 +604,10 @@ static KrkValue _locals(int argc, KrkValue argv[], int hasKw) {
 	}
 
 	return krk_pop();
-}
+})
 
-static KrkValue _isinstance(int argc, KrkValue argv[], int hasKw) {
-	if (argc != 2) return krk_runtimeError(vm.exceptions->argumentError, "isinstance expects 2 arguments, got %d", argc);
+KRK_FUNC(isinstance,{
+	FUNCTION_TAKES_EXACTLY(2);
 	if (IS_CLASS(argv[1])) {
 		return BOOLEAN_VAL(krk_isInstanceOf(argv[0], AS_CLASS(argv[1])));
 	} else if (IS_TUPLE(argv[1])) {
@@ -618,7 +620,7 @@ static KrkValue _isinstance(int argc, KrkValue argv[], int hasKw) {
 	} else {
 		return krk_runtimeError(vm.exceptions->typeError, "isinstance() arg 2 must be class or tuple");
 	}
-}
+})
 
 static KrkValue _module_repr(int argc, KrkValue argv[], int hasKw) {
 	KrkInstance * self = AS_INSTANCE(argv[0]);
@@ -692,9 +694,10 @@ static KrkValue _strBase(int argc, KrkValue argv[], int hasKw) {
 	return out;
 }
 
-static KrkValue _type(int argc, KrkValue argv[], int hasKw) {
+KRK_FUNC(type,{
+	FUNCTION_TAKES_EXACTLY(1);
 	return OBJECT_VAL(krk_getType(argv[0]));
-}
+})
 
 KRK_FUNC(getattr,{
 	FUNCTION_TAKES_AT_LEAST(2);
@@ -830,24 +833,23 @@ KRK_METHOD(property,__set__,{
 	return krk_runtimeError(vm.exceptions->attributeError, "attribute can not be set");
 })
 
-static KrkValue _id(int argc, KrkValue argv[], int hasKw) {
-	if (argc != 1) return krk_runtimeError(vm.exceptions->argumentError, "expected exactly one argument");
+KRK_FUNC(id,{
+	FUNCTION_TAKES_EXACTLY(1);
 	if (!IS_OBJECT(argv[0])) return krk_runtimeError(vm.exceptions->typeError, "'%s' is a primitive type and has no identity", krk_typeName(argv[0]));
 	return INTEGER_VAL((size_t)AS_OBJECT(argv[0]));
-}
+})
 
-static KrkValue _hash(int argc, KrkValue argv[], int hasKw) {
-	/* This is equivalent to the method version */
-	if (argc != 1) return krk_runtimeError(vm.exceptions->argumentError, "expected exactly one argument");
+KRK_FUNC(hash,{
+	FUNCTION_TAKES_EXACTLY(1);
 	return INTEGER_VAL(krk_hashValue(argv[0]));
-}
+})
 
 _noexport
 void _createAndBind_builtins(void) {
 	vm.baseClasses->objectClass = krk_newClass(S("object"), NULL);
 	krk_push(OBJECT_VAL(vm.baseClasses->objectClass));
 
-	krk_defineNative(&vm.baseClasses->objectClass->methods, ":__class__", _type);
+	krk_defineNative(&vm.baseClasses->objectClass->methods, ":__class__", FUNC_NAME(krk,type));
 	krk_defineNative(&vm.baseClasses->objectClass->methods, ".__dir__", krk_dirObject);
 	krk_defineNative(&vm.baseClasses->objectClass->methods, ".__str__", _strBase);
 	krk_defineNative(&vm.baseClasses->objectClass->methods, ".__repr__", _strBase); /* Override if necesary */
@@ -958,36 +960,36 @@ void _createAndBind_builtins(void) {
 	BIND_METHOD(enumerateobject,__repr__);
 	krk_finalizeClass(enumerateobject);
 
-	BUILTIN_FUNCTION("isinstance", _isinstance,
+	BUILTIN_FUNCTION("isinstance", FUNC_NAME(krk,isinstance),
 		"@brief Check if an object is an instance of a type.\n"
 		"@arguments inst, cls\n\n"
 		"Determine if an object @p inst is an instance of the given class @p cls or one if its subclasses. "
 		"@p cls may be a single class or a tuple of classes.");
-	BUILTIN_FUNCTION("globals", _globals,
+	BUILTIN_FUNCTION("globals", FUNC_NAME(krk,globals),
 		"@brief Update and a return a mapping of names in the global namespace.\n\n"
 		"Produces a dict mapping all of the names of the current globals namespace to their values. "
 		"Updating this dict has no meaning, but modifying mutable values within it can affect the global namespace.");
-	BUILTIN_FUNCTION("locals", _locals,
+	BUILTIN_FUNCTION("locals", FUNC_NAME(krk,locals),
 		"@brief Update and return a mapping of names in the current local scope.\n"
 		"@arguments callDepth=1\n\n"
 		"Produces a dict mapping the names of the requested locals scope to their current stack values. "
 		"If @p callDepth is provided, the locals of an outer call frame will be returned. If the requested "
 		"call depth is out of range, an exception will be raised.");
-	BUILTIN_FUNCTION("dir", _dir, "Return a list of known property names for a given object.");
-	BUILTIN_FUNCTION("len", _len, "Return the length of a given sequence object.");
-	BUILTIN_FUNCTION("repr", _repr, "Produce a string representation of the given object.");
+	BUILTIN_FUNCTION("dir", FUNC_NAME(krk,dir), "Return a list of known property names for a given object.");
+	BUILTIN_FUNCTION("len", FUNC_NAME(krk,len), "Return the length of a given sequence object.");
+	BUILTIN_FUNCTION("repr", FUNC_NAME(krk,repr), "Produce a string representation of the given object.");
 	BUILTIN_FUNCTION("print", _print,
 		"@brief Print text to the standard output.\n"
 		"@arguments *args,sep=' ',end='\\n'\n\n"
 		"Prints the string representation of each argument to the standard output. "
 		"The keyword argument @p sep specifies the string to print between values. "
 		"The keyword argument @p end specifies the string to print after all of the values have been printed.");
-	BUILTIN_FUNCTION("ord", _ord, "Obtain the ordinal integer value of a codepoint or byte.");
-	BUILTIN_FUNCTION("chr", _chr, "Convert an integer codepoint to its string representation.");
-	BUILTIN_FUNCTION("hex", _hex, "Convert an integer value to a hexadecimal string.");
-	BUILTIN_FUNCTION("oct", _oct, "Convert an integer value to an octal string.");
-	BUILTIN_FUNCTION("any", _any, "Returns True if at least one element in the given iterable is truthy, False otherwise.");
-	BUILTIN_FUNCTION("all", _all, "Returns True if every element in the given iterable is truthy, False otherwise.");
+	BUILTIN_FUNCTION("ord", FUNC_NAME(krk,ord), "Obtain the ordinal integer value of a codepoint or byte.");
+	BUILTIN_FUNCTION("chr", FUNC_NAME(krk,chr), "Convert an integer codepoint to its string representation.");
+	BUILTIN_FUNCTION("hex", FUNC_NAME(krk,hex), "Convert an integer value to a hexadecimal string.");
+	BUILTIN_FUNCTION("oct", FUNC_NAME(krk,oct), "Convert an integer value to an octal string.");
+	BUILTIN_FUNCTION("any", FUNC_NAME(krk,any), "Returns True if at least one element in the given iterable is truthy, False otherwise.");
+	BUILTIN_FUNCTION("all", FUNC_NAME(krk,all), "Returns True if every element in the given iterable is truthy, False otherwise.");
 	BUILTIN_FUNCTION("getattr", FUNC_NAME(krk,getattr),
 		"@brief Perform attribute lookup on an object using a string.\n"
 		"@arguments obj,attribute,[default]\n\n"
@@ -1008,15 +1010,15 @@ void _createAndBind_builtins(void) {
 		"or other type with its own attribute table, then the field will be updated. If "
 		"@p obj is a type without an attribute table and no class property provides an "
 		"overriding setter for @p attribute, an @ref AttributeError will be raised.");
-	BUILTIN_FUNCTION("sum", _sum,
+	BUILTIN_FUNCTION("sum", FUNC_NAME(krk,sum),
 		"@brief add the elements of an iterable.\n"
 		"@arguments iterable,start=0\n\n"
 		"Continuously adds all of the elements from @p iterable to @p start and returns the result "
 		"when @p iterable has been exhausted.");
-	BUILTIN_FUNCTION("min", _min, "Return the lowest value in an iterable or the passed arguments.");
-	BUILTIN_FUNCTION("max", _max, "Return the highest value in an iterable or the passed arguments.");
-	BUILTIN_FUNCTION("id", _id, "Returns the identity of an object.");
-	BUILTIN_FUNCTION("hash", _hash, "Returns the hash of a value, used for table indexing.");
+	BUILTIN_FUNCTION("min", FUNC_NAME(krk,min), "Return the lowest value in an iterable or the passed arguments.");
+	BUILTIN_FUNCTION("max", FUNC_NAME(krk,max), "Return the highest value in an iterable or the passed arguments.");
+	BUILTIN_FUNCTION("id", FUNC_NAME(krk,id), "Returns the identity of an object.");
+	BUILTIN_FUNCTION("hash", FUNC_NAME(krk,hash), "Returns the hash of a value, used for table indexing.");
 	BUILTIN_FUNCTION("map", FUNC_NAME(krk,map), "Return an iterator that applies a function to a series of iterables");
 	BUILTIN_FUNCTION("filter", FUNC_NAME(krk,filter), "Return an iterator that returns only the items from an iterable for which the given function returns true.");
 	BUILTIN_FUNCTION("enumerate", FUNC_NAME(krk,enumerate), "Return an iterator that produces a tuple with a count the iterated values of the passed iteratable.");

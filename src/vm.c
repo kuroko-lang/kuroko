@@ -300,7 +300,7 @@ inline void krk_push(KrkValue value) {
 inline KrkValue krk_pop() {
 	krk_currentThread.stackTop--;
 	if (unlikely(krk_currentThread.stackTop < krk_currentThread.stack)) {
-		fprintf(stderr, "Fatal error: stack underflow detected in VM, issuing breakpoint.\n");
+		fprintf(stderr, "Fatal error: stack underflow detected in VM.\n");
 		return NONE_VAL();
 	}
 	return *krk_currentThread.stackTop;
@@ -868,7 +868,7 @@ int krk_callValue(KrkValue callee, int argCount, int extra) {
 				KrkBoundMethod * bound = AS_BOUND_METHOD(callee);
 				krk_currentThread.stackTop[-argCount - 1] = bound->receiver;
 				if (!bound->method) {
-					krk_runtimeError(vm.exceptions->argumentError, "Attempted to call a method binding with no attached callable (did you forget to return something from a method decorator?)");
+					krk_runtimeError(vm.exceptions->argumentError, "???");
 					return 0;
 				}
 				return krk_callValue(OBJECT_VAL(bound->method), argCount + 1, 0);
@@ -1332,7 +1332,7 @@ const char * krk_typeName(KrkValue value) {
 	return krk_getType(value)->name->chars;
 }
 
-static KrkValue tryBind(const char * name, KrkValue a, KrkValue b, const char * msg) {
+static KrkValue tryBind(const char * name, KrkValue a, KrkValue b, const char * operator, const char * msg) {
 	krk_push(b);
 	krk_push(a);
 	KrkClass * type = krk_getType(a);
@@ -1347,7 +1347,7 @@ static KrkValue tryBind(const char * name, KrkValue a, KrkValue b, const char * 
 		value = krk_callSimple(krk_peek(1), 1, 1);
 	}
 	if (IS_KWARGS(value)) {
-		return krk_runtimeError(vm.exceptions->typeError, msg, krk_typeName(a), krk_typeName(b));
+		return krk_runtimeError(vm.exceptions->typeError, msg, operator, krk_typeName(a), krk_typeName(b));
 	} else {
 		return value;
 	}
@@ -1366,7 +1366,7 @@ static KrkValue tryBind(const char * name, KrkValue a, KrkValue b, const char * 
 		} else if (IS_FLOATING(b)) { \
 			if (IS_INTEGER(a)) return FLOATING_VAL((double)AS_INTEGER(a) operator AS_FLOATING(b)); \
 		} \
-		return tryBind("__" #name "__", a, b, "unsupported operand types for " #operator ": '%s' and '%s'"); \
+		return tryBind("__" #name "__", a, b, #operator, "unsupported operand types for %s: '%s' and '%s'"); \
 	}
 
 MAKE_BIN_OP(add,+)
@@ -1376,7 +1376,7 @@ MAKE_BIN_OP(div,/)
 
 #define MAKE_UNOPTIMIZED_BIN_OP(name,operator) \
 	KrkValue krk_operator_ ## name (KrkValue a, KrkValue b) { \
-		return tryBind("__" #name "__", a, b, "unsupported operand types for " #operator ": '%s' and '%s'"); \
+		return tryBind("__" #name "__", a, b, #operator, "unsupported operand types for %s: '%s' and '%s'"); \
 	}
 
 MAKE_UNOPTIMIZED_BIN_OP(pow,**)
@@ -1387,12 +1387,12 @@ MAKE_UNOPTIMIZED_BIN_OP(pow,**)
 	KrkValue krk_operator_ ## name (KrkValue a, KrkValue b) { \
 		if (IS_BOOLEAN(a) && IS_BOOLEAN(b)) return BOOLEAN_VAL(AS_INTEGER(a) operator AS_INTEGER(b)); \
 		if (IS_INTEGER(a) && IS_INTEGER(b)) return INTEGER_VAL(AS_INTEGER(a) operator AS_INTEGER(b)); \
-		return tryBind("__" #name "__", a, b, "unsupported operand types for " #operator ": '%s' and '%s'"); \
+		return tryBind("__" #name "__", a, b, #operator, "unsupported operand types for %s: '%s' and '%s'"); \
 	}
 #define MAKE_BIT_OP(name,operator) \
 	KrkValue krk_operator_ ## name (KrkValue a, KrkValue b) { \
 		if (IS_INTEGER(a) && IS_INTEGER(b)) return INTEGER_VAL(AS_INTEGER(a) operator AS_INTEGER(b)); \
-		return tryBind("__" #name "__", a, b, "unsupported operand types for " #operator ": '%s' and '%s'"); \
+		return tryBind("__" #name "__", a, b, #operator, "unsupported operand types for %s: '%s' and '%s'"); \
 	}
 
 MAKE_BIT_OP_BOOL(or,|)
@@ -1411,7 +1411,7 @@ MAKE_BIT_OP(mod,%) /* not a bit op, but doesn't work on floating point */
 		} else if (IS_FLOATING(b)) { \
 			if (IS_INTEGER(a)) return BOOLEAN_VAL(AS_INTEGER(a) operator AS_INTEGER(b)); \
 		} \
-		return tryBind("__" #name "__", a, b, "'" #operator "' not supported between instances of '%s' and '%s'"); \
+		return tryBind("__" #name "__", a, b, #operator, "unsupported operand types for %s: '%s' and '%s'"); \
 	}
 
 MAKE_COMPARATOR(lt, <)

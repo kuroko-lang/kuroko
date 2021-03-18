@@ -285,8 +285,14 @@ static void finishError(KrkToken * token) {
 	parser.hadError = 1;
 }
 
-#define error(...) do { if (parser.panicMode) break; krk_runtimeError(vm.exceptions->syntaxError, __VA_ARGS__); finishError(&parser.previous); } while (0)
-#define errorAtCurrent(...) do { if (parser.panicMode) break; krk_runtimeError(vm.exceptions->syntaxError, __VA_ARGS__); finishError(&parser.current); } while (0)
+#ifdef KRK_NO_DOCUMENTATION
+# define raiseSyntaxError(token, ...) do { if (parser.panicMode) break; krk_runtimeError(vm.exceptions->syntaxError, "syntax error"); finishError(token); } while (0)
+#else
+# define raiseSyntaxError(token, ...) do { if (parser.panicMode) break; krk_runtimeError(vm.exceptions->syntaxError, __VA_ARGS__); finishError(token); } while (0)
+#endif
+
+#define error(...) raiseSyntaxError(&parser.previous, __VA_ARGS__)
+#define errorAtCurrent(...) raiseSyntaxError(&parser.current, __VA_ARGS__)
 
 static void advance() {
 	parser.previous = parser.current;

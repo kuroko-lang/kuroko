@@ -27,6 +27,9 @@
  *
  * These macros are intended to be used together to define functions for a class.
  */
+#ifdef KRK_NO_DOCUMENTATION
+# define _method_name(f) "func"
+#else
 static inline const char * _method_name(const char * func) {
 	const char * out = func;
 	if (*out == '_') out++;
@@ -34,6 +37,7 @@ static inline const char * _method_name(const char * func) {
 	if (*out == '_') out++;
 	return out;
 }
+#endif
 
 #define ADD_BASE_CLASS(obj, name, baseClass) krk_makeClass(vm.builtins, &obj, name, baseClass)
 
