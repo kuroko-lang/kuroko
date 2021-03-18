@@ -14,17 +14,17 @@
 #endif
 
 typedef enum {
-	OBJ_FUNCTION,
-	OBJ_NATIVE,
-	OBJ_CLOSURE,
-	OBJ_STRING,
-	OBJ_UPVALUE,
-	OBJ_CLASS,
-	OBJ_INSTANCE,
-	OBJ_BOUND_METHOD,
-	OBJ_TUPLE,
-	OBJ_BYTES,
-} ObjType;
+	KRK_OBJ_CODEOBJECT,
+	KRK_OBJ_NATIVE,
+	KRK_OBJ_CLOSURE,
+	KRK_OBJ_STRING,
+	KRK_OBJ_UPVALUE,
+	KRK_OBJ_CLASS,
+	KRK_OBJ_INSTANCE,
+	KRK_OBJ_BOUND_METHOD,
+	KRK_OBJ_TUPLE,
+	KRK_OBJ_BYTES,
+} KrkObjType;
 
 #undef KrkObj
 /**
@@ -34,7 +34,7 @@ typedef enum {
  * the core structures for garbage collection.
  */
 typedef struct KrkObj {
-	ObjType type;
+	KrkObjType type;
 	unsigned char isMarked:1;
 	unsigned char inRepr:1;
 	unsigned char generation:2;
@@ -126,7 +126,7 @@ typedef struct {
 	unsigned char isGenerator:1;
 	struct KrkInstance * globalsContext;
 	KrkString * qualname;
-} KrkFunction;
+} KrkCodeObject;
 
 /**
  * @brief Function object.
@@ -136,12 +136,13 @@ typedef struct {
  */
 typedef struct {
 	KrkObj obj;
-	KrkFunction * function;
+	KrkCodeObject * function;
 	KrkUpvalue ** upvalues;
 	size_t upvalueCount;
 	unsigned char isClassMethod:1;
 	unsigned char isStaticMethod:1;
 	KrkValue annotations;
+	KrkTable fields;
 } KrkClosure;
 
 typedef void (*KrkCleanupCallback)(struct KrkInstance *);
@@ -270,12 +271,18 @@ typedef struct {
 	KrkTable entries;
 } KrkDict;
 
+/**
+ * @extends KrkInstance
+ */
 struct DictItems {
 	KrkInstance inst;
 	KrkValue dict;
 	size_t i;
 };
 
+/**
+ * @extends KrkInstance
+ */
 struct DictKeys {
 	KrkInstance inst;
 	KrkValue dict;
@@ -365,9 +372,9 @@ extern size_t krk_codepointToBytes(krk_integer_type value, unsigned char * out);
 
 /* Internal stuff. */
 extern NativeFn KrkGenericAlias;
-extern KrkFunction *    krk_newFunction(void);
+extern KrkCodeObject *    krk_newCodeObject(void);
 extern KrkNative *      krk_newNative(NativeFn function, const char * name, int type);
-extern KrkClosure *     krk_newClosure(KrkFunction * function);
+extern KrkClosure *     krk_newClosure(KrkCodeObject * function);
 extern KrkUpvalue *     krk_newUpvalue(int slot);
 extern KrkClass *       krk_newClass(KrkString * name, KrkClass * base);
 extern KrkInstance *    krk_newInstance(KrkClass * _class);
@@ -384,27 +391,27 @@ extern void krk_tupleUpdateHash(KrkTuple * self);
 
 #define CODEPOINT_BYTES(cp) (cp < 0x80 ? 1 : (cp < 0x800 ? 2 : (cp < 0x10000 ? 3 : 4)))
 
-#define isObjType(v,t) (IS_OBJECT(v) && (AS_OBJECT(v)->type == (t)))
+#define krk_isObjType(v,t) (IS_OBJECT(v) && (AS_OBJECT(v)->type == (t)))
 #define OBJECT_TYPE(value) (AS_OBJECT(value)->type)
-#define IS_STRING(value)   isObjType(value, OBJ_STRING)
+#define IS_STRING(value)   krk_isObjType(value, KRK_OBJ_STRING)
 #define AS_STRING(value)   ((KrkString *)AS_OBJECT(value))
 #define AS_CSTRING(value)  (((KrkString *)AS_OBJECT(value))->chars)
-#define IS_BYTES(value)    isObjType(value, OBJ_BYTES)
+#define IS_BYTES(value)    krk_isObjType(value, KRK_OBJ_BYTES)
 #define AS_BYTES(value)    ((KrkBytes*)AS_OBJECT(value))
-#define IS_FUNCTION(value) isObjType(value, OBJ_FUNCTION)
-#define AS_FUNCTION(value) ((KrkFunction *)AS_OBJECT(value))
-#define IS_NATIVE(value)   isObjType(value, OBJ_NATIVE)
+#define IS_NATIVE(value)   krk_isObjType(value, KRK_OBJ_NATIVE)
 #define AS_NATIVE(value)   ((KrkNative *)AS_OBJECT(value))
-#define IS_CLOSURE(value)  isObjType(value, OBJ_CLOSURE)
+#define IS_CLOSURE(value)  krk_isObjType(value, KRK_OBJ_CLOSURE)
 #define AS_CLOSURE(value)  ((KrkClosure *)AS_OBJECT(value))
-#define IS_CLASS(value)    isObjType(value, OBJ_CLASS)
+#define IS_CLASS(value)    krk_isObjType(value, KRK_OBJ_CLASS)
 #define AS_CLASS(value)    ((KrkClass *)AS_OBJECT(value))
-#define IS_INSTANCE(value) isObjType(value, OBJ_INSTANCE)
+#define IS_INSTANCE(value) krk_isObjType(value, KRK_OBJ_INSTANCE)
 #define AS_INSTANCE(value) ((KrkInstance *)AS_OBJECT(value))
-#define IS_BOUND_METHOD(value) isObjType(value, OBJ_BOUND_METHOD)
+#define IS_BOUND_METHOD(value) krk_isObjType(value, KRK_OBJ_BOUND_METHOD)
 #define AS_BOUND_METHOD(value) ((KrkBoundMethod*)AS_OBJECT(value))
-#define IS_TUPLE(value)    isObjType(value, OBJ_TUPLE)
+#define IS_TUPLE(value)    krk_isObjType(value, KRK_OBJ_TUPLE)
 #define AS_TUPLE(value)    ((KrkTuple *)AS_OBJECT(value))
 #define AS_LIST(value) (&((KrkList *)AS_OBJECT(value))->values)
 #define AS_DICT(value) (&((KrkDict *)AS_OBJECT(value))->entries)
 
+#define IS_codeobject(value) krk_isObjType(value, KRK_OBJ_CODEOBJECT)
+#define AS_codeobject(value) ((KrkCodeObject *)AS_OBJECT(value))

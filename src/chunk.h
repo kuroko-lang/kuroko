@@ -66,7 +66,9 @@ typedef enum {
 	OP_BREAKPOINT, /* NEVER output this instruction in the compiler or bad things can happen */
 	OP_YIELD,
 	OP_ANNOTATE,
-	/* current highest: 44 */
+	OP_BEGIN_FINALLY,
+	OP_END_FINALLY,
+	/* current highest: 45 */
 
 	OP_CALL = 64,
 	OP_CLASS,
@@ -161,7 +163,7 @@ typedef struct {
  * @brief Opcode chunk of a code object.
  *
  * Opcode chunks are internal to code objects and I'm not really
- * sure why we're still separating them from the KrkFunction objects.
+ * sure why we're still separating them from the KrkCodeObjects.
  *
  * Stores four flexible arrays using three different formats:
  * - Code, representing opcodes and operands.

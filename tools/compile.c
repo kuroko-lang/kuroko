@@ -181,7 +181,7 @@ static void _writeBytes(FILE * out, KrkBytes * b) {
 }
 
 #define WRITE_FUNCTION(f) _writeFunction(out,f)
-static void _writeFunction(FILE * out, KrkFunction * f) {
+static void _writeFunction(FILE * out, KrkCodeObject * f) {
 	/* Find this function in the function table. */
 	KrkValue this = OBJECT_VAL(f);
 	KrkValue index = ListIndex(2,(KrkValue[]){SeenFunctions,this},0);
@@ -212,7 +212,7 @@ static int doFirstPass(FILE * out) {
 		ListAppend(2,(KrkValue[]){SeenFunctions,nextFunc},0);
 
 		/* Examine */
-		KrkFunction * func = AS_FUNCTION(nextFunc);
+		KrkCodeObject * func = AS_codeobject(nextFunc);
 
 		if (func->name) internString(func->name);
 		if (func->docstring) internString(func->docstring);
@@ -234,7 +234,7 @@ static int doFirstPass(FILE * out) {
 			if (IS_OBJECT(value)) {
 				if (IS_STRING(value)) {
 					internString(AS_STRING(value));
-				} else if (IS_FUNCTION(value)) {
+				} else if (IS_codeobject(value)) {
 					/* If we haven't seen this function yet, append it to the list */
 					krk_push(value);
 					KrkValue boolResult = ListContains(2,(KrkValue[]){SeenFunctions,value},0);
@@ -259,7 +259,7 @@ static int doSecondPass(FILE * out) {
 	fwrite(&functionCount, 1, sizeof(uint32_t), out);
 
 	for (size_t funcIndex = 0; funcIndex < AS_LIST(SeenFunctions)->count; ++funcIndex) {
-		KrkFunction * func = AS_FUNCTION(AS_LIST(SeenFunctions)->values[funcIndex]);
+		KrkCodeObject * func = AS_codeobject(AS_LIST(SeenFunctions)->values[funcIndex]);
 
 		uint8_t flags = 0;
 		if (func->collectsArguments) flags |= (1 << 0);
@@ -303,16 +303,16 @@ static int doSecondPass(FILE * out) {
 		for (size_t i = 0; i < func->chunk.constants.count; ++i) {
 			KrkValue * val = &func->chunk.constants.values[i];
 			switch (val->type) {
-				case VAL_OBJECT:
+				case KRK_VAL_OBJECT:
 					switch (AS_OBJECT(*val)->type) {
-						case OBJ_STRING:
+						case KRK_OBJ_STRING:
 							WRITE_STRING(AS_STRING(*val));
 							break;
-						case OBJ_BYTES:
+						case KRK_OBJ_BYTES:
 							WRITE_BYTES(AS_BYTES(*val));
 							break;
-						case OBJ_FUNCTION:
-							WRITE_FUNCTION(AS_FUNCTION(*val));
+						case KRK_OBJ_CODEOBJECT:
+							WRITE_FUNCTION(AS_codeobject(*val));
 							break;
 						default:
 							fprintf(stderr,
@@ -322,14 +322,14 @@ static int doSecondPass(FILE * out) {
 							return 1;
 					}
 					break;
-				case VAL_KWARGS:
+				case KRK_VAL_KWARGS:
 					WRITE_KWARGS(AS_INTEGER(*val));
 					fwrite("k", 1, 1, out);
 					break;
-				case VAL_INTEGER:
+				case KRK_VAL_INTEGER:
 					WRITE_INTEGER(AS_INTEGER(*val));
 					break;
-				case VAL_FLOATING:
+				case KRK_VAL_FLOATING:
 					WRITE_FLOATING(AS_FLOATING(*val));
 					break;
 				default:
@@ -368,7 +368,7 @@ static int compileFile(char * fileName) {
 
 
 	krk_startModule("__main__");
-	KrkFunction * func = krk_compile(buf, fileName);
+	KrkCodeObject * func = krk_compile(buf, fileName);
 
 	if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) {
 		fprintf(stderr, "%s: exception during compilation:\n", fileName);
@@ -498,14 +498,14 @@ static int readFile(char * fileName) {
 	DEBUGOUT("[Code Objects (count=%lu)]\n", (unsigned long)functionCount);
 
 	for (size_t i = 0; i < (size_t)functionCount; ++i) {
-		krk_push(OBJECT_VAL(krk_newFunction()));
+		krk_push(OBJECT_VAL(krk_newCodeObject()));
 		ListAppend(2,(KrkValue[]){SeenFunctions, krk_peek(0)}, 0);
 		krk_pop();
 	}
 
 	for (size_t i = 0; i < (size_t)functionCount; ++i) {
 
-		KrkFunction * self = AS_FUNCTION(AS_LIST(SeenFunctions)->values[i]);
+		KrkCodeObject * self = AS_codeobject(AS_LIST(SeenFunctions)->values[i]);
 
 		struct FunctionHeader function;
 		assert(fread(&function, 1, sizeof(function), inFile) == sizeof(function));
@@ -587,7 +587,7 @@ static int readFile(char * fileName) {
 	krk_pop();
 	krk_push(AS_LIST(SeenFunctions)->values[0]);
 
-	KrkClosure * closure = krk_newClosure(AS_FUNCTION(krk_peek(0)));
+	KrkClosure * closure = krk_newClosure(AS_codeobject(krk_peek(0)));
 	krk_pop();
 	krk_push(OBJECT_VAL(closure));
 

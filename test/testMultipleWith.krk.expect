@@ -1,0 +1,27 @@
+Before
+Entering a
+Entering b
+Entering c
+Hello, world.
+Exiting c with [<class 'NoneType'>, <class 'NoneType'>, <class 'NoneType'>]
+Exiting b with [<class 'NoneType'>, <class 'NoneType'>, <class 'NoneType'>]
+Exiting a with [<class 'NoneType'>, <class 'NoneType'>, <class 'NoneType'>]
+After
+Before
+Entering a
+Entering b
+Entering c
+Hello, world.
+Exiting c with [<class 'NoneType'>, <class 'NoneType'>, <class 'NoneType'>]
+Exiting b with [<class 'NoneType'>, <class 'NoneType'>, <class 'NoneType'>]
+Exiting a with [<class 'NoneType'>, <class 'NoneType'>, <class 'NoneType'>]
+After
+Before
+Entering a
+Entering b
+Entering c
+Prior
+Exiting c with [<class 'type'>, <class 'ValueError'>, <class 'list'>]
+Exiting b with [<class 'type'>, <class 'ValueError'>, <class 'list'>]
+Exiting a with [<class 'type'>, <class 'ValueError'>, <class 'list'>]
+Raised ValueError('oh no')

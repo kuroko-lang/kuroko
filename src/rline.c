@@ -553,7 +553,7 @@ char * syn_krk_keywords[] = {
 	"and","class","def","else","for","if","in","import","del",
 	"let","not","or","return","while","try","except","raise",
 	"continue","break","as","from","elif","lambda","with","is",
-	"pass","assert","yield",
+	"pass","assert","yield","finally",
 	NULL
 };
 

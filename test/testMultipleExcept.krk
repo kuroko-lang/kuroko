@@ -1,0 +1,27 @@
+
+class SpecialException(ValueError):
+    pass
+
+def exceptionFilter(exc):
+    print('with',repr(exc))
+    try:
+        if exc: raise exc()
+        print("None")
+    except TypeError:
+        print("TypeError")
+    except ValueError:
+        print("ValueError")
+    finally:
+        print("Running finally")
+    print("Function exit")
+
+exceptionFilter(None)
+exceptionFilter(TypeError)
+exceptionFilter(ValueError)
+exceptionFilter(SpecialException)
+
+try:
+    exceptionFilter(NameError)
+except Exception as e:
+    print("NameError was not caught:", repr(e))
+

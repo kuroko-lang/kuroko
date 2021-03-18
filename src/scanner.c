@@ -224,6 +224,7 @@ static KrkTokenType identifierType() {
 			case 'x': return checkKeyword(2, "cept", TOKEN_EXCEPT);
 		} break;
 		case 'f': if (MORE(1)) switch(scanner.start[1]) {
+			case 'i': return checkKeyword(2, "nally", TOKEN_FINALLY);
 			case 'o': return checkKeyword(2, "r", TOKEN_FOR);
 			case 'r': return checkKeyword(2, "om", TOKEN_FROM);
 		} else if (scanner.start[1] == '\'' || scanner.start[1] == '"') return TOKEN_PREFIX_F;

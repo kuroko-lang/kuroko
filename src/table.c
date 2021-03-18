@@ -23,11 +23,11 @@ void krk_freeTable(KrkTable * table) {
 
 inline uint32_t krk_hashValue(KrkValue value) {
 	switch (value.type) {
-		case VAL_INTEGER:  return (uint32_t)(AS_INTEGER(value));
-		case VAL_FLOATING: return (uint32_t)(AS_FLOATING(value) * 1000); /* arbitrary; what's a good way to hash floats? */
-		case VAL_BOOLEAN:  return (uint32_t)(AS_BOOLEAN(value));
-		case VAL_NONE:     return 0;
-		case VAL_OBJECT:   return (uint32_t)(AS_OBJECT(value))->hash;
+		case KRK_VAL_INTEGER:  return (uint32_t)(AS_INTEGER(value));
+		case KRK_VAL_FLOATING: return (uint32_t)(AS_FLOATING(value) * 1000); /* arbitrary; what's a good way to hash floats? */
+		case KRK_VAL_BOOLEAN:  return (uint32_t)(AS_BOOLEAN(value));
+		case KRK_VAL_NONE:     return 0;
+		case KRK_VAL_OBJECT:   return (uint32_t)(AS_OBJECT(value))->hash;
 		default: return 0;
 	}
 }
@@ -37,7 +37,7 @@ KrkTableEntry * krk_findEntry(KrkTableEntry * entries, size_t capacity, KrkValue
 	KrkTableEntry * tombstone = NULL;
 	for (;;) {
 		KrkTableEntry * entry = &entries[index];
-		if (entry->key.type == VAL_KWARGS) {
+		if (entry->key.type == KRK_VAL_KWARGS) {
 			if (IS_NONE(entry->value)) {
 				return tombstone != NULL ? tombstone : entry;
 			} else {
@@ -60,7 +60,7 @@ static void adjustCapacity(KrkTable * table, size_t capacity) {
 	table->count = 0;
 	for (size_t i = 0; i < table->capacity; ++i) {
 		KrkTableEntry * entry = &table->entries[i];
-		if (entry->key.type == VAL_KWARGS) continue;
+		if (entry->key.type == KRK_VAL_KWARGS) continue;
 		KrkTableEntry * dest = krk_findEntry(entries, capacity, entry->key);
 		dest->key = entry->key;
 		dest->value = entry->value;
@@ -78,7 +78,7 @@ int krk_tableSet(KrkTable * table, KrkValue key, KrkValue value) {
 		adjustCapacity(table, capacity);
 	}
 	KrkTableEntry * entry = krk_findEntry(table->entries, table->capacity, key);
-	int isNewKey = entry->key.type == VAL_KWARGS;
+	int isNewKey = entry->key.type == KRK_VAL_KWARGS;
 	if (isNewKey && IS_NONE(entry->value)) table->count++;
 	entry->key = key;
 	entry->value = value;
@@ -88,7 +88,7 @@ int krk_tableSet(KrkTable * table, KrkValue key, KrkValue value) {
 void krk_tableAddAll(KrkTable * from, KrkTable * to) {
 	for (size_t i = 0; i < from->capacity; ++i) {
 		KrkTableEntry * entry = &from->entries[i];
-		if (entry->key.type != VAL_KWARGS) {
+		if (entry->key.type != KRK_VAL_KWARGS) {
 			krk_tableSet(to, entry->key, entry->value);
 		}
 	}
@@ -97,7 +97,7 @@ void krk_tableAddAll(KrkTable * from, KrkTable * to) {
 int krk_tableGet(KrkTable * table, KrkValue key, KrkValue * value) {
 	if (table->count == 0) return 0;
 	KrkTableEntry * entry = krk_findEntry(table->entries, table->capacity, key);
-	if (entry->key.type == VAL_KWARGS) {
+	if (entry->key.type == KRK_VAL_KWARGS) {
 		return 0;
 	} else {
 		*value = entry->value;
@@ -108,7 +108,7 @@ int krk_tableGet(KrkTable * table, KrkValue key, KrkValue * value) {
 int krk_tableDelete(KrkTable * table, KrkValue key) {
 	if (table->count == 0) return 0;
 	KrkTableEntry * entry = krk_findEntry(table->entries, table->capacity, key);
-	if (entry->key.type == VAL_KWARGS) {
+	if (entry->key.type == KRK_VAL_KWARGS) {
 		return 0;
 	}
 	entry->key = KWARGS_VAL(0);
@@ -122,7 +122,7 @@ KrkString * krk_tableFindString(KrkTable * table, const char * chars, size_t len
 	uint32_t index = hash % table->capacity;
 	for (;;) {
 		KrkTableEntry * entry = &table->entries[index];
-		if (entry->key.type == VAL_KWARGS) {
+		if (entry->key.type == KRK_VAL_KWARGS) {
 			if (IS_NONE(entry->value)) {
 				return NULL;
 			}

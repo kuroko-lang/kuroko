@@ -29,59 +29,60 @@ void * krk_reallocate(void * ptr, size_t old, size_t new) {
 
 static void freeObject(KrkObj * object) {
 	switch (object->type) {
-		case OBJ_STRING: {
+		case KRK_OBJ_STRING: {
 			KrkString * string = (KrkString*)object;
 			FREE_ARRAY(char, string->chars, string->length + 1);
 			if (string->codes && string->codes != string->chars) free(string->codes);
 			FREE(KrkString, object);
 			break;
 		}
-		case OBJ_FUNCTION: {
-			KrkFunction * function = (KrkFunction*)object;
+		case KRK_OBJ_CODEOBJECT: {
+			KrkCodeObject * function = (KrkCodeObject*)object;
 			krk_freeChunk(&function->chunk);
 			krk_freeValueArray(&function->requiredArgNames);
 			krk_freeValueArray(&function->keywordArgNames);
 			FREE_ARRAY(KrkLocalEntry, function->localNames, function->localNameCount);
 			function->localNameCount = 0;
-			FREE(KrkFunction, object);
+			FREE(KrkCodeObject, object);
 			break;
 		}
-		case OBJ_NATIVE: {
+		case KRK_OBJ_NATIVE: {
 			FREE(KrkNative, object);
 			break;
 		}
-		case OBJ_CLOSURE: {
+		case KRK_OBJ_CLOSURE: {
 			KrkClosure * closure = (KrkClosure*)object;
 			FREE_ARRAY(KrkUpvalue*,closure->upvalues,closure->upvalueCount);
+			krk_freeTable(&closure->fields);
 			FREE(KrkClosure, object);
 			break;
 		}
-		case OBJ_UPVALUE: {
+		case KRK_OBJ_UPVALUE: {
 			FREE(KrkUpvalue, object);
 			break;
 		}
-		case OBJ_CLASS: {
+		case KRK_OBJ_CLASS: {
 			KrkClass * _class = (KrkClass*)object;
 			krk_freeTable(&_class->methods);
 			FREE(KrkClass, object);
 			break;
 		}
-		case OBJ_INSTANCE: {
+		case KRK_OBJ_INSTANCE: {
 			if (((KrkInstance*)object)->_class->_ongcsweep) ((KrkInstance*)object)->_class->_ongcsweep((KrkInstance*)object);
 			krk_freeTable(&((KrkInstance*)object)->fields);
 			FREE(KrkInstance, object);
 			break;
 		}
-		case OBJ_BOUND_METHOD:
+		case KRK_OBJ_BOUND_METHOD:
 			FREE(KrkBoundMethod, object);
 			break;
-		case OBJ_TUPLE: {
+		case KRK_OBJ_TUPLE: {
 			KrkTuple * tuple = (KrkTuple*)object;
 			krk_freeValueArray(&tuple->values);
 			FREE(KrkTuple, object);
 			break;
 		}
-		case OBJ_BYTES: {
+		case KRK_OBJ_BYTES: {
 			KrkBytes * bytes = (KrkBytes*)object;
 			FREE_ARRAY(uint8_t, bytes->bytes, bytes->length);
 			FREE(KrkBytes, bytes);
@@ -96,7 +97,7 @@ void krk_freeObjects() {
 
 	while (object) {
 		KrkObj * next = object->next;
-		if (object->type == OBJ_INSTANCE) {
+		if (object->type == KRK_OBJ_INSTANCE) {
 			freeObject(object);
 		} else {
 			object->next = other;
@@ -140,17 +141,18 @@ static void markArray(KrkValueArray * array) {
 
 static void blackenObject(KrkObj * object) {
 	switch (object->type) {
-		case OBJ_CLOSURE: {
+		case KRK_OBJ_CLOSURE: {
 			KrkClosure * closure = (KrkClosure *)object;
 			krk_markObject((KrkObj*)closure->function);
 			for (size_t i = 0; i < closure->upvalueCount; ++i) {
 				krk_markObject((KrkObj*)closure->upvalues[i]);
 			}
 			krk_markValue(closure->annotations);
+			krk_markTable(&closure->fields);
 			break;
 		}
-		case OBJ_FUNCTION: {
-			KrkFunction * function = (KrkFunction *)object;
+		case KRK_OBJ_CODEOBJECT: {
+			KrkCodeObject * function = (KrkCodeObject *)object;
 			krk_markObject((KrkObj*)function->name);
 			krk_markObject((KrkObj*)function->qualname);
 			krk_markObject((KrkObj*)function->docstring);
@@ -164,10 +166,10 @@ static void blackenObject(KrkObj * object) {
 			}
 			break;
 		}
-		case OBJ_UPVALUE:
+		case KRK_OBJ_UPVALUE:
 			krk_markValue(((KrkUpvalue*)object)->closed);
 			break;
-		case OBJ_CLASS: {
+		case KRK_OBJ_CLASS: {
 			KrkClass * _class = (KrkClass *)object;
 			krk_markObject((KrkObj*)_class->name);
 			krk_markObject((KrkObj*)_class->filename);
@@ -176,26 +178,26 @@ static void blackenObject(KrkObj * object) {
 			krk_markTable(&_class->methods);
 			break;
 		}
-		case OBJ_INSTANCE: {
+		case KRK_OBJ_INSTANCE: {
 			krk_markObject((KrkObj*)((KrkInstance*)object)->_class);
 			if (((KrkInstance*)object)->_class->_ongcscan) ((KrkInstance*)object)->_class->_ongcscan((KrkInstance*)object);
 			krk_markTable(&((KrkInstance*)object)->fields);
 			break;
 		}
-		case OBJ_BOUND_METHOD: {
+		case KRK_OBJ_BOUND_METHOD: {
 			KrkBoundMethod * bound = (KrkBoundMethod *)object;
 			krk_markValue(bound->receiver);
 			krk_markObject((KrkObj*)bound->method);
 			break;
 		}
-		case OBJ_TUPLE: {
+		case KRK_OBJ_TUPLE: {
 			KrkTuple * tuple = (KrkTuple *)object;
 			markArray(&tuple->values);
 			break;
 		}
-		case OBJ_NATIVE:
-		case OBJ_STRING:
-		case OBJ_BYTES:
+		case KRK_OBJ_NATIVE:
+		case KRK_OBJ_STRING:
+		case KRK_OBJ_BYTES:
 			break;
 	}
 }

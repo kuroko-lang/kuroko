@@ -144,7 +144,7 @@ struct BaseClasses {
 	KrkClass * boolClass;            /**< Primitive boolean type. */
 	KrkClass * noneTypeClass;        /**< The class of the None value. */
 	KrkClass * strClass;             /**< Built-in Unicode string type. */
-	KrkClass * functionClass;        /**< Represents a code object (KrkFunction) or function object (KrkClosure) */
+	KrkClass * functionClass;        /**< Represents a function object (KrkClosure) or native bind (KrkNative) */
 	KrkClass * methodClass;          /**< Represents a bound method (KrkBoundMethod) */
 	KrkClass * tupleClass;           /**< An immutable collection of arbitrary values. */
 	KrkClass * bytesClass;           /**< An immutable sequence of bytes. */
@@ -159,7 +159,7 @@ struct BaseClasses {
 	KrkClass * dictkeysClass;        /**< Iterator over the keys of a dict */
 	KrkClass * bytesiteratorClass;   /**< Iterator over the integer byte values of a bytes object. */
 	KrkClass * propertyClass;        /**< Magic object that calls a function when accessed from an instance through the dot operator. */
-	KrkClass * codeobjectClass;      /**< Static compiled bytecode container. */
+	KrkClass * codeobjectClass;      /**< Static compiled bytecode container (KrkCodeObject) */
 	KrkClass * generatorClass;       /**< Generator object. */
 };
 

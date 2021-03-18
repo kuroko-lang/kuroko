@@ -111,9 +111,14 @@ struct IndexWithNext {
 	struct IndexWithNext * next;
 };
 
+struct LoopExit {
+	int offset;
+	KrkToken token;
+};
+
 typedef struct Compiler {
 	struct Compiler * enclosing;
-	KrkFunction * function;
+	KrkCodeObject * codeobject;
 	FunctionType type;
 	size_t localCount;
 	size_t scopeDepth;
@@ -125,10 +130,10 @@ typedef struct Compiler {
 	size_t loopLocalCount;
 	size_t breakCount;
 	size_t breakSpace;
-	int * breaks;
+	struct LoopExit * breaks;
 	size_t continueCount;
 	size_t continueSpace;
-	int * continues;
+	struct LoopExit * continues;
 
 	size_t localNameCapacity;
 
@@ -148,9 +153,7 @@ static Compiler * current = NULL;
 static ClassCompiler * currentClass = NULL;
 static int inDel = 0;
 
-static KrkChunk * currentChunk() {
-	return &current->function->chunk;
-}
+#define currentChunk() (&current->codeobject->chunk)
 
 #define EMIT_CONSTANT_OP(opc, arg) do { if (arg < 256) { emitBytes(opc, arg); } \
 	else { emitBytes(opc ## _LONG, arg >> 16); emitBytes(arg >> 8, arg); } } while (0)
@@ -171,7 +174,7 @@ static char * calculateQualName(void) {
 	memcpy(writer, s, len); \
 } while (0)
 
-	WRITE(current->function->name->chars);
+	WRITE(current->codeobject->name->chars);
 	/* Go up by _compiler_, ignore class compilers as we don't need them. */
 	Compiler * ptr = current->enclosing;
 	while (ptr->enclosing) { /* Ignores the top level module */
@@ -180,7 +183,7 @@ static char * calculateQualName(void) {
 			WRITE("<locals>.");
 		}
 		WRITE(".");
-		WRITE(ptr->function->name->chars);
+		WRITE(ptr->codeobject->name->chars);
 		ptr = ptr->enclosing;
 	}
 
@@ -190,11 +193,12 @@ static char * calculateQualName(void) {
 static void initCompiler(Compiler * compiler, FunctionType type) {
 	compiler->enclosing = current;
 	current = compiler;
-	compiler->function = NULL;
+	compiler->codeobject = NULL;
 	compiler->type = type;
 	compiler->scopeDepth = 0;
-	compiler->function = krk_newFunction();
-	compiler->function->globalsContext = (KrkInstance*)krk_currentThread.module;
+	compiler->enclosed = NULL;
+	compiler->codeobject = krk_newCodeObject();
+	compiler->codeobject->globalsContext = (KrkInstance*)krk_currentThread.module;
 	compiler->localCount = 0;
 	compiler->localsSpace = 8;
 	compiler->locals = GROW_ARRAY(Local,NULL,0,8);
@@ -209,13 +213,12 @@ static void initCompiler(Compiler * compiler, FunctionType type) {
 	compiler->loopLocalCount = 0;
 	compiler->localNameCapacity = 0;
 	compiler->properties = NULL;
-	compiler->enclosed = NULL;
 	compiler->annotationCount = 0;
 
 	if (type != TYPE_MODULE) {
-		current->function->name = krk_copyString(parser.previous.start, parser.previous.length);
+		current->codeobject->name = krk_copyString(parser.previous.start, parser.previous.length);
 		char * qualname = calculateQualName();
-		current->function->qualname = krk_copyString(qualname, strlen(qualname));
+		current->codeobject->qualname = krk_copyString(qualname, strlen(qualname));
 	}
 
 	if (isMethod(type)) {
@@ -254,9 +257,12 @@ static KrkToken classDeclaration();
 static void declareVariable();
 static void namedVariable(KrkToken name, int canAssign);
 static size_t addLocal(KrkToken name);
+static size_t renameLocal(size_t ind, KrkToken name);
 static void string(int canAssign);
 static KrkToken decorator(size_t level, FunctionType type);
 static void call(int canAssign);
+static void complexAssignment(size_t count, KrkScanner oldScanner, Parser oldParser, size_t targetCount, int parenthesized);
+static void complexAssignmentTargets(size_t count, KrkScanner oldScanner, Parser oldParser, size_t targetCount, int parenthesized);
 
 static void finishError(KrkToken * token) {
 	size_t i = 0;
@@ -268,8 +274,8 @@ static void finishError(KrkToken * token) {
 	krk_attachNamedValue (&AS_INSTANCE(krk_currentThread.currentException)->fields, "colno",  INTEGER_VAL(token->col));
 	krk_attachNamedValue (&AS_INSTANCE(krk_currentThread.currentException)->fields, "width",  INTEGER_VAL(token->literalWidth));
 
-	if (current->function->name) {
-		krk_attachNamedObject(&AS_INSTANCE(krk_currentThread.currentException)->fields, "func", (KrkObj*)current->function->name);
+	if (current->codeobject->name) {
+		krk_attachNamedObject(&AS_INSTANCE(krk_currentThread.currentException)->fields, "func", (KrkObj*)current->codeobject->name);
 	} else {
 		KrkValue name = NONE_VAL();
 		krk_tableGet(&krk_currentThread.module->fields, vm.specialMethodNames[METHOD_NAME], &name);
@@ -280,8 +286,14 @@ static void finishError(KrkToken * token) {
 	parser.hadError = 1;
 }
 
-#define error(...) do { if (parser.panicMode) break; krk_runtimeError(vm.exceptions->syntaxError, __VA_ARGS__); finishError(&parser.previous); } while (0)
-#define errorAtCurrent(...) do { if (parser.panicMode) break; krk_runtimeError(vm.exceptions->syntaxError, __VA_ARGS__); finishError(&parser.current); } while (0)
+#ifdef KRK_NO_DOCUMENTATION
+# define raiseSyntaxError(token, ...) do { if (parser.panicMode) break; krk_runtimeError(vm.exceptions->syntaxError, "syntax error"); finishError(token); } while (0)
+#else
+# define raiseSyntaxError(token, ...) do { if (parser.panicMode) break; krk_runtimeError(vm.exceptions->syntaxError, __VA_ARGS__); finishError(token); } while (0)
+#endif
+
+#define error(...) raiseSyntaxError(&parser.previous, __VA_ARGS__)
+#define errorAtCurrent(...) raiseSyntaxError(&parser.current, __VA_ARGS__)
 
 static void advance() {
 	parser.previous = parser.current;
@@ -294,7 +306,7 @@ static void advance() {
 
 #ifdef ENABLE_SCAN_TRACING
 		if (krk_currentThread.flags & KRK_THREAD_ENABLE_SCAN_TRACING) {
-			fprintf(stderr, "[%s<%d> %d:%d '%.*s'] ",
+			fprintf(stderr, "  [%s<%d> %d:%d '%.*s']\n",
 				getRule(parser.current.type)->name,
 				(int)parser.current.type,
 				(int)parser.current.line,
@@ -374,17 +386,19 @@ static void emitReturn() {
 	emitByte(OP_RETURN);
 }
 
-static KrkFunction * endCompiler() {
-	KrkFunction * function = current->function;
+static KrkCodeObject * endCompiler() {
+	KrkCodeObject * function = current->codeobject;
 
-	for (size_t i = 0; i < current->function->localNameCount; i++) {
-		if (current->function->localNames[i].deathday == 0) {
-			current->function->localNames[i].deathday = currentChunk()->count;
+	for (size_t i = 0; i < current->codeobject->localNameCount; i++) {
+		if (current->codeobject->localNames[i].deathday == 0) {
+			current->codeobject->localNames[i].deathday = currentChunk()->count;
 		}
 	}
-	current->function->localNames = GROW_ARRAY(KrkLocalEntry, current->function->localNames, \
-		current->localNameCapacity, current->function->localNameCount); /* Shorten this down for runtime */
+	current->codeobject->localNames = GROW_ARRAY(KrkLocalEntry, current->codeobject->localNames, \
+		current->localNameCapacity, current->codeobject->localNameCount); /* Shorten this down for runtime */
 
+	if (current->continueCount) { parser.previous = current->continues[0].token; error("continue without loop"); }
+	if (current->breakCount) { parser.previous = current->breaks[0].token; error("break without loop"); }
 	emitReturn();
 
 	/* Attach contants for arguments */
@@ -401,8 +415,8 @@ static KrkFunction * endCompiler() {
 		krk_writeValueArray(&function->keywordArgNames, value);
 		krk_pop();
 	}
-	size_t args = current->function->requiredArgs + current->function->keywordArgs;
-	if (current->function->collectsArguments) {
+	size_t args = current->codeobject->requiredArgs + current->codeobject->keywordArgs;
+	if (current->codeobject->collectsArguments) {
 		KrkValue value = OBJECT_VAL(krk_copyString(current->locals[args].name.start,
 			current->locals[args].name.length));
 		krk_push(value);
@@ -410,7 +424,7 @@ static KrkFunction * endCompiler() {
 		krk_pop();
 		args++;
 	}
-	if (current->function->collectsKeywords) {
+	if (current->codeobject->collectsKeywords) {
 		KrkValue value = OBJECT_VAL(krk_copyString(current->locals[args].name.start,
 			current->locals[args].name.length));
 		krk_push(value);
@@ -432,8 +446,8 @@ static KrkFunction * endCompiler() {
 static void freeCompiler(Compiler * compiler) {
 	FREE_ARRAY(Local,compiler->locals, compiler->localsSpace);
 	FREE_ARRAY(Upvalue,compiler->upvalues, compiler->upvaluesSpace);
-	FREE_ARRAY(int,compiler->breaks, compiler->breakSpace);
-	FREE_ARRAY(int,compiler->continues, compiler->continueSpace);
+	FREE_ARRAY(struct LoopExit,compiler->breaks, compiler->breakSpace);
+	FREE_ARRAY(struct LoopExit,compiler->continues, compiler->continueSpace);
 
 	while (compiler->properties) {
 		void * tmp = compiler->properties;
@@ -516,6 +530,12 @@ static int matchEndOfDel(void) {
 	return check(TOKEN_COMMA) || check(TOKEN_EOL) || check(TOKEN_EOF) || check(TOKEN_SEMICOLON);
 }
 
+static int matchComplexEnd(void) {
+	return match(TOKEN_COMMA) ||
+			match(TOKEN_EQUAL) ||
+			match(TOKEN_RIGHT_PAREN);
+}
+
 static void assignmentValue(void) {
 	KrkTokenType type = parser.previous.type;
 	if (type == TOKEN_PLUS_PLUS || type == TOKEN_MINUS_MINUS) {
@@ -566,7 +586,7 @@ static void get_(int canAssign) {
 			consume(TOKEN_RIGHT_SQUARE, "Expected ending square bracket after slice.");
 		}
 		if (canAssign == 2) {
-			if (match(TOKEN_COMMA) || check(TOKEN_EQUAL)) {
+			if (matchComplexEnd()) {
 				EMIT_CONSTANT_OP(OP_DUP, 3);
 				emitByte(OP_INVOKE_SETSLICE);
 				emitByte(OP_POP);
@@ -594,7 +614,7 @@ static void get_(int canAssign) {
 	} else {
 		consume(TOKEN_RIGHT_SQUARE, "Expected ending square bracket after index.");
 		if (canAssign == 2) {
-			if (match(TOKEN_COMMA) || check(TOKEN_EQUAL)) {
+			if (matchComplexEnd()) {
 				EMIT_CONSTANT_OP(OP_DUP, 2);
 				emitByte(OP_INVOKE_SETTER);
 				emitByte(OP_POP);
@@ -693,7 +713,7 @@ _dotDone:
 	consume(TOKEN_IDENTIFIER, "Expected property name");
 	size_t ind = identifierConstant(&parser.previous);
 	if (canAssign == 2) {
-		if (match(TOKEN_COMMA) || check(TOKEN_EQUAL)) {
+		if (matchComplexEnd()) {
 			EMIT_CONSTANT_OP(OP_DUP, 1);
 			EMIT_CONSTANT_OP(OP_SET_PROPERTY, ind);
 			emitByte(OP_POP);
@@ -727,7 +747,7 @@ static void in_(int canAssign) {
 }
 
 static void not_(int canAssign) {
-	consume(TOKEN_IN, "infix not must be followed by in\n");
+	consume(TOKEN_IN, "infix not must be followed by 'in'");
 	in_(canAssign);
 	emitByte(OP_NOT);
 }
@@ -822,7 +842,8 @@ static void letDeclaration(void) {
 
 _letDone:
 	if (!match(TOKEN_EOL) && !match(TOKEN_EOF)) {
-		error("Expected end of line after 'let' statement.");
+		errorAtCurrent("Expected end of line after 'let' statement, not '%.*s'",
+			(int)parser.current.length, parser.current.start);
 	}
 
 	FREE_ARRAY(ssize_t,args,argSpace);
@@ -886,9 +907,10 @@ static void endScope() {
 	current->scopeDepth--;
 	while (current->localCount > 0 &&
 	       current->locals[current->localCount - 1].depth > (ssize_t)current->scopeDepth) {
-		for (size_t i = 0; i < current->function->localNameCount; i++) {
-			if (current->function->localNames[i].id == current->localCount - 1) {
-				current->function->localNames[i].deathday = (size_t)currentChunk()->count;
+		for (size_t i = 0; i < current->codeobject->localNameCount; i++) {
+			if (current->codeobject->localNames[i].id == current->localCount - 1 &&
+				current->codeobject->localNames[i].deathday == 0) {
+				current->codeobject->localNames[i].deathday = (size_t)currentChunk()->count;
 			}
 		}
 		if (current->locals[current->localCount - 1].isCaptured) {
@@ -931,7 +953,7 @@ static void block(size_t indentation, const char * blockName) {
 				 * to OP_CONSTANT, but just to be safe we'll actually use the previous offset... */
 				currentChunk()->count = before;
 				/* Retreive the docstring from the constant table */
-				current->function->docstring = AS_STRING(currentChunk()->constants.values[currentChunk()->constants.count-1]);
+				current->codeobject->docstring = AS_STRING(currentChunk()->constants.values[currentChunk()->constants.count-1]);
 				consume(TOKEN_EOL,"Garbage after docstring defintion");
 				if (!check(TOKEN_INDENTATION) || parser.current.length != currentIndentation) {
 					error("Expected at least one statement in function with docstring.");
@@ -960,7 +982,7 @@ static void block(size_t indentation, const char * blockName) {
 	}
 }
 
-static void doUpvalues(Compiler * compiler, KrkFunction * function) {
+static void doUpvalues(Compiler * compiler, KrkCodeObject * function) {
 	assert(!!function->upvalueCount == !!compiler->upvalues);
 	for (size_t i = 0; i < function->upvalueCount; ++i) {
 		emitByte(compiler->upvalues[i].isLocal ? 1 : 0);
@@ -989,11 +1011,11 @@ static void typeHint(KrkToken name) {
 static void function(FunctionType type, size_t blockWidth) {
 	Compiler compiler;
 	initCompiler(&compiler, type);
-	compiler.function->chunk.filename = compiler.enclosing->function->chunk.filename;
+	compiler.codeobject->chunk.filename = compiler.enclosing->codeobject->chunk.filename;
 
 	beginScope();
 
-	if (isMethod(type)) current->function->requiredArgs = 1;
+	if (isMethod(type)) current->codeobject->requiredArgs = 1;
 
 	int hasCollectors = 0;
 
@@ -1019,14 +1041,14 @@ static void function(FunctionType type, size_t blockWidth) {
 						return;
 					}
 					hasCollectors = 2;
-					current->function->collectsKeywords = 1;
+					current->codeobject->collectsKeywords = 1;
 				} else {
 					if (hasCollectors) {
 						error("Syntax error.");
 						return;
 					}
 					hasCollectors = 1;
-					current->function->collectsArguments = 1;
+					current->codeobject->collectsArguments = 1;
 				}
 				/* Collect a name, specifically "args" or "kwargs" are commont */
 				ssize_t paramConstant = parseVariable("Expect parameter name.");
@@ -1088,13 +1110,13 @@ static void function(FunctionType type, size_t blockWidth) {
 				endScope();
 				patchJump(jumpIndex);
 				emitByte(OP_POP);
-				current->function->keywordArgs++;
+				current->codeobject->keywordArgs++;
 			} else {
-				if (current->function->keywordArgs) {
+				if (current->codeobject->keywordArgs) {
 					error("non-keyword argument follows keyword argument");
 					break;
 				}
-				current->function->requiredArgs++;
+				current->codeobject->requiredArgs++;
 			}
 		} while (match(TOKEN_COMMA));
 	}
@@ -1107,7 +1129,7 @@ static void function(FunctionType type, size_t blockWidth) {
 
 	consume(TOKEN_COLON, "Expected colon after function signature.");
 	block(blockWidth,"def");
-	KrkFunction * function = endCompiler();
+	KrkCodeObject * function = endCompiler();
 	if (compiler.annotationCount) {
 		EMIT_CONSTANT_OP(OP_MAKE_DICT, compiler.annotationCount * 2);
 	}
@@ -1201,7 +1223,7 @@ static KrkToken classDeclaration() {
 	consume(TOKEN_IDENTIFIER, "Expected class name.");
 	Compiler subcompiler;
 	initCompiler(&subcompiler, TYPE_CLASS);
-	subcompiler.function->chunk.filename = subcompiler.enclosing->function->chunk.filename;
+	subcompiler.codeobject->chunk.filename = subcompiler.enclosing->codeobject->chunk.filename;
 
 	beginScope();
 
@@ -1281,7 +1303,7 @@ static KrkToken classDeclaration() {
 _pop_class:
 	emitByte(OP_FINALIZE);
 	currentClass = currentClass->enclosing;
-	KrkFunction * makeclass = endCompiler();
+	KrkCodeObject * makeclass = endCompiler();
 	size_t indFunc = krk_addConstant(currentChunk(), OBJECT_VAL(makeclass));
 	EMIT_CONSTANT_OP(OP_CLOSURE, indFunc);
 	doUpvalues(&subcompiler, makeclass);
@@ -1300,21 +1322,21 @@ static void lambda(int canAssign) {
 	Compiler lambdaCompiler;
 	parser.previous = syntheticToken("<lambda>");
 	initCompiler(&lambdaCompiler, TYPE_LAMBDA);
-	lambdaCompiler.function->chunk.filename = lambdaCompiler.enclosing->function->chunk.filename;
+	lambdaCompiler.codeobject->chunk.filename = lambdaCompiler.enclosing->codeobject->chunk.filename;
 	beginScope();
 
 	if (!check(TOKEN_COLON)) {
 		do {
 			ssize_t paramConstant = parseVariable("Expect parameter name.");
 			defineVariable(paramConstant);
-			current->function->requiredArgs++;
+			current->codeobject->requiredArgs++;
 		} while (match(TOKEN_COMMA));
 	}
 
 	consume(TOKEN_COLON, "expected : after lambda arguments");
 	expression();
 
-	KrkFunction * lambda = endCompiler();
+	KrkCodeObject * lambda = endCompiler();
 	size_t ind = krk_addConstant(currentChunk(), OBJECT_VAL(lambda));
 	EMIT_CONSTANT_OP(OP_CLOSURE, ind);
 	doUpvalues(&lambdaCompiler, lambda);
@@ -1394,8 +1416,8 @@ static KrkToken decorator(size_t level, FunctionType type) {
 static void emitLoop(int loopStart) {
 
 	/* Patch continue statements to point to here, before the loop operation (yes that's silly) */
-	while (current->continueCount > 0 && current->continues[current->continueCount-1] > loopStart) {
-		patchJump(current->continues[current->continueCount-1]);
+	while (current->continueCount > 0 && current->continues[current->continueCount-1].offset > loopStart) {
+		patchJump(current->continues[current->continueCount-1].offset);
 		current->continueCount--;
 	}
 
@@ -1413,6 +1435,7 @@ static void withStatement() {
 
 	/* We only need this for block() */
 	size_t blockWidth = (parser.previous.type == TOKEN_INDENTATION) ? parser.previous.length : 0;
+	KrkToken myPrevious = parser.previous;
 
 	/* Collect the with token that started this statement */
 	advance();
@@ -1431,15 +1454,25 @@ static void withStatement() {
 		markInitialized();
 	}
 
-	consume(TOKEN_COLON, "Expected ':' after with statement");
+	/* Storage for return / exception */
+	addLocal(syntheticToken(""));
+	markInitialized();
 
+	/* Handler object */
 	addLocal(syntheticToken(""));
 	int withJump = emitJump(OP_PUSH_WITH);
 	markInitialized();
 
-	beginScope();
-	block(blockWidth,"with");
-	endScope();
+	if (check(TOKEN_COMMA)) {
+		parser.previous = myPrevious;
+		withStatement(); /* Keep nesting */
+	} else {
+		consume(TOKEN_COLON, "Expected ',' or ':' after with statement");
+
+		beginScope();
+		block(blockWidth,"with");
+		endScope();
+	}
 
 	patchJump(withJump);
 	emitByte(OP_CLEANUP_WITH);
@@ -1508,8 +1541,8 @@ static void ifStatement() {
 
 static void patchBreaks(int loopStart) {
 	/* Patch break statements to go here, after the loop operation and operand. */
-	while (current->breakCount > 0 && current->breaks[current->breakCount-1] > loopStart) {
-		patchJump(current->breaks[current->breakCount-1]);
+	while (current->breakCount > 0 && current->breaks[current->breakCount-1].offset > loopStart) {
+		patchJump(current->breaks[current->breakCount-1].offset);
 		current->breakCount--;
 	}
 }
@@ -1518,26 +1551,26 @@ static void breakStatement() {
 	if (current->breakSpace < current->breakCount + 1) {
 		size_t old = current->breakSpace;
 		current->breakSpace = GROW_CAPACITY(old);
-		current->breaks = GROW_ARRAY(int,current->breaks,old,current->breakSpace);
+		current->breaks = GROW_ARRAY(struct LoopExit,current->breaks,old,current->breakSpace);
 	}
 
 	for (size_t i = current->loopLocalCount; i < current->localCount; ++i) {
 		emitByte(OP_POP);
 	}
-	current->breaks[current->breakCount++] = emitJump(OP_JUMP);
+	current->breaks[current->breakCount++] = (struct LoopExit){emitJump(OP_JUMP),parser.previous};
 }
 
 static void continueStatement() {
 	if (current->continueSpace < current->continueCount + 1) {
 		size_t old = current->continueSpace;
 		current->continueSpace = GROW_CAPACITY(old);
-		current->continues = GROW_ARRAY(int,current->continues,old,current->continueSpace);
+		current->continues = GROW_ARRAY(struct LoopExit,current->continues,old,current->continueSpace);
 	}
 
 	for (size_t i = current->loopLocalCount; i < current->localCount; ++i) {
 		emitByte(OP_POP);
 	}
-	current->continues[current->continueCount++] = emitJump(OP_JUMP);
+	current->continues[current->continueCount++] = (struct LoopExit){emitJump(OP_JUMP),parser.previous};
 }
 
 static void whileStatement() {
@@ -1683,7 +1716,7 @@ static void returnStatement() {
 		if (current->type == TYPE_INIT) {
 			error("Can not return values from __init__");
 		}
-		expression();
+		parsePrecedence(PREC_ASSIGNMENT);
 		emitByte(OP_RETURN);
 	}
 }
@@ -1693,11 +1726,11 @@ static void yieldStatement() {
 		error("'yield' outside function");
 		return;
 	}
-	current->function->isGenerator = 1;
+	current->codeobject->isGenerator = 1;
 	if (check(TOKEN_EOL) || check(TOKEN_EOF)) {
 		emitByte(OP_NONE);
 	} else {
-		expression();
+		parsePrecedence(PREC_ASSIGNMENT);
 	}
 	emitBytes(OP_YIELD, OP_POP);
 }
@@ -1710,18 +1743,27 @@ static void tryStatement() {
 	/* Make sure we are in a local scope so this ends up on the stack */
 	beginScope();
 	int tryJump = emitJump(OP_PUSH_TRY);
-	/* We'll rename this later, but it needs to be on the stack now as it represents the exception handler */
-	size_t localNameCount = current->function->localNameCount;
+
 	size_t exceptionObject = addLocal(syntheticToken(""));
-	defineVariable(0);
+	markInitialized();
+
+	addLocal(syntheticToken("")); /* Try */
+	markInitialized();
 
 	beginScope();
 	block(blockWidth,"try");
 	endScope();
 
-	int successJump = emitJump(OP_JUMP);
+#define EXIT_JUMP_MAX 32
+	int exitJumps = 1;
+	int exitJumpOffsets[EXIT_JUMP_MAX] = {0};
+
+	exitJumpOffsets[0] = emitJump(OP_JUMP);
 	patchJump(tryJump);
 
+	int nextJump = -1;
+
+_anotherExcept:
 	if (blockWidth == 0 || (check(TOKEN_INDENTATION) && (parser.current.length == blockWidth))) {
 		KrkToken previous;
 		if (blockWidth) {
@@ -1729,11 +1771,19 @@ static void tryStatement() {
 			advance();
 		}
 		if (match(TOKEN_EXCEPT)) {
+			if (nextJump != -1) {
+				patchJump(nextJump);
+				emitByte(OP_POP);
+			}
 			/* Match filter expression (should be class or tuple) */
 			if (!check(TOKEN_COLON) && !check(TOKEN_AS)) {
 				expression();
-				emitByte(OP_FILTER_EXCEPT);
+			} else {
+				emitByte(OP_NONE);
 			}
+			emitByte(OP_FILTER_EXCEPT);
+			nextJump = emitJump(OP_JUMP_IF_FALSE);
+			emitByte(OP_POP);
 
 			/* Match 'as' to rename exception */
 			if (match(TOKEN_AS)) {
@@ -1743,14 +1793,42 @@ static void tryStatement() {
 				/* XXX Should we remove this now? */
 				current->locals[exceptionObject].name = syntheticToken("exception");
 			}
-			/* Make sure we update the local name for debugging */
-			current->function->localNames[localNameCount].birthday = currentChunk()->count;
-			current->function->localNames[localNameCount].name = krk_copyString(current->locals[exceptionObject].name.start, current->locals[exceptionObject].name.length);
+
+			size_t nameInd = renameLocal(exceptionObject, current->locals[exceptionObject].name);
 
 			consume(TOKEN_COLON, "Expect ':' after except.");
 			beginScope();
 			block(blockWidth,"except");
 			endScope();
+
+			current->codeobject->localNames[nameInd].deathday = (size_t)currentChunk()->count;
+
+			if (exitJumps < EXIT_JUMP_MAX) {
+				exitJumpOffsets[exitJumps++] = emitJump(OP_JUMP);
+			} else {
+				error("too many except clauses");
+				return;
+			}
+
+			goto _anotherExcept;
+		} else if (match(TOKEN_FINALLY)) {
+			consume(TOKEN_COLON, "expected : after 'finally'");
+			for (int i = 0; i < exitJumps; ++i) {
+				patchJump(exitJumpOffsets[i]);
+			}
+			size_t nameInd = renameLocal(exceptionObject, syntheticToken("__tmp"));
+			emitByte(OP_BEGIN_FINALLY);
+			exitJumps = 0;
+			if (nextJump != -1) {
+				patchJump(nextJump);
+				emitByte(OP_POP);
+			}
+			beginScope();
+			block(blockWidth,"finally");
+			endScope();
+			nextJump = -2;
+			current->codeobject->localNames[nameInd].deathday = (size_t)currentChunk()->count;
+			emitByte(OP_END_FINALLY);
 		} else if (!check(TOKEN_EOL) && !check(TOKEN_EOF)) {
 			krk_ungetToken(parser.current);
 			parser.current = parser.previous;
@@ -1762,12 +1840,23 @@ static void tryStatement() {
 		}
 	}
 
-	patchJump(successJump);
+	for (int i = 0; i < exitJumps; ++i) {
+		patchJump(exitJumpOffsets[i]);
+	}
+
+	if (nextJump >= 0) {
+		emitByte(OP_BEGIN_FINALLY);
+		emitByte(OP_NONE);
+		patchJump(nextJump);
+		emitByte(OP_POP);
+		emitByte(OP_END_FINALLY);
+	}
+
 	endScope(); /* will pop the exception handler */
 }
 
 static void raiseStatement() {
-	expression();
+	parsePrecedence(PREC_ASSIGNMENT);
 	emitByte(OP_RAISE);
 }
 
@@ -2064,7 +2153,7 @@ static void string(int type) {
 				KrkScanner inner = (KrkScanner){.start=c+1, .cur=c+1, .linePtr=lineBefore, .line=lineNo, .startOfLine = 0, .hasUnget = 0};
 				krk_rewindScanner(inner);
 				advance();
-				expression();
+				parsePrecedence(PREC_COMMA); /* allow unparen'd tuples, but not assignments, as expressions in f-strings */
 				if (parser.hadError) {
 					FREE_ARRAY(char,stringBytes,stringCapacity);
 					return;
@@ -2137,7 +2226,7 @@ _cleanupError:
 }
 
 static size_t addUpvalue(Compiler * compiler, ssize_t index, int isLocal) {
-	size_t upvalueCount = compiler->function->upvalueCount;
+	size_t upvalueCount = compiler->codeobject->upvalueCount;
 	for (size_t i = 0; i < upvalueCount; ++i) {
 		Upvalue * upvalue = &compiler->upvalues[i];
 		if ((ssize_t)upvalue->index == index && upvalue->isLocal == isLocal) {
@@ -2151,7 +2240,7 @@ static size_t addUpvalue(Compiler * compiler, ssize_t index, int isLocal) {
 	}
 	compiler->upvalues[upvalueCount].isLocal = isLocal;
 	compiler->upvalues[upvalueCount].index = index;
-	return compiler->function->upvalueCount++;
+	return compiler->codeobject->upvalueCount++;
 }
 
 static ssize_t resolveUpvalue(Compiler * compiler, KrkToken * name) {
@@ -2171,7 +2260,7 @@ static ssize_t resolveUpvalue(Compiler * compiler, KrkToken * name) {
 #define OP_NONE_LONG -1
 #define DO_VARIABLE(opset,opget,opdel) do { \
 	if (canAssign == 2) { \
-		if (match(TOKEN_COMMA) || check(TOKEN_EQUAL)) { \
+		if (matchComplexEnd()) { \
 			EMIT_CONSTANT_OP(opset, arg); \
 			break; \
 		} \
@@ -2335,14 +2424,14 @@ static void generatorExpression(KrkScanner scannerBefore, Parser parserBefore, v
 	parser.previous = syntheticToken("<genexpr>");
 	Compiler subcompiler;
 	initCompiler(&subcompiler, TYPE_FUNCTION);
-	subcompiler.function->chunk.filename = subcompiler.enclosing->function->chunk.filename;
-	subcompiler.function->isGenerator = 1;
+	subcompiler.codeobject->chunk.filename = subcompiler.enclosing->codeobject->chunk.filename;
+	subcompiler.codeobject->isGenerator = 1;
 
 	beginScope();
 	generatorInner(scannerBefore, parserBefore, body, 0);
 	endScope();
 
-	KrkFunction *subfunction = endCompiler();
+	KrkCodeObject *subfunction = endCompiler();
 	size_t indFunc = krk_addConstant(currentChunk(), OBJECT_VAL(subfunction));
 	EMIT_CONSTANT_OP(OP_CLOSURE, indFunc);
 	doUpvalues(&subcompiler, subfunction);
@@ -2353,7 +2442,7 @@ static void generatorExpression(KrkScanner scannerBefore, Parser parserBefore, v
 static void comprehensionExpression(KrkScanner scannerBefore, Parser parserBefore, void (*body)(size_t), int type) {
 	Compiler subcompiler;
 	initCompiler(&subcompiler, TYPE_FUNCTION);
-	subcompiler.function->chunk.filename = subcompiler.enclosing->function->chunk.filename;
+	subcompiler.codeobject->chunk.filename = subcompiler.enclosing->codeobject->chunk.filename;
 
 	beginScope();
 	emitBytes(type,0);
@@ -2370,7 +2459,7 @@ static void comprehensionExpression(KrkScanner scannerBefore, Parser parserBefor
 
 	emitByte(OP_RETURN);
 
-	KrkFunction *subfunction = endCompiler();
+	KrkCodeObject *subfunction = endCompiler();
 	size_t indFunc = krk_addConstant(currentChunk(), OBJECT_VAL(subfunction));
 	EMIT_CONSTANT_OP(OP_CLOSURE, indFunc);
 	doUpvalues(&subcompiler, subfunction);
@@ -2379,19 +2468,23 @@ static void comprehensionExpression(KrkScanner scannerBefore, Parser parserBefor
 }
 
 static void grouping(int canAssign) {
+	int maybeValidAssignment = 0;
+	size_t chunkBefore = currentChunk()->count;
+	KrkScanner scannerBefore = krk_tellScanner();
+	Parser  parserBefore = parser;
+	size_t argCount = 0;
 	startEatingWhitespace();
 	if (check(TOKEN_RIGHT_PAREN)) {
 		emitBytes(OP_TUPLE,0);
 	} else {
-		size_t chunkBefore = currentChunk()->count;
-		KrkScanner scannerBefore = krk_tellScanner();
-		Parser  parserBefore = parser;
 		parsePrecedence(PREC_CAN_ASSIGN);
+		maybeValidAssignment = 1;
+		argCount = 1;
 		if (match(TOKEN_FOR)) {
+			maybeValidAssignment = 0;
 			currentChunk()->count = chunkBefore;
 			generatorExpression(scannerBefore, parserBefore, yieldInner);
 		} else if (match(TOKEN_COMMA)) {
-			size_t argCount = 1;
 			if (!check(TOKEN_RIGHT_PAREN)) {
 				do {
 					expression();
@@ -2406,6 +2499,27 @@ static void grouping(int canAssign) {
 		switch (parser.current.type) {
 			case TOKEN_EQUAL: error("Assignment value expression must be enclosed in parentheses."); break;
 			default: error("Expected ')'");
+		}
+	}
+	if (canAssign == 1 && match(TOKEN_EQUAL)) {
+		if (!argCount) {
+			error("Can not assign to empty target list.");
+		} else if (!maybeValidAssignment) {
+			error("Can not assign to generator expression.");
+		} else {
+			complexAssignment(chunkBefore, scannerBefore, parserBefore, argCount, 1);
+		}
+	} else if (canAssign == 2 && (check(TOKEN_EQUAL) || check(TOKEN_COMMA) || check(TOKEN_RIGHT_PAREN))) {
+		if (!argCount) {
+			error("Can not assign to empty target list.");
+		} else if (!maybeValidAssignment) {
+			error("Can not assign to generator expression.");
+		} else {
+			currentChunk()->count = chunkBefore;
+			complexAssignmentTargets(chunkBefore, scannerBefore, parserBefore, argCount, 2);
+			if (!matchComplexEnd()) {
+				errorAtCurrent("Unexpected end of nested target list");
+			}
 		}
 	}
 }
@@ -2637,16 +2751,13 @@ static void actualTernary(size_t count, KrkScanner oldScanner, Parser oldParser)
 	parser = outParser;
 }
 
-static void complexAssignment(size_t count, KrkScanner oldScanner, Parser oldParser, size_t targetCount) {
-	currentChunk()->count = count;
-	parsePrecedence(PREC_ASSIGNMENT);
+static void complexAssignmentTargets(size_t count, KrkScanner oldScanner, Parser oldParser, size_t targetCount, int parenthesized) {
 	emitBytes(OP_DUP, 0);
-	EMIT_CONSTANT_OP(OP_UNPACK,targetCount);
-	EMIT_CONSTANT_OP(OP_REVERSE,targetCount);
 
-	/* Store end state */
-	KrkScanner outScanner = krk_tellScanner();
-	Parser outParser = parser;
+	if (targetCount > 1) {
+		EMIT_CONSTANT_OP(OP_UNPACK,targetCount);
+		EMIT_CONSTANT_OP(OP_REVERSE,targetCount);
+	}
 
 	/* Rewind */
 	krk_rewindScanner(oldScanner);
@@ -2655,11 +2766,50 @@ static void complexAssignment(size_t count, KrkScanner oldScanner, Parser oldPar
 	/* Parse assignment targets */
 	size_t checkTargetCount = 0;
 	do {
-		if (match(TOKEN_EQUAL)) break;
 		checkTargetCount++;
 		parsePrecedence(PREC_MUST_ASSIGN);
 		emitByte(OP_POP);
-	} while (parser.previous.type == TOKEN_COMMA);
+
+		if (checkTargetCount == targetCount && parser.previous.type == TOKEN_COMMA) {
+			if (!match(parenthesized ? TOKEN_RIGHT_PAREN : TOKEN_EQUAL)) {
+				goto _errorAtCurrent;
+			}
+		}
+
+		if (checkTargetCount == targetCount && parenthesized) {
+			if (parser.previous.type != TOKEN_RIGHT_PAREN) {
+				goto _errorAtCurrent;
+			}
+		}
+
+		if (checkTargetCount == targetCount && parenthesized) {
+			if (parenthesized == 1 && !match(TOKEN_EQUAL)) {
+				goto _errorAtCurrent;
+			}
+		}
+
+		if (checkTargetCount == targetCount) return;
+
+		if (check(TOKEN_COMMA) || check(TOKEN_EQUAL) || check(TOKEN_RIGHT_PAREN)) {
+			goto _errorAtCurrent;
+		}
+
+	} while (parser.previous.type != TOKEN_EQUAL && !parser.hadError);
+
+_errorAtCurrent:
+	errorAtCurrent("Invalid complex assignment target");
+}
+
+static void complexAssignment(size_t count, KrkScanner oldScanner, Parser oldParser, size_t targetCount, int parenthesized) {
+
+	currentChunk()->count = count;
+	parsePrecedence(PREC_ASSIGNMENT);
+
+	/* Store end state */
+	KrkScanner outScanner = krk_tellScanner();
+	Parser outParser = parser;
+
+	complexAssignmentTargets(count,oldScanner,oldParser,targetCount,parenthesized);
 
 	/* Restore end state */
 	krk_rewindScanner(outScanner);
@@ -2669,14 +2819,15 @@ static void complexAssignment(size_t count, KrkScanner oldScanner, Parser oldPar
 static void actualComma(int canAssign, size_t count, KrkScanner oldScanner, Parser oldParser) {
 	size_t expressionCount = 1;
 	do {
+		if (!getRule(parser.current.type)->prefix) break;
 		expressionCount++;
 		parsePrecedence(PREC_TERNARY);
-	} while (match(TOKEN_COMMA) && !(check(TOKEN_EOL) || check(TOKEN_EOF)));
+	} while (match(TOKEN_COMMA));
 
 	EMIT_CONSTANT_OP(OP_TUPLE,expressionCount);
 
 	if (canAssign == 1 && match(TOKEN_EQUAL)) {
-		complexAssignment(count, oldScanner, oldParser, expressionCount);
+		complexAssignment(count, oldScanner, oldParser, expressionCount, 0);
 	}
 }
 
@@ -2690,13 +2841,16 @@ static void parsePrecedence(Precedence precedence) {
 	advance();
 	ParseFn prefixRule = getRule(parser.previous.type)->prefix;
 	if (prefixRule == NULL) {
-		errorAtCurrent("Unexpected token (parse precedence rule = NULL)");
+		error("Unexpected token ('%.*s' does not start an expression)",
+			(int)parser.previous.length, parser.previous.start);
 		return;
 	}
 	int canAssign = (precedence <= PREC_ASSIGNMENT || precedence == PREC_CAN_ASSIGN);
 	if (precedence == PREC_MUST_ASSIGN) canAssign = 2;
 	prefixRule(canAssign);
 	while (precedence <= getRule(parser.current.type)->precedence) {
+		if (canAssign == 2 && (parser.previous.type == TOKEN_COMMA ||
+			parser.previous.type == TOKEN_EQUAL)) break;
 		advance();
 		ParseFn infixRule = getRule(parser.previous.type)->infix;
 		if (infixRule == ternary) {
@@ -2709,10 +2863,7 @@ static void parsePrecedence(Precedence precedence) {
 	}
 
 	if (canAssign == 1 && matchAssignment()) {
-		switch (precedence) {
-			case PREC_COMMA: error("Can not assign to this?"); break;
-			default: error("Invalid assignment target (prec=%d)", precedence); break;
-		}
+		error("Invalid assignment target");
 	}
 	if (inDel == 1 && matchEndOfDel()) {
 		error("invalid del target");
@@ -2736,6 +2887,19 @@ static ssize_t resolveLocal(Compiler * compiler, KrkToken * name) {
 	return -1;
 }
 
+static size_t renameLocal(size_t ind, KrkToken name) {
+	if (current->codeobject->localNameCount + 1 > current->localNameCapacity) {
+		size_t old = current->localNameCapacity;
+		current->localNameCapacity = GROW_CAPACITY(old);
+		current->codeobject->localNames = GROW_ARRAY(KrkLocalEntry, current->codeobject->localNames, old, current->localNameCapacity);
+	}
+	current->codeobject->localNames[current->codeobject->localNameCount].id = ind;
+	current->codeobject->localNames[current->codeobject->localNameCount].birthday = currentChunk()->count;
+	current->codeobject->localNames[current->codeobject->localNameCount].deathday = 0;
+	current->codeobject->localNames[current->codeobject->localNameCount].name = krk_copyString(name.start, name.length);
+	return current->codeobject->localNameCount++;
+}
+
 static size_t addLocal(KrkToken name) {
 	if (current->localCount + 1 > current->localsSpace) {
 		size_t old = current->localsSpace;
@@ -2748,16 +2912,10 @@ static size_t addLocal(KrkToken name) {
 	local->depth = -1;
 	local->isCaptured = 0;
 
-	if (current->function->localNameCount + 1 > current->localNameCapacity) {
-		size_t old = current->localNameCapacity;
-		current->localNameCapacity = GROW_CAPACITY(old);
-		current->function->localNames = GROW_ARRAY(KrkLocalEntry, current->function->localNames, old, current->localNameCapacity);
+	if (name.length) {
+		renameLocal(out, name);
 	}
-	current->function->localNames[current->function->localNameCount].id = current->localCount-1;
-	current->function->localNames[current->function->localNameCount].birthday = currentChunk()->count;
-	current->function->localNames[current->function->localNameCount].deathday = 0;
-	current->function->localNames[current->function->localNameCount].name = krk_copyString(name.start, name.length);
-	current->function->localNameCount++;
+
 	return out;
 }
 
@@ -2912,14 +3070,14 @@ static ParseRule * getRule(KrkTokenType type) {
 static volatile int _compilerLock = 0;
 #endif
 
-KrkFunction * krk_compile(const char * src, char * fileName) {
+KrkCodeObject * krk_compile(const char * src, char * fileName) {
 	_obtain_lock(_compilerLock);
 
 	krk_initScanner(src);
 	Compiler compiler;
 	initCompiler(&compiler, TYPE_MODULE);
-	compiler.function->chunk.filename = krk_copyString(fileName, strlen(fileName));
-	compiler.function->name = krk_copyString("<module>",8);
+	compiler.codeobject->chunk.filename = krk_copyString(fileName, strlen(fileName));
+	compiler.codeobject->name = krk_copyString("<module>",8);
 
 	parser.hadError = 0;
 	parser.panicMode = 0;
@@ -2949,7 +3107,7 @@ KrkFunction * krk_compile(const char * src, char * fileName) {
 		}
 	}
 
-	KrkFunction * function = endCompiler();
+	KrkCodeObject * function = endCompiler();
 	freeCompiler(&compiler);
 	if (parser.hadError) function = NULL;
 
@@ -2960,8 +3118,8 @@ KrkFunction * krk_compile(const char * src, char * fileName) {
 void krk_markCompilerRoots() {
 	Compiler * compiler = current;
 	while (compiler != NULL) {
-		if (compiler->enclosed) krk_markObject((KrkObj*)compiler->enclosed->function);
-		krk_markObject((KrkObj*)compiler->function);
+		if (compiler->enclosed && compiler->enclosed->codeobject) krk_markObject((KrkObj*)compiler->enclosed->codeobject);
+		krk_markObject((KrkObj*)compiler->codeobject);
 		compiler = compiler->enclosing;
 	}
 }

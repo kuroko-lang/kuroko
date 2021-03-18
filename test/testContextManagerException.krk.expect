@@ -1,0 +1,15 @@
+Before
+Entering
+In context
+Exiting with [<class 'NoneType'>, <class 'NoneType'>, <class 'NoneType'>]
+After
+Before
+Entering
+in context
+Exiting with [<class 'NoneType'>, <class 'NoneType'>, <class 'NoneType'>]
+42
+Before
+Entering
+Raising
+Exiting with [<class 'type'>, <class 'ValueError'>, <class 'list'>]
+ValueError(None)

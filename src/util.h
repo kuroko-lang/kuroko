@@ -27,6 +27,9 @@
  *
  * These macros are intended to be used together to define functions for a class.
  */
+#ifdef KRK_NO_DOCUMENTATION
+# define _method_name(f) "func"
+#else
 static inline const char * _method_name(const char * func) {
 	const char * out = func;
 	if (*out == '_') out++;
@@ -34,11 +37,15 @@ static inline const char * _method_name(const char * func) {
 	if (*out == '_') out++;
 	return out;
 }
+#endif
 
 #define ADD_BASE_CLASS(obj, name, baseClass) krk_makeClass(vm.builtins, &obj, name, baseClass)
 
 /* _method_name works for this, but let's skip the inlined function call where possible */
 #define _function_name(f) (f+5)
+
+#define ATTRIBUTE_NOT_ASSIGNABLE() do { if (argc != 1) return krk_runtimeError(vm.exceptions->attributeError, "attribute '%s' is not assignable", \
+	_method_name(__func__)); } while (0)
 
 #define METHOD_TAKES_NONE() do { if (argc != 1) return krk_runtimeError(vm.exceptions->argumentError, "%s() takes no arguments (%d given)", \
 	_method_name(__func__), (argc-1)); } while (0)

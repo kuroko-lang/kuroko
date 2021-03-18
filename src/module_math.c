@@ -20,8 +20,8 @@
 
 #define FORCE_FLOAT(arg) \
 	if (!IS_FLOATING(arg)) { switch (arg.type) { \
-		case VAL_INTEGER: arg = FLOATING_VAL(AS_INTEGER(arg)); break; \
-		case VAL_BOOLEAN: arg = FLOATING_VAL(AS_BOOLEAN(arg)); break; \
+		case KRK_VAL_INTEGER: arg = FLOATING_VAL(AS_INTEGER(arg)); break; \
+		case KRK_VAL_BOOLEAN: arg = FLOATING_VAL(AS_BOOLEAN(arg)); break; \
 		default: { \
 			KrkClass * type = krk_getType(arg); \
 			krk_push(arg); \

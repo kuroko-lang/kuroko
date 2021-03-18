@@ -25,5 +25,17 @@ def foo(a=None,b=None,c=None,d=None):
     d = a, b = c = [1,2]
     print(d,a,b,c)
 
+    (a, b) = 45, 90
+    print(a, b)
+
+    (a, b) = (100, 200)
+    print(a, b)
+
+    (a, b,) = "extraneous", "commas"
+    print(a, b)
+
+    a, b, = "are", "weird"
+    print(a, b)
+
 
 foo()

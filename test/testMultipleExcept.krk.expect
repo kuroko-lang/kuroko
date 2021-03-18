@@ -1,0 +1,19 @@
+with None
+None
+Running finally
+Function exit
+with <class 'TypeError'>
+TypeError
+Running finally
+Function exit
+with <class 'ValueError'>
+ValueError
+Running finally
+Function exit
+with <class '__main__.SpecialException'>
+ValueError
+Running finally
+Function exit
+with <class 'NameError'>
+Running finally
+NameError was not caught: NameError(None)

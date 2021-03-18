@@ -1,0 +1,73 @@
+def f():
+    try:
+        print("in try")
+        return 'try'
+        print("???")
+    except:
+        print("exception?")
+    finally:
+        print("in finally")
+        return 'finally'
+
+print(f())
+
+def f():
+    try:
+        print("in try")
+        raise Exception()
+    except:
+        print("exception?")
+        return "exception"
+    finally:
+        print("in finally")
+        return 'finally'
+
+print(f())
+
+def f():
+    try:
+        print("in try")
+        raise Exception()
+    except:
+        print("exception?")
+        return "exception"
+    finally:
+        print("in finally")
+
+print(f())
+
+def f():
+    try:
+        print("in try")
+        raise Exception()
+    finally:
+        print("in finally")
+        return 42
+
+print(f())
+
+def f():
+    try:
+        print("in try")
+        raise Exception()
+    finally:
+        print("in finally")
+
+try:
+    print(f())
+except:
+    print("Raised exception.")
+
+def f():
+    try:
+        print("in try")
+        raise Exception()
+    except:
+        raise ValueError()
+    finally:
+        print("in finally")
+
+try:
+    print(f())
+except Exception as e:
+    print("Raised",type(e))

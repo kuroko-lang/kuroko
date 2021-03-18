@@ -455,7 +455,7 @@ static int debuggerHook(KrkCallFrame * frame) {
 			} else {
 				size_t frameCount = krk_currentThread.frameCount;
 				/* Compile statement */
-				KrkFunction * expression = krk_compile(arg,"<debugger>");
+				KrkCodeObject * expression = krk_compile(arg,"<debugger>");
 				if (expression) {
 					/* Make sure stepping is disabled first. */
 					krk_debug_disableSingleStep();
@@ -526,7 +526,7 @@ static int debuggerHook(KrkCallFrame * frame) {
 			}
 
 			if (!strcmp(arg,"breakpoints")) {
-				KrkFunction * codeObject = NULL;
+				KrkCodeObject * codeObject = NULL;
 				size_t offset = 0;
 				int flags = 0;
 				int enabled = 0;
@@ -705,7 +705,7 @@ static int compileFile(char * argv[], int flags, char * fileName) {
 	krk_startModule("__main__");
 
 	/* Call the compiler directly. */
-	KrkFunction * func = krk_compile(buf, fileName);
+	KrkCodeObject * func = krk_compile(buf, fileName);
 
 	/* See if there was an exception. */
 	if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) {

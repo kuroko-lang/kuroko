@@ -25,13 +25,13 @@ typedef struct KrkString KrkString;
  * processing sentinels, object reference pointers, and None.
  */
 typedef enum {
-	VAL_NONE,
-	VAL_BOOLEAN,
-	VAL_INTEGER,
-	VAL_FLOATING,
-	VAL_HANDLER,
-	VAL_OBJECT,
-	VAL_KWARGS,
+	KRK_VAL_NONE,
+	KRK_VAL_BOOLEAN,
+	KRK_VAL_INTEGER,
+	KRK_VAL_FLOATING,
+	KRK_VAL_HANDLER,
+	KRK_VAL_OBJECT,
+	KRK_VAL_KWARGS,
 } KrkValueType;
 
 /**
@@ -183,13 +183,13 @@ extern int krk_valuesEqual(KrkValue a, KrkValue b);
  */
 extern int krk_valuesSame(KrkValue a, KrkValue b);
 
-#define BOOLEAN_VAL(value)  ((KrkValue){VAL_BOOLEAN, {.integer = value}})
-#define NONE_VAL(value)     ((KrkValue){VAL_NONE,    {.integer = 0}})
-#define INTEGER_VAL(value)  ((KrkValue){VAL_INTEGER, {.integer = value}})
-#define FLOATING_VAL(value) ((KrkValue){VAL_FLOATING,{.floating = value}})
-#define HANDLER_VAL(ty,ta)  ((KrkValue){VAL_HANDLER, {.handler = (KrkJumpTarget){.type = ty, .target = ta}}})
-#define OBJECT_VAL(value)   ((KrkValue){VAL_OBJECT,  {.object = (KrkObj*)value}})
-#define KWARGS_VAL(value)   ((KrkValue){VAL_KWARGS,  {.integer = value}})
+#define BOOLEAN_VAL(value)  ((KrkValue){KRK_VAL_BOOLEAN, {.integer = value}})
+#define NONE_VAL(value)     ((KrkValue){KRK_VAL_NONE,    {.integer = 0}})
+#define INTEGER_VAL(value)  ((KrkValue){KRK_VAL_INTEGER, {.integer = value}})
+#define FLOATING_VAL(value) ((KrkValue){KRK_VAL_FLOATING,{.floating = value}})
+#define HANDLER_VAL(ty,ta)  ((KrkValue){KRK_VAL_HANDLER, {.handler = (KrkJumpTarget){.type = ty, .target = ta}}})
+#define OBJECT_VAL(value)   ((KrkValue){KRK_VAL_OBJECT,  {.object = (KrkObj*)value}})
+#define KWARGS_VAL(value)   ((KrkValue){KRK_VAL_KWARGS,  {.integer = value}})
 
 #define AS_BOOLEAN(value)   ((value).as.integer)
 #define AS_INTEGER(value)   ((value).as.integer)
@@ -197,14 +197,16 @@ extern int krk_valuesSame(KrkValue a, KrkValue b);
 #define AS_HANDLER(value)   ((value).as.handler)
 #define AS_OBJECT(value)    ((value).as.object)
 
-#define IS_BOOLEAN(value)   ((value).type == VAL_BOOLEAN)
-#define IS_NONE(value)      ((value).type == VAL_NONE)
-#define IS_INTEGER(value)   (((value).type == VAL_INTEGER) || ((value.type) == VAL_BOOLEAN))
-#define IS_FLOATING(value)  ((value).type == VAL_FLOATING)
-#define IS_HANDLER(value)   ((value).type == VAL_HANDLER)
-#define IS_OBJECT(value)    ((value).type == VAL_OBJECT)
-#define IS_KWARGS(value)    ((value).type == VAL_KWARGS)
+#define IS_BOOLEAN(value)   ((value).type == KRK_VAL_BOOLEAN)
+#define IS_NONE(value)      ((value).type == KRK_VAL_NONE)
+#define IS_INTEGER(value)   (((value).type == KRK_VAL_INTEGER) || ((value.type) == KRK_VAL_BOOLEAN))
+#define IS_FLOATING(value)  ((value).type == KRK_VAL_FLOATING)
+#define IS_HANDLER(value)   ((value).type == KRK_VAL_HANDLER)
+#define IS_OBJECT(value)    ((value).type == KRK_VAL_OBJECT)
+#define IS_KWARGS(value)    ((value).type == KRK_VAL_KWARGS)
 
 #define IS_TRY_HANDLER(value)  (IS_HANDLER(value) && AS_HANDLER(value).type == OP_PUSH_TRY)
 #define IS_WITH_HANDLER(value) (IS_HANDLER(value) && AS_HANDLER(value).type == OP_PUSH_WITH)
+#define IS_RAISE_HANDLER(value)  (IS_HANDLER(value) && AS_HANDLER(value).type == OP_RAISE)
+#define IS_EXCEPT_HANDLER(value)  (IS_HANDLER(value) && AS_HANDLER(value).type == OP_FILTER_EXCEPT)
 

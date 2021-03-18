@@ -16,7 +16,7 @@ static volatile int _stringLock = 0;
 static volatile int _objectLock = 0;
 #endif
 
-static KrkObj * allocateObject(size_t size, ObjType type) {
+static KrkObj * allocateObject(size_t size, KrkObjType type) {
 	KrkObj * object = (KrkObj*)krk_reallocate(NULL, 0, size);
 	memset(object,0,size);
 	object->type = type;
@@ -176,7 +176,7 @@ static KrkString * allocateString(char * chars, size_t length, uint32_t hash) {
 	if (type == KRK_STRING_INVALID) {
 		return krk_copyString("",0);
 	}
-	KrkString * string = ALLOCATE_OBJECT(KrkString, OBJ_STRING);
+	KrkString * string = ALLOCATE_OBJECT(KrkString, KRK_OBJ_STRING);
 	string->length = length;
 	string->chars = chars;
 	string->obj.hash = hash;
@@ -231,8 +231,8 @@ KrkString * krk_copyString(const char * chars, size_t length) {
 	return result;
 }
 
-KrkFunction * krk_newFunction(void) {
-	KrkFunction * function = ALLOCATE_OBJECT(KrkFunction, OBJ_FUNCTION);
+KrkCodeObject * krk_newCodeObject(void) {
+	KrkCodeObject * function = ALLOCATE_OBJECT(KrkCodeObject, KRK_OBJ_CODEOBJECT);
 	function->requiredArgs = 0;
 	function->keywordArgs = 0;
 	function->upvalueCount = 0;
@@ -250,7 +250,7 @@ KrkFunction * krk_newFunction(void) {
 }
 
 KrkNative * krk_newNative(NativeFn function, const char * name, int type) {
-	KrkNative * native = ALLOCATE_OBJECT(KrkNative, OBJ_NATIVE);
+	KrkNative * native = ALLOCATE_OBJECT(KrkNative, KRK_OBJ_NATIVE);
 	native->function = function;
 	native->isMethod = type;
 	native->name = name;
@@ -258,21 +258,22 @@ KrkNative * krk_newNative(NativeFn function, const char * name, int type) {
 	return native;
 }
 
-KrkClosure * krk_newClosure(KrkFunction * function) {
+KrkClosure * krk_newClosure(KrkCodeObject * function) {
 	KrkUpvalue ** upvalues = ALLOCATE(KrkUpvalue*, function->upvalueCount);
 	for (size_t i = 0; i < function->upvalueCount; ++i) {
 		upvalues[i] = NULL;
 	}
-	KrkClosure * closure = ALLOCATE_OBJECT(KrkClosure, OBJ_CLOSURE);
+	KrkClosure * closure = ALLOCATE_OBJECT(KrkClosure, KRK_OBJ_CLOSURE);
 	closure->function = function;
 	closure->upvalues = upvalues;
 	closure->upvalueCount = function->upvalueCount;
 	closure->annotations = krk_dict_of(0,NULL,0);
+	krk_initTable(&closure->fields);
 	return closure;
 }
 
 KrkUpvalue * krk_newUpvalue(int slot) {
-	KrkUpvalue * upvalue = ALLOCATE_OBJECT(KrkUpvalue, OBJ_UPVALUE);
+	KrkUpvalue * upvalue = ALLOCATE_OBJECT(KrkUpvalue, KRK_OBJ_UPVALUE);
 	upvalue->location = slot;
 	upvalue->next = NULL;
 	upvalue->closed = NONE_VAL();
@@ -281,7 +282,7 @@ KrkUpvalue * krk_newUpvalue(int slot) {
 }
 
 KrkClass * krk_newClass(KrkString * name, KrkClass * baseClass) {
-	KrkClass * _class = ALLOCATE_OBJECT(KrkClass, OBJ_CLASS);
+	KrkClass * _class = ALLOCATE_OBJECT(KrkClass, KRK_OBJ_CLASS);
 	_class->name = name;
 	_class->allocSize = sizeof(KrkInstance);
 	krk_initTable(&_class->methods);
@@ -297,21 +298,21 @@ KrkClass * krk_newClass(KrkString * name, KrkClass * baseClass) {
 }
 
 KrkInstance * krk_newInstance(KrkClass * _class) {
-	KrkInstance * instance = (KrkInstance*)allocateObject(_class->allocSize, OBJ_INSTANCE);
+	KrkInstance * instance = (KrkInstance*)allocateObject(_class->allocSize, KRK_OBJ_INSTANCE);
 	instance->_class = _class;
 	krk_initTable(&instance->fields);
 	return instance;
 }
 
 KrkBoundMethod * krk_newBoundMethod(KrkValue receiver, KrkObj * method) {
-	KrkBoundMethod * bound = ALLOCATE_OBJECT(KrkBoundMethod, OBJ_BOUND_METHOD);
+	KrkBoundMethod * bound = ALLOCATE_OBJECT(KrkBoundMethod, KRK_OBJ_BOUND_METHOD);
 	bound->receiver = receiver;
 	bound->method = method;
 	return bound;
 }
 
 KrkTuple * krk_newTuple(size_t length) {
-	KrkTuple * tuple = ALLOCATE_OBJECT(KrkTuple, OBJ_TUPLE);
+	KrkTuple * tuple = ALLOCATE_OBJECT(KrkTuple, KRK_OBJ_TUPLE);
 	krk_initValueArray(&tuple->values);
 	krk_push(OBJECT_VAL(tuple));
 	tuple->values.capacity = length;
@@ -325,7 +326,7 @@ void krk_bytesUpdateHash(KrkBytes * bytes) {
 }
 
 KrkBytes * krk_newBytes(size_t length, uint8_t * source) {
-	KrkBytes * bytes = ALLOCATE_OBJECT(KrkBytes, OBJ_BYTES);
+	KrkBytes * bytes = ALLOCATE_OBJECT(KrkBytes, KRK_OBJ_BYTES);
 	bytes->length = length;
 	bytes->bytes  = NULL;
 	krk_push(OBJECT_VAL(bytes));
