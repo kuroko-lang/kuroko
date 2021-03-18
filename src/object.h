@@ -271,12 +271,18 @@ typedef struct {
 	KrkTable entries;
 } KrkDict;
 
+/**
+ * @extends KrkInstance
+ */
 struct DictItems {
 	KrkInstance inst;
 	KrkValue dict;
 	size_t i;
 };
 
+/**
+ * @extends KrkInstance
+ */
 struct DictKeys {
 	KrkInstance inst;
 	KrkValue dict;

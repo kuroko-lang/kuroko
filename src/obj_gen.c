@@ -1,3 +1,11 @@
+/**
+ * @file obj_gen.c
+ * @brief Generator objects.
+ *
+ * Generator objects track runtime state so they can be resumed and yielded from.
+ * Any function with a `yield` statement in its body is implicitly transformed
+ * into a generator object when called.
+ */
 #include <string.h>
 #include "vm.h"
 #include "value.h"
@@ -5,6 +13,10 @@
 #include "util.h"
 
 static KrkClass * generator;
+/**
+ * @brief Generator object implementation.
+ * @extends KrkInstance
+ */
 struct generator {
 	KrkInstance inst;
 	KrkClosure * closure;
@@ -36,6 +48,17 @@ static void _set_generator_done(struct generator * self) {
 	self->ip = NULL;
 }
 
+/**
+ * @brief Create a generator object from a closure and set of arguments.
+ *
+ * Initializes the generator object, attaches the argument list, and sets up
+ * the execution state to point to the start of the function's code object.
+ *
+ * @param closure  Function object to transform.
+ * @param argsIn   Array of arguments passed to the call.
+ * @param argCount Number of arguments in @p argsIn
+ * @return A @ref generator object.
+ */
 KrkInstance * krk_buildGenerator(KrkClosure * closure, KrkValue * argsIn, size_t argCount) {
 	/* Copy the args */
 	KrkValue * args = malloc(sizeof(KrkValue) * (argCount));
