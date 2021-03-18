@@ -37,6 +37,7 @@ void krk_debug_dumpStack(FILE * file, KrkCallFrame * frame) {
 					if (relative == f->closure->function->localNames[j].id
 						/* Only display this name if it's currently valid */
 						&&  f->closure->function->localNames[j].birthday <= (size_t)(f->ip - f->closure->function->chunk.code)
+						&&  f->closure->function->localNames[j].deathday >= (size_t)(f->ip - f->closure->function->chunk.code)
 						) {
 						fprintf(file, "%s=", f->closure->function->localNames[j].name->chars);
 						found = 1;

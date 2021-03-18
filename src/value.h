@@ -207,4 +207,6 @@ extern int krk_valuesSame(KrkValue a, KrkValue b);
 
 #define IS_TRY_HANDLER(value)  (IS_HANDLER(value) && AS_HANDLER(value).type == OP_PUSH_TRY)
 #define IS_WITH_HANDLER(value) (IS_HANDLER(value) && AS_HANDLER(value).type == OP_PUSH_WITH)
+#define IS_RAISE_HANDLER(value)  (IS_HANDLER(value) && AS_HANDLER(value).type == OP_RAISE)
+#define IS_EXCEPT_HANDLER(value)  (IS_HANDLER(value) && AS_HANDLER(value).type == OP_FILTER_EXCEPT)
 

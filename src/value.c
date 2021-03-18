@@ -53,7 +53,16 @@ void krk_printValueSafe(FILE * f, KrkValue printable) {
 			case KRK_VAL_BOOLEAN:  fprintf(f, "%s", AS_BOOLEAN(printable) ? "True" : "False"); break;
 			case KRK_VAL_FLOATING: fprintf(f, "%.16g", AS_FLOATING(printable)); break;
 			case KRK_VAL_NONE:     fprintf(f, "None"); break;
-			case KRK_VAL_HANDLER:  fprintf(f, "{%s->%d}", AS_HANDLER(printable).type == OP_PUSH_TRY ? "try" : "with", (int)AS_HANDLER(printable).target); break;
+			case KRK_VAL_HANDLER:
+				switch (AS_HANDLER(printable).type) {
+					case OP_PUSH_TRY:      fprintf(f, "{try->%d}", (int)AS_HANDLER(printable).target); break;
+					case OP_PUSH_WITH:     fprintf(f, "{with->%d}", (int)AS_HANDLER(printable).target); break;
+					case OP_RAISE:         fprintf(f, "{raise<-%d}", (int)AS_HANDLER(printable).target); break;
+					case OP_FILTER_EXCEPT: fprintf(f, "{except<-%d}", (int)AS_HANDLER(printable).target); break;
+					case OP_BEGIN_FINALLY: fprintf(f, "{finally<-%d}", (int)AS_HANDLER(printable).target); break;
+					case OP_RETURN:        fprintf(f, "{return<-%d}", (int)AS_HANDLER(printable).target); break;
+				}
+				break;
 			case KRK_VAL_KWARGS: {
 				if (AS_INTEGER(printable) == LONG_MAX) {
 					fprintf(f, "{unpack single}");

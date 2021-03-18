@@ -257,6 +257,7 @@ static KrkToken classDeclaration();
 static void declareVariable();
 static void namedVariable(KrkToken name, int canAssign);
 static size_t addLocal(KrkToken name);
+static size_t renameLocal(size_t ind, KrkToken name);
 static void string(int canAssign);
 static KrkToken decorator(size_t level, FunctionType type);
 static void call(int canAssign);
@@ -907,7 +908,8 @@ static void endScope() {
 	while (current->localCount > 0 &&
 	       current->locals[current->localCount - 1].depth > (ssize_t)current->scopeDepth) {
 		for (size_t i = 0; i < current->codeobject->localNameCount; i++) {
-			if (current->codeobject->localNames[i].id == current->localCount - 1) {
+			if (current->codeobject->localNames[i].id == current->localCount - 1 &&
+				current->codeobject->localNames[i].deathday == 0) {
 				current->codeobject->localNames[i].deathday = (size_t)currentChunk()->count;
 			}
 		}
@@ -1730,18 +1732,27 @@ static void tryStatement() {
 	/* Make sure we are in a local scope so this ends up on the stack */
 	beginScope();
 	int tryJump = emitJump(OP_PUSH_TRY);
-	/* We'll rename this later, but it needs to be on the stack now as it represents the exception handler */
-	size_t localNameCount = current->codeobject->localNameCount;
+
 	size_t exceptionObject = addLocal(syntheticToken(""));
-	defineVariable(0);
+	markInitialized();
+
+	addLocal(syntheticToken("")); /* Try */
+	markInitialized();
 
 	beginScope();
 	block(blockWidth,"try");
 	endScope();
 
-	int successJump = emitJump(OP_JUMP);
+#define EXIT_JUMP_MAX 32
+	int exitJumps = 1;
+	int exitJumpOffsets[EXIT_JUMP_MAX] = {0};
+
+	exitJumpOffsets[0] = emitJump(OP_JUMP);
 	patchJump(tryJump);
 
+	int nextJump = -1;
+
+_anotherExcept:
 	if (blockWidth == 0 || (check(TOKEN_INDENTATION) && (parser.current.length == blockWidth))) {
 		KrkToken previous;
 		if (blockWidth) {
@@ -1749,11 +1760,19 @@ static void tryStatement() {
 			advance();
 		}
 		if (match(TOKEN_EXCEPT)) {
+			if (nextJump != -1) {
+				patchJump(nextJump);
+				emitByte(OP_POP);
+			}
 			/* Match filter expression (should be class or tuple) */
 			if (!check(TOKEN_COLON) && !check(TOKEN_AS)) {
 				expression();
-				emitByte(OP_FILTER_EXCEPT);
+			} else {
+				emitByte(OP_NONE);
 			}
+			emitByte(OP_FILTER_EXCEPT);
+			nextJump = emitJump(OP_JUMP_IF_FALSE);
+			emitByte(OP_POP);
 
 			/* Match 'as' to rename exception */
 			if (match(TOKEN_AS)) {
@@ -1763,14 +1782,42 @@ static void tryStatement() {
 				/* XXX Should we remove this now? */
 				current->locals[exceptionObject].name = syntheticToken("exception");
 			}
-			/* Make sure we update the local name for debugging */
-			current->codeobject->localNames[localNameCount].birthday = currentChunk()->count;
-			current->codeobject->localNames[localNameCount].name = krk_copyString(current->locals[exceptionObject].name.start, current->locals[exceptionObject].name.length);
+
+			size_t nameInd = renameLocal(exceptionObject, current->locals[exceptionObject].name);
 
 			consume(TOKEN_COLON, "Expect ':' after except.");
 			beginScope();
 			block(blockWidth,"except");
 			endScope();
+
+			current->codeobject->localNames[nameInd].deathday = (size_t)currentChunk()->count;
+
+			if (exitJumps < EXIT_JUMP_MAX) {
+				exitJumpOffsets[exitJumps++] = emitJump(OP_JUMP);
+			} else {
+				error("too many except clauses");
+				return;
+			}
+
+			goto _anotherExcept;
+		} else if (match(TOKEN_FINALLY)) {
+			consume(TOKEN_COLON, "expected : after 'finally'");
+			for (int i = 0; i < exitJumps; ++i) {
+				patchJump(exitJumpOffsets[i]);
+			}
+			size_t nameInd = renameLocal(exceptionObject, syntheticToken("__tmp"));
+			emitByte(OP_BEGIN_FINALLY);
+			exitJumps = 0;
+			if (nextJump != -1) {
+				patchJump(nextJump);
+				emitByte(OP_POP);
+			}
+			beginScope();
+			block(blockWidth,"finally");
+			endScope();
+			nextJump = -2;
+			current->codeobject->localNames[nameInd].deathday = (size_t)currentChunk()->count;
+			emitByte(OP_END_FINALLY);
 		} else if (!check(TOKEN_EOL) && !check(TOKEN_EOF)) {
 			krk_ungetToken(parser.current);
 			parser.current = parser.previous;
@@ -1782,7 +1829,18 @@ static void tryStatement() {
 		}
 	}
 
-	patchJump(successJump);
+	for (int i = 0; i < exitJumps; ++i) {
+		patchJump(exitJumpOffsets[i]);
+	}
+
+	if (nextJump >= 0) {
+		emitByte(OP_BEGIN_FINALLY);
+		emitByte(OP_NONE);
+		patchJump(nextJump);
+		emitByte(OP_POP);
+		emitByte(OP_END_FINALLY);
+	}
+
 	endScope(); /* will pop the exception handler */
 }
 
@@ -2818,6 +2876,19 @@ static ssize_t resolveLocal(Compiler * compiler, KrkToken * name) {
 	return -1;
 }
 
+static size_t renameLocal(size_t ind, KrkToken name) {
+	if (current->codeobject->localNameCount + 1 > current->localNameCapacity) {
+		size_t old = current->localNameCapacity;
+		current->localNameCapacity = GROW_CAPACITY(old);
+		current->codeobject->localNames = GROW_ARRAY(KrkLocalEntry, current->codeobject->localNames, old, current->localNameCapacity);
+	}
+	current->codeobject->localNames[current->codeobject->localNameCount].id = ind;
+	current->codeobject->localNames[current->codeobject->localNameCount].birthday = currentChunk()->count;
+	current->codeobject->localNames[current->codeobject->localNameCount].deathday = 0;
+	current->codeobject->localNames[current->codeobject->localNameCount].name = krk_copyString(name.start, name.length);
+	return current->codeobject->localNameCount++;
+}
+
 static size_t addLocal(KrkToken name) {
 	if (current->localCount + 1 > current->localsSpace) {
 		size_t old = current->localsSpace;
@@ -2830,16 +2901,10 @@ static size_t addLocal(KrkToken name) {
 	local->depth = -1;
 	local->isCaptured = 0;
 
-	if (current->codeobject->localNameCount + 1 > current->localNameCapacity) {
-		size_t old = current->localNameCapacity;
-		current->localNameCapacity = GROW_CAPACITY(old);
-		current->codeobject->localNames = GROW_ARRAY(KrkLocalEntry, current->codeobject->localNames, old, current->localNameCapacity);
+	if (name.length) {
+		renameLocal(out, name);
 	}
-	current->codeobject->localNames[current->codeobject->localNameCount].id = current->localCount-1;
-	current->codeobject->localNames[current->codeobject->localNameCount].birthday = currentChunk()->count;
-	current->codeobject->localNames[current->codeobject->localNameCount].deathday = 0;
-	current->codeobject->localNames[current->codeobject->localNameCount].name = krk_copyString(name.start, name.length);
-	current->codeobject->localNameCount++;
+
 	return out;
 }
 

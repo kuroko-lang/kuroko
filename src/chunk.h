@@ -66,7 +66,9 @@ typedef enum {
 	OP_BREAKPOINT, /* NEVER output this instruction in the compiler or bad things can happen */
 	OP_YIELD,
 	OP_ANNOTATE,
-	/* current highest: 44 */
+	OP_BEGIN_FINALLY,
+	OP_END_FINALLY,
+	/* current highest: 45 */
 
 	OP_CALL = 64,
 	OP_CLASS,

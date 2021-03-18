@@ -1,0 +1,20 @@
+in try
+in finally
+finally
+in try
+exception?
+in finally
+finally
+in try
+exception?
+in finally
+exception
+in try
+in finally
+42
+in try
+in finally
+Raised exception.
+in try
+in finally
+Raised <class 'ValueError'>
