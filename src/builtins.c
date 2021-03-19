@@ -407,6 +407,8 @@ KRK_METHOD(enumerateobject,__call__,{
 		return NONE_VAL();
 	}
 	if (krk_valuesEqual(iterator, krk_peek(0))) {
+		krk_pop();
+		krk_pop();
 		return OBJECT_VAL(self);
 	}
 
