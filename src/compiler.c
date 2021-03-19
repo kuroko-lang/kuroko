@@ -1820,6 +1820,7 @@ _anotherExcept:
 			emitByte(OP_BEGIN_FINALLY);
 			exitJumps = 0;
 			if (nextJump != -1) {
+				emitByte(OP_NONE);
 				patchJump(nextJump);
 				emitByte(OP_POP);
 			}
