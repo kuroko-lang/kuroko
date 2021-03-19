@@ -256,9 +256,15 @@ static int breakpointsCount = 0;
 static KrkDebugCallback _debugger_hook = NULL;
 
 /* Internal state tracks re-enabling repeat breakpoints */
+#ifdef __toaru__
+__attribute__((tls_model("initial-exec"))) threadLocal int _repeatStack_top    = -1;
+__attribute__((tls_model("initial-exec"))) threadLocal int _repeatStack_bottom = -1;
+__attribute__((tls_model("initial-exec"))) threadLocal int _thisWasForced = 0;
+#else
 static threadLocal int _repeatStack_top    = -1;
 static threadLocal int _repeatStack_bottom = -1;
 static threadLocal int _thisWasForced = 0;
+#endif
 
 int krk_debug_addBreakpointCodeOffset(KrkCodeObject * target, size_t offset, int flags) {
 	int index = breakpointsCount;

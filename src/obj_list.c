@@ -132,6 +132,9 @@ KRK_METHOD(list,extend,{
 	METHOD_TAKES_EXACTLY(1);
 	pthread_rwlock_wrlock(&self->rwlock);
 	KrkValueArray *  positionals = AS_LIST(argv[0]);
+	if (krk_valuesSame(argv[0],argv[1])) {
+		argv[1] = krk_list_of(self->values.count, self->values.values, 0);
+	}
 	unpackIterableFast(argv[1]);
 _break_loop:
 	pthread_rwlock_unlock(&self->rwlock);

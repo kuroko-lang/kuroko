@@ -1,0 +1,18 @@
+try:
+    raise ValueError()
+except ValueError as e:
+    print(repr(e))
+finally:
+    print("Done?")
+
+try:
+    print("try")
+finally:
+    print('finally')
+
+try:
+    print('try')
+except Exception as e:
+    print('except')
+finally:
+    print('finally')
