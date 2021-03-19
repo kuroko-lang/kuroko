@@ -1,5 +1,4 @@
 from codecs.isweblabel import map_weblabel
-from itertools import max
 
 def issubclass(klass, superclass):
     if superclass == object:

@@ -11,7 +11,6 @@ from codecs.infrastructure import register_kuroko_codec, ByteCatenator, StringCa
 from codecs.dbdata import encode_jis7, decode_jis7, decode_jis7katakana, XEucJpIncrementalDecoder, Big5EtenIncrementalEncoder, Big5HkscsIncrementalDecoder, encode_gbk, decode_gbk
 from codecs.bespokecodecs import Iso2022JpIncrementalEncoder, Iso2022JpIncrementalDecoder, Utf8IncrementalDecoder, Utf16BeIncrementalEncoder, Utf16BeIncrementalDecoder, Utf8SigIncrementalEncoder
 from collections import xraydict
-from itertools import enumerate
 
 let cp950_no_eudc_encoding_map = xraydict(Big5EtenIncrementalEncoder.encoding_map, {
         0x2550: (0xA2, 0xA4),

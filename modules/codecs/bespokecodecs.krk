@@ -1,6 +1,5 @@
 from codecs.infrastructure import register_kuroko_codec, ByteCatenator, StringCatenator, UnicodeEncodeError, UnicodeDecodeError, lookup_error, lookup, IncrementalDecoder, IncrementalEncoder
 from codecs.dbdata import encode_jis7, decode_jis7, decode_jis7katakana, encode_gbk, decode_gbk, gb_surrogate_ranges
-from itertools import enumerate
 
 class Gb18030IncrementalEncoder(IncrementalEncoder):
     name = "gb18030"

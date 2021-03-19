@@ -1,5 +1,4 @@
 import json, fileio
-from itertools import enumerate
 
 let indices
 with fileio.open("tools/codectools/indexes.json") as f:

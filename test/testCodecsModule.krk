@@ -1,5 +1,4 @@
 import codecs
-from itertools import enumerate
 print(codecs.encode("🏣 í Brčko", "windows-1251", errors="ignore"))
 print(codecs.encode("🏣 í Brčko", "windows-1251", errors="replace"))
 print(codecs.encode("🏣 í Brčko", "windows-1251", errors="backslashreplace"))

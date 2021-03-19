@@ -1,6 +1,5 @@
 import json
 import fileio
-from itertools import enumerate
 from collections import smartrepr
 
 let indices
