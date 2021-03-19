@@ -5,6 +5,7 @@ OBJS     = $(patsubst %.c, %.o, $(filter-out src/module_% src/rline.c src/kuroko
 MODULES  = $(patsubst src/module_%.c, modules/%.so, $(sort $(wildcard src/module_*.c)))
 HEADERS  = $(wildcard src/*.h)
 TOOLS    = $(patsubst tools/%.c, krk-%, $(sort $(wildcard tools/*.c)))
+GENMODS  = modules/codecs/sbencs.krk modules/codecs/dbdata.krk
 
 # These are used by the install target. We call the local kuroko to get the
 # version string to use for the final library, so, uh, probably don't
@@ -15,7 +16,7 @@ KRKMODS  = $(wildcard modules/*.krk modules/*/*.krk modules/*/*/*.krk)
 
 ifndef KRK_ENABLE_STATIC
   # The normal build configuration is as a shared library or DLL (on Windows)
-  all: ${TARGET} ${MODULES} ${TOOLS}
+  all: ${TARGET} ${MODULES} ${TOOLS} ${GENMODS}
   CFLAGS  += -fPIC
   ifeq (,$(findstring mingw,$(CC)))
     # We set rpath here mostly so you can run the locally-built interpreter
@@ -44,7 +45,7 @@ else
   # Static builds are a little different...
   CFLAGS +=-DSTATIC_ONLY
   LDFLAGS += -static
-  all: ${TARGET}
+  all: ${TARGET} ${GENMODS}
   KUROKO_LIBS = ${OBJS} -lpthread
 endif
 
@@ -87,8 +88,6 @@ help:
 	@echo "   KRK_ENABLE_BUNDLE=1    Link C modules directly into the interpreter."
 	@echo ""
 	@echo "Available tools: ${TOOLS}"
-
-all: kuroko modules/codecs/sbencs.krk modules/codecs/dbdata.krk
 
 kuroko: src/kuroko.o ${KUROKO_LIBS}
 	${CC} ${CFLAGS} ${LDFLAGS} -o $@ src/kuroko.o ${KUROKO_LIBS}
