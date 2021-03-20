@@ -2148,9 +2148,14 @@ static void string(int type) {
 									c++;
 								}
 							}
-							unsigned char bytes[5] = {0};
-							size_t len = krk_codepointToBytes(out, bytes);
-							for (size_t i = 0; i < len; i++) PUSH_CHAR(bytes[i]);
+							if (isBytes) {
+								out = out % 256;
+								PUSH_CHAR(out);
+							} else {
+								unsigned char bytes[5] = {0};
+								size_t len = krk_codepointToBytes(out, bytes);
+								for (size_t i = 0; i < len; i++) PUSH_CHAR(bytes[i]);
+							}
 						} else {
 							PUSH_CHAR(c[0]);
 							c++;
