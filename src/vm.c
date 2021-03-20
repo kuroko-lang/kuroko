@@ -2041,6 +2041,7 @@ _finishReturn: (void)0;
 				krk_currentThread.stackTop = &krk_currentThread.stack[frame->outSlots];
 				if (krk_currentThread.frameCount == (size_t)krk_currentThread.exitOnFrame) {
 					if (frame->closure->function->isGenerator) {
+						krk_push(result);
 						return KWARGS_VAL(0);
 					}
 					return result;
@@ -2339,6 +2340,34 @@ _finishReturn: (void)0;
 				krk_push(NONE_VAL());
 				KrkValue handler = HANDLER_VAL(OP_PUSH_WITH, cleanupTarget);
 				krk_push(handler);
+				break;
+			}
+			case OP_YIELD_FROM: {
+				uint8_t * exitIp = frame->ip + OPERAND;
+				/* Stack has [iterator] [sent value] */
+				/* Is this a generator or something with a 'send' method? */
+				KrkValue method = krk_valueGetAttribute_default(krk_peek(1), "send", NONE_VAL());
+				if (!IS_NONE(method)) {
+					krk_push(method);
+					krk_swap(1);
+					krk_push(krk_callSimple(krk_peek(1),1,0));
+				} else {
+					krk_pop();
+					krk_push(krk_peek(0));
+					krk_push(krk_callSimple(krk_peek(0),0,0));
+				}
+				if (!krk_valuesSame(krk_peek(0), krk_peek(1))) break;
+
+				/* Does it have a final value? */
+				method = krk_valueGetAttribute_default(krk_peek(0), "__finish__", NONE_VAL());
+				if (!IS_NONE(method)) {
+					krk_push(method);
+					krk_push(krk_callSimple(krk_peek(0),0,0));
+				} else {
+					krk_pop();
+					krk_push(NONE_VAL());
+				}
+				frame->ip = exitIp;
 				break;
 			}
 

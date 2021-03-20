@@ -1631,9 +1631,7 @@ static void forStatement() {
 		expression();
 		endScope();
 
-		KrkToken _it = syntheticToken("");
-		size_t indLoopIter = current->localCount;
-		addLocal(_it);
+		size_t indLoopIter = addLocal(syntheticToken(""));
 		defineVariable(indLoopIter);
 
 		emitByte(OP_INVOKE_ITER);
@@ -1719,20 +1717,6 @@ static void returnStatement() {
 		parsePrecedence(PREC_ASSIGNMENT);
 		emitByte(OP_RETURN);
 	}
-}
-
-static void yieldStatement() {
-	if (current->type == TYPE_MODULE || current->type == TYPE_INIT || current->type == TYPE_CLASS) {
-		error("'yield' outside function");
-		return;
-	}
-	current->codeobject->isGenerator = 1;
-	if (check(TOKEN_EOL) || check(TOKEN_EOF)) {
-		emitByte(OP_NONE);
-	} else {
-		parsePrecedence(PREC_ASSIGNMENT);
-	}
-	emitBytes(OP_YIELD, OP_POP);
 }
 
 static void tryStatement() {
@@ -1994,8 +1978,6 @@ _anotherSimpleStatement:
 			raiseStatement();
 		} else if (match(TOKEN_RETURN)) {
 			returnStatement();
-		} else if (match(TOKEN_YIELD)) {
-			yieldStatement();
 		} else if (match(TOKEN_IMPORT)) {
 			importStatement();
 		} else if (match(TOKEN_FROM)) {
@@ -2017,6 +1999,32 @@ _anotherSimpleStatement:
 		if (!match(TOKEN_EOL) && !match(TOKEN_EOF)) {
 			errorAtCurrent("Unexpected token after statement.");
 		}
+	}
+}
+
+static void yield(int canAssign) {
+	if (current->type == TYPE_MODULE ||
+		current->type == TYPE_INIT ||
+		current->type == TYPE_CLASS) {
+		error("'yield' outside function");
+		return;
+	}
+	current->codeobject->isGenerator = 1;
+	if (match(TOKEN_FROM)) {
+		parsePrecedence(PREC_ASSIGNMENT);
+		emitByte(OP_INVOKE_ITER);
+		emitByte(OP_NONE);
+		size_t loopContinue = currentChunk()->count;
+		size_t exitJump = emitJump(OP_YIELD_FROM);
+		emitByte(OP_YIELD);
+		emitLoop(loopContinue);
+		patchJump(exitJump);
+	} else if (check(TOKEN_EOL) || check(TOKEN_EOF) || check(TOKEN_RIGHT_PAREN) || check(TOKEN_RIGHT_BRACE)) {
+		emitByte(OP_NONE);
+		emitByte(OP_YIELD);
+	} else {
+		parsePrecedence(PREC_ASSIGNMENT);
+		emitByte(OP_YIELD);
 	}
 }
 
@@ -2711,7 +2719,7 @@ ParseRule krk_parseRules[] = {
 	RULE(TOKEN_CONTINUE,      NULL,     NULL,   PREC_NONE),
 	RULE(TOKEN_IMPORT,        NULL,     NULL,   PREC_NONE),
 	RULE(TOKEN_RAISE,         NULL,     NULL,   PREC_NONE),
-	RULE(TOKEN_YIELD,         NULL,     NULL,   PREC_NONE),
+	RULE(TOKEN_YIELD,         yield,    NULL,   PREC_NONE),
 
 	RULE(TOKEN_AT,            NULL,     NULL,   PREC_NONE),
 
