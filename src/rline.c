@@ -540,6 +540,14 @@ void paint_krk_string(struct syntax_state * state, int type) {
 				paintNHex(state, 4);
 			} else if (nextchar() == 'U') {
 				paintNHex(state, 8);
+			} else if (nextchar() >= '0' && nextchar() <= '7') {
+				paint(2, FLAG_ESCAPE);
+				if (charat() >= '0' && charat() <= '7') {
+					paint(1, FLAG_ESCAPE);
+					if (charat() >= '0' && charat() <= '7') {
+						paint(1, FLAG_ESCAPE);
+					}
+				}
 			} else {
 				paint(2, FLAG_ESCAPE);
 			}

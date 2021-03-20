@@ -1,3 +1,32 @@
+/**
+ * @file  compiler.c
+ * @brief Single-pass bytecode compiler.
+ *
+ * Kuroko's compiler is still very reminiscent of its CLox roots and uses
+ * the same parsing strategy, so if you have read the third chapter of
+ * Bob's "Crafting Interpreters", this should should be fairly easy to
+ * understand. One important thing that Kuroko's compiler does differently
+ * is implement rewinding, which allows for conservative reparsing and
+ * recompilation of subexpressions that have already been parsed. This is
+ * used to compile ternaries, multiple assignments, and the expression value
+ * in generator and comprehension expressions.
+ *
+ * Kuroko has several levels of parse precedence, including three different
+ * levels indicative of assignments. Most expressions start from the TERNARY
+ * or COMMA level, but top-level expression statements and assignment values
+ * start at the highest level of ASSIGNMENT, which allows for multiple
+ * assignment targets. Expressions parsed from the MUST_ASSIGN level are
+ * assignment targets in a multiple assignment. Expression parsed from
+ * the CAN_ASSIGN level are single assignment targets.
+ *
+ * String compilation manages escape sequence processing, so string tokens
+ * received from the scanner are not directly converted to string constants.
+ * F-strings are compiled as expressions generating a regular string.
+ *
+ * Kuroko's bytecode supports variable operand sizes using paired "short" and
+ * "long" opcodes. To ease the output of these opcodes, the EMIT_CONSTANT_OP
+ * macro will generate the appropriate opcode given an operand.
+ */
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -12,33 +41,6 @@
 #include "debug.h"
 #include "vm.h"
 
-/**
- * There's nothing really especially different here compared to the Lox
- * compiler from Crafting Interpreters. A handful of additional pieces
- * of functionality are added, and some work is done to make blocks use
- * indentation instead of braces, but the basic layout and operation
- * of the compiler are the same top-down Pratt parser.
- *
- * The parser error handling has been improved over the Lox compiler with
- * the addition of column offsets and a printed copy of the original source
- * line and the offending token.
- *
- * String parsing also includes escape sequence support, so you can print
- * quotation marks properly, as well as escape sequences for terminals.
- *
- * One notable part of the compiler is the handling of list comprehensions.
- * In order to support Python-style syntax, the parser has been set up to
- * support rolling back to a previous state, so that when the compiler sees
- * an expression with references to a variable that has yet to be defined it
- * will first output the expression as if that variable was a global, then it
- * will see the 'in', rewind, parse the rest of the list comprehension, and
- * then output the expression as a loop body, with the correct local references.
- *
- * if/else and try/except blocks also have to similarly handle rollback cases
- * as they can not peek forward to see if a statement after an indentation
- * block is an else/except.
- */
-
 typedef struct {
 	KrkToken current;
 	KrkToken previous;
@@ -51,8 +53,8 @@ typedef enum {
 	PREC_NONE,
 	PREC_ASSIGNMENT, /* = */
 	PREC_COMMA,      /* , */
-	PREC_MUST_ASSIGN,/*   special   */
-	PREC_CAN_ASSIGN, /*   inside parens */
+	PREC_MUST_ASSIGN,/* Multple assignment target   */
+	PREC_CAN_ASSIGN, /* Single assignment target, inside grouping */
 	PREC_TERNARY,    /* TrueBranch if Condition else FalseBranch */
 	PREC_OR,         /* or */
 	PREC_AND,        /* and */
@@ -1431,8 +1433,6 @@ static void emitLoop(int loopStart) {
 }
 
 static void withStatement() {
-	/* TODO: Multiple items, I'm feeling lazy. */
-
 	/* We only need this for block() */
 	size_t blockWidth = (parser.previous.type == TOKEN_INDENTATION) ? parser.previous.length : 0;
 	KrkToken myPrevious = parser.previous;
@@ -1449,7 +1449,7 @@ static void withStatement() {
 		declareVariable();
 		defineVariable(ind);
 	} else {
-		/* Otherwise we want an unnamed local; TODO: Wait, can't we do this for iterable counts? */
+		/* Otherwise we want an unnamed local */
 		addLocal(syntheticToken(""));
 		markInitialized();
 	}
@@ -2136,10 +2136,26 @@ static void string(int type) {
 					} break;
 					case '\n': break;
 					default:
-						/* TODO octal */
-						PUSH_CHAR(c[0]);
-						c++;
-						continue;
+						if (c[1] >= '0' && c[1] <= '7') {
+							int out = c[1] - '0';
+							if (c + 2 != end && (c[2] >= '0' && c[2] <= '7')) {
+								out <<= 3;
+								out += c[2] - '0';
+								c++;
+								if (c + 1 != end && (c[2] >= '0' && c[2] <= '7')) {
+									out <<= 3;
+									out += c[2] - '0';
+									c++;
+								}
+							}
+							unsigned char bytes[5] = {0};
+							size_t len = krk_codepointToBytes(out, bytes);
+							for (size_t i = 0; i < len; i++) PUSH_CHAR(bytes[i]);
+						} else {
+							PUSH_CHAR(c[0]);
+							c++;
+							continue;
+						}
 				}
 				c += 2;
 			} else if (isFormat && *c == '{') {
