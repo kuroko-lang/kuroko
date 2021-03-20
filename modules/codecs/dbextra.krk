@@ -5,7 +5,6 @@ such, none of the codecs in this module should be used in HTML.
 
 from codecs.dbextra_data_8bit import encode_gb8, decode_gb8, encode_nbyte_ebcdic, decode_nbyte_ebcdic, encode_johab_ascii, decode_johab_ascii, encode_johab_ebcdic, decode_johab_ebcdic, encode_euc90, encode_euc04, decode_euc04, encode_sjis04, decode_sjis04, encode_big5_nonetenkana, decode_big5_nonetenkana
 from codecs.dbextra_data_7bit import encode_lat1supp, decode_lat1supp, encode_greksupp, decode_greksupp, encode_jis78, decode_jis78, encode_jis90p2, decode_jis90p2, encode_jis00, decode_jis00, encode_jis00p2, decode_jis00p2, encode_jis04, decode_jis04, encode_jis7katakana, encode_gb7, decode_gb7, encode_ksc7, decode_ksc7, encode_csic1, decode_csic1, encode_csic2, decode_csic2
-from codecs.dbextra_data_7bit_cnext import encode_t101chinese, decode_t101chinese, encode_csic3, decode_csic3, encode_csic4, decode_csic4, encode_csic5, decode_csic5, encode_csic6, decode_csic6, encode_csic7, decode_csic7
 
 from codecs.infrastructure import register_kuroko_codec, ByteCatenator, StringCatenator, UnicodeEncodeError, UnicodeDecodeError, lookup_error, lookup, BaseEbcdicIncrementalEncoder, BaseEbcdicIncrementalDecoder, AsciiIncrementalEncoder, AsciiIncrementalDecoder, IncrementalEncoder, IncrementalDecoder
 from codecs.dbdata import encode_jis7, decode_jis7, decode_jis7katakana, XEucJpIncrementalDecoder, Big5EtenIncrementalEncoder, Big5HkscsIncrementalDecoder, encode_gbk, decode_gbk
@@ -1260,24 +1259,6 @@ class Iso2022CnIncrementalDecoder(Iso2022NonJpIncrementalDecoder):
 register_kuroko_codec(["iso-2022-cn", "iso2022-cn", "iso2022cn", "csiso2022cn"],
     Iso2022CnIncrementalEncoder, Iso2022CnIncrementalDecoder)
 
-class Iso2022CnExtIncrementalEncoder(Iso2022NonJpIncrementalEncoder):
-    name = "iso-2022-cn-ext"
-    html5name = None
-    encodes = [encode_gb7, encode_t101chinese, encode_csic1, encode_csic2, encode_csic3, encode_csic4, encode_csic5, encode_csic6, encode_csic7]
-    escs_shift = {0: 0x41, 1: 0x45, 2: 0x47}
-    escs_super = {3: 0x48}
-    escs_super3 = {4: 0x49, 5: 0x4A, 6: 0x4B, 7: 0x4C, 8: 0x4D}
-
-class Iso2022CnExtIncrementalDecoder(Iso2022NonJpIncrementalDecoder):
-    name = "iso-2022-cn-ext"
-    html5name = None
-    decodes = [decode_gb7, decode_t101chinese, decode_csic1, decode_csic2, decode_csic3, decode_csic4, decode_csic5, decode_csic6, decode_csic7]
-    escs_shift = {0x41: 0, 0x45: 1, 0x47: 2}
-    escs_super = {0x48: 3}
-    escs_super3 = {0x49: 4, 0x4A: 5, 0x4B: 6, 0x4C: 7, 0x4D: 8}
-
-register_kuroko_codec(["iso-2022-cn-ext", "iso2022-cn-ext", "iso2022cn-ext", "iso2022cnext", "csiso2022cnext"],
-    Iso2022CnExtIncrementalEncoder, Iso2022CnExtIncrementalDecoder)
 
 
 
