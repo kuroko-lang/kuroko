@@ -3,7 +3,7 @@ This module includes some additional variable-width or wide encodings not specif
 such, none of the codecs in this module should be used in HTML.
 """
 
-from codecs.dbextra_data_8bit import encode_gb8, decode_gb8, encode_nbyte_ebcdic, decode_nbyte_ebcdic, encode_johab_ascii, decode_johab_ascii, encode_johab_ebcdic, decode_johab_ebcdic, encode_euc90, encode_euc04, decode_euc04, encode_sjis04, decode_sjis04, encode_big5_nonetenkana, decode_big5_nonetenkana
+from codecs.dbextra_data_8bit import encode_gb8, decode_gb8, encode_nbyte_ebcdic, decode_nbyte_ebcdic, encode_johab_ascii, decode_johab_ascii, encode_johab_ebcdic, decode_johab_ebcdic, encode_euc90, encode_euc04, decode_euc04, encode_sjis04, decode_sjis04, encode_big5_nonetenkana, decode_big5_nonetenkana, big5_coded_forms_from_hkscs
 from codecs.dbextra_data_7bit import encode_lat1supp, decode_lat1supp, encode_greksupp, decode_greksupp, encode_jis78, decode_jis78, encode_jis90p2, decode_jis90p2, encode_jis00, decode_jis00, encode_jis00p2, decode_jis00p2, encode_jis04, decode_jis04, encode_jis7katakana, encode_gb7, decode_gb7, encode_ksc7, decode_ksc7, encode_csic1, decode_csic1, encode_csic2, decode_csic2
 
 from codecs.infrastructure import register_kuroko_codec, ByteCatenator, StringCatenator, UnicodeEncodeError, UnicodeDecodeError, lookup_error, lookup, BaseEbcdicIncrementalEncoder, BaseEbcdicIncrementalDecoder, AsciiIncrementalEncoder, AsciiIncrementalDecoder, IncrementalEncoder, IncrementalDecoder
@@ -17,17 +17,11 @@ let cp950_no_eudc_encoding_map = xraydict(Big5EtenIncrementalEncoder.encoding_ma
         0x256A: (0xA2, 0xA6),
         0x2561: (0xA2, 0xA7),
     },
-    [i for i in Big5EtenIncrementalEncoder.encoding_map.keys()
-        if Big5EtenIncrementalEncoder.encoding_map[i][0] in (0xC7, 0xC8) or (
-            Big5EtenIncrementalEncoder.encoding_map[i][0] == 0xC6 and
-            Big5EtenIncrementalEncoder.encoding_map[i][1] >= 0xA1
-        )
-    ]
+    [131210, 168, 131276, 248, 331, 339, 592, 596, 603, 618, 629, 643, 650, 710, 1025, 1040, 1041, 1042, 1043, 1044, 1045, 1046, 1047, 1048, 1049, 1050, 1051, 1052, 1053, 1054, 1055, 1056, 1057, 1058, 1059, 1060, 1061, 1062, 1063, 1064, 1065, 1066, 1067, 1068, 1069, 1070, 1071, 1072, 1073, 1074, 1075, 1076, 1077, 1078, 1079, 1080, 1081, 1082, 1083, 1084, 1085, 1086, 1087, 1088, 1089, 1090, 1091, 1092, 1093, 1094, 1095, 1096, 1105, 1097, 1098, 1099, 1100, 1101, 1102, 1103, 36789, 38582, 40880, 40881, 8470, 8481, 8560, 8561, 8562, 8563, 8564, 8565, 8566, 8567, 8568, 8569, 8632, 8633, 8679, 9312, 9313, 9314, 9315, 9316, 9317, 9318, 9319, 9320, 9321, 9332, 9333, 9334, 9335, 9336, 9337, 9338, 9339, 9340, 9341, 10045, 11904, 11908, 11910, 11911, 11912, 11914, 11916, 11917, 11925, 11932, 11933, 11941, 11943, 11946, 11948, 11950, 11958, 11964, 11966, 11974, 11978, 11980, 11981, 11983, 11990, 11991, 11998, 12003, 12083, 12293, 12294, 12295, 12353, 12354, 12355, 12356, 12357, 12358, 12359, 12360, 12361, 12362, 12363, 12364, 12365, 12366, 12367, 12368, 12369, 12370, 12371, 12372, 12373, 12374, 12375, 12376, 12377, 12378, 12379, 12380, 12381, 12382, 12383, 12384, 12385, 12386, 12387, 12388, 12389, 12390, 12391, 12392, 12393, 12394, 12395, 12396, 12397, 12398, 12399, 12400, 12401, 12402, 12403, 12404, 12405, 12406, 12407, 12408, 12409, 12410, 12411, 12412, 12413, 12414, 12415, 12416, 12417, 12418, 12419, 12420, 12421, 12422, 12423, 12424, 12425, 12426, 12427, 12428, 12429, 12430, 12431, 12432, 12433, 12434, 12435, 12443, 12444, 12445, 12446, 12449, 12450, 12451, 12452, 12453, 12454, 12455, 12456, 12457, 12458, 12459, 12460, 12461, 12462, 12463, 12464, 12465, 12466, 12467, 12468, 12469, 12470, 12471, 12472, 12473, 12474, 12475, 12476, 12477, 12478, 12479, 12480, 12481, 12482, 12483, 12484, 12485, 12486, 12487, 12488, 12489, 12490, 12491, 12492, 12493, 12494, 12495, 12496, 12497, 12498, 12499, 12500, 12501, 12502, 12503, 12504, 12505, 12506, 12507, 12508, 12509, 12510, 12511, 12512, 12513, 12514, 12515, 12516, 12517, 12518, 12519, 12520, 12521, 12522, 12523, 12524, 12525, 12526, 12527, 12528, 12529, 12530, 12531, 12532, 12533, 12534, 12540, 12541, 12542, 12751, 12849, 17553, 20022, 20031, 20058, 20101, 20128, 20189, 20866, 20872, 20886, 20907, 20994, 21241, 21304, 21353, 21430, 22794, 23424, 24027, 24191, 24308, 24400, 24417, 25908, 26080, 30098, 161287, 30326, 65282, 65287, 65339, 65341, 65506, 65508]
 )
 
 let cp950_no_eudc_decoding_map = xraydict(Big5HkscsIncrementalDecoder.decoding_map, {},
-    [i for i in Big5HkscsIncrementalDecoder.decoding_map.keys()
-        if i[0] < 0xA1 or i[0] > 0xF9 or i[0] in (0xC7, 0xC8) or (i[0] == 0xC6 and i[1] >= 0xA1)])
+    big5_coded_forms_from_hkscs)
 
 class Big5NonEtenKanaIncrementalEncoder(AsciiIncrementalEncoder):
     name = "big5-nonetenkana"
