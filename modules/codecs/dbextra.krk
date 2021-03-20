@@ -1137,7 +1137,7 @@ class Iso2022NonJpIncrementalDecoder(IncrementalDecoder):
                 if len(leader) == 3:
                     if leader[1] in (0x4E, 0x4F) and (0x21 <= i and i <= 0x7E):
                         let desig = self.super_desig if leader[1] == 0x4E else self.super3_desig
-                        if (leader[2], i) in self.decodes[desig]:
+                        if desig != None and (leader[2], i) in self.decodes[desig]:
                             let ucs = self.decodes[desig][(leader[2], i)]
                             if isinstance(ucs, tuple):
                                 for individ in ucs:
@@ -1177,7 +1177,7 @@ class Iso2022NonJpIncrementalDecoder(IncrementalDecoder):
                         offset += 1
                         continue
                     if len(leader) == 1 and (0x21 <= i and i <= 0x7E):
-                        if (leader[0], i) in self.decodes[self.shift_desig]:
+                        if self.shift_desig != None and (leader[0], i) in self.decodes[self.shift_desig]:
                             let ucs = self.decodes[self.shift_desig][(leader[0], i)]
                             if isinstance(ucs, tuple):
                                 for individ in ucs:
