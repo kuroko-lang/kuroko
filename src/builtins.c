@@ -846,6 +846,13 @@ KRK_FUNC(hash,{
 	return INTEGER_VAL(krk_hashValue(argv[0]));
 })
 
+KRK_FUNC(next,{
+	FUNCTION_TAKES_EXACTLY(1);
+	krk_push(argv[0]);
+	krk_push(krk_callSimple(argv[0], 0, 0));
+	return krk_pop();
+})
+
 _noexport
 void _createAndBind_builtins(void) {
 	vm.baseClasses->objectClass = krk_newClass(S("object"), NULL);
@@ -1026,5 +1033,6 @@ void _createAndBind_builtins(void) {
 	BUILTIN_FUNCTION("enumerate", FUNC_NAME(krk,enumerate), "Return an iterator that produces a tuple with a count the iterated values of the passed iteratable.");
 	BUILTIN_FUNCTION("bin", FUNC_NAME(krk,bin), "Convert an integer value to a binary string.");
 	BUILTIN_FUNCTION("zip", FUNC_NAME(krk,zip), "Returns an iterator that produces tuples of the nth element of each passed iterable.");
+	BUILTIN_FUNCTION("next", FUNC_NAME(krk,next), "Compatibility function. Calls an iterable.");
 }
 

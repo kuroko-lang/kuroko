@@ -17,19 +17,20 @@
 #include "simple-repl.h"
 
 #ifdef ISDEBUG
-#define DEBUGOUT(...) fprintf(stderr, __VAR_ARGS__)
+#define DEBUGOUT(...) fprintf(stderr, __VA_ARGS__)
 #else
 #define DEBUGOUT(...)
 #endif
 
 struct MarshalHeader {
 	uint8_t  magic[4];   /* K R K B */
-	uint8_t  version[4]; /* 1 0 1 0 */
+	uint8_t  version[4]; /* 1 0 1 1 */
 } __attribute__((packed));
 
 struct FunctionHeader {
 	uint32_t nameInd;
 	uint32_t docInd;
+	uint32_t qualInd;
 	uint16_t reqArgs;
 	uint16_t kwArgs;
 	uint16_t upvalues;
@@ -216,17 +217,14 @@ static int doFirstPass(FILE * out) {
 
 		if (func->name) internString(func->name);
 		if (func->docstring) internString(func->docstring);
+		if (func->qualname) internString(func->qualname);
 
-		for (size_t i = 0; i < func->requiredArgNames.count; ++i) {
+		for (size_t i = 0; i < (size_t)func->requiredArgs + !!(func->collectsArguments); ++i) {
 			internString(AS_STRING(func->requiredArgNames.values[i]));
 		}
 
-		for (size_t i = 0; i < func->keywordArgNames.count; ++i) {
-			internString(AS_STRING(func->requiredArgNames.values[i]));
-		}
-
-		for (size_t i = 0; i < func->localNameCount; ++i) {
-			internString(func->localNames[i].name);
+		for (size_t i = 0; i < (size_t)func->keywordArgs + !!(func->collectsKeywords); ++i) {
+			internString(AS_STRING(func->keywordArgNames.values[i]));
 		}
 
 		for (size_t i = 0; i < func->chunk.constants.count; ++i) {
@@ -264,10 +262,12 @@ static int doSecondPass(FILE * out) {
 		uint8_t flags = 0;
 		if (func->collectsArguments) flags |= (1 << 0);
 		if (func->collectsKeywords)  flags |= (1 << 1);
+		if (func->isGenerator)       flags |= (1 << 2);
 
 		struct FunctionHeader header = {
 			func->name ? internString(func->name) : UINT32_MAX,
 			func->docstring ? internString(func->docstring) : UINT32_MAX,
+			func->qualname ? internString(func->qualname) : UINT32_MAX,
 			func->requiredArgs,
 			func->keywordArgs,
 			func->upvalueCount,
@@ -284,8 +284,9 @@ static int doSecondPass(FILE * out) {
 		for (size_t i = 0; i < (size_t)func->requiredArgs + !!(func->collectsArguments); ++i) {
 			WRITE_STRING(AS_STRING(func->requiredArgNames.values[i]));
 		}
+
 		for (size_t i = 0; i < (size_t)func->keywordArgs + !!(func->collectsKeywords); ++i) {
-			WRITE_STRING(AS_STRING(func->requiredArgNames.values[i]));
+			WRITE_STRING(AS_STRING(func->keywordArgNames.values[i]));
 		}
 
 		/* Bytecode operations next */
@@ -322,9 +323,8 @@ static int doSecondPass(FILE * out) {
 							return 1;
 					}
 					break;
-				case KRK_VAL_KWARGS:
+				case KRK_VAL_KWARGS: /* This should always be KWARGS_VAL(0) */
 					WRITE_KWARGS(AS_INTEGER(*val));
-					fwrite("k", 1, 1, out);
 					break;
 				case KRK_VAL_INTEGER:
 					WRITE_INTEGER(AS_INTEGER(*val));
@@ -379,7 +379,7 @@ static int compileFile(char * fileName) {
 	/* Start with the primary header */
 	struct MarshalHeader header = {
 		{'K','R','K','B'},
-		{'1','0','1','0'},
+		{'1','0','1','1'},
 	};
 
 	fwrite(&header, 1, sizeof(header), out);
@@ -436,6 +436,9 @@ static KrkValue valueFromConstant(int i, FILE * inFile) {
 			DEBUGOUT("function #%lu\n", (unsigned long)ind);
 			return AS_LIST(SeenFunctions)->values[ind];
 		}
+		case 'k': {
+			return KWARGS_VAL(0);
+		}
 		default: {
 			fprintf(stderr, "Unknown type '%c'.\n", c);
 			return NONE_VAL();
@@ -465,7 +468,7 @@ static int readFile(char * fileName) {
 	if (memcmp(header.magic,(uint8_t[]){'K','R','K','B'},4) != 0)
 		return fprintf(stderr, "Invalid header.\n"), 1;
 
-	if (memcmp(header.version,(uint8_t[]){'1','0','1','0'},4) != 0)
+	if (memcmp(header.version,(uint8_t[]){'1','0','1','1'},4) != 0)
 		return fprintf(stderr, "Bytecode is for a different version.\n"), 2;
 
 	/* Read string table */
@@ -526,6 +529,10 @@ static int readFile(char * fileName) {
 			self->docstring = AS_STRING(AS_LIST(StringTable)->values[function.docInd]);
 		}
 
+		if (function.qualInd != UINT32_MAX) {
+			self->qualname = AS_STRING(AS_LIST(StringTable)->values[function.qualInd]);
+		}
+
 #ifdef ISDEBUG
 		fprintf(stderr, "   Required arguments: %lu\n", (unsigned long)function.reqArgs);
 		fprintf(stderr, "   Keyword arguments:  %lu\n", (unsigned long)function.kwArgs);
@@ -539,17 +546,18 @@ static int readFile(char * fileName) {
 		self->keywordArgs  = function.kwArgs;
 		self->collectsArguments = (function.flags & (1 << 0)) ? 1 : 0;
 		self->collectsKeywords  = (function.flags & (1 << 1)) ? 1 : 0;
+		self->isGenerator       = (function.flags & (1 << 2)) ? 1 : 0;
 		self->globalsContext = krk_currentThread.module;
 		self->upvalueCount = function.upvalues;
 
 		/* Read argument names */
 		DEBUGOUT("  [Required Arguments]\n");
-		for (size_t i = 0; i < (size_t)function.reqArgs + self->collectsArguments; i++) {
+		for (size_t i = 0; i < (size_t)function.reqArgs + !!(self->collectsArguments); i++) {
 			krk_writeValueArray(&self->requiredArgNames, valueFromConstant(i,inFile));
 		}
 
 		DEBUGOUT("  [Keyword Arguments]\n");
-		for (size_t i = 0; i < (size_t)function.kwArgs + self->collectsKeywords; i++) {
+		for (size_t i = 0; i < (size_t)function.kwArgs + !!(self->collectsKeywords); i++) {
 			krk_writeValueArray(&self->keywordArgNames, valueFromConstant(i,inFile));
 		}
 

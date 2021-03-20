@@ -11,6 +11,7 @@
 #include "value.h"
 #include "memory.h"
 #include "util.h"
+#include "debug.h"
 
 static KrkClass * generator;
 /**
@@ -24,6 +25,8 @@ struct generator {
 	size_t argCount;
 	uint8_t * ip;
 	int running;
+	int started;
+	KrkValue result;
 };
 
 #define AS_generator(o) ((struct generator *)AS_OBJECT(o))
@@ -38,6 +41,7 @@ static void _generator_gcscan(KrkInstance * _self) {
 	for (size_t i = 0; i < self->argCount; ++i) {
 		krk_markValue(self->args[i]);
 	}
+	krk_markValue(self->result);
 }
 
 static void _generator_gcsweep(KrkInstance * self) {
@@ -70,6 +74,7 @@ KrkInstance * krk_buildGenerator(KrkClosure * closure, KrkValue * argsIn, size_t
 	self->argCount = argCount;
 	self->closure = closure;
 	self->ip = self->closure->function->chunk.code;
+	self->result = NONE_VAL();
 	return (KrkInstance *)self;
 }
 
@@ -91,7 +96,7 @@ KRK_METHOD(generator,__iter__,{
 })
 
 KRK_METHOD(generator,__call__,{
-	METHOD_TAKES_NONE();
+	METHOD_TAKES_AT_MOST(1);
 	if (!self->ip) return OBJECT_VAL(self);
 	/* Prepare frame */
 	KrkCallFrame * frame = &krk_currentThread.frames[krk_currentThread.frameCount++];
@@ -106,6 +111,15 @@ KRK_METHOD(generator,__call__,{
 		krk_push(self->args[i]);
 	}
 
+	if (self->started) {
+		krk_pop();
+		if (argc > 1) {
+			krk_push(argv[1]);
+		} else {
+			krk_push(NONE_VAL());
+		}
+	}
+
 	/* Jump into the iterator */
 	self->running = 1;
 	size_t stackBefore = krk_currentThread.stackTop - krk_currentThread.stack;
@@ -113,7 +127,10 @@ KRK_METHOD(generator,__call__,{
 	size_t stackAfter = krk_currentThread.stackTop - krk_currentThread.stack;
 	self->running = 0;
 
+	self->started = 1;
+
 	if (IS_KWARGS(result) && AS_INTEGER(result) == 0) {
+		self->result = krk_pop();
 		_set_generator_done(self);
 		return OBJECT_VAL(self);
 	}
@@ -144,6 +161,19 @@ KRK_METHOD(generator,__call__,{
 	return result;
 })
 
+KRK_METHOD(generator,send,{
+	METHOD_TAKES_EXACTLY(1);
+	if (!self->started && !IS_NONE(argv[1])) {
+		return krk_runtimeError(vm.exceptions->typeError, "Can not send non-None value to just-started generator");
+	}
+	return FUNC_NAME(generator,__call__)(argc,argv,0);
+})
+
+KRK_METHOD(generator,__finish__,{
+	METHOD_TAKES_NONE();
+	return self->result;
+})
+
 /*
  * For compatibility with Python...
  */
@@ -161,6 +191,8 @@ void _createAndBind_generatorClass(void) {
 	BIND_METHOD(generator,__iter__);
 	BIND_METHOD(generator,__call__);
 	BIND_METHOD(generator,__repr__);
+	BIND_METHOD(generator,__finish__);
+	BIND_METHOD(generator,send);
 	BIND_PROP(generator,gi_running);
 	krk_defineNative(&generator->methods, "__str__", FUNC_NAME(generator,__repr__));
 	krk_finalizeClass(generator);

@@ -1,0 +1,50 @@
+1
+2
+3
+checkpoint 1 None
+4
+checkpoint 2 None
+5
+6
+7
+Entering
+yield 1 got 42
+Got hello
+yield 2 got 1024
+got bye
+Entering accumulate
+Yielding None
+None
+Got 0
+Yielding None
+None
+Got 1
+Yielding None
+None
+Got 2
+Yielding None
+None
+Got 3
+Yielding None
+None
+Got None
+Returning tally 6
+Appending 6
+Entering accumulate
+Yielding None
+Got 0
+Yielding None
+Got 1
+Yielding None
+Got 2
+Yielding None
+Got 3
+Yielding None
+Got 4
+Yielding None
+Got None
+Returning tally 10
+Appending 10
+Entering accumulate
+Yielding None
+[6, 10]

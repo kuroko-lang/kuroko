@@ -1,0 +1,61 @@
+def gen(x=0):
+    x = yield from [1,2,3]
+    print("checkpoint 1", x)
+    x = yield 4
+    print("checkpoint 2", x)
+    yield from [5,6,7]
+
+def main():
+    for i in gen():
+        print(i)
+
+main()
+
+def foo(x=-1):
+    print("Entering")
+    x = yield 42
+    print("Got",x)
+    x = yield 1024
+    print("got",x)
+    return 1234
+
+def main(f=None):
+    f = foo()
+    print('yield 1 got',f.send(None))
+    print('yield 2 got',f.send('hello'))
+    try:
+        f.send('bye') # End of iterator
+    except:
+        pass # On Python, this throws stop-iteration with 1234
+
+main()
+
+def accumulate(tally=0,next=None):
+    print("Entering accumulate")
+    while True:
+        print("Yielding None")
+        next = yield
+        print("Got",next)
+        if next is None:
+            print("Returning tally",tally)
+            return tally
+        tally += next
+
+def gather_tallies(tallies,tally=None):
+    while True:
+        tally = yield from accumulate()
+        print("Appending",tally)
+        tallies.append(tally)
+
+def main(tallies=None,acc=None):
+    tallies = []
+    acc = gather_tallies(tallies)
+    print(next(acc))
+    for i in range(4):
+        print(acc.send(i))
+    acc.send(None)
+    for i in range(5):
+        acc.send(i)
+    acc.send(None)
+    print(tallies)
+main()

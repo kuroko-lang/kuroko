@@ -49,6 +49,10 @@ else
   KUROKO_LIBS = ${OBJS} -lpthread
 endif
 
+ifdef KRK_NO_DOCUMENTATION
+  CFLAGS += -DKRK_NO_DOCUMENTATION -Wno-unused-value
+endif
+
 ifndef KRK_DISABLE_RLINE
   # Normally, we link the rich line editor into the
   # interpreter (and not the main library!)
@@ -86,6 +90,7 @@ help:
 	@echo "   KRK_DISABLE_DEBUG=1    Disable debugging features (might be faster)."
 	@echo "   KRK_ENABLE_STATIC=1    Build a single static binary."
 	@echo "   KRK_ENABLE_BUNDLE=1    Link C modules directly into the interpreter."
+	@echo "   KRK_NO_DOCUMENTATION=1 Do not include docstrings for builtins."
 	@echo ""
 	@echo "Available tools: ${TOOLS}"
 
@@ -97,6 +102,8 @@ krk-%: tools/%.c ${KUROKO_LIBS}
 
 libkuroko.so: ${OBJS}
 	${CC} ${CFLAGS} ${LDFLAGS} -shared -o $@ ${OBJS} ${LDLIBS}
+	objcopy --only-keep-debug $@ $@.debug
+	strip --strip-unneeded $@
 
 # Make sure we rebuild things when headers change as we have a lot of
 # headers that define build flags...
@@ -121,7 +128,7 @@ modules/codecs/dbdata.krk: kuroko tools/codectools/gen_dbdata.krk tools/codectoo
 
 .PHONY: clean
 clean:
-	@rm -f ${OBJS} ${TARGET} ${MODULES} libkuroko.so src/*.o kuroko.exe ${TOOLS} $(patsubst %,%.exe,${TOOLS})
+	@rm -f ${OBJS} ${TARGET} ${MODULES} libkuroko.so *.so.debug src/*.o kuroko.exe ${TOOLS} $(patsubst %,%.exe,${TOOLS})
 	@rm -rf docs/html
 
 tags: $(wildcard src/*.c) $(wildcard src/*.h)

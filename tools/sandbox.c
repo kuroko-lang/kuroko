@@ -13,7 +13,11 @@ int main(int argc, char * argv[]) {
 	/* Disable imports, ensure the system module is inaccessible, disable print */
 	krk_tableDelete(&vm.system->fields, OBJECT_VAL(S("module_paths")));
 	krk_tableDelete(&vm.modules, OBJECT_VAL(S("kuroko")));
-	krk_tableDelete(&vm.builtins->fields, OBJECT_VAL(S("print")));
+	krk_tableDelete(&vm.modules, OBJECT_VAL(S("os"))); /* Leaks sensitive information */
+	krk_tableDelete(&vm.modules, OBJECT_VAL(S("fileio"))); /* File access is a big no */
+	krk_tableDelete(&vm.modules, OBJECT_VAL(S("dis"))); /* Can be used to mess with bytecode and break the VM */
+	krk_tableDelete(&vm.modules, OBJECT_VAL(S("threading"))); /* Let's just turn that off for now */
+	krk_tableDelete(&vm.modules, OBJECT_VAL(S("gc"))); /* Lets users stop the garbage collector, so let's turn that off */
 
 	/* Set up our module context. */
 	krk_startModule("__main__");
@@ -35,7 +39,7 @@ int main(int argc, char * argv[]) {
 				result = krk_callSimple(OBJECT_VAL(type->_reprer), 1, 0);
 			}
 			if (IS_STRING(result)) {
-				fprintf(stdout, "%s\n", AS_CSTRING(result));
+				fprintf(stdout, " => %s\n", AS_CSTRING(result));
 			}
 		} else if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) {
 			krk_dumpTraceback();
