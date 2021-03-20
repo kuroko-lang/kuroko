@@ -101,6 +101,8 @@ krk-%: tools/%.c ${KUROKO_LIBS}
 
 libkuroko.so: ${OBJS}
 	${CC} ${CFLAGS} ${LDFLAGS} -shared -o $@ ${OBJS} ${LDLIBS}
+	objcopy --only-keep-debug $@ $@.debug
+	strip --strip-unneeded $@
 
 # Make sure we rebuild things when headers change as we have a lot of
 # headers that define build flags...
@@ -119,7 +121,7 @@ modules/math.so: src/module_math.c libkuroko.so
 
 .PHONY: clean
 clean:
-	@rm -f ${OBJS} ${TARGET} ${MODULES} libkuroko.so src/*.o kuroko.exe ${TOOLS} $(patsubst %,%.exe,${TOOLS})
+	@rm -f ${OBJS} ${TARGET} ${MODULES} libkuroko.so *.so.debug src/*.o kuroko.exe ${TOOLS} $(patsubst %,%.exe,${TOOLS})
 	@rm -rf docs/html
 
 tags: $(wildcard src/*.c) $(wildcard src/*.h)

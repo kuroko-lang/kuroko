@@ -15,6 +15,7 @@
 # Match library files anywhere.
 *.o
 *.so
+*.so.debug
 *.dll
 *.dSYM
 *.kbc
