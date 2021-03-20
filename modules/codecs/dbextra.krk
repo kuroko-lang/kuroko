@@ -514,18 +514,12 @@ register_kuroko_codec(["iso-2022-jp-2", "iso2022-jp-2", "iso2022jp-2", "csISO202
 #     The JIS X 0213 variants of ISO-2022-JP should encode to JIS X 0213 before encoding to any
 #   extension to JIS X 0208 (assuming they "should" encode to extensions at all). So we remove any
 #   characters that are encoded to different locations in JIS X 0213.
-#     Since NEC Row 13 is retained it JIS X 0213, but should be encoded in the JIS X 0213 state not
-#   the JIS X 0208 state, it is excluded manually (lead byte 0x2D).
-#     As an additional effect, this also removes certain Unicode characters that are mapped
-#   differently by Microsoft/WHATWG versus by JIS X 0213, e.g. Microsoft two-way maps the Unicode
-#   fullwidth tilde to the JIS wave dash, while JIS X 0213 includes a separate tilde character
-#   mapped to both the fullwidth tilde and (where appropriate) the ASCII tilde, and maps the JIS
-#   wave dash to the Unicode wave dash. This forces those characters to be encoded to JIS X 0213.
-let encode_jis7_reduced = {}
-for i in encode_jis7.keys():
-    if (i not in encode_jis00 or encode_jis00[i] == encode_jis7[i]) and (i not in encode_jis00p2):
-        if encode_jis7[i][0] != 0x2D:
-            encode_jis7_reduced[i] = encode_jis7[i]
+#     Since NEC Row 13 is retained in JIS X 0213, but should be encoded in the JIS X 0213 state not
+#   the JIS X 0208 state, it is also excluded.
+#     This also removes certain Unicode characters that are mapped differently by Microsoft/WHATWG 
+#   versus by JIS X 0213, e.g. the fullwidth tilde, in the hope that the JIS X 0213 tables would
+#   more dependably round trip.
+let encode_jis7_reduced = xraydict(encode_jis7, {}, [33537, 33634, 33663, 33735, 33864, 33972, 34012, 34131, 34137, 34224, 35061, 35100, 35346, 35383, 35449, 35495, 35518, 35551, 35574, 35711, 36080, 36084, 36114, 20008, 20193, 20224, 20227, 20310, 20362, 20370, 20372, 20378, 20425, 20544, 20514, 20510, 20550, 20546, 20592, 20628, 37086, 37141, 37159, 20810, 20893, 37335, 37338, 37357, 37358, 37348, 37349, 37386, 37392, 21013, 37434, 37436, 37440, 37433, 37454, 37457, 37465, 37479, 37496, 37512, 21158, 37543, 21167, 37584, 37587, 37591, 21211, 37593, 37600, 37607, 37625, 21248, 37627, 21255, 37631, 37634, 37662, 37661, 21284, 37669, 37665, 37704, 37719, 37744, 21395, 21426, 37830, 37854, 37957, 21642, 21660, 21673, 21759, 21894, 38557, 38575, 38707, 38715, 38733, 38735, 38741, 22444, 22472, 22471, 38999, 39013, 22686, 22795, 22875, 22877, 39326, 22948, 39502, 39644, 23382, 39794, 39797, 39823, 39857, 23488, 23512, 23532, 39936, 23582, 23718, 23738, 23847, 23874, 23891, 40299, 23917, 40304, 23992, 23993, 40473, 40657, 24372, 24389, 24423, 24503, 24542, 24714, 24789, 24818, 8470, 8481, 24880, 24887, 8544, 8545, 8546, 8547, 8548, 8549, 8550, 8551, 8552, 8553, 8560, 8561, 8562, 8563, 8564, 8565, 8566, 8567, 8568, 8569, 24984, 8721, 8730, 8735, 8736, 8741, 8745, 8746, 8747, 8750, 8757, 8786, 8801, 8869, 25254, 8895, 25589, 9312, 9313, 9314, 9315, 9316, 9317, 9318, 9319, 9320, 9321, 9322, 9323, 9324, 9325, 9326, 9327, 9328, 9329, 9330, 9331, 25696, 25757, 25806, 26112, 26121, 26133, 26142, 26148, 26161, 26199, 26201, 26213, 26227, 26265, 26272, 26290, 26303, 26362, 26363, 26470, 26555, 26560, 26625, 26692, 26706, 26824, 26831, 26984, 27032, 27106, 27184, 27206, 27243, 27251, 27262, 27364, 27606, 27711, 27740, 27782, 27866, 27908, 28039, 28076, 28111, 28156, 28199, 28220, 28252, 28351, 28552, 28597, 28661, 12317, 12319, 28677, 28679, 28712, 28859, 28805, 28843, 28943, 28932, 28998, 28999, 29020, 29121, 29182, 12849, 12850, 12857, 12964, 12965, 12966, 12967, 12968, 29361, 29374, 13059, 13069, 13076, 13080, 13090, 13091, 13094, 13095, 13099, 13110, 13115, 13129, 13130, 13133, 13137, 13143, 29559, 13179, 13180, 13181, 13182, 13198, 13199, 13212, 13213, 13214, 13217, 13252, 29641, 13261, 29654, 29667, 29703, 29734, 29738, 29742, 29794, 29833, 29855, 29953, 29999, 30063, 30363, 30364, 30366, 30374, 30534, 30753, 30798, 30820, 63785, 31024, 31124, 31131, 63964, 64015, 64016, 64017, 64019, 64020, 64021, 64022, 64025, 64026, 64027, 64031, 64032, 64033, 64034, 64036, 64038, 31441, 31463, 31467, 31646, 32072, 32092, 32160, 32183, 32214, 32338, 32394, 65282, 65287, 65293, 65374, 32583, 65508])
 
 
 class Iso2022Jp3IncrementalEncoder(Iso2022JpIncrementalEncoder):
