@@ -48,6 +48,10 @@ else
   KUROKO_LIBS = ${OBJS} -lpthread
 endif
 
+ifdef KRK_NO_DOCUMENTATION
+  CFLAGS += -DKRK_NO_DOCUMENTATION -Wno-unused-value
+endif
+
 ifndef KRK_DISABLE_RLINE
   # Normally, we link the rich line editor into the
   # interpreter (and not the main library!)
@@ -85,6 +89,7 @@ help:
 	@echo "   KRK_DISABLE_DEBUG=1    Disable debugging features (might be faster)."
 	@echo "   KRK_ENABLE_STATIC=1    Build a single static binary."
 	@echo "   KRK_ENABLE_BUNDLE=1    Link C modules directly into the interpreter."
+	@echo "   KRK_NO_DOCUMENTATION=1 Do not include docstrings for builtins."
 	@echo ""
 	@echo "Available tools: ${TOOLS}"
 
