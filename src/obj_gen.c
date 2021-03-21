@@ -138,6 +138,7 @@ KRK_METHOD(generator,__call__,{
 	/* Was there an exception? */
 	if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) {
 		_set_generator_done(self);
+		krk_currentThread.stackTop = krk_currentThread.stack + frame->slots;
 		return NONE_VAL();
 	}
 
