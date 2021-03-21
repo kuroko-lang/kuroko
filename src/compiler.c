@@ -1126,7 +1126,7 @@ static void function(FunctionType type, size_t blockWidth) {
 				size_t myLocal = current->localCount - 1;
 				EMIT_CONSTANT_OP(OP_GET_LOCAL, myLocal);
 				emitConstant(KWARGS_VAL(0));
-				emitByte(OP_EQUAL);
+				emitByte(OP_IS);
 				int jumpIndex = emitJump(OP_JUMP_IF_FALSE_OR_POP);
 				beginScope();
 				expression(); /* Read expression */
@@ -1671,7 +1671,7 @@ static void forStatement() {
 
 		/* Get the loop iterator again */
 		EMIT_CONSTANT_OP(OP_GET_LOCAL, indLoopIter);
-		emitByte(OP_EQUAL);
+		emitByte(OP_IS);
 		exitJump = emitJump(OP_JUMP_IF_TRUE_OR_POP);
 
 		if (varCount > 1) {
@@ -2410,7 +2410,7 @@ static void generatorInner(KrkScanner scannerBefore, Parser parserBefore, void (
 	EMIT_CONSTANT_OP(OP_SET_LOCAL, loopInd);
 
 	EMIT_CONSTANT_OP(OP_GET_LOCAL, indLoopIter);
-	emitByte(OP_EQUAL);
+	emitByte(OP_IS);
 	int exitJump = emitJump(OP_JUMP_IF_TRUE_OR_POP);
 
 	if (varCount > 1) {
