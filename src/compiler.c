@@ -1090,17 +1090,16 @@ static void function(FunctionType type, size_t blockWidth) {
 				/* Check if it's equal to the unset-kwarg-sentinel value */
 				emitConstant(KWARGS_VAL(0));
 				emitByte(OP_IS);
-				int jumpIndex = emitJump(OP_JUMP_IF_FALSE);
+				int jumpIndex = emitJump(OP_JUMP_IF_FALSE_OR_POP);
 				/* And if it is, set it to the appropriate type */
 				beginScope();
 				if (hasCollectors == 1) EMIT_CONSTANT_OP(OP_MAKE_LIST,0);
 				else EMIT_CONSTANT_OP(OP_MAKE_DICT,0);
 				EMIT_CONSTANT_OP(OP_SET_LOCAL, myLocal);
-				emitByte(OP_POP); /* local value */
 				endScope();
 				/* Otherwise pop the comparison. */
 				patchJump(jumpIndex);
-				emitByte(OP_POP); /* comparison value */
+				emitByte(OP_POP); /* comparison value or expression */
 				continue;
 			}
 			if (hasCollectors) {
@@ -1128,14 +1127,13 @@ static void function(FunctionType type, size_t blockWidth) {
 				EMIT_CONSTANT_OP(OP_GET_LOCAL, myLocal);
 				emitConstant(KWARGS_VAL(0));
 				emitByte(OP_EQUAL);
-				int jumpIndex = emitJump(OP_JUMP_IF_FALSE);
+				int jumpIndex = emitJump(OP_JUMP_IF_FALSE_OR_POP);
 				beginScope();
 				expression(); /* Read expression */
 				EMIT_CONSTANT_OP(OP_SET_LOCAL, myLocal);
-				emitByte(OP_POP); /* local value */
 				endScope();
 				patchJump(jumpIndex);
-				emitByte(OP_POP);
+				emitByte(OP_POP); /* comparison result or expression value */
 				current->codeobject->keywordArgs++;
 			} else {
 				if (current->codeobject->keywordArgs) {
@@ -1519,8 +1517,7 @@ static void ifStatement() {
 	/* if EXPR: */
 	consume(TOKEN_COLON, "Expect ':' after condition.");
 
-	int thenJump = emitJump(OP_JUMP_IF_FALSE);
-	emitByte(OP_POP);
+	int thenJump = emitJump(OP_JUMP_IF_FALSE_OR_POP);
 
 	/* Start a new scope and enter a block */
 	beginScope();
@@ -1606,8 +1603,7 @@ static void whileStatement() {
 	expression();
 	consume(TOKEN_COLON, "Expect ':' after condition.");
 
-	int exitJump = emitJump(OP_JUMP_IF_FALSE);
-	emitByte(OP_POP);
+	int exitJump = emitJump(OP_JUMP_IF_FALSE_OR_POP);
 
 	int oldLocalCount = current->loopLocalCount;
 	current->loopLocalCount = current->localCount;
@@ -1676,8 +1672,7 @@ static void forStatement() {
 		/* Get the loop iterator again */
 		EMIT_CONSTANT_OP(OP_GET_LOCAL, indLoopIter);
 		emitByte(OP_EQUAL);
-		exitJump = emitJump(OP_JUMP_IF_TRUE);
-		emitByte(OP_POP);
+		exitJump = emitJump(OP_JUMP_IF_TRUE_OR_POP);
 
 		if (varCount > 1) {
 			EMIT_CONSTANT_OP(OP_GET_LOCAL, loopInd);
@@ -1695,8 +1690,7 @@ static void forStatement() {
 		beginScope();
 		expression(); /* condition */
 		endScope();
-		exitJump = emitJump(OP_JUMP_IF_FALSE);
-		emitByte(OP_POP);
+		exitJump = emitJump(OP_JUMP_IF_FALSE_OR_POP);
 
 		if (check(TOKEN_SEMICOLON)) {
 			advance();
@@ -1790,8 +1784,7 @@ _anotherExcept:
 				emitByte(OP_NONE);
 			}
 			emitByte(OP_FILTER_EXCEPT);
-			nextJump = emitJump(OP_JUMP_IF_FALSE);
-			emitByte(OP_POP);
+			nextJump = emitJump(OP_JUMP_IF_FALSE_OR_POP);
 
 			/* Match 'as' to rename exception */
 			if (match(TOKEN_AS)) {
@@ -1961,7 +1954,7 @@ static void delStatement() {
 
 static void assertStatement() {
 	expression();
-	int elseJump = emitJump(OP_JUMP_IF_TRUE);
+	int elseJump = emitJump(OP_JUMP_IF_TRUE_OR_POP);
 
 	KrkToken assertionError = syntheticToken("AssertionError");
 	size_t ind = identifierConstant(&assertionError);
@@ -2418,8 +2411,7 @@ static void generatorInner(KrkScanner scannerBefore, Parser parserBefore, void (
 
 	EMIT_CONSTANT_OP(OP_GET_LOCAL, indLoopIter);
 	emitByte(OP_EQUAL);
-	int exitJump = emitJump(OP_JUMP_IF_TRUE);
-	emitByte(OP_POP);
+	int exitJump = emitJump(OP_JUMP_IF_TRUE_OR_POP);
 
 	if (varCount > 1) {
 		EMIT_CONSTANT_OP(OP_GET_LOCAL, loopInd);
@@ -2432,8 +2424,7 @@ static void generatorInner(KrkScanner scannerBefore, Parser parserBefore, void (
 
 	if (match(TOKEN_IF)) {
 		parsePrecedence(PREC_OR);
-		int acceptJump = emitJump(OP_JUMP_IF_TRUE);
-		emitByte(OP_POP); /* Pop condition */
+		int acceptJump = emitJump(OP_JUMP_IF_TRUE_OR_POP);
 		emitLoop(loopStart);
 		patchJump(acceptJump);
 		emitByte(OP_POP); /* Pop condition */
@@ -2783,8 +2774,7 @@ static void actualTernary(size_t count, KrkScanner oldScanner, Parser oldParser)
 
 	parsePrecedence(PREC_OR);
 
-	int thenJump = emitJump(OP_JUMP_IF_TRUE);
-	emitByte(OP_POP); /* Pop the condition */
+	int thenJump = emitJump(OP_JUMP_IF_TRUE_OR_POP);
 	consume(TOKEN_ELSE, "Expected 'else' after ternary condition");
 
 	parsePrecedence(PREC_TERNARY);
@@ -3099,8 +3089,7 @@ static void call(int canAssign) {
 }
 
 static void and_(int canAssign) {
-	int endJump = emitJump(OP_JUMP_IF_FALSE);
-	emitByte(OP_POP);
+	int endJump = emitJump(OP_JUMP_IF_FALSE_OR_POP);
 	parsePrecedence(PREC_AND);
 	patchJump(endJump);
 }
@@ -3110,8 +3099,7 @@ static void ternary(int canAssign) {
 }
 
 static void or_(int canAssign) {
-	int endJump = emitJump(OP_JUMP_IF_TRUE);
-	emitByte(OP_POP);
+	int endJump = emitJump(OP_JUMP_IF_TRUE_OR_POP);
 	parsePrecedence(PREC_OR);
 	patchJump(endJump);
 }

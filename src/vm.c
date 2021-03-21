@@ -2299,21 +2299,16 @@ _finishReturn: (void)0;
 			/*
 			 * Two-byte operands
 			 */
-
-			case OP_JUMP_IF_FALSE: {
-				uint16_t offset = OPERAND;
-				if (krk_isFalsey(krk_peek(0))) frame->ip += offset;
-				break;
-			}
 			case OP_JUMP_IF_FALSE_OR_POP: {
 				uint16_t offset = OPERAND;
 				if (krk_isFalsey(krk_peek(0))) frame->ip += offset;
 				else krk_pop();
 				break;
 			}
-			case OP_JUMP_IF_TRUE: {
+			case OP_JUMP_IF_TRUE_OR_POP: {
 				uint16_t offset = OPERAND;
 				if (!krk_isFalsey(krk_peek(0))) frame->ip += offset;
+				else krk_pop();
 				break;
 			}
 			case OP_JUMP: {
