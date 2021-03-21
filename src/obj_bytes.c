@@ -8,6 +8,7 @@
 #define CURRENT_CTYPE KrkBytes *
 #define CURRENT_NAME  self
 
+#undef IS_bytes
 #define IS_bytes(o) (IS_BYTES(o) || krk_isInstanceOf(o, vm.baseClasses->bytesClass))
 KRK_METHOD(bytes,__init__,{
 	if (argc < 2) {

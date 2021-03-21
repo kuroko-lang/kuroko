@@ -200,6 +200,12 @@ static inline KrkValue discardStringBuilder(struct StringBuilder * sb) {
 #define IS_list(o)    krk_isInstanceOf(o,vm.baseClasses->listClass)
 #define AS_list(o)    (KrkList*)AS_OBJECT(o)
 
+#define IS_tuple(o)    IS_TUPLE(o)
+#define AS_tuple(o)    AS_TUPLE(o)
+
+#define IS_bytes(o)    IS_BYTES(o)
+#define AS_bytes(o)    AS_BYTES(o)
+
 #define IS_listiterator(o) krk_isInstanceOf(o,vm.baseClasses->listiteratorClass)
 #define AS_listiterator(o) AS_INSTANCE(o)
 
