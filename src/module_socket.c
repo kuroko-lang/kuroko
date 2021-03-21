@@ -6,9 +6,14 @@
  */
 #include <string.h>
 #include <sys/types.h>
+#ifdef _WIN32
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#else
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <netdb.h>
+#endif
 #include <errno.h>
 #include "vm.h"
 #include "util.h"
@@ -115,33 +120,41 @@ KRK_METHOD(socket,__repr__,{
 	return OBJECT_VAL(krk_copyString(tmp,len));
 })
 
-KRK_METHOD(socket,bind,{
-	METHOD_TAKES_EXACTLY(1);
-
-	struct sockaddr_storage sock_addr;
-	socklen_t sock_size;
-
-	/* What do we take? I guess a tuple for AF_INET */
+static int socket_parse_address(struct socket * self, KrkValue address, struct sockaddr_storage *sock_addr, socklen_t *sock_size) {
 	if (self->family == AF_INET) {
 		/* Should be 2-tuple */
-		CHECK_ARG(1,tuple,KrkTuple*,addr);
-		if (addr->values.count != 2) return TYPE_ERROR(2-tuple,argv[1]);
-
-		if (!IS_str(addr->values.values[0])) return TYPE_ERROR(str,addr->values.values[0]);
-		if (!IS_int(addr->values.values[1])) return TYPE_ERROR(int,addr->values.values[0]);
+		if (!IS_tuple(address)) {
+			krk_runtimeError(vm.exceptions->typeError, "Expected 2-tuple, not '%s'", krk_typeName(address));
+			return 1;
+		}
+		KrkTuple * addr = AS_TUPLE(address);
+		if (addr->values.count != 2) {
+			krk_runtimeError(vm.exceptions->typeError, "Expected 2-tuple, not '%s'", krk_typeName(address));
+			return 1;
+		}
+		if (!IS_str(addr->values.values[0])) {
+			krk_runtimeError(vm.exceptions->typeError, "Address should be int, not '%s'", krk_typeName(addr->values.values[0]));
+			return 1;
+		}
+		if (!IS_int(addr->values.values[1])) {
+			krk_runtimeError(vm.exceptions->typeError, "Port should be int, not '%s'", krk_typeName(addr->values.values[1]));
+			return 1;
+		}
 
 		if (!AS_STRING(addr->values.values[0])->length) {
-			struct sockaddr_in * sin = (struct sockaddr_in*)&sock_addr;
-			sock_size = sizeof(struct sockaddr_in);
+			struct sockaddr_in * sin = (struct sockaddr_in*)sock_addr;
+			*sock_size = sizeof(struct sockaddr_in);
 			sin->sin_family = AF_INET;
 			sin->sin_port = htons(AS_int(addr->values.values[1]));
 			sin->sin_addr.s_addr = INADDR_ANY;
+			return 0;
 		} else {
 			struct addrinfo *result;
 			struct addrinfo *res;
 			int error = getaddrinfo(AS_CSTRING(addr->values.values[0]), NULL, NULL, &result);
-			if (error < 0) {
-				return krk_runtimeError(SocketError, "Socket error: %s", strerror(errno));
+			if (error != 0) {
+				krk_runtimeError(SocketError, "getaddrinfo() returned error: %d", error);
+				return 1;
 			}
 
 			int found = 0;
@@ -149,8 +162,8 @@ KRK_METHOD(socket,bind,{
 			while (res) {
 				if (res->ai_family == AF_INET) {
 					found = 1;
-					sock_size = res->ai_addrlen;
-					memcpy(&sock_addr, res->ai_addr, sock_size);
+					*sock_size = res->ai_addrlen;
+					memcpy(sock_addr, res->ai_addr, *sock_size);
 					break;
 				}
 				res = res->ai_next;
@@ -159,20 +172,57 @@ KRK_METHOD(socket,bind,{
 			freeaddrinfo(result);
 
 			if (!found) {
-				return krk_runtimeError(SocketError, "No suitable address.");
+				krk_runtimeError(SocketError, "no suitable address");
+				return 1;
 			}
+
+			struct sockaddr_in * sin = (struct sockaddr_in*)sock_addr;
+			sin->sin_family = AF_INET;
+			sin->sin_port = htons(AS_int(addr->values.values[1]));
+
+			return 0;
 		}
-	} else if (self->family == AF_actual_INET6) {
-		/* Should be 4-tuple */
-		CHECK_ARG(1,tuple,KrkTuple*,addr);
-		if (addr->values.count != 4) return TYPE_ERROR(4-tuple,argv[1]);
-		return krk_runtimeError(vm.exceptions->notImplementedError, "Not implemented.");
-	} else if (self->family == AF_actual_UNIX) {
-		/* Should be string */
-		CHECK_ARG(1,str,KrkString*,addr);
-		return krk_runtimeError(vm.exceptions->notImplementedError, "Not implemented.");
 	} else {
-		return krk_runtimeError(vm.exceptions->notImplementedError, "Not implemented.");
+		krk_runtimeError(vm.exceptions->notImplementedError, "Not implemented.");
+		return 1;
+	}
+
+	return 1;
+}
+
+KRK_METHOD(socket,connect,{
+	METHOD_TAKES_EXACTLY(1);
+
+	struct sockaddr_storage sock_addr;
+	socklen_t sock_size = 0;
+
+	/* What do we take? I guess a tuple for AF_INET */
+	int parseResult = socket_parse_address(self, argv[1], &sock_addr, &sock_size);
+	if (parseResult) {
+		if (!(krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION))
+			return krk_runtimeError(SocketError, "Unspecified error.");
+		return NONE_VAL();
+	}
+
+	int result = connect(self->sockfd, (struct sockaddr*)&sock_addr, sock_size);
+
+	if (result < 0) {
+		return krk_runtimeError(SocketError, "Socket error: %s", strerror(errno));
+	}
+})
+
+KRK_METHOD(socket,bind,{
+	METHOD_TAKES_EXACTLY(1);
+
+	struct sockaddr_storage sock_addr;
+	socklen_t sock_size = 0;
+
+	/* What do we take? I guess a tuple for AF_INET */
+	int parseResult = socket_parse_address(self, argv[1], &sock_addr, &sock_size);
+	if (parseResult) {
+		if (!(krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION))
+			return krk_runtimeError(SocketError, "Unspecified error.");
+		return NONE_VAL();
 	}
 
 	int result = bind(self->sockfd, (struct sockaddr*)&sock_addr, sock_size);
@@ -286,7 +336,7 @@ KRK_METHOD(socket,send,{
 		flags = _flags;
 	}
 
-	ssize_t result = send(self->sockfd, buf->bytes, buf->length, flags);
+	ssize_t result = send(self->sockfd, (void*)buf->bytes, buf->length, flags);
 	if (result < 0) {
 		return krk_runtimeError(SocketError, "Socket error: %s", strerror(errno));
 	}
@@ -307,9 +357,9 @@ KRK_METHOD(socket,setsockopt,{
 
 	if (IS_INTEGER(argv[3])) {
 		int val = AS_INTEGER(argv[3]);
-		result = setsockopt(self->sockfd, level, optname, &val, sizeof(int));
+		result = setsockopt(self->sockfd, level, optname, (void*)&val, sizeof(int));
 	} else if (IS_BYTES(argv[3])) {
-		result = setsockopt(self->sockfd, level, optname, AS_BYTES(argv[3])->bytes, AS_BYTES(argv[3])->length);
+		result = setsockopt(self->sockfd, level, optname, (void*)AS_BYTES(argv[3])->bytes, AS_BYTES(argv[3])->length);
 	} else {
 		return TYPE_ERROR(int or bytes,argv[3]);
 	}
@@ -339,6 +389,7 @@ KrkValue krk_module_onload_socket(void) {
 	BIND_METHOD(socket,bind);
 	BIND_METHOD(socket,listen);
 	BIND_METHOD(socket,accept);
+	BIND_METHOD(socket,connect);
 	BIND_METHOD(socket,shutdown);
 	BIND_METHOD(socket,recv);
 	BIND_METHOD(socket,send);
@@ -350,7 +401,7 @@ KrkValue krk_module_onload_socket(void) {
 	BIND_FUNC(module, htons);
 
 	/* Constants */
-#define CONST(o) krk_attachNamedValue(&module->fields, #o, INTEGER_VAL(o));
+#define SOCK_CONST(o) krk_attachNamedValue(&module->fields, #o, INTEGER_VAL(o));
 
 	/**
 	 * AF_ constants
@@ -358,36 +409,38 @@ KrkValue krk_module_onload_socket(void) {
 	 * should build fine on most anything even if most of these aren't widely
 	 * supported by other platforms.
 	 */
-	CONST(AF_INET);
+	SOCK_CONST(AF_INET);
 #ifdef AF_INET6
-	CONST(AF_INET6);
+	SOCK_CONST(AF_INET6);
 #endif
 #ifdef AF_UNIX
-	CONST(AF_UNIX);
+	SOCK_CONST(AF_UNIX);
 #endif
 
 	/* SOCK_ constants, similarly */
-	CONST(SOCK_STREAM);
-	CONST(SOCK_DGRAM);
+	SOCK_CONST(SOCK_STREAM);
+	SOCK_CONST(SOCK_DGRAM);
 #ifdef SOCK_RAW
-	CONST(SOCK_RAW);
+	SOCK_CONST(SOCK_RAW);
 #endif
 
 	/* These are OR'd together with the above on Linux */
 #ifdef SOCK_NONBLOCK
-	CONST(SOCK_NONBLOCK);
+	SOCK_CONST(SOCK_NONBLOCK);
 #endif
 #ifdef SOCK_CLOEXEC
-	CONST(SOCK_CLOEXEC);
+	SOCK_CONST(SOCK_CLOEXEC);
 #endif
 
-	CONST(SHUT_RD);
-	CONST(SHUT_WR);
-	CONST(SHUT_RDWR);
+#ifdef SHUT_RD
+	SOCK_CONST(SHUT_RD);
+	SOCK_CONST(SHUT_WR);
+	SOCK_CONST(SHUT_RDWR);
+#endif
 
-	CONST(SOL_SOCKET);
+	SOCK_CONST(SOL_SOCKET);
 
-	CONST(SO_REUSEADDR);
+	SOCK_CONST(SO_REUSEADDR);
 
 	krk_makeClass(module, &SocketError, "SocketError", vm.exceptions->baseException);
 	KRK_DOC(SocketError, "Raised on faults from socket functions.");

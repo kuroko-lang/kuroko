@@ -38,6 +38,7 @@ ifndef KRK_ENABLE_STATIC
     ${OBJS}: CFLAGS += -DKRKINLIB
     libkuroko.so: LDLIBS += -l:libwinpthread.a -Wl,--require-defined=tc_malloc libtcmalloc_minimal.a -l:libpsapi.a -l:libstdc++.a
     libkuroko.so: libtcmalloc_minimal.a
+    modules/socket.so: LDLIBS += -lws2_32
   endif
   KUROKO_LIBS = libkuroko.so
 else
