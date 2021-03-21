@@ -424,7 +424,6 @@ static void rline_exp_load_colorscheme_sunsmoke(void) {
 #define FLAG_ESCAPE    13
 
 #define FLAG_SELECT    (1 << 5)
-#define FLAG_SEARCH    (1 << 6)
 
 struct syntax_state {
 	line_t * line;
@@ -1085,8 +1084,6 @@ static const char * flag_to_color(int _flag) {
 			return COLOR_GREEN;
 		case FLAG_DIFFMINUS:
 			return COLOR_RED;
-		case FLAG_SELECT:
-			return COLOR_FG;
 //		case FLAG_BOLD:
 //			return COLOR_BOLD;
 //		case FLAG_LINK:
@@ -1357,10 +1354,15 @@ static void render_line(void) {
 
 			/* Syntax hilighting */
 			const char * color = flag_to_color(c.flags);
-			if ((c.flags & FLAG_SEARCH) || (c.flags == FLAG_NOTICE)) {
+			if (c.flags & FLAG_SELECT) {
+				set_colors(color, COLOR_BG);
+				fprintf(stdout,"\033[7m");
+				was_searching = 1;
+			} else if (c.flags == FLAG_NOTICE) {
 				set_colors(COLOR_SEARCH_FG, COLOR_SEARCH_BG);
 				was_searching = 1;
 			} else if (was_searching) {
+				fprintf(stdout,"\033[0m");
 				set_colors(color, COLOR_BG);
 				last_color = color;
 			} else if (!last_color || strcmp(color, last_color)) {
@@ -1636,6 +1638,82 @@ static void insert_char(uint32_t c) {
 
 	column++;
 }
+
+char * paren_pairs = "()[]{}<>";
+
+int is_paren(int c) {
+	char * p = paren_pairs;
+	while (*p) {
+		if (c == *p) return 1;
+		p++;
+	}
+	return 0;
+}
+
+void find_matching_paren(int * out_col, int in_col) {
+	if (column - in_col > the_line->actual) {
+		return; /* Invalid cursor position */
+	}
+
+	int paren_match = 0;
+	int direction = 0;
+	int start = the_line->text[column-in_col].codepoint;
+	int flags = the_line->text[column-in_col].flags & 0x1F;
+	int count = 0;
+
+	/* TODO what about unicode parens? */
+	for (int i = 0; paren_pairs[i]; ++i) {
+		if (start == paren_pairs[i]) {
+			direction = (i % 2 == 0) ? 1 : -1;
+			paren_match = paren_pairs[(i % 2 == 0) ? (i+1) : (i-1)];
+			break;
+		}
+	}
+
+	if (!paren_match) return;
+
+	/* Scan for match */
+	int col = column - in_col;
+
+	while (col > -1 && col < the_line->actual) {
+		/* Only match on same syntax */
+		if ((the_line->text[col].flags & 0x1F) == flags) {
+			/* Count up on same direction */
+			if (the_line->text[col].codepoint == start) count++;
+			/* Count down on opposite direction */
+			if (the_line->text[col].codepoint == paren_match) {
+				count--;
+				/* When count == 0 we have a match */
+				if (count == 0) goto _match_found;
+			}
+		}
+		col += direction;
+	}
+
+_match_found:
+	*out_col = col;
+}
+
+void redraw_matching_paren(int col) {
+	for (int j = 0; j < the_line->actual; ++j) {
+		if (j == col) {
+			the_line->text[j].flags |= FLAG_SELECT;
+		} else {
+			the_line->text[j].flags &= ~(FLAG_SELECT);
+		}
+	}
+}
+
+void highlight_matching_paren(void) {
+	int col = -1;
+	if (is_paren(the_line->text[column].codepoint)) {
+		find_matching_paren(&col, 0);
+	} else if (column > 0 && is_paren(the_line->text[column-1].codepoint)) {
+		find_matching_paren(&col, 1);
+	}
+	redraw_matching_paren(col);
+}
+
 
 /**
  * Move cursor left
@@ -2060,6 +2138,7 @@ static int read_line(void) {
 						for (char *_c = rline_exit_string; *_c; ++_c) {
 							insert_char(*_c);
 						}
+						redraw_matching_paren(-1);
 						render_line();
 						rline_place_cursor();
 						if (!*rline_exit_string) {
@@ -2091,6 +2170,7 @@ static int read_line(void) {
 						/* Finished */
 						loading = 1;
 						column = the_line->actual;
+						redraw_matching_paren(-1);
 						render_line();
 						insert_char('\n');
 						return 1;
@@ -2141,6 +2221,7 @@ static int read_line(void) {
 					continue;
 				}
 			}
+			highlight_matching_paren();
 			render_line();
 			rline_place_cursor();
 		} else if (istate == UTF8_REJECT) {
