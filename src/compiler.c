@@ -494,10 +494,34 @@ static void number(int canAssign) {
 	emitConstant(INTEGER_VAL(value));
 }
 
-static void binary(int canAssign) {
+static int emitJump(uint8_t opcode) {
+	emitByte(opcode);
+	emitBytes(0xFF, 0xFF);
+	return currentChunk()->count - 2;
+}
+
+static void patchJump(int offset) {
+	int jump = currentChunk()->count - offset - 2;
+	if (jump > 0xFFFF) {
+		error("Unsupported far jump (we'll get there)");
+	}
+
+	currentChunk()->code[offset] = (jump >> 8) & 0xFF;
+	currentChunk()->code[offset + 1] =  (jump) & 0xFF;
+}
+
+static void compareChained(int inner) {
 	KrkTokenType operatorType = parser.previous.type;
+	if (operatorType == TOKEN_NOT) consume(TOKEN_IN, "'in' must follow infix 'not'");
+	int invert = (operatorType == TOKEN_IS && match(TOKEN_NOT));
+
 	ParseRule * rule = getRule(operatorType);
 	parsePrecedence((Precedence)(rule->precedence + 1));
+
+	if (getRule(parser.current.type)->precedence == PREC_COMPARISON) {
+		emitByte(OP_SWAP);
+		emitBytes(OP_DUP, 1);
+	}
 
 	switch (operatorType) {
 		case TOKEN_BANG_EQUAL:    emitBytes(OP_EQUAL, OP_NOT); break;
@@ -507,6 +531,40 @@ static void binary(int canAssign) {
 		case TOKEN_LESS:          emitByte(OP_LESS); break;
 		case TOKEN_LESS_EQUAL:    emitBytes(OP_GREATER, OP_NOT); break;
 
+		case TOKEN_IS: emitByte(OP_IS); if (invert) emitByte(OP_NOT); break;
+
+		case TOKEN_IN: emitByte(OP_INVOKE_CONTAINS); break;
+		case TOKEN_NOT: emitBytes(OP_INVOKE_CONTAINS, OP_NOT); break;
+
+		default: error("Invalid binary comparison operator?"); break;
+	}
+
+	if (getRule(parser.current.type)->precedence == PREC_COMPARISON) {
+		size_t exitJump = emitJump(OP_JUMP_IF_FALSE_OR_POP);
+		advance();
+		compareChained(1);
+		patchJump(exitJump);
+		if (getRule(parser.current.type)->precedence != PREC_COMPARISON) {
+			if (!inner) {
+				emitBytes(OP_SWAP,OP_POP);
+			}
+		}
+	} else if (inner) {
+		emitByte(OP_JUMP);
+		emitBytes(0,2);
+	}
+}
+
+static void compare(int canAssign) {
+	compareChained(0);
+}
+
+static void binary(int canAssign) {
+	KrkTokenType operatorType = parser.previous.type;
+	ParseRule * rule = getRule(operatorType);
+	parsePrecedence((Precedence)(rule->precedence + 1));
+
+	switch (operatorType) {
 		case TOKEN_PIPE:        emitByte(OP_BITOR); break;
 		case TOKEN_CARET:       emitByte(OP_BITXOR); break;
 		case TOKEN_AMPERSAND:   emitByte(OP_BITAND); break;
@@ -743,24 +801,6 @@ _dotDone:
 	}
 }
 
-static void in_(int canAssign) {
-	parsePrecedence(PREC_COMPARISON);
-	emitByte(OP_INVOKE_CONTAINS);
-}
-
-static void not_(int canAssign) {
-	consume(TOKEN_IN, "infix not must be followed by 'in'");
-	in_(canAssign);
-	emitByte(OP_NOT);
-}
-
-static void is_(int canAssign) {
-	int invert = match(TOKEN_NOT);
-	parsePrecedence(PREC_COMPARISON);
-	emitByte(OP_IS);
-	if (invert) emitByte(OP_NOT);
-}
-
 static void literal(int canAssign) {
 	switch (parser.previous.type) {
 		case TOKEN_FALSE: emitByte(OP_FALSE); break;
@@ -922,22 +962,6 @@ static void endScope() {
 		}
 		current->localCount--;
 	}
-}
-
-static int emitJump(uint8_t opcode) {
-	emitByte(opcode);
-	emitBytes(0xFF, 0xFF);
-	return currentChunk()->count - 2;
-}
-
-static void patchJump(int offset) {
-	int jump = currentChunk()->count - offset - 2;
-	if (jump > 0xFFFF) {
-		error("Unsupported far jump (we'll get there)");
-	}
-
-	currentChunk()->code[offset] = (jump >> 8) & 0xFF;
-	currentChunk()->code[offset + 1] =  (jump) & 0xFF;
 }
 
 static void block(size_t indentation, const char * blockName) {
@@ -2682,14 +2706,17 @@ ParseRule krk_parseRules[] = {
 	RULE(TOKEN_POW,           NULL,     binary, PREC_EXPONENT),
 	RULE(TOKEN_MODULO,        NULL,     binary, PREC_FACTOR),
 	RULE(TOKEN_BANG,          bitunary, NULL,   PREC_NONE),
-	RULE(TOKEN_BANG_EQUAL,    NULL,     binary, PREC_COMPARISON),
 	RULE(TOKEN_EQUAL,         NULL,     NULL,   PREC_NONE),
 	RULE(TOKEN_WALRUS,        NULL,     NULL,   PREC_NONE),
-	RULE(TOKEN_EQUAL_EQUAL,   NULL,     binary, PREC_COMPARISON),
-	RULE(TOKEN_GREATER,       NULL,     binary, PREC_COMPARISON),
-	RULE(TOKEN_GREATER_EQUAL, NULL,     binary, PREC_COMPARISON),
-	RULE(TOKEN_LESS,          NULL,     binary, PREC_COMPARISON),
-	RULE(TOKEN_LESS_EQUAL,    NULL,     binary, PREC_COMPARISON),
+	RULE(TOKEN_BANG_EQUAL,    NULL,     compare, PREC_COMPARISON),
+	RULE(TOKEN_EQUAL_EQUAL,   NULL,     compare, PREC_COMPARISON),
+	RULE(TOKEN_GREATER,       NULL,     compare, PREC_COMPARISON),
+	RULE(TOKEN_GREATER_EQUAL, NULL,     compare, PREC_COMPARISON),
+	RULE(TOKEN_LESS,          NULL,     compare, PREC_COMPARISON),
+	RULE(TOKEN_LESS_EQUAL,    NULL,     compare, PREC_COMPARISON),
+	RULE(TOKEN_IN,            NULL,     compare, PREC_COMPARISON),
+	RULE(TOKEN_NOT,           unot_,    compare, PREC_COMPARISON),
+	RULE(TOKEN_IS,            NULL,     compare, PREC_COMPARISON),
 	RULE(TOKEN_IDENTIFIER,    variable, NULL,   PREC_NONE),
 	RULE(TOKEN_STRING,        string,   NULL,   PREC_NONE),
 	RULE(TOKEN_BIG_STRING,    string,   NULL,   PREC_NONE),
@@ -2704,11 +2731,8 @@ ParseRule krk_parseRules[] = {
 	RULE(TOKEN_DEF,           NULL,     NULL,   PREC_NONE),
 	RULE(TOKEN_DEL,           NULL,     NULL,   PREC_NONE),
 	RULE(TOKEN_IF,            NULL,     ternary,PREC_TERNARY),
-	RULE(TOKEN_IN,            NULL,     in_,    PREC_COMPARISON),
 	RULE(TOKEN_LET,           NULL,     NULL,   PREC_NONE),
 	RULE(TOKEN_NONE,          literal,  NULL,   PREC_NONE),
-	RULE(TOKEN_NOT,           unot_,    not_,   PREC_COMPARISON),
-	RULE(TOKEN_IS,            NULL,     is_,    PREC_COMPARISON),
 	RULE(TOKEN_OR,            NULL,     or_,    PREC_OR),
 	RULE(TOKEN_RETURN,        NULL,     NULL,   PREC_NONE),
 	RULE(TOKEN_SELF,          self,     NULL,   PREC_NONE),
