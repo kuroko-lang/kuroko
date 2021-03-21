@@ -1,0 +1,1 @@
+print(list(enumerate(range(30))))
