@@ -1,9 +1,11 @@
 CFLAGS  ?= -g -O3 -Wall -Wextra -pedantic -Wno-unused-parameter
 
+CFLAGS += -Isrc
+
 TARGET   = kuroko
-OBJS     = $(patsubst %.c, %.o, $(filter-out src/module_% src/rline.c src/kuroko.c,$(sort $(wildcard src/*.c))))
+OBJS     = $(patsubst %.c, %.o, $(filter-out src/module_% src/kuroko.c,$(sort $(wildcard src/*.c))))
 MODULES  = $(patsubst src/module_%.c, modules/%.so, $(sort $(wildcard src/module_*.c)))
-HEADERS  = $(wildcard src/*.h)
+HEADERS  = $(wildcard src/kuroko/*.h)
 TOOLS    = $(patsubst tools/%.c, krk-%, $(sort $(wildcard tools/*.c)))
 
 # These are used by the install target. We call the local kuroko to get the
@@ -56,7 +58,7 @@ endif
 ifndef KRK_DISABLE_RLINE
   # Normally, we link the rich line editor into the
   # interpreter (and not the main library!)
-  KUROKO_LIBS += src/rline.o
+  KUROKO_LIBS += src/vendor/rline.o
 else
   # ... but it can be disabled if you want a more "pure" build,
   # or if you don't have solid support for the escape sequences

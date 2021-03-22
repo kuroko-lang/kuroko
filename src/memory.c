@@ -1,9 +1,9 @@
-#include "vm.h"
-#include "memory.h"
-#include "object.h"
-#include "compiler.h"
-#include "table.h"
-#include "util.h"
+#include <kuroko/vm.h>
+#include <kuroko/memory.h>
+#include <kuroko/object.h>
+#include <kuroko/compiler.h>
+#include <kuroko/table.h>
+#include <kuroko/util.h>
 
 void * krk_reallocate(void * ptr, size_t old, size_t new) {
 	vm.bytesAllocated += new - old;

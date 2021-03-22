@@ -3,8 +3,8 @@
 #include <string.h>
 #include <sys/types.h>
 
-#include "kuroko.h"
-#include "scanner.h"
+#include <kuroko/kuroko.h>
+#include <kuroko/scanner.h>
 
 static KrkScanner scanner;
 

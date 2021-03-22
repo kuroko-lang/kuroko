@@ -1,9 +1,9 @@
 #include <string.h>
-#include "vm.h"
-#include "value.h"
-#include "memory.h"
-#include "util.h"
-#include "debug.h"
+#include <kuroko/vm.h>
+#include <kuroko/value.h>
+#include <kuroko/memory.h>
+#include <kuroko/util.h>
+#include <kuroko/debug.h>
 
 /* Check for and return the name of a native function as a string object */
 static KrkValue nativeFunctionName(KrkValue func) {

@@ -1,9 +1,9 @@
 #include <string.h>
 #include <limits.h>
-#include "vm.h"
-#include "value.h"
-#include "memory.h"
-#include "util.h"
+#include <kuroko/vm.h>
+#include <kuroko/value.h>
+#include <kuroko/memory.h>
+#include <kuroko/util.h>
 
 #define TUPLE_WRAP_INDEX() \
 	if (index < 0) index += self->values.count; \

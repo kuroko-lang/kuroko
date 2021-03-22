@@ -15,21 +15,20 @@
 
 #ifdef __toaru__
 #include <toaru/rline.h>
-#include <kuroko.h>
 #else
 #ifndef NO_RLINE
-#include "rline.h"
+#include "vendor/rline.h"
 #endif
-#include "kuroko.h"
 #endif
 
-#include "chunk.h"
-#include "debug.h"
-#include "vm.h"
-#include "memory.h"
-#include "scanner.h"
-#include "compiler.h"
-#include "util.h"
+#include <kuroko/kuroko.h>
+#include <kuroko/chunk.h>
+#include <kuroko/debug.h>
+#include <kuroko/vm.h>
+#include <kuroko/memory.h>
+#include <kuroko/scanner.h>
+#include <kuroko/compiler.h>
+#include <kuroko/util.h>
 
 #define PROMPT_MAIN  ">>> "
 #define PROMPT_BLOCK "  > "

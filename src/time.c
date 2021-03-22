@@ -5,10 +5,10 @@
 #include <unistd.h>
 #include <time.h>
 
-#include "vm.h"
-#include "value.h"
-#include "object.h"
-#include "util.h"
+#include <kuroko/vm.h>
+#include <kuroko/value.h>
+#include <kuroko/object.h>
+#include <kuroko/util.h>
 
 KRK_FUNC(sleep,{
 	FUNCTION_TAKES_EXACTLY(1);

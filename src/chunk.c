@@ -1,6 +1,6 @@
-#include "chunk.h"
-#include "memory.h"
-#include "vm.h"
+#include <kuroko/chunk.h>
+#include <kuroko/memory.h>
+#include <kuroko/vm.h>
 
 void krk_initChunk(KrkChunk * chunk) {
 	chunk->count = 0;

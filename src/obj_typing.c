@@ -1,7 +1,7 @@
 #include <string.h>
-#include "vm.h"
-#include "value.h"
-#include "util.h"
+#include <kuroko/vm.h>
+#include <kuroko/value.h>
+#include <kuroko/util.h>
 
 /**
  * Generic alias

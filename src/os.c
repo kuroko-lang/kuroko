@@ -13,10 +13,10 @@
 #include <windows.h>
 #endif
 
-#include "vm.h"
-#include "value.h"
-#include "object.h"
-#include "util.h"
+#include <kuroko/vm.h>
+#include <kuroko/value.h>
+#include <kuroko/object.h>
+#include <kuroko/util.h>
 
 /* Did you know this is actually specified to not exist in a header? */
 extern char ** environ;

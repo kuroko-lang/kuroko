@@ -1,8 +1,8 @@
 #include <string.h>
-#include "vm.h"
-#include "value.h"
-#include "memory.h"
-#include "util.h"
+#include <kuroko/vm.h>
+#include <kuroko/value.h>
+#include <kuroko/memory.h>
+#include <kuroko/util.h>
 
 #define AS_bytes(o) AS_BYTES(o)
 #define CURRENT_CTYPE KrkBytes *

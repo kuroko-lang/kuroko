@@ -2,9 +2,9 @@
  * math module; thin wrapper around libc math functions.
  */
 #include <math.h>
-#include "vm.h"
-#include "value.h"
-#include "object.h"
+#include <kuroko/vm.h>
+#include <kuroko/value.h>
+#include <kuroko/object.h>
 
 #define S(c) (krk_copyString(c,sizeof(c)-1))
 

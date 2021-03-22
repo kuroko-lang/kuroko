@@ -15,8 +15,9 @@
 #include <netdb.h>
 #endif
 #include <errno.h>
-#include "vm.h"
-#include "util.h"
+
+#include <kuroko/vm.h>
+#include <kuroko/util.h>
 
 static KrkClass * SocketError = NULL;
 static KrkClass * SocketClass = NULL;

@@ -2,11 +2,11 @@
 #include <string.h>
 #include <stdlib.h>
 
-#include "memory.h"
-#include "object.h"
-#include "value.h"
-#include "vm.h"
-#include "table.h"
+#include <kuroko/memory.h>
+#include <kuroko/object.h>
+#include <kuroko/value.h>
+#include <kuroko/vm.h>
+#include <kuroko/table.h>
 
 #define ALLOCATE_OBJECT(type, objectType) \
 	(type*)allocateObject(sizeof(type), objectType)

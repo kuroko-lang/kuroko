@@ -7,11 +7,11 @@
  * into a generator object when called.
  */
 #include <string.h>
-#include "vm.h"
-#include "value.h"
-#include "memory.h"
-#include "util.h"
-#include "debug.h"
+#include <kuroko/vm.h>
+#include <kuroko/value.h>
+#include <kuroko/memory.h>
+#include <kuroko/util.h>
+#include <kuroko/debug.h>
 
 static KrkClass * generator;
 /**

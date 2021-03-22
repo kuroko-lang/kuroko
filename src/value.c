@@ -1,9 +1,9 @@
 #include <limits.h>
 #include <string.h>
-#include "memory.h"
-#include "value.h"
-#include "object.h"
-#include "vm.h"
+#include <kuroko/memory.h>
+#include <kuroko/value.h>
+#include <kuroko/object.h>
+#include <kuroko/vm.h>
 
 void krk_initValueArray(KrkValueArray * array) {
 	array->values = NULL;

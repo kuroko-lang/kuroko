@@ -1,9 +1,9 @@
 #include <string.h>
-#include "vm.h"
-#include "value.h"
-#include "memory.h"
-#include "util.h"
-#include "threads.h"
+#include <kuroko/vm.h>
+#include <kuroko/value.h>
+#include <kuroko/memory.h>
+#include <kuroko/util.h>
+#include <kuroko/threads.h>
 
 #define LIST_WRAP_INDEX() \
 	if (index < 0) index += self->values.count; \

@@ -1,8 +1,8 @@
 #include <string.h>
-#include "vm.h"
-#include "object.h"
-#include "memory.h"
-#include "util.h"
+#include <kuroko/vm.h>
+#include <kuroko/object.h>
+#include <kuroko/memory.h>
+#include <kuroko/util.h>
 
 static KrkClass * set;
 

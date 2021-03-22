@@ -1,12 +1,12 @@
 #include <stdio.h>
 #include <string.h>
-#include "kuroko.h"
-#include "object.h"
-#include "value.h"
-#include "memory.h"
-#include "table.h"
-#include "vm.h"
-#include "threads.h"
+#include <kuroko/kuroko.h>
+#include <kuroko/object.h>
+#include <kuroko/value.h>
+#include <kuroko/memory.h>
+#include <kuroko/table.h>
+#include <kuroko/vm.h>
+#include <kuroko/threads.h>
 
 #define TABLE_MAX_LOAD 0.75
 

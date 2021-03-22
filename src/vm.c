@@ -6,13 +6,13 @@
 #include <errno.h>
 #include <sys/stat.h>
 
-#include "vm.h"
-#include "debug.h"
-#include "memory.h"
-#include "compiler.h"
-#include "object.h"
-#include "table.h"
-#include "util.h"
+#include <kuroko/vm.h>
+#include <kuroko/debug.h>
+#include <kuroko/memory.h>
+#include <kuroko/compiler.h>
+#include <kuroko/object.h>
+#include <kuroko/table.h>
+#include <kuroko/util.h>
 
 #define KRK_VERSION_MAJOR  "1"
 #define KRK_VERSION_MINOR  "1"

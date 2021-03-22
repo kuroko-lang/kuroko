@@ -33,13 +33,13 @@
 #include <string.h>
 #include <sys/types.h>
 
-#include "kuroko.h"
-#include "compiler.h"
-#include "memory.h"
-#include "scanner.h"
-#include "object.h"
-#include "debug.h"
-#include "vm.h"
+#include <kuroko/kuroko.h>
+#include <kuroko/compiler.h>
+#include <kuroko/memory.h>
+#include <kuroko/scanner.h>
+#include <kuroko/object.h>
+#include <kuroko/debug.h>
+#include <kuroko/vm.h>
 
 typedef struct {
 	KrkToken current;

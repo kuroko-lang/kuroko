@@ -3,10 +3,10 @@
  * @brief Definitions and native method bindings for error types.
  */
 #include <string.h>
-#include "vm.h"
-#include "value.h"
-#include "memory.h"
-#include "util.h"
+#include <kuroko/vm.h>
+#include <kuroko/value.h>
+#include <kuroko/memory.h>
+#include <kuroko/util.h>
 
 /**
  * @def ADD_EXCEPTION_CLASS(obj,name,baseClass)

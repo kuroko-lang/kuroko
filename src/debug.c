@@ -1,10 +1,10 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "debug.h"
-#include "vm.h"
-#include "util.h"
-#include "compiler.h"
+#include <kuroko/debug.h>
+#include <kuroko/vm.h>
+#include <kuroko/util.h>
+#include <kuroko/compiler.h>
 
 /**
  * When tracing is enabled, we will present the elements on the stack with
