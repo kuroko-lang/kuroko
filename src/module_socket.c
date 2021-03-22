@@ -373,17 +373,48 @@ KrkValue krk_module_onload_socket(void) {
 
 	KrkClass * socket = krk_makeClass(module, &SocketClass, "socket", vm.baseClasses->objectClass);
 	SocketClass->allocSize = sizeof(struct socket);
-	BIND_METHOD(socket,__init__);
+	KRK_DOC(BIND_METHOD(socket,__init__),
+		"@brief Create a socket object.\n"
+		"@arguments family=AF_INET,type=SOCK_STREAM,proto=0\n\n"
+		"Creates a new socket object for the given address family and type.");
 	BIND_METHOD(socket,__repr__);
-	BIND_METHOD(socket,bind);
-	BIND_METHOD(socket,listen);
-	BIND_METHOD(socket,accept);
-	BIND_METHOD(socket,connect);
-	BIND_METHOD(socket,shutdown);
-	BIND_METHOD(socket,recv);
-	BIND_METHOD(socket,send);
-	BIND_METHOD(socket,fileno);
-	BIND_METHOD(socket,setsockopt);
+	KRK_DOC(BIND_METHOD(socket,bind),
+		"@brief Bind a socket to an address.\n"
+		"@arguments address\n\n"
+		"The format of @p address varies by address family. For @c AF_INET, @p address should be a "
+		"two-tuple of a string domain name and integer port number.");
+	KRK_DOC(BIND_METHOD(socket,listen),
+		"@brief Set a bound socket to listen.\n"
+		"@arguments backlog=0\n\n"
+		"Begin listening on a bound socket, keeping @p backlog connections in a queue.");
+	KRK_DOC(BIND_METHOD(socket,accept),
+		"@brief Accept a connection on a listening socket.\n\n"
+		"Accepts one connection and returns a two-tuple with a new socket object and "
+		"the address of the remote host.");
+	KRK_DOC(BIND_METHOD(socket,connect),
+		"@brief Connect a socket to a remote endpoint.\n"
+		"@arguments address\n\n"
+		"As with @ref socket_bind, the format of @p address varies.");
+	KRK_DOC(BIND_METHOD(socket,shutdown),
+		"@brief Shut down an active socket.\n"
+		"@arguments how\n\n"
+		"Gracefully closes an open socket.");
+	KRK_DOC(BIND_METHOD(socket,recv),
+		"@brief Receive data from a connected socket.\n"
+		"@arguments bufsize,[flags]\n\n"
+		"Receive up to @p bufsize bytes of data, which is returned as a @ref bytes object.");
+	KRK_DOC(BIND_METHOD(socket,send),
+		"@brief Send data to a connected socket.\n"
+		"@arguments buf,[flags]\n\n"
+		"Send the data in the @ref bytes object @p buf to the socket. Returns the number "
+		"of bytes written to the socket.");
+	KRK_DOC(BIND_METHOD(socket,fileno),
+		"@brief Get the file descriptor number for the underlying socket.");
+	KRK_DOC(BIND_METHOD(socket,setsockopt),
+		"@brief Set socket options.\n"
+		"@arguments level,optname,value\n\n"
+		"@p level and @p optname should be integer values defined by @c SOL and @c SO options. "
+		"@p value must be either an @ref int or a @ref bytes object.");
 	krk_defineNative(&socket->methods,".__str__", FUNC_NAME(socket,__repr__));
 	krk_finalizeClass(SocketClass);
 
