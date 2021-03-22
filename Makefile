@@ -104,8 +104,6 @@ krk-%: tools/%.c ${KUROKO_LIBS}
 
 libkuroko.so: ${OBJS}
 	${CC} ${CFLAGS} ${LDFLAGS} -shared -o $@ ${OBJS} ${LDLIBS}
-	objcopy --only-keep-debug $@ $@.debug
-	strip --strip-unneeded $@
 
 # Make sure we rebuild things when headers change as we have a lot of
 # headers that define build flags...
