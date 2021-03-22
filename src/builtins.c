@@ -737,6 +737,22 @@ KRK_FUNC(setattr,{
 	return krk_valueSetAttribute(object, property->chars, value);
 })
 
+KRK_FUNC(hasattr,{
+	FUNCTION_TAKES_AT_LEAST(2);
+	KrkValue object = argv[0];
+	CHECK_ARG(1,str,KrkString*,property);
+
+	return BOOLEAN_VAL(!IS_KWARGS(krk_valueGetAttribute_default(object, property->chars, KWARGS_VAL(0))));
+})
+
+KRK_FUNC(delattr,{
+	FUNCTION_TAKES_AT_LEAST(2);
+	KrkValue object = argv[0];
+	CHECK_ARG(1,str,KrkString*,property);
+
+	return krk_valueDelAttribute(object, property->chars);
+})
+
 
 #define IS_Helper(o)  (krk_isInstanceOf(o, Helper))
 #define AS_Helper(o)  (AS_INSTANCE(o))
@@ -1044,6 +1060,14 @@ void _createAndBind_builtins(void) {
 		"or other type with its own attribute table, then the field will be updated. If "
 		"@p obj is a type without an attribute table and no class property provides an "
 		"overriding setter for @p attribute, an @ref AttributeError will be raised.");
+	BUILTIN_FUNCTION("hasattr", FUNC_NAME(krk,hasattr),
+		"@brief Determines if an object has an attribute.\n"
+		"@arguments obj,attribute\n\n"
+		"Uses @ref getattr to determine if @p obj has an attribute named @p attribute.");
+	BUILTIN_FUNCTION("delattr", FUNC_NAME(krk,delattr),
+		"@brief Delete an attribute by name.\n"
+		"@arguments obj,attribute\n\n"
+		"Deletes the attribute @p attribute from @p obj.");
 	BUILTIN_FUNCTION("sum", FUNC_NAME(krk,sum),
 		"@brief add the elements of an iterable.\n"
 		"@arguments iterable,start=0\n\n"

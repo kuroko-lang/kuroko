@@ -1838,6 +1838,16 @@ static int valueDelProperty(KrkString * name) {
 	return 0;
 }
 
+KrkValue krk_valueDelAttribute(KrkValue owner, char * name) {
+	krk_push(OBJECT_VAL(krk_copyString(name,strlen(name))));
+	krk_push(owner);
+	if (!valueDelProperty(AS_STRING(krk_peek(1)))) {
+		return krk_runtimeError(vm.exceptions->attributeError, "'%s' object has no attribute '%s'", krk_typeName(krk_peek(0)), name);
+	}
+	krk_pop(); /* String */
+	return NONE_VAL();
+}
+
 static int trySetDescriptor(KrkValue owner, KrkString * name, KrkValue value) {
 	KrkClass * _class = krk_getType(owner);
 	KrkValue property;

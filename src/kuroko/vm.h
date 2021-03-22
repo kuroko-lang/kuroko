@@ -768,6 +768,18 @@ extern KrkValue krk_valueGetAttribute_default(KrkValue value, char * name, KrkVa
 extern KrkValue krk_valueSetAttribute(KrkValue owner, char * name, KrkValue to);
 
 /**
+ * @brief Delete a property of an object by name.
+ * @memberof KrkValue
+ *
+ * This is a convenience function that works in essentially the
+ * same way as the OP_DEL_PROPERTY instruction.
+ *
+ * @param owner The owner of the property to delete.
+ * @param name  C-string of the property name to delete.
+ */
+extern KrkValue krk_valueDelAttribute(KrkValue owner, char * name);
+
+/**
  * @brief Concatenate two strings.
  *
  * This is a convenience function which calls @c str.__add__ on the top stack
