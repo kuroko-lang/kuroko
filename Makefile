@@ -124,7 +124,7 @@ modules/math.so: src/module_math.c libkuroko.so
 
 .PHONY: clean
 clean:
-	@rm -f ${OBJS} ${TARGET} ${MODULES} libkuroko.so *.so.debug src/*.o kuroko.exe ${TOOLS} $(patsubst %,%.exe,${TOOLS})
+	@rm -f ${OBJS} ${TARGET} ${MODULES} libkuroko.so *.so.debug src/*.o src/vendor/*.o kuroko.exe ${TOOLS} $(patsubst %,%.exe,${TOOLS})
 	@rm -rf docs/html
 
 tags: $(wildcard src/*.c) $(wildcard src/*.h)
