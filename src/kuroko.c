@@ -780,6 +780,7 @@ int main(int argc, char * argv[]) {
 				if (!strcmp(optarg,"version")) {
 					return runString(argv,0,"import kuroko; print('Kuroko',kuroko.version)\n");
 				} else if (!strcmp(optarg,"help")) {
+#ifndef KRK_NO_DOCUMENTATION
 					fprintf(stderr,"usage: %s [flags] [FILE...]\n"
 						"\n"
 						"Interpreter options:\n"
@@ -799,6 +800,7 @@ int main(int argc, char * argv[]) {
 						"\n"
 						"If no files are provided, the interactive REPL will run.\n",
 						argv[0]);
+#endif
 					return 0;
 				} else {
 					fprintf(stderr,"%s: unrecognized option '--%s'\n",
