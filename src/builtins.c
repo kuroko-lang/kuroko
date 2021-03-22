@@ -616,6 +616,31 @@ KRK_FUNC(isinstance,{
 	}
 })
 
+static int _isSubClass(KrkClass * cls, KrkClass * base) {
+	while (cls) {
+		if (cls == base) return 1;
+		cls = cls->base;
+	}
+	return 0;
+}
+
+KRK_FUNC(issubclass,{
+	FUNCTION_TAKES_EXACTLY(2);
+	CHECK_ARG(0,class,KrkClass*,cls);
+	if (IS_CLASS(argv[1])) {
+		return BOOLEAN_VAL(_isSubClass(cls, AS_CLASS(argv[1])));
+	} else if (IS_TUPLE(argv[1])) {
+		for (size_t i = 0; i < AS_TUPLE(argv[1])->values.count; ++i) {
+			if (IS_CLASS(AS_TUPLE(argv[1])->values.values[i]) && _isSubClass(cls, AS_CLASS(AS_TUPLE(argv[1])->values.values[i]))) {
+				return BOOLEAN_VAL(1);
+			}
+		}
+		return BOOLEAN_VAL(0);
+	} else {
+		return TYPE_ERROR(class or tuple,argv[1]);
+	}
+})
+
 static KrkValue _module_repr(int argc, KrkValue argv[], int hasKw) {
 	KrkInstance * self = AS_INSTANCE(argv[0]);
 
@@ -969,6 +994,11 @@ void _createAndBind_builtins(void) {
 		"@arguments inst, cls\n\n"
 		"Determine if an object @p inst is an instance of the given class @p cls or one if its subclasses. "
 		"@p cls may be a single class or a tuple of classes.");
+	BUILTIN_FUNCTION("issubclass", FUNC_NAME(krk,issubclass),
+		"@brief Check if a class is a subclass of a type.\n"
+		"@arguments cls, clsinfo\n\n"
+		"Determine if the class @p cls is a subclass of the class @p clsinfo. @p clsinfo may be a single "
+		"class or a tuple of classes.");
 	BUILTIN_FUNCTION("globals", FUNC_NAME(krk,globals),
 		"@brief Update and a return a mapping of names in the global namespace.\n\n"
 		"Produces a dict mapping all of the names of the current globals namespace to their values. "

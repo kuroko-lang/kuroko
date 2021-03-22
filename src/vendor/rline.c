@@ -573,6 +573,7 @@ char * syn_krk_types[] = {
 	"print","set","any","all","bool","ord","chr","hex","oct","filter",
 	"sorted","bytes","getattr","sum","min","max","id","hash","map","bin",
 	"enumerate","zip","setattr","property","staticmethod","classmethod",
+	"issubclass",
 	NULL
 };
 
