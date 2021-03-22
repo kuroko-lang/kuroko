@@ -13,7 +13,9 @@ FUNC_SIG(list,__init__);
 FUNC_SIG(list,sort);
 
 KrkValue krk_dirObject(int argc, KrkValue argv[], int hasKw) {
-	if (argc != 1) return krk_runtimeError(vm.exceptions->argumentError, "wrong number of arguments or bad type, got %d\n", argc);
+	if (argc != 1)
+		return krk_runtimeError(vm.exceptions->argumentError, "%s() takes %s %d argument%s (%d given)",
+			"dir", "exactly", 1, "", argc);
 
 	/* Create a new list instance */
 	KrkValue myList = krk_list_of(0,NULL,0);
@@ -489,12 +491,12 @@ static KrkValue _print(int argc, KrkValue argv[], int hasKw) {
 	char * end = "\n"; size_t endLen = 1;
 	if (hasKw) {
 		if (krk_tableGet(AS_DICT(argv[argc]), OBJECT_VAL(S("sep")), &sepVal)) {
-			if (!IS_STRING(sepVal)) return krk_runtimeError(vm.exceptions->typeError, "'sep' should be a string, not '%s'", krk_typeName(sepVal));
+			if (!IS_STRING(sepVal)) return krk_runtimeError(vm.exceptions->typeError, "'%s' should be a string, not '%s'", "sep", krk_typeName(sepVal));
 			sep = AS_CSTRING(sepVal);
 			sepLen = AS_STRING(sepVal)->length;
 		}
 		if (krk_tableGet(AS_DICT(argv[argc]), OBJECT_VAL(S("end")), &endVal)) {
-			if (!IS_STRING(endVal)) return krk_runtimeError(vm.exceptions->typeError, "'end' should be a string, not '%s'", krk_typeName(endVal));
+			if (!IS_STRING(endVal)) return krk_runtimeError(vm.exceptions->typeError, "'%s' should be a string, not '%s'", "end", krk_typeName(endVal));
 			end = AS_CSTRING(endVal);
 			endLen = AS_STRING(endVal)->length;
 		}
@@ -610,7 +612,7 @@ KRK_FUNC(isinstance,{
 		}
 		return BOOLEAN_VAL(0);
 	} else {
-		return krk_runtimeError(vm.exceptions->typeError, "isinstance() arg 2 must be class or tuple");
+		return TYPE_ERROR(class or tuple,argv[1]);
 	}
 })
 
@@ -802,7 +804,7 @@ KRK_METHOD(property,__get__,{
 
 	KrkValue fget;
 	if (!krk_tableGet(&self->fields, OBJECT_VAL(S("fget")), &fget))
-		return krk_runtimeError(vm.exceptions->valueError, "property object is missing 'fget' attribute");
+		return krk_runtimeError(vm.exceptions->attributeError, "'%s' object has no attribute '%s'", "property", "fget");
 
 	krk_push(argv[1]);
 	return krk_callSimple(fget, 1, 0);
@@ -827,7 +829,7 @@ KRK_METHOD(property,__set__,{
 
 KRK_FUNC(id,{
 	FUNCTION_TAKES_EXACTLY(1);
-	if (!IS_OBJECT(argv[0])) return krk_runtimeError(vm.exceptions->typeError, "'%s' is a primitive type and has no identity", krk_typeName(argv[0]));
+	if (!IS_OBJECT(argv[0])) return krk_runtimeError(vm.exceptions->typeError, "'%s' has no identity", krk_typeName(argv[0]));
 	return INTEGER_VAL((size_t)AS_OBJECT(argv[0]));
 })
 

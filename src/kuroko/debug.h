@@ -20,6 +20,8 @@
 #include "chunk.h"
 #include "object.h"
 
+#ifdef DEBUG
+
 /**
  * @brief Print a disassembly of 'func' to the stream 'f'.
  *
@@ -45,19 +47,6 @@ extern void krk_disassembleCodeObject(FILE * f, KrkCodeObject * func, const char
  * @return The size of the instruction in bytes.
  */
 extern size_t krk_disassembleInstruction(FILE * f, KrkCodeObject * func, size_t offset);
-
-/**
- * @brief Obtain the line number for a byte offset into a bytecode chunk.
- *
- * Scans the line mapping table for the given chunk to find the
- * correct line number from the original source file for the instruction
- * at byte index 'offset'.
- *
- * @param chunk  Bytecode chunk containing the instruction.
- * @param offset Byte offset of the instruction to locate.
- * @return Line number, 1-indexed.
- */
-extern size_t krk_lineNumber(KrkChunk * chunk, size_t offset);
 
 /* Internal stuff */
 extern void _createAndBind_disMod(void);
@@ -246,3 +235,5 @@ extern void krk_debug_dumpStack(FILE * f, KrkCallFrame * frame);
 #define KRK_DEBUGGER_STEP      2
 #define KRK_DEBUGGER_RAISE     3
 #define KRK_DEBUGGER_QUIT      4
+
+#endif

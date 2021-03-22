@@ -300,9 +300,6 @@ inline void krk_push(KrkValue value) {
 inline KrkValue krk_pop() {
 	krk_currentThread.stackTop--;
 	if (unlikely(krk_currentThread.stackTop < krk_currentThread.stack)) {
-		fprintf(stderr, "Fatal error: stack underflow detected in VM (krk_currentThread.stackTop = %p, krk_currentThread.stack = %p)\n",
-			(void*)krk_currentThread.stackTop,
-			(void*)krk_currentThread.stack);
 		abort();
 		return NONE_VAL();
 	}
@@ -850,7 +847,7 @@ int krk_callValue(KrkValue callee, int argCount, int extra) {
 				} else if (krk_tableGet(&_class->methods, vm.specialMethodNames[METHOD_CALL], &callFunction)) {
 					return krk_callValue(callFunction, argCount + 1, 0);
 				} else {
-					krk_runtimeError(vm.exceptions->typeError, "Attempted to call non-callable type: %s", krk_typeName(callee));
+					krk_runtimeError(vm.exceptions->typeError, "'%s' object is not callable", krk_typeName(callee));
 					return 0;
 				}
 			}
@@ -864,7 +861,8 @@ int krk_callValue(KrkValue callee, int argCount, int extra) {
 				} else if (krk_tableGet(&_class->methods, vm.specialMethodNames[METHOD_INIT], &initializer)) {
 					return krk_callValue(initializer, argCount + 1, 0);
 				} else if (argCount != 0) {
-					krk_runtimeError(vm.exceptions->attributeError, "Class does not have an __init__ but arguments were passed to initializer: %d", argCount);
+					krk_runtimeError(vm.exceptions->typeError, "%s() takes no arguments (%d given)",
+						_class->name->chars, argCount);
 					return 0;
 				}
 				return 1;
@@ -882,7 +880,7 @@ int krk_callValue(KrkValue callee, int argCount, int extra) {
 				break;
 		}
 	}
-	krk_runtimeError(vm.exceptions->typeError, "Attempted to call non-callable type: %s", krk_typeName(callee));
+	krk_runtimeError(vm.exceptions->typeError, "'%s' object is not callable", krk_typeName(callee));
 	return 0;
 }
 
@@ -1221,12 +1219,14 @@ void krk_initVM(int flags) {
 	_createAndBind_rangeClass();
 	_createAndBind_setClass();
 	_createAndBind_exceptions();
+	_createAndBind_generatorClass();
 	_createAndBind_gcMod();
-	_createAndBind_disMod();
 	_createAndBind_timeMod();
 	_createAndBind_osMod();
 	_createAndBind_fileioMod();
-	_createAndBind_generatorClass();
+#ifdef DEBUG
+	_createAndBind_disMod();
+#endif
 #ifdef ENABLE_THREADING
 	_createAndBind_threadsMod();
 #endif
@@ -1462,9 +1462,7 @@ static int handleException() {
 	/* Find the call frame that owns this stack slot */
 	for (frameOffset = krk_currentThread.frameCount - 1; frameOffset >= 0 && (int)krk_currentThread.frames[frameOffset].slots > stackOffset; frameOffset--);
 	if (frameOffset == -1) {
-		fprintf(stderr, "Internal error: Call stack is corrupted - unable to find\n");
-		fprintf(stderr, "                call frame that owns exception handler.\n");
-		exit(1);
+		abort();
 	}
 
 	/* We found an exception handler and can reset the VM to its call frame. */
@@ -1498,8 +1496,8 @@ int krk_loadModule(KrkString * path, KrkValue * moduleOut, KrkString * runAs) {
 	/* Obtain __builtins__.module_paths */
 	if (!krk_tableGet(&vm.system->fields, OBJECT_VAL(S("module_paths")), &modulePaths) || !IS_INSTANCE(modulePaths)) {
 		*moduleOut = NONE_VAL();
-		krk_runtimeError(vm.exceptions->baseException,
-			"Internal error: kuroko.module_paths not defined.");
+		krk_runtimeError(vm.exceptions->importError,
+			"kuroko.module_paths not defined.");
 		return 0;
 	}
 
@@ -2078,14 +2076,14 @@ _finishReturn: (void)0;
 			case OP_BITNEGATE: {
 				KrkValue value = krk_pop();
 				if (IS_INTEGER(value)) krk_push(INTEGER_VAL(~AS_INTEGER(value)));
-				else { krk_runtimeError(vm.exceptions->typeError, "Incompatible operand type for bit negation."); goto _finishException; }
+				else { krk_runtimeError(vm.exceptions->typeError, "Incompatible operand type for %s negation.", "bit"); goto _finishException; }
 				break;
 			}
 			case OP_NEGATE: {
 				KrkValue value = krk_pop();
 				if (IS_INTEGER(value)) krk_push(INTEGER_VAL(-AS_INTEGER(value)));
 				else if (IS_FLOATING(value)) krk_push(FLOATING_VAL(-AS_FLOATING(value)));
-				else { krk_runtimeError(vm.exceptions->typeError, "Incompatible operand type for prefix negation."); goto _finishException; }
+				else { krk_runtimeError(vm.exceptions->typeError, "Incompatible operand type for %s negation.", "prefix"); goto _finishException; }
 				break;
 			}
 			case OP_NONE:  krk_push(NONE_VAL()); break;
@@ -2268,12 +2266,14 @@ _finishReturn: (void)0;
 				}
 				break;
 			}
+#ifdef DEBUG
 			case OP_BREAKPOINT: {
 				/* First off, halt execution. */
 				krk_debugBreakpointHandler();
 				if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) goto _finishException;
 				goto _resumeHook;
 			}
+#endif
 			case OP_YIELD: {
 				KrkValue result = krk_peek(0);
 				krk_currentThread.frameCount--;
@@ -2287,7 +2287,6 @@ _finishReturn: (void)0;
 					AS_CLOSURE(krk_peek(1))->annotations = krk_pop();
 				} else if (IS_NONE(krk_peek(0))) {
 					krk_swap(1);
-					fprintf(stderr, "TODO: Global annotation.\n");
 					krk_pop();
 				} else {
 					krk_runtimeError(vm.exceptions->typeError, "Can not annotate '%s'.", krk_typeName(krk_peek(0)));
@@ -2332,7 +2331,8 @@ _finishReturn: (void)0;
 				KrkValue contextManager = krk_peek(0);
 				KrkClass * type = krk_getType(contextManager);
 				if (unlikely(!type->_enter || !type->_exit)) {
-					krk_runtimeError(vm.exceptions->attributeError, "Can not use '%s' as context manager", krk_typeName(contextManager));
+					if (!type->_enter) krk_runtimeError(vm.exceptions->attributeError, "__enter__");
+					else if (!type->_exit) krk_runtimeError(vm.exceptions->attributeError, "__exit__");
 					goto _finishException;
 				}
 				krk_push(contextManager);
@@ -2562,7 +2562,7 @@ _finishReturn: (void)0;
 				KrkString * name = READ_STRING(OPERAND);
 				KrkClass * superclass = AS_CLASS(krk_pop());
 				if (!krk_bindMethod(superclass, name)) {
-					krk_runtimeError(vm.exceptions->attributeError, "super(%s) has no attribute '%s'",
+					krk_runtimeError(vm.exceptions->attributeError, "'%s' object has no attribute '%s'",
 						superclass->name->chars, name->chars);
 					goto _finishException;
 				}
@@ -2672,7 +2672,7 @@ _finishReturn: (void)0;
 				} else {
 					KrkClass * type = krk_getType(sequence);
 					if (!type->_iter) {
-						krk_runtimeError(vm.exceptions->typeError, "Can not unpack non-iterable '%s'", krk_typeName(sequence));
+						krk_runtimeError(vm.exceptions->typeError, "'%s' object is not iterable", krk_typeName(sequence));
 						goto _finishException;
 					} else {
 						size_t stackStart = krk_currentThread.stackTop - krk_currentThread.stack - 1;
@@ -2786,7 +2786,7 @@ KrkValue krk_interpret(const char * src, char * fromFile) {
 KrkValue krk_runfile(const char * fileName, char * fromFile) {
 	FILE * f = fopen(fileName,"r");
 	if (!f) {
-		fprintf(stderr, "kuroko: could not read file '%s': %s\n", fileName, strerror(errno));
+		fprintf(stderr, "%s: could not read file '%s': %s\n", "kuroko", fileName, strerror(errno));
 		return INTEGER_VAL(errno);
 	}
 
@@ -2796,7 +2796,7 @@ KrkValue krk_runfile(const char * fileName, char * fromFile) {
 
 	char * buf = malloc(size+1);
 	if (fread(buf, 1, size, f) != size) {
-		fprintf(stderr, "Warning: Failed to read file.\n");
+		fprintf(stderr, "%s: could not read file '%s': %s\n", "kuroko", fileName, strerror(errno));
 	}
 	fclose(f);
 	buf[size] = '\0';

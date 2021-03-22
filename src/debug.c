@@ -6,6 +6,8 @@
 #include <kuroko/util.h>
 #include <kuroko/compiler.h>
 
+#ifdef DEBUG
+
 /**
  * When tracing is enabled, we will present the elements on the stack with
  * a safe printer; the format of values printed by krk_printValueSafe will
@@ -182,15 +184,6 @@ static int isJumpTarget(KrkCodeObject * func, size_t startPoint) {
 			} \
 		} \
 	}
-
-size_t krk_lineNumber(KrkChunk * chunk, size_t offset) {
-	size_t line = 0;
-	for (size_t i = 0; i < chunk->linesCount; ++i) {
-		if (chunk->lines[i].startOffset > offset) break;
-		line = chunk->lines[i].line;
-	}
-	return line;
-}
 
 size_t krk_disassembleInstruction(FILE * f, KrkCodeObject * func, size_t offset) {
 	KrkChunk * chunk = &func->chunk;
@@ -776,3 +769,5 @@ void _createAndBind_disMod(void) {
 #undef LOCAL_MORE
 #undef EXPAND_ARGS_MORE
 }
+
+#endif

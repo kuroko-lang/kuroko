@@ -372,6 +372,7 @@ _cleanup:
 }
 #endif
 
+#ifdef DEBUG
 static char * lastDebugCommand = NULL;
 static int debuggerHook(KrkCallFrame * frame) {
 
@@ -615,6 +616,7 @@ static int debuggerHook(KrkCallFrame * frame) {
 _dbgQuit:
 	return KRK_DEBUGGER_QUIT;
 }
+#endif
 
 static void handleSigint(int sigNum) {
 	/* Don't set the signal flag if the VM is not running */
@@ -810,7 +812,9 @@ _finishArgs:
 	findInterpreter(argv);
 	krk_initVM(flags);
 
+#ifdef DEBUG
 	krk_debug_registerCallback(debuggerHook);
+#endif
 
 	/* Attach kuroko.argv - argv[0] will be set to an empty string for the repl */
 	if (argc == optind) krk_push(OBJECT_VAL(krk_copyString("",0)));
