@@ -30,18 +30,6 @@ struct socket {
 	int proto;
 };
 
-#ifndef AF_INET6
-#define AF_actual_INET6 -1
-#else
-#define AF_actual_INET6 AF_INET6
-#endif
-
-#ifndef AF_UNIX
-#define AF_actual_UNIX -1
-#else
-#define AF_actual_UNIX AF_UNIX
-#endif
-
 #define IS_socket(o) (krk_isInstanceOf(o,SocketClass))
 #define AS_socket(o) ((struct socket*)AS_OBJECT(o))
 #define CURRENT_CTYPE struct socket *
