@@ -1,3 +1,4 @@
+from collections import deque
 from fileio import open
 let lines, descriptions, count
 
@@ -11,7 +12,7 @@ for line in lines:
     if contains[:8] == "no other":
         descriptions[mine] = []
     else:
-        let contents = []
+        let contents = deque()
         for bag in contains.split(", "):
             let cnt, rest = bag.split(' ',1)
             let name = rest.strip().split('bag',1)[0]
@@ -42,7 +43,7 @@ def find_depth(bag):
     let to_scan = descriptions[bag]
     let count = 0
     while to_scan:
-        let i = to_scan.pop(0)
+        let i = to_scan.popleft()
         count += 1
         to_scan.extend(descriptions[i])
     return count
