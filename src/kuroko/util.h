@@ -64,12 +64,12 @@
 #define FUNC_NAME(klass, name) _ ## klass ## _ ## name
 #define FUNC_SIG(klass, name) _noexport KrkValue FUNC_NAME(klass,name) (int argc, KrkValue argv[], int hasKw)
 #define KRK_METHOD(klass, name, body) FUNC_SIG(klass, name) { \
-	static __attribute__ ((unused)) const char _method_name[] = # name; \
+	static __attribute__ ((unused)) const char* _method_name = # name; \
 	CHECK_ARG(0,klass,CURRENT_CTYPE,CURRENT_NAME); \
 	body; return NONE_VAL(); }
 
 #define KRK_FUNC(name,body) static KrkValue _krk_ ## name (int argc, KrkValue argv[], int hasKw) { \
-	static __attribute__ ((unused)) const char _method_name[] = # name; \
+	static __attribute__ ((unused)) const char* _method_name = # name; \
 	body; return NONE_VAL(); }
 
 /* This assumes you have a KrkInstance called `module` in the current scope. */
