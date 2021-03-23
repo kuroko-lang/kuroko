@@ -922,9 +922,9 @@ void _createAndBind_strClass(void) {
 	BIND_METHOD(str,upper);
 	BIND_METHOD(str,title);
 
-	krk_defineNative(&str->methods,".__setslice__",FUNC_NAME(str,__setitem__));
-	krk_defineNative(&str->methods,".__delslice__",FUNC_NAME(str,__setitem__));
-	krk_defineNative(&str->methods,".__delitem__",FUNC_NAME(str,__setitem__));
+	krk_defineNative(&str->methods,"__setslice__",FUNC_NAME(str,__setitem__));
+	krk_defineNative(&str->methods,"__delslice__",FUNC_NAME(str,__setitem__));
+	krk_defineNative(&str->methods,"__delitem__",FUNC_NAME(str,__setitem__));
 	krk_finalizeClass(str);
 	KRK_DOC(str, "Obtain a string representation of an object.");
 

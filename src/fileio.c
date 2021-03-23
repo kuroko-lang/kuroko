@@ -527,7 +527,7 @@ void _createAndBind_fileioMod(void) {
 		"Use the <a class=\"el\" href=\"#open\">open()</a> function instead.}");
 	BIND_METHOD(File,__enter__);
 	BIND_METHOD(File,__exit__);
-	krk_defineNative(&File->methods, ".__repr__", FUNC_NAME(File,__str__));
+	krk_defineNative(&File->methods, "__repr__", FUNC_NAME(File,__str__));
 	krk_finalizeClass(File);
 
 	krk_makeClass(module, &BinaryFile, "BinaryFile", File);

@@ -891,11 +891,11 @@ void _createAndBind_builtins(void) {
 	vm.baseClasses->objectClass = krk_newClass(S("object"), NULL);
 	krk_push(OBJECT_VAL(vm.baseClasses->objectClass));
 
-	krk_defineNative(&vm.baseClasses->objectClass->methods, ":__class__", FUNC_NAME(krk,type));
-	krk_defineNative(&vm.baseClasses->objectClass->methods, ".__dir__", krk_dirObject);
-	krk_defineNative(&vm.baseClasses->objectClass->methods, ".__str__", _strBase);
-	krk_defineNative(&vm.baseClasses->objectClass->methods, ".__repr__", _strBase); /* Override if necesary */
-	krk_defineNative(&vm.baseClasses->objectClass->methods, ".__hash__", obj_hash);
+	krk_defineNative(&vm.baseClasses->objectClass->methods, "__class__", FUNC_NAME(krk,type))->isDynamicProperty = 1;
+	krk_defineNative(&vm.baseClasses->objectClass->methods, "__dir__", krk_dirObject);
+	krk_defineNative(&vm.baseClasses->objectClass->methods, "__str__", _strBase);
+	krk_defineNative(&vm.baseClasses->objectClass->methods, "__repr__", _strBase); /* Override if necesary */
+	krk_defineNative(&vm.baseClasses->objectClass->methods, "__hash__", obj_hash);
 	krk_finalizeClass(vm.baseClasses->objectClass);
 	KRK_DOC(vm.baseClasses->objectClass,
 		"@brief Base class for all types.\n\n"
@@ -905,8 +905,8 @@ void _createAndBind_builtins(void) {
 
 	vm.baseClasses->moduleClass = krk_newClass(S("module"), vm.baseClasses->objectClass);
 	krk_push(OBJECT_VAL(vm.baseClasses->moduleClass));
-	krk_defineNative(&vm.baseClasses->moduleClass->methods, ".__repr__", _module_repr);
-	krk_defineNative(&vm.baseClasses->moduleClass->methods, ".__str__", _module_repr);
+	krk_defineNative(&vm.baseClasses->moduleClass->methods, "__repr__", _module_repr);
+	krk_defineNative(&vm.baseClasses->moduleClass->methods, "__str__", _module_repr);
 	krk_finalizeClass(vm.baseClasses->moduleClass);
 	KRK_DOC(vm.baseClasses->moduleClass, "Type of imported modules and packages.");
 

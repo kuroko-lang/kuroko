@@ -24,8 +24,8 @@
 
 #define ADD_BASE_CLASS(obj, name, baseClass) krk_makeClass(vm.builtins, &obj, name, baseClass)
 
-#define ATTRIBUTE_NOT_ASSIGNABLE() do { if (argc != 1) return krk_runtimeError(vm.exceptions->attributeError, "attribute '%s' is not assignable", \
-	_method_name); } while (0)
+#define ATTRIBUTE_NOT_ASSIGNABLE() do { if (argc != 1) return krk_runtimeError(vm.exceptions->attributeError, "'%s' object has no attribute '%s'", \
+	krk_typeName(argv[0]), _method_name); } while (0)
 
 #define METHOD_TAKES_NONE() do { if (argc != 1) return krk_runtimeError(vm.exceptions->argumentError, "%s() takes no arguments (%d given)", \
 	_method_name, (argc-1)); } while (0)
@@ -54,11 +54,10 @@
 #define TYPE_ERROR(expected,value) krk_runtimeError(vm.exceptions->typeError, "%s() expects %s, not '%s'", \
 		/* Function name */ _method_name, /* expected type */ #expected, krk_typeName(value))
 
-#define NOT_ENOUGH_ARGS() krk_runtimeError(vm.exceptions->argumentError, "%s() missing required positional argument", \
-		/* Function name */ _method_name)
+#define NOT_ENOUGH_ARGS(name) krk_runtimeError(vm.exceptions->argumentError, "")
 
 #define CHECK_ARG(i, type, ctype, name) \
-	if (argc < (i+1)) return NOT_ENOUGH_ARGS(); \
+	if (argc < (i+1)) return NOT_ENOUGH_ARGS(name); \
 	if (!IS_ ## type (argv[i])) return TYPE_ERROR(type,argv[i]); \
 	ctype name __attribute__((unused)) = AS_ ## type (argv[i])
 
@@ -75,8 +74,7 @@
 
 /* This assumes you have a KrkInstance called `module` in the current scope. */
 #define MAKE_CLASS(klass) do { krk_makeClass(module,&klass,#klass,vm.baseClasses->objectClass); klass ->allocSize = sizeof(struct klass); } while (0)
-#define BIND_METHOD(klass,method) krk_defineNative(&klass->methods, "." #method, _ ## klass ## _ ## method)
-#define BIND_FIELD(klass,method) krk_defineNative(&klass->methods, ":" #method, _ ## klass ## _ ## method)
+#define BIND_METHOD(klass,method) krk_defineNative(&klass->methods, #method, _ ## klass ## _ ## method)
 #define BIND_PROP(klass,method) krk_defineNativeProperty(&klass->methods, #method, _ ## klass ## _ ## method)
 #define BIND_FUNC(module,func) krk_defineNative(&module->fields, #func, _krk_ ## func)
 

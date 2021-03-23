@@ -252,7 +252,7 @@ KrkCodeObject * krk_newCodeObject(void) {
 KrkNative * krk_newNative(NativeFn function, const char * name, int type) {
 	KrkNative * native = ALLOCATE_OBJECT(KrkNative, KRK_OBJ_NATIVE);
 	native->function = function;
-	native->isMethod = type;
+	native->isDynamicProperty = type;
 	native->name = name;
 	native->doc = NULL;
 	return native;

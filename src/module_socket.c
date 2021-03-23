@@ -415,7 +415,7 @@ KrkValue krk_module_onload_socket(void) {
 		"@arguments level,optname,value\n\n"
 		"@p level and @p optname should be integer values defined by @c SOL and @c SO options. "
 		"@p value must be either an @ref int or a @ref bytes object.");
-	krk_defineNative(&socket->methods,".__str__", FUNC_NAME(socket,__repr__));
+	krk_defineNative(&socket->methods,"__str__", FUNC_NAME(socket,__repr__));
 	krk_finalizeClass(SocketClass);
 
 	BIND_FUNC(module, htons);

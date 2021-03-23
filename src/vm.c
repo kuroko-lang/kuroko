@@ -324,21 +324,8 @@ inline void krk_swap(int distance) {
  * GC safe: pushes allocated values.
  */
 KrkNative * krk_defineNative(KrkTable * table, const char * name, NativeFn function) {
-	int functionType = 0;
-	if (*name == '.') {
-		name++;
-		functionType = 1;
-	}
-	if (*name == ':') {
-		name++;
-		functionType = 2;
-	}
-	KrkNative * func = krk_newNative(function, name, functionType);
-	krk_push(OBJECT_VAL(func));
-	krk_push(OBJECT_VAL(krk_copyString(name, (int)strlen(name))));
-	krk_tableSet(table, krk_peek(0), krk_peek(1));
-	krk_pop();
-	krk_pop();
+	KrkNative * func = krk_newNative(function, name, 0);
+	krk_attachNamedObject(table, name, (KrkObj*)func);
 	return func;
 }
 
@@ -349,7 +336,7 @@ KrkNative * krk_defineNative(KrkTable * table, const char * name, NativeFn funct
  * the ":field" option for defineNative().
  */
 KrkNative * krk_defineNativeProperty(KrkTable * table, const char * name, NativeFn function) {
-	KrkNative * func = krk_newNative(function, name, 1);
+	KrkNative * func = krk_newNative(function, name, 0);
 	krk_push(OBJECT_VAL(func));
 	KrkInstance * property = krk_newInstance(vm.baseClasses->propertyClass);
 	krk_attachNamedObject(table, name, (KrkObj*)property);
@@ -884,7 +871,7 @@ int krk_bindMethod(KrkClass * _class, KrkString * name) {
 		_class = _class->base;
 	}
 	if (!_class) return 0;
-	if (IS_NATIVE(method) && ((KrkNative*)AS_OBJECT(method))->isMethod == 2) {
+	if (IS_NATIVE(method) && ((KrkNative*)AS_OBJECT(method))->isDynamicProperty) {
 		out = AS_NATIVE(method)->function(1, (KrkValue[]){krk_peek(0)}, 0);
 	} else if (IS_CLOSURE(method) && (AS_CLOSURE(method)->isClassMethod)) {
 		out = OBJECT_VAL(krk_newBoundMethod(OBJECT_VAL(_class), AS_OBJECT(method)));
@@ -948,20 +935,6 @@ static void closeUpvalues(int last) {
 }
 
 /**
- * Attach an object to a table.
- *
- * Generally used to attach classes or objects to the globals table, or to
- * a native module's export object.
- */
-void krk_attachNamedObject(KrkTable * table, const char name[], KrkObj * obj) {
-	krk_push(OBJECT_VAL(obj));
-	krk_push(OBJECT_VAL(krk_copyString(name,strlen(name))));
-	krk_tableSet(table, krk_peek(0), krk_peek(1));
-	krk_pop();
-	krk_pop();
-}
-
-/**
  * Same as above, but the object has already been wrapped in a value.
  */
 void krk_attachNamedValue(KrkTable * table, const char name[], KrkValue obj) {
@@ -971,6 +944,17 @@ void krk_attachNamedValue(KrkTable * table, const char name[], KrkValue obj) {
 	krk_pop();
 	krk_pop();
 }
+
+/**
+ * Attach an object to a table.
+ *
+ * Generally used to attach classes or objects to the globals table, or to
+ * a native module's export object.
+ */
+void krk_attachNamedObject(KrkTable * table, const char name[], KrkObj * obj) {
+	krk_attachNamedValue(table,name,OBJECT_VAL(obj));
+}
+
 
 /**
  * Inverse of truthiness.

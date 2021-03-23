@@ -309,14 +309,14 @@ KRK_METHOD(list,index,{
 		if (IS_INTEGER(argv[2]))
 			min = AS_INTEGER(argv[2]);
 		else
-			return krk_runtimeError(vm.exceptions->typeError, "min must be int, not '%s'", krk_typeName(argv[2]));
+			return krk_runtimeError(vm.exceptions->typeError, "%s must be int, not '%s'", "min", krk_typeName(argv[2]));
 	}
 
 	if (argc > 3) {
 		if (IS_INTEGER(argv[3]))
 			max = AS_INTEGER(argv[3]);
 		else
-			return krk_runtimeError(vm.exceptions->typeError, "max must be int, not '%s'", krk_typeName(argv[3]));
+			return krk_runtimeError(vm.exceptions->typeError, "%s must be int, not '%s'", "max", krk_typeName(argv[3]));
 	}
 
 	pthread_rwlock_rdlock(&self->rwlock);
@@ -504,9 +504,9 @@ void _createAndBind_listClass(void) {
 	BIND_METHOD(list,remove);
 	BIND_METHOD(list,reverse);
 	BIND_METHOD(list,sort);
-	krk_defineNative(&list->methods, ".__delitem__", FUNC_NAME(list,pop));
-	krk_defineNative(&list->methods, ".__str__", FUNC_NAME(list,__repr__));
-	krk_defineNative(&list->methods, ".__class_getitem__", KrkGenericAlias);
+	krk_defineNative(&list->methods, "__delitem__", FUNC_NAME(list,pop));
+	krk_defineNative(&list->methods, "__str__", FUNC_NAME(list,__repr__));
+	krk_defineNative(&list->methods, "__class_getitem__", KrkGenericAlias);
 	krk_finalizeClass(list);
 	KRK_DOC(list, "Mutable sequence of arbitrary values.");
 

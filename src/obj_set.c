@@ -232,7 +232,7 @@ void _createAndBind_setClass(void) {
 	BIND_METHOD(set,remove);
 	BIND_METHOD(set,discard);
 	BIND_METHOD(set,clear);
-	krk_defineNative(&set->methods, ".__str__", FUNC_NAME(set,__repr__));
+	krk_defineNative(&set->methods, "__str__", FUNC_NAME(set,__repr__));
 	krk_finalizeClass(set);
 
 	BUILTIN_FUNCTION("setOf", krk_set_of, "Convert argument sequence to set object.");
