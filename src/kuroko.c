@@ -33,6 +33,8 @@
 #define PROMPT_MAIN  ">>> "
 #define PROMPT_BLOCK "  > "
 
+#define CALLGRIND_TMP_FILE "/tmp/kuroko.callgrind.tmp"
+
 static int enableRline = 1;
 static int exitRepl = 0;
 static int pasteEnabled = 0;
@@ -740,7 +742,7 @@ int main(int argc, char * argv[]) {
 	int flags = 0;
 	int moduleAsMain = 0;
 	int opt;
-	while ((opt = getopt(argc, argv, "+c:C:dgm:rstMSV-:")) != -1) {
+	while ((opt = getopt(argc, argv, "+c:C:dgm:rstTMSV-:")) != -1) {
 		switch (opt) {
 			case 'c':
 				return runString(argv, flags, optarg);
@@ -763,6 +765,11 @@ int main(int argc, char * argv[]) {
 				/* Disassemble instructions as they are executed. */
 				flags |= KRK_THREAD_ENABLE_TRACING;
 				break;
+			case 'T': {
+				flags |= KRK_GLOBAL_CALLGRIND;
+				vm.callgrindFile = fopen(CALLGRIND_TMP_FILE,"w");
+				break;
+			}
 			case 'm':
 				moduleAsMain = 1;
 				optind--; /* to get us back to optarg */
@@ -790,6 +797,7 @@ int main(int argc, char * argv[]) {
 						" -r          Disable complex line editing in the REPL.\n"
 						" -s          Debug output from the scanner/tokenizer.\n"
 						" -t          Disassemble instructions as they are exceuted.\n"
+						" -T          Write call trace file.\n"
 						" -C file     Compile 'file', but do not execute it.\n"
 						" -M          Print the default module import paths.\n"
 						" -S          Enable single-step debugging.\n"
@@ -1082,6 +1090,20 @@ _finishArgs:
 		krk_startModule("__main__");
 		result = krk_runfile(argv[optind],argv[optind]);
 		if (IS_NONE(result) && krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) result = INTEGER_VAL(1);
+	}
+
+	if (vm.globalFlags & KRK_GLOBAL_CALLGRIND) {
+		fclose(vm.callgrindFile);
+		vm.globalFlags &= ~(KRK_GLOBAL_CALLGRIND);
+
+		krk_resetStack();
+		krk_startModule("<callgrind>");
+		krk_attachNamedObject(&krk_currentThread.module->fields, "filename", (KrkObj*)S(CALLGRIND_TMP_FILE));
+		krk_interpret(
+			"from callgrind import processFile\n"
+			"import kuroko\n"
+			"import os\n"
+			"processFile(filename, os.getpid(), ' '.join(kuroko.argv))","<callgrind>");
 	}
 
 	krk_freeVM();

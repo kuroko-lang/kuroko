@@ -78,6 +78,31 @@ __thread KrkThreadState krk_currentThread;
 KrkThreadState krk_currentThread;
 #endif
 
+#ifdef ENABLE_TRACING
+# define FRAME_IN(frame) if (vm.globalFlags & KRK_GLOBAL_CALLGRIND) { clock_gettime(CLOCK_MONOTONIC, &frame->in_time); }
+# define FRAME_OUT(frame) \
+	if (vm.globalFlags & KRK_GLOBAL_CALLGRIND && !frame->closure->function->isGenerator) { \
+		KrkCallFrame * caller = krk_currentThread.frameCount > 1 ? &krk_currentThread.frames[krk_currentThread.frameCount-2] : NULL; \
+		struct timespec outTime; \
+		clock_gettime(CLOCK_MONOTONIC, &outTime); \
+		struct timespec diff; \
+		diff.tv_sec  = outTime.tv_sec  - frame->in_time.tv_sec; \
+		diff.tv_nsec = outTime.tv_nsec - frame->in_time.tv_nsec; \
+		if (diff.tv_nsec < 0) { diff.tv_sec--; diff.tv_nsec += 1000000000L; } \
+		fprintf(vm.callgrindFile, "%s %s %d %s %s %d %lld%.9ld\n", \
+			caller ? (caller->closure->function->chunk.filename->chars) : "stdin", \
+			caller ? (caller->closure->function->qualname ? caller->closure->function->qualname->chars : caller->closure->function->name->chars) : "(root)", \
+			caller ? ((int)krk_lineNumber(&caller->closure->function->chunk, caller->ip - caller->closure->function->chunk.code)) : 1, \
+			frame->closure->function->chunk.filename->chars, \
+			frame->closure->function->qualname ? frame->closure->function->qualname->chars : frame->closure->function->name->chars, \
+			(int)krk_lineNumber(&frame->closure->function->chunk, 0), \
+			(long long)diff.tv_sec, diff.tv_nsec); \
+	}
+#else
+# define FRAME_IN(frame)
+# define FRAME_OUT(frame)
+#endif
+
 /*
  * In some threading configurations, particular on Windows,
  * we can't have executables reference our thread-local thread
@@ -732,6 +757,7 @@ _finishKwarg:
 	frame->slots = (krk_currentThread.stackTop - argCount) - krk_currentThread.stack;
 	frame->outSlots = (krk_currentThread.stackTop - argCount - extra) - krk_currentThread.stack;
 	frame->globals = &closure->function->globalsContext->fields;
+	FRAME_IN(frame);
 	return 1;
 
 _errorDuringPositionals:
@@ -2031,6 +2057,7 @@ _finishReturn: (void)0;
 					krk_currentThread.stackTop[-2] = result;
 					break;
 				}
+				FRAME_OUT(frame);
 				krk_currentThread.frameCount--;
 				if (krk_currentThread.frameCount == 0) {
 					krk_pop();
