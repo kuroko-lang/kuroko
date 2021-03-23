@@ -1,13 +1,14 @@
 #include <string.h>
-#include "vm.h"
-#include "value.h"
-#include "memory.h"
-#include "util.h"
+#include <kuroko/vm.h>
+#include <kuroko/value.h>
+#include <kuroko/memory.h>
+#include <kuroko/util.h>
 
 #define AS_bytes(o) AS_BYTES(o)
 #define CURRENT_CTYPE KrkBytes *
 #define CURRENT_NAME  self
 
+#undef IS_bytes
 #define IS_bytes(o) (IS_BYTES(o) || krk_isInstanceOf(o, vm.baseClasses->bytesClass))
 KRK_METHOD(bytes,__init__,{
 	if (argc < 2) {
@@ -21,7 +22,8 @@ KRK_METHOD(bytes,__init__,{
 		krk_push(OBJECT_VAL(out));
 		for (size_t i = 0; i < AS_TUPLE(argv[1])->values.count; ++i) {
 			if (!IS_INTEGER(AS_TUPLE(argv[1])->values.values[i])) {
-				return krk_runtimeError(vm.exceptions->typeError, "bytes(): expected tuple of ints, not of '%s'", krk_typeName(AS_TUPLE(argv[1])->values.values[i]));
+				return krk_runtimeError(vm.exceptions->typeError, "%s() expects %s, not '%s'",
+					"bytes", "tuple of ints", krk_typeName(AS_TUPLE(argv[1])->values.values[i]));
 			}
 			out->bytes[i] = AS_INTEGER(AS_TUPLE(argv[1])->values.values[i]);
 		}
@@ -32,7 +34,8 @@ KRK_METHOD(bytes,__init__,{
 		krk_push(OBJECT_VAL(out));
 		for (size_t i = 0; i < AS_LIST(argv[1])->count; ++i) {
 			if (!IS_INTEGER(AS_LIST(argv[1])->values[i])) {
-				return krk_runtimeError(vm.exceptions->typeError, "bytes(): expected list of ints, not of '%s'", krk_typeName(AS_LIST(argv[1])->values[i]));
+				return krk_runtimeError(vm.exceptions->typeError, "%s() expects %s, not '%s'",
+					"bytes", "list of ints", krk_typeName(AS_LIST(argv[1])->values[i]));
 			}
 			out->bytes[i] = AS_INTEGER(AS_LIST(argv[1])->values[i]);
 		}
@@ -147,7 +150,8 @@ KRK_METHOD(bytes,join,{
 	return finishStringBuilderBytes(&sb);
 
 _expectedBytes:
-	krk_runtimeError(vm.exceptions->typeError, "Expected bytes, got %s.", errorStr);
+	krk_runtimeError(vm.exceptions->typeError, "%s() expects %s, not '%s'",
+		"join", "bytes", errorStr);
 	discardStringBuilder(&sb);
 })
 
@@ -229,7 +233,7 @@ void _createAndBind_bytesClass(void) {
 	BIND_METHOD(bytes,__iter__);
 	BIND_METHOD(bytes,decode);
 	BIND_METHOD(bytes,join);
-	krk_defineNative(&bytes->methods,".__str__",FUNC_NAME(bytes,__repr__)); /* alias */
+	krk_defineNative(&bytes->methods,"__str__",FUNC_NAME(bytes,__repr__)); /* alias */
 	krk_finalizeClass(bytes);
 
 	KrkClass * bytesiterator = ADD_BASE_CLASS(vm.baseClasses->bytesiteratorClass, "bytesiterator", vm.baseClasses->objectClass);

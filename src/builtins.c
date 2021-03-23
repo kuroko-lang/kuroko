@@ -1,9 +1,9 @@
 #include <string.h>
-#include "vm.h"
-#include "value.h"
-#include "memory.h"
-#include "util.h"
-#include "debug.h"
+#include <kuroko/vm.h>
+#include <kuroko/value.h>
+#include <kuroko/memory.h>
+#include <kuroko/util.h>
+#include <kuroko/debug.h>
 
 static KrkClass * Helper;
 static KrkClass * LicenseReader;
@@ -13,7 +13,9 @@ FUNC_SIG(list,__init__);
 FUNC_SIG(list,sort);
 
 KrkValue krk_dirObject(int argc, KrkValue argv[], int hasKw) {
-	if (argc != 1) return krk_runtimeError(vm.exceptions->argumentError, "wrong number of arguments or bad type, got %d\n", argc);
+	if (argc != 1)
+		return krk_runtimeError(vm.exceptions->argumentError, "%s() takes %s %d argument%s (%d given)",
+			"dir", "exactly", 1, "", argc);
 
 	/* Create a new list instance */
 	KrkValue myList = krk_list_of(0,NULL,0);
@@ -201,25 +203,27 @@ KRK_FUNC(all,{
 })
 #undef unpackArray
 
-static KrkClass * mapobject;
-KRK_FUNC(map,{
-	FUNCTION_TAKES_AT_LEAST(2);
+#define CURRENT_CTYPE KrkInstance *
+#define CURRENT_NAME  self
 
-	/* Make a map object */
-	krk_push(OBJECT_VAL(krk_newInstance(mapobject)));
+#define IS_map(o) (krk_isInstanceOf(o,map))
+#define AS_map(o) (AS_INSTANCE(o))
+static KrkClass * map;
+KRK_METHOD(map,__init__,{
+	METHOD_TAKES_AT_LEAST(2);
 
 	/* Attach the function to it */
-	krk_attachNamedValue(&AS_INSTANCE(krk_peek(0))->fields, "_function", argv[0]);
+	krk_attachNamedValue(&self->fields, "_function", argv[1]);
 
 	/* Make the iter objects */
-	KrkTuple * iters = krk_newTuple(argc - 1);
+	KrkTuple * iters = krk_newTuple(argc - 2);
 	krk_push(OBJECT_VAL(iters));
 
 	/* Attach the tuple to the object */
-	krk_attachNamedValue(&AS_INSTANCE(krk_peek(1))->fields, "_iterables", krk_peek(0));
+	krk_attachNamedValue(&self->fields, "_iterables", krk_peek(0));
 	krk_pop();
 
-	for (int i = 1; i < argc; ++i) {
+	for (int i = 2; i < argc; ++i) {
 		KrkClass * type = krk_getType(argv[i]);
 		if (!type->_iter) {
 			return krk_runtimeError(vm.exceptions->typeError, "'%s' is not iterable", krk_typeName(argv[i]));
@@ -231,21 +235,18 @@ KRK_FUNC(map,{
 		iters->values.values[iters->values.count++] = asIter;
 	}
 
-	return krk_pop();
+	return argv[0];
 })
 
-#define CURRENT_CTYPE KrkInstance *
-#define CURRENT_NAME  self
-
-#define IS_mapobject(o) (krk_isInstanceOf(o,mapobject))
-#define AS_mapobject(o) (AS_INSTANCE(o))
-KRK_METHOD(mapobject,__iter__,{
+KRK_METHOD(map,__iter__,{
 	METHOD_TAKES_NONE();
 	return OBJECT_VAL(self);
 })
 
-KRK_METHOD(mapobject,__call__,{
+KRK_METHOD(map,__call__,{
 	METHOD_TAKES_NONE();
+
+	size_t stackOffset = krk_currentThread.stackTop - krk_currentThread.stack;
 
 	/* Get members */
 	KrkValue function = NONE_VAL();
@@ -253,6 +254,8 @@ KRK_METHOD(mapobject,__call__,{
 
 	if (!krk_tableGet(&self->fields, OBJECT_VAL(S("_function")), &function)) return krk_runtimeError(vm.exceptions->valueError, "corrupt map object");
 	if (!krk_tableGet(&self->fields, OBJECT_VAL(S("_iterables")), &iterators) || !IS_TUPLE(iterators)) return krk_runtimeError(vm.exceptions->valueError, "corrupt map object");
+
+	krk_push(function);
 
 	/* Go through each iterator */
 	for (size_t i = 0; i < AS_TUPLE(iterators)->values.count; ++i) {
@@ -262,19 +265,16 @@ KRK_METHOD(mapobject,__call__,{
 		if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) return NONE_VAL();
 		/* End iteration whenever one runs out */
 		if (krk_valuesEqual(krk_peek(0), AS_TUPLE(iterators)->values.values[i])) {
+			for (size_t j = 0; j < i + 1; ++j) krk_pop();
+			krk_pop(); /* the function */
 			return OBJECT_VAL(self);
 		}
 	}
 
 	/* Call the function */
-	return krk_callSimple(function, AS_TUPLE(iterators)->values.count, 0);
-})
-
-KRK_METHOD(mapobject,__repr__,{
-	METHOD_TAKES_NONE();
-	char tmp[1024];
-	size_t len = sprintf(tmp, "<map object at %p>", (void*)self);
-	return OBJECT_VAL(krk_copyString(tmp,len));
+	KrkValue val = krk_callSimple(function, AS_TUPLE(iterators)->values.count, 0);
+	krk_currentThread.stackTop = krk_currentThread.stack + stackOffset;
+	return val;
 })
 
 KRK_FUNC(zip,{
@@ -293,33 +293,31 @@ KRK_FUNC(zip,{
 	return krk_callSimple(map, argc+1, 0);
 })
 
-#define IS_filterobject(o) (krk_isInstanceOf(o,filterobject))
-#define AS_filterobject(o) (AS_INSTANCE(o))
-static KrkClass * filterobject;
-KRK_FUNC(filter,{
-	FUNCTION_TAKES_EXACTLY(2);
-	/* Make a filter object */
-	krk_push(OBJECT_VAL(krk_newInstance(filterobject)));
-	krk_attachNamedValue(&AS_INSTANCE(krk_peek(0))->fields, "_function", argv[0]);
-	KrkClass * type = krk_getType(argv[1]);
+#define IS_filter(o) (krk_isInstanceOf(o,filter))
+#define AS_filter(o) (AS_INSTANCE(o))
+static KrkClass * filter;
+KRK_METHOD(filter,__init__,{
+	METHOD_TAKES_EXACTLY(2);
+	krk_attachNamedValue(&self->fields, "_function", argv[1]);
+	KrkClass * type = krk_getType(argv[2]);
 	if (!type->_iter) {
-		return krk_runtimeError(vm.exceptions->typeError, "'%s' is not iterable", krk_typeName(argv[1]));
+		return krk_runtimeError(vm.exceptions->typeError, "'%s' is not iterable", krk_typeName(argv[2]));
 	}
-	krk_push(argv[1]);
+	krk_push(argv[2]);
 	KrkValue asIter = krk_callSimple(OBJECT_VAL(type->_iter), 1, 0);
 	if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) return NONE_VAL();
-	krk_attachNamedValue(&AS_INSTANCE(krk_peek(0))->fields, "_iterator", asIter);
-
-	return krk_pop();
+	krk_attachNamedValue(&self->fields, "_iterator", asIter);
+	return argv[0];
 })
 
-KRK_METHOD(filterobject,__iter__,{
+KRK_METHOD(filter,__iter__,{
 	METHOD_TAKES_NONE();
 	return OBJECT_VAL(self);
 })
 
-KRK_METHOD(filterobject,__call__,{
+KRK_METHOD(filter,__call__,{
 	METHOD_TAKES_NONE();
+	size_t stackOffset = krk_currentThread.stackTop - krk_currentThread.stack;
 	KrkValue function = NONE_VAL();
 	KrkValue iterator = NONE_VAL();
 
@@ -331,7 +329,10 @@ KRK_METHOD(filterobject,__call__,{
 		krk_push(krk_callSimple(iterator, 0, 0));
 
 		if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) return NONE_VAL();
-		if (krk_valuesEqual(iterator, krk_peek(0))) return OBJECT_VAL(self);
+		if (krk_valuesEqual(iterator, krk_peek(0))) {
+			krk_currentThread.stackTop = krk_currentThread.stack + stackOffset;
+			return OBJECT_VAL(self);
+		}
 
 		if (IS_NONE(function)) {
 			if (krk_isFalsey(krk_peek(0))) {
@@ -347,50 +348,44 @@ KRK_METHOD(filterobject,__call__,{
 			}
 		}
 
-		return krk_pop();
+		KrkValue out = krk_pop();
+		krk_currentThread.stackTop = krk_currentThread.stack + stackOffset;
+		return out;
 	}
 })
 
-KRK_METHOD(filterobject,__repr__,{
-	METHOD_TAKES_NONE();
-	char tmp[1024];
-	size_t len = sprintf(tmp, "<filter object at %p>", (void*)self);
-	return OBJECT_VAL(krk_copyString(tmp,len));
-})
-
-#define IS_enumerateobject(o) (krk_isInstanceOf(o,enumerateobject))
-#define AS_enumerateobject(o) (AS_INSTANCE(o))
-static KrkClass * enumerateobject;
-KRK_FUNC(enumerate,{
-	FUNCTION_TAKES_EXACTLY(1);
+#define IS_enumerate(o) (krk_isInstanceOf(o,enumerate))
+#define AS_enumerate(o) (AS_INSTANCE(o))
+static KrkClass * enumerate;
+KRK_METHOD(enumerate,__init__,{
+	METHOD_TAKES_EXACTLY(1);
 	KrkValue start = INTEGER_VAL(0);
 	if (hasKw) krk_tableGet(AS_DICT(argv[argc]), OBJECT_VAL(S("start")), &start);
 
-	/* Make a enumerate object */
-	krk_push(OBJECT_VAL(krk_newInstance(enumerateobject)));
-	krk_attachNamedValue(&AS_INSTANCE(krk_peek(0))->fields, "_counter", start);
+	krk_attachNamedValue(&self->fields, "_counter", start);
 
 	/* Attach iterator */
-	KrkClass * type = krk_getType(argv[0]);
+	KrkClass * type = krk_getType(argv[1]);
 	if (!type->_iter) {
 		return krk_runtimeError(vm.exceptions->typeError, "'%s' is not iterable", krk_typeName(argv[1]));
 	}
-	krk_push(argv[0]);
+	krk_push(argv[1]);
 	KrkValue asIter = krk_callSimple(OBJECT_VAL(type->_iter), 1, 0);
 	if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) return NONE_VAL();
-	krk_attachNamedValue(&AS_INSTANCE(krk_peek(0))->fields, "_iterator", asIter);
+	krk_attachNamedValue(&self->fields, "_iterator", asIter);
 
-	return krk_pop();
+	return argv[0];
 })
 
-KRK_METHOD(enumerateobject,__iter__,{
+KRK_METHOD(enumerate,__iter__,{
 	METHOD_TAKES_NONE();
 	return OBJECT_VAL(self);
 })
 
 extern KrkValue krk_operator_add (KrkValue a, KrkValue b);
-KRK_METHOD(enumerateobject,__call__,{
+KRK_METHOD(enumerate,__call__,{
 	METHOD_TAKES_NONE();
+	size_t stackOffset = krk_currentThread.stackTop - krk_currentThread.stack;
 	KrkValue counter = NONE_VAL();
 	KrkValue iterator = NONE_VAL();
 
@@ -404,11 +399,13 @@ KRK_METHOD(enumerateobject,__call__,{
 	krk_push(krk_callSimple(iterator, 0, 0));
 
 	if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) {
+		krk_currentThread.stackTop = krk_currentThread.stack + stackOffset;
 		return NONE_VAL();
 	}
 	if (krk_valuesEqual(iterator, krk_peek(0))) {
 		krk_pop();
 		krk_pop();
+		krk_currentThread.stackTop = krk_currentThread.stack + stackOffset;
 		return OBJECT_VAL(self);
 	}
 
@@ -419,14 +416,9 @@ KRK_METHOD(enumerateobject,__call__,{
 	krk_push(krk_operator_add(counter, INTEGER_VAL(1)));
 	krk_attachNamedValue(&self->fields, "_counter", krk_pop());
 
-	return krk_pop();
-})
-
-KRK_METHOD(enumerateobject,__repr__,{
-	METHOD_TAKES_NONE();
-	char tmp[1024];
-	size_t len = sprintf(tmp, "<enumerate object at %p>", (void*)self);
-	return OBJECT_VAL(krk_copyString(tmp,len));
+	KrkValue out = krk_pop();
+	krk_currentThread.stackTop = krk_currentThread.stack + stackOffset;
+	return out;
 })
 
 #define unpackArray(counter, indexer) do { \
@@ -493,18 +485,19 @@ KRK_FUNC(max,{
 })
 #undef unpackArray
 
-static KrkValue _print(int argc, KrkValue argv[], int hasKw) {
-	KrkValue sepVal, endVal;
+KRK_FUNC(print,{
+	KrkValue sepVal;
+	KrkValue endVal;
 	char * sep = " "; size_t sepLen = 1;
 	char * end = "\n"; size_t endLen = 1;
 	if (hasKw) {
 		if (krk_tableGet(AS_DICT(argv[argc]), OBJECT_VAL(S("sep")), &sepVal)) {
-			if (!IS_STRING(sepVal)) return krk_runtimeError(vm.exceptions->typeError, "'sep' should be a string, not '%s'", krk_typeName(sepVal));
+			if (!IS_STRING(sepVal)) return krk_runtimeError(vm.exceptions->typeError, "'%s' should be a string, not '%s'", "sep", krk_typeName(sepVal));
 			sep = AS_CSTRING(sepVal);
 			sepLen = AS_STRING(sepVal)->length;
 		}
 		if (krk_tableGet(AS_DICT(argv[argc]), OBJECT_VAL(S("end")), &endVal)) {
-			if (!IS_STRING(endVal)) return krk_runtimeError(vm.exceptions->typeError, "'end' should be a string, not '%s'", krk_typeName(endVal));
+			if (!IS_STRING(endVal)) return krk_runtimeError(vm.exceptions->typeError, "'%s' should be a string, not '%s'", "end", krk_typeName(endVal));
 			end = AS_CSTRING(endVal);
 			endLen = AS_STRING(endVal)->length;
 		}
@@ -524,8 +517,7 @@ static KrkValue _print(int argc, KrkValue argv[], int hasKw) {
 			fputc(thingToPrint[j], stdout);
 		}
 	}
-	return NONE_VAL();
-}
+})
 
 /**
  * globals()
@@ -620,7 +612,32 @@ KRK_FUNC(isinstance,{
 		}
 		return BOOLEAN_VAL(0);
 	} else {
-		return krk_runtimeError(vm.exceptions->typeError, "isinstance() arg 2 must be class or tuple");
+		return TYPE_ERROR(class or tuple,argv[1]);
+	}
+})
+
+static int _isSubClass(KrkClass * cls, KrkClass * base) {
+	while (cls) {
+		if (cls == base) return 1;
+		cls = cls->base;
+	}
+	return 0;
+}
+
+KRK_FUNC(issubclass,{
+	FUNCTION_TAKES_EXACTLY(2);
+	CHECK_ARG(0,class,KrkClass*,cls);
+	if (IS_CLASS(argv[1])) {
+		return BOOLEAN_VAL(_isSubClass(cls, AS_CLASS(argv[1])));
+	} else if (IS_TUPLE(argv[1])) {
+		for (size_t i = 0; i < AS_TUPLE(argv[1])->values.count; ++i) {
+			if (IS_CLASS(AS_TUPLE(argv[1])->values.values[i]) && _isSubClass(cls, AS_CLASS(AS_TUPLE(argv[1])->values.values[i]))) {
+				return BOOLEAN_VAL(1);
+			}
+		}
+		return BOOLEAN_VAL(0);
+	} else {
+		return TYPE_ERROR(class or tuple,argv[1]);
 	}
 })
 
@@ -720,6 +737,22 @@ KRK_FUNC(setattr,{
 	return krk_valueSetAttribute(object, property->chars, value);
 })
 
+KRK_FUNC(hasattr,{
+	FUNCTION_TAKES_AT_LEAST(2);
+	KrkValue object = argv[0];
+	CHECK_ARG(1,str,KrkString*,property);
+
+	return BOOLEAN_VAL(!IS_KWARGS(krk_valueGetAttribute_default(object, property->chars, KWARGS_VAL(0))));
+})
+
+KRK_FUNC(delattr,{
+	FUNCTION_TAKES_AT_LEAST(2);
+	KrkValue object = argv[0];
+	CHECK_ARG(1,str,KrkString*,property);
+
+	return krk_valueDelAttribute(object, property->chars);
+})
+
 
 #define IS_Helper(o)  (krk_isInstanceOf(o, Helper))
 #define AS_Helper(o)  (AS_INSTANCE(o))
@@ -812,7 +845,7 @@ KRK_METHOD(property,__get__,{
 
 	KrkValue fget;
 	if (!krk_tableGet(&self->fields, OBJECT_VAL(S("fget")), &fget))
-		return krk_runtimeError(vm.exceptions->valueError, "property object is missing 'fget' attribute");
+		return krk_runtimeError(vm.exceptions->attributeError, "'%s' object has no attribute '%s'", "property", "fget");
 
 	krk_push(argv[1]);
 	return krk_callSimple(fget, 1, 0);
@@ -837,7 +870,7 @@ KRK_METHOD(property,__set__,{
 
 KRK_FUNC(id,{
 	FUNCTION_TAKES_EXACTLY(1);
-	if (!IS_OBJECT(argv[0])) return krk_runtimeError(vm.exceptions->typeError, "'%s' is a primitive type and has no identity", krk_typeName(argv[0]));
+	if (!IS_OBJECT(argv[0])) return krk_runtimeError(vm.exceptions->typeError, "'%s' has no identity", krk_typeName(argv[0]));
 	return INTEGER_VAL((size_t)AS_OBJECT(argv[0]));
 })
 
@@ -858,11 +891,11 @@ void _createAndBind_builtins(void) {
 	vm.baseClasses->objectClass = krk_newClass(S("object"), NULL);
 	krk_push(OBJECT_VAL(vm.baseClasses->objectClass));
 
-	krk_defineNative(&vm.baseClasses->objectClass->methods, ":__class__", FUNC_NAME(krk,type));
-	krk_defineNative(&vm.baseClasses->objectClass->methods, ".__dir__", krk_dirObject);
-	krk_defineNative(&vm.baseClasses->objectClass->methods, ".__str__", _strBase);
-	krk_defineNative(&vm.baseClasses->objectClass->methods, ".__repr__", _strBase); /* Override if necesary */
-	krk_defineNative(&vm.baseClasses->objectClass->methods, ".__hash__", obj_hash);
+	krk_defineNative(&vm.baseClasses->objectClass->methods, "__class__", FUNC_NAME(krk,type))->isDynamicProperty = 1;
+	krk_defineNative(&vm.baseClasses->objectClass->methods, "__dir__", krk_dirObject);
+	krk_defineNative(&vm.baseClasses->objectClass->methods, "__str__", _strBase);
+	krk_defineNative(&vm.baseClasses->objectClass->methods, "__repr__", _strBase); /* Override if necesary */
+	krk_defineNative(&vm.baseClasses->objectClass->methods, "__hash__", obj_hash);
 	krk_finalizeClass(vm.baseClasses->objectClass);
 	KRK_DOC(vm.baseClasses->objectClass,
 		"@brief Base class for all types.\n\n"
@@ -872,8 +905,8 @@ void _createAndBind_builtins(void) {
 
 	vm.baseClasses->moduleClass = krk_newClass(S("module"), vm.baseClasses->objectClass);
 	krk_push(OBJECT_VAL(vm.baseClasses->moduleClass));
-	krk_defineNative(&vm.baseClasses->moduleClass->methods, ".__repr__", _module_repr);
-	krk_defineNative(&vm.baseClasses->moduleClass->methods, ".__str__", _module_repr);
+	krk_defineNative(&vm.baseClasses->moduleClass->methods, "__repr__", _module_repr);
+	krk_defineNative(&vm.baseClasses->moduleClass->methods, "__str__", _module_repr);
 	krk_finalizeClass(vm.baseClasses->moduleClass);
 	KRK_DOC(vm.baseClasses->moduleClass, "Type of imported modules and packages.");
 
@@ -951,29 +984,37 @@ void _createAndBind_builtins(void) {
 	krk_finalizeClass(LicenseReader);
 	krk_attachNamedObject(&vm.builtins->fields, "license", (KrkObj*)krk_newInstance(LicenseReader));
 
-	krk_makeClass(vm.builtins, &mapobject, "mapobject", vm.baseClasses->objectClass);
-	BIND_METHOD(mapobject,__iter__);
-	BIND_METHOD(mapobject,__call__);
-	BIND_METHOD(mapobject,__repr__);
-	krk_finalizeClass(mapobject);
+	krk_makeClass(vm.builtins, &map, "map", vm.baseClasses->objectClass);
+	KRK_DOC(map, "Return an iterator that applies a function to a series of iterables");
+	BIND_METHOD(map,__init__);
+	BIND_METHOD(map,__iter__);
+	BIND_METHOD(map,__call__);
+	krk_finalizeClass(map);
 
-	krk_makeClass(vm.builtins, &filterobject, "filterobject", vm.baseClasses->objectClass);
-	BIND_METHOD(filterobject,__iter__);
-	BIND_METHOD(filterobject,__call__);
-	BIND_METHOD(filterobject,__repr__);
-	krk_finalizeClass(filterobject);
+	krk_makeClass(vm.builtins, &filter, "filter", vm.baseClasses->objectClass);
+	KRK_DOC(filter, "Return an iterator that returns only the items from an iterable for which the given function returns true.");
+	BIND_METHOD(filter,__init__);
+	BIND_METHOD(filter,__iter__);
+	BIND_METHOD(filter,__call__);
+	krk_finalizeClass(filter);
 
-	krk_makeClass(vm.builtins, &enumerateobject, "enumerateobject", vm.baseClasses->objectClass);
-	BIND_METHOD(enumerateobject,__iter__);
-	BIND_METHOD(enumerateobject,__call__);
-	BIND_METHOD(enumerateobject,__repr__);
-	krk_finalizeClass(enumerateobject);
+	krk_makeClass(vm.builtins, &enumerate, "enumerate", vm.baseClasses->objectClass);
+	KRK_DOC(enumerate, "Return an iterator that produces a tuple with a count the iterated values of the passed iteratable.");
+	BIND_METHOD(enumerate,__init__);
+	BIND_METHOD(enumerate,__iter__);
+	BIND_METHOD(enumerate,__call__);
+	krk_finalizeClass(enumerate);
 
 	BUILTIN_FUNCTION("isinstance", FUNC_NAME(krk,isinstance),
 		"@brief Check if an object is an instance of a type.\n"
 		"@arguments inst, cls\n\n"
 		"Determine if an object @p inst is an instance of the given class @p cls or one if its subclasses. "
 		"@p cls may be a single class or a tuple of classes.");
+	BUILTIN_FUNCTION("issubclass", FUNC_NAME(krk,issubclass),
+		"@brief Check if a class is a subclass of a type.\n"
+		"@arguments cls, clsinfo\n\n"
+		"Determine if the class @p cls is a subclass of the class @p clsinfo. @p clsinfo may be a single "
+		"class or a tuple of classes.");
 	BUILTIN_FUNCTION("globals", FUNC_NAME(krk,globals),
 		"@brief Update and a return a mapping of names in the global namespace.\n\n"
 		"Produces a dict mapping all of the names of the current globals namespace to their values. "
@@ -987,7 +1028,7 @@ void _createAndBind_builtins(void) {
 	BUILTIN_FUNCTION("dir", FUNC_NAME(krk,dir), "Return a list of known property names for a given object.");
 	BUILTIN_FUNCTION("len", FUNC_NAME(krk,len), "Return the length of a given sequence object.");
 	BUILTIN_FUNCTION("repr", FUNC_NAME(krk,repr), "Produce a string representation of the given object.");
-	BUILTIN_FUNCTION("print", _print,
+	BUILTIN_FUNCTION("print", FUNC_NAME(krk,print),
 		"@brief Print text to the standard output.\n"
 		"@arguments *args,sep=' ',end='\\n'\n\n"
 		"Prints the string representation of each argument to the standard output. "
@@ -1019,6 +1060,14 @@ void _createAndBind_builtins(void) {
 		"or other type with its own attribute table, then the field will be updated. If "
 		"@p obj is a type without an attribute table and no class property provides an "
 		"overriding setter for @p attribute, an @ref AttributeError will be raised.");
+	BUILTIN_FUNCTION("hasattr", FUNC_NAME(krk,hasattr),
+		"@brief Determines if an object has an attribute.\n"
+		"@arguments obj,attribute\n\n"
+		"Uses @ref getattr to determine if @p obj has an attribute named @p attribute.");
+	BUILTIN_FUNCTION("delattr", FUNC_NAME(krk,delattr),
+		"@brief Delete an attribute by name.\n"
+		"@arguments obj,attribute\n\n"
+		"Deletes the attribute @p attribute from @p obj.");
 	BUILTIN_FUNCTION("sum", FUNC_NAME(krk,sum),
 		"@brief add the elements of an iterable.\n"
 		"@arguments iterable,start=0\n\n"
@@ -1028,9 +1077,6 @@ void _createAndBind_builtins(void) {
 	BUILTIN_FUNCTION("max", FUNC_NAME(krk,max), "Return the highest value in an iterable or the passed arguments.");
 	BUILTIN_FUNCTION("id", FUNC_NAME(krk,id), "Returns the identity of an object.");
 	BUILTIN_FUNCTION("hash", FUNC_NAME(krk,hash), "Returns the hash of a value, used for table indexing.");
-	BUILTIN_FUNCTION("map", FUNC_NAME(krk,map), "Return an iterator that applies a function to a series of iterables");
-	BUILTIN_FUNCTION("filter", FUNC_NAME(krk,filter), "Return an iterator that returns only the items from an iterable for which the given function returns true.");
-	BUILTIN_FUNCTION("enumerate", FUNC_NAME(krk,enumerate), "Return an iterator that produces a tuple with a count the iterated values of the passed iteratable.");
 	BUILTIN_FUNCTION("bin", FUNC_NAME(krk,bin), "Convert an integer value to a binary string.");
 	BUILTIN_FUNCTION("zip", FUNC_NAME(krk,zip), "Returns an iterator that produces tuples of the nth element of each passed iterable.");
 	BUILTIN_FUNCTION("next", FUNC_NAME(krk,next), "Compatibility function. Calls an iterable.");

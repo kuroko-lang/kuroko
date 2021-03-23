@@ -1,9 +1,9 @@
-#include "vm.h"
-#include "memory.h"
-#include "object.h"
-#include "compiler.h"
-#include "table.h"
-#include "util.h"
+#include <kuroko/vm.h>
+#include <kuroko/memory.h>
+#include <kuroko/object.h>
+#include <kuroko/compiler.h>
+#include <kuroko/table.h>
+#include <kuroko/util.h>
 
 void * krk_reallocate(void * ptr, size_t old, size_t new) {
 	vm.bytesAllocated += new - old;
@@ -347,7 +347,7 @@ void _createAndBind_gcMod(void) {
 	krk_attachNamedObject(&vm.modules, "gc", (KrkObj*)gcModule);
 	krk_attachNamedObject(&gcModule->fields, "__name__", (KrkObj*)S("gc"));
 	krk_attachNamedValue(&gcModule->fields, "__file__", NONE_VAL());
-	KRK_DOC(gcModule, "@brief Namespace containing methods for controlling the garbge collector.");
+	KRK_DOC(gcModule, "@brief Namespace containing methods for controlling the garbage collector.");
 
 	KRK_DOC(BIND_FUNC(gcModule,collect),
 		"@brief Triggers one cycle of garbage collection.");

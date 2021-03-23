@@ -1,8 +1,8 @@
 #include <string.h>
-#include "vm.h"
-#include "value.h"
-#include "memory.h"
-#include "util.h"
+#include <kuroko/vm.h>
+#include <kuroko/value.h>
+#include <kuroko/memory.h>
+#include <kuroko/util.h>
 
 static KrkValue _type_init(int argc, KrkValue argv[], int hasKw) {
 	if (argc != 2) return krk_runtimeError(vm.exceptions->argumentError, "type() takes 1 argument");
@@ -62,13 +62,13 @@ static KrkValue _class_to_str(int argc, KrkValue argv[], int hasKw) {
 _noexport
 void _createAndBind_type(void) {
 	ADD_BASE_CLASS(vm.baseClasses->typeClass, "type", vm.baseClasses->objectClass);
-	krk_defineNative(&vm.baseClasses->typeClass->methods, ":__base__", krk_baseOfClass);
-	krk_defineNative(&vm.baseClasses->typeClass->methods, ":__file__", krk_fileOfClass);
-	krk_defineNative(&vm.baseClasses->typeClass->methods, ":__doc__", krk_docOfClass);
-	krk_defineNative(&vm.baseClasses->typeClass->methods, ":__name__", krk_nameOfClass);
-	krk_defineNative(&vm.baseClasses->typeClass->methods, ".__init__", _type_init);
-	krk_defineNative(&vm.baseClasses->typeClass->methods, ".__str__", _class_to_str);
-	krk_defineNative(&vm.baseClasses->typeClass->methods, ".__repr__", _class_to_str);
+	krk_defineNative(&vm.baseClasses->typeClass->methods, "__base__", krk_baseOfClass)->isDynamicProperty = 1;
+	krk_defineNative(&vm.baseClasses->typeClass->methods, "__file__", krk_fileOfClass)->isDynamicProperty = 1;
+	krk_defineNative(&vm.baseClasses->typeClass->methods, "__doc__", krk_docOfClass)->isDynamicProperty = 1;
+	krk_defineNative(&vm.baseClasses->typeClass->methods, "__name__", krk_nameOfClass)->isDynamicProperty = 1;
+	krk_defineNative(&vm.baseClasses->typeClass->methods, "__init__", _type_init);
+	krk_defineNative(&vm.baseClasses->typeClass->methods, "__str__", _class_to_str);
+	krk_defineNative(&vm.baseClasses->typeClass->methods, "__repr__", _class_to_str);
 	krk_finalizeClass(vm.baseClasses->typeClass);
 	KRK_DOC(vm.baseClasses->typeClass, "Obtain the object representation of the class of an object.");
 }

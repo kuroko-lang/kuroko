@@ -103,8 +103,8 @@ typedef enum {
 	OP_MAKE_SET,
 	OP_REVERSE,
 
-	OP_JUMP_IF_FALSE = 128,
-	OP_JUMP_IF_TRUE,
+	OP_JUMP_IF_FALSE_OR_POP = 128,
+	OP_JUMP_IF_TRUE_OR_POP,
 	OP_JUMP,
 	OP_LOOP,
 	OP_PUSH_TRY,
@@ -220,3 +220,17 @@ extern void krk_emitConstant(KrkChunk * chunk, size_t ind, size_t line);
  * @memberof KrkChunk
  */
 extern size_t krk_writeConstant(KrkChunk * chunk, KrkValue value, size_t line);
+
+/**
+ * @brief Obtain the line number for a byte offset into a bytecode chunk.
+ * @memberof KrkChunk
+ *
+ * Scans the line mapping table for the given chunk to find the
+ * correct line number from the original source file for the instruction
+ * at byte index 'offset'.
+ *
+ * @param chunk  Bytecode chunk containing the instruction.
+ * @param offset Byte offset of the instruction to locate.
+ * @return Line number, 1-indexed.
+ */
+extern size_t krk_lineNumber(KrkChunk * chunk, size_t offset);

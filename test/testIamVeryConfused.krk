@@ -1,0 +1,15 @@
+let l = list()
+
+l.extend(range(10))
+
+let l = list(range(10))
+print(l)
+
+let l = list(map(str,'test'))
+print(l)
+
+let l = list(map(list,['test','test','test']))
+print(l)
+
+let l = list(map(tupleOf,['foo','bar'],['baz','bix'],['three','args'],['four','args']))
+print(l)

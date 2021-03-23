@@ -7,11 +7,8 @@ OPTIMIZE_OUTPUT_FOR_C  = YES
 LAYOUT_FILE            = docs/DoxygenLayout.xml
 
 # Make docs for interpreter and tools
-INPUT                  = src/ tools/ docs/
+INPUT                  = src/ src/kuroko/ tools/ docs/
 FILE_PATTERNS = *.c *.h *.md
-
-# Ignore rline, since it's a vendored library from ToaruOS
-EXCLUDE                = src/rline.c src/rline.h
 
 # Enable the source browser, even if I don't particular like Doxygen's highlighting
 SOURCE_BROWSER         = YES

@@ -15,24 +15,25 @@
 
 #ifdef __toaru__
 #include <toaru/rline.h>
-#include <kuroko.h>
 #else
 #ifndef NO_RLINE
-#include "rline.h"
+#include "vendor/rline.h"
 #endif
-#include "kuroko.h"
 #endif
 
-#include "chunk.h"
-#include "debug.h"
-#include "vm.h"
-#include "memory.h"
-#include "scanner.h"
-#include "compiler.h"
-#include "util.h"
+#include <kuroko/kuroko.h>
+#include <kuroko/chunk.h>
+#include <kuroko/debug.h>
+#include <kuroko/vm.h>
+#include <kuroko/memory.h>
+#include <kuroko/scanner.h>
+#include <kuroko/compiler.h>
+#include <kuroko/util.h>
 
 #define PROMPT_MAIN  ">>> "
 #define PROMPT_BLOCK "  > "
+
+#define CALLGRIND_TMP_FILE "/tmp/kuroko.callgrind.tmp"
 
 static int enableRline = 1;
 static int exitRepl = 0;
@@ -263,7 +264,7 @@ static void tab_complete_func(rline_context_t * c) {
 					KrkValue thisValue = findFromProperty(root, asToken);
 					krk_push(thisValue);
 					if (IS_CLOSURE(thisValue) || IS_BOUND_METHOD(thisValue) ||
-						(IS_NATIVE(thisValue) && ((KrkNative*)AS_OBJECT(thisValue))->isMethod != 2)) {
+						(IS_NATIVE(thisValue) && !((KrkNative*)AS_OBJECT(thisValue))->isDynamicProperty)) {
 						size_t allocSize = s->length + 2;
 						char * tmp = malloc(allocSize);
 						size_t len = snprintf(tmp, allocSize, "%s(", s->chars);
@@ -373,6 +374,7 @@ _cleanup:
 }
 #endif
 
+#ifdef DEBUG
 static char * lastDebugCommand = NULL;
 static int debuggerHook(KrkCallFrame * frame) {
 
@@ -616,6 +618,7 @@ static int debuggerHook(KrkCallFrame * frame) {
 _dbgQuit:
 	return KRK_DEBUGGER_QUIT;
 }
+#endif
 
 static void handleSigint(int sigNum) {
 	/* Don't set the signal flag if the VM is not running */
@@ -739,7 +742,7 @@ int main(int argc, char * argv[]) {
 	int flags = 0;
 	int moduleAsMain = 0;
 	int opt;
-	while ((opt = getopt(argc, argv, "+c:C:dgm:rstMSV-:")) != -1) {
+	while ((opt = getopt(argc, argv, "+c:C:dgm:rstTMSV-:")) != -1) {
 		switch (opt) {
 			case 'c':
 				return runString(argv, flags, optarg);
@@ -762,6 +765,11 @@ int main(int argc, char * argv[]) {
 				/* Disassemble instructions as they are executed. */
 				flags |= KRK_THREAD_ENABLE_TRACING;
 				break;
+			case 'T': {
+				flags |= KRK_GLOBAL_CALLGRIND;
+				vm.callgrindFile = fopen(CALLGRIND_TMP_FILE,"w");
+				break;
+			}
 			case 'm':
 				moduleAsMain = 1;
 				optind--; /* to get us back to optarg */
@@ -779,6 +787,7 @@ int main(int argc, char * argv[]) {
 				if (!strcmp(optarg,"version")) {
 					return runString(argv,0,"import kuroko; print('Kuroko',kuroko.version)\n");
 				} else if (!strcmp(optarg,"help")) {
+#ifndef KRK_NO_DOCUMENTATION
 					fprintf(stderr,"usage: %s [flags] [FILE...]\n"
 						"\n"
 						"Interpreter options:\n"
@@ -788,6 +797,7 @@ int main(int argc, char * argv[]) {
 						" -r          Disable complex line editing in the REPL.\n"
 						" -s          Debug output from the scanner/tokenizer.\n"
 						" -t          Disassemble instructions as they are exceuted.\n"
+						" -T          Write call trace file.\n"
 						" -C file     Compile 'file', but do not execute it.\n"
 						" -M          Print the default module import paths.\n"
 						" -S          Enable single-step debugging.\n"
@@ -798,6 +808,7 @@ int main(int argc, char * argv[]) {
 						"\n"
 						"If no files are provided, the interactive REPL will run.\n",
 						argv[0]);
+#endif
 					return 0;
 				} else {
 					fprintf(stderr,"%s: unrecognized option '--%s'\n",
@@ -811,7 +822,9 @@ _finishArgs:
 	findInterpreter(argv);
 	krk_initVM(flags);
 
+#ifdef DEBUG
 	krk_debug_registerCallback(debuggerHook);
+#endif
 
 	/* Attach kuroko.argv - argv[0] will be set to an empty string for the repl */
 	if (argc == optind) krk_push(OBJECT_VAL(krk_copyString("",0)));
@@ -1077,6 +1090,20 @@ _finishArgs:
 		krk_startModule("__main__");
 		result = krk_runfile(argv[optind],argv[optind]);
 		if (IS_NONE(result) && krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) result = INTEGER_VAL(1);
+	}
+
+	if (vm.globalFlags & KRK_GLOBAL_CALLGRIND) {
+		fclose(vm.callgrindFile);
+		vm.globalFlags &= ~(KRK_GLOBAL_CALLGRIND);
+
+		krk_resetStack();
+		krk_startModule("<callgrind>");
+		krk_attachNamedObject(&krk_currentThread.module->fields, "filename", (KrkObj*)S(CALLGRIND_TMP_FILE));
+		krk_interpret(
+			"from callgrind import processFile\n"
+			"import kuroko\n"
+			"import os\n"
+			"processFile(filename, os.getpid(), ' '.join(kuroko.argv))","<callgrind>");
 	}
 
 	krk_freeVM();

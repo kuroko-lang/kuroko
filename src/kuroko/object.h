@@ -230,7 +230,7 @@ typedef struct {
 	NativeFn function;
 	const char * name;
 	const char * doc;
-	int isMethod;
+	unsigned int isDynamicProperty:1;
 } KrkNative;
 
 /**

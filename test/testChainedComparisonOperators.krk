@@ -1,0 +1,18 @@
+def foo(a,b,lst=[30]):
+	return 1 < a < 100 > b < 30 in lst is not None
+
+print(foo(1,2))
+print(foo(0,2))
+print(foo(101,2))
+print(foo(40,50))
+print(foo(40,29))
+print(foo(40,29,[40]))
+print(foo(40,29,(20,30,40)))
+
+print(1 > 2 < 0 > 4 < 7)
+print(1 > 0 < 0 > 4 < 7)
+print(1 > 0 < 1 > 4 < 7)
+print(1 > 0 < 7 > 4 < 7)
+
+print(1 < 0 > -1)
+print(1 < 2 > -1)

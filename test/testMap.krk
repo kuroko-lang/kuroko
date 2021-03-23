@@ -1,0 +1,18 @@
+let m = map(lambda x, y: x + y, [1,2,3], [4,5,6])
+
+for i in m:
+    print(i)
+
+let m = map(lambda x, y: x + y, [1,2,3], [4,5,6])
+
+let l = list(m)
+
+print(l)
+
+let l = list(map(lambda x, y: x + y, [1,2,3], [4,5,6]))
+
+print(l)
+
+print(list(map(lambda x, y: x + y, [1,2,3], [4,5,6])))
+
+print(list(map(list, ['sat', 'bat', 'cat', 'mat'])))

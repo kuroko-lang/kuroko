@@ -2,11 +2,11 @@
 #include <string.h>
 #include <stdlib.h>
 
-#include "memory.h"
-#include "object.h"
-#include "value.h"
-#include "vm.h"
-#include "table.h"
+#include <kuroko/memory.h>
+#include <kuroko/object.h>
+#include <kuroko/value.h>
+#include <kuroko/vm.h>
+#include <kuroko/table.h>
 
 #define ALLOCATE_OBJECT(type, objectType) \
 	(type*)allocateObject(sizeof(type), objectType)
@@ -112,7 +112,6 @@ static int checkString(const char * chars, size_t length, size_t *codepointCount
 		} else if (state == UTF8_REJECT) {
 			_release_lock(_stringLock);
 			krk_runtimeError(vm.exceptions->valueError, "Invalid UTF-8 sequence in string.");
-			fprintf(stderr, "Invalid sequence detected.\n");
 			*codepointCount = 0;
 			return KRK_STRING_INVALID;
 		}
@@ -165,7 +164,7 @@ uint32_t krk_unicodeCodepoint(KrkString * string, size_t index) {
 		case KRK_STRING_UCS2: return ((uint16_t*)string->codes)[index];
 		case KRK_STRING_UCS4: return ((uint32_t*)string->codes)[index];
 		default:
-			krk_runtimeError(vm.exceptions->valueError, "Invalid string.");
+			krk_runtimeError(vm.exceptions->valueError, "Internal string error.");
 			return 0;
 	}
 }
@@ -252,7 +251,7 @@ KrkCodeObject * krk_newCodeObject(void) {
 KrkNative * krk_newNative(NativeFn function, const char * name, int type) {
 	KrkNative * native = ALLOCATE_OBJECT(KrkNative, KRK_OBJ_NATIVE);
 	native->function = function;
-	native->isMethod = type;
+	native->isDynamicProperty = type;
 	native->name = name;
 	native->doc = NULL;
 	return native;

@@ -1,8 +1,8 @@
 #include <string.h>
-#include "vm.h"
-#include "value.h"
-#include "memory.h"
-#include "util.h"
+#include <kuroko/vm.h>
+#include <kuroko/value.h>
+#include <kuroko/memory.h>
+#include <kuroko/util.h>
 
 #undef IS_int
 #undef IS_bool
@@ -26,7 +26,7 @@ KRK_METHOD(int,__init__,{
 	if (IS_STRING(argv[1])) return krk_string_int(argc-1,&argv[1],0);
 	if (IS_FLOATING(argv[1])) return INTEGER_VAL(AS_FLOATING(argv[1]));
 	if (IS_BOOLEAN(argv[1])) return INTEGER_VAL(AS_BOOLEAN(argv[1]));
-	return krk_runtimeError(vm.exceptions->typeError, "int() argument must be a string or a number, not '%s'", krk_typeName(argv[1]));
+	return krk_runtimeError(vm.exceptions->typeError, "%s() argument must be a string or a number, not '%s'", "int", krk_typeName(argv[1]));
 })
 
 KRK_METHOD(int,__str__,{
@@ -50,12 +50,11 @@ KRK_METHOD(int,__chr__,{
 KRK_METHOD(float,__init__,{
 	METHOD_TAKES_AT_MOST(1);
 	if (argc < 2) return FLOATING_VAL(0.0);
-	if (argc > 2) return krk_runtimeError(vm.exceptions->argumentError, "float() takes at most 1 argument");
 	if (IS_STRING(argv[1])) return krk_string_float(1,&argv[1],0);
 	if (IS_FLOATING(argv[1])) return argv[1];
 	if (IS_INTEGER(argv[1])) return FLOATING_VAL(AS_INTEGER(argv[1]));
 	if (IS_BOOLEAN(argv[1])) return FLOATING_VAL(AS_BOOLEAN(argv[1]));
-	return krk_runtimeError(vm.exceptions->typeError, "float() argument must be a string or a number, not '%s'", krk_typeName(argv[1]));
+	return krk_runtimeError(vm.exceptions->typeError, "%s() argument must be a string or a number, not '%s'", "float", krk_typeName(argv[1]));
 })
 
 KRK_METHOD(float,__int__,{ return INTEGER_VAL(self); })
@@ -96,7 +95,7 @@ KRK_METHOD(NoneType,__str__,{
 })
 
 #undef BIND_METHOD
-#define BIND_METHOD(klass,method) do { krk_defineNative(& _ ## klass->methods, "." #method, _ ## klass ## _ ## method); } while (0)
+#define BIND_METHOD(klass,method) do { krk_defineNative(& _ ## klass->methods, #method, _ ## klass ## _ ## method); } while (0)
 _noexport
 void _createAndBind_numericClasses(void) {
 	KrkClass * _int = ADD_BASE_CLASS(vm.baseClasses->intClass, "int", vm.baseClasses->objectClass);
@@ -105,7 +104,7 @@ void _createAndBind_numericClasses(void) {
 	BIND_METHOD(int,__int__);
 	BIND_METHOD(int,__chr__);
 	BIND_METHOD(int,__float__);
-	krk_defineNative(&_int->methods, ".__repr__", FUNC_NAME(int,__str__));
+	krk_defineNative(&_int->methods, "__repr__", FUNC_NAME(int,__str__));
 	krk_finalizeClass(_int);
 	KRK_DOC(_int, "Convert a number or string type to an integer representation.");
 
@@ -114,19 +113,19 @@ void _createAndBind_numericClasses(void) {
 	BIND_METHOD(float,__int__);
 	BIND_METHOD(float,__float__);
 	BIND_METHOD(float,__str__);
-	krk_defineNative(&_float->methods, ".__repr__", FUNC_NAME(float,__str__));
+	krk_defineNative(&_float->methods, "__repr__", FUNC_NAME(float,__str__));
 	krk_finalizeClass(_float);
 	KRK_DOC(_float, "Convert a number or string type to a float representation.");
 
 	KrkClass * _bool = ADD_BASE_CLASS(vm.baseClasses->boolClass, "bool", vm.baseClasses->intClass);
 	BIND_METHOD(bool,__init__);
 	BIND_METHOD(bool,__str__);
-	krk_defineNative(&_bool->methods, ".__repr__", FUNC_NAME(bool,__str__));
+	krk_defineNative(&_bool->methods, "__repr__", FUNC_NAME(bool,__str__));
 	krk_finalizeClass(_bool);
 	KRK_DOC(_bool, "Returns False if the argument is 'falsey', otherwise True.");
 
 	KrkClass * _NoneType = ADD_BASE_CLASS(vm.baseClasses->noneTypeClass, "NoneType", vm.baseClasses->objectClass);
 	BIND_METHOD(NoneType, __str__);
-	krk_defineNative(&_NoneType->methods, ".__repr__", FUNC_NAME(NoneType,__str__));
+	krk_defineNative(&_NoneType->methods, "__repr__", FUNC_NAME(NoneType,__str__));
 	krk_finalizeClass(_NoneType);
 }

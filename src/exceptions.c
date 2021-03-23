@@ -3,10 +3,10 @@
  * @brief Definitions and native method bindings for error types.
  */
 #include <string.h>
-#include "vm.h"
-#include "value.h"
-#include "memory.h"
-#include "util.h"
+#include <kuroko/vm.h>
+#include <kuroko/value.h>
+#include <kuroko/memory.h>
+#include <kuroko/util.h>
 
 /**
  * @def ADD_EXCEPTION_CLASS(obj,name,baseClass)
@@ -142,9 +142,9 @@ void _createAndBind_exceptions(void) {
 	/* Add exception classes */
 	ADD_EXCEPTION_CLASS(vm.exceptions->baseException, "Exception", vm.baseClasses->objectClass);
 	/* base exception class gets an init that takes an optional string */
-	krk_defineNative(&vm.exceptions->baseException->methods, ".__init__", krk_initException);
-	krk_defineNative(&vm.exceptions->baseException->methods, ".__repr__", _exception_repr);
-	krk_defineNative(&vm.exceptions->baseException->methods, ".__str__", _exception_str);
+	krk_defineNative(&vm.exceptions->baseException->methods, "__init__", krk_initException);
+	krk_defineNative(&vm.exceptions->baseException->methods, "__repr__", _exception_repr);
+	krk_defineNative(&vm.exceptions->baseException->methods, "__str__", _exception_str);
 	krk_finalizeClass(vm.exceptions->baseException);
 	ADD_EXCEPTION_CLASS(vm.exceptions->typeError, "TypeError", vm.exceptions->baseException);
 	ADD_EXCEPTION_CLASS(vm.exceptions->argumentError, "ArgumentError", vm.exceptions->baseException);
@@ -160,7 +160,7 @@ void _createAndBind_exceptions(void) {
 	ADD_EXCEPTION_CLASS(vm.exceptions->notImplementedError, "NotImplementedError", vm.exceptions->baseException);
 	ADD_EXCEPTION_CLASS(vm.exceptions->assertionError, "AssertionError", vm.exceptions->baseException);
 	ADD_EXCEPTION_CLASS(vm.exceptions->syntaxError, "SyntaxError", vm.exceptions->baseException);
-	krk_defineNative(&vm.exceptions->syntaxError->methods, ".__str__", _syntaxerror_str);
+	krk_defineNative(&vm.exceptions->syntaxError->methods, "__str__", _syntaxerror_str);
 	krk_finalizeClass(vm.exceptions->syntaxError);
 }
 

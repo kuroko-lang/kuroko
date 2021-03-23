@@ -1,8 +1,8 @@
 #include <string.h>
-#include "vm.h"
-#include "value.h"
-#include "memory.h"
-#include "util.h"
+#include <kuroko/vm.h>
+#include <kuroko/value.h>
+#include <kuroko/memory.h>
+#include <kuroko/util.h>
 
 #define KEY_ERROR(value) {\
 	KrkClass * type = krk_getType(value); \
@@ -385,8 +385,8 @@ void _createAndBind_dictClass(void) {
 	BIND_METHOD(dict,get);
 	BIND_METHOD(dict,setdefault);
 	BIND_METHOD(dict,update);
-	krk_defineNative(&dict->methods, ".__str__", FUNC_NAME(dict,__repr__));
-	krk_defineNative(&dict->methods, ".__class_getitem__", KrkGenericAlias);
+	krk_defineNative(&dict->methods, "__str__", FUNC_NAME(dict,__repr__));
+	krk_defineNative(&dict->methods, "__class_getitem__", KrkGenericAlias);
 	krk_finalizeClass(dict);
 	KRK_DOC(dict, "Mapping of arbitrary keys to values.");
 

@@ -3,8 +3,8 @@
 #include <string.h>
 #include <sys/types.h>
 
-#include "kuroko.h"
-#include "scanner.h"
+#include <kuroko/kuroko.h>
+#include <kuroko/scanner.h>
 
 static KrkScanner scanner;
 
@@ -123,7 +123,7 @@ static KrkToken string(char quoteMark) {
 			}
 			else advance();
 		}
-		if (isAtEnd()) return errorToken("Unterminated string?");
+		if (isAtEnd()) return errorToken("Unterminated string.");
 	}
 	while (peek() != quoteMark && !isAtEnd()) {
 		if (peek() == '\n') return errorToken("Unterminated string.");
@@ -271,7 +271,7 @@ static KrkToken identifier() {
 
 void krk_ungetToken(KrkToken token) {
 	if (scanner.hasUnget) {
-		fprintf(stderr, "(internal error) Tried to unget multiple times, this is not valid.\n");
+		abort();
 	}
 	scanner.hasUnget = 1;
 	scanner.unget = token;

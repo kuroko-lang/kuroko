@@ -8,6 +8,7 @@
  */
 #include <stdarg.h>
 #include <sys/types.h>
+#include <sys/time.h>
 #include "kuroko.h"
 #include "value.h"
 #include "table.h"
@@ -47,6 +48,7 @@ typedef struct {
 	size_t slots;         /**< Offset into the stack at which this function call's arguments begin */
 	size_t outSlots;      /**< Offset into the stack at which stackTop will be reset upon return */
 	KrkTable * globals;   /**< Pointer to the attribute table containing valud global vairables for this call */
+	struct timespec in_time;
 } KrkCallFrame;
 
 /**
@@ -219,6 +221,7 @@ typedef struct KrkVM {
 	KrkObj** grayStack;               /**< Scan list */
 
 	KrkThreadState * threads;         /**< Invasive linked list of all VM threads. */
+	FILE * callgrindFile;             /**< File to write unprocessed callgrind data to. */
 } KrkVM;
 
 /* Thread-specific flags */
@@ -233,6 +236,7 @@ typedef struct KrkVM {
 #define KRK_GLOBAL_ENABLE_STRESS_GC    (1 << 8)
 #define KRK_GLOBAL_GC_PAUSED           (1 << 9)
 #define KRK_GLOBAL_CLEAN_OUTPUT        (1 << 10)
+#define KRK_GLOBAL_CALLGRIND           (1 << 11)
 
 #ifdef ENABLE_THREADING
 #  define threadLocal __thread
@@ -766,6 +770,18 @@ extern KrkValue krk_valueGetAttribute_default(KrkValue value, char * name, KrkVa
  *         not have a property set.
  */
 extern KrkValue krk_valueSetAttribute(KrkValue owner, char * name, KrkValue to);
+
+/**
+ * @brief Delete a property of an object by name.
+ * @memberof KrkValue
+ *
+ * This is a convenience function that works in essentially the
+ * same way as the OP_DEL_PROPERTY instruction.
+ *
+ * @param owner The owner of the property to delete.
+ * @param name  C-string of the property name to delete.
+ */
+extern KrkValue krk_valueDelAttribute(KrkValue owner, char * name);
 
 /**
  * @brief Concatenate two strings.

@@ -1,9 +1,9 @@
 #include <string.h>
 
-#include "kuroko.h"
+#include <kuroko/kuroko.h>
 
 #ifdef ENABLE_THREADING
-#include "util.h"
+#include <kuroko/util.h>
 
 #include <unistd.h>
 #include <pthread.h>

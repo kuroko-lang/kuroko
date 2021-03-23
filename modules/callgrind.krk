@@ -1,0 +1,49 @@
+import kuroko
+import fileio
+
+def processFile(sourcePath, pid, cmd):
+    let funcs = {}
+
+    with fileio.open(sourcePath,'r') as f:
+        for line in f.readlines():
+            let callerFile, callerFunc, callerLine, calleeFile, calleeFunc, calleeLine, nsecs = line.split(' ')
+            nsecs = int(nsecs)
+            let data = funcs.get((callerFile,callerFunc),{})
+            let call = data.get((callerLine,calleeFile,calleeFunc,calleeLine),(0,0))
+            let out = (call[0] + 1, call[1] + nsecs)
+            data[callerLine,calleeFile,calleeFunc,calleeLine] = out
+            funcs[callerFile,callerFunc] = data
+            let called = funcs.get((calleeFile,calleeFunc),{})
+            let times = called.get(None,(1,0))
+            called[None] =  (calleeLine, times[1] + nsecs)
+            funcs[calleeFile,calleeFunc] = called
+
+    with fileio.open(f'callgrind.out.{pid}','w') as out:
+        out.write('# callgrind format\n')
+        out.write('creator: Kuroko\n')
+        out.write('positions: line\n')
+        out.write('events: nanoseconds\n')
+        out.write(f'cmd: {cmd}\n\n')
+
+        for key, value in funcs.items():
+            let sFile, sFunc = key
+            out.write(f'fl={sFile}\n')
+            out.write(f'fn={sFunc}\n')
+            if sFunc != '(root)':
+                let startLine, totalNsecs = value[None]
+                for k, v in value.items():
+                    if not k: continue
+                    let sourceLine, file, func, destLine = k
+                    let count, nsecs = v
+                    totalNsecs -= nsecs
+                
+                out.write(f'{startLine} {totalNsecs}\n')
+            for k, v in value.items():
+                if not k: continue
+                let sourceLine, file, func, destLine = k
+                let count, totalNsecs = v
+                if file != sFile: out.write(f'cfi={file}\n')
+                out.write(f'cfn={func}\n')
+                out.write(f'calls={count} {destLine}\n')
+                out.write(f'{sourceLine} {totalNsecs}\n')
+            out.write('\n')

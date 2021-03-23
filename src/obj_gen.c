@@ -7,11 +7,11 @@
  * into a generator object when called.
  */
 #include <string.h>
-#include "vm.h"
-#include "value.h"
-#include "memory.h"
-#include "util.h"
-#include "debug.h"
+#include <kuroko/vm.h>
+#include <kuroko/value.h>
+#include <kuroko/memory.h>
+#include <kuroko/util.h>
+#include <kuroko/debug.h>
 
 static KrkClass * generator;
 /**
@@ -138,6 +138,7 @@ KRK_METHOD(generator,__call__,{
 	/* Was there an exception? */
 	if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) {
 		_set_generator_done(self);
+		krk_currentThread.stackTop = krk_currentThread.stack + frame->slots;
 		return NONE_VAL();
 	}
 

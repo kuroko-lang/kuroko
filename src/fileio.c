@@ -1,5 +1,6 @@
 /**
- * Provides an interface to C FILE* streams.
+ * @file fileio.c
+ * @brief Provides an interface to C FILE* streams.
  */
 #include <assert.h>
 #include <stdio.h>
@@ -7,11 +8,11 @@
 #include <errno.h>
 #include <dirent.h>
 
-#include "vm.h"
-#include "value.h"
-#include "object.h"
-#include "memory.h"
-#include "util.h"
+#include <kuroko/vm.h>
+#include <kuroko/value.h>
+#include <kuroko/object.h>
+#include <kuroko/memory.h>
+#include <kuroko/util.h>
 
 static KrkClass * File = NULL;
 static KrkClass * BinaryFile = NULL;
@@ -526,7 +527,7 @@ void _createAndBind_fileioMod(void) {
 		"Use the <a class=\"el\" href=\"#open\">open()</a> function instead.}");
 	BIND_METHOD(File,__enter__);
 	BIND_METHOD(File,__exit__);
-	krk_defineNative(&File->methods, ".__repr__", FUNC_NAME(File,__str__));
+	krk_defineNative(&File->methods, "__repr__", FUNC_NAME(File,__str__));
 	krk_finalizeClass(File);
 
 	krk_makeClass(module, &BinaryFile, "BinaryFile", File);

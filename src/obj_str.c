@@ -1,8 +1,8 @@
 #include <string.h>
-#include "vm.h"
-#include "value.h"
-#include "memory.h"
-#include "util.h"
+#include <kuroko/vm.h>
+#include <kuroko/value.h>
+#include <kuroko/memory.h>
+#include <kuroko/util.h>
 
 static KrkValue FUNC_NAME(striterator,__init__)(int,KrkValue[],int);
 
@@ -77,8 +77,10 @@ KRK_METHOD(str,__setitem__,{
  */
 KRK_METHOD(str,__getslice__,{
 	METHOD_TAKES_EXACTLY(2);
-	if (!(IS_INTEGER(argv[1]) || IS_NONE(argv[1])) || !(IS_INTEGER(argv[2]) || IS_NONE(argv[2])))
-		return krk_runtimeError(vm.exceptions->typeError, "slice: expected two integer arguments");
+	if (!(IS_INTEGER(argv[1]) || IS_NONE(argv[1])))
+		return TYPE_ERROR(int,argv[1]);
+	if (!(IS_INTEGER(argv[2]) || IS_NONE(argv[2])))
+		return TYPE_ERROR(int,argv[2]);
 	/* bounds check */
 	long start = IS_NONE(argv[1]) ? 0 : AS_INTEGER(argv[1]);
 	long end   = IS_NONE(argv[2]) ? (long)self->codesLength : AS_INTEGER(argv[2]);
@@ -345,7 +347,7 @@ KRK_METHOD(str,join,{
 	return finishStringBuilder(&sb);
 
 _expectedString:
-	krk_runtimeError(vm.exceptions->typeError, "Expected string, got %s.", errorStr);
+	krk_runtimeError(vm.exceptions->typeError, "%s() expects %s, not '%s'", "join", "str", errorStr);
 	discardStringBuilder(&sb);
 })
 
@@ -920,9 +922,9 @@ void _createAndBind_strClass(void) {
 	BIND_METHOD(str,upper);
 	BIND_METHOD(str,title);
 
-	krk_defineNative(&str->methods,".__setslice__",FUNC_NAME(str,__setitem__));
-	krk_defineNative(&str->methods,".__delslice__",FUNC_NAME(str,__setitem__));
-	krk_defineNative(&str->methods,".__delitem__",FUNC_NAME(str,__setitem__));
+	krk_defineNative(&str->methods,"__setslice__",FUNC_NAME(str,__setitem__));
+	krk_defineNative(&str->methods,"__delslice__",FUNC_NAME(str,__setitem__));
+	krk_defineNative(&str->methods,"__delitem__",FUNC_NAME(str,__setitem__));
 	krk_finalizeClass(str);
 	KRK_DOC(str, "Obtain a string representation of an object.");
 

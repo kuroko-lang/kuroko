@@ -1,9 +1,11 @@
 CFLAGS  ?= -g -O3 -Wall -Wextra -pedantic -Wno-unused-parameter
 
+CFLAGS += -Isrc
+
 TARGET   = kuroko
-OBJS     = $(patsubst %.c, %.o, $(filter-out src/module_% src/rline.c src/kuroko.c,$(sort $(wildcard src/*.c))))
+OBJS     = $(patsubst %.c, %.o, $(filter-out src/module_% src/kuroko.c,$(sort $(wildcard src/*.c))))
 MODULES  = $(patsubst src/module_%.c, modules/%.so, $(sort $(wildcard src/module_*.c)))
-HEADERS  = $(wildcard src/*.h)
+HEADERS  = $(wildcard src/kuroko/*.h)
 TOOLS    = $(patsubst tools/%.c, krk-%, $(sort $(wildcard tools/*.c)))
 GENMODS  = modules/codecs/sbencs.krk modules/codecs/dbdata.krk
 
@@ -39,6 +41,7 @@ ifndef KRK_ENABLE_STATIC
     ${OBJS}: CFLAGS += -DKRKINLIB
     libkuroko.so: LDLIBS += -l:libwinpthread.a -Wl,--require-defined=tc_malloc libtcmalloc_minimal.a -l:libpsapi.a -l:libstdc++.a
     libkuroko.so: libtcmalloc_minimal.a
+    modules/socket.so: LDLIBS += -lws2_32
   endif
   KUROKO_LIBS = libkuroko.so
 else
@@ -56,7 +59,7 @@ endif
 ifndef KRK_DISABLE_RLINE
   # Normally, we link the rich line editor into the
   # interpreter (and not the main library!)
-  KUROKO_LIBS += src/rline.o
+  KUROKO_LIBS += src/vendor/rline.o
 else
   # ... but it can be disabled if you want a more "pure" build,
   # or if you don't have solid support for the escape sequences
@@ -102,8 +105,6 @@ krk-%: tools/%.c ${KUROKO_LIBS}
 
 libkuroko.so: ${OBJS}
 	${CC} ${CFLAGS} ${LDFLAGS} -shared -o $@ ${OBJS} ${LDLIBS}
-	objcopy --only-keep-debug $@ $@.debug
-	strip --strip-unneeded $@
 
 # Make sure we rebuild things when headers change as we have a lot of
 # headers that define build flags...
@@ -128,7 +129,7 @@ modules/codecs/dbdata.krk: kuroko tools/codectools/gen_dbdata.krk tools/codectoo
 
 .PHONY: clean
 clean:
-	@rm -f ${OBJS} ${TARGET} ${MODULES} libkuroko.so *.so.debug src/*.o kuroko.exe ${TOOLS} $(patsubst %,%.exe,${TOOLS})
+	@rm -f ${OBJS} ${TARGET} ${MODULES} libkuroko.so *.so.debug src/*.o src/vendor/*.o kuroko.exe ${TOOLS} $(patsubst %,%.exe,${TOOLS})
 	@rm -rf docs/html
 
 tags: $(wildcard src/*.c) $(wildcard src/*.h)

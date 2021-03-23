@@ -1,9 +1,9 @@
 #include <string.h>
-#include "vm.h"
-#include "value.h"
-#include "memory.h"
-#include "util.h"
-#include "debug.h"
+#include <kuroko/vm.h>
+#include <kuroko/value.h>
+#include <kuroko/memory.h>
+#include <kuroko/util.h>
+#include <kuroko/debug.h>
 
 /* Check for and return the name of a native function as a string object */
 static KrkValue nativeFunctionName(KrkValue func) {
@@ -75,7 +75,7 @@ KRK_METHOD(function,__str__,{
 		name = FUNC_NAME(function,__name__)(1,&self,0);
 	}
 
-	if (!IS_STRING(name)) name = OBJECT_VAL(S("<unknown>"));
+	if (!IS_STRING(name)) name = OBJECT_VAL(S("<unnamed>"));
 
 	pushStringBuilderStr(&sb, AS_CSTRING(name), AS_STRING(name)->length);
 
@@ -268,7 +268,7 @@ void _createAndBind_functionClass(void) {
 	BIND_METHOD(codeobject,__str__);
 	BIND_METHOD(codeobject,_ip_to_line);
 	BIND_PROP(codeobject,__name__);
-	krk_defineNative(&codeobject->methods, ".__repr__", FUNC_NAME(codeobject,__str__));
+	krk_defineNative(&codeobject->methods, "__repr__", FUNC_NAME(codeobject,__str__));
 	krk_finalizeClass(codeobject);
 
 	KrkClass * function = ADD_BASE_CLASS(vm.baseClasses->functionClass, "function", vm.baseClasses->objectClass);
@@ -280,8 +280,8 @@ void _createAndBind_functionClass(void) {
 	BIND_PROP(function,__file__);
 	BIND_PROP(function,__args__);
 	BIND_PROP(function,__annotations__);
-	krk_defineNative(&function->methods, ".__repr__", FUNC_NAME(function,__str__));
-	krk_defineNative(&function->methods, ".__class_getitem__", KrkGenericAlias);
+	krk_defineNative(&function->methods, "__repr__", FUNC_NAME(function,__str__));
+	krk_defineNative(&function->methods, "__class_getitem__", KrkGenericAlias);
 	krk_finalizeClass(function);
 
 	KrkClass * method = ADD_BASE_CLASS(vm.baseClasses->methodClass, "method", vm.baseClasses->objectClass);
@@ -293,7 +293,7 @@ void _createAndBind_functionClass(void) {
 	BIND_PROP(method,__file__);
 	BIND_PROP(method,__args__);
 	BIND_PROP(method,__annotations__);
-	krk_defineNative(&method->methods, ".__repr__", FUNC_NAME(method,__str__));
+	krk_defineNative(&method->methods, "__repr__", FUNC_NAME(method,__str__));
 	krk_finalizeClass(method);
 
 	BUILTIN_FUNCTION("staticmethod", FUNC_NAME(krk,staticmethod), "A static method does not take an implicit self or cls argument.");

@@ -1,8 +1,8 @@
 #include <string.h>
-#include "vm.h"
-#include "object.h"
-#include "memory.h"
-#include "util.h"
+#include <kuroko/vm.h>
+#include <kuroko/object.h>
+#include <kuroko/memory.h>
+#include <kuroko/util.h>
 
 static KrkClass * set;
 
@@ -108,7 +108,7 @@ KRK_METHOD(set,__and__,{
 	KrkClass * type = krk_getType(argv[1]);
 	KrkValue contains;
 	if (!krk_tableGet(&type->methods, OBJECT_VAL(S("__contains__")), &contains))
-		return krk_runtimeError(vm.exceptions->typeError, "unsupported operand type for &");
+		return krk_runtimeError(vm.exceptions->typeError, "unsupported operand types for %s: '%s' and '%s'", "&", "set", krk_typeName(argv[1]));
 
 	size_t len = self->entries.capacity;
 	for (size_t i = 0; i < len; ++i) {
@@ -232,7 +232,7 @@ void _createAndBind_setClass(void) {
 	BIND_METHOD(set,remove);
 	BIND_METHOD(set,discard);
 	BIND_METHOD(set,clear);
-	krk_defineNative(&set->methods, ".__str__", FUNC_NAME(set,__repr__));
+	krk_defineNative(&set->methods, "__str__", FUNC_NAME(set,__repr__));
 	krk_finalizeClass(set);
 
 	BUILTIN_FUNCTION("setOf", krk_set_of, "Convert argument sequence to set object.");

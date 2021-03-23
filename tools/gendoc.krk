@@ -69,6 +69,7 @@ let modules = [
     'dis',
     'fileio',
     'time',
+    'socket',
 
     # Stuff from modules/
     'json',

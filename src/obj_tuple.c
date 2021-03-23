@@ -1,9 +1,9 @@
 #include <string.h>
 #include <limits.h>
-#include "vm.h"
-#include "value.h"
-#include "memory.h"
-#include "util.h"
+#include <kuroko/vm.h>
+#include <kuroko/value.h>
+#include <kuroko/memory.h>
+#include <kuroko/util.h>
 
 #define TUPLE_WRAP_INDEX() \
 	if (index < 0) index += self->values.count; \
@@ -22,7 +22,9 @@ static KrkValue _tuple_init(int argc, KrkValue argv[], int hasKw) {
 		krk_push(krk_callSimple(tupleOf, 3, 0));
 		return krk_pop();
 	} else {
-		return krk_runtimeError(vm.exceptions->argumentError, "tuple() takes at most one argument");
+		return krk_runtimeError(vm.exceptions->argumentError,
+			"%s() takes %s %d argument%s (%d given)",
+			"tuple","at most",1,"",argc-1);
 	}
 }
 
@@ -162,8 +164,8 @@ void _createAndBind_tupleClass(void) {
 	BIND_METHOD(tuple,__contains__);
 	BIND_METHOD(tuple,__iter__);
 	BIND_METHOD(tuple,__eq__);
-	krk_defineNative(&tuple->methods, ".__init__", _tuple_init);
-	krk_defineNative(&tuple->methods, ".__str__", FUNC_NAME(tuple,__repr__));
+	krk_defineNative(&tuple->methods, "__init__", _tuple_init);
+	krk_defineNative(&tuple->methods, "__str__", FUNC_NAME(tuple,__repr__));
 	krk_finalizeClass(tuple);
 
 	BUILTIN_FUNCTION("tupleOf",krk_tuple_of,"Convert argument sequence to tuple object.");
@@ -171,8 +173,8 @@ void _createAndBind_tupleClass(void) {
 	ADD_BASE_CLASS(vm.baseClasses->tupleiteratorClass, "tupleiterator", vm.baseClasses->objectClass);
 	vm.baseClasses->tupleiteratorClass->allocSize = sizeof(struct TupleIter);
 	vm.baseClasses->tupleiteratorClass->_ongcscan = _tuple_iter_gcscan;
-	krk_defineNative(&vm.baseClasses->tupleiteratorClass->methods, ".__init__", _tuple_iter_init);
-	krk_defineNative(&vm.baseClasses->tupleiteratorClass->methods, ".__call__", _tuple_iter_call);
+	krk_defineNative(&vm.baseClasses->tupleiteratorClass->methods, "__init__", _tuple_iter_init);
+	krk_defineNative(&vm.baseClasses->tupleiteratorClass->methods, "__call__", _tuple_iter_call);
 	krk_finalizeClass(vm.baseClasses->tupleiteratorClass);
 
 }

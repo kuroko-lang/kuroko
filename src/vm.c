@@ -6,13 +6,13 @@
 #include <errno.h>
 #include <sys/stat.h>
 
-#include "vm.h"
-#include "debug.h"
-#include "memory.h"
-#include "compiler.h"
-#include "object.h"
-#include "table.h"
-#include "util.h"
+#include <kuroko/vm.h>
+#include <kuroko/debug.h>
+#include <kuroko/memory.h>
+#include <kuroko/compiler.h>
+#include <kuroko/object.h>
+#include <kuroko/table.h>
+#include <kuroko/util.h>
 
 #define KRK_VERSION_MAJOR  "1"
 #define KRK_VERSION_MINOR  "1"
@@ -76,6 +76,31 @@ __thread KrkThreadState krk_currentThread;
 #else
 /* There is only one thread, so don't store it as TLS... */
 KrkThreadState krk_currentThread;
+#endif
+
+#ifdef ENABLE_TRACING
+# define FRAME_IN(frame) if (vm.globalFlags & KRK_GLOBAL_CALLGRIND) { clock_gettime(CLOCK_MONOTONIC, &frame->in_time); }
+# define FRAME_OUT(frame) \
+	if (vm.globalFlags & KRK_GLOBAL_CALLGRIND && !frame->closure->function->isGenerator) { \
+		KrkCallFrame * caller = krk_currentThread.frameCount > 1 ? &krk_currentThread.frames[krk_currentThread.frameCount-2] : NULL; \
+		struct timespec outTime; \
+		clock_gettime(CLOCK_MONOTONIC, &outTime); \
+		struct timespec diff; \
+		diff.tv_sec  = outTime.tv_sec  - frame->in_time.tv_sec; \
+		diff.tv_nsec = outTime.tv_nsec - frame->in_time.tv_nsec; \
+		if (diff.tv_nsec < 0) { diff.tv_sec--; diff.tv_nsec += 1000000000L; } \
+		fprintf(vm.callgrindFile, "%s %s %d %s %s %d %lld%.9ld\n", \
+			caller ? (caller->closure->function->chunk.filename->chars) : "stdin", \
+			caller ? (caller->closure->function->qualname ? caller->closure->function->qualname->chars : caller->closure->function->name->chars) : "(root)", \
+			caller ? ((int)krk_lineNumber(&caller->closure->function->chunk, caller->ip - caller->closure->function->chunk.code)) : 1, \
+			frame->closure->function->chunk.filename->chars, \
+			frame->closure->function->qualname ? frame->closure->function->qualname->chars : frame->closure->function->name->chars, \
+			(int)krk_lineNumber(&frame->closure->function->chunk, 0), \
+			(long long)diff.tv_sec, diff.tv_nsec); \
+	}
+#else
+# define FRAME_IN(frame)
+# define FRAME_OUT(frame)
 #endif
 
 /*
@@ -300,9 +325,6 @@ inline void krk_push(KrkValue value) {
 inline KrkValue krk_pop() {
 	krk_currentThread.stackTop--;
 	if (unlikely(krk_currentThread.stackTop < krk_currentThread.stack)) {
-		fprintf(stderr, "Fatal error: stack underflow detected in VM (krk_currentThread.stackTop = %p, krk_currentThread.stack = %p)\n",
-			(void*)krk_currentThread.stackTop,
-			(void*)krk_currentThread.stack);
 		abort();
 		return NONE_VAL();
 	}
@@ -327,21 +349,8 @@ inline void krk_swap(int distance) {
  * GC safe: pushes allocated values.
  */
 KrkNative * krk_defineNative(KrkTable * table, const char * name, NativeFn function) {
-	int functionType = 0;
-	if (*name == '.') {
-		name++;
-		functionType = 1;
-	}
-	if (*name == ':') {
-		name++;
-		functionType = 2;
-	}
-	KrkNative * func = krk_newNative(function, name, functionType);
-	krk_push(OBJECT_VAL(func));
-	krk_push(OBJECT_VAL(krk_copyString(name, (int)strlen(name))));
-	krk_tableSet(table, krk_peek(0), krk_peek(1));
-	krk_pop();
-	krk_pop();
+	KrkNative * func = krk_newNative(function, name, 0);
+	krk_attachNamedObject(table, name, (KrkObj*)func);
 	return func;
 }
 
@@ -352,7 +361,7 @@ KrkNative * krk_defineNative(KrkTable * table, const char * name, NativeFn funct
  * the ":field" option for defineNative().
  */
 KrkNative * krk_defineNativeProperty(KrkTable * table, const char * name, NativeFn function) {
-	KrkNative * func = krk_newNative(function, name, 1);
+	KrkNative * func = krk_newNative(function, name, 0);
 	krk_push(OBJECT_VAL(func));
 	KrkInstance * property = krk_newInstance(vm.baseClasses->propertyClass);
 	krk_attachNamedObject(table, name, (KrkObj*)property);
@@ -433,31 +442,6 @@ void krk_finalizeClass(KrkClass * _class) {
 }
 
 /**
- * __builtins__.set_tracing(mode)
- *
- * Takes either one string "mode=value" or `n` keyword args mode=value.
- */
-static KrkValue krk_set_tracing(int argc, KrkValue argv[], int hasKw) {
-#ifdef DEBUG
-	if (hasKw) {
-		KrkValue test;
-		if (krk_tableGet(AS_DICT(argv[argc]), OBJECT_VAL(S("tracing")), &test) && IS_INTEGER(test)) {
-			if (AS_INTEGER(test) == 1) krk_currentThread.flags |= KRK_THREAD_ENABLE_TRACING; else krk_currentThread.flags &= ~KRK_THREAD_ENABLE_TRACING; }
-		if (krk_tableGet(AS_DICT(argv[argc]), OBJECT_VAL(S("disassembly")), &test) && IS_INTEGER(test)) {
-			if (AS_INTEGER(test) == 1) krk_currentThread.flags |= KRK_THREAD_ENABLE_DISASSEMBLY; else krk_currentThread.flags &= ~KRK_THREAD_ENABLE_DISASSEMBLY; }
-		if (krk_tableGet(AS_DICT(argv[argc]), OBJECT_VAL(S("scantracing")), &test) && IS_INTEGER(test)) {
-			if (AS_INTEGER(test) == 1) krk_currentThread.flags |= KRK_THREAD_ENABLE_SCAN_TRACING; else krk_currentThread.flags &= ~KRK_THREAD_ENABLE_SCAN_TRACING; }
-
-		if (krk_tableGet(AS_DICT(argv[argc]), OBJECT_VAL(S("stressgc")), &test) && IS_INTEGER(test)) {
-			if (AS_INTEGER(test) == 1) vm.globalFlags |= KRK_GLOBAL_ENABLE_STRESS_GC; else krk_currentThread.flags &= ~KRK_GLOBAL_ENABLE_STRESS_GC; }
-	}
-	return BOOLEAN_VAL(1);
-#else
-	return krk_runtimeError(vm.exceptions->typeError,"Debugging is not enabled in this build.");
-#endif
-}
-
-/**
  * Maps values to their base classes.
  * Internal version of type().
  */
@@ -520,7 +504,7 @@ static int checkArgumentCount(KrkClosure * closure, int argCount) {
 	int maxArgs = minArgs + closure->function->keywordArgs;
 	if (argCount < minArgs || argCount > maxArgs) {
 		krk_runtimeError(vm.exceptions->argumentError, "%s() takes %s %d argument%s (%d given)",
-		closure->function->name ? closure->function->name->chars : "<unnamed function>",
+		closure->function->name ? closure->function->name->chars : "<unnamed>",
 		(minArgs == maxArgs) ? "exactly" : (argCount < minArgs ? "at least" : "at most"),
 		(argCount < minArgs) ? minArgs : maxArgs,
 		((argCount < minArgs) ? minArgs : maxArgs) == 1 ? "" : "s",
@@ -532,10 +516,10 @@ static int checkArgumentCount(KrkClosure * closure, int argCount) {
 
 static void multipleDefs(KrkClosure * closure, int destination) {
 	krk_runtimeError(vm.exceptions->typeError, "%s() got multiple values for argument '%s'",
-		closure->function->name ? closure->function->name->chars : "<unnamed function>",
+		closure->function->name ? closure->function->name->chars : "<unnamed>",
 		(destination < closure->function->requiredArgs ? AS_CSTRING(closure->function->requiredArgNames.values[destination]) :
 			(destination - closure->function->requiredArgs < closure->function->keywordArgs ? AS_CSTRING(closure->function->keywordArgNames.values[destination - closure->function->requiredArgs]) :
-				"(unnamed arg)")));
+				"<unnamed>")));
 }
 
 #undef unpackError
@@ -705,7 +689,7 @@ static int call(KrkClosure * closure, int argCount, int extra) {
 				}
 				if (!closure->function->collectsKeywords) {
 					krk_runtimeError(vm.exceptions->typeError, "%s() got an unexpected keyword argument '%s'",
-						closure->function->name ? closure->function->name->chars : "<unnamed function>",
+						closure->function->name ? closure->function->name->chars : "<unnamed>",
 						AS_CSTRING(name));
 					goto _errorAfterPositionals;
 				}
@@ -730,7 +714,7 @@ _finishKwarg:
 		for (size_t i = 0; i < (size_t)closure->function->requiredArgs; ++i) {
 			if (IS_KWARGS(krk_currentThread.stackTop[-argCount + i])) {
 				krk_runtimeError(vm.exceptions->typeError, "%s() missing required positional argument: '%s'",
-					closure->function->name ? closure->function->name->chars : "<unnamed function>",
+					closure->function->name ? closure->function->name->chars : "<unnamed>",
 					AS_CSTRING(closure->function->requiredArgNames.values[i]));
 				goto _errorAfterKeywords;
 			}
@@ -773,6 +757,7 @@ _finishKwarg:
 	frame->slots = (krk_currentThread.stackTop - argCount) - krk_currentThread.stack;
 	frame->outSlots = (krk_currentThread.stackTop - argCount - extra) - krk_currentThread.stack;
 	frame->globals = &closure->function->globalsContext->fields;
+	FRAME_IN(frame);
 	return 1;
 
 _errorDuringPositionals:
@@ -832,10 +817,17 @@ int krk_callValue(KrkValue callee, int argCount, int extra) {
 					krk_pop();
 					krk_push(result);
 				} else {
-					KrkValue * stackCopy = malloc(argCount * sizeof(KrkValue));
-					memcpy(stackCopy, krk_currentThread.stackTop - argCount, argCount * sizeof(KrkValue));
-					KrkValue result = native(argCount, stackCopy, 0);
-					free(stackCopy);
+					KrkValue result;
+					if (argCount < 9) {
+						KrkValue stackCopy[8];
+						memcpy(stackCopy, krk_currentThread.stackTop - argCount, argCount * sizeof(KrkValue));
+						result = native(argCount, stackCopy, 0);
+					} else {
+						KrkValue * stackCopy = malloc(argCount * sizeof(KrkValue));
+						memcpy(stackCopy, krk_currentThread.stackTop - argCount, argCount * sizeof(KrkValue));
+						result = native(argCount, stackCopy, 0);
+						free(stackCopy);
+					}
 					if (krk_currentThread.stackTop == krk_currentThread.stack) return 0;
 					krk_currentThread.stackTop -= argCount + extra;
 					krk_push(result);
@@ -850,7 +842,7 @@ int krk_callValue(KrkValue callee, int argCount, int extra) {
 				} else if (krk_tableGet(&_class->methods, vm.specialMethodNames[METHOD_CALL], &callFunction)) {
 					return krk_callValue(callFunction, argCount + 1, 0);
 				} else {
-					krk_runtimeError(vm.exceptions->typeError, "Attempted to call non-callable type: %s", krk_typeName(callee));
+					krk_runtimeError(vm.exceptions->typeError, "'%s' object is not callable", krk_typeName(callee));
 					return 0;
 				}
 			}
@@ -864,7 +856,8 @@ int krk_callValue(KrkValue callee, int argCount, int extra) {
 				} else if (krk_tableGet(&_class->methods, vm.specialMethodNames[METHOD_INIT], &initializer)) {
 					return krk_callValue(initializer, argCount + 1, 0);
 				} else if (argCount != 0) {
-					krk_runtimeError(vm.exceptions->attributeError, "Class does not have an __init__ but arguments were passed to initializer: %d", argCount);
+					krk_runtimeError(vm.exceptions->typeError, "%s() takes no arguments (%d given)",
+						_class->name->chars, argCount);
 					return 0;
 				}
 				return 1;
@@ -882,7 +875,7 @@ int krk_callValue(KrkValue callee, int argCount, int extra) {
 				break;
 		}
 	}
-	krk_runtimeError(vm.exceptions->typeError, "Attempted to call non-callable type: %s", krk_typeName(callee));
+	krk_runtimeError(vm.exceptions->typeError, "'%s' object is not callable", krk_typeName(callee));
 	return 0;
 }
 
@@ -911,7 +904,7 @@ int krk_bindMethod(KrkClass * _class, KrkString * name) {
 		_class = _class->base;
 	}
 	if (!_class) return 0;
-	if (IS_NATIVE(method) && ((KrkNative*)AS_OBJECT(method))->isMethod == 2) {
+	if (IS_NATIVE(method) && ((KrkNative*)AS_OBJECT(method))->isDynamicProperty) {
 		out = AS_NATIVE(method)->function(1, (KrkValue[]){krk_peek(0)}, 0);
 	} else if (IS_CLOSURE(method) && (AS_CLOSURE(method)->isClassMethod)) {
 		out = OBJECT_VAL(krk_newBoundMethod(OBJECT_VAL(_class), AS_OBJECT(method)));
@@ -975,20 +968,6 @@ static void closeUpvalues(int last) {
 }
 
 /**
- * Attach an object to a table.
- *
- * Generally used to attach classes or objects to the globals table, or to
- * a native module's export object.
- */
-void krk_attachNamedObject(KrkTable * table, const char name[], KrkObj * obj) {
-	krk_push(OBJECT_VAL(obj));
-	krk_push(OBJECT_VAL(krk_copyString(name,strlen(name))));
-	krk_tableSet(table, krk_peek(0), krk_peek(1));
-	krk_pop();
-	krk_pop();
-}
-
-/**
  * Same as above, but the object has already been wrapped in a value.
  */
 void krk_attachNamedValue(KrkTable * table, const char name[], KrkValue obj) {
@@ -998,6 +977,17 @@ void krk_attachNamedValue(KrkTable * table, const char name[], KrkValue obj) {
 	krk_pop();
 	krk_pop();
 }
+
+/**
+ * Attach an object to a table.
+ *
+ * Generally used to attach classes or objects to the globals table, or to
+ * a native module's export object.
+ */
+void krk_attachNamedObject(KrkTable * table, const char name[], KrkObj * obj) {
+	krk_attachNamedValue(table,name,OBJECT_VAL(obj));
+}
+
 
 /**
  * Inverse of truthiness.
@@ -1033,7 +1023,29 @@ int krk_isFalsey(KrkValue value) {
 	return 0; /* Assume anything else is truthy */
 }
 
-static KrkValue krk_getsize(int argc, KrkValue argv[], int hasKw) {
+#ifdef DEBUG
+KRK_FUNC(set_tracing,{
+	if (hasKw) {
+		KrkValue test;
+		if (krk_tableGet(AS_DICT(argv[argc]), OBJECT_VAL(S("tracing")), &test) && IS_INTEGER(test)) {
+			if (AS_INTEGER(test) == 1) krk_currentThread.flags |= KRK_THREAD_ENABLE_TRACING; else krk_currentThread.flags &= ~KRK_THREAD_ENABLE_TRACING; }
+		if (krk_tableGet(AS_DICT(argv[argc]), OBJECT_VAL(S("disassembly")), &test) && IS_INTEGER(test)) {
+			if (AS_INTEGER(test) == 1) krk_currentThread.flags |= KRK_THREAD_ENABLE_DISASSEMBLY; else krk_currentThread.flags &= ~KRK_THREAD_ENABLE_DISASSEMBLY; }
+		if (krk_tableGet(AS_DICT(argv[argc]), OBJECT_VAL(S("scantracing")), &test) && IS_INTEGER(test)) {
+			if (AS_INTEGER(test) == 1) krk_currentThread.flags |= KRK_THREAD_ENABLE_SCAN_TRACING; else krk_currentThread.flags &= ~KRK_THREAD_ENABLE_SCAN_TRACING; }
+
+		if (krk_tableGet(AS_DICT(argv[argc]), OBJECT_VAL(S("stressgc")), &test) && IS_INTEGER(test)) {
+			if (AS_INTEGER(test) == 1) vm.globalFlags |= KRK_GLOBAL_ENABLE_STRESS_GC; else krk_currentThread.flags &= ~KRK_GLOBAL_ENABLE_STRESS_GC; }
+	}
+	return BOOLEAN_VAL(1);
+})
+#else
+KRK_FUNC(set_tracing,{
+	return krk_runtimeError(vm.exceptions->typeError,"Debugging is not enabled in this build.");
+})
+#endif
+
+KRK_FUNC(getsizeof,{
 	if (argc < 1) return INTEGER_VAL(0);
 	if (!IS_OBJECT(argv[0])) return INTEGER_VAL(sizeof(KrkValue));
 	size_t mySize = sizeof(KrkValue);
@@ -1092,24 +1104,26 @@ static KrkValue krk_getsize(int argc, KrkValue argv[], int hasKw) {
 		default: break;
 	}
 	return INTEGER_VAL(mySize);
-}
+})
 
-static KrkValue krk_setclean(int argc, KrkValue argv[], int hasKw) {
+KRK_FUNC(set_clean_output,{
 	if (!argc || (IS_BOOLEAN(argv[0]) && AS_BOOLEAN(argv[0]))) {
 		vm.globalFlags |= KRK_GLOBAL_CLEAN_OUTPUT;
 	} else {
 		vm.globalFlags &= ~KRK_GLOBAL_CLEAN_OUTPUT;
 	}
 	return NONE_VAL();
-}
+})
 
-static KrkValue krk_import_wrapper(int argc, KrkValue argv[], int hasKw) {
-	if (!argc || !IS_STRING(argv[0])) return krk_runtimeError(vm.exceptions->typeError, "expected string");
+KRK_FUNC(importmodule,{
+	FUNCTION_TAKES_EXACTLY(1);
+	if (!IS_STRING(argv[0])) return TYPE_ERROR(str,argv[0]);
 	if (!krk_doRecursiveModuleLoad(AS_STRING(argv[0]))) return NONE_VAL(); /* ImportError already raised */
 	return krk_pop();
-}
+})
 
-static KrkValue krk_module_list(int argc, KrkValue argv[], int hasKw) {
+KRK_FUNC(modules,{
+	FUNCTION_TAKES_NONE();
 	KrkValue moduleList = krk_list_of(0,NULL,0);
 	krk_push(moduleList);
 	for (size_t i = 0; i < vm.modules.capacity; ++i) {
@@ -1118,15 +1132,15 @@ static KrkValue krk_module_list(int argc, KrkValue argv[], int hasKw) {
 		krk_writeValueArray(AS_LIST(moduleList), entry->key);
 	}
 	return krk_pop();
-}
+})
 
-static KrkValue krk_unload(int argc, KrkValue argv[], int hasKw) {
-	if (argc != 1 || !IS_STRING(argv[0])) return krk_runtimeError(vm.exceptions->typeError, "expected string");
+KRK_FUNC(unload,{
+	FUNCTION_TAKES_EXACTLY(1);
+	if (!IS_STRING(argv[0])) return TYPE_ERROR(str,argv[0]);
 	if (!krk_tableDelete(&vm.modules, argv[0])) {
 		return krk_runtimeError(vm.exceptions->keyError, "Module is not loaded.");
 	}
-	return NONE_VAL();
-}
+})
 
 void krk_initVM(int flags) {
 	vm.globalFlags = flags & 0xFF00;
@@ -1221,12 +1235,14 @@ void krk_initVM(int flags) {
 	_createAndBind_rangeClass();
 	_createAndBind_setClass();
 	_createAndBind_exceptions();
+	_createAndBind_generatorClass();
 	_createAndBind_gcMod();
-	_createAndBind_disMod();
 	_createAndBind_timeMod();
 	_createAndBind_osMod();
 	_createAndBind_fileioMod();
-	_createAndBind_generatorClass();
+#ifdef DEBUG
+	_createAndBind_disMod();
+#endif
 #ifdef ENABLE_THREADING
 	_createAndBind_threadsMod();
 #endif
@@ -1247,15 +1263,15 @@ void krk_initVM(int flags) {
 		(KrkObj*)S(KRK_VERSION_MAJOR "." KRK_VERSION_MINOR "." KRK_VERSION_PATCH KRK_VERSION_EXTRA));
 	krk_attachNamedObject(&vm.system->fields, "buildenv", (KrkObj*)S(KRK_BUILD_COMPILER));
 	krk_attachNamedObject(&vm.system->fields, "builddate", (KrkObj*)S(KRK_BUILD_DATE));
-	KRK_DOC(krk_defineNative(&vm.system->fields, "getsizeof", krk_getsize),
+	KRK_DOC(BIND_FUNC(vm.system,getsizeof),
 		"@brief Calculate the approximate size of an object in bytes.\n"
 		"@arguments value\n\n"
 		"@param value Value to examine.");
-	KRK_DOC(krk_defineNative(&vm.system->fields, "set_clean_output", krk_setclean),
+	KRK_DOC(BIND_FUNC(vm.system,set_clean_output),
 		"@brief Disables terminal escapes in some output from the VM.\n"
 		"@arguments clean=True\n\n"
 		"@param clean Whether to remove escapes.");
-	KRK_DOC(krk_defineNative(&vm.system->fields, "set_tracing", krk_set_tracing),
+	KRK_DOC(BIND_FUNC(vm.system,set_tracing),
 		"@brief Toggle debugging modes.\n"
 		"@arguments tracing=None,disassembly=None,scantracing=None,stressgc=None\n\n"
 		"Enables or disables tracing options for the current thread.\n\n"
@@ -1263,14 +1279,14 @@ void krk_initVM(int flags) {
 		"@param disassembly Prints bytecode disassembly after compilation.\n"
 		"@param scantracing Prints debug output from the token scanner during compilation.\n"
 		"@param stressgc Forces a garbage collection cycle on each heap allocation.");
-	KRK_DOC(krk_defineNative(&vm.system->fields, "importmodule", krk_import_wrapper),
+	KRK_DOC(BIND_FUNC(vm.system,importmodule),
 		"@brief Import a module by string name\n"
 		"@arguments module\n\n"
 		"Imports the dot-separated module @p module as if it were imported by the @c import statement and returns the resulting module object.\n\n"
 		"@param module A string with a dot-separated package or module name");
-	KRK_DOC(krk_defineNative(&vm.system->fields, "modules", krk_module_list),
+	KRK_DOC(BIND_FUNC(vm.system,modules),
 		"Get the list of valid names from the module table");
-	KRK_DOC(krk_defineNative(&vm.system->fields, "unload", krk_unload),
+	KRK_DOC(BIND_FUNC(vm.system,unload),
 		"Removes a module from the module table. It is not necessarily garbage collected if other references to it exist.");
 	krk_attachNamedObject(&vm.system->fields, "module", (KrkObj*)vm.baseClasses->moduleClass);
 	krk_attachNamedObject(&vm.system->fields, "path_sep", (KrkObj*)S(PATH_SEP));
@@ -1462,9 +1478,7 @@ static int handleException() {
 	/* Find the call frame that owns this stack slot */
 	for (frameOffset = krk_currentThread.frameCount - 1; frameOffset >= 0 && (int)krk_currentThread.frames[frameOffset].slots > stackOffset; frameOffset--);
 	if (frameOffset == -1) {
-		fprintf(stderr, "Internal error: Call stack is corrupted - unable to find\n");
-		fprintf(stderr, "                call frame that owns exception handler.\n");
-		exit(1);
+		abort();
 	}
 
 	/* We found an exception handler and can reset the VM to its call frame. */
@@ -1498,8 +1512,8 @@ int krk_loadModule(KrkString * path, KrkValue * moduleOut, KrkString * runAs) {
 	/* Obtain __builtins__.module_paths */
 	if (!krk_tableGet(&vm.system->fields, OBJECT_VAL(S("module_paths")), &modulePaths) || !IS_INSTANCE(modulePaths)) {
 		*moduleOut = NONE_VAL();
-		krk_runtimeError(vm.exceptions->baseException,
-			"Internal error: kuroko.module_paths not defined.");
+		krk_runtimeError(vm.exceptions->importError,
+			"kuroko.module_paths not defined.");
 		return 0;
 	}
 
@@ -1840,6 +1854,16 @@ static int valueDelProperty(KrkString * name) {
 	return 0;
 }
 
+KrkValue krk_valueDelAttribute(KrkValue owner, char * name) {
+	krk_push(OBJECT_VAL(krk_copyString(name,strlen(name))));
+	krk_push(owner);
+	if (!valueDelProperty(AS_STRING(krk_peek(1)))) {
+		return krk_runtimeError(vm.exceptions->attributeError, "'%s' object has no attribute '%s'", krk_typeName(krk_peek(0)), name);
+	}
+	krk_pop(); /* String */
+	return NONE_VAL();
+}
+
 static int trySetDescriptor(KrkValue owner, KrkString * name, KrkValue value) {
 	KrkClass * _class = krk_getType(owner);
 	KrkValue property;
@@ -2033,6 +2057,7 @@ _finishReturn: (void)0;
 					krk_currentThread.stackTop[-2] = result;
 					break;
 				}
+				FRAME_OUT(frame);
 				krk_currentThread.frameCount--;
 				if (krk_currentThread.frameCount == 0) {
 					krk_pop();
@@ -2078,14 +2103,14 @@ _finishReturn: (void)0;
 			case OP_BITNEGATE: {
 				KrkValue value = krk_pop();
 				if (IS_INTEGER(value)) krk_push(INTEGER_VAL(~AS_INTEGER(value)));
-				else { krk_runtimeError(vm.exceptions->typeError, "Incompatible operand type for bit negation."); goto _finishException; }
+				else { krk_runtimeError(vm.exceptions->typeError, "Incompatible operand type for %s negation.", "bit"); goto _finishException; }
 				break;
 			}
 			case OP_NEGATE: {
 				KrkValue value = krk_pop();
 				if (IS_INTEGER(value)) krk_push(INTEGER_VAL(-AS_INTEGER(value)));
 				else if (IS_FLOATING(value)) krk_push(FLOATING_VAL(-AS_FLOATING(value)));
-				else { krk_runtimeError(vm.exceptions->typeError, "Incompatible operand type for prefix negation."); goto _finishException; }
+				else { krk_runtimeError(vm.exceptions->typeError, "Incompatible operand type for %s negation.", "prefix"); goto _finishException; }
 				break;
 			}
 			case OP_NONE:  krk_push(NONE_VAL()); break;
@@ -2268,12 +2293,14 @@ _finishReturn: (void)0;
 				}
 				break;
 			}
+#ifdef DEBUG
 			case OP_BREAKPOINT: {
 				/* First off, halt execution. */
 				krk_debugBreakpointHandler();
 				if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) goto _finishException;
 				goto _resumeHook;
 			}
+#endif
 			case OP_YIELD: {
 				KrkValue result = krk_peek(0);
 				krk_currentThread.frameCount--;
@@ -2287,7 +2314,6 @@ _finishReturn: (void)0;
 					AS_CLOSURE(krk_peek(1))->annotations = krk_pop();
 				} else if (IS_NONE(krk_peek(0))) {
 					krk_swap(1);
-					fprintf(stderr, "TODO: Global annotation.\n");
 					krk_pop();
 				} else {
 					krk_runtimeError(vm.exceptions->typeError, "Can not annotate '%s'.", krk_typeName(krk_peek(0)));
@@ -2299,15 +2325,16 @@ _finishReturn: (void)0;
 			/*
 			 * Two-byte operands
 			 */
-
-			case OP_JUMP_IF_FALSE: {
+			case OP_JUMP_IF_FALSE_OR_POP: {
 				uint16_t offset = OPERAND;
 				if (krk_isFalsey(krk_peek(0))) frame->ip += offset;
+				else krk_pop();
 				break;
 			}
-			case OP_JUMP_IF_TRUE: {
+			case OP_JUMP_IF_TRUE_OR_POP: {
 				uint16_t offset = OPERAND;
 				if (!krk_isFalsey(krk_peek(0))) frame->ip += offset;
+				else krk_pop();
 				break;
 			}
 			case OP_JUMP: {
@@ -2331,7 +2358,8 @@ _finishReturn: (void)0;
 				KrkValue contextManager = krk_peek(0);
 				KrkClass * type = krk_getType(contextManager);
 				if (unlikely(!type->_enter || !type->_exit)) {
-					krk_runtimeError(vm.exceptions->attributeError, "Can not use '%s' as context manager", krk_typeName(contextManager));
+					if (!type->_enter) krk_runtimeError(vm.exceptions->attributeError, "__enter__");
+					else if (!type->_exit) krk_runtimeError(vm.exceptions->attributeError, "__exit__");
 					goto _finishException;
 				}
 				krk_push(contextManager);
@@ -2561,7 +2589,7 @@ _finishReturn: (void)0;
 				KrkString * name = READ_STRING(OPERAND);
 				KrkClass * superclass = AS_CLASS(krk_pop());
 				if (!krk_bindMethod(superclass, name)) {
-					krk_runtimeError(vm.exceptions->attributeError, "super(%s) has no attribute '%s'",
+					krk_runtimeError(vm.exceptions->attributeError, "'%s' object has no attribute '%s'",
 						superclass->name->chars, name->chars);
 					goto _finishException;
 				}
@@ -2671,7 +2699,7 @@ _finishReturn: (void)0;
 				} else {
 					KrkClass * type = krk_getType(sequence);
 					if (!type->_iter) {
-						krk_runtimeError(vm.exceptions->typeError, "Can not unpack non-iterable '%s'", krk_typeName(sequence));
+						krk_runtimeError(vm.exceptions->typeError, "'%s' object is not iterable", krk_typeName(sequence));
 						goto _finishException;
 					} else {
 						size_t stackStart = krk_currentThread.stackTop - krk_currentThread.stack - 1;
@@ -2785,7 +2813,7 @@ KrkValue krk_interpret(const char * src, char * fromFile) {
 KrkValue krk_runfile(const char * fileName, char * fromFile) {
 	FILE * f = fopen(fileName,"r");
 	if (!f) {
-		fprintf(stderr, "kuroko: could not read file '%s': %s\n", fileName, strerror(errno));
+		fprintf(stderr, "%s: could not read file '%s': %s\n", "kuroko", fileName, strerror(errno));
 		return INTEGER_VAL(errno);
 	}
 
@@ -2795,7 +2823,7 @@ KrkValue krk_runfile(const char * fileName, char * fromFile) {
 
 	char * buf = malloc(size+1);
 	if (fread(buf, 1, size, f) != size) {
-		fprintf(stderr, "Warning: Failed to read file.\n");
+		fprintf(stderr, "%s: could not read file '%s': %s\n", "kuroko", fileName, strerror(errno));
 	}
 	fclose(f);
 	buf[size] = '\0';

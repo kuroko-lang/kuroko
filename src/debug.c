@@ -1,10 +1,12 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "debug.h"
-#include "vm.h"
-#include "util.h"
-#include "compiler.h"
+#include <kuroko/debug.h>
+#include <kuroko/vm.h>
+#include <kuroko/util.h>
+#include <kuroko/compiler.h>
+
+#ifdef DEBUG
 
 /**
  * When tracing is enabled, we will present the elements on the stack with
@@ -182,15 +184,6 @@ static int isJumpTarget(KrkCodeObject * func, size_t startPoint) {
 			} \
 		} \
 	}
-
-size_t krk_lineNumber(KrkChunk * chunk, size_t offset) {
-	size_t line = 0;
-	for (size_t i = 0; i < chunk->linesCount; ++i) {
-		if (chunk->lines[i].startOffset > offset) break;
-		line = chunk->lines[i].line;
-	}
-	return line;
-}
 
 size_t krk_disassembleInstruction(FILE * f, KrkCodeObject * func, size_t offset) {
 	KrkChunk * chunk = &func->chunk;
@@ -568,11 +561,11 @@ KRK_FUNC(dis,{
 
 	if (IS_CLOSURE(argv[0])) {
 		KrkCodeObject * func = AS_CLOSURE(argv[0])->function;
-		krk_disassembleCodeObject(stdout, func, func->name ? func->name->chars : "(unnamed)");
+		krk_disassembleCodeObject(stdout, func, func->name ? func->name->chars : "<unnamed>");
 	} else if (IS_BOUND_METHOD(argv[0])) {
 		if (AS_BOUND_METHOD(argv[0])->method->type == KRK_OBJ_CLOSURE) {
 			KrkCodeObject * func = ((KrkClosure*)AS_BOUND_METHOD(argv[0])->method)->function;
-			const char * methodName = func->name ? func->name->chars : "(unnamed)";
+			const char * methodName = func->name ? func->name->chars : "<unnamed>";
 			const char * typeName = IS_CLASS(AS_BOUND_METHOD(argv[0])->receiver) ? AS_CLASS(AS_BOUND_METHOD(argv[0])->receiver)->name->chars : krk_typeName(AS_BOUND_METHOD(argv[0])->receiver);
 			size_t allocSize = strlen(methodName) + strlen(typeName) + 2;
 			char * tmp = malloc(allocSize);
@@ -623,10 +616,7 @@ KRK_FUNC(build,{
 #define CLOSURE_MORE size += AS_codeobject(chunk->constants.values[constant])->upvalueCount * 2
 #define EXPAND_ARGS_MORE
 #define LOCAL_MORE local = operand;
-FUNC_SIG(krk,examine) {
-	FUNCTION_TAKES_EXACTLY(1);
-	CHECK_ARG(0,codeobject,KrkCodeObject*,func);
-
+static KrkValue _examineInternal(KrkCodeObject* func) {
 	KrkValue output = krk_list_of(0,NULL,0);
 	krk_push(output);
 
@@ -682,6 +672,12 @@ FUNC_SIG(krk,examine) {
 
 	return krk_pop();
 }
+KRK_FUNC(examine,{
+	FUNCTION_TAKES_EXACTLY(1);
+	CHECK_ARG(0,codeobject,KrkCodeObject*,func);
+	return _examineInternal(func);
+})
+
 #undef SIMPLE
 #undef OPERANDB
 #undef OPERAND
@@ -776,3 +772,5 @@ void _createAndBind_disMod(void) {
 #undef LOCAL_MORE
 #undef EXPAND_ARGS_MORE
 }
+
+#endif

@@ -33,13 +33,13 @@
 #include <string.h>
 #include <sys/types.h>
 
-#include "kuroko.h"
-#include "compiler.h"
-#include "memory.h"
-#include "scanner.h"
-#include "object.h"
-#include "debug.h"
-#include "vm.h"
+#include <kuroko/kuroko.h>
+#include <kuroko/compiler.h>
+#include <kuroko/memory.h>
+#include <kuroko/scanner.h>
+#include <kuroko/object.h>
+#include <kuroko/debug.h>
+#include <kuroko/vm.h>
 
 typedef struct {
 	KrkToken current;
@@ -494,10 +494,34 @@ static void number(int canAssign) {
 	emitConstant(INTEGER_VAL(value));
 }
 
-static void binary(int canAssign) {
+static int emitJump(uint8_t opcode) {
+	emitByte(opcode);
+	emitBytes(0xFF, 0xFF);
+	return currentChunk()->count - 2;
+}
+
+static void patchJump(int offset) {
+	int jump = currentChunk()->count - offset - 2;
+	if (jump > 0xFFFF) {
+		error("Unsupported far jump (we'll get there)");
+	}
+
+	currentChunk()->code[offset] = (jump >> 8) & 0xFF;
+	currentChunk()->code[offset + 1] =  (jump) & 0xFF;
+}
+
+static void compareChained(int inner) {
 	KrkTokenType operatorType = parser.previous.type;
+	if (operatorType == TOKEN_NOT) consume(TOKEN_IN, "'in' must follow infix 'not'");
+	int invert = (operatorType == TOKEN_IS && match(TOKEN_NOT));
+
 	ParseRule * rule = getRule(operatorType);
 	parsePrecedence((Precedence)(rule->precedence + 1));
+
+	if (getRule(parser.current.type)->precedence == PREC_COMPARISON) {
+		emitByte(OP_SWAP);
+		emitBytes(OP_DUP, 1);
+	}
 
 	switch (operatorType) {
 		case TOKEN_BANG_EQUAL:    emitBytes(OP_EQUAL, OP_NOT); break;
@@ -507,6 +531,40 @@ static void binary(int canAssign) {
 		case TOKEN_LESS:          emitByte(OP_LESS); break;
 		case TOKEN_LESS_EQUAL:    emitBytes(OP_GREATER, OP_NOT); break;
 
+		case TOKEN_IS: emitByte(OP_IS); if (invert) emitByte(OP_NOT); break;
+
+		case TOKEN_IN: emitByte(OP_INVOKE_CONTAINS); break;
+		case TOKEN_NOT: emitBytes(OP_INVOKE_CONTAINS, OP_NOT); break;
+
+		default: error("Invalid binary comparison operator?"); break;
+	}
+
+	if (getRule(parser.current.type)->precedence == PREC_COMPARISON) {
+		size_t exitJump = emitJump(OP_JUMP_IF_FALSE_OR_POP);
+		advance();
+		compareChained(1);
+		patchJump(exitJump);
+		if (getRule(parser.current.type)->precedence != PREC_COMPARISON) {
+			if (!inner) {
+				emitBytes(OP_SWAP,OP_POP);
+			}
+		}
+	} else if (inner) {
+		emitByte(OP_JUMP);
+		emitBytes(0,2);
+	}
+}
+
+static void compare(int canAssign) {
+	compareChained(0);
+}
+
+static void binary(int canAssign) {
+	KrkTokenType operatorType = parser.previous.type;
+	ParseRule * rule = getRule(operatorType);
+	parsePrecedence((Precedence)(rule->precedence + 1));
+
+	switch (operatorType) {
 		case TOKEN_PIPE:        emitByte(OP_BITOR); break;
 		case TOKEN_CARET:       emitByte(OP_BITXOR); break;
 		case TOKEN_AMPERSAND:   emitByte(OP_BITAND); break;
@@ -743,24 +801,6 @@ _dotDone:
 	}
 }
 
-static void in_(int canAssign) {
-	parsePrecedence(PREC_COMPARISON);
-	emitByte(OP_INVOKE_CONTAINS);
-}
-
-static void not_(int canAssign) {
-	consume(TOKEN_IN, "infix not must be followed by 'in'");
-	in_(canAssign);
-	emitByte(OP_NOT);
-}
-
-static void is_(int canAssign) {
-	int invert = match(TOKEN_NOT);
-	parsePrecedence(PREC_COMPARISON);
-	emitByte(OP_IS);
-	if (invert) emitByte(OP_NOT);
-}
-
 static void literal(int canAssign) {
 	switch (parser.previous.type) {
 		case TOKEN_FALSE: emitByte(OP_FALSE); break;
@@ -924,22 +964,6 @@ static void endScope() {
 	}
 }
 
-static int emitJump(uint8_t opcode) {
-	emitByte(opcode);
-	emitBytes(0xFF, 0xFF);
-	return currentChunk()->count - 2;
-}
-
-static void patchJump(int offset) {
-	int jump = currentChunk()->count - offset - 2;
-	if (jump > 0xFFFF) {
-		error("Unsupported far jump (we'll get there)");
-	}
-
-	currentChunk()->code[offset] = (jump >> 8) & 0xFF;
-	currentChunk()->code[offset + 1] =  (jump) & 0xFF;
-}
-
 static void block(size_t indentation, const char * blockName) {
 	if (match(TOKEN_EOL)) {
 		if (check(TOKEN_INDENTATION)) {
@@ -1066,17 +1090,16 @@ static void function(FunctionType type, size_t blockWidth) {
 				/* Check if it's equal to the unset-kwarg-sentinel value */
 				emitConstant(KWARGS_VAL(0));
 				emitByte(OP_IS);
-				int jumpIndex = emitJump(OP_JUMP_IF_FALSE);
+				int jumpIndex = emitJump(OP_JUMP_IF_FALSE_OR_POP);
 				/* And if it is, set it to the appropriate type */
 				beginScope();
 				if (hasCollectors == 1) EMIT_CONSTANT_OP(OP_MAKE_LIST,0);
 				else EMIT_CONSTANT_OP(OP_MAKE_DICT,0);
 				EMIT_CONSTANT_OP(OP_SET_LOCAL, myLocal);
-				emitByte(OP_POP); /* local value */
 				endScope();
 				/* Otherwise pop the comparison. */
 				patchJump(jumpIndex);
-				emitByte(OP_POP); /* comparison value */
+				emitByte(OP_POP); /* comparison value or expression */
 				continue;
 			}
 			if (hasCollectors) {
@@ -1103,15 +1126,14 @@ static void function(FunctionType type, size_t blockWidth) {
 				size_t myLocal = current->localCount - 1;
 				EMIT_CONSTANT_OP(OP_GET_LOCAL, myLocal);
 				emitConstant(KWARGS_VAL(0));
-				emitByte(OP_EQUAL);
-				int jumpIndex = emitJump(OP_JUMP_IF_FALSE);
+				emitByte(OP_IS);
+				int jumpIndex = emitJump(OP_JUMP_IF_FALSE_OR_POP);
 				beginScope();
 				expression(); /* Read expression */
 				EMIT_CONSTANT_OP(OP_SET_LOCAL, myLocal);
-				emitByte(OP_POP); /* local value */
 				endScope();
 				patchJump(jumpIndex);
-				emitByte(OP_POP);
+				emitByte(OP_POP); /* comparison result or expression value */
 				current->codeobject->keywordArgs++;
 			} else {
 				if (current->codeobject->keywordArgs) {
@@ -1495,8 +1517,7 @@ static void ifStatement() {
 	/* if EXPR: */
 	consume(TOKEN_COLON, "Expect ':' after condition.");
 
-	int thenJump = emitJump(OP_JUMP_IF_FALSE);
-	emitByte(OP_POP);
+	int thenJump = emitJump(OP_JUMP_IF_FALSE_OR_POP);
 
 	/* Start a new scope and enter a block */
 	beginScope();
@@ -1582,8 +1603,7 @@ static void whileStatement() {
 	expression();
 	consume(TOKEN_COLON, "Expect ':' after condition.");
 
-	int exitJump = emitJump(OP_JUMP_IF_FALSE);
-	emitByte(OP_POP);
+	int exitJump = emitJump(OP_JUMP_IF_FALSE_OR_POP);
 
 	int oldLocalCount = current->loopLocalCount;
 	current->loopLocalCount = current->localCount;
@@ -1651,9 +1671,8 @@ static void forStatement() {
 
 		/* Get the loop iterator again */
 		EMIT_CONSTANT_OP(OP_GET_LOCAL, indLoopIter);
-		emitByte(OP_EQUAL);
-		exitJump = emitJump(OP_JUMP_IF_TRUE);
-		emitByte(OP_POP);
+		emitByte(OP_IS);
+		exitJump = emitJump(OP_JUMP_IF_TRUE_OR_POP);
 
 		if (varCount > 1) {
 			EMIT_CONSTANT_OP(OP_GET_LOCAL, loopInd);
@@ -1671,8 +1690,7 @@ static void forStatement() {
 		beginScope();
 		expression(); /* condition */
 		endScope();
-		exitJump = emitJump(OP_JUMP_IF_FALSE);
-		emitByte(OP_POP);
+		exitJump = emitJump(OP_JUMP_IF_FALSE_OR_POP);
 
 		if (check(TOKEN_SEMICOLON)) {
 			advance();
@@ -1766,8 +1784,7 @@ _anotherExcept:
 				emitByte(OP_NONE);
 			}
 			emitByte(OP_FILTER_EXCEPT);
-			nextJump = emitJump(OP_JUMP_IF_FALSE);
-			emitByte(OP_POP);
+			nextJump = emitJump(OP_JUMP_IF_FALSE_OR_POP);
 
 			/* Match 'as' to rename exception */
 			if (match(TOKEN_AS)) {
@@ -1937,7 +1954,7 @@ static void delStatement() {
 
 static void assertStatement() {
 	expression();
-	int elseJump = emitJump(OP_JUMP_IF_TRUE);
+	int elseJump = emitJump(OP_JUMP_IF_TRUE_OR_POP);
 
 	KrkToken assertionError = syntheticToken("AssertionError");
 	size_t ind = identifierConstant(&assertionError);
@@ -2393,9 +2410,8 @@ static void generatorInner(KrkScanner scannerBefore, Parser parserBefore, void (
 	EMIT_CONSTANT_OP(OP_SET_LOCAL, loopInd);
 
 	EMIT_CONSTANT_OP(OP_GET_LOCAL, indLoopIter);
-	emitByte(OP_EQUAL);
-	int exitJump = emitJump(OP_JUMP_IF_TRUE);
-	emitByte(OP_POP);
+	emitByte(OP_IS);
+	int exitJump = emitJump(OP_JUMP_IF_TRUE_OR_POP);
 
 	if (varCount > 1) {
 		EMIT_CONSTANT_OP(OP_GET_LOCAL, loopInd);
@@ -2408,8 +2424,7 @@ static void generatorInner(KrkScanner scannerBefore, Parser parserBefore, void (
 
 	if (match(TOKEN_IF)) {
 		parsePrecedence(PREC_OR);
-		int acceptJump = emitJump(OP_JUMP_IF_TRUE);
-		emitByte(OP_POP); /* Pop condition */
+		int acceptJump = emitJump(OP_JUMP_IF_TRUE_OR_POP);
 		emitLoop(loopStart);
 		patchJump(acceptJump);
 		emitByte(OP_POP); /* Pop condition */
@@ -2682,14 +2697,17 @@ ParseRule krk_parseRules[] = {
 	RULE(TOKEN_POW,           NULL,     binary, PREC_EXPONENT),
 	RULE(TOKEN_MODULO,        NULL,     binary, PREC_FACTOR),
 	RULE(TOKEN_BANG,          bitunary, NULL,   PREC_NONE),
-	RULE(TOKEN_BANG_EQUAL,    NULL,     binary, PREC_COMPARISON),
 	RULE(TOKEN_EQUAL,         NULL,     NULL,   PREC_NONE),
 	RULE(TOKEN_WALRUS,        NULL,     NULL,   PREC_NONE),
-	RULE(TOKEN_EQUAL_EQUAL,   NULL,     binary, PREC_COMPARISON),
-	RULE(TOKEN_GREATER,       NULL,     binary, PREC_COMPARISON),
-	RULE(TOKEN_GREATER_EQUAL, NULL,     binary, PREC_COMPARISON),
-	RULE(TOKEN_LESS,          NULL,     binary, PREC_COMPARISON),
-	RULE(TOKEN_LESS_EQUAL,    NULL,     binary, PREC_COMPARISON),
+	RULE(TOKEN_BANG_EQUAL,    NULL,     compare, PREC_COMPARISON),
+	RULE(TOKEN_EQUAL_EQUAL,   NULL,     compare, PREC_COMPARISON),
+	RULE(TOKEN_GREATER,       NULL,     compare, PREC_COMPARISON),
+	RULE(TOKEN_GREATER_EQUAL, NULL,     compare, PREC_COMPARISON),
+	RULE(TOKEN_LESS,          NULL,     compare, PREC_COMPARISON),
+	RULE(TOKEN_LESS_EQUAL,    NULL,     compare, PREC_COMPARISON),
+	RULE(TOKEN_IN,            NULL,     compare, PREC_COMPARISON),
+	RULE(TOKEN_NOT,           unot_,    compare, PREC_COMPARISON),
+	RULE(TOKEN_IS,            NULL,     compare, PREC_COMPARISON),
 	RULE(TOKEN_IDENTIFIER,    variable, NULL,   PREC_NONE),
 	RULE(TOKEN_STRING,        string,   NULL,   PREC_NONE),
 	RULE(TOKEN_BIG_STRING,    string,   NULL,   PREC_NONE),
@@ -2704,11 +2722,8 @@ ParseRule krk_parseRules[] = {
 	RULE(TOKEN_DEF,           NULL,     NULL,   PREC_NONE),
 	RULE(TOKEN_DEL,           NULL,     NULL,   PREC_NONE),
 	RULE(TOKEN_IF,            NULL,     ternary,PREC_TERNARY),
-	RULE(TOKEN_IN,            NULL,     in_,    PREC_COMPARISON),
 	RULE(TOKEN_LET,           NULL,     NULL,   PREC_NONE),
 	RULE(TOKEN_NONE,          literal,  NULL,   PREC_NONE),
-	RULE(TOKEN_NOT,           unot_,    not_,   PREC_COMPARISON),
-	RULE(TOKEN_IS,            NULL,     is_,    PREC_COMPARISON),
 	RULE(TOKEN_OR,            NULL,     or_,    PREC_OR),
 	RULE(TOKEN_RETURN,        NULL,     NULL,   PREC_NONE),
 	RULE(TOKEN_SELF,          self,     NULL,   PREC_NONE),
@@ -2759,8 +2774,7 @@ static void actualTernary(size_t count, KrkScanner oldScanner, Parser oldParser)
 
 	parsePrecedence(PREC_OR);
 
-	int thenJump = emitJump(OP_JUMP_IF_TRUE);
-	emitByte(OP_POP); /* Pop the condition */
+	int thenJump = emitJump(OP_JUMP_IF_TRUE_OR_POP);
 	consume(TOKEN_ELSE, "Expected 'else' after ternary condition");
 
 	parsePrecedence(PREC_TERNARY);
@@ -3075,8 +3089,7 @@ static void call(int canAssign) {
 }
 
 static void and_(int canAssign) {
-	int endJump = emitJump(OP_JUMP_IF_FALSE);
-	emitByte(OP_POP);
+	int endJump = emitJump(OP_JUMP_IF_FALSE_OR_POP);
 	parsePrecedence(PREC_AND);
 	patchJump(endJump);
 }
@@ -3086,8 +3099,7 @@ static void ternary(int canAssign) {
 }
 
 static void or_(int canAssign) {
-	int endJump = emitJump(OP_JUMP_IF_TRUE);
-	emitByte(OP_POP);
+	int endJump = emitJump(OP_JUMP_IF_TRUE_OR_POP);
 	parsePrecedence(PREC_OR);
 	patchJump(endJump);
 }
