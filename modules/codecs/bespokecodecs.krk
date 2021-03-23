@@ -1,5 +1,5 @@
-from codecs.infrastructure import register_kuroko_codec, ByteCatenator, StringCatenator, UnicodeEncodeError, UnicodeDecodeError, lookup_error, lookup, IncrementalDecoder, IncrementalEncoder
-from codecs.dbdata import encode_jis7, decode_jis7, decode_jis7katakana, encode_gbk, decode_gbk, gb_surrogate_ranges
+from codecs.infrastructure import register_kuroko_codec, ByteCatenator, StringCatenator, UnicodeEncodeError, UnicodeDecodeError, lookup_error, lookup, IncrementalDecoder, IncrementalEncoder, lazy_property
+from codecs.dbdata import more_dbdata
 
 class Gb18030IncrementalEncoder(IncrementalEncoder):
     name = "gb18030"
@@ -18,8 +18,8 @@ class Gb18030IncrementalEncoder(IncrementalEncoder):
             else if (not self.four_byte_codes) and (ord(i) == 0x20AC):
                 out.add(b"\x80")
                 offset += 1
-            else if ord(i) in encode_gbk:
-                let target = encode_gbk[ord(i)]
+            else if ord(i) in more_dbdata.encode_gbk:
+                let target = more_dbdata.encode_gbk[ord(i)]
                 if isinstance(target, tuple):
                     for individ in target:
                         out.add(bytes([individ]))
@@ -45,7 +45,7 @@ class Gb18030IncrementalEncoder(IncrementalEncoder):
                 else:
                     let basepointer = 0
                     let basecodepoint = 0
-                    for nexttuple in gb_surrogate_ranges:
+                    for nexttuple in more_dbdata.gb_surrogate_ranges:
                         let nextpointer = nexttuple[0]
                         let nextcodepoint = nexttuple[1]
                         if nextcodepoint > ord(i):
@@ -100,8 +100,8 @@ class Gb18030IncrementalDecoder(IncrementalDecoder):
             else if bytemode == 1 and i == 0x80:
                 out.add("€")
                 offset += 1
-            else if bytemode == 2 and (leader[0], i) in decode_gbk:
-                out.add(chr(decode_gbk[(leader[0], i)]))
+            else if bytemode == 2 and (leader[0], i) in more_dbdata.decode_gbk:
+                out.add(chr(more_dbdata.decode_gbk[(leader[0], i)]))
                 offset += 1
                 bytemode = 1
                 leader = []
@@ -120,7 +120,7 @@ class Gb18030IncrementalDecoder(IncrementalDecoder):
                 else:
                     let basecodepoint = 0
                     let basepointer = 0
-                    for nexttuple in gb_surrogate_ranges:
+                    for nexttuple in more_dbdata.gb_surrogate_ranges:
                         let nextpointer = nexttuple[0]
                         let nextcodepoint = nexttuple[1]
                         if nextpointer > pointer:
@@ -162,7 +162,9 @@ class Iso2022JpIncrementalEncoder(IncrementalEncoder):
     name = "iso-2022-jp"
     html5name = "iso-2022-jp"
     encodes_sbcs = []
-    encodes_dbcs = [None, None, encode_jis7]
+    @lazy_property
+    def encodes_dbcs():
+        return [None, None, more_dbdata.encode_jis7]
     encode_supershift_latin = None
     encode_supershift_greek = None
     super_shift = False
@@ -272,8 +274,12 @@ class Iso2022JpIncrementalEncoder(IncrementalEncoder):
 class Iso2022JpIncrementalDecoder(IncrementalDecoder):
     name = "iso-2022-jp"
     html5name = "iso-2022-jp"
-    decodes_sbcs = [None, None, decode_jis7katakana]
-    decodes_dbcs = [None, None, None, decode_jis7]
+    @lazy_property
+    def decodes_sbcs():
+        return [None, None, more_dbdata.decode_jis7katakana]
+    @lazy_property
+    def decodes_dbcs():
+        return [None, None, None, more_dbdata.decode_jis7]
     decode_shiftout = None
     decode_supershift_latin = None
     decode_supershift_greek = None

@@ -7,11 +7,11 @@ from codecs.dbextra_data_8bit import encode_gb8, decode_gb8, encode_nbyte_ebcdic
 from codecs.dbextra_data_7bit import encode_lat1supp, decode_lat1supp, encode_greksupp, decode_greksupp, encode_jis78, decode_jis78, encode_jis90p2, decode_jis90p2, encode_jis00, decode_jis00, encode_jis00p2, decode_jis00p2, encode_jis04, decode_jis04, encode_jis7katakana, encode_gb7, decode_gb7, encode_ksc7, decode_ksc7, encode_csic1, decode_csic1, encode_csic2, decode_csic2
 
 from codecs.infrastructure import register_kuroko_codec, ByteCatenator, StringCatenator, UnicodeEncodeError, UnicodeDecodeError, lookup_error, lookup, BaseEbcdicIncrementalEncoder, BaseEbcdicIncrementalDecoder, AsciiIncrementalEncoder, AsciiIncrementalDecoder, IncrementalEncoder, IncrementalDecoder
-from codecs.dbdata import encode_jis7, decode_jis7, decode_jis7katakana, XEucJpIncrementalDecoder, Big5EtenIncrementalEncoder, Big5HkscsIncrementalDecoder, encode_gbk, decode_gbk
+from codecs.dbdata import more_dbdata, XEucJpIncrementalDecoder, Big5EtenIncrementalEncoder, Big5HkscsIncrementalDecoder
 from codecs.bespokecodecs import Iso2022JpIncrementalEncoder, Iso2022JpIncrementalDecoder, Utf8IncrementalDecoder, Utf16BeIncrementalEncoder, Utf16BeIncrementalDecoder, Utf8SigIncrementalEncoder
 from collections import xraydict
 
-let cp950_no_eudc_encoding_map = xraydict(Big5EtenIncrementalEncoder.encoding_map, {
+let cp950_no_eudc_encoding_map = xraydict(Big5EtenIncrementalEncoder("strict").encoding_map, {
         0x2550: (0xA2, 0xA4),
         0x255E: (0xA2, 0xA5),
         0x256A: (0xA2, 0xA6),
@@ -20,7 +20,7 @@ let cp950_no_eudc_encoding_map = xraydict(Big5EtenIncrementalEncoder.encoding_ma
     [131210, 168, 131276, 248, 331, 339, 592, 596, 603, 618, 629, 643, 650, 710, 1025, 1040, 1041, 1042, 1043, 1044, 1045, 1046, 1047, 1048, 1049, 1050, 1051, 1052, 1053, 1054, 1055, 1056, 1057, 1058, 1059, 1060, 1061, 1062, 1063, 1064, 1065, 1066, 1067, 1068, 1069, 1070, 1071, 1072, 1073, 1074, 1075, 1076, 1077, 1078, 1079, 1080, 1081, 1082, 1083, 1084, 1085, 1086, 1087, 1088, 1089, 1090, 1091, 1092, 1093, 1094, 1095, 1096, 1105, 1097, 1098, 1099, 1100, 1101, 1102, 1103, 36789, 38582, 40880, 40881, 8470, 8481, 8560, 8561, 8562, 8563, 8564, 8565, 8566, 8567, 8568, 8569, 8632, 8633, 8679, 9312, 9313, 9314, 9315, 9316, 9317, 9318, 9319, 9320, 9321, 9332, 9333, 9334, 9335, 9336, 9337, 9338, 9339, 9340, 9341, 10045, 11904, 11908, 11910, 11911, 11912, 11914, 11916, 11917, 11925, 11932, 11933, 11941, 11943, 11946, 11948, 11950, 11958, 11964, 11966, 11974, 11978, 11980, 11981, 11983, 11990, 11991, 11998, 12003, 12083, 12293, 12294, 12295, 12353, 12354, 12355, 12356, 12357, 12358, 12359, 12360, 12361, 12362, 12363, 12364, 12365, 12366, 12367, 12368, 12369, 12370, 12371, 12372, 12373, 12374, 12375, 12376, 12377, 12378, 12379, 12380, 12381, 12382, 12383, 12384, 12385, 12386, 12387, 12388, 12389, 12390, 12391, 12392, 12393, 12394, 12395, 12396, 12397, 12398, 12399, 12400, 12401, 12402, 12403, 12404, 12405, 12406, 12407, 12408, 12409, 12410, 12411, 12412, 12413, 12414, 12415, 12416, 12417, 12418, 12419, 12420, 12421, 12422, 12423, 12424, 12425, 12426, 12427, 12428, 12429, 12430, 12431, 12432, 12433, 12434, 12435, 12443, 12444, 12445, 12446, 12449, 12450, 12451, 12452, 12453, 12454, 12455, 12456, 12457, 12458, 12459, 12460, 12461, 12462, 12463, 12464, 12465, 12466, 12467, 12468, 12469, 12470, 12471, 12472, 12473, 12474, 12475, 12476, 12477, 12478, 12479, 12480, 12481, 12482, 12483, 12484, 12485, 12486, 12487, 12488, 12489, 12490, 12491, 12492, 12493, 12494, 12495, 12496, 12497, 12498, 12499, 12500, 12501, 12502, 12503, 12504, 12505, 12506, 12507, 12508, 12509, 12510, 12511, 12512, 12513, 12514, 12515, 12516, 12517, 12518, 12519, 12520, 12521, 12522, 12523, 12524, 12525, 12526, 12527, 12528, 12529, 12530, 12531, 12532, 12533, 12534, 12540, 12541, 12542, 12751, 12849, 17553, 20022, 20031, 20058, 20101, 20128, 20189, 20866, 20872, 20886, 20907, 20994, 21241, 21304, 21353, 21430, 22794, 23424, 24027, 24191, 24308, 24400, 24417, 25908, 26080, 30098, 161287, 30326, 65282, 65287, 65339, 65341, 65506, 65508]
 )
 
-let cp950_no_eudc_decoding_map = xraydict(Big5HkscsIncrementalDecoder.decoding_map, {},
+let cp950_no_eudc_decoding_map = xraydict(Big5HkscsIncrementalDecoder("strict").decoding_map, {},
     big5_coded_forms_from_hkscs)
 
 class Big5NonEtenKanaIncrementalEncoder(AsciiIncrementalEncoder):
@@ -429,7 +429,7 @@ class JisEncodingIncrementalEncoder(Iso2022JpIncrementalEncoder):
     name = "jis_encoding"
     html5name = None
     encodes_sbcs = [None, None, encode_jis7katakana]
-    encodes_dbcs = [None, None, None, encode_jis7, encode_jis78, encode_jis90p2,
+    encodes_dbcs = [None, None, None, more_dbdata.encode_jis7, encode_jis78, encode_jis90p2,
                     encode_jis00, encode_jis00p2, encode_jis04, encode_gb7, encode_ksc7]
     encode_supershift_latin = encode_lat1supp
     encode_supershift_greek = encode_greksupp
@@ -441,10 +441,10 @@ class JisEncodingIncrementalEncoder(Iso2022JpIncrementalEncoder):
 class JisEncodingIncrementalDecoder(Iso2022JpIncrementalDecoder):
     name = "jis_encoding"
     html5name = None
-    decodes_sbcs = [None, None, decode_jis7katakana]
-    decodes_dbcs = [None, None, None, decode_jis7, decode_jis78, decode_jis90p2,
+    decodes_sbcs = [None, None, more_dbdata.decode_jis7katakana]
+    decodes_dbcs = [None, None, None, more_dbdata.decode_jis7, decode_jis78, decode_jis90p2,
                     decode_jis00, decode_jis00p2, decode_jis04, decode_gb7, decode_ksc7]
-    decode_shiftout = decode_jis7katakana
+    decode_shiftout = more_dbdata.decode_jis7katakana
     decode_supershift_latin = decode_lat1supp
     decode_supershift_greek = decode_greksupp
     # 0x48 is not ASCII or JIS-Roman, but SEN 85 02 00 Annex C. It is however misused for either
@@ -466,7 +466,7 @@ class Iso2022Jp1IncrementalEncoder(Iso2022JpIncrementalEncoder):
     name = "iso-2022-jp-1"
     html5name = None
     encodes_sbcs = [None, None]
-    encodes_dbcs = [None, None, encode_jis90p2, encode_jis7]
+    encodes_dbcs = [None, None, encode_jis90p2, more_dbdata.encode_jis7]
     escs_onebyte = {0: 0x42, 1: 0x4A}
     escs_twobyte = {3: 0x42, 2: 0x44}
     attitude = "eager"
@@ -479,7 +479,7 @@ class Iso2022JpExtIncrementalEncoder(Iso2022JpIncrementalEncoder):
     name = "iso-2022-jp-ext"
     html5name = None
     encodes_sbcs = [None, None, encode_jis7katakana]
-    encodes_dbcs = [None, None, None, encode_jis90p2, encode_jis7]
+    encodes_dbcs = [None, None, None, encode_jis90p2, more_dbdata.encode_jis7]
     escs_onebyte = {0: 0x42, 1: 0x4A, 2: 0x49}
     escs_twobyte = {4: 0x42, 3: 0x44}
     attitude = "eager"
@@ -492,7 +492,7 @@ class Iso2022Jp2IncrementalEncoder(Iso2022JpIncrementalEncoder):
     name = "iso-2022-jp-2"
     html5name = None
     encodes_sbcs = [None, None]
-    encodes_dbcs = [None, None, encode_jis90p2, encode_jis7, encode_gb7, encode_ksc7]
+    encodes_dbcs = [None, None, encode_jis90p2, more_dbdata.encode_jis7, encode_gb7, encode_ksc7]
     encode_supershift_latin = encode_lat1supp
     encode_supershift_greek = encode_greksupp
     super_shift = True
@@ -513,7 +513,7 @@ register_kuroko_codec(["iso-2022-jp-2", "iso2022-jp-2", "iso2022jp-2", "csISO202
 #     This also removes certain Unicode characters that are mapped differently by Microsoft/WHATWG 
 #   versus by JIS X 0213, e.g. the fullwidth tilde, in the hope that the JIS X 0213 tables would
 #   more dependably round trip.
-let encode_jis7_reduced = xraydict(encode_jis7, {}, [33537, 33634, 33663, 33735, 33864, 33972, 34012, 34131, 34137, 34224, 35061, 35100, 35346, 35383, 35449, 35495, 35518, 35551, 35574, 35711, 36080, 36084, 36114, 20008, 20193, 20224, 20227, 20310, 20362, 20370, 20372, 20378, 20425, 20544, 20514, 20510, 20550, 20546, 20592, 20628, 37086, 37141, 37159, 20810, 20893, 37335, 37338, 37357, 37358, 37348, 37349, 37386, 37392, 21013, 37434, 37436, 37440, 37433, 37454, 37457, 37465, 37479, 37496, 37512, 21158, 37543, 21167, 37584, 37587, 37591, 21211, 37593, 37600, 37607, 37625, 21248, 37627, 21255, 37631, 37634, 37662, 37661, 21284, 37669, 37665, 37704, 37719, 37744, 21395, 21426, 37830, 37854, 37957, 21642, 21660, 21673, 21759, 21894, 38557, 38575, 38707, 38715, 38733, 38735, 38741, 22444, 22472, 22471, 38999, 39013, 22686, 22795, 22875, 22877, 39326, 22948, 39502, 39644, 23382, 39794, 39797, 39823, 39857, 23488, 23512, 23532, 39936, 23582, 23718, 23738, 23847, 23874, 23891, 40299, 23917, 40304, 23992, 23993, 40473, 40657, 24372, 24389, 24423, 24503, 24542, 24714, 24789, 24818, 8470, 8481, 24880, 24887, 8544, 8545, 8546, 8547, 8548, 8549, 8550, 8551, 8552, 8553, 8560, 8561, 8562, 8563, 8564, 8565, 8566, 8567, 8568, 8569, 24984, 8721, 8730, 8735, 8736, 8741, 8745, 8746, 8747, 8750, 8757, 8786, 8801, 8869, 25254, 8895, 25589, 9312, 9313, 9314, 9315, 9316, 9317, 9318, 9319, 9320, 9321, 9322, 9323, 9324, 9325, 9326, 9327, 9328, 9329, 9330, 9331, 25696, 25757, 25806, 26112, 26121, 26133, 26142, 26148, 26161, 26199, 26201, 26213, 26227, 26265, 26272, 26290, 26303, 26362, 26363, 26470, 26555, 26560, 26625, 26692, 26706, 26824, 26831, 26984, 27032, 27106, 27184, 27206, 27243, 27251, 27262, 27364, 27606, 27711, 27740, 27782, 27866, 27908, 28039, 28076, 28111, 28156, 28199, 28220, 28252, 28351, 28552, 28597, 28661, 12317, 12319, 28677, 28679, 28712, 28859, 28805, 28843, 28943, 28932, 28998, 28999, 29020, 29121, 29182, 12849, 12850, 12857, 12964, 12965, 12966, 12967, 12968, 29361, 29374, 13059, 13069, 13076, 13080, 13090, 13091, 13094, 13095, 13099, 13110, 13115, 13129, 13130, 13133, 13137, 13143, 29559, 13179, 13180, 13181, 13182, 13198, 13199, 13212, 13213, 13214, 13217, 13252, 29641, 13261, 29654, 29667, 29703, 29734, 29738, 29742, 29794, 29833, 29855, 29953, 29999, 30063, 30363, 30364, 30366, 30374, 30534, 30753, 30798, 30820, 63785, 31024, 31124, 31131, 63964, 64015, 64016, 64017, 64019, 64020, 64021, 64022, 64025, 64026, 64027, 64031, 64032, 64033, 64034, 64036, 64038, 31441, 31463, 31467, 31646, 32072, 32092, 32160, 32183, 32214, 32338, 32394, 65282, 65287, 65293, 65374, 32583, 65508])
+let encode_jis7_reduced = xraydict(more_dbdata.encode_jis7, {}, [33537, 33634, 33663, 33735, 33864, 33972, 34012, 34131, 34137, 34224, 35061, 35100, 35346, 35383, 35449, 35495, 35518, 35551, 35574, 35711, 36080, 36084, 36114, 20008, 20193, 20224, 20227, 20310, 20362, 20370, 20372, 20378, 20425, 20544, 20514, 20510, 20550, 20546, 20592, 20628, 37086, 37141, 37159, 20810, 20893, 37335, 37338, 37357, 37358, 37348, 37349, 37386, 37392, 21013, 37434, 37436, 37440, 37433, 37454, 37457, 37465, 37479, 37496, 37512, 21158, 37543, 21167, 37584, 37587, 37591, 21211, 37593, 37600, 37607, 37625, 21248, 37627, 21255, 37631, 37634, 37662, 37661, 21284, 37669, 37665, 37704, 37719, 37744, 21395, 21426, 37830, 37854, 37957, 21642, 21660, 21673, 21759, 21894, 38557, 38575, 38707, 38715, 38733, 38735, 38741, 22444, 22472, 22471, 38999, 39013, 22686, 22795, 22875, 22877, 39326, 22948, 39502, 39644, 23382, 39794, 39797, 39823, 39857, 23488, 23512, 23532, 39936, 23582, 23718, 23738, 23847, 23874, 23891, 40299, 23917, 40304, 23992, 23993, 40473, 40657, 24372, 24389, 24423, 24503, 24542, 24714, 24789, 24818, 8470, 8481, 24880, 24887, 8544, 8545, 8546, 8547, 8548, 8549, 8550, 8551, 8552, 8553, 8560, 8561, 8562, 8563, 8564, 8565, 8566, 8567, 8568, 8569, 24984, 8721, 8730, 8735, 8736, 8741, 8745, 8746, 8747, 8750, 8757, 8786, 8801, 8869, 25254, 8895, 25589, 9312, 9313, 9314, 9315, 9316, 9317, 9318, 9319, 9320, 9321, 9322, 9323, 9324, 9325, 9326, 9327, 9328, 9329, 9330, 9331, 25696, 25757, 25806, 26112, 26121, 26133, 26142, 26148, 26161, 26199, 26201, 26213, 26227, 26265, 26272, 26290, 26303, 26362, 26363, 26470, 26555, 26560, 26625, 26692, 26706, 26824, 26831, 26984, 27032, 27106, 27184, 27206, 27243, 27251, 27262, 27364, 27606, 27711, 27740, 27782, 27866, 27908, 28039, 28076, 28111, 28156, 28199, 28220, 28252, 28351, 28552, 28597, 28661, 12317, 12319, 28677, 28679, 28712, 28859, 28805, 28843, 28943, 28932, 28998, 28999, 29020, 29121, 29182, 12849, 12850, 12857, 12964, 12965, 12966, 12967, 12968, 29361, 29374, 13059, 13069, 13076, 13080, 13090, 13091, 13094, 13095, 13099, 13110, 13115, 13129, 13130, 13133, 13137, 13143, 29559, 13179, 13180, 13181, 13182, 13198, 13199, 13212, 13213, 13214, 13217, 13252, 29641, 13261, 29654, 29667, 29703, 29734, 29738, 29742, 29794, 29833, 29855, 29953, 29999, 30063, 30363, 30364, 30366, 30374, 30534, 30753, 30798, 30820, 63785, 31024, 31124, 31131, 63964, 64015, 64016, 64017, 64019, 64020, 64021, 64022, 64025, 64026, 64027, 64031, 64032, 64033, 64034, 64036, 64038, 31441, 31463, 31467, 31646, 32072, 32092, 32160, 32183, 32214, 32338, 32394, 65282, 65287, 65293, 65374, 32583, 65508])
 
 
 class Iso2022Jp3IncrementalEncoder(Iso2022JpIncrementalEncoder):

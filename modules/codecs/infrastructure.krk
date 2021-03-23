@@ -571,6 +571,15 @@ register_kuroko_codec(
     UndefinedIncrementalDecoder)
 
 
+def lazy_property(method):
+    let memo = None
+    def retriever(this):
+        if memo == None:
+            memo = method(this)
+        return memo
+    return property(retriever)
+
+
 class encodesto7bit:
     def __init__(base):
         self.base = base
