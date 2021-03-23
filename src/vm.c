@@ -479,7 +479,7 @@ static int checkArgumentCount(KrkClosure * closure, int argCount) {
 	int maxArgs = minArgs + closure->function->keywordArgs;
 	if (argCount < minArgs || argCount > maxArgs) {
 		krk_runtimeError(vm.exceptions->argumentError, "%s() takes %s %d argument%s (%d given)",
-		closure->function->name ? closure->function->name->chars : "<unnamed function>",
+		closure->function->name ? closure->function->name->chars : "<unnamed>",
 		(minArgs == maxArgs) ? "exactly" : (argCount < minArgs ? "at least" : "at most"),
 		(argCount < minArgs) ? minArgs : maxArgs,
 		((argCount < minArgs) ? minArgs : maxArgs) == 1 ? "" : "s",
@@ -491,10 +491,10 @@ static int checkArgumentCount(KrkClosure * closure, int argCount) {
 
 static void multipleDefs(KrkClosure * closure, int destination) {
 	krk_runtimeError(vm.exceptions->typeError, "%s() got multiple values for argument '%s'",
-		closure->function->name ? closure->function->name->chars : "<unnamed function>",
+		closure->function->name ? closure->function->name->chars : "<unnamed>",
 		(destination < closure->function->requiredArgs ? AS_CSTRING(closure->function->requiredArgNames.values[destination]) :
 			(destination - closure->function->requiredArgs < closure->function->keywordArgs ? AS_CSTRING(closure->function->keywordArgNames.values[destination - closure->function->requiredArgs]) :
-				"(unnamed arg)")));
+				"<unnamed>")));
 }
 
 #undef unpackError
@@ -664,7 +664,7 @@ static int call(KrkClosure * closure, int argCount, int extra) {
 				}
 				if (!closure->function->collectsKeywords) {
 					krk_runtimeError(vm.exceptions->typeError, "%s() got an unexpected keyword argument '%s'",
-						closure->function->name ? closure->function->name->chars : "<unnamed function>",
+						closure->function->name ? closure->function->name->chars : "<unnamed>",
 						AS_CSTRING(name));
 					goto _errorAfterPositionals;
 				}
@@ -689,7 +689,7 @@ _finishKwarg:
 		for (size_t i = 0; i < (size_t)closure->function->requiredArgs; ++i) {
 			if (IS_KWARGS(krk_currentThread.stackTop[-argCount + i])) {
 				krk_runtimeError(vm.exceptions->typeError, "%s() missing required positional argument: '%s'",
-					closure->function->name ? closure->function->name->chars : "<unnamed function>",
+					closure->function->name ? closure->function->name->chars : "<unnamed>",
 					AS_CSTRING(closure->function->requiredArgNames.values[i]));
 				goto _errorAfterKeywords;
 			}

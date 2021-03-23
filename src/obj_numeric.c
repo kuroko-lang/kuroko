@@ -26,7 +26,7 @@ KRK_METHOD(int,__init__,{
 	if (IS_STRING(argv[1])) return krk_string_int(argc-1,&argv[1],0);
 	if (IS_FLOATING(argv[1])) return INTEGER_VAL(AS_FLOATING(argv[1]));
 	if (IS_BOOLEAN(argv[1])) return INTEGER_VAL(AS_BOOLEAN(argv[1]));
-	return krk_runtimeError(vm.exceptions->typeError, "int() argument must be a string or a number, not '%s'", krk_typeName(argv[1]));
+	return krk_runtimeError(vm.exceptions->typeError, "%s() argument must be a string or a number, not '%s'", "int", krk_typeName(argv[1]));
 })
 
 KRK_METHOD(int,__str__,{
@@ -50,12 +50,11 @@ KRK_METHOD(int,__chr__,{
 KRK_METHOD(float,__init__,{
 	METHOD_TAKES_AT_MOST(1);
 	if (argc < 2) return FLOATING_VAL(0.0);
-	if (argc > 2) return krk_runtimeError(vm.exceptions->argumentError, "float() takes at most 1 argument");
 	if (IS_STRING(argv[1])) return krk_string_float(1,&argv[1],0);
 	if (IS_FLOATING(argv[1])) return argv[1];
 	if (IS_INTEGER(argv[1])) return FLOATING_VAL(AS_INTEGER(argv[1]));
 	if (IS_BOOLEAN(argv[1])) return FLOATING_VAL(AS_BOOLEAN(argv[1]));
-	return krk_runtimeError(vm.exceptions->typeError, "float() argument must be a string or a number, not '%s'", krk_typeName(argv[1]));
+	return krk_runtimeError(vm.exceptions->typeError, "%s() argument must be a string or a number, not '%s'", "float", krk_typeName(argv[1]));
 })
 
 KRK_METHOD(float,__int__,{ return INTEGER_VAL(self); })

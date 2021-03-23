@@ -75,7 +75,7 @@ KRK_METHOD(function,__str__,{
 		name = FUNC_NAME(function,__name__)(1,&self,0);
 	}
 
-	if (!IS_STRING(name)) name = OBJECT_VAL(S("<unknown>"));
+	if (!IS_STRING(name)) name = OBJECT_VAL(S("<unnamed>"));
 
 	pushStringBuilderStr(&sb, AS_CSTRING(name), AS_STRING(name)->length);
 

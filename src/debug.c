@@ -561,11 +561,11 @@ KRK_FUNC(dis,{
 
 	if (IS_CLOSURE(argv[0])) {
 		KrkCodeObject * func = AS_CLOSURE(argv[0])->function;
-		krk_disassembleCodeObject(stdout, func, func->name ? func->name->chars : "(unnamed)");
+		krk_disassembleCodeObject(stdout, func, func->name ? func->name->chars : "<unnamed>");
 	} else if (IS_BOUND_METHOD(argv[0])) {
 		if (AS_BOUND_METHOD(argv[0])->method->type == KRK_OBJ_CLOSURE) {
 			KrkCodeObject * func = ((KrkClosure*)AS_BOUND_METHOD(argv[0])->method)->function;
-			const char * methodName = func->name ? func->name->chars : "(unnamed)";
+			const char * methodName = func->name ? func->name->chars : "<unnamed>";
 			const char * typeName = IS_CLASS(AS_BOUND_METHOD(argv[0])->receiver) ? AS_CLASS(AS_BOUND_METHOD(argv[0])->receiver)->name->chars : krk_typeName(AS_BOUND_METHOD(argv[0])->receiver);
 			size_t allocSize = strlen(methodName) + strlen(typeName) + 2;
 			char * tmp = malloc(allocSize);
