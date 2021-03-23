@@ -485,8 +485,9 @@ KRK_FUNC(max,{
 })
 #undef unpackArray
 
-static KrkValue _print(int argc, KrkValue argv[], int hasKw) {
-	KrkValue sepVal, endVal;
+KRK_FUNC(print,{
+	KrkValue sepVal;
+	KrkValue endVal;
 	char * sep = " "; size_t sepLen = 1;
 	char * end = "\n"; size_t endLen = 1;
 	if (hasKw) {
@@ -516,8 +517,7 @@ static KrkValue _print(int argc, KrkValue argv[], int hasKw) {
 			fputc(thingToPrint[j], stdout);
 		}
 	}
-	return NONE_VAL();
-}
+})
 
 /**
  * globals()
@@ -1028,7 +1028,7 @@ void _createAndBind_builtins(void) {
 	BUILTIN_FUNCTION("dir", FUNC_NAME(krk,dir), "Return a list of known property names for a given object.");
 	BUILTIN_FUNCTION("len", FUNC_NAME(krk,len), "Return the length of a given sequence object.");
 	BUILTIN_FUNCTION("repr", FUNC_NAME(krk,repr), "Produce a string representation of the given object.");
-	BUILTIN_FUNCTION("print", _print,
+	BUILTIN_FUNCTION("print", FUNC_NAME(krk,print),
 		"@brief Print text to the standard output.\n"
 		"@arguments *args,sep=' ',end='\\n'\n\n"
 		"Prints the string representation of each argument to the standard output. "
