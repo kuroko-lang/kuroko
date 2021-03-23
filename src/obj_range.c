@@ -15,105 +15,97 @@ struct Range {
 	krk_integer_type min;
 	krk_integer_type max;
 };
-
-static KrkValue _range_init(int argc, KrkValue argv[], int hasKw) {
-	KrkInstance * self = AS_INSTANCE(argv[0]);
-	if (argc < 2 || argc > 3) {
-		return krk_runtimeError(vm.exceptions->argumentError, "range expected at least 1 and and at most 2 arguments");
-	}
-	KrkValue min = INTEGER_VAL(0);
-	KrkValue max;
-	if (argc == 2) {
-		max = argv[1];
-	} else {
-		min = argv[1];
-		max = argv[2];
-	}
-	if (!IS_INTEGER(min)) {
-		return krk_runtimeError(vm.exceptions->typeError, "range: expected int, but got '%s'", krk_typeName(min));
-	}
-	if (!IS_INTEGER(max)) {
-		return krk_runtimeError(vm.exceptions->typeError, "range: expected int, but got '%s'", krk_typeName(max));
-	}
-
-	((struct Range*)self)->min = AS_INTEGER(min);
-	((struct Range*)self)->max = AS_INTEGER(max);
-
-	return argv[0];
-}
-
-static KrkValue _range_repr(int argc, KrkValue argv[], int hasKw) {
-	KrkInstance * self = AS_INSTANCE(argv[0]);
-
-	krk_integer_type min = ((struct Range*)self)->min;
-	krk_integer_type max = ((struct Range*)self)->max;
-
-	krk_push(OBJECT_VAL(S("range({},{})")));
-	KrkValue output = krk_string_format(3, (KrkValue[]){krk_peek(0), INTEGER_VAL(min), INTEGER_VAL(max)}, 0);
-	krk_pop();
-	return output;
-}
+static KrkClass * range = NULL;
+#define IS_range(o)   (krk_isInstanceOf(o,range))
+#define AS_range(o)   ((struct Range*)AS_OBJECT(o))
 
 struct RangeIterator {
 	KrkInstance inst;
 	krk_integer_type i;
 	krk_integer_type max;
 };
+static KrkClass * rangeiterator = NULL;
+#define IS_rangeiterator(o) (krk_isInstanceOf(o,rangeiterator))
+#define AS_rangeiterator(o) ((struct RangeIterator*)AS_OBJECT(o))
 
-static KrkValue _rangeiterator_init(int argc, KrkValue argv[], int hasKw) {
-	KrkInstance * self = AS_INSTANCE(argv[0]);
+FUNC_SIG(rangeiterator,__init__);
 
-	((struct RangeIterator*)self)->i = AS_INTEGER(argv[1]);
-	((struct RangeIterator*)self)->max = AS_INTEGER(argv[2]);
+#define CURRENT_NAME  self
+#define CURRENT_CTYPE struct Range *
 
-	return argv[0];
-}
-
-static KrkValue _rangeiterator_call(int argc, KrkValue argv[], int hasKw) {
-	KrkInstance * self = AS_INSTANCE(argv[0]);
-
-	krk_integer_type i, max;
-	i = ((struct RangeIterator*)self)->i;
-	max = ((struct RangeIterator*)self)->max;
-
-	if (i >= max) {
-		return argv[0];
+KRK_METHOD(range,__init__,{
+	METHOD_TAKES_AT_LEAST(1);
+	METHOD_TAKES_AT_MOST(2);
+	self->min = 0;
+	if (argc == 2) {
+		CHECK_ARG(1,int,krk_integer_type,_max);
+		self->max = _max;
 	} else {
-		((struct RangeIterator*)self)->i = i + 1;
-		return INTEGER_VAL(i);
+		CHECK_ARG(1,int,krk_integer_type,_min);
+		CHECK_ARG(2,int,krk_integer_type,_max);
+		self->min = _min;
+		self->max = _max;
 	}
-}
+	return argv[0];
+})
 
-static KrkValue _range_iter(int argc, KrkValue argv[], int hasKw) {
-	KrkInstance * self = AS_INSTANCE(argv[0]);
+KRK_METHOD(range,__repr__,{
+	METHOD_TAKES_NONE();
+	krk_integer_type min = self->min;
+	krk_integer_type max = self->max;
+	char tmp[1024];
+	size_t len = snprintf(tmp,1024,"range(" PRIkrk_int "," PRIkrk_int ")", min, max);
+	return OBJECT_VAL(krk_copyString(tmp,len));
+})
 
-	KrkInstance * output = krk_newInstance(vm.baseClasses->rangeiteratorClass);
-	krk_integer_type min = ((struct Range*)self)->min;
-	krk_integer_type max = ((struct Range*)self)->max;
+KRK_METHOD(range,__iter__,{
+	KrkInstance * output = krk_newInstance(rangeiterator);
+	krk_integer_type min = self->min;
+	krk_integer_type max = self->max;
 
 	krk_push(OBJECT_VAL(output));
-	_rangeiterator_init(3, (KrkValue[]){krk_peek(0), INTEGER_VAL(min), INTEGER_VAL(max)},0);
+	FUNC_NAME(rangeiterator,__init__)(3, (KrkValue[]){krk_peek(0), INTEGER_VAL(min), INTEGER_VAL(max)},0);
 	krk_pop();
 
 	return OBJECT_VAL(output);
-}
+})
 
+#undef CURRENT_CTYPE
+#define CURRENT_CTYPE struct RangeIterator *
+
+KRK_METHOD(rangeiterator,__init__,{
+	METHOD_TAKES_EXACTLY(2);
+	self->i = AS_INTEGER(argv[1]);
+	self->max = AS_INTEGER(argv[2]);
+	return argv[0];
+})
+
+KRK_METHOD(rangeiterator,__call__,{
+	METHOD_TAKES_NONE();
+	krk_integer_type i = self->i;
+	if (i >= self->max) {
+		return argv[0];
+	} else {
+		self->i = i + 1;
+		return INTEGER_VAL(i);
+	}
+})
 
 _noexport
 void _createAndBind_rangeClass(void) {
-	ADD_BASE_CLASS(vm.baseClasses->rangeClass, "range", vm.baseClasses->objectClass);
-	vm.baseClasses->rangeClass->allocSize = sizeof(struct Range);
-	krk_defineNative(&vm.baseClasses->rangeClass->methods, ".__init__", _range_init);
-	krk_defineNative(&vm.baseClasses->rangeClass->methods, ".__iter__", _range_iter);
-	krk_defineNative(&vm.baseClasses->rangeClass->methods, ".__repr__", _range_repr);
-	krk_finalizeClass(vm.baseClasses->rangeClass);
-	KRK_DOC(vm.baseClasses->rangeClass, "range(max), range(min, max[, step]): "
+	range = ADD_BASE_CLASS(vm.baseClasses->rangeClass, "range", vm.baseClasses->objectClass);
+	range->allocSize = sizeof(struct Range);
+	BIND_METHOD(range,__init__);
+	BIND_METHOD(range,__iter__);
+	BIND_METHOD(range,__repr__);
+	KRK_DOC(range, "@brief range(max), range(min, max[, step]): "
 		"An iterable object that produces numeric values. "
 		"'min' is inclusive, 'max' is exclusive.");
+	krk_finalizeClass(range);
 
-	ADD_BASE_CLASS(vm.baseClasses->rangeiteratorClass, "rangeiterator", vm.baseClasses->objectClass);
-	vm.baseClasses->rangeiteratorClass->allocSize = sizeof(struct RangeIterator);
-	krk_defineNative(&vm.baseClasses->rangeiteratorClass->methods, ".__init__", _rangeiterator_init);
-	krk_defineNative(&vm.baseClasses->rangeiteratorClass->methods, ".__call__", _rangeiterator_call);
-	krk_finalizeClass(vm.baseClasses->rangeiteratorClass);
+	rangeiterator = ADD_BASE_CLASS(vm.baseClasses->rangeiteratorClass, "rangeiterator", vm.baseClasses->objectClass);
+	rangeiterator->allocSize = sizeof(struct RangeIterator);
+	BIND_METHOD(rangeiterator,__init__);
+	BIND_METHOD(rangeiterator,__call__);
+	krk_finalizeClass(rangeiterator);
 }
