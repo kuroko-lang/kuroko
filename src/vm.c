@@ -430,31 +430,6 @@ void krk_finalizeClass(KrkClass * _class) {
 }
 
 /**
- * __builtins__.set_tracing(mode)
- *
- * Takes either one string "mode=value" or `n` keyword args mode=value.
- */
-static KrkValue krk_set_tracing(int argc, KrkValue argv[], int hasKw) {
-#ifdef DEBUG
-	if (hasKw) {
-		KrkValue test;
-		if (krk_tableGet(AS_DICT(argv[argc]), OBJECT_VAL(S("tracing")), &test) && IS_INTEGER(test)) {
-			if (AS_INTEGER(test) == 1) krk_currentThread.flags |= KRK_THREAD_ENABLE_TRACING; else krk_currentThread.flags &= ~KRK_THREAD_ENABLE_TRACING; }
-		if (krk_tableGet(AS_DICT(argv[argc]), OBJECT_VAL(S("disassembly")), &test) && IS_INTEGER(test)) {
-			if (AS_INTEGER(test) == 1) krk_currentThread.flags |= KRK_THREAD_ENABLE_DISASSEMBLY; else krk_currentThread.flags &= ~KRK_THREAD_ENABLE_DISASSEMBLY; }
-		if (krk_tableGet(AS_DICT(argv[argc]), OBJECT_VAL(S("scantracing")), &test) && IS_INTEGER(test)) {
-			if (AS_INTEGER(test) == 1) krk_currentThread.flags |= KRK_THREAD_ENABLE_SCAN_TRACING; else krk_currentThread.flags &= ~KRK_THREAD_ENABLE_SCAN_TRACING; }
-
-		if (krk_tableGet(AS_DICT(argv[argc]), OBJECT_VAL(S("stressgc")), &test) && IS_INTEGER(test)) {
-			if (AS_INTEGER(test) == 1) vm.globalFlags |= KRK_GLOBAL_ENABLE_STRESS_GC; else krk_currentThread.flags &= ~KRK_GLOBAL_ENABLE_STRESS_GC; }
-	}
-	return BOOLEAN_VAL(1);
-#else
-	return krk_runtimeError(vm.exceptions->typeError,"Debugging is not enabled in this build.");
-#endif
-}
-
-/**
  * Maps values to their base classes.
  * Internal version of type().
  */
@@ -1031,7 +1006,29 @@ int krk_isFalsey(KrkValue value) {
 	return 0; /* Assume anything else is truthy */
 }
 
-static KrkValue krk_getsize(int argc, KrkValue argv[], int hasKw) {
+#ifdef DEBUG
+KRK_FUNC(set_tracing,{
+	if (hasKw) {
+		KrkValue test;
+		if (krk_tableGet(AS_DICT(argv[argc]), OBJECT_VAL(S("tracing")), &test) && IS_INTEGER(test)) {
+			if (AS_INTEGER(test) == 1) krk_currentThread.flags |= KRK_THREAD_ENABLE_TRACING; else krk_currentThread.flags &= ~KRK_THREAD_ENABLE_TRACING; }
+		if (krk_tableGet(AS_DICT(argv[argc]), OBJECT_VAL(S("disassembly")), &test) && IS_INTEGER(test)) {
+			if (AS_INTEGER(test) == 1) krk_currentThread.flags |= KRK_THREAD_ENABLE_DISASSEMBLY; else krk_currentThread.flags &= ~KRK_THREAD_ENABLE_DISASSEMBLY; }
+		if (krk_tableGet(AS_DICT(argv[argc]), OBJECT_VAL(S("scantracing")), &test) && IS_INTEGER(test)) {
+			if (AS_INTEGER(test) == 1) krk_currentThread.flags |= KRK_THREAD_ENABLE_SCAN_TRACING; else krk_currentThread.flags &= ~KRK_THREAD_ENABLE_SCAN_TRACING; }
+
+		if (krk_tableGet(AS_DICT(argv[argc]), OBJECT_VAL(S("stressgc")), &test) && IS_INTEGER(test)) {
+			if (AS_INTEGER(test) == 1) vm.globalFlags |= KRK_GLOBAL_ENABLE_STRESS_GC; else krk_currentThread.flags &= ~KRK_GLOBAL_ENABLE_STRESS_GC; }
+	}
+	return BOOLEAN_VAL(1);
+})
+#else
+KRK_FUNC(set_tracing,{
+	return krk_runtimeError(vm.exceptions->typeError,"Debugging is not enabled in this build.");
+})
+#endif
+
+KRK_FUNC(getsizeof,{
 	if (argc < 1) return INTEGER_VAL(0);
 	if (!IS_OBJECT(argv[0])) return INTEGER_VAL(sizeof(KrkValue));
 	size_t mySize = sizeof(KrkValue);
@@ -1090,24 +1087,26 @@ static KrkValue krk_getsize(int argc, KrkValue argv[], int hasKw) {
 		default: break;
 	}
 	return INTEGER_VAL(mySize);
-}
+})
 
-static KrkValue krk_setclean(int argc, KrkValue argv[], int hasKw) {
+KRK_FUNC(set_clean_output,{
 	if (!argc || (IS_BOOLEAN(argv[0]) && AS_BOOLEAN(argv[0]))) {
 		vm.globalFlags |= KRK_GLOBAL_CLEAN_OUTPUT;
 	} else {
 		vm.globalFlags &= ~KRK_GLOBAL_CLEAN_OUTPUT;
 	}
 	return NONE_VAL();
-}
+})
 
-static KrkValue krk_import_wrapper(int argc, KrkValue argv[], int hasKw) {
-	if (!argc || !IS_STRING(argv[0])) return krk_runtimeError(vm.exceptions->typeError, "expected string");
+KRK_FUNC(importmodule,{
+	FUNCTION_TAKES_EXACTLY(1);
+	if (!IS_STRING(argv[0])) return TYPE_ERROR(str,argv[0]);
 	if (!krk_doRecursiveModuleLoad(AS_STRING(argv[0]))) return NONE_VAL(); /* ImportError already raised */
 	return krk_pop();
-}
+})
 
-static KrkValue krk_module_list(int argc, KrkValue argv[], int hasKw) {
+KRK_FUNC(modules,{
+	FUNCTION_TAKES_NONE();
 	KrkValue moduleList = krk_list_of(0,NULL,0);
 	krk_push(moduleList);
 	for (size_t i = 0; i < vm.modules.capacity; ++i) {
@@ -1116,15 +1115,15 @@ static KrkValue krk_module_list(int argc, KrkValue argv[], int hasKw) {
 		krk_writeValueArray(AS_LIST(moduleList), entry->key);
 	}
 	return krk_pop();
-}
+})
 
-static KrkValue krk_unload(int argc, KrkValue argv[], int hasKw) {
-	if (argc != 1 || !IS_STRING(argv[0])) return krk_runtimeError(vm.exceptions->typeError, "expected string");
+KRK_FUNC(unload,{
+	FUNCTION_TAKES_EXACTLY(1);
+	if (!IS_STRING(argv[0])) return TYPE_ERROR(str,argv[0]);
 	if (!krk_tableDelete(&vm.modules, argv[0])) {
 		return krk_runtimeError(vm.exceptions->keyError, "Module is not loaded.");
 	}
-	return NONE_VAL();
-}
+})
 
 void krk_initVM(int flags) {
 	vm.globalFlags = flags & 0xFF00;
@@ -1247,15 +1246,15 @@ void krk_initVM(int flags) {
 		(KrkObj*)S(KRK_VERSION_MAJOR "." KRK_VERSION_MINOR "." KRK_VERSION_PATCH KRK_VERSION_EXTRA));
 	krk_attachNamedObject(&vm.system->fields, "buildenv", (KrkObj*)S(KRK_BUILD_COMPILER));
 	krk_attachNamedObject(&vm.system->fields, "builddate", (KrkObj*)S(KRK_BUILD_DATE));
-	KRK_DOC(krk_defineNative(&vm.system->fields, "getsizeof", krk_getsize),
+	KRK_DOC(BIND_FUNC(vm.system,getsizeof),
 		"@brief Calculate the approximate size of an object in bytes.\n"
 		"@arguments value\n\n"
 		"@param value Value to examine.");
-	KRK_DOC(krk_defineNative(&vm.system->fields, "set_clean_output", krk_setclean),
+	KRK_DOC(BIND_FUNC(vm.system,set_clean_output),
 		"@brief Disables terminal escapes in some output from the VM.\n"
 		"@arguments clean=True\n\n"
 		"@param clean Whether to remove escapes.");
-	KRK_DOC(krk_defineNative(&vm.system->fields, "set_tracing", krk_set_tracing),
+	KRK_DOC(BIND_FUNC(vm.system,set_tracing),
 		"@brief Toggle debugging modes.\n"
 		"@arguments tracing=None,disassembly=None,scantracing=None,stressgc=None\n\n"
 		"Enables or disables tracing options for the current thread.\n\n"
@@ -1263,14 +1262,14 @@ void krk_initVM(int flags) {
 		"@param disassembly Prints bytecode disassembly after compilation.\n"
 		"@param scantracing Prints debug output from the token scanner during compilation.\n"
 		"@param stressgc Forces a garbage collection cycle on each heap allocation.");
-	KRK_DOC(krk_defineNative(&vm.system->fields, "importmodule", krk_import_wrapper),
+	KRK_DOC(BIND_FUNC(vm.system,importmodule),
 		"@brief Import a module by string name\n"
 		"@arguments module\n\n"
 		"Imports the dot-separated module @p module as if it were imported by the @c import statement and returns the resulting module object.\n\n"
 		"@param module A string with a dot-separated package or module name");
-	KRK_DOC(krk_defineNative(&vm.system->fields, "modules", krk_module_list),
+	KRK_DOC(BIND_FUNC(vm.system,modules),
 		"Get the list of valid names from the module table");
-	KRK_DOC(krk_defineNative(&vm.system->fields, "unload", krk_unload),
+	KRK_DOC(BIND_FUNC(vm.system,unload),
 		"Removes a module from the module table. It is not necessarily garbage collected if other references to it exist.");
 	krk_attachNamedObject(&vm.system->fields, "module", (KrkObj*)vm.baseClasses->moduleClass);
 	krk_attachNamedObject(&vm.system->fields, "path_sep", (KrkObj*)S(PATH_SEP));
