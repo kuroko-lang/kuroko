@@ -50,7 +50,7 @@ KrkTableEntry * krk_findEntry(KrkTableEntry * entries, size_t capacity, KrkValue
 	}
 }
 
-static void adjustCapacity(KrkTable * table, size_t capacity) {
+void krk_tableAdjustCapacity(KrkTable * table, size_t capacity) {
 	KrkTableEntry * entries = ALLOCATE(KrkTableEntry, capacity);
 	for (size_t i = 0; i < capacity; ++i) {
 		entries[i].key = KWARGS_VAL(0);
@@ -75,7 +75,7 @@ static void adjustCapacity(KrkTable * table, size_t capacity) {
 int krk_tableSet(KrkTable * table, KrkValue key, KrkValue value) {
 	if (table->count + 1 > table->capacity * TABLE_MAX_LOAD) {
 		size_t capacity = GROW_CAPACITY(table->capacity);
-		adjustCapacity(table, capacity);
+		krk_tableAdjustCapacity(table, capacity);
 	}
 	KrkTableEntry * entry = krk_findEntry(table->entries, table->capacity, key);
 	int isNewKey = entry->key.type == KRK_VAL_KWARGS;
