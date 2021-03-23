@@ -791,10 +791,17 @@ int krk_callValue(KrkValue callee, int argCount, int extra) {
 					krk_pop();
 					krk_push(result);
 				} else {
-					KrkValue * stackCopy = malloc(argCount * sizeof(KrkValue));
-					memcpy(stackCopy, krk_currentThread.stackTop - argCount, argCount * sizeof(KrkValue));
-					KrkValue result = native(argCount, stackCopy, 0);
-					free(stackCopy);
+					KrkValue result;
+					if (argCount < 9) {
+						KrkValue stackCopy[8];
+						memcpy(stackCopy, krk_currentThread.stackTop - argCount, argCount * sizeof(KrkValue));
+						result = native(argCount, stackCopy, 0);
+					} else {
+						KrkValue * stackCopy = malloc(argCount * sizeof(KrkValue));
+						memcpy(stackCopy, krk_currentThread.stackTop - argCount, argCount * sizeof(KrkValue));
+						result = native(argCount, stackCopy, 0);
+						free(stackCopy);
+					}
 					if (krk_currentThread.stackTop == krk_currentThread.stack) return 0;
 					krk_currentThread.stackTop -= argCount + extra;
 					krk_push(result);
