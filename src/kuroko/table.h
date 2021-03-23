@@ -151,3 +151,13 @@ extern KrkTableEntry * krk_findEntry(KrkTableEntry * entries, size_t capacity, K
  */
 extern uint32_t krk_hashValue(KrkValue value);
 
+/**
+ * @brief Preset the size of a table.
+ * @memberof KrkTable
+ *
+ * Reserves space for a large table.
+ *
+ * @param table Table to resize.
+ * @param capacity Target capacity.
+ */
+extern void krk_tableAdjustCapacity(KrkTable * table, size_t capacity);

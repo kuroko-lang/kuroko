@@ -1,6 +1,6 @@
 I am a function.
 [42]
-{'return': <class 'list'>, 'a': <class 'int'>, 'b': <class 'float'>}
+{'a': <class 'int'>, 'b': <class 'float'>, 'return': <class 'list'>}
 {'return': None, 'anint': <class 'int'>, 'self': <class '__main__.Foo'>, 'adict': 'dict[str,object]'}
 I am a method taking a dict.
 None

@@ -20,6 +20,7 @@ KrkValue krk_dict_of(int argc, KrkValue argv[], int hasKw) {
 	KrkInstance * outDict = krk_newInstance(vm.baseClasses->dictClass);
 	krk_push(OBJECT_VAL(outDict));
 	krk_initTable(&((KrkDict*)outDict)->entries);
+	krk_tableAdjustCapacity(&((KrkDict*)outDict)->entries, argc);
 	for (int ind = 0; ind < argc; ind += 2) {
 		krk_tableSet(&((KrkDict*)outDict)->entries, argv[ind], argv[ind+1]);
 	}
