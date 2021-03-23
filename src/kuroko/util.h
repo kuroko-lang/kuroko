@@ -22,60 +22,40 @@
 #define _noexport
 #endif
 
-/**
- * Binding macros.
- *
- * These macros are intended to be used together to define functions for a class.
- */
-#ifdef KRK_NO_DOCUMENTATION
-# define _method_name(f) "func"
-#else
-static inline const char * _method_name(const char * func) {
-	const char * out = func;
-	if (*out == '_') out++;
-	while (*out && *out != '_') out++;
-	if (*out == '_') out++;
-	return out;
-}
-#endif
-
 #define ADD_BASE_CLASS(obj, name, baseClass) krk_makeClass(vm.builtins, &obj, name, baseClass)
 
-/* _method_name works for this, but let's skip the inlined function call where possible */
-#define _function_name(f) (f+5)
-
 #define ATTRIBUTE_NOT_ASSIGNABLE() do { if (argc != 1) return krk_runtimeError(vm.exceptions->attributeError, "attribute '%s' is not assignable", \
-	_method_name(__func__)); } while (0)
+	_method_name); } while (0)
 
 #define METHOD_TAKES_NONE() do { if (argc != 1) return krk_runtimeError(vm.exceptions->argumentError, "%s() takes no arguments (%d given)", \
-	_method_name(__func__), (argc-1)); } while (0)
+	_method_name, (argc-1)); } while (0)
 
 #define METHOD_TAKES_EXACTLY(n) do { if (argc != (n+1)) return krk_runtimeError(vm.exceptions->argumentError, "%s() takes %s %d argument%s (%d given)", \
-	_method_name(__func__), "exactly", n, (n != 1) ? "s" : "", (argc-1)); } while (0)
+	_method_name, "exactly", n, (n != 1) ? "s" : "", (argc-1)); } while (0)
 
 #define METHOD_TAKES_AT_LEAST(n) do { if (argc < (n+1)) return krk_runtimeError(vm.exceptions->argumentError, "%s() takes %s %d argument%s (%d given)", \
-	_method_name(__func__), "at least", n, (n != 1) ? "s" : "", (argc-1)); } while (0)
+	_method_name, "at least", n, (n != 1) ? "s" : "", (argc-1)); } while (0)
 
 #define METHOD_TAKES_AT_MOST(n) do { if (argc > (n+1)) return krk_runtimeError(vm.exceptions->argumentError, "%s() takes %s %d argument%s (%d given)", \
-	_method_name(__func__), "at most", n, (n != 1) ? "s" : "", (argc-1)); } while (0)
+	_method_name, "at most", n, (n != 1) ? "s" : "", (argc-1)); } while (0)
 
 #define FUNCTION_TAKES_NONE() do { if (argc != 0) return krk_runtimeError(vm.exceptions->argumentError, "%s() takes no arguments (%d given)", \
-	_function_name(__func__), (argc)); } while (0)
+	_method_name, (argc)); } while (0)
 
 #define FUNCTION_TAKES_EXACTLY(n) do { if (argc != n) return krk_runtimeError(vm.exceptions->argumentError, "%s() takes %s %d argument%s (%d given)", \
-	_function_name(__func__), "exactly", n, (n != 1) ? "s" : "", (argc)); } while (0)
+	_method_name, "exactly", n, (n != 1) ? "s" : "", (argc)); } while (0)
 
 #define FUNCTION_TAKES_AT_LEAST(n) do { if (argc < n) return krk_runtimeError(vm.exceptions->argumentError, "%s() takes %s %d argument%s (%d given)", \
-	_function_name(__func__), "at least", n, (n != 1) ? "s" : "", (argc)); } while (0)
+	_method_name, "at least", n, (n != 1) ? "s" : "", (argc)); } while (0)
 
 #define FUNCTION_TAKES_AT_MOST(n) do { if (argc > n) return krk_runtimeError(vm.exceptions->argumentError, "%s() takes %s %d argument%s (%d given)", \
-	_function_name(__func__), "at most", n, (n != 1) ? "s" : "", (argc)); } while (0)
+	_method_name, "at most", n, (n != 1) ? "s" : "", (argc)); } while (0)
 
 #define TYPE_ERROR(expected,value) krk_runtimeError(vm.exceptions->typeError, "%s() expects %s, not '%s'", \
-		/* Function name */ _method_name(__func__), /* expected type */ #expected, krk_typeName(value))
+		/* Function name */ _method_name, /* expected type */ #expected, krk_typeName(value))
 
 #define NOT_ENOUGH_ARGS() krk_runtimeError(vm.exceptions->argumentError, "%s() missing required positional argument", \
-		/* Function name */ _method_name(__func__))
+		/* Function name */ _method_name)
 
 #define CHECK_ARG(i, type, ctype, name) \
 	if (argc < (i+1)) return NOT_ENOUGH_ARGS(); \
@@ -85,10 +65,12 @@ static inline const char * _method_name(const char * func) {
 #define FUNC_NAME(klass, name) _ ## klass ## _ ## name
 #define FUNC_SIG(klass, name) _noexport KrkValue FUNC_NAME(klass,name) (int argc, KrkValue argv[], int hasKw)
 #define KRK_METHOD(klass, name, body) FUNC_SIG(klass, name) { \
+	static __attribute__ ((unused)) const char _method_name[] = # name; \
 	CHECK_ARG(0,klass,CURRENT_CTYPE,CURRENT_NAME); \
 	body; return NONE_VAL(); }
 
 #define KRK_FUNC(name,body) static KrkValue _krk_ ## name (int argc, KrkValue argv[], int hasKw) { \
+	static __attribute__ ((unused)) const char _method_name[] = # name; \
 	body; return NONE_VAL(); }
 
 /* This assumes you have a KrkInstance called `module` in the current scope. */

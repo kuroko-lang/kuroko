@@ -616,10 +616,7 @@ KRK_FUNC(build,{
 #define CLOSURE_MORE size += AS_codeobject(chunk->constants.values[constant])->upvalueCount * 2
 #define EXPAND_ARGS_MORE
 #define LOCAL_MORE local = operand;
-FUNC_SIG(krk,examine) {
-	FUNCTION_TAKES_EXACTLY(1);
-	CHECK_ARG(0,codeobject,KrkCodeObject*,func);
-
+static KrkValue _examineInternal(KrkCodeObject* func) {
 	KrkValue output = krk_list_of(0,NULL,0);
 	krk_push(output);
 
@@ -675,6 +672,12 @@ FUNC_SIG(krk,examine) {
 
 	return krk_pop();
 }
+KRK_FUNC(examine,{
+	FUNCTION_TAKES_EXACTLY(1);
+	CHECK_ARG(0,codeobject,KrkCodeObject*,func);
+	return _examineInternal(func);
+})
+
 #undef SIMPLE
 #undef OPERANDB
 #undef OPERAND

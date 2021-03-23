@@ -22,7 +22,8 @@ KRK_METHOD(bytes,__init__,{
 		krk_push(OBJECT_VAL(out));
 		for (size_t i = 0; i < AS_TUPLE(argv[1])->values.count; ++i) {
 			if (!IS_INTEGER(AS_TUPLE(argv[1])->values.values[i])) {
-				return krk_runtimeError(vm.exceptions->typeError, "bytes(): expected tuple of ints, not of '%s'", krk_typeName(AS_TUPLE(argv[1])->values.values[i]));
+				return krk_runtimeError(vm.exceptions->typeError, "%s() expects %s, not '%s'",
+					"bytes", "tuple of ints", krk_typeName(AS_TUPLE(argv[1])->values.values[i]));
 			}
 			out->bytes[i] = AS_INTEGER(AS_TUPLE(argv[1])->values.values[i]);
 		}
@@ -33,7 +34,8 @@ KRK_METHOD(bytes,__init__,{
 		krk_push(OBJECT_VAL(out));
 		for (size_t i = 0; i < AS_LIST(argv[1])->count; ++i) {
 			if (!IS_INTEGER(AS_LIST(argv[1])->values[i])) {
-				return krk_runtimeError(vm.exceptions->typeError, "bytes(): expected list of ints, not of '%s'", krk_typeName(AS_LIST(argv[1])->values[i]));
+				return krk_runtimeError(vm.exceptions->typeError, "%s() expects %s, not '%s'",
+					"bytes", "list of ints", krk_typeName(AS_LIST(argv[1])->values[i]));
 			}
 			out->bytes[i] = AS_INTEGER(AS_LIST(argv[1])->values[i]);
 		}
@@ -148,7 +150,8 @@ KRK_METHOD(bytes,join,{
 	return finishStringBuilderBytes(&sb);
 
 _expectedBytes:
-	krk_runtimeError(vm.exceptions->typeError, "Expected bytes, got %s.", errorStr);
+	krk_runtimeError(vm.exceptions->typeError, "%s() expects %s, not '%s'",
+		"join", "bytes", errorStr);
 	discardStringBuilder(&sb);
 })
 

@@ -432,7 +432,7 @@ KRK_FUNC(ttyname,{
 })
 #endif
 
-static int makeArgs(int count, KrkValue * values, char *** argsOut) {
+static int makeArgs(int count, KrkValue * values, char *** argsOut, const char * _method_name) {
 	char ** out = malloc(sizeof(char*)*count);
 	for (int i = 0; i < count; ++i) {
 		if (!IS_STRING(values[i])) {
@@ -450,7 +450,7 @@ KRK_FUNC(execl,{
 	FUNCTION_TAKES_AT_LEAST(1);
 	CHECK_ARG(0,str,KrkString*,path);
 	char ** args;
-	if (makeArgs(argc-1,&argv[1],&args)) return NONE_VAL();
+	if (makeArgs(argc-1,&argv[1],&args,_method_name)) return NONE_VAL();
 	if (execv(path->chars, args) == -1) {
 		return krk_runtimeError(OSError, strerror(errno));
 	}
@@ -461,7 +461,7 @@ KRK_FUNC(execlp,{
 	FUNCTION_TAKES_AT_LEAST(1);
 	CHECK_ARG(0,str,KrkString*,filename);
 	char ** args;
-	if (makeArgs(argc-1,&argv[1],&args)) return NONE_VAL();
+	if (makeArgs(argc-1,&argv[1],&args,_method_name)) return NONE_VAL();
 	if (execvp(filename->chars, args) == -1) {
 		return krk_runtimeError(OSError, strerror(errno));
 	}
@@ -474,8 +474,8 @@ KRK_FUNC(execle,{
 	CHECK_ARG((argc-1),list,KrkList*,envp);
 	char ** args;
 	char ** env;
-	if (makeArgs(argc-2,&argv[1],&args)) return NONE_VAL();
-	if (makeArgs(envp->values.count, envp->values.values,&env)) return NONE_VAL();
+	if (makeArgs(argc-2,&argv[1],&args,_method_name)) return NONE_VAL();
+	if (makeArgs(envp->values.count, envp->values.values,&env,_method_name)) return NONE_VAL();
 	if (execve(path->chars, args, env) == -1) {
 		return krk_runtimeError(OSError, strerror(errno));
 	}
@@ -487,7 +487,7 @@ KRK_FUNC(execv,{
 	CHECK_ARG(0,str,KrkString*,filename);
 	CHECK_ARG(1,list,KrkList*,args);
 	char ** argp;
-	if (makeArgs(args->values.count, args->values.values, &argp)) return NONE_VAL();
+	if (makeArgs(args->values.count, args->values.values, &argp,_method_name)) return NONE_VAL();
 	if (execv(filename->chars, argp) == -1) {
 		free(argp);
 		return krk_runtimeError(OSError, strerror(errno));
@@ -500,7 +500,7 @@ KRK_FUNC(execvp,{
 	CHECK_ARG(0,str,KrkString*,path);
 	CHECK_ARG(1,list,KrkList*,args);
 	char ** argp;
-	if (makeArgs(args->values.count, args->values.values, &argp)) return NONE_VAL();
+	if (makeArgs(args->values.count, args->values.values, &argp,_method_name)) return NONE_VAL();
 	if (execvp(path->chars, argp) == -1) {
 		free(argp);
 		return krk_runtimeError(OSError, strerror(errno));
