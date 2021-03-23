@@ -1,15 +1,4 @@
 from codecs.isweblabel import map_weblabel
-
-def issubclass(klass, superclass):
-    if superclass == object:
-        return True
-    else if klass == object:
-        return False
-    else if klass == superclass:
-        return True
-    else:
-        return issubclass(klass.__base__, superclass)
-
 def idstr(obj):
     let reprd = object.__repr__(obj)
     return reprd.split(" at 0x")[1].split(">")[0]
