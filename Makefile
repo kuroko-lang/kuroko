@@ -179,6 +179,7 @@ install: all libkuroko.so ${HEADERS} $(KRKMODS) $(MODULES)
 	$(INSTALL) -d $(DESTDIR)$(bindir)/../lib/kuroko
 	$(INSTALL) -d $(DESTDIR)$(bindir)/../lib/kuroko/syntax
 	$(INSTALL) -d $(DESTDIR)$(bindir)/../lib/kuroko/foo/bar
+	$(INSTALL) -d $(DESTDIR)$(bindir)/../lib/kuroko/codecs
 	@echo "Installing programs..."
 	$(INSTALL_PROGRAM) kuroko $(DESTDIR)$(bindir)/kuroko
 	$(INSTALL_PROGRAM) $(TOOLS) $(DESTDIR)$(bindir)/
