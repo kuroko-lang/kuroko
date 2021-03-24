@@ -78,7 +78,7 @@ __thread KrkThreadState krk_currentThread;
 KrkThreadState krk_currentThread;
 #endif
 
-#ifdef ENABLE_TRACING
+#if defined(ENABLE_TRACING) && !defined(__EMSCRIPTEN__)
 # define FRAME_IN(frame) if (vm.globalFlags & KRK_GLOBAL_CALLGRIND) { clock_gettime(CLOCK_MONOTONIC, &frame->in_time); }
 # define FRAME_OUT(frame) \
 	if (vm.globalFlags & KRK_GLOBAL_CALLGRIND && !frame->closure->function->isGenerator) { \
