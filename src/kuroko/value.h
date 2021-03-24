@@ -4,6 +4,7 @@
  * @brief Definitions for primitive stack references.
  */
 #include <stdio.h>
+#include <string.h>
 #include "kuroko.h"
 
 /**
@@ -18,37 +19,26 @@ typedef struct KrkString KrkString;
 /**
  * @brief Tag enum for basic value types.
  *
- * Value types are tagged unions of a handful of small
- * types represented directly on the stack: Integers,
- * double-precision floating point values, booleans,
- * exception handler references, complex function argument
- * processing sentinels, object reference pointers, and None.
+ * These are the values stored in the upper NaN bits of
+ * the boxed NaN values.
  */
 typedef enum {
-	KRK_VAL_NONE,
-	KRK_VAL_BOOLEAN,
-	KRK_VAL_INTEGER,
-	KRK_VAL_FLOATING,
-	KRK_VAL_HANDLER,
-	KRK_VAL_OBJECT,
-	KRK_VAL_KWARGS,
+	KRK_VAL_BOOLEAN  = 0xFFFC,
+	KRK_VAL_INTEGER  = 0xFFFD,
+	KRK_VAL_HANDLER  = 0xFFFE,
+	KRK_VAL_NONE     = 0xFFFF,
+	KRK_VAL_KWARGS   = 0x7FFC,
+	KRK_VAL_OBJECT   = 0x7FFD,
 } KrkValueType;
 
-/**
- * @brief Stack value representation of a 'with' or 'try' block.
- *
- * When a 'with' or 'try' block is entered, a handler value is
- * created on the stack representing the type (with, try) and the
- * jump target to leave the block (entering the 'except' block of
- * a 'try', if present, or calling the __exit__ method of an object
- * __enter__'d by a 'with' block). When the relevant conditions are
- * triggered in the VM, the stack will be scanned from top to bottom
- * to look for these values.
- */
-typedef struct {
-	unsigned short type;
-	unsigned short target;
-} KrkJumpTarget;
+#define KRK_VAL_MASK_BOOLEAN ((uint64_t)0xFFFC000000000000) /* 1..1100 */
+#define KRK_VAL_MASK_INTEGER ((uint64_t)0xFFFD000000000000) /* 1..1101 */
+#define KRK_VAL_MASK_HANDLER ((uint64_t)0xFFFE000000000000) /* 1..1110 */
+#define KRK_VAL_MASK_NONE    ((uint64_t)0xFFFF000000000000) /* 1..1111 */
+#define KRK_VAL_MASK_KWARGS  ((uint64_t)0x7FFC000000000000) /* 0..1100 */
+#define KRK_VAL_MASK_OBJECT  ((uint64_t)0x7FFD000000000000) /* 0..1101 */
+#define KRK_VAL_MASK_NAN     ((uint64_t)0x7FFC000000000000)
+#define KRK_VAL_MASK_LOW     ((uint64_t)0x0000FFFFFFFFFFFF)
 
 /**
  * @brief Stack reference or primative value.
@@ -59,19 +49,11 @@ typedef struct {
  * direct copying rather than as pointers, avoiding the need to track
  * memory used by them.
  *
- * Each value is a tagged union with a type (see the enum KrkValueType)
- * and its contents.
+ * Implemented through basic NaN-boxing where the top sixteen bits are
+ * used as a tag (@ref KrkValueType) and the lower 32 or 48 bits contain
+ * the various primitive types.
  */
-typedef struct {
-	KrkValueType type;
-	union {
-		char boolean;
-		krk_integer_type integer;
-		double  floating;
-		KrkJumpTarget handler;
-		KrkObj *   object;
-	} as;
-} KrkValue;
+typedef uint64_t KrkValue;
 
 /**
  * @brief Flexible vector of stack references.
@@ -183,30 +165,51 @@ extern int krk_valuesEqual(KrkValue a, KrkValue b);
  */
 extern int krk_valuesSame(KrkValue a, KrkValue b);
 
-#define BOOLEAN_VAL(value)  ((KrkValue){KRK_VAL_BOOLEAN, {.integer = value}})
-#define NONE_VAL(value)     ((KrkValue){KRK_VAL_NONE,    {.integer = 0}})
-#define INTEGER_VAL(value)  ((KrkValue){KRK_VAL_INTEGER, {.integer = value}})
-#define FLOATING_VAL(value) ((KrkValue){KRK_VAL_FLOATING,{.floating = value}})
-#define HANDLER_VAL(ty,ta)  ((KrkValue){KRK_VAL_HANDLER, {.handler = (KrkJumpTarget){.type = ty, .target = ta}}})
-#define OBJECT_VAL(value)   ((KrkValue){KRK_VAL_OBJECT,  {.object = (KrkObj*)value}})
-#define KWARGS_VAL(value)   ((KrkValue){KRK_VAL_KWARGS,  {.integer = value}})
+#define NONE_VAL(value)     ((KrkValue)(KRK_VAL_MASK_LOW | KRK_VAL_MASK_NONE))
+#define BOOLEAN_VAL(value)  ((KrkValue)((uint32_t)(value) | KRK_VAL_MASK_BOOLEAN))
+#define INTEGER_VAL(value)  ((KrkValue)((uint32_t)(value) | KRK_VAL_MASK_INTEGER))
+#define KWARGS_VAL(value)   ((KrkValue)((uint32_t)(value) | KRK_VAL_MASK_KWARGS))
+#define OBJECT_VAL(value)   ((KrkValue)(((uintptr_t)(value) & KRK_VAL_MASK_LOW) | KRK_VAL_MASK_OBJECT))
+#define HANDLER_VAL(ty,ta)  ((KrkValue)((uint32_t)((((uint16_t)ty) << 16) | ((uint16_t)ta)) | KRK_VAL_MASK_HANDLER))
+#define FLOATING_VAL(value) (krk_dbl_as_val(value))
 
-#define AS_BOOLEAN(value)   ((value).as.integer)
-#define AS_INTEGER(value)   ((value).as.integer)
-#define AS_FLOATING(value)  ((value).as.floating)
-#define AS_HANDLER(value)   ((value).as.handler)
-#define AS_OBJECT(value)    ((value).as.object)
+#define KRK_VAL_TYPE(value) ((value) >> 48)
 
-#define IS_BOOLEAN(value)   ((value).type == KRK_VAL_BOOLEAN)
-#define IS_NONE(value)      ((value).type == KRK_VAL_NONE)
-#define IS_INTEGER(value)   (((value).type == KRK_VAL_INTEGER) || ((value.type) == KRK_VAL_BOOLEAN))
-#define IS_FLOATING(value)  ((value).type == KRK_VAL_FLOATING)
-#define IS_HANDLER(value)   ((value).type == KRK_VAL_HANDLER)
-#define IS_OBJECT(value)    ((value).type == KRK_VAL_OBJECT)
-#define IS_KWARGS(value)    ((value).type == KRK_VAL_KWARGS)
+#define AS_BOOLEAN(value)   ((krk_integer_type)((value) & KRK_VAL_MASK_LOW))
+#define AS_INTEGER(value)   ((krk_integer_type)((value) & KRK_VAL_MASK_LOW))
+#define AS_HANDLER(value)   ((uint32_t)((value) & KRK_VAL_MASK_LOW))
+#define AS_OBJECT(value)    ((KrkObj*)(uintptr_t)((value) & KRK_VAL_MASK_LOW))
+#define AS_FLOATING(value)  (krk_val_as_dbl(value))
 
-#define IS_TRY_HANDLER(value)  (IS_HANDLER(value) && AS_HANDLER(value).type == OP_PUSH_TRY)
-#define IS_WITH_HANDLER(value) (IS_HANDLER(value) && AS_HANDLER(value).type == OP_PUSH_WITH)
-#define IS_RAISE_HANDLER(value)  (IS_HANDLER(value) && AS_HANDLER(value).type == OP_RAISE)
-#define IS_EXCEPT_HANDLER(value)  (IS_HANDLER(value) && AS_HANDLER(value).type == OP_FILTER_EXCEPT)
+static inline double krk_val_as_dbl(KrkValue val) {
+	double out;
+	memcpy(&out,&val,sizeof(KrkValue));
+	return out;
+}
 
+static inline KrkValue krk_dbl_as_val(double dbl) {
+	KrkValue out;
+	memcpy(&out,&dbl,sizeof(KrkValue));
+	return out;
+}
+
+#define IS_INTEGER(value)   (((value) & KRK_VAL_MASK_HANDLER) == KRK_VAL_MASK_BOOLEAN)
+#define IS_BOOLEAN(value)   (((value) & KRK_VAL_MASK_NONE) == KRK_VAL_MASK_BOOLEAN)
+#define IS_NONE(value)      (((value) & KRK_VAL_MASK_NONE) == KRK_VAL_MASK_NONE)
+#define IS_HANDLER(value)   (((value) & KRK_VAL_MASK_NONE) == KRK_VAL_MASK_HANDLER)
+#define IS_OBJECT(value)    (((value) & KRK_VAL_MASK_NONE) == KRK_VAL_MASK_OBJECT)
+#define IS_KWARGS(value)    (((value) & KRK_VAL_MASK_NONE) == KRK_VAL_MASK_KWARGS)
+#define IS_FLOATING(value)  (((value) & KRK_VAL_MASK_NAN) != KRK_VAL_MASK_NAN)
+
+#define AS_HANDLER_TYPE(value)    (AS_HANDLER(value) >> 16)
+#define AS_HANDLER_TARGET(value)  (AS_HANDLER(value) & 0xFFFF)
+#define IS_TRY_HANDLER(value)     (IS_HANDLER(value) && AS_HANDLER_TYPE(value) == OP_PUSH_TRY)
+#define IS_WITH_HANDLER(value)    (IS_HANDLER(value) && AS_HANDLER_TYPE(value) == OP_PUSH_WITH)
+#define IS_RAISE_HANDLER(value)   (IS_HANDLER(value) && AS_HANDLER_TYPE(value) == OP_RAISE)
+#define IS_EXCEPT_HANDLER(value)  (IS_HANDLER(value) && AS_HANDLER_TYPE(value) == OP_FILTER_EXCEPT)
+
+#define KWARGS_SINGLE (INT32_MAX)
+#define KWARGS_LIST   (INT32_MAX-1)
+#define KWARGS_DICT   (INT32_MAX-2)
+#define KWARGS_NIL    (INT32_MAX-3)
+#define KWARGS_UNSET  (0)

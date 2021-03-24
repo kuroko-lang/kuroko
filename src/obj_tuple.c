@@ -16,7 +16,7 @@ static KrkValue _tuple_init(int argc, KrkValue argv[], int hasKw) {
 		/* Convert this to a call to tupleOf(*arg) */
 		KrkValue tupleOf;
 		krk_tableGet(&vm.builtins->fields, OBJECT_VAL(S("tupleOf")), &tupleOf);
-		krk_push(KWARGS_VAL(LONG_MAX-1));
+		krk_push(KWARGS_VAL(KWARGS_LIST));
 		krk_push(argv[1]);
 		krk_push(KWARGS_VAL(1));
 		krk_push(krk_callSimple(tupleOf, 3, 0));

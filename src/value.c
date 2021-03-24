@@ -48,38 +48,39 @@ void krk_printValue(FILE * f, KrkValue printable) {
 
 void krk_printValueSafe(FILE * f, KrkValue printable) {
 	if (!IS_OBJECT(printable)) {
-		switch (printable.type) {
+		switch (KRK_VAL_TYPE(printable)) {
 			case KRK_VAL_INTEGER:  fprintf(f, PRIkrk_int, AS_INTEGER(printable)); break;
 			case KRK_VAL_BOOLEAN:  fprintf(f, "%s", AS_BOOLEAN(printable) ? "True" : "False"); break;
-			case KRK_VAL_FLOATING: fprintf(f, "%.16g", AS_FLOATING(printable)); break;
 			case KRK_VAL_NONE:     fprintf(f, "None"); break;
 			case KRK_VAL_HANDLER:
-				switch (AS_HANDLER(printable).type) {
-					case OP_PUSH_TRY:      fprintf(f, "{try->%d}", (int)AS_HANDLER(printable).target); break;
-					case OP_PUSH_WITH:     fprintf(f, "{with->%d}", (int)AS_HANDLER(printable).target); break;
-					case OP_RAISE:         fprintf(f, "{raise<-%d}", (int)AS_HANDLER(printable).target); break;
-					case OP_FILTER_EXCEPT: fprintf(f, "{except<-%d}", (int)AS_HANDLER(printable).target); break;
-					case OP_BEGIN_FINALLY: fprintf(f, "{finally<-%d}", (int)AS_HANDLER(printable).target); break;
-					case OP_RETURN:        fprintf(f, "{return<-%d}", (int)AS_HANDLER(printable).target); break;
+				switch (AS_HANDLER_TYPE(printable)) {
+					case OP_PUSH_TRY:      fprintf(f, "{try->%d}",     (int)AS_HANDLER_TARGET(printable)); break;
+					case OP_PUSH_WITH:     fprintf(f, "{with->%d}",    (int)AS_HANDLER_TARGET(printable)); break;
+					case OP_RAISE:         fprintf(f, "{raise<-%d}",   (int)AS_HANDLER_TARGET(printable)); break;
+					case OP_FILTER_EXCEPT: fprintf(f, "{except<-%d}",  (int)AS_HANDLER_TARGET(printable)); break;
+					case OP_BEGIN_FINALLY: fprintf(f, "{finally<-%d}", (int)AS_HANDLER_TARGET(printable)); break;
+					case OP_RETURN:        fprintf(f, "{return<-%d}",  (int)AS_HANDLER_TARGET(printable)); break;
 				}
 				break;
 			case KRK_VAL_KWARGS: {
-				if (AS_INTEGER(printable) == LONG_MAX) {
+				if (AS_INTEGER(printable) == KWARGS_SINGLE) {
 					fprintf(f, "{unpack single}");
-				} else if (AS_INTEGER(printable) == LONG_MAX-1) {
+				} else if (AS_INTEGER(printable) == KWARGS_LIST) {
 					fprintf(f, "{unpack list}");
-				} else if (AS_INTEGER(printable) == LONG_MAX-2) {
+				} else if (AS_INTEGER(printable) == KWARGS_DICT) {
 					fprintf(f, "{unpack dict}");
-				} else if (AS_INTEGER(printable) == LONG_MAX-3) {
+				} else if (AS_INTEGER(printable) == KWARGS_NIL) {
 					fprintf(f, "{unpack nil}");
-				} else if (AS_INTEGER(printable) == 0) {
+				} else if (AS_INTEGER(printable) == KWARGS_UNSET) {
 					fprintf(f, "{unset default}");
 				} else {
 					fprintf(f, "{sentinel=" PRIkrk_int "}",AS_INTEGER(printable));
 				}
 				break;
 			}
-			default: break;
+			default:
+				if (IS_FLOATING(printable)) fprintf(f, "%.16g", AS_FLOATING(printable));
+				break;
 		}
 	} else if (IS_STRING(printable)) {
 		fprintf(f, "'");
@@ -137,7 +138,7 @@ void krk_printValueSafe(FILE * f, KrkValue printable) {
 }
 
 int krk_valuesSame(KrkValue a, KrkValue b) {
-	if (a.type != b.type) return 0;
+	if (KRK_VAL_TYPE(a) != KRK_VAL_TYPE(b)) return 0;
 	if (IS_OBJECT(a)) return AS_OBJECT(a) == AS_OBJECT(b);
 	return krk_valuesEqual(a,b);
 }
@@ -145,13 +146,12 @@ int krk_valuesSame(KrkValue a, KrkValue b) {
 __attribute__((hot))
 inline
 int krk_valuesEqual(KrkValue a, KrkValue b) {
-	if (a.type == b.type) {
-		switch (a.type) {
+	if (KRK_VAL_TYPE(a) == KRK_VAL_TYPE(b)) {
+		switch (KRK_VAL_TYPE(a)) {
 			case KRK_VAL_BOOLEAN:  return AS_BOOLEAN(a) == AS_BOOLEAN(b);
 			case KRK_VAL_NONE:     return 1; /* None always equals None */
 			case KRK_VAL_KWARGS:   /* Equal if same number of args; may be useful for comparing sentinels (0) to arg lists. */
 			case KRK_VAL_INTEGER:  return AS_INTEGER(a) == AS_INTEGER(b);
-			case KRK_VAL_FLOATING: return AS_FLOATING(a) == AS_FLOATING(b);
 			case KRK_VAL_HANDLER:  krk_runtimeError(vm.exceptions->valueError,"Invalid value"); return 0;
 			case KRK_VAL_OBJECT: {
 				if (AS_OBJECT(a) == AS_OBJECT(b)) return 1;
@@ -159,33 +159,29 @@ int krk_valuesEqual(KrkValue a, KrkValue b) {
 			default: break;
 		}
 	}
+	if (IS_FLOATING(a) && IS_FLOATING(b)) return AS_FLOATING(a) == AS_FLOATING(b);
 
 	if (IS_KWARGS(a) || IS_KWARGS(b)) return 0;
 
 	if (!IS_OBJECT(a) && !IS_OBJECT(b)) {
-		switch (a.type) {
+		switch (KRK_VAL_TYPE(a)) {
 			case KRK_VAL_INTEGER: {
-				switch (b.type) {
-					case KRK_VAL_BOOLEAN:  return AS_INTEGER(a) == AS_BOOLEAN(b);
-					case KRK_VAL_FLOATING: return (double)AS_INTEGER(a) == AS_FLOATING(b);
-					default: return 0;
-				}
-			} break;
-			case KRK_VAL_FLOATING: {
-				switch (b.type) {
-					case KRK_VAL_BOOLEAN: return AS_FLOATING(a) == (double)AS_BOOLEAN(b);
-					case KRK_VAL_INTEGER: return AS_FLOATING(a) == (double)AS_INTEGER(b);
-					default: return 0;
-				}
+				if (IS_BOOLEAN(b))       return AS_INTEGER(a) == AS_BOOLEAN(b);
+				else if (IS_FLOATING(b)) return (double)AS_INTEGER(a) == AS_FLOATING(b);
+				return 0;
 			} break;
 			case KRK_VAL_BOOLEAN: {
-				switch (b.type) {
-					case KRK_VAL_INTEGER:  return AS_BOOLEAN(a) == AS_INTEGER(b);
-					case KRK_VAL_FLOATING: return (double)AS_BOOLEAN(a) == AS_FLOATING(b);
-					default: return 0;
-				}
+				if (IS_INTEGER(b))       return AS_INTEGER(a) == AS_BOOLEAN(b);
+				else if (IS_FLOATING(b)) return (double)AS_INTEGER(a) == AS_FLOATING(b);
+				return 0;
 			} break;
-			default: return 0;
+			default:
+				if (IS_FLOATING(a)) {
+					if (IS_BOOLEAN(b)) return AS_FLOATING(a) == (double)AS_BOOLEAN(b);
+					else if (IS_INTEGER(b)) return AS_FLOATING(a) == (double)AS_INTEGER(b);
+					return 0;
+				}
+				break;
 		}
 	}
 

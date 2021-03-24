@@ -303,7 +303,7 @@ static int doSecondPass(FILE * out) {
 
 		for (size_t i = 0; i < func->chunk.constants.count; ++i) {
 			KrkValue * val = &func->chunk.constants.values[i];
-			switch (val->type) {
+			switch (KRK_VAL_TYPE(*val)) {
 				case KRK_VAL_OBJECT:
 					switch (AS_OBJECT(*val)->type) {
 						case KRK_OBJ_STRING:
@@ -329,10 +329,11 @@ static int doSecondPass(FILE * out) {
 				case KRK_VAL_INTEGER:
 					WRITE_INTEGER(AS_INTEGER(*val));
 					break;
-				case KRK_VAL_FLOATING:
-					WRITE_FLOATING(AS_FLOATING(*val));
-					break;
 				default:
+					if (IS_FLOATING(*val)) {
+						WRITE_FLOATING(AS_FLOATING(*val));
+						break;
+					}
 					fprintf(stderr,
 						"Invalid value found in constants table,"
 						"this marashal format can not store '%s'\n",

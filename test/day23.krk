@@ -33,6 +33,6 @@ def __main__():
         ordering[m3] = px
         m0 = ordering[m0]
 
-    print(ordering[1]*ordering[ordering[1]])
+    print(str(float(ordering[1])*ordering[ordering[1]]).replace('.0',''))
 
 __main__()

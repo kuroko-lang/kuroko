@@ -8,20 +8,20 @@
 #include <stdlib.h>
 
 #if defined(__EMSCRIPTEN__)
-typedef long long krk_integer_type;
-# define PRIkrk_int "%lld"
-# define PRIkrk_hex "%llx"
-# define parseStrInt strtoll
+typedef int krk_integer_type;
+# define PRIkrk_int "%d"
+# define PRIkrk_hex "%x"
+# define parseStrInt strtol
 #elif defined(_WIN32)
-typedef long long krk_integer_type;
-# define PRIkrk_int "%I64d"
-# define PRIkrk_hex "%I64x"
-# define parseStrInt strtoll
+typedef int krk_integer_type;
+# define PRIkrk_int "%I32d"
+# define PRIkrk_hex "%I32x"
+# define parseStrInt strtol
 # define ENABLE_THREADING
 # else
-typedef long krk_integer_type;
-# define PRIkrk_int "%ld"
-# define PRIkrk_hex "%lx"
+typedef int krk_integer_type;
+# define PRIkrk_int "%d"
+# define PRIkrk_hex "%x"
 # define parseStrInt strtol
 # define ENABLE_THREADING
 #endif

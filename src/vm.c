@@ -448,11 +448,9 @@ void krk_finalizeClass(KrkClass * _class) {
  * Internal version of type().
  */
 inline KrkClass * krk_getType(KrkValue of) {
-	switch (of.type) {
+	switch (KRK_VAL_TYPE(of)) {
 		case KRK_VAL_INTEGER:
 			return vm.baseClasses->intClass;
-		case KRK_VAL_FLOATING:
-			return vm.baseClasses->floatClass;
 		case KRK_VAL_BOOLEAN:
 			return vm.baseClasses->boolClass;
 		case KRK_VAL_NONE:
@@ -480,6 +478,7 @@ inline KrkClass * krk_getType(KrkValue of) {
 					return vm.baseClasses->objectClass;
 			} break;
 		default:
+			if (IS_FLOATING(of)) return vm.baseClasses->floatClass;
 			return vm.baseClasses->objectClass;
 	}
 }
@@ -557,9 +556,9 @@ int krk_processComplexArguments(int argCount, KrkValueArray * positionals, KrkTa
 		KrkValue key = startOfExtras[i*2];
 		KrkValue value = startOfExtras[i*2 + 1];
 		if (IS_KWARGS(key)) {
-			if (AS_INTEGER(key) == LONG_MAX-1) { /* unpack list */
+			if (AS_INTEGER(key) == KWARGS_LIST) { /* unpack list */
 				unpackIterableFast(value);
-			} else if (AS_INTEGER(key) == LONG_MAX-2) { /* unpack dict */
+			} else if (AS_INTEGER(key) == KWARGS_DICT) { /* unpack dict */
 				if (!IS_INSTANCE(value)) {
 					krk_runtimeError(vm.exceptions->typeError, "**expression value is not a dict.");
 					return 0;
@@ -577,7 +576,7 @@ int krk_processComplexArguments(int argCount, KrkValueArray * positionals, KrkTa
 						}
 					}
 				}
-			} else if (AS_INTEGER(key) == LONG_MAX) { /* single value */
+			} else if (AS_INTEGER(key) == KWARGS_SINGLE) { /* single value */
 				krk_writeValueArray(positionals, value);
 			}
 		} else if (IS_STRING(key)) {
@@ -1002,19 +1001,21 @@ void krk_attachNamedObject(KrkTable * table, const char name[], KrkObj * obj) {
  * going to take the else branch.
  */
 int krk_isFalsey(KrkValue value) {
-	switch (value.type) {
+	switch (KRK_VAL_TYPE(value)) {
 		case KRK_VAL_NONE: return 1;
 		case KRK_VAL_BOOLEAN: return !AS_BOOLEAN(value);
 		case KRK_VAL_INTEGER: return !AS_INTEGER(value);
-		case KRK_VAL_FLOATING: return !AS_FLOATING(value);
 		case KRK_VAL_OBJECT: {
 			switch (AS_OBJECT(value)->type) {
 				case KRK_OBJ_STRING: return !AS_STRING(value)->codesLength;
 				case KRK_OBJ_TUPLE: return !AS_TUPLE(value)->values.count;
 				default: break;
 			}
+			break;
 		}
-		default: break;
+		default:
+			if (IS_FLOATING(value)) return !AS_FLOATING(value);
+			break;
 	}
 	KrkClass * type = krk_getType(value);
 
@@ -2016,7 +2017,7 @@ _resumeHook: (void)0;
 				KrkValue contextManager = krk_peek(2);
 				KrkClass * type = krk_getType(contextManager);
 				krk_push(contextManager);
-				if (AS_HANDLER(handler).type == OP_RAISE) {
+				if (AS_HANDLER_TYPE(handler) == OP_RAISE) {
 					krk_push(OBJECT_VAL(krk_getType(exceptionObject)));
 					krk_push(exceptionObject);
 					KrkValue tracebackEntries = NONE_VAL();
@@ -2038,7 +2039,7 @@ _resumeHook: (void)0;
 					krk_callSimple(OBJECT_VAL(type->_exit), 4, 0);
 					if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) goto _finishException;
 				}
-				if (AS_HANDLER(handler).type != OP_RETURN) break;
+				if (AS_HANDLER_TYPE(handler) != OP_RETURN) break;
 				krk_pop(); /* handler */
 			} /* fallthrough */
 			case OP_RETURN: {
@@ -2055,8 +2056,8 @@ _finishReturn: (void)0;
 					; stackOffset--);
 				if (stackOffset >= (int)frame->slots) {
 					krk_currentThread.stackTop = &krk_currentThread.stack[stackOffset + 1];
-					frame->ip = frame->closure->function->chunk.code + AS_HANDLER(krk_peek(0)).target;
-					AS_HANDLER(krk_currentThread.stackTop[-1]).type = OP_RETURN;
+					frame->ip = frame->closure->function->chunk.code + AS_HANDLER_TARGET(krk_peek(0));
+					krk_currentThread.stackTop[-1] = HANDLER_VAL(OP_RETURN,AS_HANDLER_TARGET(krk_peek(0)));
 					krk_currentThread.stackTop[-2] = result;
 					break;
 				}
@@ -2248,9 +2249,9 @@ _finishReturn: (void)0;
 				break;
 			case OP_FILTER_EXCEPT: {
 				int isMatch = 0;
-				if (AS_HANDLER(krk_peek(1)).type == OP_RETURN) {
+				if (AS_HANDLER_TYPE(krk_peek(1)) == OP_RETURN) {
 					isMatch = 0;
-				} else if (AS_HANDLER(krk_peek(1)).type == OP_END_FINALLY) {
+				} else if (AS_HANDLER_TYPE(krk_peek(1)) == OP_END_FINALLY) {
 					isMatch = 0;
 				} else if (IS_CLASS(krk_peek(0)) && krk_isInstanceOf(krk_peek(2), AS_CLASS(krk_peek(0)))) {
 					isMatch = 1;
@@ -2265,7 +2266,7 @@ _finishReturn: (void)0;
 					isMatch = !IS_NONE(krk_peek(2));
 				}
 				if (isMatch) {
-					AS_HANDLER(krk_currentThread.stackTop[-2]).type = OP_FILTER_EXCEPT;
+					krk_currentThread.stackTop[-2] = HANDLER_VAL(OP_FILTER_EXCEPT,AS_HANDLER_TARGET(krk_peek(1)));
 				}
 				krk_pop();
 				krk_push(BOOLEAN_VAL(isMatch));
@@ -2273,10 +2274,10 @@ _finishReturn: (void)0;
 			}
 			case OP_BEGIN_FINALLY: {
 				if (IS_HANDLER(krk_peek(0))) {
-					if (AS_HANDLER(krk_peek(0)).type == OP_PUSH_TRY) {
-						AS_HANDLER(krk_currentThread.stackTop[-1]).type = OP_BEGIN_FINALLY;
-					} else if (AS_HANDLER(krk_peek(0)).type == OP_FILTER_EXCEPT) {
-						AS_HANDLER(krk_currentThread.stackTop[-1]).type = OP_BEGIN_FINALLY;
+					if (AS_HANDLER_TYPE(krk_peek(0)) == OP_PUSH_TRY) {
+						krk_currentThread.stackTop[-1] = HANDLER_VAL(OP_BEGIN_FINALLY,AS_HANDLER_TARGET(krk_peek(0)));
+					} else if (AS_HANDLER_TYPE(krk_peek(0)) == OP_FILTER_EXCEPT) {
+						krk_currentThread.stackTop[-1] = HANDLER_VAL(OP_BEGIN_FINALLY,AS_HANDLER_TARGET(krk_peek(0)));
 					}
 				}
 				break;
@@ -2284,12 +2285,12 @@ _finishReturn: (void)0;
 			case OP_END_FINALLY: {
 				KrkValue handler = krk_peek(0);
 				if (IS_HANDLER(handler)) {
-					if (AS_HANDLER(handler).type == OP_RAISE || AS_HANDLER(handler).type == OP_END_FINALLY) {
+					if (AS_HANDLER_TYPE(handler) == OP_RAISE || AS_HANDLER_TYPE(handler) == OP_END_FINALLY) {
 						krk_pop(); /* handler */
 						krk_currentThread.currentException = krk_pop();
 						krk_currentThread.flags |= KRK_THREAD_HAS_EXCEPTION;
 						goto _finishException;
-					} else if (AS_HANDLER(handler).type == OP_RETURN) {
+					} else if (AS_HANDLER_TYPE(handler) == OP_RETURN) {
 						krk_push(krk_peek(1));
 						goto _finishReturn;
 					}
@@ -2486,7 +2487,7 @@ _finishReturn: (void)0;
 			case OP_EXPAND_ARGS_LONG:
 			case OP_EXPAND_ARGS: {
 				int type = OPERAND;
-				krk_push(KWARGS_VAL(LONG_MAX-type));
+				krk_push(KWARGS_VAL(KWARGS_SINGLE-type));
 				break;
 			}
 			case OP_CLOSURE_LONG:
@@ -2747,12 +2748,12 @@ _finishReturn: (void)0;
 _finishException:
 		if (!handleException()) {
 			frame = &krk_currentThread.frames[krk_currentThread.frameCount - 1];
-			frame->ip = frame->closure->function->chunk.code + AS_HANDLER(krk_peek(0)).target;
+			frame->ip = frame->closure->function->chunk.code + AS_HANDLER_TARGET(krk_peek(0));
 			/* Stick the exception into the exception slot */
-			if (AS_HANDLER(krk_currentThread.stackTop[-1]).type == OP_FILTER_EXCEPT) {
-				AS_HANDLER(krk_currentThread.stackTop[-1]).type = OP_END_FINALLY;
+			if (AS_HANDLER_TYPE(krk_currentThread.stackTop[-1])== OP_FILTER_EXCEPT) {
+				krk_currentThread.stackTop[-1] = HANDLER_VAL(OP_END_FINALLY,AS_HANDLER_TARGET(krk_peek(0)));
 			} else {
-				AS_HANDLER(krk_currentThread.stackTop[-1]).type = OP_RAISE;
+				krk_currentThread.stackTop[-1] = HANDLER_VAL(OP_RAISE,AS_HANDLER_TARGET(krk_peek(0)));
 			}
 			krk_currentThread.stackTop[-2] = krk_currentThread.currentException;
 			krk_currentThread.currentException = NONE_VAL();

@@ -22,13 +22,14 @@ void krk_freeTable(KrkTable * table) {
 }
 
 inline uint32_t krk_hashValue(KrkValue value) {
-	switch (value.type) {
+	switch (KRK_VAL_TYPE(value)) {
 		case KRK_VAL_INTEGER:  return (uint32_t)(AS_INTEGER(value));
-		case KRK_VAL_FLOATING: return (uint32_t)(AS_FLOATING(value) * 1000); /* arbitrary; what's a good way to hash floats? */
 		case KRK_VAL_BOOLEAN:  return (uint32_t)(AS_BOOLEAN(value));
 		case KRK_VAL_NONE:     return 0;
 		case KRK_VAL_OBJECT:   return (uint32_t)(AS_OBJECT(value))->hash;
-		default: return 0;
+		default:
+			if (IS_FLOATING(value)) return (uint32_t)(AS_FLOATING(value) * 1000); /* arbitrary; what's a good way to hash floats? */
+			return 0;
 	}
 }
 

@@ -41,5 +41,5 @@ class Baz(object):
 
 let b = Baz()
 print(b.bar)
-b.bar = 0xDEADBEEF
+b.bar = 0xCAFE
 print(b.bar)

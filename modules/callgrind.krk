@@ -7,7 +7,7 @@ def processFile(sourcePath, pid, cmd):
     with fileio.open(sourcePath,'r') as f:
         for line in f.readlines():
             let callerFile, callerFunc, callerLine, calleeFile, calleeFunc, calleeLine, nsecs = line.split(' ')
-            nsecs = int(nsecs)
+            nsecs = int(nsecs[:-2])
             let data = funcs.get((callerFile,callerFunc),{})
             let call = data.get((callerLine,calleeFile,calleeFunc,calleeLine),(0,0))
             let out = (call[0] + 1, call[1] + nsecs)
@@ -37,7 +37,7 @@ def processFile(sourcePath, pid, cmd):
                     let count, nsecs = v
                     totalNsecs -= nsecs
                 
-                out.write(f'{startLine} {totalNsecs}\n')
+                out.write(f'{startLine} {totalNsecs}00\n')
             for k, v in value.items():
                 if not k: continue
                 let sourceLine, file, func, destLine = k
@@ -45,5 +45,5 @@ def processFile(sourcePath, pid, cmd):
                 if file != sFile: out.write(f'cfi={file}\n')
                 out.write(f'cfn={func}\n')
                 out.write(f'calls={count} {destLine}\n')
-                out.write(f'{sourceLine} {totalNsecs}\n')
+                out.write(f'{sourceLine} {totalNsecs}00\n')
             out.write('\n')
