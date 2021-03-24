@@ -566,7 +566,7 @@ int krk_processComplexArguments(int argCount, KrkValueArray * positionals, KrkTa
 				}
 				for (size_t i = 0; i < AS_DICT(value)->capacity; ++i) {
 					KrkTableEntry * entry = &AS_DICT(value)->entries[i];
-					if (entry->key.type != KRK_VAL_KWARGS) {
+					if (!IS_KWARGS(entry->key)) {
 						if (!IS_STRING(entry->key)) {
 							krk_runtimeError(vm.exceptions->typeError, "**expression contains non-string key");
 							return 0;
@@ -664,7 +664,7 @@ static int call(KrkClosure * closure, int argCount, int extra) {
 		/* Now place keyword arguments */
 		for (size_t i = 0; i < keywords->capacity; ++i) {
 			KrkTableEntry * entry = &keywords->entries[i];
-			if (entry->key.type != KRK_VAL_KWARGS) {
+			if (!IS_KWARGS(entry->key)) {
 				KrkValue name = entry->key;
 				KrkValue value = entry->value;
 				/* See if we can place it */
@@ -727,6 +727,7 @@ _finishKwarg:
 		/* We can't have had any kwargs. */
 		if ((size_t)argCount > potentialPositionalArgs && closure->function->collectsArguments) {
 			krk_push(NONE_VAL()); krk_push(NONE_VAL()); krk_pop(); krk_pop();
+			startOfPositionals = &krk_currentThread.stackTop[-argCount];
 			KrkValue tmp = krk_list_of(argCount - potentialPositionalArgs,
 				&startOfPositionals[potentialPositionalArgs], 0);
 			startOfPositionals = &krk_currentThread.stackTop[-argCount];
@@ -2313,7 +2314,8 @@ _finishReturn: (void)0;
 			case OP_ANNOTATE: {
 				if (IS_CLOSURE(krk_peek(0))) {
 					krk_swap(1);
-					AS_CLOSURE(krk_peek(1))->annotations = krk_pop();
+					AS_CLOSURE(krk_peek(1))->annotations = krk_peek(0);
+					krk_pop();
 				} else if (IS_NONE(krk_peek(0))) {
 					krk_swap(1);
 					krk_pop();

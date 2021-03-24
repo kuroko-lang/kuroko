@@ -25,7 +25,7 @@ KrkValue krk_dirObject(int argc, KrkValue argv[], int hasKw) {
 		/* Obtain self-reference */
 		KrkInstance * self = AS_INSTANCE(argv[0]);
 		for (size_t i = 0; i < self->fields.capacity; ++i) {
-			if (self->fields.entries[i].key.type != KRK_VAL_KWARGS) {
+			if (!IS_KWARGS(self->fields.entries[i].key)) {
 				krk_writeValueArray(AS_LIST(myList),
 					self->fields.entries[i].key);
 			}
@@ -34,7 +34,7 @@ KrkValue krk_dirObject(int argc, KrkValue argv[], int hasKw) {
 		/* Why not just make closures instances... */
 		KrkClosure * self = AS_CLOSURE(argv[0]);
 		for (size_t i = 0; i < self->fields.capacity; ++i) {
-			if (self->fields.entries[i].key.type != KRK_VAL_KWARGS) {
+			if (!IS_KWARGS(self->fields.entries[i].key)) {
 				krk_writeValueArray(AS_LIST(myList),
 					self->fields.entries[i].key);
 			}
@@ -43,7 +43,7 @@ KrkValue krk_dirObject(int argc, KrkValue argv[], int hasKw) {
 		KrkClass * _class = AS_CLASS(argv[0]);
 		while (_class) {
 			for (size_t i = 0; i < _class->methods.capacity; ++i) {
-				if (_class->methods.entries[i].key.type != KRK_VAL_KWARGS) {
+				if (!IS_KWARGS(_class->methods.entries[i].key)) {
 					krk_writeValueArray(AS_LIST(myList),
 						_class->methods.entries[i].key);
 				}
@@ -56,7 +56,7 @@ KrkValue krk_dirObject(int argc, KrkValue argv[], int hasKw) {
 
 	while (type) {
 		for (size_t i = 0; i < type->methods.capacity; ++i) {
-			if (type->methods.entries[i].key.type != KRK_VAL_KWARGS) {
+			if (!IS_KWARGS(type->methods.entries[i].key)) {
 				krk_writeValueArray(AS_LIST(myList),
 					type->methods.entries[i].key);
 			}
