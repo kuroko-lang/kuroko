@@ -1,0 +1,264 @@
+from codecs.infrastructure import StringCatenator, ByteCatenator, IncrementalEncoder, IncrementalDecoder, UnicodeDecodeError, UnicodeEncodeError, register_kuroko_codec
+
+let _base64_alphabet = (
+    list(range(ord("A"), ord("Z") + 1)) + 
+    list(range(ord("a"), ord("z") + 1)) +
+    list(range(ord("0"), ord("9") + 1)) + [ord("+"), ord("/")]
+)
+
+let _base64_alphabet_uu = list(range(0x20, 0x60))
+let _base64_alphabet_hqx = [ord(i) for i in
+        "!\"#$%&'()*+,-012345689@ABCDEFGHIJKLMNPQRSTUVXYZ[`abcdefhijklmpqr"]
+
+class Base64IncrementalCreator(IncrementalDecoder):
+    name = "inverse-base64"
+    alphabet = _base64_alphabet
+    padchar = "="
+    def decode(data_in, final = False):
+        let data = self.pending + data_in
+        self.pending = b""
+        let offset = 0
+        let out = StringCatenator()
+        while 1:
+            let subdata = list(data)[offset:(offset + 3)]
+            if (len(subdata) == 0) or (len(subdata) < 3 and not final):
+                return self._handle_truncation(out, None, final, data, offset, subdata)
+            let padchars = 3 - len(subdata)
+            subdata = subdata + ([0] * padchars)
+            let high = subdata[0]
+            let mid = subdata[1]
+            let low = subdata[2]
+            let charm = high >> 2
+            let up = ((high & 3) << 4) | (mid >> 4)
+            let down = ((mid & 0xF) << 2) | (low >> 6)
+            let strange = low & 0x3F
+            let outbit = "".join([chr(self.alphabet[i]) for i in [charm, up, down, strange]])
+            if padchars:
+                outbit = outbit[:-padchars] + (self.padchar * padchars)
+            out.add(outbit)
+            offset += 3
+
+class Base64IncrementalParser(IncrementalEncoder):
+    name = "inverse-base64"
+    alphabet = _base64_alphabet
+    padchar = "="
+    def encode(string_in, final = False):
+        let string = self.pending + string_in
+        self.pending = ""
+        let offset = 0
+        let out = ByteCatenator()
+        while 1:
+            let raw_substring = ""
+            let suboffset = offset
+            while (len(raw_substring) < 4) and suboffset < len(string):
+                if string[suboffset].strip():
+                    raw_substring += string[suboffset]
+                suboffset += 1
+            if len(raw_substring) == 0:
+                return out.getvalue()
+            else if len(raw_substring) < 4 and not final:
+                self.pending = raw_substring
+                return out.getvalue()
+            let substring = raw_substring
+            let padchars = 4 - len(substring.rstrip(self.padchar))
+            if padchars:
+                substring = substring[:(4-padchars)] + (chr(self.alphabet[0]) * padchars)
+            let charm
+            let up
+            let down
+            let strange
+            try:
+                charm = self.alphabet.index(ord(substring[0]))
+                up = self.alphabet.index(ord(substring[1]))
+                down = self.alphabet.index(ord(substring[2]))
+                strange = self.alphabet.index(ord(substring[3]))
+            except ValueError:
+                # Ignore the error specifier
+                raise UnicodeEncodeError(self.name, string, offset, suboffset,
+                                    "not Base64")
+            let high = (charm << 2) | (up >> 4)
+            let mid = ((up & 0xF) << 4) | (down >> 2)
+            let low = ((down & 3) << 6) | strange
+            if not padchars:
+                out.add(bytes([high, mid, low]))
+            else if padchars == 1:
+                out.add(bytes([high, mid]))
+            else if padchars == 2:
+                out.add(bytes([high]))
+            else:
+                # Ignore the error specifier
+                raise UnicodeEncodeError(self.name, string, offset, suboffset,
+                                    "Base64 truncated or with invalid number of pad characters")
+            offset = suboffset
+    def reset(): self.pending = ""
+    def getstate(): return self.pending
+    def setstate(state): self.pending = state
+
+register_kuroko_codec(["inverse-base64"],
+    Base64IncrementalParser, Base64IncrementalCreator)
+
+class Base64UUIncrementalCreator(Base64IncrementalCreator):
+    name = "inverse-base64uu"
+    alphabet = _base64_alphabet_uu
+    padchar = " "
+
+class Base64UUIncrementalParser(Base64IncrementalParser):
+    name = "inverse-base64uu"
+    alphabet = _base64_alphabet_uu
+    padchar = " "
+
+register_kuroko_codec(["inverse-base64uu"],
+    Base64UUIncrementalParser, Base64UUIncrementalCreator)
+
+class Base64HQXIncrementalCreator(Base64IncrementalCreator):
+    name = "inverse-base64hqx"
+    alphabet = _base64_alphabet_hqx
+
+class Base64HQXIncrementalParser(Base64IncrementalParser):
+    name = "inverse-base64hqx"
+    alphabet = _base64_alphabet_hqx
+
+register_kuroko_codec(["inverse-base64hqx"],
+    Base64HQXIncrementalParser, Base64HQXIncrementalCreator)
+
+
+class QuoPriIncrementalCreator(IncrementalDecoder):
+    name = "inverse-quopri"
+    def decode(data_in, final = False):
+        let data = self.pending + data_in
+        self.pending = b""
+        let offset = 0
+        let out = StringCatenator()
+        while 1:
+            # Unless we're final, stop one byte short of the end of the input and shove the
+            #   last byte in pending. We need to know if a line end follows (end of the *final*
+            #   input would count as a line end).
+            if (offset == len(data)) or ((offset + 1) == len(data) and not final):
+                self.pending = bytes(list(data)[offset:])
+                return out.getvalue()
+            let i = data[offset]
+            let next_eol = (offset + 1 == len(data)) or (data[offset + 1] in (0x0A, 0x0D))
+            if i > 0x20 and i < 0x7F and i != b"="[0]:
+                if self.linelength >= 75 and not next_eol:
+                    out.add("=\r\n")
+                    self.linelength = 0
+                out.add(chr(i))
+                self.linelength += 1
+            else if i in (0x0A, 0x0D):
+                out.add(chr(i))
+                self.linelength = 0
+            else if i in (0x09, 0x20):
+                if next_eol:
+                    if self.linelength > 73:
+                        out.add("=\r\n")
+                        out.add(chr(i))
+                        self.linelength = 1
+                    else:
+                        let hexbit = hex(i)[2:].upper()
+                        if len(hexbit) == 1: hexbit = "0" + hexbit
+                        out.add("=" + hexbit)
+                        self.linelength += 3
+                else:
+                    out.add(chr(i))
+                    self.linelength += 1
+            else:
+                if (self.linelength > 73) or (self.linelength > 72 and not next_eol):
+                    out.add("=\r\n")
+                    self.linelength = 0
+                let hexbit = hex(i)[2:].upper()
+                if len(hexbit) == 1: hexbit = "0" + hexbit
+                out.add("=" + hexbit)
+                self.linelength += 3
+            offset += 1
+    def reset():
+        self.linelength = 0
+        self.pending = b""
+    def getstate():
+        return (self.linelength, self.pending)
+    def setstate(state):
+        self.linelength = state[0]
+        self.pending = state[1]
+
+class QuoPriIncrementalParser(IncrementalEncoder):
+    name = "inverse-quopri"
+    def encode(string_in, final = False):
+        let string = self.pending + string_in
+        self.pending = ""
+        let offset = 0
+        let out = ByteCatenator()
+        while 1:
+            let substring = string[offset:(offset + 1)] # not string[offset] (it will fail at end)
+            if len(substring) == 0:
+                return out.getvalue()
+            else if substring == "=":
+                substring = string[offset:(offset + 3)]
+                if len(substring) < 3 and not final:
+                    self.pending = substring
+                    return out.getvalue()
+            else:
+                out.add(bytes([ord(substring)]))
+                offset += 1
+                continue
+            # Python's QuoPri parser is very lenient so we should also be
+            let procsubst = substring.upper()
+            let hexd = "0123456789ABCDEF"
+            if len(substring) >= 3 and substring[1] == "\r" and substring[2] == "\n":
+                offset += 3
+            else if len(substring) >= 2 and substring[1] == "\n":
+                # Leniency to LF not CRLF in soft line break (following Python behaviour)
+                offset += 2
+            else if len(substring) >= 2 and substring[1] == "\r" and substring[2:3] != "\n":
+                # Leniency to CR not CRLF in soft line break
+                # Python behaviour will actually swallow any data between =\r and \n, which is
+                #   BAD. I am not following suit.
+                offset += 2
+            else if len(substring) < 3 or procsubst[1] not in hexd or procsubst[2] not in hexd:
+                # Leniency to = which doesn't start a QuoPri escape
+                out.add(bytes([ord(substring[0])]))
+                offset += 1
+            else:
+                let byteval = (hexd.index(procsubst[1]) << 4) | hexd.index(procsubst[2])
+                out.add(bytes([byteval]))
+                offset += 3
+    def reset(): self.pending = ""
+    def getstate(): return self.pending
+    def setstate(state): self.pending = state
+
+register_kuroko_codec(["inverse-quopri"],
+    QuoPriIncrementalParser, QuoPriIncrementalCreator)
+
+
+def base64_file_create(data, filename=None, mode=0o666):
+    let out = StringCatenator()
+    let creator = Base64IncrementalCreator("strict")
+    if filename != None:
+        let octmode = oct(mode)[2:]
+        out.add(f"begin-base64 {octmode} {filename}\n")
+    let offset = 0
+    while offset < len(data):
+        let segment = bytes(list(data)[offset:offset+57])
+        out.add(creator.decode(segment, True))
+        out.add("\n")
+        offset += 57
+    if filename != None:
+        out.add("====\n")
+    return out.getvalue()
+
+
+def uu_file_create(data, filename="-", mode=0o666):
+    let out = StringCatenator()
+    let creator = Base64UUIncrementalCreator("strict")
+    let octmode = oct(mode)[2:]
+    out.add(f"begin {octmode} {filename}\n")
+    let offset = 0
+    while offset < len(data):
+        let segment = bytes(list(data)[offset:offset+45])
+        out.add(chr(_base64_alphabet_uu[len(segment)]))
+        out.add(creator.decode(segment, True))
+        out.add("\n")
+        offset += 45
+    out.add("`\nend\n")
+    return out.getvalue()
+
+
+

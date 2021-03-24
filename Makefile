@@ -7,6 +7,7 @@ OBJS     = $(patsubst %.c, %.o, $(filter-out src/module_% src/kuroko.c,$(sort $(
 MODULES  = $(patsubst src/module_%.c, modules/%.so, $(sort $(wildcard src/module_*.c)))
 HEADERS  = $(wildcard src/kuroko/*.h)
 TOOLS    = $(patsubst tools/%.c, krk-%, $(sort $(wildcard tools/*.c)))
+GENMODS  = modules/codecs/sbencs.krk modules/codecs/dbdata.krk
 
 # These are used by the install target. We call the local kuroko to get the
 # version string to use for the final library, so, uh, probably don't
@@ -17,7 +18,7 @@ KRKMODS  = $(wildcard modules/*.krk modules/*/*.krk modules/*/*/*.krk)
 
 ifndef KRK_ENABLE_STATIC
   # The normal build configuration is as a shared library or DLL (on Windows)
-  all: ${TARGET} ${MODULES} ${TOOLS}
+  all: ${TARGET} ${MODULES} ${TOOLS} ${GENMODS}
   CFLAGS  += -fPIC
   ifeq (,$(findstring mingw,$(CC)))
     # We set rpath here mostly so you can run the locally-built interpreter
@@ -47,7 +48,7 @@ else
   # Static builds are a little different...
   CFLAGS +=-DSTATIC_ONLY
   LDFLAGS += -static
-  all: ${TARGET}
+  all: ${TARGET} ${GENMODS}
   KUROKO_LIBS = ${OBJS} -lpthread
 endif
 
@@ -123,6 +124,12 @@ modules/%.so: src/module_%.c libkuroko.so
 modules/math.so: src/module_math.c libkuroko.so
 	${CC} ${CFLAGS} ${LDFLAGS} -shared -o $@ $< -lm ${LDLIBS} ${MODLIBS}
 
+modules/codecs/sbencs.krk: kuroko tools/codectools/gen_sbencs.krk tools/codectools/encodings.json tools/codectools/indexes.json
+	./kuroko tools/codectools/gen_sbencs.krk
+
+modules/codecs/dbdata.krk: kuroko tools/codectools/gen_dbdata.krk tools/codectools/encodings.json tools/codectools/indexes.json
+	./kuroko tools/codectools/gen_dbdata.krk
+
 .PHONY: clean
 clean:
 	@rm -f ${OBJS} ${TARGET} ${MODULES} libkuroko.so *.so.debug src/*.o src/vendor/*.o kuroko.exe ${TOOLS} $(patsubst %,%.exe,${TOOLS})
@@ -164,7 +171,7 @@ INSTALL_PROGRAM=$(INSTALL)
 INSTALL_DATA=$(INSTALL) -m 644
 
 .PHONY: install
-install: kuroko libkuroko.so ${HEADERS} $(KRKMODS) $(MODULES)
+install: all libkuroko.so ${HEADERS} $(KRKMODS) $(MODULES)
 	@echo "Creating directories..."
 	$(INSTALL) -d $(DESTDIR)$(includedir)/kuroko
 	$(INSTALL) -d $(DESTDIR)$(bindir)
@@ -183,6 +190,7 @@ install: kuroko libkuroko.so ${HEADERS} $(KRKMODS) $(MODULES)
 	$(INSTALL_DATA) modules/foo/*.krk     $(DESTDIR)$(bindir)/../lib/kuroko/foo/
 	$(INSTALL_DATA) modules/foo/bar/*.krk $(DESTDIR)$(bindir)/../lib/kuroko/foo/bar/
 	$(INSTALL_DATA) modules/syntax/*.krk  $(DESTDIR)$(bindir)/../lib/kuroko/syntax/
+	$(INSTALL_DATA) modules/codecs/*.krk  $(DESTDIR)$(bindir)/../lib/kuroko/codecs/
 	$(INSTALL_PROGRAM) $(MODULES)         $(DESTDIR)$(bindir)/../lib/kuroko/
 	@echo "Installing headers..."
 	$(INSTALL_DATA) ${HEADERS} $(DESTDIR)$(includedir)/kuroko/
