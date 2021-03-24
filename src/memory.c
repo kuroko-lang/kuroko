@@ -297,6 +297,9 @@ size_t krk_collectGarbage(void) {
 	tableRemoveWhite(&vm.strings);
 	size_t out = sweep();
 	vm.nextGC = vm.bytesAllocated * 2;
+	if (vm.globalFlags & KRK_GLOBAL_REPORT_GC_COLLECTS) {
+		fprintf(stderr, "[gc] collected %llu, next collection at %llu\n", (unsigned long long)out, (unsigned long long)vm.nextGC);
+	}
 	return out;
 }
 

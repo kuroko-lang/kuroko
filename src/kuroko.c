@@ -742,7 +742,7 @@ int main(int argc, char * argv[]) {
 	int flags = 0;
 	int moduleAsMain = 0;
 	int opt;
-	while ((opt = getopt(argc, argv, "+c:C:dgm:rstTMSV-:")) != -1) {
+	while ((opt = getopt(argc, argv, "+c:C:dgGm:rstTMSV-:")) != -1) {
 		switch (opt) {
 			case 'c':
 				return runString(argv, flags, optarg);
@@ -753,6 +753,9 @@ int main(int argc, char * argv[]) {
 			case 'g':
 				/* Always garbage collect during an allocation. */
 				flags |= KRK_GLOBAL_ENABLE_STRESS_GC;
+				break;
+			case 'G':
+				flags |= KRK_GLOBAL_REPORT_GC_COLLECTS;
 				break;
 			case 's':
 				/* Print debug information during compilation. */
@@ -793,6 +796,7 @@ int main(int argc, char * argv[]) {
 						"Interpreter options:\n"
 						" -d          Debug output from the bytecode compiler.\n"
 						" -g          Collect garbage on every allocation.\n"
+						" -G          Report GC collections.\n"
 						" -m mod      Run a module as a script.\n"
 						" -r          Disable complex line editing in the REPL.\n"
 						" -s          Debug output from the scanner/tokenizer.\n"
