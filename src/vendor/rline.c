@@ -1707,7 +1707,7 @@ void redraw_matching_paren(int col) {
 
 void highlight_matching_paren(void) {
 	int col = -1;
-	if (is_paren(the_line->text[column].codepoint)) {
+	if (column < the_line->actual && is_paren(the_line->text[column].codepoint)) {
 		find_matching_paren(&col, 0);
 	} else if (column > 0 && is_paren(the_line->text[column-1].codepoint)) {
 		find_matching_paren(&col, 1);
