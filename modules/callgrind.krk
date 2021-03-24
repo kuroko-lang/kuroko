@@ -29,7 +29,7 @@ def processFile(sourcePath, pid, cmd):
             let sFile, sFunc = key
             out.write(f'fl={sFile}\n')
             out.write(f'fn={sFunc}\n')
-            if sFunc != '(root)':
+            if not sFunc.startswith('(root)'):
                 let startLine, totalNsecs = value[None]
                 for k, v in value.items():
                     if not k: continue

@@ -89,12 +89,14 @@ KrkThreadState krk_currentThread;
 		diff.tv_sec  = outTime.tv_sec  - frame->in_time.tv_sec; \
 		diff.tv_nsec = outTime.tv_nsec - frame->in_time.tv_nsec; \
 		if (diff.tv_nsec < 0) { diff.tv_sec--; diff.tv_nsec += 1000000000L; } \
-		fprintf(vm.callgrindFile, "%s %s %d %s %s %d %lld%.9ld\n", \
+		fprintf(vm.callgrindFile, "%s %s@%p %d %s %s@%p %d %lld%.9ld\n", \
 			caller ? (caller->closure->function->chunk.filename->chars) : "stdin", \
 			caller ? (caller->closure->function->qualname ? caller->closure->function->qualname->chars : caller->closure->function->name->chars) : "(root)", \
+			caller ? ((void*)caller->closure->function) : NULL, \
 			caller ? ((int)krk_lineNumber(&caller->closure->function->chunk, caller->ip - caller->closure->function->chunk.code)) : 1, \
 			frame->closure->function->chunk.filename->chars, \
 			frame->closure->function->qualname ? frame->closure->function->qualname->chars : frame->closure->function->name->chars, \
+			(void*)frame->closure->function, \
 			(int)krk_lineNumber(&frame->closure->function->chunk, 0), \
 			(long long)diff.tv_sec, diff.tv_nsec); \
 	}
