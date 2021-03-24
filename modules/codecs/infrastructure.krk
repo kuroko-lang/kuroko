@@ -416,7 +416,8 @@ class BaseEbcdicIncrementalEncoder(IncrementalEncoder):
                     self.in_dbcshost = False
                 return out.getvalue()
             let i = string[offset]
-            if ord(i) in self.sbcs_encode:
+            if ord(i) in self.sbcs_encode and self.sbcs_encode[ord(i)] not in (
+                        self.shift_to_dbcs, self.shift_to_sbcs, 0x08):
                 if self.in_dbcshost:
                     out.add(bytes([self.shift_to_sbcs]))
                     self.in_dbcshost = False
