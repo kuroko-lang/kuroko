@@ -843,6 +843,7 @@ _finishArgs:
 #ifdef BUNDLE_LIBS
 	/* Add any other modules you want to include that are normally built as shared objects. */
 	BUNDLED(math);
+	BUNDLED(socket);
 #endif
 
 	KrkValue result = INTEGER_VAL(0);

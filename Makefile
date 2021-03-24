@@ -82,6 +82,9 @@ ifdef KRK_ENABLE_BUNDLE
   CFLAGS += -DBUNDLE_LIBS=1
   # And link anything our core modules would have needed
   LDLIBS += -lm
+  ifeq (,$(findstring mingw,$(CC)))
+    LDLIBS += -lws2_32
+  endif
 endif
 
 .PHONY: help
