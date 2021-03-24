@@ -129,7 +129,7 @@ clean:
 	@rm -rf docs/html
 
 tags: $(wildcard src/*.c) $(wildcard src/*.h)
-	@ctags --c-kinds=+lx src/*.c src/*.h
+	@ctags --c-kinds=+lx src/*.c src/*.h  src/kuroko/*.h src/vendor/*.h
 
 libtcmalloc_minimal.a:
 	curl -O https://klange.dev/libtcmalloc_minimal.a
