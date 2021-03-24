@@ -3,35 +3,28 @@ This module includes some additional variable-width or wide encodings not specif
 such, none of the codecs in this module should be used in HTML.
 """
 
-from codecs.dbextra_data_8bit import encode_gb8, decode_gb8, encode_nbyte_ebcdic, decode_nbyte_ebcdic, encode_johab_ascii, decode_johab_ascii, encode_johab_ebcdic, decode_johab_ebcdic, encode_euc90, encode_euc04, decode_euc04, encode_sjis04, decode_sjis04, encode_big5_nonetenkana, decode_big5_nonetenkana, big5_coded_forms_from_hkscs
-from codecs.dbextra_data_7bit import encode_lat1supp, decode_lat1supp, encode_greksupp, decode_greksupp, encode_jis78, decode_jis78, encode_jis90p2, decode_jis90p2, encode_jis00, decode_jis00, encode_jis00p2, decode_jis00p2, encode_jis04, decode_jis04, encode_jis7katakana, encode_gb7, decode_gb7, encode_ksc7, decode_ksc7, encode_csic1, decode_csic1, encode_csic2, decode_csic2
+from codecs.dbextra_data_8bit import data_8bit
+from codecs.dbextra_data_7bit import data_7bit
 
-from codecs.infrastructure import register_kuroko_codec, ByteCatenator, StringCatenator, UnicodeEncodeError, UnicodeDecodeError, lookup_error, lookup, BaseEbcdicIncrementalEncoder, BaseEbcdicIncrementalDecoder, AsciiIncrementalEncoder, AsciiIncrementalDecoder, IncrementalEncoder, IncrementalDecoder
+from codecs.infrastructure import register_kuroko_codec, ByteCatenator, StringCatenator, UnicodeEncodeError, UnicodeDecodeError, lookup_error, lookup, BaseEbcdicIncrementalEncoder, BaseEbcdicIncrementalDecoder, AsciiIncrementalEncoder, AsciiIncrementalDecoder, IncrementalEncoder, IncrementalDecoder, lazy_property
 from codecs.dbdata import more_dbdata, XEucJpIncrementalDecoder, Big5EtenIncrementalEncoder, Big5HkscsIncrementalDecoder
 from codecs.bespokecodecs import Iso2022JpIncrementalEncoder, Iso2022JpIncrementalDecoder, Utf8IncrementalDecoder, Utf16BeIncrementalEncoder, Utf16BeIncrementalDecoder, Utf8SigIncrementalEncoder
 from collections import xraydict
 
-let cp950_no_eudc_encoding_map = xraydict(Big5EtenIncrementalEncoder("strict").encoding_map, {
-        0x2550: (0xA2, 0xA4),
-        0x255E: (0xA2, 0xA5),
-        0x256A: (0xA2, 0xA6),
-        0x2561: (0xA2, 0xA7),
-    },
-    [131210, 168, 131276, 248, 331, 339, 592, 596, 603, 618, 629, 643, 650, 710, 1025, 1040, 1041, 1042, 1043, 1044, 1045, 1046, 1047, 1048, 1049, 1050, 1051, 1052, 1053, 1054, 1055, 1056, 1057, 1058, 1059, 1060, 1061, 1062, 1063, 1064, 1065, 1066, 1067, 1068, 1069, 1070, 1071, 1072, 1073, 1074, 1075, 1076, 1077, 1078, 1079, 1080, 1081, 1082, 1083, 1084, 1085, 1086, 1087, 1088, 1089, 1090, 1091, 1092, 1093, 1094, 1095, 1096, 1105, 1097, 1098, 1099, 1100, 1101, 1102, 1103, 36789, 38582, 40880, 40881, 8470, 8481, 8560, 8561, 8562, 8563, 8564, 8565, 8566, 8567, 8568, 8569, 8632, 8633, 8679, 9312, 9313, 9314, 9315, 9316, 9317, 9318, 9319, 9320, 9321, 9332, 9333, 9334, 9335, 9336, 9337, 9338, 9339, 9340, 9341, 10045, 11904, 11908, 11910, 11911, 11912, 11914, 11916, 11917, 11925, 11932, 11933, 11941, 11943, 11946, 11948, 11950, 11958, 11964, 11966, 11974, 11978, 11980, 11981, 11983, 11990, 11991, 11998, 12003, 12083, 12293, 12294, 12295, 12353, 12354, 12355, 12356, 12357, 12358, 12359, 12360, 12361, 12362, 12363, 12364, 12365, 12366, 12367, 12368, 12369, 12370, 12371, 12372, 12373, 12374, 12375, 12376, 12377, 12378, 12379, 12380, 12381, 12382, 12383, 12384, 12385, 12386, 12387, 12388, 12389, 12390, 12391, 12392, 12393, 12394, 12395, 12396, 12397, 12398, 12399, 12400, 12401, 12402, 12403, 12404, 12405, 12406, 12407, 12408, 12409, 12410, 12411, 12412, 12413, 12414, 12415, 12416, 12417, 12418, 12419, 12420, 12421, 12422, 12423, 12424, 12425, 12426, 12427, 12428, 12429, 12430, 12431, 12432, 12433, 12434, 12435, 12443, 12444, 12445, 12446, 12449, 12450, 12451, 12452, 12453, 12454, 12455, 12456, 12457, 12458, 12459, 12460, 12461, 12462, 12463, 12464, 12465, 12466, 12467, 12468, 12469, 12470, 12471, 12472, 12473, 12474, 12475, 12476, 12477, 12478, 12479, 12480, 12481, 12482, 12483, 12484, 12485, 12486, 12487, 12488, 12489, 12490, 12491, 12492, 12493, 12494, 12495, 12496, 12497, 12498, 12499, 12500, 12501, 12502, 12503, 12504, 12505, 12506, 12507, 12508, 12509, 12510, 12511, 12512, 12513, 12514, 12515, 12516, 12517, 12518, 12519, 12520, 12521, 12522, 12523, 12524, 12525, 12526, 12527, 12528, 12529, 12530, 12531, 12532, 12533, 12534, 12540, 12541, 12542, 12751, 12849, 17553, 20022, 20031, 20058, 20101, 20128, 20189, 20866, 20872, 20886, 20907, 20994, 21241, 21304, 21353, 21430, 22794, 23424, 24027, 24191, 24308, 24400, 24417, 25908, 26080, 30098, 161287, 30326, 65282, 65287, 65339, 65341, 65506, 65508]
-)
-
-let cp950_no_eudc_decoding_map = xraydict(Big5HkscsIncrementalDecoder("strict").decoding_map, {},
-    big5_coded_forms_from_hkscs)
 
 class Big5NonEtenKanaIncrementalEncoder(AsciiIncrementalEncoder):
     name = "big5-nonetenkana"
     html5name = None
-    encoding_map = xraydict(cp950_no_eudc_encoding_map, encode_big5_nonetenkana)
+    @lazy_property
+    def encoding_map():
+        return xraydict(data_8bit.cp950_no_eudc_encoding_map, data_8bit.encode_big5_nonetenkana)
 
 class Big5NonEtenKanaIncrementalDecoder(AsciiIncrementalDecoder):
     name = "big5-nonetenkana"
     html5name = None
-    decoding_map = xraydict(cp950_no_eudc_decoding_map, decode_big5_nonetenkana)
+    @lazy_property
+    def decoding_map():
+        return xraydict(data_8bit.cp950_no_eudc_decoding_map, data_8bit.decode_big5_nonetenkana)
     dbrange = Big5HkscsIncrementalDecoder.dbrange
     trailrange = Big5HkscsIncrementalDecoder.trailrange
 
@@ -41,43 +34,47 @@ register_kuroko_codec(["big5-nonetenkana", "big5-tw"],
 class XMacChineseTradIncrementalEncoder(AsciiIncrementalEncoder):
     name = "x-mac-chinesetrad"
     html5name = None
-    encoding_map = xraydict(cp950_no_eudc_encoding_map, {
-        0xB7: (0xA1, 0x45),
-        0x22EF: (0xA1, 0x4B),
-        0x203E: (0xA1, 0xC2),
-        0x223C: (0xA1, 0xE3),
-        0x2609: (0xA1, 0xF3),
-        0xA5: (0xA2, 0x44),
-        0xA2: (0xA2, 0x46),
-        0xA3: (0xA2, 0x47),
-        0xF880: 0x81,
-        0xF881: 0x82,
-        0xA0: 0xA0,
-        0xA9: 0xFD,
-        0x2122: 0xFE,
-        0x2026: 0xFF,
-    })
+    @lazy_property
+    def encoding_map():
+        return xraydict(data_8bit.cp950_no_eudc_encoding_map, {
+            0xB7: (0xA1, 0x45),
+            0x22EF: (0xA1, 0x4B),
+            0x203E: (0xA1, 0xC2),
+            0x223C: (0xA1, 0xE3),
+            0x2609: (0xA1, 0xF3),
+            0xA5: (0xA2, 0x44),
+            0xA2: (0xA2, 0x46),
+            0xA3: (0xA2, 0x47),
+            0xF880: 0x81,
+            0xF881: 0x82,
+            0xA0: 0xA0,
+            0xA9: 0xFD,
+            0x2122: 0xFE,
+            0x2026: 0xFF,
+        })
 
 class XMacChineseTradIncrementalDecoder(AsciiIncrementalDecoder):
     name = "x-mac-chinesetrad"
     html5name = None
-    decoding_map = xraydict(cp950_no_eudc_decoding_map, {
-        (0xA1, 0x45): 0xB7,
-        (0xA1, 0x4B): 0x22EF,
-        (0xA1, 0xC2): 0x203E,
-        (0xA1, 0xE3): 0x223C,
-        (0xA1, 0xF3): 0x2609,
-        (0xA2, 0x44): 0xA5,
-        (0xA2, 0x46): 0xA2,
-        (0xA2, 0x47): 0xA3,
-        0x80: 0x5C,
-        0x81: 0xF880,
-        0x82: 0xF881,
-        0xA0: 0xA0,
-        0xFD: 0xA9,
-        0xFE: 0x2122,
-        0xFF: 0x2026,
-    })
+    @lazy_property
+    def decoding_map():
+        return xraydict(data_8bit.cp950_no_eudc_decoding_map, {
+            (0xA1, 0x45): 0xB7,
+            (0xA1, 0x4B): 0x22EF,
+            (0xA1, 0xC2): 0x203E,
+            (0xA1, 0xE3): 0x223C,
+            (0xA1, 0xF3): 0x2609,
+            (0xA2, 0x44): 0xA5,
+            (0xA2, 0x46): 0xA2,
+            (0xA2, 0x47): 0xA3,
+            0x80: 0x5C,
+            0x81: 0xF880,
+            0x82: 0xF881,
+            0xA0: 0xA0,
+            0xFD: 0xA9,
+            0xFE: 0x2122,
+            0xFF: 0x2026,
+        })
     dbrange = tupleOf(*range(0xA1, 0xFC + 1))
     trailrange = Big5HkscsIncrementalDecoder.trailrange
 
@@ -88,37 +85,41 @@ register_kuroko_codec(["x-mac-chinesetrad", "x-mac-trad-chinese"],
 class XMacChineseSimpIncrementalEncoder(AsciiIncrementalEncoder):
     name = "x-mac-chinesesimp"
     html5name = None
-    encoding_map = xraydict(encode_gb8, {
-        0x301C: (0xA1, 0xAB),
-        0x22EF: (0xA1, 0xAD),
-        0xA2: (0xA1, 0xE9),
-        0xA3: (0xA1, 0xEA),
-        0x203E: (0xA3, 0xFE),
-        0xF880: 0x81,
-        0xF881: 0x82,
-        0xA0: 0xA0,
-        0xA9: 0xFD,
-        0x2122: 0xFE,
-        0x2026: 0xFF,
-    })
+    @lazy_property
+    def encoding_map():
+        return xraydict(data_8bit.encode_gb8, {
+            0x301C: (0xA1, 0xAB),
+            0x22EF: (0xA1, 0xAD),
+            0xA2: (0xA1, 0xE9),
+            0xA3: (0xA1, 0xEA),
+            0x203E: (0xA3, 0xFE),
+            0xF880: 0x81,
+            0xF881: 0x82,
+            0xA0: 0xA0,
+            0xA9: 0xFD,
+            0x2122: 0xFE,
+            0x2026: 0xFF,
+        })
 
 class XMacChineseSimpIncrementalDecoder(AsciiIncrementalDecoder):
     name = "x-mac-chinesesimp"
     html5name = None
-    decoding_map = xraydict(decode_gb8, {
-        (0xA1, 0xAB): 0x301C,
-        (0xA1, 0xAD): 0x22EF,
-        (0xA1, 0xE9): 0xA2,
-        (0xA1, 0xEA): 0xA3,
-        (0xA3, 0xFE): 0x203E,
-        0x80: 0xFC,
-        0x81: 0xF880,
-        0x82: 0xF881,
-        0xA0: 0xA0,
-        0xFD: 0xA9,
-        0xFE: 0x2122,
-        0xFF: 0x2026,
-    })
+    @lazy_property
+    def decoding_map():
+        return xraydict(data_8bit.decode_gb8, {
+            (0xA1, 0xAB): 0x301C,
+            (0xA1, 0xAD): 0x22EF,
+            (0xA1, 0xE9): 0xA2,
+            (0xA1, 0xEA): 0xA3,
+            (0xA3, 0xFE): 0x203E,
+            0x80: 0xFC,
+            0x81: 0xF880,
+            0x82: 0xF881,
+            0xA0: 0xA0,
+            0xFD: 0xA9,
+            0xFE: 0x2122,
+            0xFF: 0x2026,
+        })
     dbrange = tupleOf(*range(0xA1, 0xFC + 1))
     trailrange = tupleOf(*range(0xA1, 0xFE + 1))
 
@@ -345,7 +346,9 @@ register_kuroko_codec(["utf-7", "utf7", "u7", "unicode-1-1-utf-7"],
 class EucJpFullIncrementalEncoder(AsciiIncrementalEncoder):
     name = "euc-jp-full"
     html5name = None
-    encoding_map = encode_euc90
+    @lazy_property
+    def encoding_map():
+        return data_8bit.encode_euc90
 
 register_kuroko_codec(["euc-jp-full"],
     EucJpFullIncrementalEncoder, XEucJpIncrementalDecoder)
@@ -354,12 +357,16 @@ register_kuroko_codec(["euc-jp-full"],
 class EucJis2004IncrementalEncoder(AsciiIncrementalEncoder):
     name = "euc-jis-2004"
     html5name = None
-    encoding_map = encode_euc04
+    @lazy_property
+    def encoding_map():
+        return data_8bit.encode_euc04
 
 class EucJis2004IncrementalDecoder(AsciiIncrementalDecoder):
     name = "euc-jis-2004"
     html5name = None
-    decoding_map = decode_euc04
+    @lazy_property
+    def decoding_map():
+        return data_8bit.decode_euc04
     dbrange = tupleOf(0x8E, *range(0xA1, 0xFE + 1))
     tbrange = (0x8F,)
     trailrange = tupleOf(*range(0xA1, 0xFE + 1))
@@ -372,13 +379,17 @@ register_kuroko_codec(["euc-jis-2004", "jisx0213", "eucjis2004", "euc_jis2004",
 class ShiftJis2004IncrementalEncoder(AsciiIncrementalEncoder):
     name = "shift-jis-2004"
     html5name = None
-    encoding_map = encode_sjis04
+    @lazy_property
+    def encoding_map():
+        return data_8bit.encode_sjis04
     ascii_exceptions = (0x5C, 0x7E)
 
 class ShiftJis2004IncrementalDecoder(AsciiIncrementalDecoder):
     name = "shift-jis-2004"
     html5name = None
-    decoding_map = decode_sjis04
+    @lazy_property
+    def decoding_map():
+        return data_8bit.decode_sjis04
     ascii_exceptions = (0x5C, 0x7E)
     dbrange = (129, 130, 131, 132, 133, 134, 135, 136, 137, 138, 139, 140, 141, 142, 143, 144, 145, 
                146, 147, 148, 149, 150, 151, 152, 153, 154, 155, 156, 157, 158, 159, 224, 225, 226, 
@@ -394,12 +405,16 @@ register_kuroko_codec(["shift_jis-2004", "shiftjis2004", "sjis_2004", "s_jis_200
 class AsciiJohabIncrementalEncoder(AsciiIncrementalEncoder):
     name = "johab-ascii"
     html5name = None
-    encoding_map = encode_johab_ascii
+    @lazy_property
+    def encoding_map():
+        return data_8bit.encode_johab_ascii
 
 class AsciiJohabIncrementalDecoder(AsciiIncrementalDecoder):
     name = "johab-ascii"
     html5name = None
-    decoding_map = decode_johab_ascii
+    @lazy_property
+    def decoding_map():
+        return data_8bit.decode_johab_ascii
     dbrange = tupleOf(*range(0x84, 0xF9 + 1))
     # Trail ranges for hangul and nonhangul are different, but this is their union.
     trailrange = tupleOf(*range(0x31, 0x7E + 1), *range(0x81, 0xFE + 1))
@@ -411,14 +426,22 @@ register_kuroko_codec(["cp1361", "ms1361", "johab", "x-johab", "johab-ascii"],
 class EbcdicJohabIncrementalEncoder(BaseEbcdicIncrementalEncoder):
     name = "johab-ebcdic"
     html5name = None
-    sbcs_encode = encode_nbyte_ebcdic
-    dbcshost_encode = encode_johab_ebcdic
+    @lazy_property
+    def sbcs_encode():
+        return data_8bit.encode_nbyte_ebcdic
+    @lazy_property
+    def dbcshost_encode():
+        return data_8bit.encode_johab_ebcdic
 
 class EbcdicJohabIncrementalDecoder(BaseEbcdicIncrementalDecoder):
     name = "johab-ebcdic"
     html5name = None
-    sbcs_decode = decode_nbyte_ebcdic
-    dbcshost_decode = decode_johab_ebcdic
+    @lazy_property
+    def sbcs_decode():
+        return data_8bit.decode_nbyte_ebcdic
+    @lazy_property
+    def dbcshost_decode():
+        return data_8bit.decode_johab_ebcdic
 
 register_kuroko_codec(["cp933", "ibm-933", "933", "x-IBM933", "ibm-1364", "x-IBM1364",
         "johab-ebcdic"],
@@ -428,11 +451,26 @@ register_kuroko_codec(["cp933", "ibm-933", "933", "x-IBM933", "ibm-1364", "x-IBM
 class JisEncodingIncrementalEncoder(Iso2022JpIncrementalEncoder):
     name = "jis_encoding"
     html5name = None
-    encodes_sbcs = [None, None, encode_jis7katakana]
-    encodes_dbcs = [None, None, None, more_dbdata.encode_jis7, encode_jis78, encode_jis90p2,
-                    encode_jis00, encode_jis00p2, encode_jis04, encode_gb7, encode_ksc7]
-    encode_supershift_latin = encode_lat1supp
-    encode_supershift_greek = encode_greksupp
+    @lazy_property
+    def encodes_sbcs():
+        return [None, None, data_7bit.encode_jis7katakana]
+    @lazy_property
+    def encodes_dbcs():
+        return [None, None, None,
+                more_dbdata.encode_jis7,
+                data_7bit.encode_jis78,
+                data_7bit.encode_jis90p2,
+                data_7bit.encode_jis00,
+                data_7bit.encode_jis00p2,
+                data_7bit.encode_jis04,
+                data_7bit.encode_gb7,
+                data_7bit.encode_ksc7]
+    @lazy_property
+    def encode_supershift_latin():
+        return data_7bit.encode_lat1supp
+    @lazy_property
+    def encode_supershift_greek():
+        return data_7bit.encode_greksupp
     super_shift = True
     escs_onebyte = {0: 0x42, 1: 0x4A, 2: 0x49}
     escs_twobyte = {3: 0x42, 4: 0x40, 5: 0x44, 6: 0x4F, 7: 0x50, 8: 0x51, 9: 0x41, 10: 0x43}
@@ -441,12 +479,29 @@ class JisEncodingIncrementalEncoder(Iso2022JpIncrementalEncoder):
 class JisEncodingIncrementalDecoder(Iso2022JpIncrementalDecoder):
     name = "jis_encoding"
     html5name = None
-    decodes_sbcs = [None, None, more_dbdata.decode_jis7katakana]
-    decodes_dbcs = [None, None, None, more_dbdata.decode_jis7, decode_jis78, decode_jis90p2,
-                    decode_jis00, decode_jis00p2, decode_jis04, decode_gb7, decode_ksc7]
-    decode_shiftout = more_dbdata.decode_jis7katakana
-    decode_supershift_latin = decode_lat1supp
-    decode_supershift_greek = decode_greksupp
+    @lazy_property
+    def decodes_sbcs():
+        return [None, None, more_dbdata.decode_jis7katakana]
+    @lazy_property
+    def decodes_dbcs():
+        return [None, None, None,
+                more_dbdata.decode_jis7,
+                data_7bit.decode_jis78,
+                data_7bit.decode_jis90p2,
+                data_7bit.decode_jis00,
+                data_7bit.decode_jis00p2,
+                data_7bit.decode_jis04,
+                data_7bit.decode_gb7,
+                data_7bit.decode_ksc7]
+    @lazy_property
+    def decode_shiftout():
+        return more_dbdata.decode_jis7katakana
+    @lazy_property
+    def decode_supershift_latin():
+        return data_7bit.decode_lat1supp
+    @lazy_property
+    def decode_supershift_greek():
+        return data_7bit.decode_greksupp
     # 0x48 is not ASCII or JIS-Roman, but SEN 85 02 00 Annex C. It is however misused for either
     #   ASCII or JIS-Roman in some encoders, so it is a "good idea for software to recognise,
     #   but not to generate" (—Lunde) it for JIS-Roman when decoding JIS_encoding.
@@ -465,8 +520,12 @@ register_kuroko_codec(["jis_encoding", "csjisencoding", "jis", "jis7"],
 class Iso2022Jp1IncrementalEncoder(Iso2022JpIncrementalEncoder):
     name = "iso-2022-jp-1"
     html5name = None
-    encodes_sbcs = [None, None]
-    encodes_dbcs = [None, None, encode_jis90p2, more_dbdata.encode_jis7]
+    @lazy_property
+    def encodes_sbcs():
+        return [None, None]
+    @lazy_property
+    def encodes_dbcs():
+        return [None, None, data_7bit.encode_jis90p2, more_dbdata.encode_jis7]
     escs_onebyte = {0: 0x42, 1: 0x4A}
     escs_twobyte = {3: 0x42, 2: 0x44}
     attitude = "eager"
@@ -478,8 +537,12 @@ register_kuroko_codec(["iso-2022-jp-1", "iso2022-jp-1", "iso2022jp-1"],
 class Iso2022JpExtIncrementalEncoder(Iso2022JpIncrementalEncoder):
     name = "iso-2022-jp-ext"
     html5name = None
-    encodes_sbcs = [None, None, encode_jis7katakana]
-    encodes_dbcs = [None, None, None, encode_jis90p2, more_dbdata.encode_jis7]
+    @lazy_property
+    def encodes_sbcs():
+        return [None, None, data_7bit.encode_jis7katakana]
+    @lazy_property
+    def encodes_dbcs():
+        return [None, None, None, data_7bit.encode_jis90p2, more_dbdata.encode_jis7]
     escs_onebyte = {0: 0x42, 1: 0x4A, 2: 0x49}
     escs_twobyte = {4: 0x42, 3: 0x44}
     attitude = "eager"
@@ -491,10 +554,22 @@ register_kuroko_codec(["iso-2022-jp-ext", "iso2022-jp-ext", "iso2022jp-ext"],
 class Iso2022Jp2IncrementalEncoder(Iso2022JpIncrementalEncoder):
     name = "iso-2022-jp-2"
     html5name = None
-    encodes_sbcs = [None, None]
-    encodes_dbcs = [None, None, encode_jis90p2, more_dbdata.encode_jis7, encode_gb7, encode_ksc7]
-    encode_supershift_latin = encode_lat1supp
-    encode_supershift_greek = encode_greksupp
+    @lazy_property
+    def encodes_sbcs():
+        return [None, None]
+    @lazy_property
+    def encodes_dbcs():
+        return [None, None,
+                data_7bit.encode_jis90p2,
+                more_dbdata.encode_jis7,
+                data_7bit.encode_gb7,
+                data_7bit.encode_ksc7]
+    @lazy_property
+    def encode_supershift_latin():
+        return data_7bit.encode_lat1supp
+    @lazy_property
+    def encode_supershift_greek():
+        return data_7bit.encode_greksupp
     super_shift = True
     escs_onebyte = {0: 0x42, 1: 0x4A}
     escs_twobyte = {3: 0x42, 2: 0x44, 4: 0x41, 5: 0x43}
@@ -519,8 +594,15 @@ let encode_jis7_reduced = xraydict(more_dbdata.encode_jis7, {}, [33537, 33634, 3
 class Iso2022Jp3IncrementalEncoder(Iso2022JpIncrementalEncoder):
     name = "iso-2022-jp-3"
     html5name = None
-    encodes_sbcs = [None, None, encode_jis7katakana]
-    encodes_dbcs = [None, None, None, encode_jis7_reduced, encode_jis00, encode_jis00p2]
+    @lazy_property
+    def encodes_sbcs():
+        return [None, None, data_7bit.encode_jis7katakana]
+    @lazy_property
+    def encodes_dbcs():
+        return [None, None, None,
+                encode_jis7_reduced,
+                data_7bit.encode_jis00,
+                data_7bit.encode_jis00p2]
     escs_onebyte = {0: 0x42, 1: 0x4A, 2: 0x49}
     escs_twobyte = {3: 0x42, 4: 0x4F, 5: 0x50}
     attitude = "eager"
@@ -532,8 +614,15 @@ register_kuroko_codec(["iso-2022-jp-3", "iso2022-jp-3", "iso2022jp-3"],
 class Iso2022Jp2004IncrementalEncoder(Iso2022JpIncrementalEncoder):
     name = "iso-2022-jp-2004"
     html5name = None
-    encodes_sbcs = [None, None, encode_jis7katakana]
-    encodes_dbcs = [None, None, None, encode_jis7_reduced, encode_jis00p2, encode_jis04]
+    @lazy_property
+    def encodes_sbcs():
+        return [None, None, data_7bit.encode_jis7katakana]
+    @lazy_property
+    def encodes_dbcs():
+        return [None, None, None,
+                encode_jis7_reduced,
+                data_7bit.encode_jis00p2,
+                data_7bit.encode_jis04]
     escs_onebyte = {0: 0x42, 1: 0x4A, 2: 0x49}
     escs_twobyte = {3: 0x42, 4: 0x50, 5: 0x51}
     attitude = "eager"
@@ -545,7 +634,9 @@ register_kuroko_codec(["iso-2022-jp-2004", "iso2022-jp-2004", "iso2022jp-2004"],
 class Utf32IncrementalEncoder(IncrementalEncoder):
     name = "utf-32"
     html5name = None
-    encoding_map = {}
+    @lazy_property
+    def encoding_map():
+        return {}
     endian = "little"
     include_bom = True
     # -1: BOM not yet emitted if applicable
@@ -743,9 +834,9 @@ class HzIncrementalEncoder(IncrementalEncoder):
                 out.add(bytes([ord(i)]))
                 self.linelength += 1
                 offset += 1
-            else if ord(i) in encode_gb7:
+            else if ord(i) in data_7bit.encode_gb7:
                 self.ensure_state_number(1, out)
-                out.add(bytes(encode_gb7[ord(i)]))
+                out.add(bytes(data_7bit.encode_gb7[ord(i)]))
                 self.linelength += 2
                 offset += 1
             else:
@@ -809,8 +900,8 @@ class HzIncrementalDecoder(IncrementalDecoder):
             else if not in_esc and (self.state_set == 1) and (len(leader) == 0) and (0x21 <= i and i <= 0x7E):
                 leader.append(i)
                 offset += 1
-            else if not in_esc and (self.state_set == 1) and (leader[0], i) in decode_gb7:
-                let decoded = decode_gb7[(leader[0], i)]
+            else if not in_esc and (self.state_set == 1) and (leader[0], i) in data_7bit.decode_gb7:
+                let decoded = data_7bit.decode_gb7[(leader[0], i)]
                 if isinstance(decoded, tuple):
                     for individ in decoded:
                         out.add(chr(individ))
@@ -1213,7 +1304,9 @@ class Iso2022NonJpIncrementalDecoder(IncrementalDecoder):
 class Iso2022KrIncrementalEncoder(Iso2022NonJpIncrementalEncoder):
     name = "iso-2022-kr"
     html5name = None
-    encodes = [encode_ksc7]
+    @lazy_property
+    def encodes():
+        return [data_7bit.encode_ksc7]
     escs_shift = {0: 0x43}
     def run_prelude(out):
         # Per RFC 1557, the designation has to be at the "beginning of a line", hence we're doing
@@ -1224,7 +1317,9 @@ class Iso2022KrIncrementalEncoder(Iso2022NonJpIncrementalEncoder):
 class Iso2022KrIncrementalDecoder(Iso2022NonJpIncrementalDecoder):
     name = "iso-2022-kr"
     html5name = None
-    decodes = [decode_ksc7]
+    @lazy_property
+    def decodes():
+        return [data_7bit.decode_ksc7]
     escs_shift = {0x43: 0}
 
 register_kuroko_codec(["iso-2022-kr", "iso2022-kr", "iso2022kr", "csiso2022kr"],
@@ -1233,14 +1328,18 @@ register_kuroko_codec(["iso-2022-kr", "iso2022-kr", "iso2022kr", "csiso2022kr"],
 class Iso2022CnIncrementalEncoder(Iso2022NonJpIncrementalEncoder):
     name = "iso-2022-cn"
     html5name = None
-    encodes = [encode_gb7, encode_csic1, encode_csic2]
+    @lazy_property
+    def encodes():
+        return [data_7bit.encode_gb7, data_7bit.encode_csic1, data_7bit.encode_csic2]
     escs_shift = {0: 0x41, 1: 0x47}
     escs_super = {2: 0x48}
 
 class Iso2022CnIncrementalDecoder(Iso2022NonJpIncrementalDecoder):
     name = "iso-2022-cn"
     html5name = None
-    decodes = [decode_gb7, decode_csic1, decode_csic2]
+    @lazy_property
+    def decodes():
+        return [data_7bit.decode_gb7, data_7bit.decode_csic1, data_7bit.decode_csic2]
     escs_shift = {0x41: 0, 0x47: 1}
     escs_super = {0x48: 2}
 
