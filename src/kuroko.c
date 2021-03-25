@@ -628,8 +628,9 @@ static void handleSigint(int sigNum) {
 
 static void bindSignalHandlers(void) {
 #ifndef _WIN32
-	struct sigaction sigIntAction = {0};
+	struct sigaction sigIntAction;
 	sigIntAction.sa_handler = handleSigint;
+	sigemptyset(&sigIntAction.sa_mask);
 	sigIntAction.sa_flags = 0; /* Do not restore the default, do not restart syscalls, do not pass go, do not collect $500 */
 	sigaction(
 		SIGINT, /* ^C for keyboard interrupts */

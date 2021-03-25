@@ -165,13 +165,18 @@ extern int krk_valuesEqual(KrkValue a, KrkValue b);
  */
 extern int krk_valuesSame(KrkValue a, KrkValue b);
 
+typedef union {
+	KrkValue val;
+	double   dbl;
+} KrkValueDbl;
+
 #define NONE_VAL(value)     ((KrkValue)(KRK_VAL_MASK_LOW | KRK_VAL_MASK_NONE))
 #define BOOLEAN_VAL(value)  ((KrkValue)((uint32_t)(value) | KRK_VAL_MASK_BOOLEAN))
 #define INTEGER_VAL(value)  ((KrkValue)((uint32_t)(value) | KRK_VAL_MASK_INTEGER))
 #define KWARGS_VAL(value)   ((KrkValue)((uint32_t)(value) | KRK_VAL_MASK_KWARGS))
 #define OBJECT_VAL(value)   ((KrkValue)(((uintptr_t)(value) & KRK_VAL_MASK_LOW) | KRK_VAL_MASK_OBJECT))
 #define HANDLER_VAL(ty,ta)  ((KrkValue)((uint32_t)((((uint16_t)ty) << 16) | ((uint16_t)ta)) | KRK_VAL_MASK_HANDLER))
-#define FLOATING_VAL(value) (krk_dbl_as_val(value))
+#define FLOATING_VAL(value) (((KrkValueDbl){.dbl = (value)}).val)
 
 #define KRK_VAL_TYPE(value) ((value) >> 48)
 
@@ -179,19 +184,7 @@ extern int krk_valuesSame(KrkValue a, KrkValue b);
 #define AS_INTEGER(value)   ((krk_integer_type)((value) & KRK_VAL_MASK_LOW))
 #define AS_HANDLER(value)   ((uint32_t)((value) & KRK_VAL_MASK_LOW))
 #define AS_OBJECT(value)    ((KrkObj*)(uintptr_t)((value) & KRK_VAL_MASK_LOW))
-#define AS_FLOATING(value)  (krk_val_as_dbl(value))
-
-static inline double krk_val_as_dbl(KrkValue val) {
-	double out;
-	memcpy(&out,&val,sizeof(KrkValue));
-	return out;
-}
-
-static inline KrkValue krk_dbl_as_val(double dbl) {
-	KrkValue out;
-	memcpy(&out,&dbl,sizeof(KrkValue));
-	return out;
-}
+#define AS_FLOATING(value)  (((KrkValueDbl){.val = (value)}).dbl)
 
 #define IS_INTEGER(value)   (((value) & KRK_VAL_MASK_HANDLER) == KRK_VAL_MASK_BOOLEAN)
 #define IS_BOOLEAN(value)   (((value) & KRK_VAL_MASK_NONE) == KRK_VAL_MASK_BOOLEAN)

@@ -243,7 +243,7 @@ struct BreakpointEntry {
 };
 
 #define MAX_BREAKPOINTS 32
-static struct BreakpointEntry breakpoints[MAX_BREAKPOINTS] = {0};
+static struct BreakpointEntry breakpoints[MAX_BREAKPOINTS] = {{0}};
 static int breakpointsCount = 0;
 
 static KrkDebugCallback _debugger_hook = NULL;
