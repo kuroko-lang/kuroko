@@ -1,3 +1,5 @@
+"""Underpinning infrastructure for the codecs module."""
+
 from codecs.isweblabel import map_weblabel
 def idstr(obj):
     let reprd = object.__repr__(obj)
@@ -6,6 +8,10 @@ def idstr(obj):
 let _encoder_registry = {}
 let _decoder_registry = {}
 def register_kuroko_codec(labels, incremental_encoder_class, incremental_decoder_class):
+    """Register a given IncrementalEncoder subclass and a given IncrementalDecoder subclass
+    with a given list of labels. Usually, this is expected to include the encoding name, along
+    with a list labels for aliases and/or subsets of the encoding. Either coder class may be None,
+    if the encoder/decoder labels are being registered asymmetrically."""
     for label in labels:
         let norm = label.replace("_", "-").lower()
         if incremental_encoder_class:
@@ -28,15 +34,26 @@ def register_kuroko_codec(labels, incremental_encoder_class, incremental_decoder
             _decoder_registry[norm] = incremental_decoder_class
 
 class KurokoCodecInfo:
+    """Descriptor for the registered encoder and decoder for a given label. Has five members:
+    
+    - `name`: the label covered by this descriptor.
+    - `encode`: encode a complete Unicode sequence.
+    - `decode`: decode a complete byte sequence.
+    - `incrementalencoder`: IncrementalEncoder subclass.
+    - `incrementaldecoder`: IncrementalDecoder subclass."""
     def __init__(label, encoder, decoder):
         self.name = label
         self.incrementalencoder = encoder
         self.incrementaldecoder = decoder
     def encode(string, errors="strict"):
+        """Encode a complete Unicode sequence to a complete byte string.
+        Semantic of name passed to errors= is as documented for lookup_error()."""
         if self.incrementalencoder:
             return self.incrementalencoder(errors).encode(string, True)
         raise ValueError(f"unrecognised encoding or decode-only encoding: {self.name!r}")
     def decode(data, errors="strict"):
+        """Decode a complete byte sequence to a complete Unicode stream.
+        Semantic of name passed to errors= is as documented for lookup_error()."""
         if self.incrementaldecoder:
             return self.incrementaldecoder(errors).decode(data, True)
         raise ValueError(f"unrecognised encoding or encode-only encoding: {self.name!r}")
@@ -69,6 +86,10 @@ class KurokoCodecInfo:
         return ret + "; at 0x" + idstr(self) + ">"
 
 def lookup(label, web=False):
+    """Obtain a KurokoCodecInfo for a given label. If web=False (the default), will always succeed,
+    but the resulting KurokoCodecInfo might be unable to encode and/or unable to decode if the
+    label is not recognised in that direction. If web=True, will raise KeyError if the label is
+    not a WHATWG-permitted label, and will map certain labels to undefined per the WHATWG spec."""
     let proclabel = label.lower()
     if web:
         proclabel = map_weblabel(label)
@@ -85,15 +106,24 @@ def lookup(label, web=False):
     return KurokoCodecInfo(proclabel, enc, dec)
 
 def encode(string, label, web=False, errors="strict"):
+    """Encode a complete Unicode sequence to a complete byte string in the given encoding. Semantic
+    of the web= argument is the same as with lookup(). Semantic of name passed to errors= is as
+    documented for lookup_error()."""
     return lookup(label, web = web).encode(string, errors=errors)
 
 def decode(data, label, web=False, errors="strict"):
+    """Decode a complete byte sequence in the given encoding to a complete Unicode stream. Semantic
+    of the web= argument is the same as with lookup(). Semantic of name passed to errors= is as
+    documented for lookup_error()."""
     return lookup(label, web = web).decode(data, errors=errors)
 
 # Constructor is e.g. UnicodeEncodeError(encoding, object, start, end, reason)
 # Wouldn't it be wonderful if Python bloody documented that anywhere (e.g. manual or docstring)?
 # -- Har.
 class UnicodeError(ValueError):
+    """Exception raised when an error is encountered or detected in the process of encoding or
+    decoding. May instead be passed to a handler when not in strict mode. Contains machine-readable
+    information about the error encountered, allowing approaches to respond to it."""
     def __init__(encoding, object, start, end, reason):
         self.encoding = encoding
         self.object = object
@@ -113,14 +143,35 @@ class UnicodeError(ValueError):
         return f"codec for {self.encoding!r} cannot process sequence {slice!r}: {self.reason}"
 
 class UnicodeEncodeError(UnicodeError):
+    """UnicodeError subclass raised when an error is encountered in the process of encoding."""
 class UnicodeDecodeError(UnicodeError):
+    """UnicodeError subclass raised when an error is encountered in the process of decoding."""
 
 let _error_registry = {}
 
 def register_error(name, handler):
+    """Reister a new error handler. The handler should be a function taking a UnicodeError and
+    either raising an exception or returning a tuple of (substitute, resume_index). The substitute
+    should be bytes (usually expected to be in ASCII) for a UnicodeEncodeError, str otherwise."""
     _error_registry[name] = handler
 
 def lookup_error(name):
+    """Look up an error handler function registered with a certain name. By default, the following
+    are registered. It is important to note that nothing obligates a codec to actually *use* the
+    error handler if it is not deemed possible or appropriate, and so specifying a non-strict
+    error handler will not guarantee an exception will not be raised, especially when working with
+    a codec which is not a "normal" text encoding (e.g. `undefined` or `inverse-base64`).
+
+    - `strict`: raise an exception.
+    - `ignore`: skip invalid substrings. Not always recommended: can facilitate masked injection.
+    - `replace`: insert a replacement character (decoding) or question mark (encoding).
+    - `warnreplace`: like `replace` but prints a message to stderr; good for debugging.
+    - `backslashreplace`: replace with Python/Kuroko style Unicode escapes. Note that this only
+      matches JavaScript escape syntax for Basic Multilingual Plane characters. Encoding only.
+    - `xmlcharrefreplace`: replace with HTML/XML numerical entities. Note that this will, per
+      WHATWG, never generate entities for Shift Out, Shift In and Escape (i.e. when encoding to a
+      stateful encoding which uses them, e.g. ISO-2022-JP), instead generating an entity for the
+      replacement character. Encoding only."""
     return _error_registry[name]
 
 def strict_errors(exc):
@@ -197,6 +248,9 @@ class StringCatenator:
         return "".join(self.list)
 
 class IncrementalEncoder:
+    """Incremental encoder, allowing more encoded data to be generated as more Unicode data is
+    obtained. Note that the return values from `encode` are not guaranteed to encompass all data
+    which has been passed in, until it is called with `final=True`."""
     name = None
     html5name = None
     def __init__(errors):
@@ -210,12 +264,26 @@ class IncrementalEncoder:
         let addr = idstr(self)
         return f"<{c.__name__} instance: encoder for {self.name!r} {w} at 0x{addr}>"
     def encode(string, final = False):
+        """Passes the given string in to the encoder, and returns a sequence of bytes. When
+        final=False, the return value might not represent the entire input (some of which may
+        become represented at the start of the value returned by the next call). When final=True,
+        all of the input will be represented, and any final state change sequence required by the
+        encoding will be outputted."""
         raise NotImplementedError("must be implemented by subclass")
     def reset():
+        """Reset encoder to initial state, without outputting, discarding any pending data."""
+        pass
     def getstate():
+        """Returns an arbitrary object encapsulating encoder state."""
+        pass
     def setstate(state):
+        """Sets encoder state to one previously returned by getstate()."""
+        pass
 
 class IncrementalDecoder:
+    """Incremental decoder, allowing more Unicode data to be generated as more encoded data is
+    obtained. Note that the return values from `decode` are not guaranteed to encompass all data
+    which has been passed in, until it is called with `final=True`."""
     name = None
     html5name = None
     def __init__(errors):
@@ -229,6 +297,10 @@ class IncrementalDecoder:
         let addr = idstr(self)
         return f"<{c.__name__} instance: decoder for {self.name!r} {w} at 0x{addr}>"
     def decode(data_in, final = False):
+        """Passes the given bytes in to the encoder, and returns a Unicode string. When
+        final=False, the return value might not represent the entire input (some of which may
+        become represented at the start of the value returned by the next call). When final=True,
+        all of the input will be represented, and an error will be generated if it is truncated."""
         raise NotImplementedError("must be implemented by subclass")
     def _handle_truncation(out, unused, final, data, offset, leader):
         if len(leader) == 0:
@@ -242,10 +314,13 @@ class IncrementalDecoder:
             self.pending = bytes(leader)
             return out.getvalue()
     def reset():
+        """Reset decoder to initial state, without outputting, discarding any pending data."""
         self.pending = b""
     def getstate():
+        """Returns an arbitrary object encapsulating decoder state."""
         return self.pending
     def setstate(state):
+        """Sets decoder state to one previously returned by getstate()."""
         self.pending = state
 
 class AsciiIncrementalEncoder(IncrementalEncoder):

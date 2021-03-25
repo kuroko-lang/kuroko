@@ -73,7 +73,7 @@ let parity_labels = {
     #   do). Also, it aliases "iso-ir-166" to the former (since it cites TIS-620) despite it having
     #   an NBSP in the registration document (case in point).
     "windows-874": ["iso-8859-11-2001", "tis620", "tis-620-0", "tis-620-2529-0",
-                    "tis-620-2529-1", "iso-ir-166", "thai"],
+                    "tis-620-2529-1", "iso-ir-166", "thai", "cp874"],
     "iso-8859-13": ["l7", "latin7"], 
     "iso-8859-14": ["iso-8859-14-1998", "l8", "latin8", "iso-ir-199", "iso_celtic"], 
     "iso-8859-15": ["latin9"], 
