@@ -205,16 +205,26 @@ def lookup_error(name):
     return _error_registry[name]
 
 def strict_errors(exc):
+    """
+    Handler for `strict` errors: raise the exception.
+    """
     raise exc
 register_error("strict", strict_errors)
 
 def ignore_errors(exc):
+    """
+    Handler for `ignore` errors: skip invalid sequences.
+    """
     if isinstance(exc, UnicodeEncodeError):
         return (b"", exc.end)
     return ("", exc.end)
 register_error("ignore", ignore_errors)
 
 def replace_errors(exc):
+    """
+    Handler for `replace` errors: insert replacement character (if decoding) or
+    question mark (if encoding).
+    """
     if isinstance(exc, UnicodeEncodeError):
         return (b"?", exc.end)
     else if isinstance(exc, UnicodeDecodeError):
@@ -224,6 +234,10 @@ def replace_errors(exc):
 register_error("replace", replace_errors)
 
 def warnreplace_errors(exc):
+    """
+    Handler for `warnreplace` errors: insert replacement character (if decoding) or question mark
+    (if encoding) and print a warning to `stderr`.
+    """
     import fileio
     fileio.stderr.write(type(exc).__name__ + ": " + str(exc) + "\n")
     if isinstance(exc, UnicodeEncodeError):
@@ -235,6 +249,11 @@ def warnreplace_errors(exc):
 register_error("warnreplace", warnreplace_errors)
 
 def backslashreplace_errors(exc):
+    """
+    Handler for `backslashreplace` errors: replace unencodable character with Python/Kuroko style
+    escape sequence. For Basic Multilingual Plane characters, this also matches JavaScript; beyond
+    that, they differ.
+    """
     if isinstance(exc, UnicodeEncodeError):
         # Work around str.format not supporting format specifiers
         let myhex = hex(ord(exc.object[exc.start])).split("x", 1)[1]
@@ -251,6 +270,11 @@ def backslashreplace_errors(exc):
 register_error("backslashreplace", backslashreplace_errors)
 
 def xmlcharrefreplace_errors(exc):
+    """
+    Handler for `xmlcharrefreplace` errors: replace unencodable character with XML numeric entity
+    for the character unless it is Shift Out, Shift In or Escape, in which case insert the XML
+    numeric entity for the replacement character (as stipulated by WHATWG for ISO-2022-JP).
+    """
     if isinstance(exc, UnicodeEncodeError):
         let codepoint = ord(exc.object[exc.start])
         # Per WHATWG (specified in its ISO-2022-JP encoder, the only one that
@@ -262,6 +286,10 @@ def xmlcharrefreplace_errors(exc):
 register_error("xmlcharrefreplace", xmlcharrefreplace_errors)
 
 class ByteCatenator:
+    """
+    Helper class for maintaining a stream to which `bytes` objects will be repeatedly catenated
+    in place.
+    """
     def __init__():
         self.list = []
     def add(data):
@@ -270,6 +298,10 @@ class ByteCatenator:
         return b"".join(self.list)
 
 class StringCatenator:
+    """
+    Helper class for maintaining a stream to which `str` objects will be repeatedly catenated
+    in place.
+    """
     def __init__():
         self.list = []
     def add(string):
@@ -282,6 +314,8 @@ class IncrementalEncoder:
     Incremental encoder, allowing more encoded data to be generated as more Unicode data is
     obtained. Note that the return values from `encode` are not guaranteed to encompass all data
     which has been passed in, until it is called with `final=True`.
+    
+    This is the base class and should not be instantiated directly.
     """
     name = None
     html5name = None
@@ -325,6 +359,8 @@ class IncrementalDecoder:
     Incremental decoder, allowing more Unicode data to be generated as more encoded data is
     obtained. Note that the return values from `decode` are not guaranteed to encompass all data
     which has been passed in, until it is called with `final=True`.
+    
+    This is the base class and should not be instantiated directly.
     """
     name = None
     html5name = None
@@ -347,6 +383,9 @@ class IncrementalDecoder:
         """
         raise NotImplementedError("must be implemented by subclass")
     def _handle_truncation(out, unused, final, data, offset, leader):
+        """
+        Helper function used by subclasses to handle any pending data when returning from `decode`.
+        """
         if len(leader) == 0:
             return out.getvalue()
         else if final:
@@ -374,6 +413,14 @@ class IncrementalDecoder:
         self.pending = state
 
 class AsciiIncrementalEncoder(IncrementalEncoder):
+    """
+    Encoder for ISO/IEC 4873-DV, and base class for simple _sensu lato_ extended ASCII encoders.
+    Encoders for more complex cases, such as ISO-2022-JP, do not inherit from this class.
+
+    ISO/IEC 4873-DV is, as of the current (third) edition of ISO/IEC 4873, the same as what
+    people usually mean when they say "ASCII" (i.e. an eighth bit exists but is never used, and
+    backspace composition is not a thing which exists for encoding characters).
+    """
     # The obvious labels for ASCII are all Windows-1252 per WHATWG. Also, what people call
     # "ASCII" in 8-bit-byte contexts (without backspace combining) is properly ISO-4873-DV.
     name = "ecma-43-dv"
@@ -391,6 +438,7 @@ class AsciiIncrementalEncoder(IncrementalEncoder):
             if isinstance(i, tuple):
                 self._lead_codes.setdefault(i[0], []).append(i)
     def encode(string_in, final = False):
+        """Implements `IncrementalEncoder.encode`"""
         let string = self.pending_lead + string_in
         self.pending_lead = ""
         let out = ByteCatenator()
@@ -438,13 +486,24 @@ class AsciiIncrementalEncoder(IncrementalEncoder):
                 if offset < 0:
                     offset += len(string)
     def reset():
+        """Implements `IncrementalEncoder.reset`"""
         self.pending_lead = ""
     def getstate():
+        """Implements `IncrementalEncoder.getstate`"""
         return self.pending_lead
     def setstate(state):
+        """Implements `IncrementalEncoder.setstate`"""
         self.pending_lead = state
 
 class AsciiIncrementalDecoder(IncrementalDecoder):
+    """
+    Decoder for ISO/IEC 4873-DV, and base class for simple _sensu lato_ extended ASCII decoders.
+    Decoders for more complex cases, such as ISO-2022-JP, do not inherit from this class.
+
+    ISO/IEC 4873-DV is, as of the current (third) edition of ISO/IEC 4873, the same as what
+    people usually mean when they say "ASCII" (i.e. an eighth bit exists but is never used, and
+    backspace composition is not a thing which exists for encoding characters).
+    """
     name = "ecma-43-dv"
     html5name = None
     # For non-ASCII characters (this should work as a base class)
@@ -454,6 +513,7 @@ class AsciiIncrementalDecoder(IncrementalDecoder):
     trailrange = ()
     ascii_exceptions = ()
     def decode(data_in, final = False):
+        """Implements `IncrementalDecoder.decode`"""
         let data = self.pending + data_in
         self.pending = b""
         let out = StringCatenator()
@@ -524,6 +584,12 @@ register_kuroko_codec(["ecma-43-dv", "iso-4873-dv", "646", "cp367", "ibm367", "i
     AsciiIncrementalEncoder, AsciiIncrementalDecoder)
 
 class BaseEbcdicIncrementalEncoder(IncrementalEncoder):
+    """
+    Base class for EBCDIC encoders.
+
+    On its own, it is only capable of encoding `U+3000` (as ``x'0E', x'40', x'40', x'0F'``); hence,
+    it should not, generally speaking, be used directly.
+    """
     name = None
     html5name = None
     sbcs_encode = {}
@@ -532,6 +598,7 @@ class BaseEbcdicIncrementalEncoder(IncrementalEncoder):
     shift_to_dbcs = 0x0E
     shift_to_sbcs = 0x0F
     def encode(string, final = False):
+        """Implements `IncrementalEncoder.encode`"""
         let out = ByteCatenator()
         let offset = 0
         while 1: # offset can be arbitrarily changed by the error handler, so not a for
@@ -575,13 +642,22 @@ class BaseEbcdicIncrementalEncoder(IncrementalEncoder):
                 if offset < 0:
                     offset += len(string)
     def reset():
+        """Implements `IncrementalEncoder.reset`"""
         self.in_dbcshost = False
     def getstate():
+        """Implements `IncrementalEncoder.getstate`"""
         return self.in_dbcshost
     def setstate(state):
+        """Implements `IncrementalEncoder.setstate`"""
         self.in_dbcshost = state
 
 class BaseEbcdicIncrementalDecoder(IncrementalDecoder):
+    """
+    Base class for EBCDIC decoders.
+
+    On its own, it is only capable of decoding `U+3000` (from ``x'0E', x'40', x'40', x'0F'``); hence,
+    it should not, generally speaking, be used directly.
+    """
     name = None
     html5name = None
     sbcs_decode = {}
@@ -590,6 +666,7 @@ class BaseEbcdicIncrementalDecoder(IncrementalDecoder):
     shift_to_dbcs = 0x0E
     shift_to_sbcs = 0x0F
     def decode(data_in, final = False):
+        """Implements `IncrementalDecoder.decode`"""
         let data = self.pending + data_in
         self.pending = b""
         let out = StringCatenator()
@@ -664,15 +741,22 @@ class BaseEbcdicIncrementalDecoder(IncrementalDecoder):
                 if offset < 0:
                     offset += len(string)
     def reset():
+        """Implements `IncrementalDecoder.reset`"""
         self.pending = b""
         self.in_dbcshost = False
     def getstate():
+        """Implements `IncrementalDecoder.getstate`"""
         return (self.pending, self.in_dbcshost)
     def setstate(state):
+        """Implements `IncrementalDecoder.setstate`"""
         self.pending = state[0]
         self.in_dbcshost = state[1]
 
 class UndefinedIncrementalEncoder(IncrementalEncoder):
+    """
+    Encoder which errors out on all input. For use on input for which encoding should not be
+    attempted. Error handler is ignored.
+    """
     name = "undefined"
     html5name = "replacement"
     # WHATWG doesn't specify an encoder for "replacement" so follow Python "undefined" here.
@@ -683,6 +767,10 @@ class UndefinedIncrementalEncoder(IncrementalEncoder):
         strict_errors(error)
 
 class UndefinedIncrementalDecoder(IncrementalDecoder):
+    """
+    Decoder which errors out on all input. For use on input for which decoding should not be
+    attempted. Error handler is honoured, and called once per non-empty `decode` method call.
+    """
     name = "undefined"
     html5name = "replacement"
     def decode(data, final = False):

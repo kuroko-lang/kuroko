@@ -11,6 +11,10 @@ names with variants is somewhat different to Python's, partly due to following W
 most CJK codecs (e.g. Python treats `shift_jis` and `ms-kanji` differently, while this package does
 not), but also e.g. "ISO-8859-1".
 
+Main entry points for the package are `codecs.infrastructure.encode`, `codecs.infrastructure.decode`
+and `codecs.infrastructure.lookup`, all three of which are also available as e.g. `codecs.encode`
+for convenience.
+
 The list of codecs (not an exhaustive list of labels, nor close to one) is as follows.
 
 ### Single-byte extended ASCII encodings:
