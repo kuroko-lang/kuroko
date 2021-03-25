@@ -35,13 +35,21 @@ typedef enum {
  */
 typedef struct KrkObj {
 	KrkObjType type;
-	unsigned char isMarked:1;
-	unsigned char inRepr:1;
-	unsigned char generation:2;
-	unsigned char isImmortal:1;
+	uint32_t flags;
 	uint32_t hash;
 	struct KrkObj * next;
 } KrkObj;
+
+#define KRK_OBJ_FLAGS_IS_MARKED  0x0010
+#define KRK_OBJ_FLAGS_IN_REPR    0x0020
+#define KRK_OBJ_FLAGS_IMMORTAL   0x0040
+#define KRK_OBJ_FLAGS_VALID_HASH 0x0080
+
+#define KRK_OBJ_FLAGS_GENERATIONS 0x0003
+#define KRK_OBJ_FLAGS_GEN_0       0x0000
+#define KRK_OBJ_FLAGS_GEN_1       0x0001
+#define KRK_OBJ_FLAGS_GEN_2       0x0002
+#define KRK_OBJ_FLAGS_GEN_3       0x0003
 
 typedef enum {
 	KRK_STRING_ASCII = 0,
@@ -121,12 +129,14 @@ typedef struct {
 	size_t localNameCapacity;
 	size_t localNameCount;
 	KrkLocalEntry * localNames;
-	unsigned char collectsArguments:1;
-	unsigned char collectsKeywords:1;
-	unsigned char isGenerator:1;
+	unsigned int flags;
 	struct KrkInstance * globalsContext;
 	KrkString * qualname;
 } KrkCodeObject;
+
+#define KRK_CODEOBJECT_FLAGS_COLLECTS_ARGS 0x0001
+#define KRK_CODEOBJECT_FLAGS_COLLECTS_KWS  0x0002
+#define KRK_CODEOBJECT_FLAGS_IS_GENERATOR  0x0004
 
 /**
  * @brief Function object.
@@ -139,11 +149,13 @@ typedef struct {
 	KrkCodeObject * function;
 	KrkUpvalue ** upvalues;
 	size_t upvalueCount;
-	unsigned char isClassMethod:1;
-	unsigned char isStaticMethod:1;
+	unsigned int flags;
 	KrkValue annotations;
 	KrkTable fields;
 } KrkClosure;
+
+#define KRK_FUNCTION_FLAGS_IS_CLASS_METHOD  0x0001
+#define KRK_FUNCTION_FLAGS_IS_STATIC_METHOD 0x0002
 
 typedef void (*KrkCleanupCallback)(struct KrkInstance *);
 
@@ -230,8 +242,10 @@ typedef struct {
 	NativeFn function;
 	const char * name;
 	const char * doc;
-	unsigned int isDynamicProperty:1;
+	unsigned int flags;
 } KrkNative;
+
+#define KRK_NATIVE_FLAGS_IS_DYNAMIC_PROPERTY 0x0001
 
 /**
  * @brief Immutable sequence of arbitrary values.

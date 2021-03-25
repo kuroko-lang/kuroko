@@ -104,7 +104,7 @@ KRK_METHOD(function,__args__,{
 	ATTRIBUTE_NOT_ASSIGNABLE();
 	if (!IS_CLOSURE(self)) return OBJECT_VAL(krk_newTuple(0));
 	KrkCodeObject * _self = AS_CLOSURE(self)->function;
-	KrkTuple * tuple = krk_newTuple(_self->requiredArgs + _self->keywordArgs + _self->collectsArguments + _self->collectsKeywords);
+	KrkTuple * tuple = krk_newTuple(_self->requiredArgs + _self->keywordArgs + !!(_self->flags & KRK_CODEOBJECT_FLAGS_COLLECTS_ARGS) + !!(_self->flags & KRK_CODEOBJECT_FLAGS_COLLECTS_KWS));
 	krk_push(OBJECT_VAL(tuple));
 
 	for (short i = 0; i < _self->requiredArgs; ++i) {
@@ -118,14 +118,14 @@ KRK_METHOD(function,__args__,{
 		tuple->values.values[tuple->values.count++] = finishStringBuilder(&sb);
 	}
 
-	if (_self->collectsArguments) {
+	if (_self->flags & KRK_CODEOBJECT_FLAGS_COLLECTS_ARGS) {
 		struct StringBuilder sb = {0};
 		pushStringBuilder(&sb, '*');
 		pushStringBuilderStr(&sb, AS_CSTRING(_self->requiredArgNames.values[_self->requiredArgs]), AS_STRING(_self->requiredArgNames.values[_self->requiredArgs])->length);
 		tuple->values.values[tuple->values.count++] = finishStringBuilder(&sb);
 	}
 
-	if (_self->collectsKeywords) {
+	if (_self->flags & KRK_CODEOBJECT_FLAGS_COLLECTS_KWS) {
 		struct StringBuilder sb = {0};
 		pushStringBuilder(&sb, '*');
 		pushStringBuilder(&sb, '*');
@@ -266,7 +266,7 @@ KRK_FUNC(staticmethod,{
 		AS_CLOSURE(krk_peek(0))->upvalues[i] = method->upvalues[i];
 	}
 	AS_CLOSURE(krk_peek(0))->annotations = method->annotations;
-	AS_CLOSURE(krk_peek(0))->isStaticMethod = 1;
+	AS_CLOSURE(krk_peek(0))->flags |= KRK_FUNCTION_FLAGS_IS_STATIC_METHOD;
 	return krk_pop();
 })
 
@@ -280,7 +280,7 @@ KRK_FUNC(classmethod,{
 		AS_CLOSURE(krk_peek(0))->upvalues[i] = method->upvalues[i];
 	}
 	AS_CLOSURE(krk_peek(0))->annotations = method->annotations;
-	AS_CLOSURE(krk_peek(0))->isClassMethod = 1;
+	AS_CLOSURE(krk_peek(0))->flags |= KRK_FUNCTION_FLAGS_IS_CLASS_METHOD;
 	return krk_pop();
 })
 

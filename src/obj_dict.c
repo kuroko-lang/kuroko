@@ -92,8 +92,8 @@ KRK_METHOD(dict,capacity,{
 
 KRK_METHOD(dict,__repr__,{
 	METHOD_TAKES_NONE();
-	if (((KrkObj*)self)->inRepr) return OBJECT_VAL(S("{...}"));
-	((KrkObj*)self)->inRepr = 1;
+	if (((KrkObj*)self)->flags & KRK_OBJ_FLAGS_IN_REPR) return OBJECT_VAL(S("{...}"));
+	((KrkObj*)self)->flags |= KRK_OBJ_FLAGS_IN_REPR;
 	struct StringBuilder sb = {0};
 	pushStringBuilder(&sb,'{');
 
@@ -129,7 +129,7 @@ KRK_METHOD(dict,__repr__,{
 	}
 
 	pushStringBuilder(&sb,'}');
-	((KrkObj*)self)->inRepr = 0;
+	((KrkObj*)self)->flags &= ~(KRK_OBJ_FLAGS_IN_REPR);
 	return finishStringBuilder(&sb);
 })
 
@@ -253,8 +253,8 @@ KRK_METHOD(dictitems,__call__,{
 
 KRK_METHOD(dictitems,__repr__,{
 	METHOD_TAKES_NONE();
-	if (((KrkObj*)self)->inRepr) return OBJECT_VAL(S("dictitems([...])"));
-	((KrkObj*)self)->inRepr = 1;
+	if (((KrkObj*)self)->flags & KRK_OBJ_FLAGS_IN_REPR) return OBJECT_VAL(S("dictitems([...])"));
+	((KrkObj*)self)->flags |= KRK_OBJ_FLAGS_IN_REPR;
 	struct StringBuilder sb = {0};
 	pushStringBuilderStr(&sb,"dictitems([",11);
 
@@ -294,7 +294,7 @@ KRK_METHOD(dictitems,__repr__,{
 	}
 
 	pushStringBuilderStr(&sb,"])",2);
-	((KrkObj*)self)->inRepr = 0;
+	((KrkObj*)self)->flags &= ~(KRK_OBJ_FLAGS_IN_REPR);
 	return finishStringBuilder(&sb);
 })
 
@@ -334,8 +334,8 @@ KRK_METHOD(dictkeys,__call__,{
 
 KRK_METHOD(dictkeys,__repr__,{
 	METHOD_TAKES_NONE();
-	if (((KrkObj*)self)->inRepr) return OBJECT_VAL(S("dictkeys([...])"));
-	((KrkObj*)self)->inRepr = 1;
+	if (((KrkObj*)self)->flags & KRK_OBJ_FLAGS_IN_REPR) return OBJECT_VAL(S("dictkeys([...])"));
+	((KrkObj*)self)->flags |= KRK_OBJ_FLAGS_IN_REPR;
 	struct StringBuilder sb = {0};
 	pushStringBuilderStr(&sb,"dictkeys([",10);
 
@@ -360,7 +360,7 @@ KRK_METHOD(dictkeys,__repr__,{
 	}
 
 	pushStringBuilderStr(&sb,"])",2);
-	((KrkObj*)self)->inRepr = 0;
+	((KrkObj*)self)->flags &= ~(KRK_OBJ_FLAGS_IN_REPR);
 	return finishStringBuilder(&sb);
 })
 

@@ -90,8 +90,8 @@ KRK_METHOD(list,insert,{
 
 KRK_METHOD(list,__repr__,{
 	METHOD_TAKES_NONE();
-	if (((KrkObj*)self)->inRepr) return OBJECT_VAL(S("[...]"));
-	((KrkObj*)self)->inRepr = 1;
+	if (((KrkObj*)self)->flags & KRK_OBJ_FLAGS_IN_REPR) return OBJECT_VAL(S("[...]"));
+	((KrkObj*)self)->flags |= KRK_OBJ_FLAGS_IN_REPR;
 	struct StringBuilder sb = {0};
 	pushStringBuilder(&sb, '[');
 	pthread_rwlock_rdlock(&self->rwlock);
@@ -112,7 +112,7 @@ KRK_METHOD(list,__repr__,{
 	pthread_rwlock_unlock(&self->rwlock);
 
 	pushStringBuilder(&sb,']');
-	((KrkObj*)self)->inRepr = 0;
+	((KrkObj*)self)->flags &= ~(KRK_OBJ_FLAGS_IN_REPR);
 	return finishStringBuilder(&sb);
 })
 

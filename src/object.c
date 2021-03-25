@@ -231,27 +231,26 @@ KrkString * krk_copyString(const char * chars, size_t length) {
 }
 
 KrkCodeObject * krk_newCodeObject(void) {
-	KrkCodeObject * function = ALLOCATE_OBJECT(KrkCodeObject, KRK_OBJ_CODEOBJECT);
-	function->requiredArgs = 0;
-	function->keywordArgs = 0;
-	function->upvalueCount = 0;
-	function->name = NULL;
-	function->docstring = NULL;
-	function->collectsArguments = 0;
-	function->collectsKeywords = 0;
-	function->localNameCount = 0;
-	function->localNames = NULL;
-	function->globalsContext = NULL;
-	krk_initValueArray(&function->requiredArgNames);
-	krk_initValueArray(&function->keywordArgNames);
-	krk_initChunk(&function->chunk);
-	return function;
+	KrkCodeObject * codeobject = ALLOCATE_OBJECT(KrkCodeObject, KRK_OBJ_CODEOBJECT);
+	codeobject->requiredArgs = 0;
+	codeobject->keywordArgs = 0;
+	codeobject->upvalueCount = 0;
+	codeobject->name = NULL;
+	codeobject->docstring = NULL;
+	codeobject->flags = 0;
+	codeobject->localNameCount = 0;
+	codeobject->localNames = NULL;
+	codeobject->globalsContext = NULL;
+	krk_initValueArray(&codeobject->requiredArgNames);
+	krk_initValueArray(&codeobject->keywordArgNames);
+	krk_initChunk(&codeobject->chunk);
+	return codeobject;
 }
 
 KrkNative * krk_newNative(NativeFn function, const char * name, int type) {
 	KrkNative * native = ALLOCATE_OBJECT(KrkNative, KRK_OBJ_NATIVE);
 	native->function = function;
-	native->isDynamicProperty = type;
+	native->flags = type;
 	native->name = name;
 	native->doc = NULL;
 	return native;

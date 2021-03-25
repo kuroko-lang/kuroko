@@ -418,7 +418,7 @@ static KrkCodeObject * endCompiler() {
 		krk_pop();
 	}
 	size_t args = current->codeobject->requiredArgs + current->codeobject->keywordArgs;
-	if (current->codeobject->collectsArguments) {
+	if (current->codeobject->flags & KRK_CODEOBJECT_FLAGS_COLLECTS_ARGS) {
 		KrkValue value = OBJECT_VAL(krk_copyString(current->locals[args].name.start,
 			current->locals[args].name.length));
 		krk_push(value);
@@ -426,7 +426,7 @@ static KrkCodeObject * endCompiler() {
 		krk_pop();
 		args++;
 	}
-	if (current->codeobject->collectsKeywords) {
+	if (current->codeobject->flags & KRK_CODEOBJECT_FLAGS_COLLECTS_KWS) {
 		KrkValue value = OBJECT_VAL(krk_copyString(current->locals[args].name.start,
 			current->locals[args].name.length));
 		krk_push(value);
@@ -1067,14 +1067,14 @@ static void function(FunctionType type, size_t blockWidth) {
 						return;
 					}
 					hasCollectors = 2;
-					current->codeobject->collectsKeywords = 1;
+					current->codeobject->flags |= KRK_CODEOBJECT_FLAGS_COLLECTS_KWS;
 				} else {
 					if (hasCollectors) {
 						error("Syntax error.");
 						return;
 					}
 					hasCollectors = 1;
-					current->codeobject->collectsArguments = 1;
+					current->codeobject->flags |= KRK_CODEOBJECT_FLAGS_COLLECTS_ARGS;
 				}
 				/* Collect a name, specifically "args" or "kwargs" are commont */
 				ssize_t paramConstant = parseVariable("Expect parameter name.");
@@ -2026,7 +2026,7 @@ static void yield(int canAssign) {
 		error("'yield' outside function");
 		return;
 	}
-	current->codeobject->isGenerator = 1;
+	current->codeobject->flags |= KRK_CODEOBJECT_FLAGS_IS_GENERATOR;
 	if (match(TOKEN_FROM)) {
 		parsePrecedence(PREC_ASSIGNMENT);
 		emitByte(OP_INVOKE_ITER);
@@ -2470,7 +2470,7 @@ static void generatorExpression(KrkScanner scannerBefore, Parser parserBefore, v
 	Compiler subcompiler;
 	initCompiler(&subcompiler, TYPE_FUNCTION);
 	subcompiler.codeobject->chunk.filename = subcompiler.enclosing->codeobject->chunk.filename;
-	subcompiler.codeobject->isGenerator = 1;
+	subcompiler.codeobject->flags |= KRK_CODEOBJECT_FLAGS_IS_GENERATOR;
 
 	beginScope();
 	generatorInner(scannerBefore, parserBefore, body, 0);

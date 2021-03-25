@@ -117,8 +117,8 @@ void krk_freeObjects() {
 
 void krk_markObject(KrkObj * object) {
 	if (!object) return;
-	if (object->isMarked) return;
-	object->isMarked = 1;
+	if (object->flags & KRK_OBJ_FLAGS_IS_MARKED) return;
+	object->flags |= KRK_OBJ_FLAGS_IS_MARKED;
 
 	if (vm.grayCapacity < vm.grayCount + 1) {
 		vm.grayCapacity = GROW_CAPACITY(vm.grayCapacity);
@@ -214,12 +214,11 @@ static size_t sweep() {
 	KrkObj * object = vm.objects;
 	size_t count = 0;
 	while (object) {
-		if (object->isMarked || object->isImmortal) {
-			object->isMarked = 0;
-			object->generation = 0;
+		if (object->flags & (KRK_OBJ_FLAGS_IMMORTAL | KRK_OBJ_FLAGS_IS_MARKED)) {
+			object->flags &= ~(KRK_OBJ_FLAGS_IS_MARKED | KRK_OBJ_FLAGS_GENERATIONS);
 			previous = object;
 			object = object->next;
-		} else if (object->generation == 3) {
+		} else if ((object->flags & KRK_OBJ_FLAGS_GENERATIONS) == 3) {
 			KrkObj * unreached = object;
 			object = object->next;
 			if (previous != NULL) {
@@ -230,7 +229,7 @@ static size_t sweep() {
 			freeObject(unreached);
 			count++;
 		} else {
-			object->generation++;
+			object->flags++;
 			previous = object;
 			object = object->next;
 		}
@@ -249,7 +248,7 @@ void krk_markTable(KrkTable * table) {
 static void tableRemoveWhite(KrkTable * table) {
 	for (size_t i = 0; i < table->capacity; ++i) {
 		KrkTableEntry * entry = &table->entries[i];
-		if (IS_OBJECT(entry->key) && !(AS_OBJECT(entry->key))->isMarked) {
+		if (IS_OBJECT(entry->key) && !((AS_OBJECT(entry->key))->flags & KRK_OBJ_FLAGS_IS_MARKED)) {
 			krk_tableDelete(table, entry->key);
 		}
 	}
@@ -315,7 +314,7 @@ KRK_FUNC(generations,{
 	krk_integer_type generations[MAX_GEN] = {0};
 	KrkObj * object = vm.objects;
 	while (object) {
-		generations[object->generation]++;
+		generations[object->flags & KRK_OBJ_FLAGS_GENERATIONS]++;
 		object = object->next;
 	}
 

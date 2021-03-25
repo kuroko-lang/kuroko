@@ -87,8 +87,8 @@ KRK_METHOD(tuple,__eq__,{
 })
 
 KRK_METHOD(tuple,__repr__,{
-	if (((KrkObj*)self)->inRepr) return OBJECT_VAL(S("(...)"));
-	((KrkObj*)self)->inRepr = 1;
+	if (((KrkObj*)self)->flags & KRK_OBJ_FLAGS_IN_REPR) return OBJECT_VAL(S("(...)"));
+	((KrkObj*)self)->flags |= KRK_OBJ_FLAGS_IN_REPR;
 	/* String building time. */
 	struct StringBuilder sb = {0};
 	pushStringBuilder(&sb, '(');
@@ -110,7 +110,7 @@ KRK_METHOD(tuple,__repr__,{
 	}
 
 	pushStringBuilder(&sb, ')');
-	((KrkObj*)self)->inRepr = 0;
+	((KrkObj*)self)->flags &= ~(KRK_OBJ_FLAGS_IN_REPR);
 	return finishStringBuilder(&sb);
 })
 

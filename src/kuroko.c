@@ -264,7 +264,7 @@ static void tab_complete_func(rline_context_t * c) {
 					KrkValue thisValue = findFromProperty(root, asToken);
 					krk_push(thisValue);
 					if (IS_CLOSURE(thisValue) || IS_BOUND_METHOD(thisValue) ||
-						(IS_NATIVE(thisValue) && !((KrkNative*)AS_OBJECT(thisValue))->isDynamicProperty)) {
+						(IS_NATIVE(thisValue) && !((KrkNative*)AS_OBJECT(thisValue))->flags & KRK_NATIVE_FLAGS_IS_DYNAMIC_PROPERTY)) {
 						size_t allocSize = s->length + 2;
 						char * tmp = malloc(allocSize);
 						size_t len = snprintf(tmp, allocSize, "%s(", s->chars);

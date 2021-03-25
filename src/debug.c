@@ -67,17 +67,17 @@ void krk_disassembleCodeObject(FILE * f, KrkCodeObject * func, const char * name
 	fprintf(f, "<%s(", name);
 	for (int i = 0; i < func->requiredArgs; ++i) {
 		fprintf(f,"%s",AS_CSTRING(func->requiredArgNames.values[i]));
-		if (i + 1 < func->requiredArgs || func->keywordArgs || func->collectsArguments || func->collectsKeywords) fprintf(f,",");
+		if (i + 1 < func->requiredArgs || func->keywordArgs || !!(func->flags & KRK_CODEOBJECT_FLAGS_COLLECTS_ARGS) || !!(func->flags & KRK_CODEOBJECT_FLAGS_COLLECTS_KWS)) fprintf(f,",");
 	}
 	for (int i = 0; i < func->keywordArgs; ++i) {
 		fprintf(f,"%s=...",AS_CSTRING(func->keywordArgNames.values[i]));
-		if (i + 1 < func->keywordArgs || func->collectsArguments || func->collectsKeywords) fprintf(f,",");
+		if (i + 1 < func->keywordArgs || !!(func->flags & KRK_CODEOBJECT_FLAGS_COLLECTS_ARGS) || !!(func->flags & KRK_CODEOBJECT_FLAGS_COLLECTS_KWS)) fprintf(f,",");
 	}
-	if (func->collectsArguments) {
+	if (func->flags & KRK_CODEOBJECT_FLAGS_COLLECTS_ARGS) {
 		fprintf(f,"*%s", AS_CSTRING(func->requiredArgNames.values[func->requiredArgs]));
-		if (func->collectsKeywords) fprintf(f,",");
+		if (func->flags & KRK_CODEOBJECT_FLAGS_COLLECTS_KWS) fprintf(f,",");
 	}
-	if (func->collectsKeywords) {
+	if (func->flags & KRK_CODEOBJECT_FLAGS_COLLECTS_KWS) {
 		fprintf(f,"**%s", AS_CSTRING(func->keywordArgNames.values[func->keywordArgs]));
 	}
 	fprintf(f, ") from %s>\n", chunk->filename->chars);
