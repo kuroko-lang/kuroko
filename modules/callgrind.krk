@@ -1,7 +1,11 @@
+'''
+@brief Tool to process VM trace reports and generate callgrind-formatted output.
+'''
 import kuroko
 import fileio
 
-def processFile(sourcePath, pid, cmd):
+def processFile(sourcePath: str, pid: int , cmd: str):
+    '''@brief Process @p sourcePath from process @p pid with command @p cmd as a VM trace file.'''
     let funcs = {}
 
     with fileio.open(sourcePath,'r') as f:
