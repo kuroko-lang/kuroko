@@ -35,7 +35,7 @@ Single-byte extended ASCII encodings:
 |`cp869`|8-bit Greek (DOS)|
 |`cp1006`|8-bit Urdu|
 |`cp1125`|8-bit Ukrainian Cyrillic (DOS)|
-|`ecma-43-dv`, `cp367`, `csascii`|Plain ASCII (note: most ASCII labels are mapped to Windows-1252)|
+|`ecma-43-dv`, `cp367`, `csascii`|"8-bit Plain ASCII", i.e. ASCII without backspace composition, and with high bit unused. Note: most ASCII labels are mapped to Windows-1252, per WHATWG.|
 |`hp-roman8`|8-bit Roman (HP)|
 |`iso-8859-2`|8-bit Central European (ISO)|
 |`iso-8859-3`|8-bit South European (Maltese/Esperanto)|
@@ -77,6 +77,21 @@ Single-byte extended ASCII encodings:
 |`x-mac-turkish`|8-bit Turkish (Macintosh)|
 |`x-user-defined`|Extended ASCII with PUA-mapped RHS, WHATWG version (not GDI version)|
 
+8-bit multi-byte Unicode codecs:
+
+|Major label(s)|Meaning|
+|---|---|
+|`cesu-8`, `utf8mb3`, `utf8-ucs2`|CESU-8 (to UTF-16 as UTF-8 is to UTF-32). Mostly for interoperability with existing systems that use it.|
+|`gb18030`|Chinese GB18030, WHATWG version. Not technically a full UTF in this implementation, since one PUA character is changed to an ideographic space per WHATWG.|
+|`utf-8`, `utf8mb4`, `utf8-ucs4`|UTF-8 without a byte order mark|
+|`utf-8-sig`|UTF-8 with a byte order mark|
+|`utf-16`|UTF-16 with byte order mark, little endian if missing|
+|`utf-16be`|UTF-16, big endian, no byte order mark|
+|`utf-16le`|UTF-16, little endian, no byte order mark|
+|`utf-32`|UTF-32 with byte order mark (though byte order can usually also be detected in its absence)|
+|`utf-32be`|UTF-32, big endian, no byte order mark|
+|`utf-32le`|UTF-32, little endian, no byte order mark|
+
 8-bit multi-byte legacy CJK codecs:
 
 |Major label(s)|Meaning|
@@ -89,26 +104,12 @@ Single-byte extended ASCII encodings:
 |`euc-jisx0213`, `euc-jis-2004`|Japanese EUC-JP, with JIS X 0213 mappings and extensions.|
 |`euc-kr`, `uhc`, `windows-949`|Korean Unified Hangul Code (superset of EUC-KR, encodes KS C 5601).|
 |`gbk`, `gb2312`|Chinese GBK (GB2312 extension), condoning GB18030 when decoding.|
+|`japanese`|Attempts to detect the encoding of a Japanese document (like the unified "Japanese" option now offered by some browsers' encoding override menus). Not intended to be used in the encode direction, but will behave as `utf-8-sig` in that case.|
 |`johab`, `johab-ascii`|Korean Johab (ASCII-compatible stateless standard version)|
 |`shift_jis`, `ms-kanji`, `windows-31j`|Japanese Shift JIS (Windows compatible version)|
 |`shift-jisx0213`, `shift-jis-2004`|Japanese Shift JIS (JIS X 0213 version)|
 |`x-mac-chinesesimp`|Simplified Chinese GB2312, Macintosh version|
 |`x-mac-chinesetrad`|Traditional Chinese Big5, Macintosh version|
-
-8-bit multi-byte Unicode codecs:
-
-|Major label(s)|Meaning|
-|---|---|
-|`cesu-8`, `utf8mb3`, `utf8-ucs2`|CESU-8 (to UTF-16 as UTF-8 is to UTF-32). Mostly for interoperability with existing systems that use it.|
-|`gb18030`|Chinese GB18030, WHATWG version. Not technically a full UTF in this implementation, since one PUA character is replaced by the ideographic space per WHATWG.|
-|`utf-8`, `utf8mb4`, `utf8-ucs4`|UTF-8 without a byte order mark|
-|`utf-8-sig`|UTF-8 with a byte order mark|
-|`utf-16`|UTF-16 with byte order mark, little endian if missing|
-|`utf-16be`|UTF-16, big endian, no byte order mark|
-|`utf-16le`|UTF-16, little endian, no byte order mark|
-|`utf-32`|UTF-32 with byte order mark (though order can usually be detected in its absence also)|
-|`utf-32be`|UTF-32, big endian, no byte order mark|
-|`utf-32le`|UTF-32, little endian, no byte order mark|
 
 7-bit stateful codecs:
 

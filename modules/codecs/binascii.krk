@@ -229,6 +229,11 @@ register_kuroko_codec(["inverse-quopri"],
 
 
 def base64_file_create(data, filename=None, mode=0o666):
+    """
+    Create a Base64 string containing the provided data, with lines wrapped as required by some
+    formats. If a filename and optional UNIX mode are provided, Base64 headers as recognised by
+    some modern versions of uudecode are added.
+    """
     let out = StringCatenator()
     let creator = Base64IncrementalCreator("strict")
     if filename != None:
@@ -246,6 +251,9 @@ def base64_file_create(data, filename=None, mode=0o666):
 
 
 def uu_file_create(data, filename="-", mode=0o666):
+    """
+    Create a string in the uuencode file format containing the provided data.
+    """
     let out = StringCatenator()
     let creator = Base64UUIncrementalCreator("strict")
     let octmode = oct(mode)[2:]
