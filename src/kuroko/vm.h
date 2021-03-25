@@ -240,6 +240,7 @@ typedef struct KrkVM {
 #define KRK_GLOBAL_CLEAN_OUTPUT        (1 << 10)
 #define KRK_GLOBAL_CALLGRIND           (1 << 11)
 #define KRK_GLOBAL_REPORT_GC_COLLECTS  (1 << 12)
+#define KRK_GLOBAL_THREADS             (1 << 13)
 
 #ifdef ENABLE_THREADING
 #  define threadLocal __thread

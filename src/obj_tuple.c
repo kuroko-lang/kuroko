@@ -157,7 +157,7 @@ KRK_METHOD(tuple,__hash__,{
 		if (krk_hashValue(self->values.values[i], &step)) goto _unhashable;
 		self->obj.hash ^= step;
 	}
-	self->flags = self->flags | 1;
+	self->obj.flags |= KRK_OBJ_FLAGS_VALID_HASH;
 	return INTEGER_VAL(self->obj.hash);
 _unhashable:
 	return NONE_VAL();

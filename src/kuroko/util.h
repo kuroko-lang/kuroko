@@ -24,31 +24,31 @@
 
 #define ADD_BASE_CLASS(obj, name, baseClass) krk_makeClass(vm.builtins, &obj, name, baseClass)
 
-#define ATTRIBUTE_NOT_ASSIGNABLE() do { if (argc != 1) return krk_runtimeError(vm.exceptions->attributeError, "'%s' object has no attribute '%s'", \
+#define ATTRIBUTE_NOT_ASSIGNABLE() do { if (unlikely(argc != 1)) return krk_runtimeError(vm.exceptions->attributeError, "'%s' object has no attribute '%s'", \
 	krk_typeName(argv[0]), _method_name); } while (0)
 
-#define METHOD_TAKES_NONE() do { if (argc != 1) return krk_runtimeError(vm.exceptions->argumentError, "%s() takes no arguments (%d given)", \
+#define METHOD_TAKES_NONE() do { if (unlikely(argc != 1)) return krk_runtimeError(vm.exceptions->argumentError, "%s() takes no arguments (%d given)", \
 	_method_name, (argc-1)); } while (0)
 
-#define METHOD_TAKES_EXACTLY(n) do { if (argc != (n+1)) return krk_runtimeError(vm.exceptions->argumentError, "%s() takes %s %d argument%s (%d given)", \
+#define METHOD_TAKES_EXACTLY(n) do { if (unlikely(argc != (n+1))) return krk_runtimeError(vm.exceptions->argumentError, "%s() takes %s %d argument%s (%d given)", \
 	_method_name, "exactly", n, (n != 1) ? "s" : "", (argc-1)); } while (0)
 
-#define METHOD_TAKES_AT_LEAST(n) do { if (argc < (n+1)) return krk_runtimeError(vm.exceptions->argumentError, "%s() takes %s %d argument%s (%d given)", \
+#define METHOD_TAKES_AT_LEAST(n) do { if (unlikely(argc < (n+1))) return krk_runtimeError(vm.exceptions->argumentError, "%s() takes %s %d argument%s (%d given)", \
 	_method_name, "at least", n, (n != 1) ? "s" : "", (argc-1)); } while (0)
 
-#define METHOD_TAKES_AT_MOST(n) do { if (argc > (n+1)) return krk_runtimeError(vm.exceptions->argumentError, "%s() takes %s %d argument%s (%d given)", \
+#define METHOD_TAKES_AT_MOST(n) do { if (unlikely(argc > (n+1))) return krk_runtimeError(vm.exceptions->argumentError, "%s() takes %s %d argument%s (%d given)", \
 	_method_name, "at most", n, (n != 1) ? "s" : "", (argc-1)); } while (0)
 
-#define FUNCTION_TAKES_NONE() do { if (argc != 0) return krk_runtimeError(vm.exceptions->argumentError, "%s() takes no arguments (%d given)", \
+#define FUNCTION_TAKES_NONE() do { if (unlikely(argc != 0)) return krk_runtimeError(vm.exceptions->argumentError, "%s() takes no arguments (%d given)", \
 	_method_name, (argc)); } while (0)
 
-#define FUNCTION_TAKES_EXACTLY(n) do { if (argc != n) return krk_runtimeError(vm.exceptions->argumentError, "%s() takes %s %d argument%s (%d given)", \
+#define FUNCTION_TAKES_EXACTLY(n) do { if (unlikely(argc != n)) return krk_runtimeError(vm.exceptions->argumentError, "%s() takes %s %d argument%s (%d given)", \
 	_method_name, "exactly", n, (n != 1) ? "s" : "", (argc)); } while (0)
 
-#define FUNCTION_TAKES_AT_LEAST(n) do { if (argc < n) return krk_runtimeError(vm.exceptions->argumentError, "%s() takes %s %d argument%s (%d given)", \
+#define FUNCTION_TAKES_AT_LEAST(n) do { if (unlikely(argc < n)) return krk_runtimeError(vm.exceptions->argumentError, "%s() takes %s %d argument%s (%d given)", \
 	_method_name, "at least", n, (n != 1) ? "s" : "", (argc)); } while (0)
 
-#define FUNCTION_TAKES_AT_MOST(n) do { if (argc > n) return krk_runtimeError(vm.exceptions->argumentError, "%s() takes %s %d argument%s (%d given)", \
+#define FUNCTION_TAKES_AT_MOST(n) do { if (unlikely(argc > n)) return krk_runtimeError(vm.exceptions->argumentError, "%s() takes %s %d argument%s (%d given)", \
 	_method_name, "at most", n, (n != 1) ? "s" : "", (argc)); } while (0)
 
 #define TYPE_ERROR(expected,value) krk_runtimeError(vm.exceptions->typeError, "%s() expects %s, not '%s'", \
@@ -57,8 +57,8 @@
 #define NOT_ENOUGH_ARGS(name) krk_runtimeError(vm.exceptions->argumentError, "")
 
 #define CHECK_ARG(i, type, ctype, name) \
-	if (argc < (i+1)) return NOT_ENOUGH_ARGS(name); \
-	if (!IS_ ## type (argv[i])) return TYPE_ERROR(type,argv[i]); \
+	if (unlikely(argc < (i+1))) return NOT_ENOUGH_ARGS(name); \
+	if (unlikely(!IS_ ## type (argv[i]))) return TYPE_ERROR(type,argv[i]); \
 	ctype name __attribute__((unused)) = AS_ ## type (argv[i])
 
 #define FUNC_NAME(klass, name) _ ## klass ## _ ## name
@@ -177,7 +177,7 @@ static inline KrkValue discardStringBuilder(struct StringBuilder * sb) {
 #define IS_float(o)   (IS_FLOATING(o))
 #define AS_float(o)   (AS_FLOATING(o))
 
-#define IS_list(o)    krk_isInstanceOf(o,vm.baseClasses->listClass)
+#define IS_list(o)    ((IS_INSTANCE(o) && AS_INSTANCE(o)->_class == vm.baseClasses->listClass) || krk_isInstanceOf(o,vm.baseClasses->listClass))
 #define AS_list(o)    (KrkList*)AS_OBJECT(o)
 
 #define IS_tuple(o)    IS_TUPLE(o)
@@ -198,7 +198,7 @@ static inline KrkValue discardStringBuilder(struct StringBuilder * sb) {
 #define IS_striterator(o) (krk_isInstanceOf(o,vm.baseClasses->striteratorClass))
 #define AS_striterator(o) (AS_INSTANCE(o))
 
-#define IS_dict(o)    krk_isInstanceOf(o,vm.baseClasses->dictClass)
+#define IS_dict(o)    ((IS_INSTANCE(o) && AS_INSTANCE(o)->_class == vm.baseClasses->dictClass) || krk_isInstanceOf(o,vm.baseClasses->dictClass))
 #define AS_dict(o)    (KrkDict*)AS_OBJECT(o)
 
 #define IS_dictitems(o) krk_isInstanceOf(o,vm.baseClasses->dictitemsClass)

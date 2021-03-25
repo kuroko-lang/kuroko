@@ -508,10 +508,10 @@ int krk_isInstanceOf(KrkValue obj, KrkClass * type) {
 	return 0;
 }
 
-static int checkArgumentCount(KrkClosure * closure, int argCount) {
+static inline int checkArgumentCount(KrkClosure * closure, int argCount) {
 	int minArgs = closure->function->requiredArgs;
 	int maxArgs = minArgs + closure->function->keywordArgs;
-	if (argCount < minArgs || argCount > maxArgs) {
+	if (unlikely(argCount < minArgs || argCount > maxArgs)) {
 		krk_runtimeError(vm.exceptions->argumentError, "%s() takes %s %d argument%s (%d given)",
 		closure->function->name ? closure->function->name->chars : "<unnamed>",
 		(minArgs == maxArgs) ? "exactly" : (argCount < minArgs ? "at least" : "at most"),

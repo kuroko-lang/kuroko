@@ -50,20 +50,20 @@ KrkValue krk_list_of(int argc, KrkValue argv[], int hasKw) {
 KRK_METHOD(list,__getitem__,{
 	METHOD_TAKES_EXACTLY(1);
 	CHECK_ARG(1,int,krk_integer_type,index);
-	pthread_rwlock_rdlock(&self->rwlock);
+	if (vm.globalFlags & KRK_GLOBAL_THREADS) pthread_rwlock_rdlock(&self->rwlock);
 	LIST_WRAP_INDEX();
 	KrkValue result = self->values.values[index];
-	pthread_rwlock_unlock(&self->rwlock);
+	if (vm.globalFlags & KRK_GLOBAL_THREADS) pthread_rwlock_unlock(&self->rwlock);
 	return result;
 })
 
 KRK_METHOD(list,__setitem__,{
 	METHOD_TAKES_EXACTLY(2);
 	CHECK_ARG(1,int,krk_integer_type,index);
-	pthread_rwlock_rdlock(&self->rwlock);
+	if (vm.globalFlags & KRK_GLOBAL_THREADS) pthread_rwlock_rdlock(&self->rwlock);
 	LIST_WRAP_INDEX();
 	self->values.values[index] = argv[2];
-	pthread_rwlock_unlock(&self->rwlock);
+	if (vm.globalFlags & KRK_GLOBAL_THREADS) pthread_rwlock_unlock(&self->rwlock);
 })
 
 KRK_METHOD(list,append,{
