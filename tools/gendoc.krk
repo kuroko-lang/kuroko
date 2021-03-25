@@ -261,11 +261,12 @@ def processModules(modules):
                 if not member.startswith('_'):
                     let obj = getattr(thing,member)
                     if isinstance(obj, function):
-                        if hasattr(obj,'__file__') and obj.__file__ != thing.__file__:
-                            continue
+                        if hasattr(obj,'__file__') and thing.__file__ and obj.__file__ != thing.__file__:
+                            if not (thing.__file__.endswith('.so') and obj.__file__ == '<builtin>'):
+                                continue
                         functions.append(Pair(member,obj))
                     else if isinstance(obj, type):
-                        if hasattr(obj,'__module__') and obj.__module__ != name:
+                        if hasattr(obj,'__module__') and obj.__module__ and obj.__module__ != name:
                             continue
                         if isExceptionType(obj):
                             exceptions.append(Pair(member,obj))
