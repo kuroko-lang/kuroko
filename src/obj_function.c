@@ -144,6 +144,12 @@ KRK_METHOD(function,__annotations__,{
 	return AS_CLOSURE(self)->annotations;
 })
 
+KRK_METHOD(function,__code__,{
+	ATTRIBUTE_NOT_ASSIGNABLE();
+	if (!IS_CLOSURE(self)) return NONE_VAL();
+	return OBJECT_VAL(AS_CLOSURE(self)->function);
+})
+
 #undef CURRENT_CTYPE
 #define CURRENT_CTYPE KrkCodeObject*
 
@@ -173,6 +179,17 @@ KRK_METHOD(codeobject,_ip_to_line,{
 	CHECK_ARG(1,int,krk_integer_type,ip);
 	size_t line = krk_lineNumber(&self->chunk, ip);
 	return INTEGER_VAL(line);
+})
+
+KRK_METHOD(codeobject,__constants__,{
+	ATTRIBUTE_NOT_ASSIGNABLE();
+	krk_push(OBJECT_VAL(krk_newTuple(self->chunk.constants.count)));
+	memcpy(AS_TUPLE(krk_peek(0))->values.values,
+		self->chunk.constants.values,
+		sizeof(KrkValue) * self->chunk.constants.count);
+	AS_TUPLE(krk_peek(0))->values.count = self->chunk.constants.count;
+	krk_tupleUpdateHash(AS_TUPLE(krk_peek(0)));
+	return krk_pop();
 })
 
 #undef CURRENT_CTYPE
@@ -233,6 +250,11 @@ KRK_METHOD(method,__annotations__,{
 	return FUNC_NAME(function,__annotations__)(1,(KrkValue[]){OBJECT_VAL(self->method)},0);
 })
 
+KRK_METHOD(method,__code__,{
+	ATTRIBUTE_NOT_ASSIGNABLE();
+	return FUNC_NAME(function,__code__)(1,(KrkValue[]){OBJECT_VAL(self->method)},0);
+})
+
 
 KRK_FUNC(staticmethod,{
 	FUNCTION_TAKES_EXACTLY(1);
@@ -267,6 +289,7 @@ void _createAndBind_functionClass(void) {
 	KrkClass * codeobject = ADD_BASE_CLASS(vm.baseClasses->codeobjectClass, "codeobject", vm.baseClasses->objectClass);
 	BIND_METHOD(codeobject,__str__);
 	BIND_METHOD(codeobject,_ip_to_line);
+	BIND_PROP(codeobject,__constants__);
 	BIND_PROP(codeobject,__name__);
 	krk_defineNative(&codeobject->methods, "__repr__", FUNC_NAME(codeobject,__str__));
 	krk_finalizeClass(codeobject);
@@ -280,6 +303,7 @@ void _createAndBind_functionClass(void) {
 	BIND_PROP(function,__file__);
 	BIND_PROP(function,__args__);
 	BIND_PROP(function,__annotations__);
+	BIND_PROP(function,__code__);
 	krk_defineNative(&function->methods, "__repr__", FUNC_NAME(function,__str__));
 	krk_defineNative(&function->methods, "__class_getitem__", KrkGenericAlias);
 	krk_finalizeClass(function);
@@ -293,6 +317,7 @@ void _createAndBind_functionClass(void) {
 	BIND_PROP(method,__file__);
 	BIND_PROP(method,__args__);
 	BIND_PROP(method,__annotations__);
+	BIND_PROP(method,__code__);
 	krk_defineNative(&method->methods, "__repr__", FUNC_NAME(method,__str__));
 	krk_finalizeClass(method);
 
