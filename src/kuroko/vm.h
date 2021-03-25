@@ -793,46 +793,17 @@ extern KrkValue krk_valueDelAttribute(KrkValue owner, char * name);
  */
 extern void krk_addObjects(void);
 
-/*
- * All of the remaining stuff is internal and shouldn't be used by library users or embedders.
- * FIXME This stuff needs to be moved to another header! FIXME
+/**
+ * @brief Compare two values, returning @ref True if the left is less than the right.
+ *
+ * This is equivalent to the opcode instruction OP_LESS.
  */
-
-extern KrkValue _str___getitem__(int argc, KrkValue argv[], int hasKw);
-#define krk_string_get _str___getitem__
-extern KrkValue _str___int__(int argc, KrkValue argv[], int hasKw);
-#define krk_string_int _str___int__
-extern KrkValue _str___float__(int argc, KrkValue argv[], int hasKw);
-#define krk_string_float _str___float__
-extern KrkValue _str_split(int argc, KrkValue argv[], int hasKw);
-#define krk_string_split _str_split
-extern KrkValue _str_format(int argc, KrkValue argv[], int hasKw);
-#define krk_string_format _str_format
-
-extern KrkValue krk_dict_nth_key_fast(size_t capacity, KrkTableEntry * entries, size_t index);
-
-extern void _createAndBind_numericClasses(void);
-extern void _createAndBind_strClass(void);
-extern void _createAndBind_listClass(void);
-extern void _createAndBind_tupleClass(void);
-extern void _createAndBind_bytesClass(void);
-extern void _createAndBind_dictClass(void);
-extern void _createAndBind_functionClass(void);
-extern void _createAndBind_rangeClass(void);
-extern void _createAndBind_setClass(void);
-extern void _createAndBind_builtins(void);
-extern void _createAndBind_type(void);
-extern void _createAndBind_exceptions(void);
-extern void _createAndBind_gcMod(void);
-extern void _createAndBind_timeMod(void);
-extern void _createAndBind_osMod(void);
-extern void _createAndBind_fileioMod(void);
-#ifdef ENABLE_THREADING
-extern void _createAndBind_threadsMod(void);
-#endif
-
 extern KrkValue krk_operator_lt(KrkValue,KrkValue);
+
+/**
+ * @brief Compare to values, returning @ref True if the left is greater than the right.
+ *
+ * This is equivalent to the opcode instruction OP_GREATER.
+ */
 extern KrkValue krk_operator_gt(KrkValue,KrkValue);
 
-extern void _createAndBind_generatorClass(void);
-extern KrkInstance * krk_buildGenerator(KrkClosure *, KrkValue *, size_t);

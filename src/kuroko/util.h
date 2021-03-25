@@ -214,6 +214,18 @@ static inline KrkValue discardStringBuilder(struct StringBuilder * sb) {
 #define unpackError(fromInput) return krk_runtimeError(vm.exceptions->typeError, "'%s' object is not iterable", krk_typeName(fromInput));
 #endif
 
+extern KrkValue krk_dict_nth_key_fast(size_t capacity, KrkTableEntry * entries, size_t index);
+extern KrkValue FUNC_NAME(str,__getitem__)(int,KrkValue*,int);
+extern KrkValue FUNC_NAME(str,__int__)(int,KrkValue*,int);
+extern KrkValue FUNC_NAME(str,__float__)(int,KrkValue*,int);
+extern KrkValue FUNC_NAME(str,split)(int,KrkValue*,int);
+extern KrkValue FUNC_NAME(str,format)(int,KrkValue*,int);
+#define krk_string_get FUNC_NAME(str,__getitem__)
+#define krk_string_int FUNC_NAME(str,__int__)
+#define krk_string_float FUNC_NAME(str,__float__)
+#define krk_string_split FUNC_NAME(str,split)
+#define krk_string_format FUNC_NAME(str,format)
+
 #define unpackIterable(fromInput) do { \
 	KrkClass * type = krk_getType(fromInput); \
 	if (type->_iter) { \

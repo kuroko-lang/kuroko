@@ -16,6 +16,13 @@ static KrkValue FUNC_NAME(striterator,__init__)(int,KrkValue[],int);
 		stringBytes = realloc(stringBytes, stringCapacity); \
 	} stringBytes[stringLength++] = c; } while (0)
 
+#define KRK_STRING_FAST(string,offset)  (uint32_t)\
+	(string->type <= 1 ? ((uint8_t*)string->codes)[offset] : \
+	(string->type == 2 ? ((uint16_t*)string->codes)[offset] : \
+	((uint32_t*)string->codes)[offset]))
+
+#define CODEPOINT_BYTES(cp) (cp < 0x80 ? 1 : (cp < 0x800 ? 2 : (cp < 0x10000 ? 3 : 4)))
+
 KRK_METHOD(str,__ord__,{
 	METHOD_TAKES_NONE();
 	if (self->codesLength != 1)

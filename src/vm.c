@@ -14,6 +14,8 @@
 #include <kuroko/table.h>
 #include <kuroko/util.h>
 
+#include "private.h"
+
 #define KRK_VERSION_MAJOR  "1"
 #define KRK_VERSION_MINOR  "1"
 #define KRK_VERSION_PATCH  "0"
