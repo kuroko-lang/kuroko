@@ -1342,6 +1342,8 @@ void krk_freeVM() {
 	memset(&_baseClasses,0,sizeof(_baseClasses));
 	krk_freeObjects();
 
+	if (vm.binpath) free(vm.binpath);
+
 	/* for thread in threads... */
 	FREE_ARRAY(size_t, krk_currentThread.stack, krk_currentThread.stackSize);
 	memset(&krk_vm,0,sizeof(krk_vm));
