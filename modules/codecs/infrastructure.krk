@@ -119,7 +119,7 @@ def encode(string, label, web=False, errors="strict"):
     """
     Encode a complete Unicode sequence to a complete byte string in the given encoding. Semantic
     of the web= argument is the same as with lookup(). Semantic of name passed to errors= is as
-    documented for lookup_error().
+    documented for codecs.infrastructure.lookup_error().
     """
     return lookup(label, web = web).encode(string, errors=errors)
 
@@ -127,7 +127,7 @@ def decode(data, label, web=False, errors="strict"):
     """
     Decode a complete byte sequence in the given encoding to a complete Unicode stream. Semantic
     of the web= argument is the same as with lookup(). Semantic of name passed to errors= is as
-    documented for lookup_error().
+    documented for codecs.infrastructure.lookup_error().
     """
     return lookup(label, web = web).decode(data, errors=errors)
 

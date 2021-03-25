@@ -1,7 +1,8 @@
 """Convert a string to and from various encodings.
 
 The basic supported encodings are roughly as specified in the [WHATWG Encoding Standard
-](https://encoding.spec.whatwg.org/) but more are also supported.
+](https://encoding.spec.whatwg.org/), but more are also supported unless restriction to web
+encodings is specifically specified.
 
 Most encodings supported by Python are implemented, but not currently "idna" or "punycode". Note
 however that Python makes "x-mac-japanese" and "x-mac-korean" aliases of "shift_jis" and "euc-kr";
