@@ -371,3 +371,14 @@ div.memdoc {
     columns: 1;
   }
 }
+.markdownTableRowOdd {
+    background: rgba(204, 204, 204, 0.2);
+}
+table {
+    margin-bottom: 1em;
+}
+th, td {
+    padding-left: 0.5ex;
+    padding-right: 0.5ex;
+}
+
