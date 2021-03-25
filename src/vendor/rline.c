@@ -1443,6 +1443,7 @@ static void render_line(void) {
 		}
 	}
 
+	printf("\033[0m");
 	set_colors(COLOR_FG, COLOR_BG);
 
 	if (show_right_side && prompt_right_width) {
