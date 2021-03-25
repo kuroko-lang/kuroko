@@ -7,6 +7,7 @@
  * for Kuroko, including initializing the VM and passing code to be interpreted.
  */
 #include <stdarg.h>
+#include <time.h>
 #include <sys/types.h>
 #include <sys/time.h>
 #include "kuroko.h"
