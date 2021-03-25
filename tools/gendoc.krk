@@ -75,6 +75,9 @@ let modules = [
     'json',
     'collections',
     'string',
+    'codecs',
+    'codecs.infrastructure',
+    'codecs.binascii',
 
     # Other stuff
     'tools.gendoc',

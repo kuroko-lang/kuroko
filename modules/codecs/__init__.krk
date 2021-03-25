@@ -11,7 +11,7 @@ most CJK codecs, but also e.g. "ISO-8859-1".
 
 The list of codecs (not an exhaustive list of labels, nor close to one) is as follows.
 
-Single-byte extended ASCII encodings:
+### Single-byte extended ASCII encodings:
 
 |Major label(s)|Meaning|
 |---|---|
@@ -77,7 +77,9 @@ Single-byte extended ASCII encodings:
 |`x-mac-turkish`|8-bit Turkish (Macintosh)|
 |`x-user-defined`|Extended ASCII with PUA-mapped RHS, WHATWG version (not GDI version)|
 
-8-bit multi-byte Unicode codecs:
+‑
+
+### 8-bit multi-byte Unicode codecs:
 
 |Major label(s)|Meaning|
 |---|---|
@@ -92,7 +94,9 @@ Single-byte extended ASCII encodings:
 |`utf-32be`|UTF-32, big endian, no byte order mark|
 |`utf-32le`|UTF-32, little endian, no byte order mark|
 
-8-bit multi-byte legacy CJK codecs:
+‑
+
+### 8-bit multi-byte legacy CJK codecs:
 
 |Major label(s)|Meaning|
 |---|---|
@@ -111,7 +115,9 @@ Single-byte extended ASCII encodings:
 |`x-mac-chinesesimp`|Simplified Chinese GB2312, Macintosh version|
 |`x-mac-chinesetrad`|Traditional Chinese Big5, Macintosh version|
 
-7-bit stateful codecs:
+‑
+
+### 7-bit stateful codecs:
 
 |Major label(s)|Meaning|
 |---|---|
@@ -127,7 +133,9 @@ Single-byte extended ASCII encodings:
 |`jis_encoding`|7-bit stateful Japanese, comprehensive version|
 |`utf-7`|A largely obsolete scheme for mixing ASCII and Base64'd UTF-16BE in e-mail. Included mostly for Python parity.|
 
-EBCDIC codecs:
+‑
+
+### EBCDIC codecs:
 
 |Major label(s)|Meaning|
 |---|---|
@@ -140,7 +148,9 @@ EBCDIC codecs:
 |`cp1140`|EBCDIC with Euro Sign|
 |`johab-ebcdic`, `ibm-933`, `ibm-1364`|EBCDIC Korean (Johab, IBM stateful version for EBCDIC)|
 
-Codecs with unusual behaviour:
+‑
+
+### Codecs with unusual behaviour:
 
 |Major label(s)|Meaning|
 |---|---|
@@ -149,6 +159,8 @@ Codecs with unusual behaviour:
 |`inverse-base64uu`|Same, but using the uuencode alphabet (note: does not in and of itself create the uuencode *format*)|
 |`inverse-quopri`|Quoted-Printable, with inverse semantics (encoder reads, decoder creates). Error handler is ignored.|
 |`undefined`, `replacement`|Represents data for which encoding/decoding must not be attempted. Following WHATWG (and differing from Python), error handlers are accepted, though only by the decoder: the encoder will ignore them.|
+
+‑
 """
 
 from codecs.infrastructure import encode, decode, lookup
