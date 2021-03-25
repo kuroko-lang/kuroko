@@ -111,6 +111,7 @@ extern int krk_tableSet(KrkTable * table, KrkValue key, KrkValue value);
  * @return 0 if the key was not found, 1 if it was.
  */
 extern int krk_tableGet(KrkTable * table, KrkValue key, KrkValue * value);
+extern int krk_tableGet_fast(KrkTable * table, KrkString * str, KrkValue * value);
 
 /**
  * @brief Remove a key from a hash table.
@@ -147,9 +148,10 @@ extern KrkTableEntry * krk_findEntry(KrkTableEntry * entries, size_t capacity, K
  * Retreives or calculates the hash value for 'value'.
  *
  * @param value Value to hash.
- * @return An unsigned 32-bit hash value.
+ * @param *hashOut An unsigned 32-bit hash value.
+ * @return Status code 0 for success, 1 for unhashable type.
  */
-extern uint32_t krk_hashValue(KrkValue value);
+extern int krk_hashValue(KrkValue value, uint32_t *hashOut);
 
 /**
  * @brief Preset the size of a table.

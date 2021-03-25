@@ -133,7 +133,6 @@ KRK_METHOD(function,__args__,{
 		tuple->values.values[tuple->values.count++] = finishStringBuilder(&sb);
 	}
 
-	krk_tupleUpdateHash(tuple);
 	krk_pop();
 	return OBJECT_VAL(tuple);
 })
@@ -188,7 +187,6 @@ KRK_METHOD(codeobject,__constants__,{
 		self->chunk.constants.values,
 		sizeof(KrkValue) * self->chunk.constants.count);
 	AS_TUPLE(krk_peek(0))->values.count = self->chunk.constants.count;
-	krk_tupleUpdateHash(AS_TUPLE(krk_peek(0)));
 	return krk_pop();
 })
 

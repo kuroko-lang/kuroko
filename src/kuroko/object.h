@@ -199,6 +199,7 @@ typedef struct KrkClass {
 	KrkObj * _descget;
 	KrkObj * _descset;
 	KrkObj * _classgetitem;
+	KrkObj * _hash;
 } KrkClass;
 
 /**
@@ -498,25 +499,6 @@ extern KrkTuple *       krk_newTuple(size_t length);
  * data from @p source.
  */
 extern KrkBytes *       krk_newBytes(size_t length, uint8_t * source);
-
-/**
- * @brief Update the hash of a bytes object.
- * @memberof KrkBytes
- *
- * If the contents of a bytes object have been modified
- * after it was initialized by @ref krk_newBytes, the caller
- * must updates its hash.
- */
-extern void krk_bytesUpdateHash(KrkBytes * bytes);
-
-/**
- * @brief Update the hash of a tuple.
- * @memberof KrkTuple
- *
- * If a tuple's contents have been changed, its
- * hash must be updated.
- */
-extern void krk_tupleUpdateHash(KrkTuple * self);
 
 #define krk_isObjType(v,t) (IS_OBJECT(v) && (AS_OBJECT(v)->type == (t)))
 #define OBJECT_TYPE(value) (AS_OBJECT(value)->type)

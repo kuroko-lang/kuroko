@@ -179,6 +179,7 @@ static KrkString * allocateString(char * chars, size_t length, uint32_t hash) {
 	string->length = length;
 	string->chars = chars;
 	string->obj.hash = hash;
+	string->obj.flags |= KRK_OBJ_FLAGS_VALID_HASH;
 	string->codesLength = codesLength;
 	string->type = type;
 	string->codes = NULL;
@@ -319,10 +320,6 @@ KrkTuple * krk_newTuple(size_t length) {
 	return tuple;
 }
 
-void krk_bytesUpdateHash(KrkBytes * bytes) {
-	bytes->obj.hash = hashString((char*)bytes->bytes, bytes->length);
-}
-
 KrkBytes * krk_newBytes(size_t length, uint8_t * source) {
 	KrkBytes * bytes = ALLOCATE_OBJECT(KrkBytes, KRK_OBJ_BYTES);
 	bytes->length = length;
@@ -332,7 +329,6 @@ KrkBytes * krk_newBytes(size_t length, uint8_t * source) {
 	bytes->obj.hash = -1;
 	if (source) {
 		memcpy(bytes->bytes, source, length);
-		krk_bytesUpdateHash(bytes);
 	}
 	krk_pop();
 	return bytes;

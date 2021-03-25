@@ -2257,7 +2257,6 @@ static void string(int type) {
 		KrkBytes * bytes = krk_newBytes(0,NULL);
 		bytes->bytes = (uint8_t*)stringBytes;
 		bytes->length = stringLength;
-		krk_bytesUpdateHash(bytes);
 		emitConstant(OBJECT_VAL(bytes));
 		return;
 	}

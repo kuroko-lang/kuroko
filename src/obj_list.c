@@ -507,6 +507,7 @@ void _createAndBind_listClass(void) {
 	krk_defineNative(&list->methods, "__delitem__", FUNC_NAME(list,pop));
 	krk_defineNative(&list->methods, "__str__", FUNC_NAME(list,__repr__));
 	krk_defineNative(&list->methods, "__class_getitem__", KrkGenericAlias);
+	krk_attachNamedValue(&list->methods, "__hash__", NONE_VAL());
 	krk_finalizeClass(list);
 	KRK_DOC(list, "Mutable sequence of arbitrary values.");
 

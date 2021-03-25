@@ -324,7 +324,6 @@ KRK_FUNC(generations,{
 		outTuple->values.values[i] = INTEGER_VAL(generations[i]);
 	}
 	outTuple->values.count = MAX_GEN;
-	krk_tupleUpdateHash(outTuple);
 	return OBJECT_VAL(outTuple);
 })
 

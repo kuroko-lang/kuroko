@@ -27,7 +27,6 @@ KRK_METHOD(bytes,__init__,{
 			}
 			out->bytes[i] = AS_INTEGER(AS_TUPLE(argv[1])->values.values[i]);
 		}
-		krk_bytesUpdateHash(out);
 		return krk_pop();
 	} else if (IS_list(argv[1])) {
 		KrkBytes * out = krk_newBytes(AS_LIST(argv[1])->count, NULL);
@@ -39,7 +38,6 @@ KRK_METHOD(bytes,__init__,{
 			}
 			out->bytes[i] = AS_INTEGER(AS_LIST(argv[1])->values[i]);
 		}
-		krk_bytesUpdateHash(out);
 		return krk_pop();
 	}
 
@@ -48,6 +46,17 @@ KRK_METHOD(bytes,__init__,{
 
 #undef IS_bytes
 #define IS_bytes(o) IS_BYTES(o)
+
+KRK_METHOD(bytes,__hash__,{
+	METHOD_TAKES_NONE();
+	uint32_t hash = 0;
+	/* This is the so-called "sdbm" hash. It comes from a piece of
+	 * public domain code from a clone of ndbm. */
+	for (size_t i = 0; i < self->length; ++i) {
+		hash = (int)self->bytes[i] + (hash << 6) + (hash << 16) - hash;
+	}
+	return INTEGER_VAL(hash);
+})
 
 /* bytes objects are not interned; need to do this the old-fashioned way. */
 KRK_METHOD(bytes,__eq__,{
@@ -231,6 +240,7 @@ void _createAndBind_bytesClass(void) {
 	BIND_METHOD(bytes,__eq__);
 	BIND_METHOD(bytes,__add__);
 	BIND_METHOD(bytes,__iter__);
+	BIND_METHOD(bytes,__hash__);
 	BIND_METHOD(bytes,decode);
 	BIND_METHOD(bytes,join);
 	krk_defineNative(&bytes->methods,"__str__",FUNC_NAME(bytes,__repr__)); /* alias */

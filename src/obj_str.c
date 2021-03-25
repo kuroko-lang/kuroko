@@ -69,6 +69,10 @@ KRK_METHOD(str,__add__,{
 	return OBJECT_VAL(result);
 })
 
+KRK_METHOD(str,__hash__,{
+	return INTEGER_VAL(self->obj.hash);
+})
+
 KRK_METHOD(str,__len__,{
 	return INTEGER_VAL(self->codesLength);
 })
@@ -902,6 +906,7 @@ void _createAndBind_strClass(void) {
 	BIND_METHOD(str,__mod__);
 	BIND_METHOD(str,__repr__);
 	BIND_METHOD(str,__str__);
+	BIND_METHOD(str,__hash__);
 	BIND_METHOD(str,encode);
 	BIND_METHOD(str,split);
 	BIND_METHOD(str,strip);

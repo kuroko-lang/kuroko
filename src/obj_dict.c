@@ -243,7 +243,6 @@ KRK_METHOD(dictitems,__call__,{
 			outValue->values.values[0] = AS_DICT(self->dict)->entries[self->i].key;
 			outValue->values.values[1] = AS_DICT(self->dict)->entries[self->i].value;
 			outValue->values.count = 2;
-			krk_tupleUpdateHash(outValue);
 			self->i++;
 			return krk_pop();
 		}
@@ -388,6 +387,7 @@ void _createAndBind_dictClass(void) {
 	BIND_METHOD(dict,update);
 	krk_defineNative(&dict->methods, "__str__", FUNC_NAME(dict,__repr__));
 	krk_defineNative(&dict->methods, "__class_getitem__", KrkGenericAlias);
+	krk_attachNamedValue(&dict->methods, "__hash__", NONE_VAL());
 	krk_finalizeClass(dict);
 	KRK_DOC(dict, "Mapping of arbitrary keys to values.");
 

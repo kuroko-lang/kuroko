@@ -244,7 +244,6 @@ static void attachTraceback(void) {
 				krk_push(OBJECT_VAL(tbEntry));
 				tbEntry->values.values[tbEntry->values.count++] = OBJECT_VAL(frame->closure);
 				tbEntry->values.values[tbEntry->values.count++] = INTEGER_VAL(frame->ip - frame->closure->function->chunk.code - 1);
-				krk_tupleUpdateHash(tbEntry);
 				krk_writeValueArray(AS_LIST(tracebackList), OBJECT_VAL(tbEntry));
 				krk_pop();
 			}
@@ -430,6 +429,7 @@ void krk_finalizeClass(KrkClass * _class) {
 		{&_class->_descget, METHOD_DESCGET},
 		{&_class->_descset, METHOD_DESCSET},
 		{&_class->_classgetitem, METHOD_CLASSGETITEM},
+		{&_class->_hash, METHOD_HASH},
 		{NULL, 0},
 	};
 
@@ -441,6 +441,12 @@ void krk_finalizeClass(KrkClass * _class) {
 		}
 		if (_base && (IS_CLOSURE(tmp) || IS_NATIVE(tmp))) {
 			*entry->method = AS_OBJECT(tmp);
+		}
+	}
+
+	if (_class->base && _class->_eq != _class->base->_eq) {
+		if (_class->_hash == _class->base->_hash) {
+			_class->_hash = NULL;
 		}
 	}
 }
@@ -904,7 +910,7 @@ KrkValue krk_callSimple(KrkValue value, int argCount, int isMethod) {
 int krk_bindMethod(KrkClass * _class, KrkString * name) {
 	KrkValue method, out;
 	while (_class) {
-		if (krk_tableGet(&_class->methods, OBJECT_VAL(name), &method)) break;
+		if (krk_tableGet_fast(&_class->methods, name, &method)) break;
 		_class = _class->base;
 	}
 	if (!_class) return 0;
@@ -1222,6 +1228,8 @@ void krk_initVM(int flags) {
 		_(METHOD_DESCSET, "__set__"),
 		/* Very special thing */
 		_(METHOD_CLASSGETITEM, "__class_getitem__"),
+		/* Hashing override */
+		_(METHOD_HASH, "__hash__"),
 	#undef _
 	};
 	for (size_t i = 0; i < METHOD__MAX; ++i) {
@@ -1512,13 +1520,13 @@ int krk_loadModule(KrkString * path, KrkValue * moduleOut, KrkString * runAs) {
 	KrkValue modulePaths;
 
 	/* See if the module is already loaded */
-	if (krk_tableGet(&vm.modules, OBJECT_VAL(runAs), moduleOut)) {
+	if (krk_tableGet_fast(&vm.modules, runAs, moduleOut)) {
 		krk_push(*moduleOut);
 		return 1;
 	}
 
 	/* Obtain __builtins__.module_paths */
-	if (!krk_tableGet(&vm.system->fields, OBJECT_VAL(S("module_paths")), &modulePaths) || !IS_INSTANCE(modulePaths)) {
+	if (!krk_tableGet_fast(&vm.system->fields, S("module_paths"), &modulePaths) || !IS_INSTANCE(modulePaths)) {
 		*moduleOut = NONE_VAL();
 		krk_runtimeError(vm.exceptions->importError,
 			"kuroko.module_paths not defined.");
@@ -1736,7 +1744,7 @@ int krk_importModule(KrkString * name, KrkString * runAs) {
 			}
 			/* Is this a package? */
 			KrkValue tmp;
-			if (!krk_tableGet(&AS_INSTANCE(current)->fields, OBJECT_VAL(S("__ispackage__")), &tmp) || !IS_BOOLEAN(tmp) || AS_BOOLEAN(tmp) != 1) {
+			if (!krk_tableGet_fast(&AS_INSTANCE(current)->fields, S("__ispackage__"), &tmp) || !IS_BOOLEAN(tmp) || AS_BOOLEAN(tmp) != 1) {
 				krk_runtimeError(vm.exceptions->importError, "'%s' is not a package", AS_CSTRING(krk_currentThread.stack[argBase+2]));
 				return 0;
 			}
@@ -1771,7 +1779,7 @@ static int valueGetProperty(KrkString * name) {
 	KrkValue value;
 	if (IS_INSTANCE(krk_peek(0))) {
 		KrkInstance * instance = AS_INSTANCE(krk_peek(0));
-		if (krk_tableGet(&instance->fields, OBJECT_VAL(name), &value)) {
+		if (krk_tableGet_fast(&instance->fields, name, &value)) {
 			krk_pop();
 			krk_push(value);
 			return 1;
@@ -1780,7 +1788,7 @@ static int valueGetProperty(KrkString * name) {
 	} else if (IS_CLASS(krk_peek(0))) {
 		KrkClass * _class = AS_CLASS(krk_peek(0));
 		while (_class) {
-			if (krk_tableGet(&_class->methods, OBJECT_VAL(name), &value)) break;
+			if (krk_tableGet_fast(&_class->methods, name, &value)) break;
 			_class = _class->base;
 		}
 		if (_class) {
@@ -1794,7 +1802,7 @@ static int valueGetProperty(KrkString * name) {
 		objectClass = krk_getType(krk_peek(0));
 	} else if (IS_CLOSURE(krk_peek(0))) {
 		KrkClosure * closure = AS_CLOSURE(krk_peek(0));
-		if (krk_tableGet(&closure->fields, OBJECT_VAL(name), &value)) {
+		if (krk_tableGet_fast(&closure->fields, name, &value)) {
 			krk_pop();
 			krk_push(value);
 			return 1;
@@ -1876,7 +1884,7 @@ static int trySetDescriptor(KrkValue owner, KrkString * name, KrkValue value) {
 	KrkClass * _class = krk_getType(owner);
 	KrkValue property;
 	while (_class) {
-		if (krk_tableGet(&_class->methods, OBJECT_VAL(name), &property)) break;
+		if (krk_tableGet_fast(&_class->methods, name, &property)) break;
 		_class = _class->base;
 	}
 	if (_class) {
@@ -2026,7 +2034,7 @@ _resumeHook: (void)0;
 					krk_push(exceptionObject);
 					KrkValue tracebackEntries = NONE_VAL();
 					if (IS_INSTANCE(exceptionObject))
-						krk_tableGet(&AS_INSTANCE(exceptionObject)->fields, OBJECT_VAL(S("traceback")), &tracebackEntries);
+						krk_tableGet_fast(&AS_INSTANCE(exceptionObject)->fields, S("traceback"), &tracebackEntries);
 					krk_push(tracebackEntries);
 					krk_callSimple(OBJECT_VAL(type->_exit), 4, 0);
 					/* Top of stack is now either someone else's problem or a return value */
@@ -2426,8 +2434,8 @@ _finishReturn: (void)0;
 			case OP_GET_GLOBAL: {
 				KrkString * name = READ_STRING(OPERAND);
 				KrkValue value;
-				if (!krk_tableGet(frame->globals, OBJECT_VAL(name), &value)) {
-					if (!krk_tableGet(&vm.builtins->fields, OBJECT_VAL(name), &value)) {
+				if (!krk_tableGet_fast(frame->globals, name, &value)) {
+					if (!krk_tableGet_fast(&vm.builtins->fields, name, &value)) {
 						krk_runtimeError(vm.exceptions->nameError, "Undefined variable '%s'.", name->chars);
 						goto _finishException;
 					}

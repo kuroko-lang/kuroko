@@ -94,6 +94,7 @@ typedef enum {
 	METHOD_DESCGET,
 	METHOD_DESCSET,
 	METHOD_CLASSGETITEM,
+	METHOD_HASH,
 
 	METHOD__MAX,
 } KrkSpecialMethods;
