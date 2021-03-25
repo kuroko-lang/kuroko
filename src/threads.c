@@ -9,12 +9,14 @@
 #include <pthread.h>
 
 #if defined(__linux__)
-#include <sys/syscall.h>
-#define gettid() syscall(SYS_gettid)
+# include <sys/syscall.h>
+# define gettid() syscall(SYS_gettid)
 #elif defined(__toaru__)
-#include <pthread.h>
+# include <pthread.h>
+#elif defined(_WIN32)
+# define gettid() GetCurrentThreadId()
 #else
-#define gettid() -1
+# define gettid() -1
 #endif
 
 static KrkClass * ThreadError;
