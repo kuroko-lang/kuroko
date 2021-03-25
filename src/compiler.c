@@ -2635,12 +2635,12 @@ static void dict(int canAssign) {
 		Parser  parserBefore = parser;
 
 		expression();
-		if (match(TOKEN_COMMA) || match(TOKEN_RIGHT_BRACE)) {
+		if (check(TOKEN_COMMA) || check(TOKEN_RIGHT_BRACE)) {
 			size_t argCount = 1;
-			do {
+			while (match(TOKEN_COMMA)) {
 				expression();
 				argCount++;
-			} while (match(TOKEN_COMMA));
+			}
 			EMIT_CONSTANT_OP(OP_MAKE_SET, argCount);
 		} else if (match(TOKEN_FOR)) {
 			currentChunk()->count = chunkBefore;
