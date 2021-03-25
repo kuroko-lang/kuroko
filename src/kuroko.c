@@ -743,7 +743,7 @@ int main(int argc, char * argv[]) {
 	int flags = 0;
 	int moduleAsMain = 0;
 	int opt;
-	while ((opt = getopt(argc, argv, "+c:C:dgGm:rstTMSV-:")) != -1) {
+	while ((opt = getopt(argc, argv, "+:c:C:dgGm:rstTMSV-:")) != -1) {
 		switch (opt) {
 			case 'c':
 				return runString(argv, flags, optarg);
@@ -787,6 +787,16 @@ int main(int argc, char * argv[]) {
 				return runString(argv,0,"import kuroko; print('Kuroko',kuroko.version)\n");
 			case 'C':
 				return compileFile(argv,flags,optarg);
+			case ':':
+				fprintf(stderr, "%s: option '%c' requires an argument\n", argv[0], optopt);
+				return 1;
+			case '?':
+				if (optopt != '-') {
+					fprintf(stderr, "%s: unrecognized option '%c'\n", argv[0], optopt);
+					return 1;
+				}
+				optarg = argv[optind]+2;
+				/* fall through */
 			case '-':
 				if (!strcmp(optarg,"version")) {
 					return runString(argv,0,"import kuroko; print('Kuroko',kuroko.version)\n");
