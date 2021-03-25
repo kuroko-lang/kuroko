@@ -9,9 +9,9 @@ let _encoder_registry = {}
 let _decoder_registry = {}
 def register_kuroko_codec(labels, incremental_encoder_class, incremental_decoder_class):
     """
-    Register a given IncrementalEncoder subclass and a given IncrementalDecoder subclass
+    Register a given `IncrementalEncoder` subclass and a given `IncrementalDecoder` subclass
     with a given list of labels. Usually, this is expected to include the encoding name, along
-    with a list labels for aliases and/or subsets of the encoding. Either coder class may be None,
+    with a list labels for aliases and/or subsets of the encoding. Either coder class may be `None`,
     if the encoder/decoder labels are being registered asymmetrically.
     """
     for label in labels:
@@ -52,7 +52,7 @@ class KurokoCodecInfo:
     def encode(string, errors="strict"):
         """
         Encode a complete Unicode sequence to a complete byte string.
-        Semantic of name passed to errors= is as documented for lookup_error().
+        Semantic of name passed to `errors=` is as documented for `lookup_error()`.
         """
         if self.incrementalencoder:
             return self.incrementalencoder(errors).encode(string, True)
@@ -60,7 +60,7 @@ class KurokoCodecInfo:
     def decode(data, errors="strict"):
         """
         Decode a complete byte sequence to a complete Unicode stream.
-        Semantic of name passed to errors= is as documented for lookup_error().
+        Semantic of name passed to `errors=` is as documented for `lookup_error()`.
         """
         if self.incrementaldecoder:
             return self.incrementaldecoder(errors).decode(data, True)
@@ -95,10 +95,12 @@ class KurokoCodecInfo:
 
 def lookup(label, web=False):
     """
-    Obtain a KurokoCodecInfo for a given label. If web=False (the default), will always succeed,
-    but the resulting KurokoCodecInfo might be unable to encode and/or unable to decode if the
-    label is not recognised in that direction. If web=True, will raise KeyError if the label is
+    Obtain a `KurokoCodecInfo` for a given label. If `web=False` (the default), will always succeed,
+    but the resulting `KurokoCodecInfo` might be unable to encode and/or unable to decode if the
+    label is not recognised in that direction. If `web=True`, will raise KeyError if the label is
     not a WHATWG-permitted label, and will map certain labels to undefined per the WHATWG spec.
+    
+    Can be simply accessed as `codecs.lookup`.
     """
     let proclabel = label.lower()
     if web:
@@ -118,16 +120,20 @@ def lookup(label, web=False):
 def encode(string, label, web=False, errors="strict"):
     """
     Encode a complete Unicode sequence to a complete byte string in the given encoding. Semantic
-    of the web= argument is the same as with lookup(). Semantic of name passed to errors= is as
-    documented for codecs.infrastructure.lookup_error().
+    of the web= argument is the same as with `lookup()`. Semantic of name passed to errors= is as
+    documented for `lookup_error()`.
+    
+    Can be simply accessed as `codecs.encode`.
     """
     return lookup(label, web = web).encode(string, errors=errors)
 
 def decode(data, label, web=False, errors="strict"):
     """
     Decode a complete byte sequence in the given encoding to a complete Unicode stream. Semantic
-    of the web= argument is the same as with lookup(). Semantic of name passed to errors= is as
-    documented for codecs.infrastructure.lookup_error().
+    of the web= argument is the same as with `lookup()`. Semantic of name passed to errors= is as
+    documented for `lookup_error()`.
+    
+    Can be simply accessed as `codecs.decode`.
     """
     return lookup(label, web = web).decode(data, errors=errors)
 
@@ -171,9 +177,9 @@ let _error_registry = {}
 
 def register_error(name, handler):
     """
-    Reister a new error handler. The handler should be a function taking a UnicodeError and
+    Reister a new error handler. The handler should be a function taking a `UnicodeError` and
     either raising an exception or returning a tuple of (substitute, resume_index). The substitute
-    should be bytes (usually expected to be in ASCII) for a UnicodeEncodeError, str otherwise.
+    should be bytes (usually expected to be in ASCII) for a `UnicodeEncodeError`, str otherwise.
     """
     _error_registry[name] = handler
 

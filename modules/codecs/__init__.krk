@@ -1,14 +1,15 @@
-"""Convert a string to and from various encodings.
+"""@brief Convert a string to and from various encodings.
 
 The basic supported encodings are roughly as specified in the [WHATWG Encoding Standard
 ](https://encoding.spec.whatwg.org/), but more are also supported unless restriction to web
-encodings is specifically specified.
+encodings is explicitly specified.
 
-Most encodings supported by Python are implemented, but not currently "idna" or "punycode". Note
-however that Python makes "x-mac-japanese" and "x-mac-korean" aliases of "shift_jis" and "euc-kr";
+Most encodings supported by Python are implemented, but not currently `idna` or `punycode`. Note
+however that Python makes `x-mac-japanese` and `x-mac-korean` aliases of `shift_jis` and `euc-kr`;
 this has not been done here. Also note that the behaviour in regards to association of encoding
 names with variants is somewhat different to Python's, partly due to following WHATWG: this affects
-most CJK codecs, but also e.g. "ISO-8859-1".
+most CJK codecs (e.g. Python treats `shift_jis` and `ms-kanji` differently, while this package does
+not), but also e.g. "ISO-8859-1".
 
 The list of codecs (not an exhaustive list of labels, nor close to one) is as follows.
 
