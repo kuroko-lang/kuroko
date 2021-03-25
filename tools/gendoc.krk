@@ -75,9 +75,22 @@ let modules = [
     'json',
     'collections',
     'string',
+    'callgrind',
 
     # Other stuff
     'tools.gendoc',
+
+    # Codecs module
+    'codecs.bespokecodecs',
+    'codecs.binascii',
+    'codecs.dbdata',
+    'codecs.dbextra_data_7bit',
+    'codecs.dbextra_data_8bit',
+    'codecs.dbextra',
+    'codecs.infrastructure',
+    'codecs.isweblabel',
+    'codecs.sbencs',
+    'codecs.sbextra',
 ]
 
 let docString = {}
@@ -116,6 +129,13 @@ def isExceptionType(cls):
         cls = cls.__base__
     return False
 
+def typeName(t: type) -> str:
+    '''Get a clean type name from @p t '''
+    if t is type: return 'type'
+    if isinstance(t,type):
+        return t.__qualname__ if hasattr(t,'__qualname__') else t.__name__
+    return str(t)
+
 def getArgs(func):
     '''Extract the arguments of either a managed (@c func.__args__) or native (from an `@arguments` docstring) function.'''
     if func.__file__ == '<builtin>':
@@ -124,7 +144,12 @@ def getArgs(func):
             let line, rest = after.split('\n',1) if '\n' in after else (after,None)
             return line.strip().replace(',','\\,')
         return ''
-    return '\\,'.join([x for x in func.__args__ if x != 'self'])
+    let argNames = [x for x in func.__args__ if x != 'self']
+    if hasattr(func,'__annotations__') and func.__annotations__:
+        for i in range(len(argNames)):
+            if argNames[i] in func.__annotations__:
+                argNames[i] += '<span class="type-hint">' + typeName(func.__annotations__[argNames[i]]) + '</span>'
+    return '\\,'.join(argNames)
 
 def functionDoc(func):
     '''Extracts the docstring from a function and removes markup that Doxygen will choke on.'''
@@ -157,18 +182,29 @@ def processModules(modules):
         else:
             docString[modulepath] = 'TODO'
 
-        def outputFunction(name, func, prefix=None, paren=True):
+        def outputFunction(name, func, prefix=None):
             # Build the function signature
             let _args = getArgs(func)
             let args = ('<i>' + _args + '</i>') if _args else ''
             let body = functionDoc(func)
             let maybePrefix = prefix + '.' if prefix else ''
-            let formatted = maybePrefix + '<b>' + name + '</b>' + (f'({args})' if paren else args)
+            let formatted = maybePrefix + '<b>' + name + '</b>' + f'({args})'
             let maybeDetail = ''
             if prefix and name in specialMethods:
                 maybeDetail = ',' + formatted
                 formatted = specialMethods[name](prefix,args)
+            if hasattr(func,'__annotations__') and func.__annotations__ and 'return' in func.__annotations__:
+                formatted += '<span class="type-hint-return">' + typeName(func.__annotations__['return']) + '</span>'
             print('\\methodstart{' + (maybePrefix + name).replace('.','_') + ',' + formatted + ',' + ('h4,methodDef' if prefix else 'h3,functionDef') + maybeDetail + '}')
+            if body: print(body)
+            print('\n\\methodend')
+            print('')
+
+        def outputProperty(name, func, prefix=None):
+            let body = functionDoc(func)
+            let maybePrefix = prefix + '.' if prefix else ''
+            let formatted = '<i>property</i> ' + maybePrefix + '<b>' + name + '</b>'
+            print('\\methodstart{' + (maybePrefix + name).replace('.','_') + ',' + formatted + ',' + ('h4,methodDef' if prefix else 'h3,functionDef') + '}')
             if body: print(body)
             print('\n\\methodend')
             print('')
@@ -211,7 +247,7 @@ def processModules(modules):
             if properties:
                 properties.sort()
                 for propName, method in properties:
-                    outputFunction(propName, method, prefix=name, paren=False)
+                    outputProperty(propName, method, prefix=name)
             print('\\methodend')
 
         def dumpModule(name, thing):

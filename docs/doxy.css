@@ -371,3 +371,20 @@ div.memdoc {
     columns: 1;
   }
 }
+
+.type-hint {
+  font-size: smaller;
+  color: #33a2e6;
+}
+.type-hint::before {
+  color: #bbb;
+  content: ':';
+}
+.type-hint-return {
+  font-size: smaller;
+  color: #33a2e6;
+}
+.type-hint-return::before {
+  color: #bbb;
+  content: '->';
+}
