@@ -544,7 +544,7 @@ static void multipleDefs(KrkClosure * closure, int destination) {
 		positionals->count++; \
 	} \
 } while (0)
-int krk_processComplexArguments(int argCount, KrkValueArray * positionals, KrkTable * keywords) {
+int krk_processComplexArguments(int argCount, KrkValueArray * positionals, KrkTable * keywords, const char * name) {
 	size_t kwargsCount = AS_INTEGER(krk_currentThread.stackTop[-1]);
 	krk_pop(); /* Pop the arg counter */
 	argCount--;
@@ -568,18 +568,18 @@ int krk_processComplexArguments(int argCount, KrkValueArray * positionals, KrkTa
 				unpackIterableFast(value);
 			} else if (AS_INTEGER(key) == KWARGS_DICT) { /* unpack dict */
 				if (!IS_INSTANCE(value)) {
-					krk_runtimeError(vm.exceptions->typeError, "**expression value is not a dict.");
+					krk_runtimeError(vm.exceptions->typeError, "%s(): **expression value is not a dict.", name);
 					return 0;
 				}
 				for (size_t i = 0; i < AS_DICT(value)->capacity; ++i) {
 					KrkTableEntry * entry = &AS_DICT(value)->entries[i];
 					if (!IS_KWARGS(entry->key)) {
 						if (!IS_STRING(entry->key)) {
-							krk_runtimeError(vm.exceptions->typeError, "**expression contains non-string key");
+							krk_runtimeError(vm.exceptions->typeError, "%s(): **expression contains non-string key", name);
 							return 0;
 						}
 						if (!krk_tableSet(keywords, entry->key, entry->value)) {
-							krk_runtimeError(vm.exceptions->typeError, "got multiple values for argument '%s'", AS_CSTRING(entry->key));
+							krk_runtimeError(vm.exceptions->typeError, "%s() got multiple values for argument '%s'", name, AS_CSTRING(entry->key));
 							return 0;
 						}
 					}
@@ -589,7 +589,7 @@ int krk_processComplexArguments(int argCount, KrkValueArray * positionals, KrkTa
 			}
 		} else if (IS_STRING(key)) {
 			if (!krk_tableSet(keywords, key, value)) {
-				krk_runtimeError(vm.exceptions->typeError, "got multiple values for argument '%s'", AS_CSTRING(key));
+				krk_runtimeError(vm.exceptions->typeError, "%s() got multiple values for argument '%s'", name, AS_CSTRING(key));
 				return 0;
 			}
 		}
@@ -627,7 +627,7 @@ static int call(KrkClosure * closure, int argCount, int extra) {
 		keywords = AS_DICT(myDict);
 
 		/* This processes the existing argument list into a ValueArray and a Table with the args and keywords */
-		if (!krk_processComplexArguments(argCount, positionals, keywords)) goto _errorDuringPositionals;
+		if (!krk_processComplexArguments(argCount, positionals, keywords, closure->function->name ? closure->function->name->chars : "<unnamed>")) goto _errorDuringPositionals;
 		argCount--; /* It popped the KWARGS value from the top, so we have one less argument */
 
 		/* Do we already know we have too many arguments? Let's bail before doing a bunch of work. */
@@ -811,7 +811,7 @@ int krk_callValue(KrkValue callee, int argCount, int extra) {
 					krk_currentThread.scratchSpace[0] = myList;
 					KrkValue myDict = krk_dict_of(0,NULL,0);
 					krk_currentThread.scratchSpace[1] = myDict;
-					if (!krk_processComplexArguments(argCount, AS_LIST(myList), AS_DICT(myDict))) {
+					if (!krk_processComplexArguments(argCount, AS_LIST(myList), AS_DICT(myDict), AS_NATIVE(callee)->name)) {
 						return 0;
 					}
 					argCount--; /* Because that popped the kwargs value */
