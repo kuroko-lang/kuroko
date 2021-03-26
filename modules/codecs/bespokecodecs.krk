@@ -12,6 +12,7 @@ class Gb18030IncrementalEncoder(IncrementalEncoder):
     html5name = "gb18030"
     four_byte_codes = True
     def encode(string, final = False):
+        """Implements `IncrementalEncoder.encode`"""
         let out = ByteCatenator()
         let offset = 0
         while 1: # offset can be arbitrarily changed by the error handler, so not a for
@@ -86,6 +87,7 @@ class Gb18030IncrementalDecoder(IncrementalDecoder):
     name = "gb18030"
     html5name = "gb18030"
     def decode(data_in, final = False):
+        """Implements `IncrementalDecoder.decode`"""
         let data = self.pending + data_in
         self.pending = b""
         let out = StringCatenator()
@@ -193,6 +195,7 @@ class Iso2022JpIncrementalEncoder(IncrementalEncoder):
             raise ValueError("set to invalid state: " + repr(state))
         self.state = state
     def encode(string, final = False):
+        """Implements `IncrementalEncoder.encode`"""
         let out = ByteCatenator()
         let offset = 0
         while 1: # offset can be arbitrarily changed by the error handler, so not a for
@@ -267,12 +270,15 @@ class Iso2022JpIncrementalEncoder(IncrementalEncoder):
             else:
                 raise RuntimeError("inconsistently configured encoder")
     def reset():
+        """Implements `IncrementalEncoder.reset`"""
         self.state = 0
         self.state_greekmode = False
         self.state_desigsupershift = False
     def getstate():
+        """Implements `IncrementalEncoder.getstate`"""
         return (self.state, self.state_desigsupershift, self.state_greekmode)
     def setstate(state):
+        """Implements `IncrementalEncoder.setstate`"""
         self.state = state[0]
         self.state_desigsupershift = state[1]
         self.state_greekmode = state[2]
@@ -297,6 +303,7 @@ class Iso2022JpIncrementalDecoder(IncrementalDecoder):
     super_shift = False
     concat_lenient = False
     def decode(data_in, final = False):
+        """Implements `IncrementalDecoder.decode`"""
         let data = self.pending + data_in
         self.pending = b""
         let out = StringCatenator()
@@ -465,6 +472,7 @@ class Iso2022JpIncrementalDecoder(IncrementalDecoder):
                 if offset < 0:
                     offset += len(string)
     def reset():
+        """Implements `IncrementalDecoder.reset`"""
         self.pending = b""
         self.state_set = 0
         self.state_greekmode = False
@@ -481,9 +489,11 @@ class Iso2022JpIncrementalDecoder(IncrementalDecoder):
         self.state_last646seen = None
         self.scrutinising_inter646 = False
     def getstate():
+        """Implements `IncrementalDecoder.getstate`"""
         return (self.pending, self.state_set, self.state_greekmode, self.state_shiftoutmode,
                 self.state_justswitched, self.state_last646seen, self.scrutinising_inter646)
     def setstate(state):
+        """Implements `IncrementalDecoder.setstate`"""
         self.pending = state[0]
         self.state_set = state[1]
         self.state_greekmode = state[2]
@@ -513,6 +523,7 @@ class Utf16IncrementalEncoder(IncrementalEncoder):
         else:
             raise ValueError("unexpected endian value: " + repr(self.endian))
     def encode(string, final = False):
+        """Implements `IncrementalEncoder.encode`"""
         let out = ByteCatenator()
         let offset = 0
         if self.include_bom and self.state == -1:
@@ -542,10 +553,13 @@ class Utf16IncrementalEncoder(IncrementalEncoder):
                 if offset < 0:
                     offset += len(string)
     def reset():
+        """Implements `IncrementalEncoder.reset`"""
         self.state = -1
     def getstate():
+        """Implements `IncrementalEncoder.getstate`"""
         return self.state
     def setstate(state):
+        """Implements `IncrementalEncoder.setstate`"""
         self.state = state
 
 class Utf16IncrementalDecoder(IncrementalDecoder):
@@ -558,6 +572,7 @@ class Utf16IncrementalDecoder(IncrementalDecoder):
     state = None
     pending = b""
     def decode(data_in, final = False):
+        """Implements `IncrementalDecoder.decode`"""
         let data = self.pending + data_in
         self.pending = b""
         let out = StringCatenator()
@@ -624,11 +639,14 @@ class Utf16IncrementalDecoder(IncrementalDecoder):
                 if offset < 0:
                     offset += len(string)
     def reset():
+        """Implements `IncrementalDecoder.reset`"""
         self.pending = b""
         self.state = -1
     def getstate():
+        """Implements `IncrementalDecoder.getstate`"""
         return (self.pending, self.state)
     def setstate(state):
+        """Implements `IncrementalDecoder.setstate`"""
         self.pending = state[0]
         self.state = state[1]
 
@@ -673,6 +691,7 @@ class Utf8IncrementalEncoder(IncrementalEncoder):
     state = None
     include_bom = False
     def encode(string, final = False):
+        """Implements `IncrementalEncoder.encode`"""
         # We use UTF-8 natively, so this is fairly simple
         let out = ByteCatenator()
         if self.include_bom and self.state == -1:
@@ -681,10 +700,13 @@ class Utf8IncrementalEncoder(IncrementalEncoder):
         out.add(string.encode())
         return out.getvalue()
     def reset():
+        """Implements `IncrementalEncoder.reset`"""
         self.state = -1
     def getstate():
+        """Implements `IncrementalEncoder.getstate`"""
         return self.state
     def setstate(state):
+        """Implements `IncrementalEncoder.setstate`"""
         self.state = state
 
 class Utf8IncrementalDecoder(IncrementalDecoder):
@@ -698,6 +720,7 @@ class Utf8IncrementalDecoder(IncrementalDecoder):
     def _error_handler(error):
         return lookup_error(self.errors)(error)
     def decode(data_in, final = False):
+        """Implements `IncrementalDecoder.decode`"""
         # We use UTF-8 natively, so this only validates it and applies the error handler
         #   (and removes a BOM if remove_bom is set)
         let data = self.pending + data_in
@@ -783,11 +806,14 @@ class Utf8IncrementalDecoder(IncrementalDecoder):
             self.pending = bytes(dlist[second_offset:])
         return out.getvalue()
     def reset():
+        """Implements `IncrementalDecoder.reset`"""
         self.pending = b""
         self.state = -1
     def getstate():
+        """Implements `IncrementalDecoder.getstate`"""
         return (self.pending, self.state)
     def setstate(state):
+        """Implements `IncrementalDecoder.setstate`"""
         self.pending = state[0]
         self.state = state[1]
 
