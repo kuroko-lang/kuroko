@@ -914,14 +914,24 @@ int krk_bindMethod(KrkClass * _class, KrkString * name) {
 		_class = _class->base;
 	}
 	if (!_class) return 0;
-	if (IS_NATIVE(method) && (((KrkNative*)AS_OBJECT(method))->flags & KRK_NATIVE_FLAGS_IS_DYNAMIC_PROPERTY)) {
-		out = AS_NATIVE(method)->function(1, (KrkValue[]){krk_peek(0)}, 0);
-	} else if (IS_CLOSURE(method) && (AS_CLOSURE(method)->flags & KRK_FUNCTION_FLAGS_IS_CLASS_METHOD)) {
-		out = OBJECT_VAL(krk_newBoundMethod(OBJECT_VAL(_class), AS_OBJECT(method)));
-	} else if (IS_CLOSURE(method) && (AS_CLOSURE(method)->flags & KRK_FUNCTION_FLAGS_IS_STATIC_METHOD)) {
-		out = method;
-	} else if (IS_CLOSURE(method) || IS_NATIVE(method)) {
-		out = OBJECT_VAL(krk_newBoundMethod(krk_peek(0), AS_OBJECT(method)));
+	if (IS_NATIVE(method)) {
+		if (((KrkNative*)AS_OBJECT(method))->flags & KRK_NATIVE_FLAGS_IS_DYNAMIC_PROPERTY) {
+			out = AS_NATIVE(method)->function(1, (KrkValue[]){krk_peek(0)}, 0);
+		} else if (((KrkNative*)AS_OBJECT(method))->flags & KRK_NATIVE_FLAGS_IS_CLASS_METHOD) {
+			out = OBJECT_VAL(krk_newBoundMethod(OBJECT_VAL(_class), AS_OBJECT(method)));
+		} else if (((KrkNative*)AS_OBJECT(method))->flags & KRK_NATIVE_FLAGS_IS_STATIC_METHOD) {
+			out = method;
+		} else {
+			out = OBJECT_VAL(krk_newBoundMethod(krk_peek(0), AS_OBJECT(method)));
+		}
+	} else if (IS_CLOSURE(method)) {
+		if (AS_CLOSURE(method)->flags & KRK_FUNCTION_FLAGS_IS_CLASS_METHOD) {
+			out = OBJECT_VAL(krk_newBoundMethod(OBJECT_VAL(_class), AS_OBJECT(method)));
+		} else if (AS_CLOSURE(method)->flags & KRK_FUNCTION_FLAGS_IS_STATIC_METHOD) {
+			out = method;
+		} else {
+			out = OBJECT_VAL(krk_newBoundMethod(krk_peek(0), AS_OBJECT(method)));
+		}
 	} else {
 		/* Does it have a descriptor __get__? */
 		KrkClass * type = krk_getType(method);
