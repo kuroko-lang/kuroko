@@ -1,6 +1,7 @@
 """
-This module includes some additional variable-width or wide encodings not specified by WHATWG. As 
-such, none of the codecs in this module should be used in HTML.
+This module includes some additional variable-width or wide encodings not specified by WHATWG.
+
+As such, none of the codecs in this module should be used in HTML.
 """
 
 from codecs.dbextra_data_8bit import data_8bit

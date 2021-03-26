@@ -1,3 +1,9 @@
+"""Contains various WHATWG-defined codecs which require dedicated implementations.
+
+Also includes `utf-8-sig` which, while not a WHATWG-specified codec _per se_, is detected,
+interpreted and removed by WHATWG BOM tag logic, in preference above any label, before the codec
+gets to see it. WHATWG BOM tag logic is not implemented here (it is not always sensible in a
+non-browser context); hence, they remain separate codecs."""
 from codecs.infrastructure import register_kuroko_codec, ByteCatenator, StringCatenator, UnicodeEncodeError, UnicodeDecodeError, lookup_error, lookup, IncrementalDecoder, IncrementalEncoder, lazy_property
 from codecs.dbdata import more_dbdata
 

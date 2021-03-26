@@ -1,3 +1,6 @@
+"""
+Defines 7-bit mapping data for `codecs.dbextra`.
+"""
 from collections import xraydict
 from codecs.infrastructure import encodesto7bit, decodesto7bit, lazy_property
 from codecs.dbdata import more_dbdata, Windows949IncrementalEncoder, Windows949IncrementalDecoder

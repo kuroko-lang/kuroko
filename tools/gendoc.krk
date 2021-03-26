@@ -86,6 +86,8 @@ let modules = [
     'codecs.binascii',
     'codecs.dbdata',
     'codecs.dbextra',
+    'codecs.dbextra_data_7bit',
+    'codecs.dbextra_data_8bit',
     'codecs.infrastructure',
     'codecs.isweblabel',
     'codecs.sbencs',

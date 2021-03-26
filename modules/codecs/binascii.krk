@@ -1,3 +1,6 @@
+"""
+Defines functions and codecs pertaining to binary-to-text encodings.
+"""
 from codecs.infrastructure import StringCatenator, ByteCatenator, IncrementalEncoder, IncrementalDecoder, UnicodeDecodeError, UnicodeEncodeError, register_kuroko_codec
 
 let _base64_alphabet = (

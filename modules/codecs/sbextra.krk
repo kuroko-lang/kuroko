@@ -1,6 +1,7 @@
 """
-This module includes some additional single-byte encodings not specified by WHATWG. As such, none 
-of the codecs in this module should be used in HTML.
+This module includes some additional single-byte encodings not specified by WHATWG.
+
+As such, none of the codecs in this module should be used in HTML.
 """
 
 from codecs.infrastructure import AsciiIncrementalEncoder, AsciiIncrementalDecoder, register_kuroko_codec, BaseEbcdicIncrementalEncoder, BaseEbcdicIncrementalDecoder, lazy_property
