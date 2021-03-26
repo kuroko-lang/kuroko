@@ -1200,13 +1200,14 @@ static void method(size_t blockWidth) {
 			emitConstant(OBJECT_VAL(krk_copyString(name.start, name.length)));
 			parsePrecedence(PREC_TERNARY);
 			emitBytes(OP_INVOKE_SETTER, OP_POP);
+			if (match(TOKEN_EOL) || match(TOKEN_EOF)) return;
 		}
 		consume(TOKEN_EQUAL, "Class field must have value.");
 		parsePrecedence(PREC_COMMA);
 		rememberClassProperty(ind);
 		EMIT_CONSTANT_OP(OP_CLASS_PROPERTY, ind);
 		if (!match(TOKEN_EOL) && !match(TOKEN_EOF)) {
-			errorAtCurrent("Expected end of line after class attribut declaration");
+			errorAtCurrent("Expected end of line after class attribute declaration");
 		}
 	} else if (match(TOKEN_PASS)) {
 		/* bah */
