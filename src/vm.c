@@ -1663,7 +1663,20 @@ int krk_loadModule(KrkString * path, KrkValue * moduleOut, KrkString * runAs) {
 
 	/* If we still haven't found anything, fail. */
 	*moduleOut = NONE_VAL();
-	krk_runtimeError(vm.exceptions->importError, "No module named '%s'", runAs->chars);
+
+	/* Was this a __main__? */
+	if (runAs == S("__main__")) {
+		/* Then let's use 'path' instead, and replace all the /'s with .'s... */
+		krk_push(krk_valueGetAttribute(OBJECT_VAL(path), "replace"));
+		krk_push(OBJECT_VAL(S(PATH_SEP)));
+		krk_push(OBJECT_VAL(S(".")));
+		krk_push(krk_callSimple(krk_peek(2), 2, 1));
+	} else {
+		krk_push(OBJECT_VAL(runAs));
+	}
+
+	krk_runtimeError(vm.exceptions->importError, "No module named '%s'", AS_CSTRING(krk_peek(0)));
+
 	return 0;
 }
 
