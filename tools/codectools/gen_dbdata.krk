@@ -26,6 +26,7 @@ from codecs.infrastructure import AsciiIncrementalEncoder, AsciiIncrementalDecod
 
 let template = '''
 class {idname}IncrementalEncoder(AsciiIncrementalEncoder):
+    """IncrementalEncoder implementation for {description}"""
     name = {mainlabel}
     html5name = {weblabel}
     @lazy_property
@@ -33,6 +34,7 @@ class {idname}IncrementalEncoder(AsciiIncrementalEncoder):
         return {encode}
 
 class {idname}IncrementalDecoder(AsciiIncrementalDecoder):
+    """IncrementalDecoder implementation for {description}"""
     name = {mainlabel}
     html5name = {weblabel}
     @lazy_property
@@ -47,6 +49,7 @@ register_kuroko_codec({labels}, {idname}IncrementalEncoder, {idname}IncrementalD
 
 let template_big5 = '''
 class {idnameenc}IncrementalEncoder(AsciiIncrementalEncoder):
+    """IncrementalEncoder implementation for {description}"""
     name = {mainlabelenc}
     html5name = {weblabel}
     @lazy_property
@@ -54,6 +57,7 @@ class {idnameenc}IncrementalEncoder(AsciiIncrementalEncoder):
         return {encode}
 
 class {idnameenc2}IncrementalEncoder(AsciiIncrementalEncoder):
+    """IncrementalEncoder implementation for {description2}"""
     name = {mainlabelenc2}
     html5name = None
     @lazy_property
@@ -61,6 +65,7 @@ class {idnameenc2}IncrementalEncoder(AsciiIncrementalEncoder):
         return xraydict({idnameenc}IncrementalEncoder("strict").encoding_map, {encode2})
 
 class {idnamedec}IncrementalDecoder(AsciiIncrementalDecoder):
+    """IncrementalDecoder implementation for {descriptiondec}"""
     name = {mainlabeldec}
     html5name = {weblabel}
     @lazy_property
@@ -230,6 +235,7 @@ with fileio.open('modules/codecs/dbdata.krk', 'w') as f:
         mainlabel=repr('windows-31j'),
         weblabel=repr('shift_jis'),
         labels=repr(aliases['shift_jis'] + ["cp932", "932", "mskanji", "shiftjis", "s_jis"]),
+        description="Windows-31J (Shift_JIS as implemented by Microsoft).",
         encode=smartrepr(encode_shiftjis), decode=smartrepr(decode_shiftjis), idname='Windows31J',
         dbrange=repr(dbrange_shiftjis), tbrange=repr(tbrange_shiftjis),
         trailrange=repr(trailrange_shiftjis)))
@@ -237,6 +243,7 @@ with fileio.open('modules/codecs/dbdata.krk', 'w') as f:
         mainlabel=repr("x-euc-jp"),
         weblabel=repr("euc-jp"),
         labels=repr(aliases["euc-jp"] + ["eucjp", "ujis", "u_jis"]),
+        description="EUC-JP (web version).",
         encode=smartrepr(encode_eucjp), decode=smartrepr(decode_eucjp), idname="XEucJp",
         dbrange=repr(dbrange_eucjp), tbrange=repr(tbrange_eucjp), 
         trailrange=repr(trailrange_eucjp)))
@@ -245,6 +252,7 @@ with fileio.open('modules/codecs/dbdata.krk', 'w') as f:
         weblabel=repr("euc-kr"),
         labels=repr(aliases["euc-kr"] + ["cp949", "949", "ms949", "uhc", "euckr", 
                     "ks_c_5601", "ksx1001", "ks_x_1001"]),
+        description="Unified Hangul Code (extended EUC-KR Wansung, Microsoft's KS C 5601 encoding).",
         encode=smartrepr(encode_uhc), decode=smartrepr(decode_uhc), idname="Windows949",
         dbrange=repr(dbrange_uhc), tbrange=repr(tbrange_uhc), 
         trailrange=repr(trailrange_uhc)))
@@ -253,6 +261,9 @@ with fileio.open('modules/codecs/dbdata.krk', 'w') as f:
         mainlabelenc2=repr("big5-hkscs"), 
         mainlabeldec=repr("big5-hkscs"), 
         weblabel=repr("big5"),
+        description="Big-5 (ETen version).",
+        description2="Big-5 (HKSCS version).",
+        descriptiondec="Big-5 (HKSCS version).",
         labels=repr(["big5", "cn-big5", "csbig5", "x-x-big5", "big5-eten", "cp950", "950", "ms950"]),
         labels2=repr(["big5-hkscs", "big5hkscs", "hkscs"]),
         encode=smartrepr(encode_big5eten), idnameenc="Big5Eten",
