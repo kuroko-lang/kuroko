@@ -427,7 +427,10 @@ static int debuggerHook(KrkCallFrame * frame) {
 			}
 		} else {
 #ifndef NO_RLINE
-			if (enableRline) rline_history_insert(strdup(buf));
+			if (enableRline) {
+				rline_history_insert(strdup(buf));
+				rline_scroll = 0;
+			}
 #endif
 			if (lastDebugCommand) free(lastDebugCommand);
 			lastDebugCommand = strdup(buf);
@@ -1094,7 +1097,10 @@ _finishArgs:
 			for (size_t i = 0; i < lineCount; ++i) {
 				if (valid) strcat(allData, lines[i]);
 #ifndef NO_RLINE
-				if (enableRline) rline_history_insert(strdup(lines[i]));
+				if (enableRline) {
+					rline_history_insert(strdup(lines[i]));
+					rline_scroll = 0;
+				}
 #endif
 				free(lines[i]);
 			}
