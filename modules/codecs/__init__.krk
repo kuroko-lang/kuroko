@@ -21,6 +21,7 @@ The list of codecs (not an exhaustive list of labels, nor close to one) is as fo
 
 |Major label(s)|Meaning|
 |---|---|
+|`cp042`|8-bit User Defined (variant using U+0000–001F, U+F020–F0FF)|
 |`cp437`|8-bit United States (DOS)|
 |`cp720`|8-bit Arabic and Box Drawing (DOS)|
 |`cp737`|8-bit Greek and Box Drawing (DOS)|
@@ -81,7 +82,7 @@ The list of codecs (not an exhaustive list of labels, nor close to one) is as fo
 |`x-mac-icelandic`|8-bit Icelandic (Macintosh)|
 |`x-mac-romanian`|8-bit Romanian (Macintosh)|
 |`x-mac-turkish`|8-bit Turkish (Macintosh)|
-|`x-user-defined`|Extended ASCII with PUA-mapped RHS, WHATWG version (not GDI version)|
+|`x-user-defined`|8-bit User Defined (ASCII based variant: using U+0000–007F, U+F780–F7FF)|
 
 ### 8-bit multi-byte Unicode codecs:
 
@@ -158,4 +159,4 @@ The list of codecs (not an exhaustive list of labels, nor close to one) is as fo
 """
 
 from codecs.infrastructure import encode, decode, lookup
-import codecs.sbencs, codecs.dbdata, codecs.bespokecodecs, codecs.sbextra, codecs.dbextra, codecs.binascii
+import codecs.sbencs, codecs.dbdata, codecs.bespokecodecs, codecs.sbextra, codecs.dbextra, codecs.binascii, codecs.pifonts
