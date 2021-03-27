@@ -1,13 +1,17 @@
+'''
+@brief Tool to process VM trace reports and generate callgrind-formatted output.
+'''
 import kuroko
 import fileio
 
-def processFile(sourcePath, pid, cmd):
+def processFile(sourcePath: str, pid: int , cmd: str):
+    '''@brief Process @p sourcePath from process @p pid with command @p cmd as a VM trace file.'''
     let funcs = {}
 
     with fileio.open(sourcePath,'r') as f:
         for line in f.readlines():
             let callerFile, callerFunc, callerLine, calleeFile, calleeFunc, calleeLine, nsecs = line.split(' ')
-            nsecs = int(nsecs[:-2])
+            nsecs = float(nsecs)
             let data = funcs.get((callerFile,callerFunc),{})
             let call = data.get((callerLine,calleeFile,calleeFunc,calleeLine),(0,0))
             let out = (call[0] + 1, call[1] + nsecs)
@@ -25,10 +29,22 @@ def processFile(sourcePath, pid, cmd):
         out.write('events: nanoseconds\n')
         out.write(f'cmd: {cmd}\n\n')
 
+        def defloat(f):
+            let s = int(f)
+            let n = str(int(f * 1000000000))
+            if len(n) > 9: n = n[-9:]
+            let o = (str(s) + '0' * (9 - len(n)) + n).lstrip('0')
+            return o if o else '0'
+
+        def cleanfunc(func):
+            for s in ['<module>','<listcomp>','<setcomp>','<dictcomp>','<lambda>']:
+                func = func.replace(s,'['+s[1:-1]+']')
+            return func.replace('@','<') + '>'
+
         for key, value in funcs.items():
             let sFile, sFunc = key
             out.write(f'fl={sFile}\n')
-            out.write(f'fn={sFunc}\n')
+            out.write(f'fn={cleanfunc(sFunc)}\n')
             if not sFunc.startswith('(root)'):
                 let startLine, totalNsecs = value[None]
                 for k, v in value.items():
@@ -37,13 +53,13 @@ def processFile(sourcePath, pid, cmd):
                     let count, nsecs = v
                     totalNsecs -= nsecs
                 
-                out.write(f'{startLine} {totalNsecs}00\n')
+                out.write(f'{startLine} {defloat(totalNsecs)}\n')
             for k, v in value.items():
                 if not k: continue
                 let sourceLine, file, func, destLine = k
                 let count, totalNsecs = v
                 if file != sFile: out.write(f'cfi={file}\n')
-                out.write(f'cfn={func}\n')
+                out.write(f'cfn={cleanfunc(func)}\n')
                 out.write(f'calls={count} {destLine}\n')
-                out.write(f'{sourceLine} {totalNsecs}00\n')
+                out.write(f'{sourceLine} {defloat(totalNsecs)}\n')
             out.write('\n')

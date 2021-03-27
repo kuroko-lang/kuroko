@@ -28,14 +28,6 @@ static KrkValue _tuple_init(int argc, KrkValue argv[], int hasKw) {
 	}
 }
 
-inline void krk_tupleUpdateHash(KrkTuple * self) {
-	self->obj.hash = self->values.count;
-	for (size_t i = 0; i < (size_t)self->values.count; ++i) {
-		self->obj.hash <<= 8;
-		self->obj.hash ^= krk_hashValue(self->values.values[i]);
-	}
-}
-
 /* tuple creator */
 KrkValue krk_tuple_of(int argc, KrkValue argv[], int hasKw) {
 	KrkTuple * self = krk_newTuple(argc);
@@ -43,7 +35,6 @@ KrkValue krk_tuple_of(int argc, KrkValue argv[], int hasKw) {
 	for (size_t i = 0; i < (size_t)argc; ++i) {
 		self->values.values[self->values.count++] = argv[i];
 	}
-	krk_tupleUpdateHash(self);
 	krk_pop();
 
 	return OBJECT_VAL(self);
@@ -87,8 +78,8 @@ KRK_METHOD(tuple,__eq__,{
 })
 
 KRK_METHOD(tuple,__repr__,{
-	if (((KrkObj*)self)->inRepr) return OBJECT_VAL(S("(...)"));
-	((KrkObj*)self)->inRepr = 1;
+	if (((KrkObj*)self)->flags & KRK_OBJ_FLAGS_IN_REPR) return OBJECT_VAL(S("(...)"));
+	((KrkObj*)self)->flags |= KRK_OBJ_FLAGS_IN_REPR;
 	/* String building time. */
 	struct StringBuilder sb = {0};
 	pushStringBuilder(&sb, '(');
@@ -110,7 +101,7 @@ KRK_METHOD(tuple,__repr__,{
 	}
 
 	pushStringBuilder(&sb, ')');
-	((KrkObj*)self)->inRepr = 0;
+	((KrkObj*)self)->flags &= ~(KRK_OBJ_FLAGS_IN_REPR);
 	return finishStringBuilder(&sb);
 })
 
@@ -155,6 +146,23 @@ KRK_METHOD(tuple,__iter__,{
 	return OBJECT_VAL(output);
 })
 
+KRK_METHOD(tuple,__hash__,{
+	if (self->obj.flags & KRK_OBJ_FLAGS_VALID_HASH) {
+		return INTEGER_VAL(self->obj.hash);
+	}
+	self->obj.hash = self->values.count;
+	for (size_t i = 0; i < (size_t)self->values.count; ++i) {
+		self->obj.hash <<= 8;
+		uint32_t step = 0;
+		if (krk_hashValue(self->values.values[i], &step)) goto _unhashable;
+		self->obj.hash ^= step;
+	}
+	self->obj.flags |= KRK_OBJ_FLAGS_VALID_HASH;
+	return INTEGER_VAL(self->obj.hash);
+_unhashable:
+	return NONE_VAL();
+})
+
 _noexport
 void _createAndBind_tupleClass(void) {
 	KrkClass * tuple = ADD_BASE_CLASS(vm.baseClasses->tupleClass, "tuple", vm.baseClasses->objectClass);
@@ -164,6 +172,7 @@ void _createAndBind_tupleClass(void) {
 	BIND_METHOD(tuple,__contains__);
 	BIND_METHOD(tuple,__iter__);
 	BIND_METHOD(tuple,__eq__);
+	BIND_METHOD(tuple,__hash__);
 	krk_defineNative(&tuple->methods, "__init__", _tuple_init);
 	krk_defineNative(&tuple->methods, "__str__", FUNC_NAME(tuple,__repr__));
 	krk_finalizeClass(tuple);

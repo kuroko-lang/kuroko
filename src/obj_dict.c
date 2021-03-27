@@ -92,8 +92,8 @@ KRK_METHOD(dict,capacity,{
 
 KRK_METHOD(dict,__repr__,{
 	METHOD_TAKES_NONE();
-	if (((KrkObj*)self)->inRepr) return OBJECT_VAL(S("{...}"));
-	((KrkObj*)self)->inRepr = 1;
+	if (((KrkObj*)self)->flags & KRK_OBJ_FLAGS_IN_REPR) return OBJECT_VAL(S("{...}"));
+	((KrkObj*)self)->flags |= KRK_OBJ_FLAGS_IN_REPR;
 	struct StringBuilder sb = {0};
 	pushStringBuilder(&sb,'{');
 
@@ -129,7 +129,7 @@ KRK_METHOD(dict,__repr__,{
 	}
 
 	pushStringBuilder(&sb,'}');
-	((KrkObj*)self)->inRepr = 0;
+	((KrkObj*)self)->flags &= ~(KRK_OBJ_FLAGS_IN_REPR);
 	return finishStringBuilder(&sb);
 })
 
@@ -243,7 +243,6 @@ KRK_METHOD(dictitems,__call__,{
 			outValue->values.values[0] = AS_DICT(self->dict)->entries[self->i].key;
 			outValue->values.values[1] = AS_DICT(self->dict)->entries[self->i].value;
 			outValue->values.count = 2;
-			krk_tupleUpdateHash(outValue);
 			self->i++;
 			return krk_pop();
 		}
@@ -253,8 +252,8 @@ KRK_METHOD(dictitems,__call__,{
 
 KRK_METHOD(dictitems,__repr__,{
 	METHOD_TAKES_NONE();
-	if (((KrkObj*)self)->inRepr) return OBJECT_VAL(S("dictitems([...])"));
-	((KrkObj*)self)->inRepr = 1;
+	if (((KrkObj*)self)->flags & KRK_OBJ_FLAGS_IN_REPR) return OBJECT_VAL(S("dictitems([...])"));
+	((KrkObj*)self)->flags |= KRK_OBJ_FLAGS_IN_REPR;
 	struct StringBuilder sb = {0};
 	pushStringBuilderStr(&sb,"dictitems([",11);
 
@@ -294,7 +293,7 @@ KRK_METHOD(dictitems,__repr__,{
 	}
 
 	pushStringBuilderStr(&sb,"])",2);
-	((KrkObj*)self)->inRepr = 0;
+	((KrkObj*)self)->flags &= ~(KRK_OBJ_FLAGS_IN_REPR);
 	return finishStringBuilder(&sb);
 })
 
@@ -334,8 +333,8 @@ KRK_METHOD(dictkeys,__call__,{
 
 KRK_METHOD(dictkeys,__repr__,{
 	METHOD_TAKES_NONE();
-	if (((KrkObj*)self)->inRepr) return OBJECT_VAL(S("dictkeys([...])"));
-	((KrkObj*)self)->inRepr = 1;
+	if (((KrkObj*)self)->flags & KRK_OBJ_FLAGS_IN_REPR) return OBJECT_VAL(S("dictkeys([...])"));
+	((KrkObj*)self)->flags |= KRK_OBJ_FLAGS_IN_REPR;
 	struct StringBuilder sb = {0};
 	pushStringBuilderStr(&sb,"dictkeys([",10);
 
@@ -360,7 +359,7 @@ KRK_METHOD(dictkeys,__repr__,{
 	}
 
 	pushStringBuilderStr(&sb,"])",2);
-	((KrkObj*)self)->inRepr = 0;
+	((KrkObj*)self)->flags &= ~(KRK_OBJ_FLAGS_IN_REPR);
 	return finishStringBuilder(&sb);
 })
 
@@ -388,6 +387,7 @@ void _createAndBind_dictClass(void) {
 	BIND_METHOD(dict,update);
 	krk_defineNative(&dict->methods, "__str__", FUNC_NAME(dict,__repr__));
 	krk_defineNative(&dict->methods, "__class_getitem__", KrkGenericAlias);
+	krk_attachNamedValue(&dict->methods, "__hash__", NONE_VAL());
 	krk_finalizeClass(dict);
 	KRK_DOC(dict, "Mapping of arbitrary keys to values.");
 

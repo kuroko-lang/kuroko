@@ -264,7 +264,7 @@ static void tab_complete_func(rline_context_t * c) {
 					KrkValue thisValue = findFromProperty(root, asToken);
 					krk_push(thisValue);
 					if (IS_CLOSURE(thisValue) || IS_BOUND_METHOD(thisValue) ||
-						(IS_NATIVE(thisValue) && !((KrkNative*)AS_OBJECT(thisValue))->isDynamicProperty)) {
+						(IS_NATIVE(thisValue) && !((KrkNative*)AS_OBJECT(thisValue))->flags & KRK_NATIVE_FLAGS_IS_DYNAMIC_PROPERTY)) {
 						size_t allocSize = s->length + 2;
 						char * tmp = malloc(allocSize);
 						size_t len = snprintf(tmp, allocSize, "%s(", s->chars);
@@ -628,8 +628,9 @@ static void handleSigint(int sigNum) {
 
 static void bindSignalHandlers(void) {
 #ifndef _WIN32
-	struct sigaction sigIntAction = {0};
+	struct sigaction sigIntAction;
 	sigIntAction.sa_handler = handleSigint;
+	sigemptyset(&sigIntAction.sa_mask);
 	sigIntAction.sa_flags = 0; /* Do not restore the default, do not restart syscalls, do not pass go, do not collect $500 */
 	sigaction(
 		SIGINT, /* ^C for keyboard interrupts */
@@ -742,7 +743,7 @@ int main(int argc, char * argv[]) {
 	int flags = 0;
 	int moduleAsMain = 0;
 	int opt;
-	while ((opt = getopt(argc, argv, "+c:C:dgm:rstTMSV-:")) != -1) {
+	while ((opt = getopt(argc, argv, "+:c:C:dgGm:rstTMSV-:")) != -1) {
 		switch (opt) {
 			case 'c':
 				return runString(argv, flags, optarg);
@@ -753,6 +754,9 @@ int main(int argc, char * argv[]) {
 			case 'g':
 				/* Always garbage collect during an allocation. */
 				flags |= KRK_GLOBAL_ENABLE_STRESS_GC;
+				break;
+			case 'G':
+				flags |= KRK_GLOBAL_REPORT_GC_COLLECTS;
 				break;
 			case 's':
 				/* Print debug information during compilation. */
@@ -783,6 +787,16 @@ int main(int argc, char * argv[]) {
 				return runString(argv,0,"import kuroko; print('Kuroko',kuroko.version)\n");
 			case 'C':
 				return compileFile(argv,flags,optarg);
+			case ':':
+				fprintf(stderr, "%s: option '%c' requires an argument\n", argv[0], optopt);
+				return 1;
+			case '?':
+				if (optopt != '-') {
+					fprintf(stderr, "%s: unrecognized option '%c'\n", argv[0], optopt);
+					return 1;
+				}
+				optarg = argv[optind]+2;
+				/* fall through */
 			case '-':
 				if (!strcmp(optarg,"version")) {
 					return runString(argv,0,"import kuroko; print('Kuroko',kuroko.version)\n");
@@ -793,6 +807,7 @@ int main(int argc, char * argv[]) {
 						"Interpreter options:\n"
 						" -d          Debug output from the bytecode compiler.\n"
 						" -g          Collect garbage on every allocation.\n"
+						" -G          Report GC collections.\n"
 						" -m mod      Run a module as a script.\n"
 						" -r          Disable complex line editing in the REPL.\n"
 						" -s          Debug output from the scanner/tokenizer.\n"

@@ -9,12 +9,14 @@
 #include <pthread.h>
 
 #if defined(__linux__)
-#include <sys/syscall.h>
-#define gettid() syscall(SYS_gettid)
+# include <sys/syscall.h>
+# define gettid() syscall(SYS_gettid)
 #elif defined(__toaru__)
-#include <pthread.h>
+# include <pthread.h>
+#elif defined(_WIN32)
+# define gettid() GetCurrentThreadId()
 #else
-#define gettid() -1
+# define gettid() -1
 #endif
 
 static KrkClass * ThreadError;
@@ -66,7 +68,7 @@ static volatile int _threadLock = 0;
 static void * _startthread(void * _threadObj) {
 	memset(&krk_currentThread, 0, sizeof(KrkThreadState));
 	krk_currentThread.frames = calloc(KRK_CALL_FRAMES_MAX,sizeof(KrkCallFrame));
-
+	vm.globalFlags |= KRK_GLOBAL_THREADS;
 	_obtain_lock(_threadLock);
 	if (vm.threads->next) {
 		krk_currentThread.next = vm.threads->next;

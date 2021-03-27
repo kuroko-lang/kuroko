@@ -575,13 +575,13 @@ KRK_FUNC(locals,{
 			krk_currentThread.stack[frame->slots + slot]);
 		slot++;
 	}
-	if (func->collectsArguments) {
+	if (func->flags & KRK_CODEOBJECT_FLAGS_COLLECTS_ARGS) {
 		krk_tableSet(AS_DICT(dict),
 			func->requiredArgNames.values[func->requiredArgs],
 			krk_currentThread.stack[frame->slots + slot]);
 		slot++;
 	}
-	if (func->collectsKeywords) {
+	if (func->flags & KRK_CODEOBJECT_FLAGS_COLLECTS_KWS) {
 		krk_tableSet(AS_DICT(dict),
 			func->keywordArgNames.values[func->keywordArgs],
 			krk_currentThread.stack[frame->slots + slot]);
@@ -669,7 +669,16 @@ static KrkValue _module_repr(int argc, KrkValue argv[], int hasKw) {
 }
 
 static KrkValue obj_hash(int argc, KrkValue argv[], int hasKw) {
-	return INTEGER_VAL(krk_hashValue(argv[0]));
+	KrkObj * self = AS_OBJECT(argv[0]);
+	if (!(self->flags & KRK_OBJ_FLAGS_VALID_HASH)) {
+		self->hash = INTEGER_VAL((int)(intptr_t)self);
+		self->flags |= KRK_OBJ_FLAGS_VALID_HASH;
+	}
+	return INTEGER_VAL(self->hash);
+}
+
+static KrkValue obj_eq(int argc, KrkValue argv[], int hasKw) {
+	return BOOLEAN_VAL(argc == 2 && IS_OBJECT(argv[0]) && IS_OBJECT(argv[1]) && AS_OBJECT(argv[0]) == AS_OBJECT(argv[1]));
 }
 
 /**
@@ -876,7 +885,9 @@ KRK_FUNC(id,{
 
 KRK_FUNC(hash,{
 	FUNCTION_TAKES_EXACTLY(1);
-	return INTEGER_VAL(krk_hashValue(argv[0]));
+	uint32_t hashed;
+	if (krk_hashValue(argv[0], &hashed)) return NONE_VAL();
+	return INTEGER_VAL(hashed);
 })
 
 KRK_FUNC(next,{
@@ -891,11 +902,12 @@ void _createAndBind_builtins(void) {
 	vm.baseClasses->objectClass = krk_newClass(S("object"), NULL);
 	krk_push(OBJECT_VAL(vm.baseClasses->objectClass));
 
-	krk_defineNative(&vm.baseClasses->objectClass->methods, "__class__", FUNC_NAME(krk,type))->isDynamicProperty = 1;
+	krk_defineNative(&vm.baseClasses->objectClass->methods, "__class__", FUNC_NAME(krk,type))->flags = KRK_NATIVE_FLAGS_IS_DYNAMIC_PROPERTY;
 	krk_defineNative(&vm.baseClasses->objectClass->methods, "__dir__", krk_dirObject);
 	krk_defineNative(&vm.baseClasses->objectClass->methods, "__str__", _strBase);
 	krk_defineNative(&vm.baseClasses->objectClass->methods, "__repr__", _strBase); /* Override if necesary */
 	krk_defineNative(&vm.baseClasses->objectClass->methods, "__hash__", obj_hash);
+	krk_defineNative(&vm.baseClasses->objectClass->methods, "__eq__", obj_eq);
 	krk_finalizeClass(vm.baseClasses->objectClass);
 	KRK_DOC(vm.baseClasses->objectClass,
 		"@brief Base class for all types.\n\n"

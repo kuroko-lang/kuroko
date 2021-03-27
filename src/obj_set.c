@@ -68,9 +68,9 @@ KRK_METHOD(set,__contains__,{
 
 KRK_METHOD(set,__repr__,{
 	METHOD_TAKES_NONE();
-	if (((KrkObj*)self)->inRepr) return OBJECT_VAL(S("{...}")); /* Can this happen? */
+	if (((KrkObj*)self)->flags & KRK_OBJ_FLAGS_IN_REPR) return OBJECT_VAL("{...}");
 	if (!self->entries.capacity) return OBJECT_VAL(S("set()"));
-	((KrkObj*)self)->inRepr = 1;
+	((KrkObj*)self)->flags |= KRK_OBJ_FLAGS_IN_REPR;
 	struct StringBuilder sb = {0};
 	pushStringBuilder(&sb,'{');
 
@@ -93,7 +93,7 @@ KRK_METHOD(set,__repr__,{
 	}
 
 	pushStringBuilder(&sb,'}');
-	((KrkObj*)self)->inRepr = 0;
+	((KrkObj*)self)->flags &= ~(KRK_OBJ_FLAGS_IN_REPR);
 	return finishStringBuilder(&sb);
 })
 
@@ -233,6 +233,7 @@ void _createAndBind_setClass(void) {
 	BIND_METHOD(set,discard);
 	BIND_METHOD(set,clear);
 	krk_defineNative(&set->methods, "__str__", FUNC_NAME(set,__repr__));
+	krk_attachNamedValue(&set->methods, "__hash__", NONE_VAL());
 	krk_finalizeClass(set);
 
 	BUILTIN_FUNCTION("setOf", krk_set_of, "Convert argument sequence to set object.");

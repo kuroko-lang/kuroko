@@ -179,6 +179,7 @@ static KrkString * allocateString(char * chars, size_t length, uint32_t hash) {
 	string->length = length;
 	string->chars = chars;
 	string->obj.hash = hash;
+	string->obj.flags |= KRK_OBJ_FLAGS_VALID_HASH;
 	string->codesLength = codesLength;
 	string->type = type;
 	string->codes = NULL;
@@ -231,27 +232,26 @@ KrkString * krk_copyString(const char * chars, size_t length) {
 }
 
 KrkCodeObject * krk_newCodeObject(void) {
-	KrkCodeObject * function = ALLOCATE_OBJECT(KrkCodeObject, KRK_OBJ_CODEOBJECT);
-	function->requiredArgs = 0;
-	function->keywordArgs = 0;
-	function->upvalueCount = 0;
-	function->name = NULL;
-	function->docstring = NULL;
-	function->collectsArguments = 0;
-	function->collectsKeywords = 0;
-	function->localNameCount = 0;
-	function->localNames = NULL;
-	function->globalsContext = NULL;
-	krk_initValueArray(&function->requiredArgNames);
-	krk_initValueArray(&function->keywordArgNames);
-	krk_initChunk(&function->chunk);
-	return function;
+	KrkCodeObject * codeobject = ALLOCATE_OBJECT(KrkCodeObject, KRK_OBJ_CODEOBJECT);
+	codeobject->requiredArgs = 0;
+	codeobject->keywordArgs = 0;
+	codeobject->upvalueCount = 0;
+	codeobject->name = NULL;
+	codeobject->docstring = NULL;
+	codeobject->flags = 0;
+	codeobject->localNameCount = 0;
+	codeobject->localNames = NULL;
+	codeobject->globalsContext = NULL;
+	krk_initValueArray(&codeobject->requiredArgNames);
+	krk_initValueArray(&codeobject->keywordArgNames);
+	krk_initChunk(&codeobject->chunk);
+	return codeobject;
 }
 
 KrkNative * krk_newNative(NativeFn function, const char * name, int type) {
 	KrkNative * native = ALLOCATE_OBJECT(KrkNative, KRK_OBJ_NATIVE);
 	native->function = function;
-	native->isDynamicProperty = type;
+	native->flags = type;
 	native->name = name;
 	native->doc = NULL;
 	return native;
@@ -320,10 +320,6 @@ KrkTuple * krk_newTuple(size_t length) {
 	return tuple;
 }
 
-void krk_bytesUpdateHash(KrkBytes * bytes) {
-	bytes->obj.hash = hashString((char*)bytes->bytes, bytes->length);
-}
-
 KrkBytes * krk_newBytes(size_t length, uint8_t * source) {
 	KrkBytes * bytes = ALLOCATE_OBJECT(KrkBytes, KRK_OBJ_BYTES);
 	bytes->length = length;
@@ -333,7 +329,6 @@ KrkBytes * krk_newBytes(size_t length, uint8_t * source) {
 	bytes->obj.hash = -1;
 	if (source) {
 		memcpy(bytes->bytes, source, length);
-		krk_bytesUpdateHash(bytes);
 	}
 	krk_pop();
 	return bytes;

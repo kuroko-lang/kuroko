@@ -62,10 +62,10 @@ static KrkValue _class_to_str(int argc, KrkValue argv[], int hasKw) {
 _noexport
 void _createAndBind_type(void) {
 	ADD_BASE_CLASS(vm.baseClasses->typeClass, "type", vm.baseClasses->objectClass);
-	krk_defineNative(&vm.baseClasses->typeClass->methods, "__base__", krk_baseOfClass)->isDynamicProperty = 1;
-	krk_defineNative(&vm.baseClasses->typeClass->methods, "__file__", krk_fileOfClass)->isDynamicProperty = 1;
-	krk_defineNative(&vm.baseClasses->typeClass->methods, "__doc__", krk_docOfClass)->isDynamicProperty = 1;
-	krk_defineNative(&vm.baseClasses->typeClass->methods, "__name__", krk_nameOfClass)->isDynamicProperty = 1;
+	krk_defineNative(&vm.baseClasses->typeClass->methods, "__base__", krk_baseOfClass)->flags = KRK_NATIVE_FLAGS_IS_DYNAMIC_PROPERTY;
+	krk_defineNative(&vm.baseClasses->typeClass->methods, "__file__", krk_fileOfClass)->flags = KRK_NATIVE_FLAGS_IS_DYNAMIC_PROPERTY;
+	krk_defineNative(&vm.baseClasses->typeClass->methods, "__doc__", krk_docOfClass)  ->flags = KRK_NATIVE_FLAGS_IS_DYNAMIC_PROPERTY;
+	krk_defineNative(&vm.baseClasses->typeClass->methods, "__name__", krk_nameOfClass)->flags = KRK_NATIVE_FLAGS_IS_DYNAMIC_PROPERTY;
 	krk_defineNative(&vm.baseClasses->typeClass->methods, "__init__", _type_init);
 	krk_defineNative(&vm.baseClasses->typeClass->methods, "__str__", _class_to_str);
 	krk_defineNative(&vm.baseClasses->typeClass->methods, "__repr__", _class_to_str);

@@ -16,6 +16,13 @@ static KrkValue FUNC_NAME(striterator,__init__)(int,KrkValue[],int);
 		stringBytes = realloc(stringBytes, stringCapacity); \
 	} stringBytes[stringLength++] = c; } while (0)
 
+#define KRK_STRING_FAST(string,offset)  (uint32_t)\
+	(string->type <= 1 ? ((uint8_t*)string->codes)[offset] : \
+	(string->type == 2 ? ((uint16_t*)string->codes)[offset] : \
+	((uint32_t*)string->codes)[offset]))
+
+#define CODEPOINT_BYTES(cp) (cp < 0x80 ? 1 : (cp < 0x800 ? 2 : (cp < 0x10000 ? 3 : 4)))
+
 KRK_METHOD(str,__ord__,{
 	METHOD_TAKES_NONE();
 	if (self->codesLength != 1)
@@ -60,6 +67,10 @@ KRK_METHOD(str,__add__,{
 	KrkString * result = krk_takeString(chars, length);
 	if (needsPop) krk_pop();
 	return OBJECT_VAL(result);
+})
+
+KRK_METHOD(str,__hash__,{
+	return INTEGER_VAL(self->obj.hash);
 })
 
 KRK_METHOD(str,__len__,{
@@ -895,6 +906,7 @@ void _createAndBind_strClass(void) {
 	BIND_METHOD(str,__mod__);
 	BIND_METHOD(str,__repr__);
 	BIND_METHOD(str,__str__);
+	BIND_METHOD(str,__hash__);
 	BIND_METHOD(str,encode);
 	BIND_METHOD(str,split);
 	BIND_METHOD(str,strip);

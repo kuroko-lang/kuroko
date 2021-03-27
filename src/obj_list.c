@@ -50,20 +50,20 @@ KrkValue krk_list_of(int argc, KrkValue argv[], int hasKw) {
 KRK_METHOD(list,__getitem__,{
 	METHOD_TAKES_EXACTLY(1);
 	CHECK_ARG(1,int,krk_integer_type,index);
-	pthread_rwlock_rdlock(&self->rwlock);
+	if (vm.globalFlags & KRK_GLOBAL_THREADS) pthread_rwlock_rdlock(&self->rwlock);
 	LIST_WRAP_INDEX();
 	KrkValue result = self->values.values[index];
-	pthread_rwlock_unlock(&self->rwlock);
+	if (vm.globalFlags & KRK_GLOBAL_THREADS) pthread_rwlock_unlock(&self->rwlock);
 	return result;
 })
 
 KRK_METHOD(list,__setitem__,{
 	METHOD_TAKES_EXACTLY(2);
 	CHECK_ARG(1,int,krk_integer_type,index);
-	pthread_rwlock_rdlock(&self->rwlock);
+	if (vm.globalFlags & KRK_GLOBAL_THREADS) pthread_rwlock_rdlock(&self->rwlock);
 	LIST_WRAP_INDEX();
 	self->values.values[index] = argv[2];
-	pthread_rwlock_unlock(&self->rwlock);
+	if (vm.globalFlags & KRK_GLOBAL_THREADS) pthread_rwlock_unlock(&self->rwlock);
 })
 
 KRK_METHOD(list,append,{
@@ -90,8 +90,8 @@ KRK_METHOD(list,insert,{
 
 KRK_METHOD(list,__repr__,{
 	METHOD_TAKES_NONE();
-	if (((KrkObj*)self)->inRepr) return OBJECT_VAL(S("[...]"));
-	((KrkObj*)self)->inRepr = 1;
+	if (((KrkObj*)self)->flags & KRK_OBJ_FLAGS_IN_REPR) return OBJECT_VAL(S("[...]"));
+	((KrkObj*)self)->flags |= KRK_OBJ_FLAGS_IN_REPR;
 	struct StringBuilder sb = {0};
 	pushStringBuilder(&sb, '[');
 	pthread_rwlock_rdlock(&self->rwlock);
@@ -112,7 +112,7 @@ KRK_METHOD(list,__repr__,{
 	pthread_rwlock_unlock(&self->rwlock);
 
 	pushStringBuilder(&sb,']');
-	((KrkObj*)self)->inRepr = 0;
+	((KrkObj*)self)->flags &= ~(KRK_OBJ_FLAGS_IN_REPR);
 	return finishStringBuilder(&sb);
 })
 
@@ -507,6 +507,7 @@ void _createAndBind_listClass(void) {
 	krk_defineNative(&list->methods, "__delitem__", FUNC_NAME(list,pop));
 	krk_defineNative(&list->methods, "__str__", FUNC_NAME(list,__repr__));
 	krk_defineNative(&list->methods, "__class_getitem__", KrkGenericAlias);
+	krk_attachNamedValue(&list->methods, "__hash__", NONE_VAL());
 	krk_finalizeClass(list);
 	KRK_DOC(list, "Mutable sequence of arbitrary values.");
 

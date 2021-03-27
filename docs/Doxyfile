@@ -10,6 +10,13 @@ LAYOUT_FILE            = docs/DoxygenLayout.xml
 INPUT                  = src/ src/kuroko/ tools/ docs/
 FILE_PATTERNS = *.c *.h *.md
 
+ENABLE_PREPROCESSING = YES
+MACRO_EXPANSION      = YES
+EXPAND_ONLY_PREDEF   = YES
+PREDEFINED = \
+	"KRK_METHOD(cls,func,body) = KrkValue _ ## cls ## _ ## func(int,KrkValue*,int) body;" \
+	"KRK_FUNC(func,body) = KrkValue _krk_ ## func(int,KrkValue*,int) body;"
+
 # Enable the source browser, even if I don't particular like Doxygen's highlighting
 SOURCE_BROWSER         = YES
 GENERATE_HTML          = YES

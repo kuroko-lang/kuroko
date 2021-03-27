@@ -35,13 +35,21 @@ typedef enum {
  */
 typedef struct KrkObj {
 	KrkObjType type;
-	unsigned char isMarked:1;
-	unsigned char inRepr:1;
-	unsigned char generation:2;
-	unsigned char isImmortal:1;
+	uint32_t flags;
 	uint32_t hash;
 	struct KrkObj * next;
 } KrkObj;
+
+#define KRK_OBJ_FLAGS_IS_MARKED  0x0010
+#define KRK_OBJ_FLAGS_IN_REPR    0x0020
+#define KRK_OBJ_FLAGS_IMMORTAL   0x0040
+#define KRK_OBJ_FLAGS_VALID_HASH 0x0080
+
+#define KRK_OBJ_FLAGS_GENERATIONS 0x0003
+#define KRK_OBJ_FLAGS_GEN_0       0x0000
+#define KRK_OBJ_FLAGS_GEN_1       0x0001
+#define KRK_OBJ_FLAGS_GEN_2       0x0002
+#define KRK_OBJ_FLAGS_GEN_3       0x0003
 
 typedef enum {
 	KRK_STRING_ASCII = 0,
@@ -121,12 +129,14 @@ typedef struct {
 	size_t localNameCapacity;
 	size_t localNameCount;
 	KrkLocalEntry * localNames;
-	unsigned char collectsArguments:1;
-	unsigned char collectsKeywords:1;
-	unsigned char isGenerator:1;
+	unsigned int flags;
 	struct KrkInstance * globalsContext;
 	KrkString * qualname;
 } KrkCodeObject;
+
+#define KRK_CODEOBJECT_FLAGS_COLLECTS_ARGS 0x0001
+#define KRK_CODEOBJECT_FLAGS_COLLECTS_KWS  0x0002
+#define KRK_CODEOBJECT_FLAGS_IS_GENERATOR  0x0004
 
 /**
  * @brief Function object.
@@ -139,11 +149,13 @@ typedef struct {
 	KrkCodeObject * function;
 	KrkUpvalue ** upvalues;
 	size_t upvalueCount;
-	unsigned char isClassMethod:1;
-	unsigned char isStaticMethod:1;
+	unsigned int flags;
 	KrkValue annotations;
 	KrkTable fields;
 } KrkClosure;
+
+#define KRK_FUNCTION_FLAGS_IS_CLASS_METHOD  0x0001
+#define KRK_FUNCTION_FLAGS_IS_STATIC_METHOD 0x0002
 
 typedef void (*KrkCleanupCallback)(struct KrkInstance *);
 
@@ -187,6 +199,7 @@ typedef struct KrkClass {
 	KrkObj * _descget;
 	KrkObj * _descset;
 	KrkObj * _classgetitem;
+	KrkObj * _hash;
 } KrkClass;
 
 /**
@@ -230,8 +243,10 @@ typedef struct {
 	NativeFn function;
 	const char * name;
 	const char * doc;
-	unsigned int isDynamicProperty:1;
+	unsigned int flags;
 } KrkNative;
+
+#define KRK_NATIVE_FLAGS_IS_DYNAMIC_PROPERTY 0x0001
 
 /**
  * @brief Immutable sequence of arbitrary values.
@@ -370,26 +385,120 @@ extern uint32_t krk_unicodeCodepoint(KrkString * string, size_t index);
  */
 extern size_t krk_codepointToBytes(krk_integer_type value, unsigned char * out);
 
-/* Internal stuff. */
+/**
+ * @brief Convert a function into a generator with the given arguments.
+ * @memberof KrkClosure
+ *
+ * Converts the function @p function to a generator object and provides it @p arguments
+ * (of length @p argCount) as its initial arguments. The generator object is returned.
+ *
+ * @param function  Function to convert.
+ * @param arguments Arguments to pass to the generator.
+ * @param argCount  Number of arguments in @p arguments
+ * @return A new generator object.
+ */
+extern KrkInstance * krk_buildGenerator(KrkClosure * function, KrkValue * arguments, size_t argCount);
+
+/**
+ * @brief Special value for type hint expressions.
+ *
+ * Returns a generic alias object. Bind this to a class's \__class_getitem__
+ * to allow for generic collection types to be used in type hints.
+ */
 extern NativeFn KrkGenericAlias;
+
+/**
+ * @brief Create a new, uninitialized code object.
+ * @memberof KrkCodeObject
+ *
+ * The code object will have an empty bytecode chunk and
+ * no assigned names or docstrings. This is intended only
+ * to be used by a compiler directly.
+ */
 extern KrkCodeObject *    krk_newCodeObject(void);
+
+/**
+ * @brief Create a native function binding object.
+ * @memberof KrkNative
+ *
+ * Converts a C function pointer into a native binding object
+ * which can then be used in the same place a function object
+ * (KrkClosure) would be used.
+ */
 extern KrkNative *      krk_newNative(NativeFn function, const char * name, int type);
+
+/**
+ * @brief Create a new function object.
+ * @memberof KrkClosure
+ *
+ * Function objects are the callable first-class objects representing
+ * functions in managed code. Each function object has an associated
+ * code object, which may be sured with other function objects, such
+ * as when a function is used to create a closure.
+ *
+ * @param function Code object to assign to the new function object.
+ */
 extern KrkClosure *     krk_newClosure(KrkCodeObject * function);
+
+/**
+ * @brief Create an upvalue slot.
+ * @memberof KrkUpvalue
+ *
+ * Upvalue slots hold references to values captured in closures.
+ * This function should only be used directly by the VM in the
+ * process of running compiled bytecode and creating function
+ * objects from code objects.
+ */
 extern KrkUpvalue *     krk_newUpvalue(int slot);
+
+/**
+ * @brief Create a new class object.
+ * @memberof KrkClass
+ *
+ * Creates a new class with the give name and base class.
+ * Generally, you will want to use @ref krk_makeClass instead,
+ * which handles binding the class to a module.
+ */
 extern KrkClass *       krk_newClass(KrkString * name, KrkClass * base);
+
+/**
+ * @brief Create a new instance of the given class.
+ * @memberof KrkInstance
+ *
+ * Handles allocation, but not __init__, of the new instance.
+ * Be sure to populate any fields expected by the class or call
+ * its __init__ function (eg. with @ref krk_callSimple) as needed.
+ */
 extern KrkInstance *    krk_newInstance(KrkClass * _class);
+
+/**
+ * @brief Create a new bound method.
+ * @memberof KrkBoundMethod
+ *
+ * Binds the callable specified by @p method to the value @p receiver
+ * and returns a @c method object. When a @c method object is called,
+ * @p receiver will automatically be provided as the first argument.
+ */
 extern KrkBoundMethod * krk_newBoundMethod(KrkValue receiver, KrkObj * method);
+
+/**
+ * @brief Create a new tuple.
+ * @memberof KrkTuple
+ *
+ * Creates a tuple object with the request space preallocated.
+ * The actual length of the tuple must be updated after places
+ * values within it by setting @c value.count.
+ */
 extern KrkTuple *       krk_newTuple(size_t length);
+
+/**
+ * @brief Create a new byte array.
+ * @memberof KrkBytes
+ *
+ * Allocates a bytes object of the given size, optionally copying
+ * data from @p source.
+ */
 extern KrkBytes *       krk_newBytes(size_t length, uint8_t * source);
-extern void krk_bytesUpdateHash(KrkBytes * bytes);
-extern void krk_tupleUpdateHash(KrkTuple * self);
-
-#define KRK_STRING_FAST(string,offset)  (uint32_t)\
-	(string->type <= 1 ? ((uint8_t*)string->codes)[offset] : \
-	(string->type == 2 ? ((uint16_t*)string->codes)[offset] : \
-	((uint32_t*)string->codes)[offset]))
-
-#define CODEPOINT_BYTES(cp) (cp < 0x80 ? 1 : (cp < 0x800 ? 2 : (cp < 0x10000 ? 3 : 4)))
 
 #define krk_isObjType(v,t) (IS_OBJECT(v) && (AS_OBJECT(v)->type == (t)))
 #define OBJECT_TYPE(value) (AS_OBJECT(value)->type)

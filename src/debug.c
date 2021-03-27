@@ -67,17 +67,17 @@ void krk_disassembleCodeObject(FILE * f, KrkCodeObject * func, const char * name
 	fprintf(f, "<%s(", name);
 	for (int i = 0; i < func->requiredArgs; ++i) {
 		fprintf(f,"%s",AS_CSTRING(func->requiredArgNames.values[i]));
-		if (i + 1 < func->requiredArgs || func->keywordArgs || func->collectsArguments || func->collectsKeywords) fprintf(f,",");
+		if (i + 1 < func->requiredArgs || func->keywordArgs || !!(func->flags & KRK_CODEOBJECT_FLAGS_COLLECTS_ARGS) || !!(func->flags & KRK_CODEOBJECT_FLAGS_COLLECTS_KWS)) fprintf(f,",");
 	}
 	for (int i = 0; i < func->keywordArgs; ++i) {
 		fprintf(f,"%s=...",AS_CSTRING(func->keywordArgNames.values[i]));
-		if (i + 1 < func->keywordArgs || func->collectsArguments || func->collectsKeywords) fprintf(f,",");
+		if (i + 1 < func->keywordArgs || !!(func->flags & KRK_CODEOBJECT_FLAGS_COLLECTS_ARGS) || !!(func->flags & KRK_CODEOBJECT_FLAGS_COLLECTS_KWS)) fprintf(f,",");
 	}
-	if (func->collectsArguments) {
+	if (func->flags & KRK_CODEOBJECT_FLAGS_COLLECTS_ARGS) {
 		fprintf(f,"*%s", AS_CSTRING(func->requiredArgNames.values[func->requiredArgs]));
-		if (func->collectsKeywords) fprintf(f,",");
+		if (func->flags & KRK_CODEOBJECT_FLAGS_COLLECTS_KWS) fprintf(f,",");
 	}
-	if (func->collectsKeywords) {
+	if (func->flags & KRK_CODEOBJECT_FLAGS_COLLECTS_KWS) {
 		fprintf(f,"**%s", AS_CSTRING(func->keywordArgNames.values[func->keywordArgs]));
 	}
 	fprintf(f, ") from %s>\n", chunk->filename->chars);
@@ -243,7 +243,7 @@ struct BreakpointEntry {
 };
 
 #define MAX_BREAKPOINTS 32
-static struct BreakpointEntry breakpoints[MAX_BREAKPOINTS] = {0};
+static struct BreakpointEntry breakpoints[MAX_BREAKPOINTS] = {{0}};
 static int breakpointsCount = 0;
 
 static KrkDebugCallback _debugger_hook = NULL;
@@ -562,6 +562,8 @@ KRK_FUNC(dis,{
 	if (IS_CLOSURE(argv[0])) {
 		KrkCodeObject * func = AS_CLOSURE(argv[0])->function;
 		krk_disassembleCodeObject(stdout, func, func->name ? func->name->chars : "<unnamed>");
+	} else if (IS_codeobject(argv[0])) {
+		krk_disassembleCodeObject(stdout, AS_codeobject(argv[0]), AS_codeobject(argv[0])->name ? AS_codeobject(argv[0])->name->chars : "<unnamed>");
 	} else if (IS_BOUND_METHOD(argv[0])) {
 		if (AS_BOUND_METHOD(argv[0])->method->type == KRK_OBJ_CLOSURE) {
 			KrkCodeObject * func = ((KrkClosure*)AS_BOUND_METHOD(argv[0])->method)->function;
@@ -590,14 +592,20 @@ KRK_FUNC(dis,{
 })
 
 KRK_FUNC(build,{
-	FUNCTION_TAKES_EXACTLY(1);
+	FUNCTION_TAKES_AT_LEAST(1);
+	FUNCTION_TAKES_AT_MOST(2);
 	CHECK_ARG(0,str,KrkString*,code);
+	char * fileName = "<source>";
+	if (argc > 1) {
+		CHECK_ARG(1,str,KrkString*,filename);
+		fileName = filename->chars;
+	}
 
 	/* Unset module */
 	krk_push(OBJECT_VAL(krk_currentThread.module));
 	KrkInstance * module = krk_currentThread.module;
 	krk_currentThread.module = NULL;
-	KrkCodeObject * c = krk_compile(code->chars,"<source>");
+	KrkCodeObject * c = krk_compile(code->chars,fileName);
 	krk_currentThread.module = module;
 	krk_pop();
 	if (c) return OBJECT_VAL(c);

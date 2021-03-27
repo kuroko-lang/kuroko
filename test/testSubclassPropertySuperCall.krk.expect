@@ -1,6 +1,6 @@
 True
 True
-['__class__', '__dir__', '__doc__', '__get__', '__hash__', '__init__', '__module__', '__name__', '__repr__', '__set__', '__str__', 'fget', 'setter']
+['__class__', '__dir__', '__doc__', '__eq__', '__get__', '__hash__', '__init__', '__module__', '__name__', '__repr__', '__set__', '__str__', 'fget', 'setter']
 p retrieved from A
 {'a': 45}
 calling property from subclass
