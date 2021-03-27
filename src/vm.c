@@ -544,7 +544,7 @@ static void multipleDefs(KrkClosure * closure, int destination) {
 		positionals->count++; \
 	} \
 } while (0)
-int krk_processComplexArguments(int argCount, KrkValueArray * positionals, KrkTable * keywords) {
+int krk_processComplexArguments(int argCount, KrkValueArray * positionals, KrkTable * keywords, const char * name) {
 	size_t kwargsCount = AS_INTEGER(krk_currentThread.stackTop[-1]);
 	krk_pop(); /* Pop the arg counter */
 	argCount--;
@@ -568,18 +568,18 @@ int krk_processComplexArguments(int argCount, KrkValueArray * positionals, KrkTa
 				unpackIterableFast(value);
 			} else if (AS_INTEGER(key) == KWARGS_DICT) { /* unpack dict */
 				if (!IS_INSTANCE(value)) {
-					krk_runtimeError(vm.exceptions->typeError, "**expression value is not a dict.");
+					krk_runtimeError(vm.exceptions->typeError, "%s(): **expression value is not a dict.", name);
 					return 0;
 				}
 				for (size_t i = 0; i < AS_DICT(value)->capacity; ++i) {
 					KrkTableEntry * entry = &AS_DICT(value)->entries[i];
 					if (!IS_KWARGS(entry->key)) {
 						if (!IS_STRING(entry->key)) {
-							krk_runtimeError(vm.exceptions->typeError, "**expression contains non-string key");
+							krk_runtimeError(vm.exceptions->typeError, "%s(): **expression contains non-string key", name);
 							return 0;
 						}
 						if (!krk_tableSet(keywords, entry->key, entry->value)) {
-							krk_runtimeError(vm.exceptions->typeError, "got multiple values for argument '%s'", AS_CSTRING(entry->key));
+							krk_runtimeError(vm.exceptions->typeError, "%s() got multiple values for argument '%s'", name, AS_CSTRING(entry->key));
 							return 0;
 						}
 					}
@@ -589,7 +589,7 @@ int krk_processComplexArguments(int argCount, KrkValueArray * positionals, KrkTa
 			}
 		} else if (IS_STRING(key)) {
 			if (!krk_tableSet(keywords, key, value)) {
-				krk_runtimeError(vm.exceptions->typeError, "got multiple values for argument '%s'", AS_CSTRING(key));
+				krk_runtimeError(vm.exceptions->typeError, "%s() got multiple values for argument '%s'", name, AS_CSTRING(key));
 				return 0;
 			}
 		}
@@ -627,7 +627,7 @@ static int call(KrkClosure * closure, int argCount, int extra) {
 		keywords = AS_DICT(myDict);
 
 		/* This processes the existing argument list into a ValueArray and a Table with the args and keywords */
-		if (!krk_processComplexArguments(argCount, positionals, keywords)) goto _errorDuringPositionals;
+		if (!krk_processComplexArguments(argCount, positionals, keywords, closure->function->name ? closure->function->name->chars : "<unnamed>")) goto _errorDuringPositionals;
 		argCount--; /* It popped the KWARGS value from the top, so we have one less argument */
 
 		/* Do we already know we have too many arguments? Let's bail before doing a bunch of work. */
@@ -811,7 +811,7 @@ int krk_callValue(KrkValue callee, int argCount, int extra) {
 					krk_currentThread.scratchSpace[0] = myList;
 					KrkValue myDict = krk_dict_of(0,NULL,0);
 					krk_currentThread.scratchSpace[1] = myDict;
-					if (!krk_processComplexArguments(argCount, AS_LIST(myList), AS_DICT(myDict))) {
+					if (!krk_processComplexArguments(argCount, AS_LIST(myList), AS_DICT(myDict), AS_NATIVE(callee)->name)) {
 						return 0;
 					}
 					argCount--; /* Because that popped the kwargs value */
@@ -914,14 +914,24 @@ int krk_bindMethod(KrkClass * _class, KrkString * name) {
 		_class = _class->base;
 	}
 	if (!_class) return 0;
-	if (IS_NATIVE(method) && (((KrkNative*)AS_OBJECT(method))->flags & KRK_NATIVE_FLAGS_IS_DYNAMIC_PROPERTY)) {
-		out = AS_NATIVE(method)->function(1, (KrkValue[]){krk_peek(0)}, 0);
-	} else if (IS_CLOSURE(method) && (AS_CLOSURE(method)->flags & KRK_FUNCTION_FLAGS_IS_CLASS_METHOD)) {
-		out = OBJECT_VAL(krk_newBoundMethod(OBJECT_VAL(_class), AS_OBJECT(method)));
-	} else if (IS_CLOSURE(method) && (AS_CLOSURE(method)->flags & KRK_FUNCTION_FLAGS_IS_STATIC_METHOD)) {
-		out = method;
-	} else if (IS_CLOSURE(method) || IS_NATIVE(method)) {
-		out = OBJECT_VAL(krk_newBoundMethod(krk_peek(0), AS_OBJECT(method)));
+	if (IS_NATIVE(method)) {
+		if (((KrkNative*)AS_OBJECT(method))->flags & KRK_NATIVE_FLAGS_IS_DYNAMIC_PROPERTY) {
+			out = AS_NATIVE(method)->function(1, (KrkValue[]){krk_peek(0)}, 0);
+		} else if (((KrkNative*)AS_OBJECT(method))->flags & KRK_NATIVE_FLAGS_IS_CLASS_METHOD) {
+			out = OBJECT_VAL(krk_newBoundMethod(OBJECT_VAL(_class), AS_OBJECT(method)));
+		} else if (((KrkNative*)AS_OBJECT(method))->flags & KRK_NATIVE_FLAGS_IS_STATIC_METHOD) {
+			out = method;
+		} else {
+			out = OBJECT_VAL(krk_newBoundMethod(krk_peek(0), AS_OBJECT(method)));
+		}
+	} else if (IS_CLOSURE(method)) {
+		if (AS_CLOSURE(method)->flags & KRK_FUNCTION_FLAGS_IS_CLASS_METHOD) {
+			out = OBJECT_VAL(krk_newBoundMethod(OBJECT_VAL(_class), AS_OBJECT(method)));
+		} else if (AS_CLOSURE(method)->flags & KRK_FUNCTION_FLAGS_IS_STATIC_METHOD) {
+			out = method;
+		} else {
+			out = OBJECT_VAL(krk_newBoundMethod(krk_peek(0), AS_OBJECT(method)));
+		}
 	} else {
 		/* Does it have a descriptor __get__? */
 		KrkClass * type = krk_getType(method);
@@ -1663,7 +1673,20 @@ int krk_loadModule(KrkString * path, KrkValue * moduleOut, KrkString * runAs) {
 
 	/* If we still haven't found anything, fail. */
 	*moduleOut = NONE_VAL();
-	krk_runtimeError(vm.exceptions->importError, "No module named '%s'", runAs->chars);
+
+	/* Was this a __main__? */
+	if (runAs == S("__main__")) {
+		/* Then let's use 'path' instead, and replace all the /'s with .'s... */
+		krk_push(krk_valueGetAttribute(OBJECT_VAL(path), "replace"));
+		krk_push(OBJECT_VAL(S(PATH_SEP)));
+		krk_push(OBJECT_VAL(S(".")));
+		krk_push(krk_callSimple(krk_peek(2), 2, 1));
+	} else {
+		krk_push(OBJECT_VAL(runAs));
+	}
+
+	krk_runtimeError(vm.exceptions->importError, "No module named '%s'", AS_CSTRING(krk_peek(0)));
+
 	return 0;
 }
 

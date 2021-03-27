@@ -740,13 +740,16 @@ int main(int argc, char * argv[]) {
 	SetConsoleOutputCP(65001);
 	SetConsoleCP(65001);
 #endif
+	char * runCmd = NULL;
 	int flags = 0;
 	int moduleAsMain = 0;
+	int inspectAfter = 0;
 	int opt;
-	while ((opt = getopt(argc, argv, "+:c:C:dgGm:rstTMSV-:")) != -1) {
+	while ((opt = getopt(argc, argv, "+:c:C:dgGim:rstTMSV-:")) != -1) {
 		switch (opt) {
 			case 'c':
-				return runString(argv, flags, optarg);
+				runCmd = optarg;
+				goto _finishArgs;
 			case 'd':
 				/* Disassemble code blocks after compilation. */
 				flags |= KRK_THREAD_ENABLE_DISASSEMBLY;
@@ -774,6 +777,9 @@ int main(int argc, char * argv[]) {
 				vm.callgrindFile = fopen(CALLGRIND_TMP_FILE,"w");
 				break;
 			}
+			case 'i':
+				inspectAfter = 1;
+				break;
 			case 'm':
 				moduleAsMain = 1;
 				optind--; /* to get us back to optarg */
@@ -808,6 +814,7 @@ int main(int argc, char * argv[]) {
 						" -d          Debug output from the bytecode compiler.\n"
 						" -g          Collect garbage on every allocation.\n"
 						" -G          Report GC collections.\n"
+						" -i          Enter repl after a running -c, -m, or FILE.\n"
 						" -m mod      Run a module as a script.\n"
 						" -r          Disable complex line editing in the REPL.\n"
 						" -s          Debug output from the scanner/tokenizer.\n"
@@ -890,8 +897,28 @@ _finishArgs:
 			krk_dumpTraceback();
 			krk_resetStack();
 		}
-		return out;
-	} else if (optind == argc) {
+		if (!inspectAfter) return out;
+		if (IS_INSTANCE(krk_peek(0))) {
+			krk_currentThread.module = AS_INSTANCE(krk_peek(0));
+		}
+	} else if (optind != argc) {
+		krk_startModule("__main__");
+		result = krk_runfile(argv[optind],argv[optind]);
+		if (IS_NONE(result) && krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) result = INTEGER_VAL(1);
+	}
+
+	if (!krk_currentThread.module) {
+		/* The repl runs in the context of a top-level module so each input
+		 * line can share a globals state with the others. */
+		krk_startModule("__main__");
+		krk_attachNamedValue(&krk_currentThread.module->fields,"__doc__", NONE_VAL());
+	}
+
+	if (runCmd) {
+		result = krk_interpret(runCmd, "<stdin>");
+	}
+
+	if ((!moduleAsMain && !runCmd && optind == argc) || inspectAfter) {
 		/* Add builtins for the repl, but hide them from the globals() list. */
 		KRK_DOC(BIND_FUNC(vm.builtins,exit), "@brief Exit the interactive repl.\n\n"
 			"Only available from the interactive interpreter; exits the repl.");
@@ -901,11 +928,6 @@ _finishArgs:
 			"If @p enabled is specified, the mode can be directly specified, otherwise "
 			"it will be set to the opposite of the current mode. The new mode will be "
 			"printed to stderr.");
-
-		/* The repl runs in the context of a top-level module so each input
-		 * line can share a globals state with the others. */
-		krk_startModule("__main__");
-		krk_attachNamedValue(&krk_currentThread.module->fields,"__doc__", NONE_VAL());
 
 		/**
 		 * Python stores version info in a built-in module called `sys`.
@@ -1102,10 +1124,6 @@ _finishArgs:
 
 			(void)blockWidth;
 		}
-	} else {
-		krk_startModule("__main__");
-		result = krk_runfile(argv[optind],argv[optind]);
-		if (IS_NONE(result) && krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) result = INTEGER_VAL(1);
 	}
 
 	if (vm.globalFlags & KRK_GLOBAL_CALLGRIND) {

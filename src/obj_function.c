@@ -253,6 +253,15 @@ KRK_METHOD(method,__code__,{
 	return FUNC_NAME(function,__code__)(1,(KrkValue[]){OBJECT_VAL(self->method)},0);
 })
 
+KRK_METHOD(method,__func__,{
+	ATTRIBUTE_NOT_ASSIGNABLE();
+	return OBJECT_VAL(self->method);
+})
+
+KRK_METHOD(method,__self__,{
+	ATTRIBUTE_NOT_ASSIGNABLE();
+	return OBJECT_VAL(self->receiver);
+})
 
 KRK_FUNC(staticmethod,{
 	FUNCTION_TAKES_EXACTLY(1);
@@ -315,6 +324,8 @@ void _createAndBind_functionClass(void) {
 	BIND_PROP(method,__file__);
 	BIND_PROP(method,__args__);
 	BIND_PROP(method,__annotations__);
+	BIND_PROP(method,__self__);
+	BIND_PROP(method,__func__);
 	BIND_PROP(method,__code__);
 	krk_defineNative(&method->methods, "__repr__", FUNC_NAME(method,__str__));
 	krk_finalizeClass(method);

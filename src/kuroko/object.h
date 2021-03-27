@@ -247,6 +247,8 @@ typedef struct {
 } KrkNative;
 
 #define KRK_NATIVE_FLAGS_IS_DYNAMIC_PROPERTY 0x0001
+#define KRK_NATIVE_FLAGS_IS_STATIC_METHOD    0x0002
+#define KRK_NATIVE_FLAGS_IS_CLASS_METHOD     0x0004
 
 /**
  * @brief Immutable sequence of arbitrary values.

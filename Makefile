@@ -226,3 +226,7 @@ deb: kuroko libkuroko.so
 docs: kuroko
 	./kuroko tools/gendoc.krk
 	doxygen docs/Doxyfile
+
+.PHONY: cloc
+cloc:
+	cloc --read-lang-def docs/cloc.txt --vcs git

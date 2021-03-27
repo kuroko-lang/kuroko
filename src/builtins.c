@@ -226,7 +226,7 @@ KRK_METHOD(map,__init__,{
 	for (int i = 2; i < argc; ++i) {
 		KrkClass * type = krk_getType(argv[i]);
 		if (!type->_iter) {
-			return krk_runtimeError(vm.exceptions->typeError, "'%s' is not iterable", krk_typeName(argv[i]));
+			return krk_runtimeError(vm.exceptions->typeError, "'%s' object is not iterable", krk_typeName(argv[i]));
 		}
 		krk_push(argv[i]);
 		KrkValue asIter = krk_callSimple(OBJECT_VAL(type->_iter), 1, 0);
@@ -301,7 +301,7 @@ KRK_METHOD(filter,__init__,{
 	krk_attachNamedValue(&self->fields, "_function", argv[1]);
 	KrkClass * type = krk_getType(argv[2]);
 	if (!type->_iter) {
-		return krk_runtimeError(vm.exceptions->typeError, "'%s' is not iterable", krk_typeName(argv[2]));
+		return krk_runtimeError(vm.exceptions->typeError, "'%s' object is not iterable", krk_typeName(argv[2]));
 	}
 	krk_push(argv[2]);
 	KrkValue asIter = krk_callSimple(OBJECT_VAL(type->_iter), 1, 0);
@@ -367,7 +367,7 @@ KRK_METHOD(enumerate,__init__,{
 	/* Attach iterator */
 	KrkClass * type = krk_getType(argv[1]);
 	if (!type->_iter) {
-		return krk_runtimeError(vm.exceptions->typeError, "'%s' is not iterable", krk_typeName(argv[1]));
+		return krk_runtimeError(vm.exceptions->typeError, "'%s' object is not iterable", krk_typeName(argv[1]));
 	}
 	krk_push(argv[1]);
 	KrkValue asIter = krk_callSimple(OBJECT_VAL(type->_iter), 1, 0);
