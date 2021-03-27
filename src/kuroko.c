@@ -629,6 +629,13 @@ static void handleSigint(int sigNum) {
 	krk_currentThread.flags |= KRK_THREAD_SIGNALLED;
 }
 
+#ifndef _WIN32
+static void handleSigtrap(int sigNum) {
+	if (!krk_currentThread.frameCount) return;
+	krk_currentThread.flags |= KRK_THREAD_SINGLE_STEP;
+}
+#endif
+
 static void bindSignalHandlers(void) {
 #ifndef _WIN32
 	struct sigaction sigIntAction;
@@ -639,8 +646,18 @@ static void bindSignalHandlers(void) {
 		SIGINT, /* ^C for keyboard interrupts */
 		&sigIntAction,
 		NULL);
+
+	struct sigaction sigTrapAction;
+	sigTrapAction.sa_handler = handleSigtrap;
+	sigemptyset(&sigTrapAction.sa_mask);
+	sigTrapAction.sa_flags = 0;
+	sigaction(
+		SIGTRAP,
+		&sigTrapAction,
+		NULL);
 #else
 	signal(SIGINT, handleSigint);
+	/* No SIGTRAP on windows? */
 #endif
 }
 
