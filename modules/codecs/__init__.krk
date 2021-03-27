@@ -111,7 +111,6 @@ The list of codecs (not an exhaustive list of labels, nor close to one) is as fo
 |`euc-jisx0213`, `euc-jis-2004`|Japanese EUC-JP, with JIS X 0213 mappings and extensions.|
 |`euc-kr`, `uhc`, `windows-949`|Korean Unified Hangul Code (superset of EUC-KR, encodes KS C 5601).|
 |`gbk`, `gb2312`|Chinese GBK (GB2312 extension), condoning GB18030 when decoding.|
-|`japanese`|Attempts to detect the encoding of a Japanese document (like the unified "Japanese" option now offered by some browsers' encoding override menus). Not intended to be used in the encode direction, but will behave as `utf-8-sig` in that case.|
 |`johab`, `johab-ascii`|Korean Johab (ASCII-compatible stateless standard version)|
 |`shift_jis`, `ms-kanji`, `windows-31j`|Japanese Shift JIS (Windows compatible version)|
 |`shift-jisx0213`, `shift-jis-2004`|Japanese Shift JIS (JIS X 0213 version)|
@@ -125,11 +124,11 @@ The list of codecs (not an exhaustive list of labels, nor close to one) is as fo
 |`hz-gb-2312`|HZ (Usenet Simplified Chinese) encoding|
 |`iso-2022-cn`|7-bit stateful Chinese (Simplified and Traditional)|
 |`iso-2022-jp`|7-bit stateful Japanese, web version|
+|`iso-2022-jp-ext`|7-bit stateful Japanese, preserving katakana width|
 |`iso-2022-jp-1`|7-bit stateful Japanese, including JIS X 0212|
 |`iso-2022-jp-2`|7-bit stateful Multilingual (Japanese, Korean, Greek, Simplified Chinese, Western European)|
 |`iso-2022-jp-3`|7-bit stateful Japanese, including JIS X 0213 (2000 edition format)|
 |`iso-2022-jp-2004`|7-bit stateful Japanese, including JIS X 0213 (2004 edition format)|
-|`iso-2022-jp-ext`|7-bit stateful Japanese, preserving katakana width|
 |`iso-2022-kr`|7-bit stateful Korean|
 |`jis_encoding`|7-bit stateful Japanese, comprehensive version|
 |`utf-7`|A largely obsolete scheme for mixing ASCII and Base64'd UTF-16BE in e-mail. Included mostly for Python parity.|
@@ -143,9 +142,9 @@ The list of codecs (not an exhaustive list of labels, nor close to one) is as fo
 |`cp424`|EBCDIC Hebrew|
 |`cp500`|EBCDIC "International" (Belgium, Switzerland, Canadian AS/400)|
 |`cp875`|EBCDIC Greek|
+|`cp933`, `ibm-933`, `ibm-1364`, `johab-ebcdic`|EBCDIC Korean (Johab, IBM stateful version for EBCDIC)|
 |`cp1026`|EBCDIC Turkish|
 |`cp1140`|EBCDIC with Euro Sign|
-|`johab-ebcdic`, `ibm-933`, `ibm-1364`|EBCDIC Korean (Johab, IBM stateful version for EBCDIC)|
 
 ### Codecs with unusual behaviour:
 
@@ -155,6 +154,7 @@ The list of codecs (not an exhaustive list of labels, nor close to one) is as fo
 |`inverse-base64hqx`|Same, but using the BinHex4 alphabet (note: does not in and of itself create the BinHex4 *format*)|
 |`inverse-base64uu`|Same, but using the uuencode alphabet (note: does not in and of itself create the uuencode *format*)|
 |`inverse-quopri`|Quoted-Printable, with inverse semantics (encoder reads, decoder creates). Error handler is ignored.|
+|`japanese`|Attempts to detect the encoding of a Japanese document (like the unified "Japanese" option now offered by some browsers' encoding override menus), and raises `ValueError` if it cannot. Not intended to be used in the encode direction, but will behave as `utf-8-sig` in that case.|
 |`undefined`, `replacement`|Represents data for which encoding/decoding must not be attempted. Following WHATWG (and differing from Python), error handlers are accepted, though only by the decoder: the encoder will ignore them.|
 """
 

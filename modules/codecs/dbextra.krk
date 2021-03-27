@@ -974,6 +974,8 @@ class JapaneseAutodetectIncrementalDecoder(IncrementalDecoder):
                 self.pendingjis.add(self.jis.decode(data, final))
             except UnicodeDecodeError:
                 self.state |= 0x01
+            if self.jis.state_set != 0:
+                self.state |= 0x0E
         #
         if not (self.state & 0x02):
             try:
