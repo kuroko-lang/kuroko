@@ -364,6 +364,10 @@ static const char * COLOR_GREEN     = "@2";
 static const char * COLOR_ESCAPE    = "@2";
 static const char * COLOR_SEARCH_FG = "@0";
 static const char * COLOR_SEARCH_BG = "@3";
+static const char * COLOR_ERROR_FG  = "@9";
+static const char * COLOR_ERROR_BG  = "@9";
+static const char * COLOR_BOLD      = "@9";
+static const char * COLOR_LINK      = "@9";
 
 /**
  * Themes are selected from the $RLINE_THEME
@@ -385,6 +389,10 @@ static void rline_exp_load_colorscheme_default(void) {
 	COLOR_ESCAPE    = "@12";
 	COLOR_SEARCH_FG = "@0";
 	COLOR_SEARCH_BG = "@13";
+	COLOR_ERROR_FG  = "@17";
+	COLOR_ERROR_BG  = "@1";
+	COLOR_BOLD      = "@9";
+	COLOR_LINK      = "@14";
 }
 
 static void rline_exp_load_colorscheme_sunsmoke(void) {
@@ -403,6 +411,10 @@ static void rline_exp_load_colorscheme_sunsmoke(void) {
 	COLOR_ESCAPE    = "2;113;203;173";
 	COLOR_SEARCH_FG = "5;234";
 	COLOR_SEARCH_BG = "5;226";
+	COLOR_ERROR_FG  = "5;15";
+	COLOR_ERROR_BG  = "5;196";
+	COLOR_BOLD      = "2;230;230;230;1";
+	COLOR_LINK      = "2;51;162;230;4";
 }
 
 /**
@@ -523,56 +535,6 @@ void paintNHex(struct syntax_state * state, int n) {
 	}
 }
 
-void paint_krk_string_shared(struct syntax_state * state, int type, int isFormat) {
-	if (charat() == '\\') {
-		if (nextchar() == 'x') {
-			paintNHex(state, 2);
-		} else if (nextchar() == 'u') {
-			paintNHex(state, 4);
-		} else if (nextchar() == 'U') {
-			paintNHex(state, 8);
-		} else if (nextchar() >= '0' && nextchar() <= '7') {
-			paint(2, FLAG_ESCAPE);
-			if (charat() >= '0' && charat() <= '7') {
-				paint(1, FLAG_ESCAPE);
-				if (charat() >= '0' && charat() <= '7') {
-					paint(1, FLAG_ESCAPE);
-				}
-			}
-		} else {
-			paint(2, FLAG_ESCAPE);
-		}
-	} else if (isFormat && charat() == '{') {
-		paint(1, FLAG_NUMERAL);
-		if (charat() == '}') {
-			state->i--;
-			paint(2, FLAG_ERROR); /* Can't do that. */
-		} else {
-			while (charat() != -1 && charat() != '}') {
-				paint(1, FLAG_NUMERAL);
-			}
-			paint(1, FLAG_NUMERAL);
-		}
-	} else {
-		paint(1, FLAG_STRING);
-	}
-}
-
-void paint_krk_string(struct syntax_state * state, int type, int isFormat) {
-	/* Assumes you came in from a check of charat() == '"' */
-	paint(1, FLAG_STRING);
-	while (charat() != -1) {
-		if (charat() == '\\' && nextchar() == type) {
-			paint(2, FLAG_ESCAPE);
-		} else if (charat() == type) {
-			paint(1, FLAG_STRING);
-			return;
-		} else {
-			paint_krk_string_shared(state,type,isFormat);
-		}
-	}
-}
-
 char * syn_krk_keywords[] = {
 	"and","class","def","else","for","if","in","import","del",
 	"let","not","or","return","while","try","except","raise",
@@ -607,6 +569,78 @@ char * syn_krk_exception[] = {
 	NULL
 };
 
+void paint_krk_string_shared(struct syntax_state * state, int type, int isFormat, int isTriple) {
+	if (charat() == '\\') {
+		if (nextchar() == 'x') {
+			paintNHex(state, 2);
+		} else if (nextchar() == 'u') {
+			paintNHex(state, 4);
+		} else if (nextchar() == 'U') {
+			paintNHex(state, 8);
+		} else if (nextchar() >= '0' && nextchar() <= '7') {
+			paint(2, FLAG_ESCAPE);
+			if (charat() >= '0' && charat() <= '7') {
+				paint(1, FLAG_ESCAPE);
+				if (charat() >= '0' && charat() <= '7') {
+					paint(1, FLAG_ESCAPE);
+				}
+			}
+		} else {
+			paint(2, FLAG_ESCAPE);
+		}
+	} else if (isFormat && charat() == '{') {
+		paint(1, FLAG_ESCAPE);
+		if (charat() == '}') {
+			state->i--;
+			paint(2, FLAG_ERROR); /* Can't do that. */
+		} else {
+			int x = 0;
+			while (charat() != -1) {
+				if (charat() == '{') {
+					x++;
+				} else if (charat() == '}') {
+					if (x == 0) {
+						paint(1, FLAG_ESCAPE);
+						break;
+					}
+					x--;
+				} else if (charat() == type && !isTriple) {
+					while (charat() != -1) {
+						paint(1, FLAG_ERROR);
+					}
+					return;
+				} else if (find_keywords(state, syn_krk_keywords, FLAG_ESCAPE, c_keyword_qualifier)) {
+					continue;
+				} else if (lastchar() != '.' && find_keywords(state, syn_krk_types, FLAG_TYPE, c_keyword_qualifier)) {
+					continue;
+				} else if (find_keywords(state, syn_krk_keywords, FLAG_ESCAPE, c_keyword_qualifier)) {
+					continue;
+				} else if (find_keywords(state, syn_krk_exception, FLAG_PRAGMA, c_keyword_qualifier)) {
+					continue;
+				}
+				paint(1, FLAG_NUMERAL);
+			}
+		}
+	} else {
+		paint(1, FLAG_STRING);
+	}
+}
+
+void paint_krk_string(struct syntax_state * state, int type, int isFormat) {
+	/* Assumes you came in from a check of charat() == '"' */
+	paint(1, FLAG_STRING);
+	while (charat() != -1) {
+		if (charat() == '\\' && nextchar() == type) {
+			paint(2, FLAG_ESCAPE);
+		} else if (charat() == type) {
+			paint(1, FLAG_STRING);
+			return;
+		} else {
+			paint_krk_string_shared(state,type,isFormat,0);
+		}
+	}
+}
+
 int paint_krk_numeral(struct syntax_state * state) {
 	if (charat() == '0' && (nextchar() == 'x' || nextchar() == 'X')) {
 		paint(2, FLAG_NUMERAL);
@@ -638,7 +672,7 @@ int paint_krk_triple_string(struct syntax_state * state, int type, int isFormat)
 				return 0;
 			}
 		} else {
-			paint_krk_string_shared(state,type,isFormat);
+			paint_krk_string_shared(state,type,isFormat,1);
 		}
 	}
 	return (type == '"') ? 1 : 2; /* continues */
@@ -1106,10 +1140,10 @@ static const char * flag_to_color(int _flag) {
 			return COLOR_GREEN;
 		case FLAG_DIFFMINUS:
 			return COLOR_RED;
-//		case FLAG_BOLD:
-//			return COLOR_BOLD;
-//		case FLAG_LINK:
-//			return COLOR_LINK;
+		case FLAG_BOLD:
+			return COLOR_BOLD;
+		case FLAG_LINK:
+			return COLOR_LINK;
 		case FLAG_ESCAPE:
 			return COLOR_ESCAPE;
 		default:
@@ -1383,6 +1417,9 @@ static void render_line(void) {
 			} else if (c.flags == FLAG_NOTICE) {
 				set_colors(COLOR_SEARCH_FG, COLOR_SEARCH_BG);
 				was_searching = 1;
+			} else if (c.flags == FLAG_ERROR) {
+				set_colors(COLOR_ERROR_FG, COLOR_ERROR_BG);
+				was_searching = 1; /* co-opting this should work... */
 			} else if (was_searching) {
 				fprintf(stdout,"\033[0m");
 				set_colors(color, COLOR_BG);
