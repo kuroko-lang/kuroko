@@ -21,7 +21,6 @@ The list of codecs (not an exhaustive list of labels, nor close to one) is as fo
 
 |Major label(s)|Meaning|
 |---|---|
-|`cp042`|8-bit User Defined (variant using U+0000–001F, U+F020–F0FF)|
 |`cp437`|8-bit United States (DOS)|
 |`cp720`|8-bit Arabic and Box Drawing (DOS)|
 |`cp737`|8-bit Greek and Box Drawing (DOS)|
@@ -83,6 +82,12 @@ The list of codecs (not an exhaustive list of labels, nor close to one) is as fo
 |`x-mac-romanian`|8-bit Romanian (Macintosh)|
 |`x-mac-turkish`|8-bit Turkish (Macintosh)|
 |`x-user-defined`|8-bit User Defined (ASCII based variant: using U+0000–007F, U+F780–F7FF)|
+
+### Single-byte symbol or dingbat font encodings:
+
+|Major label(s)|Meaning|
+|---|---|
+|`cp042`|8-bit User Defined (variant using U+0000–001F, U+F020–F0FF). Windows uses that mapping for symbol fonts in some contexts.|
 
 ### 8-bit multi-byte Unicode codecs:
 

@@ -90,6 +90,7 @@ let modules = [
     'codecs.dbextra_data_8bit',
     'codecs.infrastructure',
     'codecs.isweblabel',
+    'codecs.pifonts',
     'codecs.sbencs',
     'codecs.sbextra',
 ]

@@ -2,9 +2,6 @@
 This module includes codecs implementing special handling for symbol fonts.
 """
 
-from codecs.dbextra_data_8bit import data_8bit
-from codecs.dbextra_data_7bit import data_7bit
-
 from codecs.infrastructure import register_kuroko_codec, ByteCatenator, StringCatenator, UnicodeEncodeError, UnicodeDecodeError, lookup_error, lookup, IncrementalEncoder, IncrementalDecoder, lazy_property
 from collections import xraydict
 
