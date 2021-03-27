@@ -563,9 +563,10 @@ char * syn_krk_special[] = {
 };
 
 char * syn_krk_exception[] = {
-	"TypeError","ArgumentError","IndexError","KeyError","AttributeError",
-	"NameError","ImportError","IOError","ValueError","KeyboardInterrupt",
-	"ZeroDivisionError","SyntaxError","Exception",
+	"Exception", "TypeError", "ArgumentError", "IndexError", "KeyError",
+	"AttributeError", "NameError", "ImportError", "IOError", "ValueError",
+	"KeyboardInterrupt", "ZeroDivisionError", "NotImplementedError", "SyntaxError",
+	"AssertionError",
 	NULL
 };
 
@@ -612,8 +613,6 @@ void paint_krk_string_shared(struct syntax_state * state, int type, int isFormat
 				} else if (find_keywords(state, syn_krk_keywords, FLAG_ESCAPE, c_keyword_qualifier)) {
 					continue;
 				} else if (lastchar() != '.' && find_keywords(state, syn_krk_types, FLAG_TYPE, c_keyword_qualifier)) {
-					continue;
-				} else if (find_keywords(state, syn_krk_keywords, FLAG_ESCAPE, c_keyword_qualifier)) {
 					continue;
 				} else if (find_keywords(state, syn_krk_exception, FLAG_PRAGMA, c_keyword_qualifier)) {
 					continue;
