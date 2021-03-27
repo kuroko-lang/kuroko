@@ -1,7 +1,7 @@
 """Underpinning infrastructure for the codecs module."""
 
 from codecs.isweblabel import map_weblabel
-def idstr(obj):
+def _idstr(obj):
     let reprd = object.__repr__(obj)
     return reprd.split(" at 0x")[1].split(">")[0]
 
@@ -91,7 +91,7 @@ class KurokoCodecInfo:
                 ret += " (HTML5 " + repr(dec.html5name) + ")"
         else:
             ret += "; no decoder"
-        return ret + "; at 0x" + idstr(self) + ">"
+        return ret + "; at 0x" + _idstr(self) + ">"
 
 def lookup(label, web=False):
     """
@@ -327,7 +327,7 @@ class IncrementalEncoder:
         let w = "(non-HTML5)"
         if self.html5name:
             w = f"(HTML5 {self.html5name!r})"
-        let addr = idstr(self)
+        let addr = _idstr(self)
         return f"<{c.__name__} instance: encoder for {self.name!r} {w} at 0x{addr}>"
     def encode(string, final = False):
         """
@@ -372,7 +372,7 @@ class IncrementalDecoder:
         let w = "(non-HTML5)"
         if self.html5name:
             w = f"(HTML5 {self.html5name!r})"
-        let addr = idstr(self)
+        let addr = _idstr(self)
         return f"<{c.__name__} instance: decoder for {self.name!r} {w} at 0x{addr}>"
     def decode(data_in, final = False):
         """
