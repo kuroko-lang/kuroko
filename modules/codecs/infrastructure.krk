@@ -577,7 +577,7 @@ class AsciiIncrementalDecoder(IncrementalDecoder):
                 out.add(errorret[0])
                 offset = errorret[1]
                 if offset < 0:
-                    offset += len(string)
+                    offset += len(data)
 
 register_kuroko_codec(["ecma-43-dv", "iso-4873-dv", "646", "cp367", "ibm367", "iso646-us", 
                        "iso-646.irv-1991", "iso-ir-6", "us", "csascii"],
@@ -739,7 +739,7 @@ class BaseEbcdicIncrementalDecoder(IncrementalDecoder):
                 out.add(errorret[0])
                 offset = errorret[1]
                 if offset < 0:
-                    offset += len(string)
+                    offset += len(data)
     def reset():
         """Implements `IncrementalDecoder.reset`"""
         self.pending = b""

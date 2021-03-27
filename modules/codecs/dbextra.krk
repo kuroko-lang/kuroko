@@ -760,7 +760,7 @@ class Utf32IncrementalDecoder(IncrementalDecoder):
                 out.add(errorret[0])
                 offset = errorret[1]
                 if offset < 0:
-                    offset += len(string)
+                    offset += len(data)
     def reset():
         """Implements `IncrementalDecoder.reset`"""
         self.pending = b""
@@ -934,7 +934,7 @@ class HzIncrementalDecoder(IncrementalDecoder):
                 out.add(errorret[0])
                 offset = errorret[1]
                 if offset < 0:
-                    offset += len(string)
+                    offset += len(data)
     def reset():
         """Implements `IncrementalDecoder.reset`"""
         self.pending = b""
@@ -1311,7 +1311,7 @@ class Iso2022NonJpIncrementalDecoder(IncrementalDecoder):
             out.add(errorret[0])
             offset = errorret[1]
             if offset < 0:
-                offset += len(string)
+                offset += len(data)
     def reset():
         """Implements `IncrementalDecoder.reset`"""
         self.pending = b""
