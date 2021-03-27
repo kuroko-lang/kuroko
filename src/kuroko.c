@@ -427,7 +427,10 @@ static int debuggerHook(KrkCallFrame * frame) {
 			}
 		} else {
 #ifndef NO_RLINE
-			if (enableRline) rline_history_insert(strdup(buf));
+			if (enableRline) {
+				rline_history_insert(strdup(buf));
+				rline_scroll = 0;
+			}
 #endif
 			if (lastDebugCommand) free(lastDebugCommand);
 			lastDebugCommand = strdup(buf);
@@ -626,6 +629,13 @@ static void handleSigint(int sigNum) {
 	krk_currentThread.flags |= KRK_THREAD_SIGNALLED;
 }
 
+#ifndef _WIN32
+static void handleSigtrap(int sigNum) {
+	if (!krk_currentThread.frameCount) return;
+	krk_currentThread.flags |= KRK_THREAD_SINGLE_STEP;
+}
+#endif
+
 static void bindSignalHandlers(void) {
 #ifndef _WIN32
 	struct sigaction sigIntAction;
@@ -636,8 +646,18 @@ static void bindSignalHandlers(void) {
 		SIGINT, /* ^C for keyboard interrupts */
 		&sigIntAction,
 		NULL);
+
+	struct sigaction sigTrapAction;
+	sigTrapAction.sa_handler = handleSigtrap;
+	sigemptyset(&sigTrapAction.sa_mask);
+	sigTrapAction.sa_flags = 0;
+	sigaction(
+		SIGTRAP,
+		&sigTrapAction,
+		NULL);
 #else
 	signal(SIGINT, handleSigint);
+	/* No SIGTRAP on windows? */
 #endif
 }
 
@@ -1094,7 +1114,10 @@ _finishArgs:
 			for (size_t i = 0; i < lineCount; ++i) {
 				if (valid) strcat(allData, lines[i]);
 #ifndef NO_RLINE
-				if (enableRline) rline_history_insert(strdup(lines[i]));
+				if (enableRline) {
+					rline_history_insert(strdup(lines[i]));
+					rline_scroll = 0;
+				}
 #endif
 				free(lines[i]);
 			}
