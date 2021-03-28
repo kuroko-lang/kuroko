@@ -138,7 +138,7 @@ class Cp720IncrementalEncoder(AsciiIncrementalEncoder):
     IncrementalEncoder implementation for OEM-720 (Arabic Letters with Box Drawing)
 
     Note: OEM-720 competed with OEM-864 (which did not include box drawing characters, included positional
-    forms rather than general letters for Arabic characters, and included East Arabic digits).
+    forms rather than general letters for Arabic characters, and included separate East Arabic digits).
     """
     name = 'cp720'
     html5name = None
@@ -151,7 +151,7 @@ class Cp720IncrementalDecoder(AsciiIncrementalDecoder):
     IncrementalDecoder implementation for OEM-720 (Arabic Letters with Box Drawing)
 
     Note: OEM-720 competed with OEM-864 (which did not include box drawing characters, included positional
-    forms rather than general letters for Arabic characters, and included East Arabic digits).
+    forms rather than general letters for Arabic characters, and included separate East Arabic digits).
     """
     name = 'cp720'
     html5name = None
@@ -468,8 +468,8 @@ class Cp864IncrementalEncoder(AsciiIncrementalEncoder):
     """
     IncrementalEncoder implementation for OEM-864 (Arabic Positional Forms)
 
-    Note: OEM-864 competed with OEM-720 (which included box drawing characters, included general
-    letters rather than positional forms of Arabic characters, and omitted East Arabic digits).
+    Note: OEM-864 competed with OEM-720 (which included box drawing characters, included general letters
+    rather than positional forms of Arabic characters, and didn't include separate East Arabic digits).
     """
     name = 'cp864'
     html5name = None
@@ -481,8 +481,8 @@ class Cp864IncrementalDecoder(AsciiIncrementalDecoder):
     """
     IncrementalDecoder implementation for OEM-864 (Arabic Positional Forms)
 
-    Note: OEM-864 competed with OEM-720 (which included box drawing characters, included general
-    letters rather than positional forms of Arabic characters, and omitted East Arabic digits).
+    Note: OEM-864 competed with OEM-720 (which included box drawing characters, included general letters
+    rather than positional forms of Arabic characters, and didn't include separate East Arabic digits).
     """
     name = 'cp864'
     html5name = None
