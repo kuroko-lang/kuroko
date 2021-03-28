@@ -117,7 +117,8 @@ let descriptions = {
 
     Note: OEM-866 competed with OEM-855 for Cyrillic; OEM-866 preserved all box drawing characters
     (rather then only a subset) and was more popular for Russian, but did not provide coverage 
-    for all of the different South Slavic Cyrillic orthographies, unlike OEM-855.""",
+    for all of the different South Slavic Cyrillic orthographies, unlike OEM-855. Their layouts
+    for Cyrillic are entirely different.""",
     "iso-8859-2": "ISO/IEC 8859-2 (Central European)",
     "iso-8859-3": "ISO/IEC 8859-3 (Maltese and Esperanto)",
     "iso-8859-4": "ISO/IEC 8859-4 (North European)",
