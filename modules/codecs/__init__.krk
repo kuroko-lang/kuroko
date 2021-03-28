@@ -22,7 +22,7 @@ The list of codecs (not an exhaustive list of labels, nor close to one) is as fo
 |Major label(s)|Meaning|
 |---|---|
 |`cp437`|8-bit United States (DOS)|
-|`cp720`|8-bit Arabic and Box Drawing (DOS)|
+|`cp720`|8-bit Arabic Letters and Box Drawing (DOS)|
 |`cp737`|8-bit Greek and Box Drawing (DOS)|
 |`cp775`|8-bit Baltic Rim (DOS)|
 |`cp850`|8-bit Western Europe and Canada (DOS)|
@@ -35,7 +35,7 @@ The list of codecs (not an exhaustive list of labels, nor close to one) is as fo
 |`cp861`|8-bit Icelandic (DOS)|
 |`cp862`|8-bit Hebrew and Box Drawing (DOS)|
 |`cp863`|8-bit Quebecois French (DOS)|
-|`cp864`|8-bit Arabic (DOS)|
+|`cp864`|8-bit Arabic Positional Forms (DOS)|
 |`cp865`|8-bit Continental Nordic (DOS)|
 |`cp866`, `ibm866`|8-bit Russian Cyrillic (DOS)|
 |`cp869`|8-bit Greek (DOS)|
