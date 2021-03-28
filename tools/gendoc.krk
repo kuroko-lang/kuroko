@@ -181,8 +181,9 @@ def processModules(modules):
         let rsplit = lambda s,d,l: reversed("".join(reversed(i)) for i in "".join(reversed(s)).split(d, l))
         if "." in modulepath:
             let parent = rsplit(modulepath, ".", 1)[0]
-            let parentpath = fixup(parent).replace('.','_')
-            print(f"\n<a href='mod_{parentpath}.html'>← {parent}</a>\n")
+            if parent in modules:
+                let parentpath = fixup(parent).replace('.','_')
+                print(f"\n<a href='mod_{parentpath}.html'>← {parent}</a>\n")
 
         if '__doc__' in dir(module) and module.__doc__:
             print(module.__doc__.strip())
