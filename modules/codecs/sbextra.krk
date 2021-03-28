@@ -691,7 +691,7 @@ register_kuroko_codec(['hp-roman8', 'roman8', 'r8', 'csHPRoman8', 'cp1051', 'ibm
 
 class Koi8TIncrementalEncoder(AsciiIncrementalEncoder):
     """
-    IncrementalEncoder implementation for the KOI8-T (8-bit Tajik) encoding.
+    IncrementalEncoder implementation for the KOI8-T (KOI-8 Cyrillic for Tajik) encoding.
     """
     name = 'koi8-t'
     html5name = None
@@ -701,7 +701,7 @@ class Koi8TIncrementalEncoder(AsciiIncrementalEncoder):
 
 class Koi8TIncrementalDecoder(AsciiIncrementalDecoder):
     """
-    IncrementalDecoder implementation for the KOI8-T (8-bit Tajik) encoding.
+    IncrementalDecoder implementation for the KOI8-T (KOI-8 Cyrillic for Tajik) encoding.
     """
     name = 'koi8-t'
     html5name = None
