@@ -132,7 +132,7 @@ let descriptions = {
     "iso-8859-13": "ISO/IEC 8859-13 (Baltic Rim)", 
     "iso-8859-14": "ISO/IEC 8859-14 (Celtic)", 
     "iso-8859-15": "ISO/IEC 8859-15 (New Western European)", 
-    "iso-8859-16": "ISO/IEC 8859-10 (South-Eastern European; Romanian SR 14111)",
+    "iso-8859-16": "ISO/IEC 8859-16 (South-Eastern European; Romanian SR 14111)",
     "koi8-r": "the KOI8-R (KOI-8 Cyrillic for Russian) encoding.",
     "koi8-ru": "the KOI8-RU (KOI-8 Cyrillic for Belarusian, Ukrainian and Ruthenian) encoding.",
     "macintosh": "the Macintosh Roman encoding.", 
