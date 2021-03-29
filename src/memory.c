@@ -215,10 +215,10 @@ static size_t sweep() {
 	size_t count = 0;
 	while (object) {
 		if (object->flags & (KRK_OBJ_FLAGS_IMMORTAL | KRK_OBJ_FLAGS_IS_MARKED)) {
-			object->flags &= ~(KRK_OBJ_FLAGS_IS_MARKED | KRK_OBJ_FLAGS_GENERATIONS);
+			object->flags &= ~(KRK_OBJ_FLAGS_IS_MARKED | KRK_OBJ_FLAGS_SECOND_CHANCE);
 			previous = object;
 			object = object->next;
-		} else if ((object->flags & KRK_OBJ_FLAGS_GENERATIONS) == 3) {
+		} else if (object->flags & KRK_OBJ_FLAGS_SECOND_CHANCE) {
 			KrkObj * unreached = object;
 			object = object->next;
 			if (previous != NULL) {
@@ -229,7 +229,7 @@ static size_t sweep() {
 			freeObject(unreached);
 			count++;
 		} else {
-			object->flags++;
+			object->flags |= KRK_OBJ_FLAGS_SECOND_CHANCE;
 			previous = object;
 			object = object->next;
 		}
@@ -308,25 +308,6 @@ KRK_FUNC(collect,{
 	return INTEGER_VAL(krk_collectGarbage());
 })
 
-#define MAX_GEN 4
-KRK_FUNC(generations,{
-	FUNCTION_TAKES_NONE();
-	krk_integer_type generations[MAX_GEN] = {0};
-	KrkObj * object = vm.objects;
-	while (object) {
-		generations[object->flags & KRK_OBJ_FLAGS_GENERATIONS]++;
-		object = object->next;
-	}
-
-	/* Create a four-tuple */
-	KrkTuple * outTuple = krk_newTuple(MAX_GEN);
-	for (int i = 0; i < MAX_GEN; ++i) {
-		outTuple->values.values[i] = INTEGER_VAL(generations[i]);
-	}
-	outTuple->values.count = MAX_GEN;
-	return OBJECT_VAL(outTuple);
-})
-
 KRK_FUNC(pause,{
 	FUNCTION_TAKES_NONE();
 	vm.globalFlags |= (KRK_GLOBAL_GC_PAUSED);
@@ -352,8 +333,6 @@ void _createAndBind_gcMod(void) {
 
 	KRK_DOC(BIND_FUNC(gcModule,collect),
 		"@brief Triggers one cycle of garbage collection.");
-	KRK_DOC(BIND_FUNC(gcModule,generations),
-		"@brief Returns a 4-tuple of the counts of objects in each stage of garbage collection.");
 	KRK_DOC(BIND_FUNC(gcModule,pause),
 		"@brief Disables automatic garbage collection until @ref resume is called.");
 	KRK_DOC(BIND_FUNC(gcModule,resume),

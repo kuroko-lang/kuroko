@@ -40,16 +40,11 @@ typedef struct KrkObj {
 	struct KrkObj * next;
 } KrkObj;
 
+#define KRK_OBJ_FLAGS_SECOND_CHANCE 0x0001
 #define KRK_OBJ_FLAGS_IS_MARKED  0x0010
 #define KRK_OBJ_FLAGS_IN_REPR    0x0020
 #define KRK_OBJ_FLAGS_IMMORTAL   0x0040
 #define KRK_OBJ_FLAGS_VALID_HASH 0x0080
-
-#define KRK_OBJ_FLAGS_GENERATIONS 0x0003
-#define KRK_OBJ_FLAGS_GEN_0       0x0000
-#define KRK_OBJ_FLAGS_GEN_1       0x0001
-#define KRK_OBJ_FLAGS_GEN_2       0x0002
-#define KRK_OBJ_FLAGS_GEN_3       0x0003
 
 typedef enum {
 	KRK_STRING_ASCII = 0,
