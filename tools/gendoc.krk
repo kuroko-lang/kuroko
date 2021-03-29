@@ -288,13 +288,7 @@ def processModules(modules):
                     else:
                         other.append(Pair(member,obj))
 
-            # There will probably ultimately be a better way of doing this
-            let isPackage = False
-            for i in modules:
-                if i.startswith(name + "."):
-                    isPackage = True
-                    break
-            if isPackage:
+            if hasattr(module, "__ispackage__") and module.__ispackage__:
                 print("\n### Package contents\n")
                 print('\htmlonly<div class="krk-class-index"><ul>\n')
                 for i in modules:
