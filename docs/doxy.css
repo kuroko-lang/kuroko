@@ -392,10 +392,10 @@ div.memdoc {
 .markdownTableRowOdd {
     background: rgba(204, 204, 204, 0.2);
 }
-table {
+table.markdownTable {
     margin-bottom: 1em;
 }
-th, td {
+.markdownTable th, .markdownTable td {
     padding-left: 0.5ex;
     padding-right: 0.5ex;
 }
