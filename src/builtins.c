@@ -934,7 +934,7 @@ void _createAndBind_builtins(void) {
 		"@brief Internal module containing built-in functions and classes.\n\n"
 		"Classes and functions from the @c \\__builtins__ module are generally available from "
 		"all global namespaces. Built-in names can still be shadowed by module-level globals "
-		"and function-level locals, so none the names in this module are not reserved. When "
+		"and function-level locals, so none the names in this module are reserved. When "
 		"a built-in name has been shadowed, the original can be referenced directly as "
 		" @c \\__builtins__.name instead.\n\n"
 		"Built-in names may be bound from several sources. Most come from the core interpreter "
