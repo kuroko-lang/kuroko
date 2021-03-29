@@ -24,6 +24,4 @@
 /modules/codecs/sbencs.krk
 /modules/codecs/dbdata.krk
 /modules/codecs/isweblabel.krk
-#
-.fuse_hidden*
 
