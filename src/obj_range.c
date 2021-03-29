@@ -95,12 +95,15 @@ _noexport
 void _createAndBind_rangeClass(void) {
 	range = ADD_BASE_CLASS(vm.baseClasses->rangeClass, "range", vm.baseClasses->objectClass);
 	range->allocSize = sizeof(struct Range);
-	BIND_METHOD(range,__init__);
+	KRK_DOC(BIND_METHOD(range,__init__),
+		"@brief Create an iterable that produces sequential numeric values.\n"
+		"@arguments [min,] max, [step]\n\n"
+		"With one argument, iteration will start at @c 0 and continue to @p max, exclusive. "
+		"With two arguments, iteration starts at @p min and continues to @p max, exclusive. "
+		"With three arguments, a @p step may also be included.");
 	BIND_METHOD(range,__iter__);
 	BIND_METHOD(range,__repr__);
-	KRK_DOC(range, "@brief range(max), range(min, max[, step]): "
-		"An iterable object that produces numeric values. "
-		"'min' is inclusive, 'max' is exclusive.");
+	KRK_DOC(range, "@brief Iterable object that produces sequential numeric values.");
 	krk_finalizeClass(range);
 
 	rangeiterator = ADD_BASE_CLASS(vm.baseClasses->rangeiteratorClass, "rangeiterator", vm.baseClasses->objectClass);
