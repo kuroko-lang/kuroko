@@ -1,0 +1,22 @@
+class Foo:
+    def method():
+        print("hi")
+
+class Bar:
+    pass
+
+try:
+    super(Foo,Bar()).test
+except TypeError as e:
+    print(str(e))
+
+class Baz(Foo):
+    def method():
+        print("hello")
+
+class Qux(Baz):
+    def method():
+        super().method()
+        super(Baz,self).method()
+
+Qux().method()

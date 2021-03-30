@@ -2261,17 +2261,18 @@ _finishReturn: (void)0;
 				break;
 			}
 			case OP_INHERIT: {
-				KrkValue superclass = krk_peek(1);
+				KrkValue superclass = krk_peek(0);
 				if (unlikely(!IS_CLASS(superclass))) {
 					krk_runtimeError(vm.exceptions->typeError, "Superclass must be a class, not '%s'",
 						krk_typeName(superclass));
 					goto _finishException;
 				}
-				KrkClass * subclass = AS_CLASS(krk_peek(0));
+				KrkClass * subclass = AS_CLASS(krk_peek(1));
 				subclass->base = AS_CLASS(superclass);
 				subclass->allocSize = AS_CLASS(superclass)->allocSize;
 				subclass->_ongcsweep = AS_CLASS(superclass)->_ongcsweep;
 				subclass->_ongcscan = AS_CLASS(superclass)->_ongcscan;
+				krk_pop(); /* Super class */
 				break;
 			}
 			case OP_DOCSTRING: {
@@ -2627,12 +2628,33 @@ _finishReturn: (void)0;
 			case OP_GET_SUPER_LONG:
 			case OP_GET_SUPER: {
 				KrkString * name = READ_STRING(OPERAND);
-				KrkClass * superclass = AS_CLASS(krk_pop());
+				KrkValue baseClass = krk_peek(1);
+				if (!IS_CLASS(baseClass)) {
+					krk_runtimeError(vm.exceptions->typeError,
+						"super() argument 1 must be class, not %s", krk_typeName(baseClass));
+					goto _finishException;
+				}
+				if (IS_KWARGS(krk_peek(0))) {
+					krk_runtimeError(vm.exceptions->notImplementedError,
+						"Unbound super() reference not supported");
+					goto _finishException;
+				}
+				if (!krk_isInstanceOf(krk_peek(0), AS_CLASS(baseClass))) {
+					krk_runtimeError(vm.exceptions->typeError,
+						"'%s' object is not an instance of '%s'",
+						krk_typeName(krk_peek(0)), AS_CLASS(baseClass)->name->chars);
+					goto _finishException;
+				}
+				KrkClass * superclass = AS_CLASS(baseClass)->base ? AS_CLASS(baseClass)->base : vm.baseClasses->objectClass;
 				if (!krk_bindMethod(superclass, name)) {
 					krk_runtimeError(vm.exceptions->attributeError, "'%s' object has no attribute '%s'",
 						superclass->name->chars, name->chars);
 					goto _finishException;
 				}
+				/* Swap bind and superclass */
+				krk_swap(1);
+				/* Pop super class */
+				krk_pop();
 				break;
 			}
 			case OP_DUP_LONG:

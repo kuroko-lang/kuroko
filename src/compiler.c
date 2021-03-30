@@ -964,6 +964,11 @@ static void endScope() {
 	}
 }
 
+static void markInitialized() {
+	if (current->scopeDepth == 0) return;
+	current->locals[current->localCount - 1].depth = current->scopeDepth;
+}
+
 static void block(size_t indentation, const char * blockName) {
 	if (match(TOKEN_EOL)) {
 		if (check(TOKEN_INDENTATION)) {
@@ -1259,43 +1264,28 @@ static KrkToken classDeclaration() {
 
 	beginScope();
 
-	KrkToken className = parser.previous;
 	size_t constInd = identifierConstant(&parser.previous);
 	declareVariable();
-
 	EMIT_CONSTANT_OP(OP_CLASS, constInd);
-	defineVariable(constInd);
+	markInitialized();
 
 	ClassCompiler classCompiler;
 	classCompiler.name = parser.previous;
 	classCompiler.enclosing = currentClass;
 	currentClass = &classCompiler;
-	int hasSuperclass = 0;
 	classCompiler.hasAnnotations = 0;
 
 	if (match(TOKEN_LEFT_PAREN)) {
 		startEatingWhitespace();
 		if (!check(TOKEN_RIGHT_PAREN)) {
 			expression();
-			hasSuperclass = 1;
+			emitByte(OP_INHERIT);
 		}
 		stopEatingWhitespace();
 		consume(TOKEN_RIGHT_PAREN, "Expected ) after superclass.");
 	}
 
-	if (!hasSuperclass) {
-		KrkToken Object = syntheticToken("object");
-		size_t ind = identifierConstant(&Object);
-		EMIT_CONSTANT_OP(OP_GET_GLOBAL, ind);
-	}
-
 	beginScope();
-	addLocal(syntheticToken("super"));
-	defineVariable(0);
-
-	namedVariable(className, 0);
-
-	emitByte(OP_INHERIT);
 
 	consume(TOKEN_COLON, "Expected colon after class");
 
@@ -1342,12 +1332,7 @@ _pop_class:
 	freeCompiler(&subcompiler);
 	emitBytes(OP_CALL, 0);
 
-	return className;
-}
-
-static void markInitialized() {
-	if (current->scopeDepth == 0) return;
-	current->locals[current->localCount - 1].depth = current->scopeDepth;
+	return classCompiler.name;
 }
 
 static void lambda(int canAssign) {
@@ -2366,16 +2351,28 @@ static void variable(int canAssign) {
 }
 
 static void super_(int canAssign) {
-	if (currentClass == NULL) {
-		error("Invalid reference to `super` outside of a class.");
-	}
 	consume(TOKEN_LEFT_PAREN, "Expected `super` to be called.");
-	consume(TOKEN_RIGHT_PAREN, "`super` can not take arguments.");
+
+	/* Argument time */
+	if (match(TOKEN_RIGHT_PAREN)) {
+		if (!isMethod(current->type)) {
+			error("super() outside of a method body requires arguments");
+			return;
+		}
+		namedVariable(currentClass->name, 0);
+		EMIT_CONSTANT_OP(OP_GET_LOCAL, 0);
+	} else {
+		expression();
+		if (match(TOKEN_COMMA)) {
+			expression();
+		} else {
+			emitConstant(KWARGS_VAL(0));
+		}
+		consume(TOKEN_RIGHT_PAREN, "Expected ')' after argument list");
+	}
 	consume(TOKEN_DOT, "Expected a field of `super()` to be referenced.");
 	consume(TOKEN_IDENTIFIER, "Expected a field name.");
 	size_t ind = identifierConstant(&parser.previous);
-	EMIT_CONSTANT_OP(OP_GET_LOCAL, 0);
-	namedVariable(syntheticToken("super"), 0);
 	EMIT_CONSTANT_OP(OP_GET_SUPER, ind);
 }
 
