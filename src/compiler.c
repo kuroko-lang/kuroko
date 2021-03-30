@@ -2007,7 +2007,17 @@ _anotherSimpleStatement:
 		}
 		if (match(TOKEN_SEMICOLON)) goto _anotherSimpleStatement;
 		if (!match(TOKEN_EOL) && !match(TOKEN_EOF)) {
-			errorAtCurrent("Unexpected token after statement.");
+			switch (parser.current.type) {
+				case TOKEN_RIGHT_BRACE:
+				case TOKEN_RIGHT_PAREN:
+				case TOKEN_RIGHT_SQUARE:
+					errorAtCurrent("Unmatched '%.*s'",
+						(int)parser.current.length, parser.current.start);
+					break;
+				default:
+					errorAtCurrent("'%.*s' unexpected after statement.",
+						(int)parser.current.length, parser.current.start);
+			}
 		}
 	}
 }
@@ -2539,7 +2549,8 @@ static void grouping(int canAssign) {
 	if (!match(TOKEN_RIGHT_PAREN)) {
 		switch (parser.current.type) {
 			case TOKEN_EQUAL: error("Assignment value expression must be enclosed in parentheses."); break;
-			default: error("Expected ')'");
+			default: error("Expected ')' after '%.*s'",
+				(int)parser.previous.length, parser.previous.start);
 		}
 	}
 	if (canAssign == 1 && match(TOKEN_EQUAL)) {
@@ -2880,8 +2891,24 @@ static void parsePrecedence(Precedence precedence) {
 	advance();
 	ParseFn prefixRule = getRule(parser.previous.type)->prefix;
 	if (prefixRule == NULL) {
-		error("Unexpected token ('%.*s' does not start an expression)",
-			(int)parser.previous.length, parser.previous.start);
+		switch (parser.previous.type) {
+			case TOKEN_RIGHT_BRACE:
+			case TOKEN_RIGHT_PAREN:
+			case TOKEN_RIGHT_SQUARE:
+				error("Unmatched '%.*s'",
+					(int)parser.previous.length, parser.previous.start);
+				break;
+			case TOKEN_EOL:
+				/* TODO: This should definitely be tripping the REPL to ask for more input. */
+				error("Unexpected end of line");
+				break;
+			case TOKEN_EOF:
+				error("Unexpected end of input");
+				break;
+			default:
+				error("'%.*s' does not start an expression",
+					(int)parser.previous.length, parser.previous.start);
+		}
 		return;
 	}
 	int canAssign = (precedence <= PREC_ASSIGNMENT || precedence == PREC_CAN_ASSIGN);
@@ -2905,7 +2932,7 @@ static void parsePrecedence(Precedence precedence) {
 		error("Invalid assignment target");
 	}
 	if (inDel == 1 && matchEndOfDel()) {
-		error("invalid del target");
+		error("Invalid del target");
 	}
 }
 
@@ -2918,7 +2945,7 @@ static ssize_t resolveLocal(Compiler * compiler, KrkToken * name) {
 		Local * local = &compiler->locals[i];
 		if (identifiersEqual(name, &local->name)) {
 			if (local->depth == -1) {
-				error("Can not initialize value recursively (are you shadowing something?)");
+				error("Invalid recursive reference in declaration initializer");
 			}
 			return i;
 		}
