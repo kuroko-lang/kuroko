@@ -1,0 +1,41 @@
+class Foo:
+    def __init__(self):
+        self.val = 42
+    def __lt__(self, o):
+        print('call lt',o)
+        if isinstance(o,(int,float)):
+            return self.val < o
+        return NotImplemented
+    def __le__(self, o):
+        print('call le',o)
+        if isinstance(o,(int,float)):
+            return self.val <= o
+        return NotImplemented
+    def __gt__(self, o):
+        print('call gt',o)
+        if isinstance(o,(int,float)):
+            return self.val > o
+        return NotImplemented
+    def __ge__(self, o):
+        print('call ge',o)
+        if isinstance(o,(int,float)):
+            return self.val >= o
+        return NotImplemented
+
+print(Foo() < 43)
+print(Foo() > 43)
+print(Foo() > 41)
+print(Foo() < 41)
+print(Foo() >= 41)
+print(Foo() >= 42)
+print(Foo() <= 43)
+print(Foo() <= 42)
+print('---')
+print(43 > Foo())
+print(43 < Foo())
+print(41 < Foo())
+print(41 > Foo())
+print(41 <= Foo())
+print(42 <= Foo())
+print(43 >= Foo())
+print(42 >= Foo())

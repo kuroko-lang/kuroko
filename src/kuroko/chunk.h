@@ -68,7 +68,9 @@ typedef enum {
 	OP_ANNOTATE,
 	OP_BEGIN_FINALLY,
 	OP_END_FINALLY,
-	/* current highest: 45 */
+	OP_GREATER_EQUAL,
+	OP_LESS_EQUAL,
+	/* current highest: 47 */
 
 	OP_CALL = 64,
 	OP_CLASS,

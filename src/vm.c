@@ -463,6 +463,8 @@ inline KrkClass * krk_getType(KrkValue of) {
 			return vm.baseClasses->boolClass;
 		case KRK_VAL_NONE:
 			return vm.baseClasses->noneTypeClass;
+		case KRK_VAL_NOTIMPL:
+			return vm.baseClasses->notImplClass;
 		case KRK_VAL_OBJECT:
 			switch (AS_OBJECT(of)->type) {
 				case KRK_OBJ_CLASS:
@@ -1379,32 +1381,56 @@ const char * krk_typeName(KrkValue value) {
 	return krk_getType(value)->name->chars;
 }
 
-static KrkValue tryBind(const char * name, KrkValue a, KrkValue b, const char * operator, const char * msg) {
-	krk_push(b);
-	krk_push(a);
-	KrkClass * type = krk_getType(a);
+static KrkValue tryBind(const char * name, KrkValue a, KrkValue b, const char * operator, const char * msg, const char * inverse) {
+	krk_currentThread.scratchSpace[0] = a;
+	krk_currentThread.scratchSpace[1] = b;
+
+	/* Potential return value */
+	KrkValue value = NONE_VAL();
 	KrkString * methodName = krk_copyString(name, strlen(name));
 	krk_push(OBJECT_VAL(methodName));
-	KrkValue value = KWARGS_VAL(0);
-	krk_swap(1);
+
+	/* Bind from a */
+	KrkClass * type = krk_getType(a);
+	krk_push(a);
 	if (krk_bindMethod(type, methodName)) {
-		krk_swap(1);
-		krk_pop();
-		krk_swap(1);
+		krk_push(b);
 		value = krk_callSimple(krk_peek(1), 1, 1);
-	}
-	if (IS_KWARGS(value)) {
-		return krk_runtimeError(vm.exceptions->typeError, msg, operator, krk_typeName(a), krk_typeName(b));
+		if (!IS_NOTIMPL(value)) goto _success;
+		krk_pop(); /* name */
 	} else {
-		return value;
+		krk_pop(); /* a */
+		krk_pop(); /* name */
 	}
+
+	/* Bind from b */
+	methodName = krk_copyString(inverse, strlen(inverse));
+	krk_push(OBJECT_VAL(methodName));
+	type = krk_getType(b);
+	krk_push(b);
+	if (krk_bindMethod(type, methodName)) {
+		krk_push(a);
+		value = krk_callSimple(krk_peek(1), 1, 1);
+		if (!IS_NOTIMPL(value)) goto _success;
+		krk_pop(); /* name */
+	} else {
+		krk_pop(); /* b */
+		krk_pop(); /* name */
+	}
+
+	return krk_runtimeError(vm.exceptions->typeError, msg, operator, krk_typeName(a), krk_typeName(b));
+
+_success:
+	krk_pop(); /* name */
+	/* Return result */
+	return value;
 }
 
 /**
  * Basic arithmetic and string functions follow.
  */
 
-#define MAKE_BIN_OP(name,operator) \
+#define MAKE_BIN_OP(name,operator,inv) \
 	KrkValue krk_operator_ ## name (KrkValue a, KrkValue b) { \
 		if (IS_INTEGER(a) && IS_INTEGER(b)) return INTEGER_VAL(AS_INTEGER(a) operator AS_INTEGER(b)); \
 		if (IS_FLOATING(a)) { \
@@ -1413,43 +1439,43 @@ static KrkValue tryBind(const char * name, KrkValue a, KrkValue b, const char * 
 		} else if (IS_FLOATING(b)) { \
 			if (IS_INTEGER(a)) return FLOATING_VAL((double)AS_INTEGER(a) operator AS_FLOATING(b)); \
 		} \
-		return tryBind("__" #name "__", a, b, #operator, "unsupported operand types for %s: '%s' and '%s'"); \
+		return tryBind("__" #name "__", a, b, #operator, "unsupported operand types for %s: '%s' and '%s'", "__" #inv "__"); \
 	}
 
-MAKE_BIN_OP(add,+)
-MAKE_BIN_OP(sub,-)
-MAKE_BIN_OP(mul,*)
-MAKE_BIN_OP(div,/)
+MAKE_BIN_OP(add,+,radd)
+MAKE_BIN_OP(sub,-,ssub)
+MAKE_BIN_OP(mul,*,rmul)
+MAKE_BIN_OP(div,/,rdiv)
 
-#define MAKE_UNOPTIMIZED_BIN_OP(name,operator) \
+#define MAKE_UNOPTIMIZED_BIN_OP(name,operator,inv) \
 	KrkValue krk_operator_ ## name (KrkValue a, KrkValue b) { \
-		return tryBind("__" #name "__", a, b, #operator, "unsupported operand types for %s: '%s' and '%s'"); \
+		return tryBind("__" #name "__", a, b, #operator, "unsupported operand types for %s: '%s' and '%s'", "__" #inv "__"); \
 	}
 
-MAKE_UNOPTIMIZED_BIN_OP(pow,**)
+MAKE_UNOPTIMIZED_BIN_OP(pow,**,rpow)
 
 /* Bit ops are invalid on doubles in C, so we can't use the same set of macros for them;
  * they should be invalid in Kuroko as well. */
-#define MAKE_BIT_OP_BOOL(name,operator) \
+#define MAKE_BIT_OP_BOOL(name,operator,inv) \
 	KrkValue krk_operator_ ## name (KrkValue a, KrkValue b) { \
 		if (IS_BOOLEAN(a) && IS_BOOLEAN(b)) return BOOLEAN_VAL(AS_INTEGER(a) operator AS_INTEGER(b)); \
 		if (IS_INTEGER(a) && IS_INTEGER(b)) return INTEGER_VAL(AS_INTEGER(a) operator AS_INTEGER(b)); \
-		return tryBind("__" #name "__", a, b, #operator, "unsupported operand types for %s: '%s' and '%s'"); \
+		return tryBind("__" #name "__", a, b, #operator, "unsupported operand types for %s: '%s' and '%s'", "__" #inv "__"); \
 	}
-#define MAKE_BIT_OP(name,operator) \
+#define MAKE_BIT_OP(name,operator,inv) \
 	KrkValue krk_operator_ ## name (KrkValue a, KrkValue b) { \
 		if (IS_INTEGER(a) && IS_INTEGER(b)) return INTEGER_VAL(AS_INTEGER(a) operator AS_INTEGER(b)); \
-		return tryBind("__" #name "__", a, b, #operator, "unsupported operand types for %s: '%s' and '%s'"); \
+		return tryBind("__" #name "__", a, b, #operator, "unsupported operand types for %s: '%s' and '%s'", "__" #inv "__"); \
 	}
 
-MAKE_BIT_OP_BOOL(or,|)
-MAKE_BIT_OP_BOOL(xor,^)
-MAKE_BIT_OP_BOOL(and,&)
-MAKE_BIT_OP(lshift,<<)
-MAKE_BIT_OP(rshift,>>)
-MAKE_BIT_OP(mod,%) /* not a bit op, but doesn't work on floating point */
+MAKE_BIT_OP_BOOL(or,|,ror)
+MAKE_BIT_OP_BOOL(xor,^,rxor)
+MAKE_BIT_OP_BOOL(and,&,rand)
+MAKE_BIT_OP(lshift,<<,rlshift)
+MAKE_BIT_OP(rshift,>>,rrshift)
+MAKE_BIT_OP(mod,%,rmod) /* not a bit op, but doesn't work on floating point */
 
-#define MAKE_COMPARATOR(name, operator) \
+#define MAKE_COMPARATOR(name, operator,inv) \
 	KrkValue krk_operator_ ## name (KrkValue a, KrkValue b) { \
 		if (IS_INTEGER(a) && IS_INTEGER(b)) return BOOLEAN_VAL(AS_INTEGER(a) operator AS_INTEGER(b)); \
 		if (IS_FLOATING(a)) { \
@@ -1458,11 +1484,13 @@ MAKE_BIT_OP(mod,%) /* not a bit op, but doesn't work on floating point */
 		} else if (IS_FLOATING(b)) { \
 			if (IS_INTEGER(a)) return BOOLEAN_VAL(AS_INTEGER(a) operator AS_INTEGER(b)); \
 		} \
-		return tryBind("__" #name "__", a, b, #operator, "unsupported operand types for %s: '%s' and '%s'"); \
+		return tryBind("__" #name "__", a, b, #operator, "unsupported operand types for %s: '%s' and '%s'", "__" #inv "__"); \
 	}
 
-MAKE_COMPARATOR(lt, <)
-MAKE_COMPARATOR(gt, >)
+MAKE_COMPARATOR(lt, <, gt)
+MAKE_COMPARATOR(gt, >, lt)
+MAKE_COMPARATOR(le, <=, ge)
+MAKE_COMPARATOR(ge, >=, le)
 
 /**
  * At the end of each instruction cycle, we check the exception flag to see
@@ -2128,6 +2156,8 @@ _finishReturn: (void)0;
 			}
 			case OP_LESS: BINARY_OP(lt);
 			case OP_GREATER: BINARY_OP(gt);
+			case OP_LESS_EQUAL: BINARY_OP(le);
+			case OP_GREATER_EQUAL: BINARY_OP(ge);
 			case OP_ADD: BINARY_OP(add);
 			case OP_SUBTRACT: BINARY_OP(sub)
 			case OP_MULTIPLY: BINARY_OP(mul)

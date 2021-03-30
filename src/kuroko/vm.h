@@ -165,6 +165,7 @@ struct BaseClasses {
 	KrkClass * propertyClass;        /**< Magic object that calls a function when accessed from an instance through the dot operator. */
 	KrkClass * codeobjectClass;      /**< Static compiled bytecode container (KrkCodeObject) */
 	KrkClass * generatorClass;       /**< Generator object. */
+	KrkClass * notImplClass;         /**< NotImplementedType */
 };
 
 /**

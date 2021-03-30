@@ -1,0 +1,33 @@
+call lt 43
+True
+call gt 43
+False
+call gt 41
+True
+call lt 41
+False
+call ge 41
+True
+call ge 42
+True
+call le 43
+True
+call le 42
+True
+---
+call lt 43
+True
+call gt 43
+False
+call gt 41
+True
+call lt 41
+False
+call ge 41
+True
+call ge 42
+True
+call le 43
+True
+call le 42
+True

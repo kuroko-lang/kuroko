@@ -527,9 +527,9 @@ static void compareChained(int inner) {
 		case TOKEN_BANG_EQUAL:    emitBytes(OP_EQUAL, OP_NOT); break;
 		case TOKEN_EQUAL_EQUAL:   emitByte(OP_EQUAL); break;
 		case TOKEN_GREATER:       emitByte(OP_GREATER); break;
-		case TOKEN_GREATER_EQUAL: emitBytes(OP_LESS, OP_NOT); break;
+		case TOKEN_GREATER_EQUAL: emitByte(OP_GREATER_EQUAL); break;
 		case TOKEN_LESS:          emitByte(OP_LESS); break;
-		case TOKEN_LESS_EQUAL:    emitBytes(OP_GREATER, OP_NOT); break;
+		case TOKEN_LESS_EQUAL:    emitByte(OP_LESS_EQUAL); break;
 
 		case TOKEN_IS: emitByte(OP_IS); if (invert) emitByte(OP_NOT); break;
 
