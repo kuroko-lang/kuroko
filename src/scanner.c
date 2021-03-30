@@ -248,10 +248,7 @@ static KrkTokenType identifierType() {
 			case 'e': return checkKeyword(2, "turn", TOKEN_RETURN);
 			case 'a': return checkKeyword(2, "ise", TOKEN_RAISE);
 		} break;
-		case 's': if (MORE(1)) switch(scanner.start[1]) {
-			case 'e': return checkKeyword(2, "lf", TOKEN_SELF);
-			case 'u': return checkKeyword(2, "per", TOKEN_SUPER);
-		} break;
+		case 's': return checkKeyword(1, "uper", TOKEN_SUPER);
 		case 't': return checkKeyword(1, "ry", TOKEN_TRY);
 		case 'T': return checkKeyword(1, "rue", TOKEN_TRUE);
 		case 'w': if (MORE(1)) switch(scanner.start[1]) {

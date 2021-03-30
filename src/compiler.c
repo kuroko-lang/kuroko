@@ -1044,19 +1044,26 @@ static void function(FunctionType type, size_t blockWidth) {
 	if (isMethod(type)) current->codeobject->requiredArgs = 1;
 
 	int hasCollectors = 0;
+	KrkToken self = syntheticToken("self");
 
 	consume(TOKEN_LEFT_PAREN, "Expected start of parameter list after function name.");
 	startEatingWhitespace();
 	if (!check(TOKEN_RIGHT_PAREN)) {
 		do {
-			if (match(TOKEN_SELF)) {
-				if (!isMethod(type)) {
-					error("Invalid use of `self` as a function paramenter.");
+			if (isMethod(type) && check(TOKEN_IDENTIFIER) &&
+					identifiersEqual(&parser.current, &self)) {
+				if (hasCollectors || current->codeobject->requiredArgs != 1) {
+					errorAtCurrent("Argument name `self` in a method signature is reserved for the implicit first argument.");
+					break;
 				}
+				advance();
 				if (check(TOKEN_COLON)) {
 					KrkToken name = parser.previous;
 					match(TOKEN_COLON);
 					typeHint(name);
+				}
+				if (check(TOKEN_EQUAL)) {
+					errorAtCurrent("`self` can not be a keyword argument.");
 				}
 				continue;
 			}
@@ -2358,14 +2365,6 @@ static void variable(int canAssign) {
 	namedVariable(parser.previous, canAssign);
 }
 
-static void self(int canAssign) {
-	if (currentClass == NULL) {
-		error("Invalid reference to `self` outside of a class method.");
-		return;
-	}
-	variable(0);
-}
-
 static void super_(int canAssign) {
 	if (currentClass == NULL) {
 		error("Invalid reference to `super` outside of a class.");
@@ -2375,7 +2374,7 @@ static void super_(int canAssign) {
 	consume(TOKEN_DOT, "Expected a field of `super()` to be referenced.");
 	consume(TOKEN_IDENTIFIER, "Expected a field name.");
 	size_t ind = identifierConstant(&parser.previous);
-	namedVariable(syntheticToken("self"), 0);
+	EMIT_CONSTANT_OP(OP_GET_LOCAL, 0);
 	namedVariable(syntheticToken("super"), 0);
 	EMIT_CONSTANT_OP(OP_GET_SUPER, ind);
 }
@@ -2726,7 +2725,6 @@ ParseRule krk_parseRules[] = {
 	RULE(TOKEN_NONE,          literal,  NULL,   PREC_NONE),
 	RULE(TOKEN_OR,            NULL,     or_,    PREC_OR),
 	RULE(TOKEN_RETURN,        NULL,     NULL,   PREC_NONE),
-	RULE(TOKEN_SELF,          self,     NULL,   PREC_NONE),
 	RULE(TOKEN_SUPER,         super_,   NULL,   PREC_NONE),
 	RULE(TOKEN_TRUE,          literal,  NULL,   PREC_NONE),
 	RULE(TOKEN_WHILE,         NULL,     NULL,   PREC_NONE),
