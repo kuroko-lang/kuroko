@@ -43,6 +43,7 @@ typedef enum {
 #define KRK_VAL_MASK_LOW     ((uint64_t)0x0000FFFFFFFFFFFF)
 
 /**
+ * @struct KrkValue
  * @brief Stack reference or primative value.
  *
  * This type stores a stack reference to an object, or the contents of

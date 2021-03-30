@@ -13,6 +13,11 @@
 #include <pthread.h>
 #endif
 
+/**
+ * @brief Union tag for heap objects.
+ *
+ * Allows for quick identification of special types.
+ */
 typedef enum {
 	KRK_OBJ_CODEOBJECT,
 	KRK_OBJ_NATIVE,
@@ -34,10 +39,10 @@ typedef enum {
  * the core structures for garbage collection.
  */
 typedef struct KrkObj {
-	KrkObjType type;
-	uint32_t flags;
-	uint32_t hash;
-	struct KrkObj * next;
+	KrkObjType type;      /**< @brief Tag indicating core type */
+	uint32_t flags;       /**< @brief General object flags, mostly related to garbage collection. */
+	uint32_t hash;        /**< @brief Cached hash value for table keys */
+	struct KrkObj * next; /**< @brief Invasive linked list of all objects in the VM */
 } KrkObj;
 
 #define KRK_OBJ_FLAGS_SECOND_CHANCE 0x0001
@@ -46,12 +51,22 @@ typedef struct KrkObj {
 #define KRK_OBJ_FLAGS_IMMORTAL   0x0040
 #define KRK_OBJ_FLAGS_VALID_HASH 0x0080
 
+/**
+ * @brief String compact storage type.
+ *
+ * Indicates how raw codepoint values are stored in an a string object.
+ * We use the smallest form, of the four options, that can provide
+ * direct lookup by codepoint index for all codepoints. ASCII and
+ * UCS1 are separated because ASCII can re-use the existing UTF8
+ * encoded data instead of allocating a separate buffer for codepoints,
+ * but this is not possible for UCS1.
+ */
 typedef enum {
-	KRK_STRING_ASCII = 0,
-	KRK_STRING_UCS1  = 1,
-	KRK_STRING_UCS2  = 2,
-	KRK_STRING_UCS4  = 4,
-	KRK_STRING_INVALID = 5,
+	KRK_STRING_ASCII = 0,   /**< Codepoints can be extracted directly from UTF8 data. */
+	KRK_STRING_UCS1  = 1,   /**< Codepoints are one byte. */
+	KRK_STRING_UCS2  = 2,   /**< Codepoints are two bytes. */
+	KRK_STRING_UCS4  = 4,   /**< Codepoints are four bytes. */
+	KRK_STRING_INVALID = 5, /**< This is an invalid string. */
 } KrkStringType;
 
 #undef KrkString
@@ -60,12 +75,12 @@ typedef enum {
  * @extends KrkObj
  */
 typedef struct KrkString {
-	KrkObj obj;
-	KrkStringType type;
-	size_t length;
-	size_t codesLength;
-	char * chars;
-	void * codes;
+	KrkObj obj;          /**< @protected @brief Base */
+	KrkStringType type;  /**< @brief String codepoint storage format */
+	size_t length;       /**< @brief String length in bytes */
+	size_t codesLength;  /**< @brief String length in Unicode codepoints */
+	char * chars;        /**< @brief UTF8 canonical data */
+	void * codes;        /**< @brief Codepoint data */
 } KrkString;
 
 /**
@@ -73,9 +88,9 @@ typedef struct KrkString {
  * @extends KrkObj
  */
 typedef struct {
-	KrkObj obj;
-	size_t length;
-	uint8_t * bytes;
+	KrkObj obj;       /**< @protected @brief Base */
+	size_t length;    /**< @brief Length of data in bytes */
+	uint8_t * bytes;  /**< @brief Pointer to separately-stored bytes data */
 } KrkBytes;
 
 /**
@@ -83,11 +98,11 @@ typedef struct {
  * @extends KrkObj
  */
 typedef struct KrkUpvalue {
-	KrkObj obj;
-	int location;
-	KrkValue   closed;
-	struct KrkUpvalue * next;
-	struct KrkThreadState * owner;
+	KrkObj obj;                    /**< @protected @brief Base */
+	int location;                  /**< @brief Stack offset or -1 if closed */
+	KrkValue   closed;             /**< @brief Heap storage for closed value */
+	struct KrkUpvalue * next;      /**< @brief Invasive linked list pointer to next upvalue */
+	struct KrkThreadState * owner; /**< @brief The thread that owns the stack this upvalue belongs in */
 } KrkUpvalue;
 
 /**
@@ -97,10 +112,10 @@ typedef struct KrkUpvalue {
  * locals when they are referenced by instructions.
  */
 typedef struct {
-	size_t id;
-	size_t birthday;
-	size_t deathday;
-	KrkString * name;
+	size_t id;        /**< @brief Local ID as used by opcodes; offset from the frame's stack base */
+	size_t birthday;  /**< @brief Instruction offset that this local name became valid on */
+	size_t deathday;  /**< @brief Instruction offset that this local name becomes invalid on */
+	KrkString * name; /**< @brief Name of the local */
 } KrkLocalEntry;
 
 struct KrkInstance;
@@ -112,21 +127,21 @@ struct KrkInstance;
  * Contains the static data associated with a chunk of bytecode.
  */
 typedef struct {
-	KrkObj obj;
-	short requiredArgs;
-	short keywordArgs;
-	size_t upvalueCount;
-	KrkChunk chunk;
-	KrkString * name;
-	KrkString * docstring;
-	KrkValueArray requiredArgNames;
-	KrkValueArray keywordArgNames;
-	size_t localNameCapacity;
-	size_t localNameCount;
-	KrkLocalEntry * localNames;
-	unsigned int flags;
-	struct KrkInstance * globalsContext;
-	KrkString * qualname;
+	KrkObj obj;                            /**< @protected @brief Base */
+	short requiredArgs;                    /**< @brief Arity of required (non-default) arguments */
+	short keywordArgs;                     /**< @brief Arity of keyword (default) arguments */
+	size_t upvalueCount;                   /**< @brief Number of upvalues this function collects as a closure */
+	KrkChunk chunk;                        /**< @brief Bytecode data */
+	KrkString * name;                      /**< @brief Name of the function */
+	KrkString * docstring;                 /**< @brief Docstring attached to the function */
+	KrkValueArray requiredArgNames;        /**< @brief Array of names for required arguments (and *args) */
+	KrkValueArray keywordArgNames;         /**< @brief Array of names for keyword arguments (and **kwargs) */
+	size_t localNameCapacity;              /**< @brief Capacity of @ref localNames */
+	size_t localNameCount;                 /**< @brief Number of entries in @ref localNames */
+	KrkLocalEntry * localNames;            /**< @brief Stores the names of local variables used in the function, for debugging */
+	unsigned int flags;                    /**< @brief Function type flags */
+	struct KrkInstance * globalsContext;   /**< @brief The globals namespace the function should reference when called */
+	KrkString * qualname;                  /**< @brief The dotted name of the function */
 } KrkCodeObject;
 
 #define KRK_CODEOBJECT_FLAGS_COLLECTS_ARGS 0x0001
@@ -140,13 +155,13 @@ typedef struct {
  * Not to be confused with code objects, a closure is a single instance of a function.
  */
 typedef struct {
-	KrkObj obj;
-	KrkCodeObject * function;
-	KrkUpvalue ** upvalues;
-	size_t upvalueCount;
-	unsigned int flags;
-	KrkValue annotations;
-	KrkTable fields;
+	KrkObj obj;                /**< @protected @brief Base */
+	KrkCodeObject * function;  /**< @brief The codeobject containing the bytecode run when this function is called */
+	KrkUpvalue ** upvalues;    /**< @brief Array of upvalues collected from the surrounding context when the closure was created */
+	size_t upvalueCount;       /**< @brief Number of entries in @ref upvalues */
+	unsigned int flags;        /**< @brief Closure type flags */
+	KrkValue annotations;      /**< @brief Dictionary of type hints */
+	KrkTable fields;           /**< @brief Object attributes table */
 } KrkClosure;
 
 #define KRK_FUNCTION_FLAGS_IS_CLASS_METHOD  0x0001
@@ -162,39 +177,38 @@ typedef void (*KrkCleanupCallback)(struct KrkInstance *);
  * by C extensions to represent method tables for new types.
  */
 typedef struct KrkClass {
-	KrkObj obj;
-	KrkString * name;
-	KrkString * filename;
-	KrkString * docstring;
-	struct KrkClass * base;
-	KrkTable methods;
-	size_t allocSize;
-	KrkCleanupCallback _ongcscan;
-	KrkCleanupCallback _ongcsweep;
+	KrkObj obj;               /**< @protected @brief Base */
+	KrkString * name;         /**< @brief Name of the class */
+	KrkString * filename;     /**< @brief Filename of the original source that defined the codeobject for the class */
+	KrkString * docstring;    /**< @brief Storage for the class's docstring */
+	struct KrkClass * base;   /**< @brief Pointer to base class implementation */
+	KrkTable methods;         /**< @brief General attributes table */
+	size_t allocSize;         /**< @brief Size to allocate when creating instances of this class */
+	KrkCleanupCallback _ongcscan;   /**< @brief C function to call when the garbage collector visits an instance of this class in the scan phase */
+	KrkCleanupCallback _ongcsweep;  /**< @brief C function to call when the garbage collector is discarding an instance of this class */
 
-	/* Quick access for common stuff */
-	KrkObj * _getter;
-	KrkObj * _setter;
-	KrkObj * _getslice;
-	KrkObj * _reprer;
-	KrkObj * _tostr;
-	KrkObj * _call;
-	KrkObj * _init;
-	KrkObj * _eq;
-	KrkObj * _len;
-	KrkObj * _enter;
-	KrkObj * _exit;
-	KrkObj * _delitem;
-	KrkObj * _iter;
-	KrkObj * _getattr;
-	KrkObj * _dir;
-	KrkObj * _setslice;
-	KrkObj * _delslice;
-	KrkObj * _contains;
-	KrkObj * _descget;
-	KrkObj * _descset;
-	KrkObj * _classgetitem;
-	KrkObj * _hash;
+	KrkObj * _getter;         /**< @brief @c %__getitem__  Called when an instance is subscripted */
+	KrkObj * _setter;         /**< @brief @c %__setitem__  Called when a subscripted instance is assigned to */
+	KrkObj * _getslice;       /**< @brief @c %__getslice__ Called when a slice is used with a subscript access */
+	KrkObj * _reprer;         /**< @brief @c %__repr__     Called to create a reproducible string representation of an instance */
+	KrkObj * _tostr;          /**< @brief @c %__str__      Called to produce a string from an instance */
+	KrkObj * _call;           /**< @brief @c %__call__     Called when an instance is called like a function */
+	KrkObj * _init;           /**< @brief @c %__init__     Implicitly called when an instance is created */
+	KrkObj * _eq;             /**< @brief @c %__eq__       Implementation for equality check (==) */
+	KrkObj * _len;            /**< @brief @c %__len__      Generally called by len() but may be used to determine truthiness */
+	KrkObj * _enter;          /**< @brief @c %__enter__    Called upon entry into a `with` block */
+	KrkObj * _exit;           /**< @brief @c %__exit__     Called upon exit from a `with` block */
+	KrkObj * _delitem;        /**< @brief @c %__delitem__  Called when `del` is used with a subscript */
+	KrkObj * _iter;           /**< @brief @c %__iter__     Called by `for ... in ...`, etc. */
+	KrkObj * _getattr;        /**< @brief @c %__getattr__  Overrides normal behavior for attribute access */
+	KrkObj * _dir;            /**< @brief @c %__dir__      Overrides normal behavior for @c dir() */
+	KrkObj * _setslice;       /**< @brief @c %__setslice__ Called when a slice subscript is an assignment target */
+	KrkObj * _delslice;       /**< @brief @c %__delslice__ Called when a slice subscript is a `del` target */
+	KrkObj * _contains;       /**< @brief @c %__contains__ Called to resolve `in` (as a binary operator) */
+	KrkObj * _descget;        /**< @brief @c %__get__      Called when a descriptor object is bound as a property */
+	KrkObj * _descset;        /**< @brief @c %__set__      Called when a descriptor object is assigned to as a property */
+	KrkObj * _classgetitem;   /**< @brief @c %__class_getitem__ Class method called when a type object is subscripted; used for type hints */
+	KrkObj * _hash;           /**< @brief @c %__hash__     Called when an instance is a key in a dict or an entry in a set */
 } KrkClass;
 
 /**
@@ -206,9 +220,9 @@ typedef struct KrkClass {
  * objects, and all instances have well-defined class.
  */
 typedef struct KrkInstance {
-	KrkObj obj;
-	KrkClass * _class;
-	KrkTable fields;
+	KrkObj obj;         /**< @protected @brief Base */
+	KrkClass * _class;  /**< @brief Type */
+	KrkTable fields;    /**< @brief Attributes table */
 } KrkInstance;
 
 /**
@@ -220,9 +234,9 @@ typedef struct KrkInstance {
  * from the class of a value.
  */
 typedef struct {
-	KrkObj obj;
-	KrkValue receiver;
-	KrkObj * method;
+	KrkObj obj;         /**< @protected @brief Base */
+	KrkValue receiver;  /**< @brief Object to pass as implicit first argument */
+	KrkObj * method;    /**< @brief Function to call */
 } KrkBoundMethod;
 
 typedef KrkValue (*NativeFn)(int argCount, KrkValue* args, int hasKwargs);
@@ -234,11 +248,11 @@ typedef KrkValue (*NativeFn)(int argCount, KrkValue* args, int hasKwargs);
  * Represents a C function that has been exposed to managed code.
  */
 typedef struct {
-	KrkObj obj;
-	NativeFn function;
-	const char * name;
-	const char * doc;
-	unsigned int flags;
+	KrkObj obj;           /**< @protected @brief Base */
+	NativeFn function;    /**< @brief C function pointer */
+	const char * name;    /**< @brief Name to use when repring */
+	const char * doc;     /**< @brief Docstring to supply from @c %__doc__ */
+	unsigned int flags;   /**< @brief Binding flags */
 } KrkNative;
 
 #define KRK_NATIVE_FLAGS_IS_DYNAMIC_PROPERTY 0x0001
@@ -253,8 +267,8 @@ typedef struct {
  * for use in situations where the flexibility of a list is not needed.
  */
 typedef struct {
-	KrkObj obj;
-	KrkValueArray values;
+	KrkObj obj;            /**< @protected @brief Base */
+	KrkValueArray values;  /**< @brief Stores the length, capacity, and actual values of the tuple */
 } KrkTuple;
 
 /**
@@ -265,8 +279,8 @@ typedef struct {
  * sorted, rearranged, iterated over, etc.
  */
 typedef struct {
-	KrkInstance inst;
-	KrkValueArray values;
+	KrkInstance inst;     /**< @protected @brief Base */
+	KrkValueArray values; /**< @brief Stores the length, capacity, and actual values of the list */
 #ifdef ENABLE_THREADING
 	pthread_rwlock_t rwlock;
 #endif
@@ -279,8 +293,8 @@ typedef struct {
  * Provides key-to-value mappings as a first-class object type.
  */
 typedef struct {
-	KrkInstance inst;
-	KrkTable entries;
+	KrkInstance inst;  /**< @protected @brief Base */
+	KrkTable entries;  /**< @brief The actual table of values in the dict */
 } KrkDict;
 
 /**
