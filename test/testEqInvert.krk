@@ -1,0 +1,9 @@
+class Foo():
+    def __init__(self, tag):
+        self.tag = tag
+    def __eq__(self, other):
+        print(self.tag,'==',other.tag)
+        return NotImplemented
+
+print(Foo('a') == Foo('b'))
+print(Foo('a') != Foo('b'))

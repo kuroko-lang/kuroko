@@ -1025,6 +1025,7 @@ int krk_isFalsey(KrkValue value) {
 		case KRK_VAL_NONE: return 1;
 		case KRK_VAL_BOOLEAN: return !AS_BOOLEAN(value);
 		case KRK_VAL_INTEGER: return !AS_INTEGER(value);
+		case KRK_VAL_NOTIMPL: return 1;
 		case KRK_VAL_OBJECT: {
 			switch (AS_OBJECT(value)->type) {
 				case KRK_OBJ_STRING: return !AS_STRING(value)->codesLength;

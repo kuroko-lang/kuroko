@@ -201,7 +201,18 @@ int krk_valuesEqual(KrkValue a, KrkValue b) {
 		krk_push(b);
 		KrkValue result = krk_callSimple(OBJECT_VAL(type->_eq),2,0);
 		if (IS_BOOLEAN(result)) return AS_BOOLEAN(result);
-		return 0;
+		if (IS_NOTIMPL(result)) goto _next;
+		return !krk_isFalsey(result);
+	}
+
+_next:
+	type = krk_getType(b);
+	if (type && type->_eq) {
+		krk_push(b);
+		krk_push(a);
+		KrkValue result = krk_callSimple(OBJECT_VAL(type->_eq),2,0);
+		if (IS_BOOLEAN(result)) return AS_BOOLEAN(result);
+		return !krk_isFalsey(result);
 	}
 
 	return 0;
