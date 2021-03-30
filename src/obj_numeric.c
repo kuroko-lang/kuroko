@@ -44,6 +44,17 @@ KRK_METHOD(int,__chr__,{
 	return OBJECT_VAL(krk_copyString((char*)bytes, len));
 })
 
+KRK_METHOD(int,__eq__,{
+	METHOD_TAKES_EXACTLY(1);
+	if (IS_INTEGER(argv[1])) return self == AS_INTEGER(argv[1]);
+	else if (IS_FLOATING(argv[1])) return self == AS_FLOATING(argv[1]);
+	return NOTIMPL_VAL();
+})
+
+KRK_METHOD(int,__hash__,{
+	return argv[0];
+})
+
 #undef CURRENT_CTYPE
 #define CURRENT_CTYPE double
 
@@ -75,6 +86,17 @@ KRK_METHOD(float,__str__,{
 		l = snprintf(tmp,100,"%.16g.0",self);
 	}
 	return OBJECT_VAL(krk_copyString(tmp, l));
+})
+
+KRK_METHOD(float,__eq__,{
+	METHOD_TAKES_EXACTLY(1);
+	if (IS_INTEGER(argv[1])) return self == (double)AS_INTEGER(argv[1]);
+	else if (IS_FLOATING(argv[1])) return self == AS_FLOATING(argv[1]);
+	return NOTIMPL_VAL();
+})
+
+KRK_METHOD(float,__hash__,{
+	return INTEGER_VAL((uint32_t)self);
 })
 
 #undef CURRENT_CTYPE
@@ -110,6 +132,8 @@ void _createAndBind_numericClasses(void) {
 	BIND_METHOD(int,__int__);
 	BIND_METHOD(int,__chr__);
 	BIND_METHOD(int,__float__);
+	BIND_METHOD(int,__eq__);
+	BIND_METHOD(int,__hash__);
 	krk_defineNative(&_int->methods, "__repr__", FUNC_NAME(int,__str__));
 	krk_finalizeClass(_int);
 	KRK_DOC(_int, "Convert a number or string type to an integer representation.");
@@ -119,6 +143,8 @@ void _createAndBind_numericClasses(void) {
 	BIND_METHOD(float,__int__);
 	BIND_METHOD(float,__float__);
 	BIND_METHOD(float,__str__);
+	BIND_METHOD(float,__eq__);
+	BIND_METHOD(float,__hash__);
 	krk_defineNative(&_float->methods, "__repr__", FUNC_NAME(float,__str__));
 	krk_finalizeClass(_float);
 	KRK_DOC(_float, "Convert a number or string type to a float representation.");

@@ -160,40 +160,7 @@ int krk_valuesEqual(KrkValue a, KrkValue b) {
 		}
 	}
 	if (IS_FLOATING(a) && IS_FLOATING(b)) return AS_FLOATING(a) == AS_FLOATING(b);
-
 	if (IS_KWARGS(a) || IS_KWARGS(b)) return 0;
-
-	if (!IS_OBJECT(a) && !IS_OBJECT(b)) {
-		switch (KRK_VAL_TYPE(a)) {
-			case KRK_VAL_INTEGER: {
-				if (IS_BOOLEAN(b))       return AS_INTEGER(a) == AS_BOOLEAN(b);
-				else if (IS_FLOATING(b)) return (double)AS_INTEGER(a) == AS_FLOATING(b);
-				return 0;
-			} break;
-			case KRK_VAL_BOOLEAN: {
-				if (IS_INTEGER(b))       return AS_INTEGER(a) == AS_BOOLEAN(b);
-				else if (IS_FLOATING(b)) return (double)AS_INTEGER(a) == AS_FLOATING(b);
-				return 0;
-			} break;
-			default:
-				if (IS_FLOATING(a)) {
-					if (IS_BOOLEAN(b)) return AS_FLOATING(a) == (double)AS_BOOLEAN(b);
-					else if (IS_INTEGER(b)) return AS_FLOATING(a) == (double)AS_INTEGER(b);
-					return 0;
-				}
-				break;
-		}
-	}
-
-	if (IS_TUPLE(a) && IS_TUPLE(b)) {
-		KrkTuple * self = AS_TUPLE(a);
-		KrkTuple * them = AS_TUPLE(b);
-		if (self->values.count != them->values.count || self->obj.hash != them->obj.hash) return 0;
-		for (size_t i = 0; i < self->values.count; ++i) {
-			if (!krk_valuesEqual(self->values.values[i], them->values.values[i])) return 0;
-		}
-		return 1;
-	}
 
 	KrkClass * type = krk_getType(a);
 	if (type && type->_eq) {
