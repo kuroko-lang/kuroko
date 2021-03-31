@@ -753,7 +753,7 @@ _finishKwarg:
 		krk_push(KWARGS_VAL(0));
 		argCount++;
 	}
-	if (unlikely(closure->function->flags & KRK_CODEOBJECT_FLAGS_IS_GENERATOR)) {
+	if (unlikely(closure->function->flags & (KRK_CODEOBJECT_FLAGS_IS_GENERATOR | KRK_CODEOBJECT_FLAGS_IS_COROUTINE))) {
 		KrkInstance * gen = krk_buildGenerator(closure, krk_currentThread.stackTop - argCount, argCount);
 		krk_currentThread.stackTop = krk_currentThread.stackTop - argCount - extra;
 		krk_push(OBJECT_VAL(gen));
@@ -2133,7 +2133,7 @@ _finishReturn: (void)0;
 				}
 				krk_currentThread.stackTop = &krk_currentThread.stack[frame->outSlots];
 				if (krk_currentThread.frameCount == (size_t)krk_currentThread.exitOnFrame) {
-					if (frame->closure->function->flags & KRK_CODEOBJECT_FLAGS_IS_GENERATOR) {
+					if (frame->closure->function->flags & (KRK_CODEOBJECT_FLAGS_IS_GENERATOR | KRK_CODEOBJECT_FLAGS_IS_COROUTINE)) {
 						krk_push(result);
 						return KWARGS_VAL(0);
 					}
@@ -2283,6 +2283,10 @@ _finishReturn: (void)0;
 				} else {
 					krk_runtimeError(vm.exceptions->attributeError, "'%s' object can not be tested for membership", krk_typeName(krk_peek(0)));
 				}
+				break;
+			}
+			case OP_INVOKE_AWAIT: {
+				if (!krk_getAwaitable()) goto _finishException;
 				break;
 			}
 			case OP_FINALIZE: {

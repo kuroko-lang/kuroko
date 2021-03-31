@@ -1,0 +1,66 @@
+
+if not hasattr(__builtins__,'StopIteration'):
+    class StopIteration(Exception):
+        pass
+    __builtins__.StopIteration = StopIteration
+
+class Awaiter:
+    def __await__(self):
+        print("    __await__ called")
+        yield "    Awaiter(): awaitable returns an iterator"
+
+def decorate(func):
+    print("Decorating", func.__qualname__)
+    return func
+
+class Baz:
+    def __init__(self, fromVal):
+        self.identifier = fromVal
+    async def asyncMethod(self):
+        print("   async method on", self.identifier)
+        return 'a value'
+    @decorate
+    async def decoratedAsyncMethod(self):
+        print("   decorated async method on", self.identifier)
+        return 3.141519
+
+async def foo(i):
+    print('    foo(): hi')
+    print('      Awaiting result 1:', await i())
+    print('      Awaiting result 2:', await Awaiter())
+    print('      Awaiting result 3:', await i())
+    print('      Awaiting result 4:', await Baz('<baz>').asyncMethod())
+    print('      Awaiting result 5:', await decoratedAsync())
+    print('      Awaiting result 6:', await Baz('<foo>').decoratedAsyncMethod())
+    print('    foo(): bye')
+    return "done"
+
+async def bar():
+    print("    bar(): hello, there, I'm an async function")
+    return 42
+
+@decorate
+async def decoratedAsync():
+    print("     I am a decorated async function")
+    return 'decorated result'
+
+def run(coro, scheduled=None, next=None, result=None):
+    # Okay, let's see.
+    scheduled = [coro]
+    print("Starting run loop.")
+    while scheduled:
+        print("  Popping from scheduled list.")
+        next = scheduled.pop(0) # Yes, that's slow, I know.
+        try:
+            print("  Calling",type(next))
+            result = next.send(None)
+            if result == next:
+                raise StopIteration(result.__finish__())
+            scheduled.append(next)
+            print("  Returned with",result)
+        except StopIteration as e:
+            # Stop iteration value should be return value from foo()
+            print('Exception:', type(e), e)
+    print('Done with run loop.')
+
+run(foo(bar))

@@ -106,6 +106,8 @@ typedef enum {
 	TYPE_PROPERTY,
 	TYPE_CLASS,
 	TYPE_CLASSMETHOD,
+	TYPE_COROUTINE,
+	TYPE_COROUTINE_METHOD,
 } FunctionType;
 
 struct IndexWithNext {
@@ -161,7 +163,11 @@ static int inDel = 0;
 	else { emitBytes(opc ## _LONG, arg >> 16); emitBytes(arg >> 8, arg); } } while (0)
 
 static int isMethod(int type) {
-	return type == TYPE_METHOD || type == TYPE_INIT || type == TYPE_PROPERTY;
+	return type == TYPE_METHOD || type == TYPE_INIT || type == TYPE_PROPERTY || type == TYPE_COROUTINE_METHOD;
+}
+
+static int isCoroutine(int type) {
+	return type == TYPE_COROUTINE || type == TYPE_COROUTINE_METHOD;
 }
 
 static char * calculateQualName(void) {
@@ -248,6 +254,7 @@ static ssize_t identifierConstant(KrkToken * name);
 static ssize_t resolveLocal(Compiler * compiler, KrkToken * name);
 static ParseRule * getRule(KrkTokenType type);
 static void defDeclaration();
+static void asyncDeclaration(int);
 static void expression();
 static void statement();
 static void declaration();
@@ -904,6 +911,7 @@ static void synchronize() {
 			case TOKEN_IF:
 			case TOKEN_WHILE:
 			case TOKEN_RETURN:
+			case TOKEN_ASYNC:
 				return;
 			default: break;
 		}
@@ -925,6 +933,8 @@ static void declaration() {
 		defineVariable(classConst);
 	} else if (check(TOKEN_AT)) {
 		decorator(0, TYPE_FUNCTION);
+	} else if (check(TOKEN_ASYNC)) {
+		asyncDeclaration(1);
 	} else if (match(TOKEN_EOL) || match(TOKEN_EOF)) {
 		return;
 	} else if (check(TOKEN_INDENTATION)) {
@@ -1047,6 +1057,7 @@ static void function(FunctionType type, size_t blockWidth) {
 	beginScope();
 
 	if (isMethod(type)) current->codeobject->requiredArgs = 1;
+	if (isCoroutine(type)) current->codeobject->flags |= KRK_CODEOBJECT_FLAGS_IS_COROUTINE;
 
 	int hasCollectors = 0;
 	KrkToken self = syntheticToken("self");
@@ -1225,14 +1236,27 @@ static void method(size_t blockWidth) {
 		/* bah */
 		consume(TOKEN_EOL, "Expected linefeed after 'pass' in class body.");
 	} else {
+		FunctionType type = TYPE_METHOD;
+		if (match(TOKEN_ASYNC)) {
+			type = TYPE_COROUTINE_METHOD;
+		}
 		consume(TOKEN_DEF, "expected a definition, got nothing");
 		consume(TOKEN_IDENTIFIER, "expected method name");
 		size_t ind = identifierConstant(&parser.previous);
-		FunctionType type = TYPE_METHOD;
 
 		if (parser.previous.length == 8 && memcmp(parser.previous.start, "__init__", 8) == 0) {
+			if (type == TYPE_COROUTINE_METHOD) {
+				error("'%.*s' can not be a coroutine",
+					(int)parser.previous.length, parser.previous.start);
+				return;
+			}
 			type = TYPE_INIT;
 		} else if (parser.previous.length == 17 && memcmp(parser.previous.start, "__class_getitem__", 17) == 0) {
+			if (type == TYPE_COROUTINE_METHOD) {
+				error("'%.*s' can not be a coroutine",
+					(int)parser.previous.length, parser.previous.start);
+				return;
+			}
 			/* This magic method is implicitly always a class method,
 			 * so mark it as such so we don't do implicit self for it. */
 			type = TYPE_CLASSMETHOD;
@@ -1370,7 +1394,42 @@ static void defDeclaration() {
 	defineVariable(global);
 }
 
+static void asyncDeclaration(int declarationLevel) {
+	size_t blockWidth = (parser.previous.type == TOKEN_INDENTATION) ? parser.previous.length : 0;
+	advance(); /* 'async' */
+
+	if (match(TOKEN_DEF)) {
+		if (!declarationLevel) {
+			error("'async def' not valid here");
+			return;
+		}
+		ssize_t global = parseVariable("Expected coroutine name after 'async def'");
+		markInitialized();
+		function(TYPE_COROUTINE, blockWidth);
+		defineVariable(global);
+	} else if (match(TOKEN_FOR)) {
+		if (!isCoroutine(current->type)) {
+			error("'async for' outside of async function");
+			return;
+		}
+		error("'async for' unsupported");
+		return;
+	} else if (match(TOKEN_WITH)) {
+		if (!isCoroutine(current->type)) {
+			error("'async with' outside of async function");
+			return;
+		}
+		error("'async with' unsupported");
+		return;
+	} else {
+		errorAtCurrent("'%.*s' can not be prefixed with 'async'",
+			(int)parser.current.length, parser.current.start);
+		return;
+	}
+}
+
 static KrkToken decorator(size_t level, FunctionType type) {
+	int inType = type;
 	size_t blockWidth = (parser.previous.type == TOKEN_INDENTATION) ? parser.previous.length : 0;
 	advance(); /* Collect the `@` */
 
@@ -1379,8 +1438,10 @@ static KrkToken decorator(size_t level, FunctionType type) {
 	KrkToken at_staticmethod = syntheticToken("staticmethod");
 	KrkToken at_classmethod  = syntheticToken("classmethod");
 
-	if (identifiersEqual(&at_staticmethod, &parser.current)) type = TYPE_STATIC;
-	if (identifiersEqual(&at_classmethod, &parser.current)) type = TYPE_CLASSMETHOD;
+	if (type == TYPE_METHOD) {
+		if (identifiersEqual(&at_staticmethod, &parser.current)) type = TYPE_STATIC;
+		if (identifiersEqual(&at_classmethod, &parser.current)) type = TYPE_CLASSMETHOD;
+	}
 
 	expression();
 
@@ -1399,6 +1460,14 @@ static KrkToken decorator(size_t level, FunctionType type) {
 			type = TYPE_INIT;
 		}
 		function(type, blockWidth);
+	} else if (match(TOKEN_ASYNC)) {
+		if (!match(TOKEN_DEF)) {
+			errorAtCurrent("Expected 'def' after 'async' with decorator, not '%*.s'",
+				(int)parser.current.length, parser.current.start);
+		}
+		consume(TOKEN_IDENTIFIER, "Expected coroutine name.");
+		funcName = parser.previous;
+		function(type == TYPE_METHOD ? TYPE_COROUTINE_METHOD : TYPE_COROUTINE, blockWidth);
 	} else if (check(TOKEN_AT)) {
 		funcName = decorator(level+1, type);
 	} else if (check(TOKEN_CLASS)) {
@@ -1415,7 +1484,7 @@ static KrkToken decorator(size_t level, FunctionType type) {
 	emitBytes(OP_CALL, 1);
 
 	if (level == 0) {
-		if (type == TYPE_FUNCTION) {
+		if (inType == TYPE_FUNCTION) {
 			parser.previous = funcName;
 			declareVariable();
 			size_t ind = (current->scopeDepth > 0) ? 0 : identifierConstant(&funcName);
@@ -1977,6 +2046,8 @@ static void statement() {
 		whileStatement();
 	} else if (check(TOKEN_FOR)) {
 		forStatement();
+	} else if (check(TOKEN_ASYNC)) {
+		asyncDeclaration(0);
 	} else if (check(TOKEN_TRY)) {
 		tryStatement();
 	} else if (check(TOKEN_WITH)) {
@@ -2046,6 +2117,22 @@ static void yield(int canAssign) {
 		parsePrecedence(PREC_ASSIGNMENT);
 		emitByte(OP_YIELD);
 	}
+}
+
+static void await(int canAssign) {
+	if (!isCoroutine(current->type)) {
+		error("'await' outside async function");
+		return;
+	}
+
+	parsePrecedence(PREC_ASSIGNMENT);
+	emitByte(OP_INVOKE_AWAIT);
+	emitByte(OP_NONE);
+	size_t loopContinue = currentChunk()->count;
+	size_t exitJump = emitJump(OP_YIELD_FROM);
+	emitByte(OP_YIELD);
+	emitLoop(loopContinue);
+	patchJump(exitJump);
 }
 
 static void unot_(int canAssign) {
@@ -2741,6 +2828,8 @@ ParseRule krk_parseRules[] = {
 	RULE(TOKEN_IMPORT,        NULL,     NULL,   PREC_NONE),
 	RULE(TOKEN_RAISE,         NULL,     NULL,   PREC_NONE),
 	RULE(TOKEN_YIELD,         yield,    NULL,   PREC_NONE),
+	RULE(TOKEN_AWAIT,         await,    NULL,   PREC_NONE),
+	RULE(TOKEN_ASYNC,         NULL,     NULL,   PREC_NONE),
 
 	RULE(TOKEN_AT,            NULL,     NULL,   PREC_NONE),
 

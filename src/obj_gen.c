@@ -27,6 +27,7 @@ struct generator {
 	int running;
 	int started;
 	KrkValue result;
+	int type;
 };
 
 #define AS_generator(o) ((struct generator *)AS_OBJECT(o))
@@ -75,15 +76,25 @@ KrkInstance * krk_buildGenerator(KrkClosure * closure, KrkValue * argsIn, size_t
 	self->closure = closure;
 	self->ip = self->closure->function->chunk.code;
 	self->result = NONE_VAL();
+	self->type = closure->function->flags & (KRK_CODEOBJECT_FLAGS_IS_GENERATOR | KRK_CODEOBJECT_FLAGS_IS_COROUTINE);
 	return (KrkInstance *)self;
 }
 
 KRK_METHOD(generator,__repr__,{
 	METHOD_TAKES_NONE();
 
-	size_t estimatedLength = sizeof("<generator object  at 0x1234567812345678>") + 1 + self->closure->function->name->length;
+	char * typeStr = "generator";
+	if (self->type == KRK_CODEOBJECT_FLAGS_IS_COROUTINE) {
+		/* Regular coroutine */
+		typeStr = "coroutine";
+	} else if (self->type == (KRK_CODEOBJECT_FLAGS_IS_COROUTINE | KRK_CODEOBJECT_FLAGS_IS_GENERATOR)) {
+		typeStr = "async_generator";
+	}
+
+	size_t estimatedLength = sizeof("< object at 0x1234567812345678>") + strlen(typeStr) + 1 + self->closure->function->name->length;
 	char * tmp = malloc(estimatedLength);
-	size_t lenActual = snprintf(tmp, estimatedLength, "<generator object %s at %p>",
+	size_t lenActual = snprintf(tmp, estimatedLength, "<%s object %s at %p>",
+		typeStr,
 		self->closure->function->name->chars,
 		(void*)self);
 
@@ -182,6 +193,32 @@ KRK_METHOD(generator,gi_running,{
 	METHOD_TAKES_NONE();
 	return BOOLEAN_VAL(self->running);
 })
+
+int krk_getAwaitable(void) {
+	if (IS_generator(krk_peek(0)) && AS_generator(krk_peek(0))->type == KRK_CODEOBJECT_FLAGS_IS_COROUTINE) {
+		/* Good to go */
+		return 1;
+	}
+
+	/* Need to try for __await__ */
+	KrkValue method = krk_valueGetAttribute_default(krk_peek(0), "__await__", NONE_VAL());
+	if (!IS_NONE(method)) {
+		krk_push(method);
+		krk_swap(1);
+		krk_pop();
+		krk_push(krk_callSimple(krk_peek(0),0,0));
+		KrkClass * _type = krk_getType(krk_peek(0));
+		if (!_type || !_type->_iter) {
+			krk_runtimeError(vm.exceptions->attributeError, "__await__ returned non-iterator of type '%s'", krk_typeName(krk_peek(0)));
+			return 0;
+		}
+	} else {
+		krk_runtimeError(vm.exceptions->attributeError, "'%s' object is not awaitable", krk_typeName(krk_peek(0)));
+		return 0;
+	}
+
+	return 1;
+}
 
 _noexport
 void _createAndBind_generatorClass(void) {

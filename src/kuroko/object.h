@@ -147,6 +147,7 @@ typedef struct {
 #define KRK_CODEOBJECT_FLAGS_COLLECTS_ARGS 0x0001
 #define KRK_CODEOBJECT_FLAGS_COLLECTS_KWS  0x0002
 #define KRK_CODEOBJECT_FLAGS_IS_GENERATOR  0x0004
+#define KRK_CODEOBJECT_FLAGS_IS_COROUTINE  0x0008
 
 /**
  * @brief Function object.
@@ -409,6 +410,11 @@ extern size_t krk_codepointToBytes(krk_integer_type value, unsigned char * out);
  * @return A new generator object.
  */
 extern KrkInstance * krk_buildGenerator(KrkClosure * function, KrkValue * arguments, size_t argCount);
+
+/**
+ * @brief Calls __await__
+ */
+extern int krk_getAwaitable(void);
 
 /**
  * @brief Special value for type hint expressions.
