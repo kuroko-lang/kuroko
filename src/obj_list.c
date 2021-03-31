@@ -493,17 +493,57 @@ void _createAndBind_listClass(void) {
 	BIND_METHOD(list,__iter__);
 	BIND_METHOD(list,__mul__);
 	BIND_METHOD(list,__add__);
-	BIND_METHOD(list,append);
-	BIND_METHOD(list,extend);
-	BIND_METHOD(list,pop);
-	BIND_METHOD(list,insert);
-	BIND_METHOD(list,clear);
-	BIND_METHOD(list,index);
-	BIND_METHOD(list,count);
-	BIND_METHOD(list,copy);
-	BIND_METHOD(list,remove);
-	BIND_METHOD(list,reverse);
-	BIND_METHOD(list,sort);
+	KRK_DOC(BIND_METHOD(list,append),
+		"@brief Add an item to the end of the list.\n"
+		"@arguments item\n\n"
+		"Adds an item to the end of a list. Appending items to a list is an amortized constant-time "
+		"operation, but may result in the reallocation of the list if not enough additional space is "
+		"available to store to the new element in the current allocation.");
+	KRK_DOC(BIND_METHOD(list,extend),
+		"@brief Add the contents of an iterable to the end of a list.\n"
+		"@argument iterable\n\n"
+		"Adds all of the elements of @p iterable to the end of the list, as if each were added individually "
+		"with @ref _list_append.");
+	KRK_DOC(BIND_METHOD(list,pop),
+		"@brief Remove and return an element from the list.\n"
+		"@arguments [index]\n\n"
+		"Removes and returns the entry at the end of the list, or at @p index if provided. "
+		"Popping from the end of the list is constant-time. Popping from the head of the list "
+		"is always O(n) as the contents of the list must be shifted.");
+	KRK_DOC(BIND_METHOD(list,insert),
+		"@brief Add an entry to the list at a given offset.\n"
+		"@arguments index, val\n\n"
+		"Adds @p val to the list at offset @p index, moving all following items back. Inserting "
+		"near the beginning of a list can be costly.");
+	KRK_DOC(BIND_METHOD(list,clear),
+		"@brief Empty a list.\n\n"
+		"Removes all entries from the list.");
+	KRK_DOC(BIND_METHOD(list,index),
+		"@brief Locate an item in the list by value.\n"
+		"@arguments val,[min,[max]]\n\n"
+		"Searches for @p val in the list and returns its index if found. If @p min is provided, "
+		"the search will begin at index @p min. If @p max is also provided, the search will end "
+		"at index @p max.\n"
+		"Raises @ref ValueError if the item is not found.");
+	KRK_DOC(BIND_METHOD(list,count),
+		"@brief Count instances of a value in the list.\n"
+		"@arguments val\n\n"
+		"Scans the list for values equal to @p val and returns the count of matching entries.");
+	KRK_DOC(BIND_METHOD(list,copy),
+		"@brief Clone a list.\n\n"
+		"Equivalent to @c list[:], creates a new list with the same items as this list.");
+	KRK_DOC(BIND_METHOD(list,remove),
+		"@brief Remove an item from the list.\n"
+		"@arguments val\n\n"
+		"Scans the list for an entry equivalent to @p val and removes it from the list.\n"
+		"Raises @ref ValueError if no matching entry is found.");
+	KRK_DOC(BIND_METHOD(list,reverse),
+		"@brief Reverse the contents of a list.\n\n"
+		"Reverses the elements of the list in-place.");
+	KRK_DOC(BIND_METHOD(list,sort),
+		"@brief Sort the contents of a list.\n\n"
+		"Performs an in-place sort of the elements in the list, returning @c None as a gentle reminder "
+		"that the sort is in-place. If a sorted copy is desired, use @ref sorted instead.");
 	krk_defineNative(&list->methods, "__delitem__", FUNC_NAME(list,pop));
 	krk_defineNative(&list->methods, "__str__", FUNC_NAME(list,__repr__));
 	krk_defineNative(&list->methods, "__class_getitem__", KrkGenericAlias);
@@ -511,9 +551,18 @@ void _createAndBind_listClass(void) {
 	krk_finalizeClass(list);
 	KRK_DOC(list, "Mutable sequence of arbitrary values.");
 
-	BUILTIN_FUNCTION("listOf", krk_list_of, "Convert argument sequence to list object.");
-	BUILTIN_FUNCTION("sorted", _sorted, "Return a sorted representation of an iterable.");
-	BUILTIN_FUNCTION("reversed", _reversed, "Return a reversed representation of an iterable.");
+	BUILTIN_FUNCTION("listOf", krk_list_of,
+		"@brief Convert argument sequence to list object.\n"
+		"@arguments *args\n\n"
+		"Creates a list from the provided @p args.");
+	BUILTIN_FUNCTION("sorted", _sorted,
+		"@brief Return a sorted representation of an iterable.\n"
+		"@arguments iterable\n\n"
+		"Creates a new, sorted list from the elements of @p iterable.");
+	BUILTIN_FUNCTION("reversed", _reversed,
+		"@brief Return a reversed representation of an iterable.\n"
+		"@arguments iterable\n\n"
+		"Creates a new, reversed list from the elements of @p iterable.");
 
 	KrkClass * listiterator = ADD_BASE_CLASS(vm.baseClasses->listiteratorClass, "listiterator", vm.baseClasses->objectClass);
 	BIND_METHOD(listiterator,__init__);

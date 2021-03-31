@@ -222,10 +222,13 @@ deb: kuroko libkuroko.so
 	rm -r $(DESTDIR)
 
 .PHONY: docs
-
 docs: kuroko
 	./kuroko tools/gendoc.krk
 	doxygen docs/Doxyfile
+
+.PHONY: deploy-docs
+deploy-docs: docs
+	cp -r docs/html/* ../kuroko-lang.github.io/docs/
 
 .PHONY: cloc
 cloc:

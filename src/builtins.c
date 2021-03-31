@@ -934,7 +934,7 @@ void _createAndBind_builtins(void) {
 		"@brief Internal module containing built-in functions and classes.\n\n"
 		"Classes and functions from the @c \\__builtins__ module are generally available from "
 		"all global namespaces. Built-in names can still be shadowed by module-level globals "
-		"and function-level locals, so none the names in this module are not reserved. When "
+		"and function-level locals, so none the names in this module are reserved. When "
 		"a built-in name has been shadowed, the original can be referenced directly as "
 		" @c \\__builtins__.name instead.\n\n"
 		"Built-in names may be bound from several sources. Most come from the core interpreter "
@@ -1037,21 +1037,48 @@ void _createAndBind_builtins(void) {
 		"Produces a dict mapping the names of the requested locals scope to their current stack values. "
 		"If @p callDepth is provided, the locals of an outer call frame will be returned. If the requested "
 		"call depth is out of range, an exception will be raised.");
-	BUILTIN_FUNCTION("dir", FUNC_NAME(krk,dir), "Return a list of known property names for a given object.");
-	BUILTIN_FUNCTION("len", FUNC_NAME(krk,len), "Return the length of a given sequence object.");
-	BUILTIN_FUNCTION("repr", FUNC_NAME(krk,repr), "Produce a string representation of the given object.");
+	BUILTIN_FUNCTION("dir", FUNC_NAME(krk,dir),
+		"@brief Return a list of known property names for a given object.\n"
+		"@arguments obj\n\n"
+		"Uses various internal methods to collect a list of property names of @p obj, returning "
+		"that list sorted lexicographically.");
+	BUILTIN_FUNCTION("len", FUNC_NAME(krk,len),
+		"@brief Return the length of a given sequence object.\n"
+		"@arguments seq\n\n"
+		"Returns the length of the sequence object @p seq, which must implement @c __len__.");
+	BUILTIN_FUNCTION("repr", FUNC_NAME(krk,repr),
+		"@brief Produce a string representation of the given object.\n"
+		"@arguments val\n\n"
+		"Return a string representation of the given object through its @c __repr__ method. "
+		"@c repr strings should convey all information needed to recreate the object, if this is possible.");
 	BUILTIN_FUNCTION("print", FUNC_NAME(krk,print),
 		"@brief Print text to the standard output.\n"
 		"@arguments *args,sep=' ',end='\\n'\n\n"
 		"Prints the string representation of each argument to the standard output. "
 		"The keyword argument @p sep specifies the string to print between values. "
 		"The keyword argument @p end specifies the string to print after all of the values have been printed.");
-	BUILTIN_FUNCTION("ord", FUNC_NAME(krk,ord), "Obtain the ordinal integer value of a codepoint or byte.");
-	BUILTIN_FUNCTION("chr", FUNC_NAME(krk,chr), "Convert an integer codepoint to its string representation.");
-	BUILTIN_FUNCTION("hex", FUNC_NAME(krk,hex), "Convert an integer value to a hexadecimal string.");
-	BUILTIN_FUNCTION("oct", FUNC_NAME(krk,oct), "Convert an integer value to an octal string.");
-	BUILTIN_FUNCTION("any", FUNC_NAME(krk,any), "Returns True if at least one element in the given iterable is truthy, False otherwise.");
-	BUILTIN_FUNCTION("all", FUNC_NAME(krk,all), "Returns True if every element in the given iterable is truthy, False otherwise.");
+	BUILTIN_FUNCTION("ord", FUNC_NAME(krk,ord),
+		"@brief Obtain the ordinal integer value of a codepoint or byte.\n"
+		"@arguments char\n\n"
+		"Returns the integer codepoint value of a single-character string @p char.");
+	BUILTIN_FUNCTION("chr", FUNC_NAME(krk,chr),
+		"@brief Convert an integer codepoint to its string representation.\n"
+		"@arguments codepoint\n\n"
+		"Creates a single-codepoint string with the character represented by the integer codepoint @p codepoint.");
+	BUILTIN_FUNCTION("hex", FUNC_NAME(krk,hex),
+		"@brief Convert an integer value to a hexadecimal string.\n"
+		"@arguments i\n\n"
+		"Returns a string representation of @p i in hexadecimal, with a leading @c 0x.");
+	BUILTIN_FUNCTION("oct", FUNC_NAME(krk,oct),
+		"@brief Convert an integer value to an octal string.\n"
+		"@arguments i\n\n"
+		"Returns a string representation of @p i in octal, with a leading @c 0o.");
+	BUILTIN_FUNCTION("any", FUNC_NAME(krk,any),
+		"@brief Returns True if at least one element in the given iterable is truthy, False otherwise.\n"
+		"@arguments iterable");
+	BUILTIN_FUNCTION("all", FUNC_NAME(krk,all),
+		"@brief Returns True if every element in the given iterable is truthy, False otherwise.\n"
+		"@arguments iterable");
 	BUILTIN_FUNCTION("getattr", FUNC_NAME(krk,getattr),
 		"@brief Perform attribute lookup on an object using a string.\n"
 		"@arguments obj,attribute,[default]\n\n"
@@ -1085,12 +1112,34 @@ void _createAndBind_builtins(void) {
 		"@arguments iterable,start=0\n\n"
 		"Continuously adds all of the elements from @p iterable to @p start and returns the result "
 		"when @p iterable has been exhausted.");
-	BUILTIN_FUNCTION("min", FUNC_NAME(krk,min), "Return the lowest value in an iterable or the passed arguments.");
-	BUILTIN_FUNCTION("max", FUNC_NAME(krk,max), "Return the highest value in an iterable or the passed arguments.");
-	BUILTIN_FUNCTION("id", FUNC_NAME(krk,id), "Returns the identity of an object.");
-	BUILTIN_FUNCTION("hash", FUNC_NAME(krk,hash), "Returns the hash of a value, used for table indexing.");
-	BUILTIN_FUNCTION("bin", FUNC_NAME(krk,bin), "Convert an integer value to a binary string.");
-	BUILTIN_FUNCTION("zip", FUNC_NAME(krk,zip), "Returns an iterator that produces tuples of the nth element of each passed iterable.");
-	BUILTIN_FUNCTION("next", FUNC_NAME(krk,next), "Compatibility function. Calls an iterable.");
+	BUILTIN_FUNCTION("min", FUNC_NAME(krk,min),
+		"@brief Return the lowest value in an iterable or the passed arguments.\n"
+		"@arguments iterable");
+	BUILTIN_FUNCTION("max", FUNC_NAME(krk,max),
+		"@brief Return the highest value in an iterable or the passed arguments.\n"
+		"@arguments iterable");
+	BUILTIN_FUNCTION("id", FUNC_NAME(krk,id),
+		"@brief Returns the identity of an object.\n"
+		"@arguments val\n\n"
+		"Returns the internal identity for @p val. Note that not all objects have "
+		"identities; primitive values such as @c int or @c float do not have identities. "
+		"Internally, this is the pointer value for a heap object, but this is an implementation detail.");
+	BUILTIN_FUNCTION("hash", FUNC_NAME(krk,hash),
+		"@brief Returns the hash of a value, used for table indexing.\n"
+		"@arguments val\n\n"
+		"If @p val is hashable, its hash value will be calculated if necessary and returned. "
+		"If @p val is not hashable, @ref TypeError will be raised.");
+	BUILTIN_FUNCTION("bin", FUNC_NAME(krk,bin),
+		"@brief Convert an integer value to a binary string.\n"
+		"@arguments i\n\n"
+		"Produces a string representation of @p i in binary, with a leading @p 0b.");
+	BUILTIN_FUNCTION("zip", FUNC_NAME(krk,zip),
+		"@brief Returns an iterator that produces tuples of the nth element of each passed iterable.\n"
+		"@arguments *iterables\n\n"
+		"Creates an iterator that returns a tuple of elements from each of @p iterables, until one "
+		"of @p iterables is exhuasted.");
+	BUILTIN_FUNCTION("next", FUNC_NAME(krk,next),
+		"@brief Compatibility function. Calls an iterable.\n"
+		"@arguments iterable");
 }
 

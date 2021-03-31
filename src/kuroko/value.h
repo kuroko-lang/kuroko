@@ -29,6 +29,7 @@ typedef enum {
 	KRK_VAL_NONE     = 0xFFFF,
 	KRK_VAL_KWARGS   = 0x7FFC,
 	KRK_VAL_OBJECT   = 0x7FFD,
+	KRK_VAL_NOTIMPL  = 0x7FFE,
 } KrkValueType;
 
 #define KRK_VAL_MASK_BOOLEAN ((uint64_t)0xFFFC000000000000) /* 1..1100 */
@@ -37,10 +38,12 @@ typedef enum {
 #define KRK_VAL_MASK_NONE    ((uint64_t)0xFFFF000000000000) /* 1..1111 */
 #define KRK_VAL_MASK_KWARGS  ((uint64_t)0x7FFC000000000000) /* 0..1100 */
 #define KRK_VAL_MASK_OBJECT  ((uint64_t)0x7FFD000000000000) /* 0..1101 */
+#define KRK_VAL_MASK_NOTIMPL ((uint64_t)0x7FFE000000000000) /* 0..1110 */
 #define KRK_VAL_MASK_NAN     ((uint64_t)0x7FFC000000000000)
 #define KRK_VAL_MASK_LOW     ((uint64_t)0x0000FFFFFFFFFFFF)
 
 /**
+ * @struct KrkValue
  * @brief Stack reference or primative value.
  *
  * This type stores a stack reference to an object, or the contents of
@@ -171,6 +174,7 @@ typedef union {
 } KrkValueDbl;
 
 #define NONE_VAL(value)     ((KrkValue)(KRK_VAL_MASK_LOW | KRK_VAL_MASK_NONE))
+#define NOTIMPL_VAL(value)  ((KrkValue)(KRK_VAL_MASK_LOW | KRK_VAL_MASK_NOTIMPL))
 #define BOOLEAN_VAL(value)  ((KrkValue)((uint32_t)(value) | KRK_VAL_MASK_BOOLEAN))
 #define INTEGER_VAL(value)  ((KrkValue)((uint32_t)(value) | KRK_VAL_MASK_INTEGER))
 #define KWARGS_VAL(value)   ((KrkValue)((uint32_t)(value) | KRK_VAL_MASK_KWARGS))
@@ -182,6 +186,7 @@ typedef union {
 
 #define AS_BOOLEAN(value)   ((krk_integer_type)((value) & KRK_VAL_MASK_LOW))
 #define AS_INTEGER(value)   ((krk_integer_type)((value) & KRK_VAL_MASK_LOW))
+#define AS_NOTIMPL(value)   ((krk_integer_type)((value) & KRK_VAL_MASK_LOW))
 #define AS_HANDLER(value)   ((uint32_t)((value) & KRK_VAL_MASK_LOW))
 #define AS_OBJECT(value)    ((KrkObj*)(uintptr_t)((value) & KRK_VAL_MASK_LOW))
 #define AS_FLOATING(value)  (((KrkValueDbl){.val = (value)}).dbl)
@@ -192,6 +197,7 @@ typedef union {
 #define IS_HANDLER(value)   (((value) & KRK_VAL_MASK_NONE) == KRK_VAL_MASK_HANDLER)
 #define IS_OBJECT(value)    (((value) & KRK_VAL_MASK_NONE) == KRK_VAL_MASK_OBJECT)
 #define IS_KWARGS(value)    (((value) & KRK_VAL_MASK_NONE) == KRK_VAL_MASK_KWARGS)
+#define IS_NOTIMPL(value)   (((value) & KRK_VAL_MASK_NONE) == KRK_VAL_MASK_NOTIMPL)
 #define IS_FLOATING(value)  (((value) & KRK_VAL_MASK_NAN) != KRK_VAL_MASK_NAN)
 
 #define AS_HANDLER_TYPE(value)    (AS_HANDLER(value) >> 16)

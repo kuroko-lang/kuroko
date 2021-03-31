@@ -111,6 +111,20 @@ extern int krk_tableSet(KrkTable * table, KrkValue key, KrkValue value);
  * @return 0 if the key was not found, 1 if it was.
  */
 extern int krk_tableGet(KrkTable * table, KrkValue key, KrkValue * value);
+
+/**
+ * @brief Obtain the value associated with a string key in a table.
+ * @memberof KrkTable
+ *
+ * Same as krk_tableGet(), but only works for string keys. This is faster
+ * than using krk_tableGet() and should be used when referencing attribute
+ * tables or other places where keys are guaranteed to only be strings.
+ *
+ * @param table Table to look up.
+ * @param str   Key to look for.
+ * @param value Output pointer to place resulting value in.
+ * @return 0 if the key was not found, 1 if it was.
+ */
 extern int krk_tableGet_fast(KrkTable * table, KrkString * str, KrkValue * value);
 
 /**

@@ -228,10 +228,21 @@ void _createAndBind_setClass(void) {
 	BIND_METHOD(set,__or__);
 	BIND_METHOD(set,__contains__);
 	BIND_METHOD(set,__iter__);
-	BIND_METHOD(set,add);
-	BIND_METHOD(set,remove);
-	BIND_METHOD(set,discard);
-	BIND_METHOD(set,clear);
+	KRK_DOC(BIND_METHOD(set,add),
+		"@brief Add an element to the set.\n"
+		"@arguments value\n\n"
+		"Adds the given @p value to the set. @p value must be hashable.");
+	KRK_DOC(BIND_METHOD(set,remove),
+		"@brief Remove an element from the set.\n"
+		"@arguments value\n\n"
+		"Removes @p value from the set, raising @ref KeyError if it is not a member of the set.");
+	KRK_DOC(BIND_METHOD(set,discard),
+		"@brief Remove an element from the set, quietly.\n"
+		"@arguments value\n\n"
+		"Removes @p value from the set, without raising an exception if it is not a member.");
+	KRK_DOC(BIND_METHOD(set,clear),
+		"@brief Empty the set.\n\n"
+		"Removes all elements from the set, in-place.");
 	krk_defineNative(&set->methods, "__str__", FUNC_NAME(set,__repr__));
 	krk_attachNamedValue(&set->methods, "__hash__", NONE_VAL());
 	krk_finalizeClass(set);

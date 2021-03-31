@@ -68,7 +68,7 @@ KRK_METHOD(tuple,__getitem__,{
 
 KRK_METHOD(tuple,__eq__,{
 	METHOD_TAKES_EXACTLY(1);
-	if (!IS_tuple(argv[1])) return BOOLEAN_VAL(0);
+	if (!IS_tuple(argv[1])) return NOTIMPL_VAL();
 	KrkTuple * them = AS_tuple(argv[1]);
 	if (self->values.count != them->values.count) return BOOLEAN_VAL(0);
 	for (size_t i = 0; i < self->values.count; ++i) {

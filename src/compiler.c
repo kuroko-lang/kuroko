@@ -527,9 +527,9 @@ static void compareChained(int inner) {
 		case TOKEN_BANG_EQUAL:    emitBytes(OP_EQUAL, OP_NOT); break;
 		case TOKEN_EQUAL_EQUAL:   emitByte(OP_EQUAL); break;
 		case TOKEN_GREATER:       emitByte(OP_GREATER); break;
-		case TOKEN_GREATER_EQUAL: emitBytes(OP_LESS, OP_NOT); break;
+		case TOKEN_GREATER_EQUAL: emitByte(OP_GREATER_EQUAL); break;
 		case TOKEN_LESS:          emitByte(OP_LESS); break;
-		case TOKEN_LESS_EQUAL:    emitBytes(OP_GREATER, OP_NOT); break;
+		case TOKEN_LESS_EQUAL:    emitByte(OP_LESS_EQUAL); break;
 
 		case TOKEN_IS: emitByte(OP_IS); if (invert) emitByte(OP_NOT); break;
 
@@ -964,6 +964,11 @@ static void endScope() {
 	}
 }
 
+static void markInitialized() {
+	if (current->scopeDepth == 0) return;
+	current->locals[current->localCount - 1].depth = current->scopeDepth;
+}
+
 static void block(size_t indentation, const char * blockName) {
 	if (match(TOKEN_EOL)) {
 		if (check(TOKEN_INDENTATION)) {
@@ -1044,19 +1049,26 @@ static void function(FunctionType type, size_t blockWidth) {
 	if (isMethod(type)) current->codeobject->requiredArgs = 1;
 
 	int hasCollectors = 0;
+	KrkToken self = syntheticToken("self");
 
 	consume(TOKEN_LEFT_PAREN, "Expected start of parameter list after function name.");
 	startEatingWhitespace();
 	if (!check(TOKEN_RIGHT_PAREN)) {
 		do {
-			if (match(TOKEN_SELF)) {
-				if (!isMethod(type)) {
-					error("Invalid use of `self` as a function paramenter.");
+			if (isMethod(type) && check(TOKEN_IDENTIFIER) &&
+					identifiersEqual(&parser.current, &self)) {
+				if (hasCollectors || current->codeobject->requiredArgs != 1) {
+					errorAtCurrent("Argument name `self` in a method signature is reserved for the implicit first argument.");
+					break;
 				}
+				advance();
 				if (check(TOKEN_COLON)) {
 					KrkToken name = parser.previous;
 					match(TOKEN_COLON);
 					typeHint(name);
+				}
+				if (check(TOKEN_EQUAL)) {
+					errorAtCurrent("`self` can not be a keyword argument.");
 				}
 				continue;
 			}
@@ -1252,43 +1264,28 @@ static KrkToken classDeclaration() {
 
 	beginScope();
 
-	KrkToken className = parser.previous;
 	size_t constInd = identifierConstant(&parser.previous);
 	declareVariable();
-
 	EMIT_CONSTANT_OP(OP_CLASS, constInd);
-	defineVariable(constInd);
+	markInitialized();
 
 	ClassCompiler classCompiler;
 	classCompiler.name = parser.previous;
 	classCompiler.enclosing = currentClass;
 	currentClass = &classCompiler;
-	int hasSuperclass = 0;
 	classCompiler.hasAnnotations = 0;
 
 	if (match(TOKEN_LEFT_PAREN)) {
 		startEatingWhitespace();
 		if (!check(TOKEN_RIGHT_PAREN)) {
 			expression();
-			hasSuperclass = 1;
+			emitByte(OP_INHERIT);
 		}
 		stopEatingWhitespace();
 		consume(TOKEN_RIGHT_PAREN, "Expected ) after superclass.");
 	}
 
-	if (!hasSuperclass) {
-		KrkToken Object = syntheticToken("object");
-		size_t ind = identifierConstant(&Object);
-		EMIT_CONSTANT_OP(OP_GET_GLOBAL, ind);
-	}
-
 	beginScope();
-	addLocal(syntheticToken("super"));
-	defineVariable(0);
-
-	namedVariable(className, 0);
-
-	emitByte(OP_INHERIT);
 
 	consume(TOKEN_COLON, "Expected colon after class");
 
@@ -1335,12 +1332,7 @@ _pop_class:
 	freeCompiler(&subcompiler);
 	emitBytes(OP_CALL, 0);
 
-	return className;
-}
-
-static void markInitialized() {
-	if (current->scopeDepth == 0) return;
-	current->locals[current->localCount - 1].depth = current->scopeDepth;
+	return classCompiler.name;
 }
 
 static void lambda(int canAssign) {
@@ -2015,7 +2007,17 @@ _anotherSimpleStatement:
 		}
 		if (match(TOKEN_SEMICOLON)) goto _anotherSimpleStatement;
 		if (!match(TOKEN_EOL) && !match(TOKEN_EOF)) {
-			errorAtCurrent("Unexpected token after statement.");
+			switch (parser.current.type) {
+				case TOKEN_RIGHT_BRACE:
+				case TOKEN_RIGHT_PAREN:
+				case TOKEN_RIGHT_SQUARE:
+					errorAtCurrent("Unmatched '%.*s'",
+						(int)parser.current.length, parser.current.start);
+					break;
+				default:
+					errorAtCurrent("'%.*s' unexpected after statement.",
+						(int)parser.current.length, parser.current.start);
+			}
 		}
 	}
 }
@@ -2358,25 +2360,29 @@ static void variable(int canAssign) {
 	namedVariable(parser.previous, canAssign);
 }
 
-static void self(int canAssign) {
-	if (currentClass == NULL) {
-		error("Invalid reference to `self` outside of a class method.");
-		return;
-	}
-	variable(0);
-}
-
 static void super_(int canAssign) {
-	if (currentClass == NULL) {
-		error("Invalid reference to `super` outside of a class.");
-	}
 	consume(TOKEN_LEFT_PAREN, "Expected `super` to be called.");
-	consume(TOKEN_RIGHT_PAREN, "`super` can not take arguments.");
+
+	/* Argument time */
+	if (match(TOKEN_RIGHT_PAREN)) {
+		if (!isMethod(current->type)) {
+			error("super() outside of a method body requires arguments");
+			return;
+		}
+		namedVariable(currentClass->name, 0);
+		EMIT_CONSTANT_OP(OP_GET_LOCAL, 0);
+	} else {
+		expression();
+		if (match(TOKEN_COMMA)) {
+			expression();
+		} else {
+			emitConstant(KWARGS_VAL(0));
+		}
+		consume(TOKEN_RIGHT_PAREN, "Expected ')' after argument list");
+	}
 	consume(TOKEN_DOT, "Expected a field of `super()` to be referenced.");
 	consume(TOKEN_IDENTIFIER, "Expected a field name.");
 	size_t ind = identifierConstant(&parser.previous);
-	namedVariable(syntheticToken("self"), 0);
-	namedVariable(syntheticToken("super"), 0);
 	EMIT_CONSTANT_OP(OP_GET_SUPER, ind);
 }
 
@@ -2543,7 +2549,8 @@ static void grouping(int canAssign) {
 	if (!match(TOKEN_RIGHT_PAREN)) {
 		switch (parser.current.type) {
 			case TOKEN_EQUAL: error("Assignment value expression must be enclosed in parentheses."); break;
-			default: error("Expected ')'");
+			default: error("Expected ')' after '%.*s'",
+				(int)parser.previous.length, parser.previous.start);
 		}
 	}
 	if (canAssign == 1 && match(TOKEN_EQUAL)) {
@@ -2726,7 +2733,6 @@ ParseRule krk_parseRules[] = {
 	RULE(TOKEN_NONE,          literal,  NULL,   PREC_NONE),
 	RULE(TOKEN_OR,            NULL,     or_,    PREC_OR),
 	RULE(TOKEN_RETURN,        NULL,     NULL,   PREC_NONE),
-	RULE(TOKEN_SELF,          self,     NULL,   PREC_NONE),
 	RULE(TOKEN_SUPER,         super_,   NULL,   PREC_NONE),
 	RULE(TOKEN_TRUE,          literal,  NULL,   PREC_NONE),
 	RULE(TOKEN_WHILE,         NULL,     NULL,   PREC_NONE),
@@ -2885,8 +2891,24 @@ static void parsePrecedence(Precedence precedence) {
 	advance();
 	ParseFn prefixRule = getRule(parser.previous.type)->prefix;
 	if (prefixRule == NULL) {
-		error("Unexpected token ('%.*s' does not start an expression)",
-			(int)parser.previous.length, parser.previous.start);
+		switch (parser.previous.type) {
+			case TOKEN_RIGHT_BRACE:
+			case TOKEN_RIGHT_PAREN:
+			case TOKEN_RIGHT_SQUARE:
+				error("Unmatched '%.*s'",
+					(int)parser.previous.length, parser.previous.start);
+				break;
+			case TOKEN_EOL:
+				/* TODO: This should definitely be tripping the REPL to ask for more input. */
+				error("Unexpected end of line");
+				break;
+			case TOKEN_EOF:
+				error("Unexpected end of input");
+				break;
+			default:
+				error("'%.*s' does not start an expression",
+					(int)parser.previous.length, parser.previous.start);
+		}
 		return;
 	}
 	int canAssign = (precedence <= PREC_ASSIGNMENT || precedence == PREC_CAN_ASSIGN);
@@ -2910,7 +2932,7 @@ static void parsePrecedence(Precedence precedence) {
 		error("Invalid assignment target");
 	}
 	if (inDel == 1 && matchEndOfDel()) {
-		error("invalid del target");
+		error("Invalid del target");
 	}
 }
 
@@ -2923,7 +2945,7 @@ static ssize_t resolveLocal(Compiler * compiler, KrkToken * name) {
 		Local * local = &compiler->locals[i];
 		if (identifiersEqual(name, &local->name)) {
 			if (local->depth == -1) {
-				error("Can not initialize value recursively (are you shadowing something?)");
+				error("Invalid recursive reference in declaration initializer");
 			}
 			return i;
 		}

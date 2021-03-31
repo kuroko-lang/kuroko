@@ -1,0 +1,51 @@
+class RAdder:
+    def __radd__(self, o):
+        print("__radd__ called",o)
+        return f'{o} + RAdder()'
+
+    def __rmul__(self, o):
+        print("__rmul__ called", o)
+        return f'{o} * RAdder()'
+
+    def __rdiv__(self, o):
+        print("__rdiv__ called", o)
+        return f'{o} / RAdder()'
+
+    def __rpow__(self, o):
+        print("__rpow__ called", o)
+        return f'{o} ** RAdder()'
+
+    def __rrshift__(self, o):
+        print("__rrshift__ called", o)
+        return f'{o} >> RAdder()'
+
+    def __rlshift__(self, o):
+        print("__rlshift__ called", o)
+        return f'{o} << RAdder()'
+
+    def __ror__(self, o):
+        print("__ror__ called", o)
+        return f'{o} | RAdder()'
+
+    def __rand__(self, o):
+        print("__rand__ called", o)
+        return f'{o} & RAdder()'
+
+    def __rxor__(self, o):
+        print("__rxor__ called", o)
+        return f'{o} ^ RAdder()'
+
+    def __rmod__(self, o):
+        print("__rmod__ called", o)
+        return f'{o} % RAdder()'
+
+print(42 + RAdder())
+print(42 * RAdder())
+#print(42 / RAdder())
+print(42 ** RAdder())
+print(42 >> RAdder())
+print(42 << RAdder())
+print(42 | RAdder())
+print(42 & RAdder())
+print(42 ^ RAdder())
+print(42 % RAdder())

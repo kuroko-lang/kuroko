@@ -434,45 +434,27 @@ KRK_METHOD(str,rstrip,{
 	return _string_strip_shared(argc,argv,2);
 })
 
-KRK_METHOD(str,__lt__,{
-	METHOD_TAKES_EXACTLY(1);
-	if (!IS_STRING(argv[1])) {
-		return KWARGS_VAL(0); /* represents 'not implemented' */
-	}
-	if (AS_STRING(argv[0]) == AS_STRING(argv[1])) return BOOLEAN_VAL(0);
+#define strCompare(name,lop,iop,rop) \
+	KRK_METHOD(str,name,{ \
+		METHOD_TAKES_EXACTLY(1); \
+		if (!IS_STRING(argv[1])) { \
+			return NOTIMPL_VAL(); \
+		} \
+		size_t aLen = AS_STRING(argv[0])->length; \
+		size_t bLen = AS_STRING(argv[1])->length; \
+		const char * a = AS_CSTRING(argv[0]); \
+		const char * b = AS_CSTRING(argv[1]); \
+		for (size_t i = 0; i < (aLen < bLen) ? aLen : bLen; i++) { \
+			if (a[i] lop b[i]) return BOOLEAN_VAL(1); \
+			if (a[i] iop b[i]) return BOOLEAN_VAL(0); \
+		} \
+		return BOOLEAN_VAL((aLen rop bLen)); \
+	})
 
-	size_t aLen = AS_STRING(argv[0])->length;
-	size_t bLen = AS_STRING(argv[1])->length;
-	const char * a = AS_CSTRING(argv[0]);
-	const char * b = AS_CSTRING(argv[1]);
-
-	for (size_t i = 0; i < (aLen < bLen) ? aLen : bLen; i++) {
-		if (a[i] < b[i]) return BOOLEAN_VAL(1);
-		if (a[i] > b[i]) return BOOLEAN_VAL(0);
-	}
-
-	return BOOLEAN_VAL((aLen < bLen));
-})
-
-KRK_METHOD(str,__gt__,{
-	METHOD_TAKES_EXACTLY(1);
-	if (!IS_STRING(argv[1])) {
-		return KWARGS_VAL(0); /* represents 'not implemented' */
-	}
-	if (AS_STRING(argv[0]) == AS_STRING(argv[1])) return BOOLEAN_VAL(0);
-
-	size_t aLen = AS_STRING(argv[0])->length;
-	size_t bLen = AS_STRING(argv[1])->length;
-	const char * a = AS_CSTRING(argv[0]);
-	const char * b = AS_CSTRING(argv[1]);
-
-	for (size_t i = 0; i < (aLen < bLen) ? aLen : bLen; i++) {
-		if (a[i] < b[i]) return BOOLEAN_VAL(0);
-		if (a[i] > b[i]) return BOOLEAN_VAL(1);
-	}
-
-	return BOOLEAN_VAL((aLen > bLen));
-})
+strCompare(__gt__,>,<,>)
+strCompare(__lt__,<,>,<)
+strCompare(__ge__,>,<,>=)
+strCompare(__le__,<,>,<=)
 
 /** TODO but throw a more descriptive error for now */
 KRK_METHOD(str,__mod__,{
@@ -903,6 +885,8 @@ void _createAndBind_strClass(void) {
 	BIND_METHOD(str,__contains__);
 	BIND_METHOD(str,__lt__);
 	BIND_METHOD(str,__gt__);
+	BIND_METHOD(str,__le__);
+	BIND_METHOD(str,__ge__);
 	BIND_METHOD(str,__mod__);
 	BIND_METHOD(str,__repr__);
 	BIND_METHOD(str,__str__);
