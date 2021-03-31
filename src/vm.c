@@ -2456,12 +2456,19 @@ _finishReturn: (void)0;
 					krk_push(krk_peek(0));
 					krk_push(krk_callSimple(krk_peek(0),0,0));
 				}
-				if (!krk_valuesSame(krk_peek(0), krk_peek(1))) break;
+				if (!krk_valuesSame(krk_peek(0), krk_peek(1))) {
+					/* Value to yield */
+					break;
+				}
+
+				krk_pop();
 
 				/* Does it have a final value? */
 				method = krk_valueGetAttribute_default(krk_peek(0), "__finish__", NONE_VAL());
 				if (!IS_NONE(method)) {
 					krk_push(method);
+					krk_swap(1);
+					krk_pop();
 					krk_push(krk_callSimple(krk_peek(0),0,0));
 				} else {
 					krk_pop();
