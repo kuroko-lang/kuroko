@@ -1,0 +1,24 @@
+Decorating Baz.decoratedAsyncMethod
+Decorating decoratedAsync
+Starting run loop.
+  Popping from scheduled list.
+  Calling <class 'generator'>
+    foo(): hi
+    bar(): hello, there, I'm an async function
+      Awaiting result 1: 42
+    __await__ called
+  Returned with     Awaiter(): awaitable returns an iterator
+  Popping from scheduled list.
+  Calling <class 'generator'>
+      Awaiting result 2: None
+    bar(): hello, there, I'm an async function
+      Awaiting result 3: 42
+   async method on <baz>
+      Awaiting result 4: a value
+     I am a decorated async function
+      Awaiting result 5: decorated result
+   decorated async method on <foo>
+      Awaiting result 6: 3.141519
+    foo(): bye
+Exception: <class '__main__.StopIteration'> done
+Done with run loop.

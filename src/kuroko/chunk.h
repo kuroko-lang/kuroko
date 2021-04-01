@@ -70,7 +70,8 @@ typedef enum {
 	OP_END_FINALLY,
 	OP_GREATER_EQUAL,
 	OP_LESS_EQUAL,
-	/* current highest: 47 */
+	OP_INVOKE_AWAIT,
+	/* current highest: 48 */
 
 	OP_CALL = 64,
 	OP_CLASS,

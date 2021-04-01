@@ -190,6 +190,23 @@ KRK_METHOD(codeobject,__constants__,{
 	return krk_pop();
 })
 
+/* Python-compatibility */
+KRK_METHOD(codeobject,co_flags,{
+	ATTRIBUTE_NOT_ASSIGNABLE();
+
+	int out = 0;
+
+	/* For compatibility with Python, mostly because these are specified
+	 * in at least one doc page with their raw values, we convert
+	 * our flags to the useful CPython flag values... */
+	if (self->flags & KRK_CODEOBJECT_FLAGS_COLLECTS_ARGS) out |= 0x04;
+	if (self->flags & KRK_CODEOBJECT_FLAGS_COLLECTS_KWS)  out |= 0x08;
+	if (self->flags & KRK_CODEOBJECT_FLAGS_IS_GENERATOR)  out |= 0x20;
+	if (self->flags & KRK_CODEOBJECT_FLAGS_IS_COROUTINE)  out |= 0x80;
+
+	return INTEGER_VAL(out);
+})
+
 #undef CURRENT_CTYPE
 #define CURRENT_CTYPE KrkBoundMethod*
 
@@ -298,6 +315,7 @@ void _createAndBind_functionClass(void) {
 	BIND_METHOD(codeobject,_ip_to_line);
 	BIND_PROP(codeobject,__constants__);
 	BIND_PROP(codeobject,__name__);
+	BIND_PROP(codeobject,co_flags);
 	krk_defineNative(&codeobject->methods, "__repr__", FUNC_NAME(codeobject,__str__));
 	krk_finalizeClass(codeobject);
 

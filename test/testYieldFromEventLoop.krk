@@ -1,0 +1,47 @@
+
+if not hasattr(__builtins__,'StopIteration'):
+    class StopIteration(Exception):
+        pass
+    __builtins__.StopIteration = StopIteration
+
+class Awaiter:
+    def __iter__(self):
+        yield "    Awaiter(): awaitable returns an iterator"
+        return "(all done)"
+
+def foo(i,result=None):
+    print('    foo(): hi')
+    result = yield from i()
+    print('      Awaiting result 1:', result)
+    result = yield from Awaiter()
+    print('      Awaiting result 2:', result)
+    result = yield from i()
+    print('      Awaiting result 3:', result)
+    print('    foo(): bi')
+    return "done"
+
+def bar():
+    print("    bar(): hello, there, I'm an async function")
+    return 42
+    yield 0xdeadbeef
+
+def run(coro, scheduled=None, next=None, result=None):
+    # Okay, let's see.
+    scheduled = [coro]
+    print("Starting run loop.")
+    while scheduled:
+        print("  Popping from scheduled list.")
+        next = scheduled.pop(0) # Yes, that's slow, I know.
+        try:
+            print("  Calling",type(next))
+            result = next.send(None)
+            if result == next:
+                raise StopIteration(result.__finish__())
+            print("  Returned with",result)
+            scheduled.append(next)
+        except StopIteration as e:
+            # Stop iteration value should be return value from foo()
+            print('Exception:', type(e), e)
+    print('Done with run loop.')
+
+run(foo(bar))

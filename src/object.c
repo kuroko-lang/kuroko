@@ -27,7 +27,7 @@ static KrkObj * allocateObject(size_t size, KrkObjType type) {
 	vm.objects = object;
 	_release_lock(_objectLock);
 
-	object->hash = (uint32_t)((intptr_t)(object) >> 4 | (intptr_t)(object) << 28);
+	object->hash = (uint32_t)((intptr_t)(object) >> 4 | ((intptr_t)object & 0xf) << 28);
 
 	return object;
 }
@@ -217,13 +217,13 @@ KrkString * krk_takeString(char * chars, size_t length) {
 KrkString * krk_copyString(const char * chars, size_t length) {
 	uint32_t hash = hashString(chars, length);
 	_obtain_lock(_stringLock);
-	KrkString * interned = krk_tableFindString(&vm.strings, chars, length, hash);
+	KrkString * interned = krk_tableFindString(&vm.strings, chars ? chars : "", length, hash);
 	if (interned) {
 		_release_lock(_stringLock);
 		return interned;
 	}
 	char * heapChars = ALLOCATE(char, length + 1);
-	memcpy(heapChars, chars, length);
+	memcpy(heapChars, chars ? chars : "", length);
 	heapChars[length] = '\0';
 	KrkString * result = allocateString(heapChars, length, hash);
 	if (result->chars != heapChars) free(heapChars);

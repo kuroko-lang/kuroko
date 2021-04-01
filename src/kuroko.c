@@ -155,24 +155,9 @@ KRK_FUNC(input,{
  * for native dynamic fields...
  */
 static KrkValue findFromProperty(KrkValue current, KrkToken next) {
-	KrkValue value;
 	KrkValue member = OBJECT_VAL(krk_copyString(next.start, next.literalWidth));
 	krk_push(member);
-
-	if (IS_INSTANCE(current)) {
-		/* try fields */
-		if (krk_tableGet(&AS_INSTANCE(current)->fields, member, &value)) goto _found;
-		if (krk_tableGet(&AS_INSTANCE(current)->_class->methods, member, &value)) goto _found;
-	} else {
-		/* try methods */
-		KrkClass * _class = krk_getType(current);
-		if (krk_tableGet(&_class->methods, member, &value)) goto _found;
-	}
-
-	krk_pop();
-	return NONE_VAL();
-
-_found:
+	KrkValue value = krk_valueGetAttribute_default(current, AS_CSTRING(member), NONE_VAL());
 	krk_pop();
 	return value;
 }
@@ -264,7 +249,7 @@ static void tab_complete_func(rline_context_t * c) {
 					KrkValue thisValue = findFromProperty(root, asToken);
 					krk_push(thisValue);
 					if (IS_CLOSURE(thisValue) || IS_BOUND_METHOD(thisValue) ||
-						(IS_NATIVE(thisValue) && !((KrkNative*)AS_OBJECT(thisValue))->flags & KRK_NATIVE_FLAGS_IS_DYNAMIC_PROPERTY)) {
+						(IS_NATIVE(thisValue) && !(((KrkNative*)AS_OBJECT(thisValue))->flags & KRK_NATIVE_FLAGS_IS_DYNAMIC_PROPERTY))) {
 						size_t allocSize = s->length + 2;
 						char * tmp = malloc(allocSize);
 						size_t len = snprintf(tmp, allocSize, "%s(", s->chars);

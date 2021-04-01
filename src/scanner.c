@@ -197,8 +197,13 @@ static KrkTokenType identifierType() {
 	switch (*scanner.start) {
 		case 'a': if (MORE(1)) switch(scanner.start[1]) {
 			case 'n': return checkKeyword(2, "d", TOKEN_AND);
+			case 'w': return checkKeyword(2, "ait", TOKEN_AWAIT);
 			case 's': if (MORE(2)) {
-					return checkKeyword(2, "sert", TOKEN_ASSERT);
+					switch (scanner.start[2]) {
+						case 's': return checkKeyword(3, "ert", TOKEN_ASSERT);
+						case 'y': return checkKeyword(3, "nc", TOKEN_ASYNC);
+					}
+					break;
 				} else {
 					return checkKeyword(2, "", TOKEN_AS);
 				}
