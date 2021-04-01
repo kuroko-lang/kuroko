@@ -60,9 +60,9 @@ Kuroko supports a wide range of functionality and syntax expected from a Python 
 
 Kuroko aims for wide compatibility with Python 3.x and supports most syntax features and a growing collection of standard library functions. The most notable difference between Kuroko and standard Python is explicit variable declaration and the use of the `let` keyword. Many Python snippets can be ported to Kuroko with only the addition of declaration statements. Some syntax features remain unimplemented, however:
 
-### Async/Await
+### `async for`, `async with`, `asyncio` module
 
-Kuroko does not support the `async`/`await` keywords and related `asyncio` module. They are planned for a future release.
+Kuroko does not support the `async for`/`async with` constructs, and does not have a `asyncio` module. They are planned for a future release.
 
 ### Iterables
 
