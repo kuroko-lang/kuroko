@@ -1,6 +1,7 @@
 """
-This module includes some additional variable-width or wide encodings not specified by WHATWG. As 
-such, none of the codecs in this module should be used in HTML.
+This module includes some additional variable-width or wide encodings not specified by WHATWG.
+
+As such, none of the codecs in this module should be used in HTML.
 """
 
 from codecs.dbextra_data_8bit import data_8bit
@@ -13,6 +14,17 @@ from collections import xraydict
 
 
 class Big5NonEtenKanaIncrementalEncoder(AsciiIncrementalEncoder):
+    """
+    IncrementalEncoder implementation for Big5 with non-ETEN layout of kana, Cyrillic, list markers.
+    
+    The other ETEN extension section (the one retained by Microsoft's version) is still included.
+    
+    Although this is the kana/Cyrillic/list marker layout included in the UTC's BIG5.TXT, it is the
+    less common of the two (most extension schemes for Big5 use the ETEN layout), and has several 
+    problems (katakana lacks the vowel extender, and Cyrillic lacks several capitals) which the
+    ETEN layout does not have. However, this codec corresponds roughly to Python's `big5`, and more
+    closely to its (built-in, as opposed to if/when Python aliases it to `mbcs`) `cp950`.
+    """
     name = "big5-nonetenkana"
     html5name = None
     @lazy_property
@@ -20,6 +32,17 @@ class Big5NonEtenKanaIncrementalEncoder(AsciiIncrementalEncoder):
         return xraydict(data_8bit.cp950_no_eudc_encoding_map, data_8bit.encode_big5_nonetenkana)
 
 class Big5NonEtenKanaIncrementalDecoder(AsciiIncrementalDecoder):
+    """
+    IncrementalDecoder implementation for Big5 with non-ETEN layout of kana, Cyrillic, list markers.
+    
+    The other ETEN extension section (the one retained by Microsoft's version) is still included.
+    
+    Although this is the kana/Cyrillic/list marker layout included in the UTC's BIG5.TXT, it is the
+    less common of the two (most extension schemes for Big5 use the ETEN layout), and has several 
+    problems (katakana lacks the vowel extender, and Cyrillic lacks several capitals) which the
+    ETEN layout does not have. However, this codec corresponds roughly to Python's `big5`, and more
+    closely to its (built-in, as opposed to if/when Python aliases it to `mbcs`) `cp950`.
+    """
     name = "big5-nonetenkana"
     html5name = None
     @lazy_property
@@ -32,6 +55,13 @@ register_kuroko_codec(["big5-nonetenkana", "big5-tw"],
     Big5NonEtenKanaIncrementalEncoder, Big5NonEtenKanaIncrementalDecoder)
 
 class XMacChineseTradIncrementalEncoder(AsciiIncrementalEncoder):
+    """
+    IncrementalEncoder implementation for Big5 with Apple's additions and reduced lead byte range.
+    
+    The Unicode mappings are partly changed to be closer to Apple's (as opposed to Microsoft's)
+    correspondences; however, Microsoft's are retained where following Apple's would have required
+    PUA transcoding hints to round-trip.
+    """
     name = "x-mac-chinesetrad"
     html5name = None
     @lazy_property
@@ -54,6 +84,13 @@ class XMacChineseTradIncrementalEncoder(AsciiIncrementalEncoder):
         })
 
 class XMacChineseTradIncrementalDecoder(AsciiIncrementalDecoder):
+    """
+    IncrementalDecoder implementation for Big5 with Apple's additions and reduced lead byte range.
+    
+    The Unicode mappings are partly changed to be closer to Apple's (as opposed to Microsoft's)
+    correspondences; however, Microsoft's are retained where following Apple's would have required
+    PUA transcoding hints to round-trip.
+    """
     name = "x-mac-chinesetrad"
     html5name = None
     @lazy_property
@@ -83,6 +120,12 @@ register_kuroko_codec(["x-mac-chinesetrad", "x-mac-trad-chinese"],
 
 
 class XMacChineseSimpIncrementalEncoder(AsciiIncrementalEncoder):
+    """
+    IncrementalEncoder implementation for EUC-CN, Apple version (hence slightly reduced lead byte range).
+    
+    Mappings to more-recently added characters are used for the vertical forms, rather than
+    Apple transcoding hints (or GB18030 private use codes).
+    """
     name = "x-mac-chinesesimp"
     html5name = None
     @lazy_property
@@ -102,6 +145,12 @@ class XMacChineseSimpIncrementalEncoder(AsciiIncrementalEncoder):
         })
 
 class XMacChineseSimpIncrementalDecoder(AsciiIncrementalDecoder):
+    """
+    IncrementalDecoder implementation for EUC-CN, Apple version (hence slightly reduced lead byte range).
+    
+    Mappings to more-recently added characters are used for the vertical forms, rather than
+    Apple transcoding hints (or GB18030 private use codes).
+    """
     name = "x-mac-chinesesimp"
     html5name = None
     @lazy_property
@@ -128,6 +177,10 @@ register_kuroko_codec(["x-mac-chinesesimp", "x-mac-simp-chinese", "euc-cn", "euc
 
 
 class Cesu8IncrementalEncoder(IncrementalEncoder):
+    """
+    IncrementalEncoder implementation for CESU-8, a deprecated UTF-8-like encoding still used by
+    some systems, such as TCL, and still mis-called "utf8" in some places for legacy reasons.
+    """
     name = "cesu-8"
     html5name = None
     # -1: expecting BOM
@@ -135,6 +188,7 @@ class Cesu8IncrementalEncoder(IncrementalEncoder):
     state = None
     include_bom = False
     def encode(string, final = False):
+        """Implements `IncrementalEncoder.encode`"""
         let out = ByteCatenator()
         if self.include_bom and self.state == -1:
             out.add("\uFEFF".encode())
@@ -161,13 +215,20 @@ class Cesu8IncrementalEncoder(IncrementalEncoder):
         out.add(string[first_offset:second_offset].encode())
         return out.getvalue()
     def reset():
+        """Implements `IncrementalEncoder.reset`"""
         self.state = -1
     def getstate():
+        """Implements `IncrementalEncoder.getstate`"""
         return self.state
     def setstate(state):
+        """Implements `IncrementalEncoder.setstate`"""
         self.state = state
 
 class Cesu8IncrementalDecoder(Utf8IncrementalDecoder):
+    """
+    IncrementalDecoder implementation for CESU-8, a deprecated UTF-8-like encoding still used by
+    some systems, such as TCL, and still mis-called "utf8" in some places for legacy reasons.
+    """
     name = "cesu-8"
     html5name = None
     def _error_handler(error):
@@ -211,6 +272,10 @@ let _base64_alphabet = (
 let _utf7_not_need_hyphen = [ord(i) for i in "(),.:? \r\n"]
 
 class Utf7IncrementalEncoder(IncrementalEncoder):
+    """
+    IncrementalEncoder implementation for UTF-7, a largely obsolete (and forbidden in HTML5)
+    scheme for mixing ASCII with Base64'd UTF-16BE in e-mail.
+    """
     name = "utf-7"
     html5name = None
     utf16encoder = None
@@ -220,6 +285,7 @@ class Utf7IncrementalEncoder(IncrementalEncoder):
         self.utf16encoder = Utf16BeIncrementalEncoder(errors)
         IncrementalEncoder.__init__(self, errors)
     def encode(data, final=False):
+        """Implements `IncrementalEncoder.encode`"""
         let incoming = self.pending + list(self.utf16encoder.encode(data, final=final))
         self.pending = []
         let offset = 0
@@ -254,16 +320,23 @@ class Utf7IncrementalEncoder(IncrementalEncoder):
             self.mode = "ascii"
         return out.getvalue()
     def reset():
+        """Implements `IncrementalEncoder.reset`"""
         self.utf16encoder.reset()
         self.mode = "ascii"
     def getstate():
+        """Implements `IncrementalEncoder.getstate`"""
         return (self.utf16encoder.getstate(), self.mode, self.pending)
     def setstate(state):
+        """Implements `IncrementalEncoder.setstate`"""
         self.utf16encoder.setstate(state[0])
         self.mode = state[1]
         self.pending = state[2]
 
 class Utf7IncrementalDecoder(IncrementalDecoder):
+    """
+    IncrementalDecoder implementation for UTF-7, a largely obsolete (and forbidden in HTML5)
+    scheme for mixing ASCII with Base64'd UTF-16BE in e-mail.
+    """
     name = "utf-7"
     html5name = None
     utf16decoder = None
@@ -273,6 +346,7 @@ class Utf7IncrementalDecoder(IncrementalDecoder):
         self.utf16decoder = Utf16BeIncrementalDecoder(errors)
         IncrementalDecoder.__init__(self, errors)
     def decode(data_in, final=False):
+        """Implements `IncrementalDecoder.decode`"""
         let data = self.pending + data_in
         self.pending = b""
         let incoming = list(data)
@@ -329,12 +403,15 @@ class Utf7IncrementalDecoder(IncrementalDecoder):
             self.mode = "ascii"
         return out.getvalue()
     def reset():
+        """Implements `IncrementalDecoder.reset`"""
         self.utf16decoder.reset()
         self.mode = "ascii"
         self.pending = b""
     def getstate():
+        """Implements `IncrementalDecoder.getstate`"""
         return (self.utf16encoder.getstate(), self.mode, self.pending)
     def setstate(state):
+        """Implements `IncrementalDecoder.setstate`"""
         self.utf16encoder.setstate(state[0])
         self.mode = state[1]
         self.pending = state[2]
@@ -344,6 +421,9 @@ register_kuroko_codec(["utf-7", "utf7", "u7", "unicode-1-1-utf-7"],
 
 
 class EucJpFullIncrementalEncoder(AsciiIncrementalEncoder):
+    """
+    IncrementalEncoder implementation for EUC-JP, including JIS X 0212.
+    """
     name = "euc-jp-full"
     html5name = None
     @lazy_property
@@ -355,6 +435,9 @@ register_kuroko_codec(["euc-jp-full"],
 
 
 class EucJis2004IncrementalEncoder(AsciiIncrementalEncoder):
+    """
+    IncrementalEncoder implementation for the JIS X 0213 version of EUC-JP.
+    """
     name = "euc-jis-2004"
     html5name = None
     @lazy_property
@@ -362,6 +445,9 @@ class EucJis2004IncrementalEncoder(AsciiIncrementalEncoder):
         return data_8bit.encode_euc04
 
 class EucJis2004IncrementalDecoder(AsciiIncrementalDecoder):
+    """
+    IncrementalDecoder implementation for the JIS X 0213 version of EUC-JP.
+    """
     name = "euc-jis-2004"
     html5name = None
     @lazy_property
@@ -377,6 +463,9 @@ register_kuroko_codec(["euc-jis-2004", "jisx0213", "eucjis2004", "euc_jis2004",
 
 
 class ShiftJis2004IncrementalEncoder(AsciiIncrementalEncoder):
+    """
+    IncrementalEncoder implementation for the JIS X 0213 version of Shift_JIS.
+    """
     name = "shift-jis-2004"
     html5name = None
     @lazy_property
@@ -385,6 +474,9 @@ class ShiftJis2004IncrementalEncoder(AsciiIncrementalEncoder):
     ascii_exceptions = (0x5C, 0x7E)
 
 class ShiftJis2004IncrementalDecoder(AsciiIncrementalDecoder):
+    """
+    IncrementalDecoder implementation for the JIS X 0213 version of Shift_JIS.
+    """
     name = "shift-jis-2004"
     html5name = None
     @lazy_property
@@ -403,6 +495,9 @@ register_kuroko_codec(["shift_jis-2004", "shiftjis2004", "sjis_2004", "s_jis_200
 
 
 class AsciiJohabIncrementalEncoder(AsciiIncrementalEncoder):
+    """
+    IncrementalEncoder implementation for the PC Johab encoding (code page 1361).
+    """
     name = "johab-ascii"
     html5name = None
     @lazy_property
@@ -410,6 +505,9 @@ class AsciiJohabIncrementalEncoder(AsciiIncrementalEncoder):
         return data_8bit.encode_johab_ascii
 
 class AsciiJohabIncrementalDecoder(AsciiIncrementalDecoder):
+    """
+    IncrementalDecoder implementation for the PC Johab encoding (code page 1361).
+    """
     name = "johab-ascii"
     html5name = None
     @lazy_property
@@ -424,6 +522,9 @@ register_kuroko_codec(["cp1361", "ms1361", "johab", "x-johab", "johab-ascii"],
 
 
 class EbcdicJohabIncrementalEncoder(BaseEbcdicIncrementalEncoder):
+    """
+    IncrementalEncoder implementation for code page 1364, a stateful EBCDIC variant of Johab.
+    """
     name = "johab-ebcdic"
     html5name = None
     @lazy_property
@@ -434,6 +535,9 @@ class EbcdicJohabIncrementalEncoder(BaseEbcdicIncrementalEncoder):
         return data_8bit.encode_johab_ebcdic
 
 class EbcdicJohabIncrementalDecoder(BaseEbcdicIncrementalDecoder):
+    """
+    IncrementalDecoder implementation for code page 1364, a stateful EBCDIC variant of Johab.
+    """
     name = "johab-ebcdic"
     html5name = None
     @lazy_property
@@ -443,12 +547,22 @@ class EbcdicJohabIncrementalDecoder(BaseEbcdicIncrementalDecoder):
     def dbcshost_decode():
         return data_8bit.decode_johab_ebcdic
 
-register_kuroko_codec(["cp933", "ibm-933", "933", "x-IBM933", "ibm-1364", "x-IBM1364",
+register_kuroko_codec(["cp933", "ibm-933", "933", "x-IBM933", "cp1364", "ibm-1364", "x-IBM1364",
         "johab-ebcdic"],
     EbcdicJohabIncrementalEncoder, EbcdicJohabIncrementalDecoder)
 
 
 class JisEncodingIncrementalEncoder(Iso2022JpIncrementalEncoder):
+    """
+    IncrementalEncoder implementation for 7-bit stateful Japanese with all features.
+
+    This differs from the ISO-2022-JP encoder in that it will:
+
+    - Encode forms present in 1978 JIS but simplified by (and absent in) 1983 JIS to 1978 JIS.
+    - For characters not present in either table, try JIS X 0212, 2000 JIS and 2004 JIS in that order.
+    - For characters not present in any JIS set, try GB 2312 and Wansung.
+    - Preserve width of katakana.
+    """
     name = "jis_encoding"
     html5name = None
     @lazy_property
@@ -477,6 +591,18 @@ class JisEncodingIncrementalEncoder(Iso2022JpIncrementalEncoder):
     attitude = "eager"
 
 class JisEncodingIncrementalDecoder(Iso2022JpIncrementalDecoder):
+    """
+    IncrementalDecoder implementation for 7-bit stateful Japanese.
+
+    This is differs from the ISO-2022-JP decoder in that it will:
+
+    - Decode 1978 JIS with a separate table, including 1978 JIS, NEC extensions and IBM backports.
+    - Accept and decode extensions from ISO-2022-JP-2 (and -1), ISO-2022-JP-3 and ISO-2022-JP-2004.
+    - Not generate an error for immediately concatenated JIS-Kanji→ASCII→JIS-Kanji designations.
+    - Accept katakana via Shift Out / Shift In.
+    
+    This is used as the decoder for all other ISO-2022-JP variants besides plain ISO-2022-JP.
+    """
     name = "jis_encoding"
     html5name = None
     @lazy_property
@@ -518,6 +644,12 @@ register_kuroko_codec(["jis_encoding", "csjisencoding", "jis", "jis7"],
 
 
 class Iso2022Jp1IncrementalEncoder(Iso2022JpIncrementalEncoder):
+    """
+    IncrementalEncoder implementation for 7-bit stateful Japanese with JIS X 0212.
+
+    This differs from the ISO-2022-JP encoder in that it will encode to JIS X 0212, and does so
+    whenever possible (i.e. it will favour it over any web extensions to JIS X 0208).
+    """
     name = "iso-2022-jp-1"
     html5name = None
     @lazy_property
@@ -525,6 +657,7 @@ class Iso2022Jp1IncrementalEncoder(Iso2022JpIncrementalEncoder):
         return [None, None]
     @lazy_property
     def encodes_dbcs():
+        # Favour JIS X 0212 over any extensions in the web JIS X 0208 table.
         return [None, None, data_7bit.encode_jis90p2, more_dbdata.encode_jis7]
     escs_onebyte = {0: 0x42, 1: 0x4A}
     escs_twobyte = {3: 0x42, 2: 0x44}
@@ -535,6 +668,11 @@ register_kuroko_codec(["iso-2022-jp-1", "iso2022-jp-1", "iso2022jp-1"],
 
 
 class Iso2022JpExtIncrementalEncoder(Iso2022JpIncrementalEncoder):
+    """
+    IncrementalEncoder implementation for 7-bit stateful Japanese.
+
+    This differs from the ISO-2022-JP encoder in that it preserves katakana width.
+    """
     name = "iso-2022-jp-ext"
     html5name = None
     @lazy_property
@@ -552,6 +690,9 @@ register_kuroko_codec(["iso-2022-jp-ext", "iso2022-jp-ext", "iso2022jp-ext"],
 
 
 class Iso2022Jp2IncrementalEncoder(Iso2022JpIncrementalEncoder):
+    """
+    IncrementalEncoder implementation for 7-bit stateful Japanese with multilingual extensions.
+    """
     name = "iso-2022-jp-2"
     html5name = None
     @lazy_property
@@ -559,6 +700,7 @@ class Iso2022Jp2IncrementalEncoder(Iso2022JpIncrementalEncoder):
         return [None, None]
     @lazy_property
     def encodes_dbcs():
+        # Favour JIS X 0212 over any extensions in the web JIS X 0208 table.
         return [None, None,
                 data_7bit.encode_jis90p2,
                 more_dbdata.encode_jis7,
@@ -579,19 +721,10 @@ register_kuroko_codec(["iso-2022-jp-2", "iso2022-jp-2", "iso2022jp-2", "csISO202
     Iso2022Jp2IncrementalEncoder, JisEncodingIncrementalDecoder)
 
 
-# Bit confusing to explain what this bit is doing, so let me explain:
-#     The JIS X 0213 variants of ISO-2022-JP should encode to JIS X 0213 before encoding to any
-#   extension to JIS X 0208 (assuming they "should" encode to extensions at all). So we remove any
-#   characters that are encoded to different locations in JIS X 0213.
-#     Since NEC Row 13 is retained in JIS X 0213, but should be encoded in the JIS X 0213 state not
-#   the JIS X 0208 state, it is also excluded.
-#     This also removes certain Unicode characters that are mapped differently by Microsoft/WHATWG 
-#   versus by JIS X 0213, e.g. the fullwidth tilde, in the hope that the JIS X 0213 tables would
-#   more dependably round trip.
-let encode_jis7_reduced = xraydict(more_dbdata.encode_jis7, {}, [33537, 33634, 33663, 33735, 33864, 33972, 34012, 34131, 34137, 34224, 35061, 35100, 35346, 35383, 35449, 35495, 35518, 35551, 35574, 35711, 36080, 36084, 36114, 20008, 20193, 20224, 20227, 20310, 20362, 20370, 20372, 20378, 20425, 20544, 20514, 20510, 20550, 20546, 20592, 20628, 37086, 37141, 37159, 20810, 20893, 37335, 37338, 37357, 37358, 37348, 37349, 37386, 37392, 21013, 37434, 37436, 37440, 37433, 37454, 37457, 37465, 37479, 37496, 37512, 21158, 37543, 21167, 37584, 37587, 37591, 21211, 37593, 37600, 37607, 37625, 21248, 37627, 21255, 37631, 37634, 37662, 37661, 21284, 37669, 37665, 37704, 37719, 37744, 21395, 21426, 37830, 37854, 37957, 21642, 21660, 21673, 21759, 21894, 38557, 38575, 38707, 38715, 38733, 38735, 38741, 22444, 22472, 22471, 38999, 39013, 22686, 22795, 22875, 22877, 39326, 22948, 39502, 39644, 23382, 39794, 39797, 39823, 39857, 23488, 23512, 23532, 39936, 23582, 23718, 23738, 23847, 23874, 23891, 40299, 23917, 40304, 23992, 23993, 40473, 40657, 24372, 24389, 24423, 24503, 24542, 24714, 24789, 24818, 8470, 8481, 24880, 24887, 8544, 8545, 8546, 8547, 8548, 8549, 8550, 8551, 8552, 8553, 8560, 8561, 8562, 8563, 8564, 8565, 8566, 8567, 8568, 8569, 24984, 8721, 8730, 8735, 8736, 8741, 8745, 8746, 8747, 8750, 8757, 8786, 8801, 8869, 25254, 8895, 25589, 9312, 9313, 9314, 9315, 9316, 9317, 9318, 9319, 9320, 9321, 9322, 9323, 9324, 9325, 9326, 9327, 9328, 9329, 9330, 9331, 25696, 25757, 25806, 26112, 26121, 26133, 26142, 26148, 26161, 26199, 26201, 26213, 26227, 26265, 26272, 26290, 26303, 26362, 26363, 26470, 26555, 26560, 26625, 26692, 26706, 26824, 26831, 26984, 27032, 27106, 27184, 27206, 27243, 27251, 27262, 27364, 27606, 27711, 27740, 27782, 27866, 27908, 28039, 28076, 28111, 28156, 28199, 28220, 28252, 28351, 28552, 28597, 28661, 12317, 12319, 28677, 28679, 28712, 28859, 28805, 28843, 28943, 28932, 28998, 28999, 29020, 29121, 29182, 12849, 12850, 12857, 12964, 12965, 12966, 12967, 12968, 29361, 29374, 13059, 13069, 13076, 13080, 13090, 13091, 13094, 13095, 13099, 13110, 13115, 13129, 13130, 13133, 13137, 13143, 29559, 13179, 13180, 13181, 13182, 13198, 13199, 13212, 13213, 13214, 13217, 13252, 29641, 13261, 29654, 29667, 29703, 29734, 29738, 29742, 29794, 29833, 29855, 29953, 29999, 30063, 30363, 30364, 30366, 30374, 30534, 30753, 30798, 30820, 63785, 31024, 31124, 31131, 63964, 64015, 64016, 64017, 64019, 64020, 64021, 64022, 64025, 64026, 64027, 64031, 64032, 64033, 64034, 64036, 64038, 31441, 31463, 31467, 31646, 32072, 32092, 32160, 32183, 32214, 32338, 32394, 65282, 65287, 65293, 65374, 32583, 65508])
-
-
 class Iso2022Jp3IncrementalEncoder(Iso2022JpIncrementalEncoder):
+    """
+    IncrementalEncoder implementation for 7-bit stateful Japanese with JIS X 0213-2000.
+    """
     name = "iso-2022-jp-3"
     html5name = None
     @lazy_property
@@ -600,7 +733,7 @@ class Iso2022Jp3IncrementalEncoder(Iso2022JpIncrementalEncoder):
     @lazy_property
     def encodes_dbcs():
         return [None, None, None,
-                encode_jis7_reduced,
+                data_7bit.encode_jis7_reduced,
                 data_7bit.encode_jis00,
                 data_7bit.encode_jis00p2]
     escs_onebyte = {0: 0x42, 1: 0x4A, 2: 0x49}
@@ -612,6 +745,9 @@ register_kuroko_codec(["iso-2022-jp-3", "iso2022-jp-3", "iso2022jp-3"],
 
 
 class Iso2022Jp2004IncrementalEncoder(Iso2022JpIncrementalEncoder):
+    """
+    IncrementalEncoder implementation for 7-bit stateful Japanese with JIS X 0213-2004.
+    """
     name = "iso-2022-jp-2004"
     html5name = None
     @lazy_property
@@ -620,7 +756,7 @@ class Iso2022Jp2004IncrementalEncoder(Iso2022JpIncrementalEncoder):
     @lazy_property
     def encodes_dbcs():
         return [None, None, None,
-                encode_jis7_reduced,
+                data_7bit.encode_jis7_reduced,
                 data_7bit.encode_jis00p2,
                 data_7bit.encode_jis04]
     escs_onebyte = {0: 0x42, 1: 0x4A, 2: 0x49}
@@ -632,6 +768,9 @@ register_kuroko_codec(["iso-2022-jp-2004", "iso2022-jp-2004", "iso2022jp-2004"],
 
 
 class Utf32IncrementalEncoder(IncrementalEncoder):
+    """
+    IncrementalEncoder implementation for UTF-32 with byte order mark.
+    """
     name = "utf-32"
     html5name = None
     @lazy_property
@@ -650,6 +789,7 @@ class Utf32IncrementalEncoder(IncrementalEncoder):
         else:
             raise ValueError("unexpected endian value: " + repr(self.endian))
     def encode(string, final = False):
+        """Implements `IncrementalEncoder.encode`"""
         let out = ByteCatenator()
         let offset = 0
         if self.include_bom and self.state == -1:
@@ -672,13 +812,19 @@ class Utf32IncrementalEncoder(IncrementalEncoder):
                 if offset < 0:
                     offset += len(string)
     def reset():
+        """Implements `IncrementalEncoder.reset`"""
         self.state = -1
     def getstate():
+        """Implements `IncrementalEncoder.getstate`"""
         return self.state
     def setstate(state):
+        """Implements `IncrementalEncoder.setstate`"""
         self.state = state
 
 class Utf32IncrementalDecoder(IncrementalDecoder):
+    """
+    IncrementalDecoder implementation for UTF-32, detected byte order, removing any byte order mark.
+    """
     name = "utf-32"
     html5name = None
     force_endian = None # subclass may set to "little" or "big"
@@ -688,6 +834,7 @@ class Utf32IncrementalDecoder(IncrementalDecoder):
     state = None
     pending = b""
     def decode(data_in, final = False):
+        """Implements `IncrementalDecoder.decode`"""
         let data = self.pending + data_in
         self.pending = b""
         let out = StringCatenator()
@@ -754,34 +901,49 @@ class Utf32IncrementalDecoder(IncrementalDecoder):
                 out.add(errorret[0])
                 offset = errorret[1]
                 if offset < 0:
-                    offset += len(string)
+                    offset += len(data)
     def reset():
+        """Implements `IncrementalDecoder.reset`"""
         self.pending = b""
         self.state = -1
     def getstate():
+        """Implements `IncrementalDecoder.getstate`"""
         return (self.pending, self.state)
     def setstate(state):
+        """Implements `IncrementalDecoder.setstate`"""
         self.pending = state[0]
         self.state = state[1]
 
 class Utf32BeIncrementalEncoder(Utf32IncrementalEncoder):
+    """
+    IncrementalEncoder implementation for UTF-32, big endian, without a byte order mark.
+    """
     name = "utf-32be"
     html5name = None
     endian = "big"
     include_bom = False
 
 class Utf32BeIncrementalDecoder(Utf32IncrementalDecoder):
+    """
+    IncrementalDecoder implementation for UTF-32, big endian, without a byte order mark.
+    """
     name = "utf-32be"
     html5name = None
     force_endian = "big"
 
 class Utf32LeIncrementalEncoder(Utf32IncrementalEncoder):
+    """
+    IncrementalEncoder implementation for UTF-32, little endian, without a byte order mark.
+    """
     name = "utf-32le"
     html5name = None
     endian = "little"
     include_bom = False
 
 class Utf32LeIncrementalDecoder(Utf32IncrementalDecoder):
+    """
+    IncrementalDecoder implementation for UTF-32, little endian, without a byte order mark.
+    """
     name = "utf-32le"
     html5name = None
     force_endian = "little"
@@ -795,6 +957,11 @@ register_kuroko_codec(["utf-32be", "utf-32-be"],
 
 
 class HzIncrementalEncoder(IncrementalEncoder):
+    """
+    IncrementalEncoder implementation for HZ-GB-2312 (Usenet simplified Chinese).
+
+    This is an old scheme for embedding GB 2312 data into a pure ASCII stream.
+    """
     name = "hz-gb-2312"
     html5name = None
     def ensure_state_number(state, out):
@@ -818,6 +985,7 @@ class HzIncrementalEncoder(IncrementalEncoder):
             raise ValueError("set to invalid state: " + repr(state))
         self.state = state
     def encode(string, final = False):
+        """Implements `IncrementalEncoder.encode`"""
         let out = ByteCatenator()
         let offset = 0
         while 1: # offset can be arbitrarily changed by the error handler, so not a for
@@ -850,18 +1018,27 @@ class HzIncrementalEncoder(IncrementalEncoder):
                 if offset < 0:
                     offset += len(string)
     def reset():
+        """Implements `IncrementalEncoder.reset`"""
         self.state = 0
         self.linelength = 0
     def getstate():
+        """Implements `IncrementalEncoder.getstate`"""
         return (self.state, self.linelength)
     def setstate(state):
+        """Implements `IncrementalEncoder.setstate`"""
         self.state = state[0]
         self.linelength = state[1]
 
 class HzIncrementalDecoder(IncrementalDecoder):
+    """
+    IncrementalDecoder implementation for HZ-GB-2312 (Usenet simplified Chinese).
+
+    This is an old scheme for embedding GB 2312 data into a pure ASCII stream.
+    """
     name = "hz-gb-2312"
     html5name = None
     def decode(data_in, final = False):
+        """Implements `IncrementalDecoder.decode`"""
         let data = self.pending + data_in
         self.pending = b""
         let out = StringCatenator()
@@ -920,13 +1097,16 @@ class HzIncrementalDecoder(IncrementalDecoder):
                 out.add(errorret[0])
                 offset = errorret[1]
                 if offset < 0:
-                    offset += len(string)
+                    offset += len(data)
     def reset():
+        """Implements `IncrementalDecoder.reset`"""
         self.pending = b""
         self.state_set = 0
     def getstate():
+        """Implements `IncrementalDecoder.getstate`"""
         return (self.pending, self.state_set)
     def setstate(state):
+        """Implements `IncrementalDecoder.setstate`"""
         self.pending = state[0]
         self.state_set = state[1]
 
@@ -935,6 +1115,14 @@ register_kuroko_codec(["hz-gb-2312", "hz", "hzgb", "hz_gb"],
 
 
 class JapaneseAutodetectIncrementalDecoder(IncrementalDecoder):
+    """
+    IncrementalDecoder implementation for the automatic "Japanese" character encoding option.
+
+    This will attempt to interpret the stream as the web versions of ISO-2022-JP, Shift_JIS and
+    EUC-JP, as well as UTF-8, at once, and start returning the data once it has narrowed it down
+    to one. If it fails to narrow it down conclusively, it will wait until the final call before
+    making an educated guess. If it doesn't seem to be any of them, it will raise `ValueError`.
+    """
     name = "japanese"
     html5name = None
     # State flags:
@@ -951,11 +1139,14 @@ class JapaneseAutodetectIncrementalDecoder(IncrementalDecoder):
         self.utf = lookup("utf-8-sig").incrementaldecoder("strict")
         self.reset()
     def decode(data, final = False):
+        """Implements `IncrementalDecoder.decode`"""
         if not (self.state & 0x01):
             try:
                 self.pendingjis.add(self.jis.decode(data, final))
             except UnicodeDecodeError:
                 self.state |= 0x01
+            if self.jis.state_set != 0:
+                self.state |= 0x0E
         #
         if not (self.state & 0x02):
             try:
@@ -1029,6 +1220,7 @@ class JapaneseAutodetectIncrementalDecoder(IncrementalDecoder):
             return ret
         return ""
     def reset():
+        """Implements `IncrementalDecoder.reset`"""
         self.state = 0
         self.pending = b""
         self.jis.reset()
@@ -1040,12 +1232,14 @@ class JapaneseAutodetectIncrementalDecoder(IncrementalDecoder):
         self.utf.reset()
         self.pendingutf = StringCatenator()
     def getstate():
+        """Implements `IncrementalDecoder.getstate`"""
         return (self.jis.getstate(), self.pendingjis.getvalue(), 
                 self.sjis.getstate(), self.pendingsjis.getvalue(), 
                 self.ujis.getstate(), self.pendingujis.getvalue(), 
                 self.utf.getstate(), self.pendingutf.getvalue(), 
                 self.state)
     def setstate(state):
+        """Implements `IncrementalDecoder.setstate`"""
         self.jis.setstate(state[0])
         self.pendingjis = StringCatenator()
         self.pendingjis.add(state[1])
@@ -1067,6 +1261,9 @@ register_kuroko_codec(["japanese"], Utf8SigIncrementalEncoder,
 
 
 class Iso2022NonJpIncrementalEncoder(IncrementalEncoder):
+    """
+    IncrementalEncoder subclass, base class for ISO-2022-KR and ISO-2022-CN. Not used directly.
+    """
     name = None
     html5name = None
     encodes = []
@@ -1095,6 +1292,7 @@ class Iso2022NonJpIncrementalEncoder(IncrementalEncoder):
         self.super3_desig = state
     def run_prelude(out):
     def encode(string, final = False):
+        """Implements `IncrementalEncoder.encode`"""
         let out = ByteCatenator()
         let offset = 0
         if self.shift_desig == None and self.super_desig == None and self.super3_desig == None:
@@ -1156,19 +1354,25 @@ class Iso2022NonJpIncrementalEncoder(IncrementalEncoder):
             if offset < 0:
                 offset += len(string)
     def reset():
+        """Implements `IncrementalEncoder.reset`"""
         self.shift = False
         self.shift_desig = None
         self.super_desig = None
         self.super3_desig = None
     def getstate():
+        """Implements `IncrementalEncoder.getstate`"""
         return (self.shift, self.shift_desig, self.super_desig, self.super3_desig)
     def setstate(state):
+        """Implements `IncrementalEncoder.setstate`"""
         self.shift = state[0]
         self.shift_desig = state[1]
         self.super_desig = state[2]
         self.super3_desig = state[2]
 
 class Iso2022NonJpIncrementalDecoder(IncrementalDecoder):
+    """
+    IncrementalDecoder subclass, base class for ISO-2022-KR and ISO-2022-CN. Not used directly.
+    """
     name = None
     html5name = None
     decodes = []
@@ -1176,6 +1380,7 @@ class Iso2022NonJpIncrementalDecoder(IncrementalDecoder):
     escs_super = {}
     escs_super3 = {}
     def decode(data_in, final = False):
+        """Implements `IncrementalDecoder.decode`"""
         let data = self.pending + data_in
         self.pending = b""
         let out = StringCatenator()
@@ -1285,16 +1490,19 @@ class Iso2022NonJpIncrementalDecoder(IncrementalDecoder):
             out.add(errorret[0])
             offset = errorret[1]
             if offset < 0:
-                offset += len(string)
+                offset += len(data)
     def reset():
+        """Implements `IncrementalDecoder.reset`"""
         self.pending = b""
         self.shift = False
         self.shift_desig = None
         self.super_desig = None
         self.super3_desig = None
     def getstate():
+        """Implements `IncrementalDecoder.getstate`"""
         return (self.pending, self.shift, self.shift_desig, self.super_desig, self.super3_desig)
     def setstate(state):
+        """Implements `IncrementalDecoder.setstate`"""
         self.pending = state[0]
         self.shift = state[1]
         self.shift_desig = state[2]
@@ -1302,6 +1510,9 @@ class Iso2022NonJpIncrementalDecoder(IncrementalDecoder):
         self.super3_desig = state[4]
 
 class Iso2022KrIncrementalEncoder(Iso2022NonJpIncrementalEncoder):
+    """
+    IncrementalEncoder implementation for ISO-2022-KR (7-bit stateful Korean, South).
+    """
     name = "iso-2022-kr"
     html5name = None
     @lazy_property
@@ -1315,6 +1526,9 @@ class Iso2022KrIncrementalEncoder(Iso2022NonJpIncrementalEncoder):
         self.ensure_shift_designation(0, out)
 
 class Iso2022KrIncrementalDecoder(Iso2022NonJpIncrementalDecoder):
+    """
+    IncrementalDecoder implementation for ISO-2022-KR (7-bit stateful Korean, South).
+    """
     name = "iso-2022-kr"
     html5name = None
     @lazy_property
@@ -1326,6 +1540,11 @@ register_kuroko_codec(["iso-2022-kr", "iso2022-kr", "iso2022kr", "csiso2022kr"],
     Iso2022KrIncrementalEncoder, Iso2022KrIncrementalDecoder)
 
 class Iso2022CnIncrementalEncoder(Iso2022NonJpIncrementalEncoder):
+    """
+    IncrementalEncoder implementation for ISO-2022-CN (7-bit stateful Chinese).
+
+    ISO-2022-CN-Ext is not included (it requires a much larger set of tables and is very rare).
+    """
     name = "iso-2022-cn"
     html5name = None
     @lazy_property
@@ -1335,6 +1554,11 @@ class Iso2022CnIncrementalEncoder(Iso2022NonJpIncrementalEncoder):
     escs_super = {2: 0x48}
 
 class Iso2022CnIncrementalDecoder(Iso2022NonJpIncrementalDecoder):
+    """
+    IncrementalDecoder implementation for ISO-2022-CN (7-bit stateful Chinese).
+
+    ISO-2022-CN-Ext is not included (it requires a much larger set of tables and is very rare).
+    """
     name = "iso-2022-cn"
     html5name = None
     @lazy_property

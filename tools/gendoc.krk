@@ -81,14 +81,16 @@ let modules = [
     'tools.gendoc',
 
     # Codecs module
+    'codecs',
     'codecs.bespokecodecs',
     'codecs.binascii',
     'codecs.dbdata',
+    'codecs.dbextra',
     'codecs.dbextra_data_7bit',
     'codecs.dbextra_data_8bit',
-    'codecs.dbextra',
     'codecs.infrastructure',
     'codecs.isweblabel',
+    'codecs.pifonts',
     'codecs.sbencs',
     'codecs.sbextra',
 ]
@@ -156,7 +158,7 @@ def functionDoc(func):
     let doc = func.__doc__ if ('__doc__' in dir(func) and func.__doc__) else ''
     if '@arguments ' in doc:
         doc = '\n'.join([x for x in doc.split('\n') if '@arguments' not in x])
-    return doc
+    return "<p>" + doc + "</p>"
 
 def processModules(modules):
 
@@ -176,6 +178,13 @@ def processModules(modules):
             output.write('\n')
 
         print('## ' + fixup(modulepath) + ' {#mod_' + modulepath.replace('.','_') + '}')
+        let rsplit = lambda s,d,l: reversed("".join(reversed(i)) for i in "".join(reversed(s)).split(d, l))
+        if "." in modulepath:
+            let parent = rsplit(modulepath, ".", 1)[0]
+            if parent in modules:
+                let parentpath = fixup(parent).replace('.','_')
+                print(f"\n<a href='mod_{parentpath}.html'>← {parent}</a>\n")
+
         if '__doc__' in dir(module) and module.__doc__:
             print(module.__doc__.strip())
             docString[modulepath] = truncateString(module.__doc__)
@@ -278,6 +287,17 @@ def processModules(modules):
                         continue # Skip top-level modules as these are almost definitely imports
                     else:
                         other.append(Pair(member,obj))
+
+            if hasattr(module, "__ispackage__") and module.__ispackage__:
+                print("\n### Package contents\n")
+                print('\htmlonly<div class="krk-class-index"><ul>\n')
+                for i in modules:
+                    if not i.startswith(name + "."):
+                        continue
+                    let uscored = fixup(i).replace('.','_')
+                    let relative = i[len(name) + 1:]
+                    print(f'<li><a class="el" href="mod_{uscored}.html">{relative}</a></li>\n')
+                print('</ul></div>\endhtmlonly\n')
 
             if classes:
                 print('\n### Classes\n')

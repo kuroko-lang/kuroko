@@ -1,3 +1,6 @@
+"""
+Defines functions and codecs pertaining to binary-to-text encodings.
+"""
 from codecs.infrastructure import StringCatenator, ByteCatenator, IncrementalEncoder, IncrementalDecoder, UnicodeDecodeError, UnicodeEncodeError, register_kuroko_codec
 
 let _base64_alphabet = (
@@ -11,10 +14,14 @@ let _base64_alphabet_hqx = [ord(i) for i in
         "!\"#$%&'()*+,-012345689@ABCDEFGHIJKLMNPQRSTUVXYZ[`abcdefhijklmpqr"]
 
 class Base64IncrementalCreator(IncrementalDecoder):
+    """
+    IncrementalDecoder implementation to create (yes) Base64 from bytes.
+    """
     name = "inverse-base64"
     alphabet = _base64_alphabet
     padchar = "="
     def decode(data_in, final = False):
+        """Implements `IncrementalDecoder.decode`"""
         let data = self.pending + data_in
         self.pending = b""
         let offset = 0
@@ -39,10 +46,14 @@ class Base64IncrementalCreator(IncrementalDecoder):
             offset += 3
 
 class Base64IncrementalParser(IncrementalEncoder):
+    """
+    IncrementalEncoder implementation to parse (yes) Base64 from a string to bytes.
+    """
     name = "inverse-base64"
     alphabet = _base64_alphabet
     padchar = "="
     def encode(string_in, final = False):
+        """Implements `IncrementalEncoder.encode`"""
         let string = self.pending + string_in
         self.pending = ""
         let offset = 0
@@ -90,19 +101,35 @@ class Base64IncrementalParser(IncrementalEncoder):
                 raise UnicodeEncodeError(self.name, string, offset, suboffset,
                                     "Base64 truncated or with invalid number of pad characters")
             offset = suboffset
-    def reset(): self.pending = ""
-    def getstate(): return self.pending
-    def setstate(state): self.pending = state
+    def reset():
+        """Implements `IncrementalEncoder.reset`"""
+        self.pending = ""
+    def getstate():
+        """Implements `IncrementalEncoder.getstate`"""
+        return self.pending
+    def setstate(state):
+        """Implements `IncrementalEncoder.setstate`"""
+        self.pending = state
 
 register_kuroko_codec(["inverse-base64"],
     Base64IncrementalParser, Base64IncrementalCreator)
 
 class Base64UUIncrementalCreator(Base64IncrementalCreator):
+    """
+    IncrementalDecoder implementation to create (yes) the flavour of Base64 used in uuencode.
+
+    Note that this does not output the uuencode format, and is only one component of implementing it.
+    """
     name = "inverse-base64uu"
     alphabet = _base64_alphabet_uu
     padchar = " "
 
 class Base64UUIncrementalParser(Base64IncrementalParser):
+    """
+    IncrementalEncoder implementation to parse (yes) the flavour of Base64 used in uuencode.
+
+    Note that this does not take the uuencode format, and is only one component of implementing it.
+    """
     name = "inverse-base64uu"
     alphabet = _base64_alphabet_uu
     padchar = " "
@@ -111,10 +138,20 @@ register_kuroko_codec(["inverse-base64uu"],
     Base64UUIncrementalParser, Base64UUIncrementalCreator)
 
 class Base64HQXIncrementalCreator(Base64IncrementalCreator):
+    """
+    IncrementalDecoder implementation to create (yes) the flavour of Base64 used in BinHex4.
+
+    Note that this does not output the BinHex4 format, and is only one component of implementing it.
+    """
     name = "inverse-base64hqx"
     alphabet = _base64_alphabet_hqx
 
 class Base64HQXIncrementalParser(Base64IncrementalParser):
+    """
+    IncrementalEncoder implementation to parse (yes) the flavour of Base64 used in BinHex4.
+
+    Note that this does not take the BinHex4 format, and is only one component of implementing it.
+    """
     name = "inverse-base64hqx"
     alphabet = _base64_alphabet_hqx
 
@@ -123,8 +160,12 @@ register_kuroko_codec(["inverse-base64hqx"],
 
 
 class QuoPriIncrementalCreator(IncrementalDecoder):
+    """
+    IncrementalDecoder implementation to create (yes) Quoted-Printable from bytes.
+    """
     name = "inverse-quopri"
     def decode(data_in, final = False):
+        """Implements `IncrementalDecoder.decode`"""
         let data = self.pending + data_in
         self.pending = b""
         let offset = 0
@@ -171,17 +212,24 @@ class QuoPriIncrementalCreator(IncrementalDecoder):
                 self.linelength += 3
             offset += 1
     def reset():
+        """Implements `IncrementalDecoder.reset`"""
         self.linelength = 0
         self.pending = b""
     def getstate():
+        """Implements `IncrementalDecoder.getstate`"""
         return (self.linelength, self.pending)
     def setstate(state):
+        """Implements `IncrementalDecoder.setstate`"""
         self.linelength = state[0]
         self.pending = state[1]
 
 class QuoPriIncrementalParser(IncrementalEncoder):
+    """
+    IncrementalEncoder implementation to parse (yes) Quoted-Printable from a string to bytes.
+    """
     name = "inverse-quopri"
     def encode(string_in, final = False):
+        """Implements `IncrementalEncoder.encode`"""
         let string = self.pending + string_in
         self.pending = ""
         let offset = 0
@@ -220,15 +268,26 @@ class QuoPriIncrementalParser(IncrementalEncoder):
                 let byteval = (hexd.index(procsubst[1]) << 4) | hexd.index(procsubst[2])
                 out.add(bytes([byteval]))
                 offset += 3
-    def reset(): self.pending = ""
-    def getstate(): return self.pending
-    def setstate(state): self.pending = state
+    def reset():
+        """Implements `IncrementalEncoder.reset`"""
+        self.pending = ""
+    def getstate():
+        """Implements `IncrementalEncoder.getstate`"""
+        return self.pending
+    def setstate(state):
+        """Implements `IncrementalEncoder.setstate`"""
+        self.pending = state
 
 register_kuroko_codec(["inverse-quopri"],
     QuoPriIncrementalParser, QuoPriIncrementalCreator)
 
 
 def base64_file_create(data, filename=None, mode=0o666):
+    """
+    Create a Base64 string containing the provided data, with lines wrapped as required by some
+    formats. If a filename and optional UNIX mode are provided, Base64 headers as recognised by
+    some modern versions of uudecode are added.
+    """
     let out = StringCatenator()
     let creator = Base64IncrementalCreator("strict")
     if filename != None:
@@ -246,6 +305,9 @@ def base64_file_create(data, filename=None, mode=0o666):
 
 
 def uu_file_create(data, filename="-", mode=0o666):
+    """
+    Create a string in the uuencode file format containing the provided data.
+    """
     let out = StringCatenator()
     let creator = Base64UUIncrementalCreator("strict")
     let octmode = oct(mode)[2:]

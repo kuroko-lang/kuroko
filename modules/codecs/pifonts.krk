@@ -1,0 +1,81 @@
+"""
+This module includes codecs implementing special handling for symbol fonts.
+"""
+
+from codecs.infrastructure import register_kuroko_codec, ByteCatenator, StringCatenator, UnicodeEncodeError, UnicodeDecodeError, lookup_error, lookup, IncrementalEncoder, IncrementalDecoder, lazy_property
+from collections import xraydict
+
+class Cp042IncrementalEncoder(IncrementalEncoder):
+    """
+    Encoder for Windows code page 42 (GDI Symbol), and base class for symbol font encoders.
+
+    This maps characters to PUA with the low 8 bits matching the original byte encoding, similarly
+    to `x-user-defined`, but using a different PUA range and including all non-C0 bytes, not
+    only non-ASCII bytes.
+    """
+    name = "cp042"
+    html5name = None
+    encoding_map = {}
+    def encode(string, final = False):
+        """Implements `IncrementalEncoder.encode`"""
+        let out = ByteCatenator()
+        let offset = 0
+        while 1: # offset can be arbitrarily changed by the error handler, so not a for
+            if offset >= len(string):
+                return out.getvalue()
+            let i = string[offset]
+            if ord(i) in self.encoding_map:
+                let target = self.encoding_map[ord(i)]
+                out.add(bytes([target]))
+                offset += 1
+            else if ord(i) < 0x100:
+                # U+0020 thru U+00FF are accepted by GDI itself, but not by Code page 42
+                #   as implemented by Microsoft, which has caused problems:
+                # http://archives.miloush.net/michkap/archive/2005/11/08/490495.html
+                out.add(bytes([ord(i)]))
+                offset += 1
+            else if (0xF020 <= ord(i)) and (ord(i) < 0xF100):
+                out.add(bytes([ord(i) - 0xF000]))
+                offset += 1
+            else if (0xF780 <= ord(i)) and (ord(i) < 0xF800):
+                # Accept (not generate) the x-user-defined range as well, because why not?
+                out.add(bytes([ord(i) - 0xF700]))
+                offset += 1
+            else:
+                let error = UnicodeEncodeError(self.name, string, offset, offset + 1,
+                            "character not supported by target encoding")
+                let errorret = lookup_error(self.errors)(error)
+                out.add(errorret[0])
+                offset = errorret[1]
+                if offset < 0:
+                    offset += len(string)
+
+class Cp042IncrementalDecoder(IncrementalDecoder):
+    """
+    Decoder for Windows code page 42 (GDI Symbol), and base class for symbol font decoders.
+
+    This maps characters to PUA with the low 8 bits matching the original byte encoding, similarly
+    to `x-user-defined`, but using a different PUA range and including all non-C0 bytes, not
+    only non-ASCII bytes.
+    """
+    name = "cp042"
+    html5name = None
+    decoding_map = {}
+    def decode(data, final = False):
+        """Implements `IncrementalDecoder.decode`"""
+        self.pending = b""
+        let out = StringCatenator()
+        let offset = 0
+        for i in data:
+            if i in self.decoding_map:
+                out.add(chr(self.decoding_map[i]))
+            else if i < 0x20:
+                out.add(chr(i))
+            else:
+                out.add(chr(i + 0xF000))
+        return out.getvalue()
+
+register_kuroko_codec(["cp042"], Cp042IncrementalEncoder, Cp042IncrementalDecoder)
+
+
+

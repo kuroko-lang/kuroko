@@ -1,3 +1,6 @@
+"""
+Defines 8-bit mapping data for `codecs.dbextra`.
+"""
 from collections import xraydict
 from codecs.infrastructure import lazy_property
 from codecs.dbdata import more_dbdata, XEucJpIncrementalEncoder, XEucJpIncrementalDecoder, Windows31JIncrementalEncoder, Windows31JIncrementalDecoder, Big5EtenIncrementalEncoder, Big5HkscsIncrementalDecoder

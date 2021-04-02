@@ -388,3 +388,14 @@ div.memdoc {
   color: #bbb;
   content: '->';
 }
+
+.markdownTableRowOdd {
+    background: rgba(204, 204, 204, 0.2);
+}
+table.markdownTable {
+    margin-bottom: 1em;
+}
+.markdownTable th, .markdownTable td {
+    padding-left: 0.5ex;
+    padding-right: 0.5ex;
+}

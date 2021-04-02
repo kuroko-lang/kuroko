@@ -1,11 +1,19 @@
+"""Contains various WHATWG-defined codecs which require dedicated implementations.
+
+Also includes `utf-8-sig` which, while not a WHATWG-specified codec _per se_, is detected,
+interpreted and handled by WHATWG BOM tag logic, in preference above any label, before the codec
+gets to see it. WHATWG BOM tag logic is not implemented here (it is not always sensible in a
+non-browser context); hence, they remain separate codecs."""
 from codecs.infrastructure import register_kuroko_codec, ByteCatenator, StringCatenator, UnicodeEncodeError, UnicodeDecodeError, lookup_error, lookup, IncrementalDecoder, IncrementalEncoder, lazy_property
 from codecs.dbdata import more_dbdata
 
 class Gb18030IncrementalEncoder(IncrementalEncoder):
+    """IncrementalEncoder implementation for GB18030 (Mainland Chinese Unicode format)"""
     name = "gb18030"
     html5name = "gb18030"
     four_byte_codes = True
     def encode(string, final = False):
+        """Implements `IncrementalEncoder.encode`"""
         let out = ByteCatenator()
         let offset = 0
         while 1: # offset can be arbitrarily changed by the error handler, so not a for
@@ -64,6 +72,8 @@ class Gb18030IncrementalEncoder(IncrementalEncoder):
                 offset += 1
 
 class GbkIncrementalEncoder(Gb18030IncrementalEncoder):
+    """IncrementalEncoder implementation for GBK (Chinese), 
+    extension of GB2312 (Simplified Chinese)"""
     name = "gbk"
     html5name = "gbk"
     four_byte_codes = False
@@ -77,9 +87,12 @@ def _get_gbsurrogate_pointer(leader, i):
     return ret
 
 class Gb18030IncrementalDecoder(IncrementalDecoder):
+    """IncrementalDecoder implementation for GB18030 (Mainland Chinese Unicode),
+    extension of GB2312 (Simplified Chinese)"""
     name = "gb18030"
     html5name = "gb18030"
     def decode(data_in, final = False):
+        """Implements `IncrementalDecoder.decode`"""
         let data = self.pending + data_in
         self.pending = b""
         let out = StringCatenator()
@@ -150,7 +163,7 @@ class Gb18030IncrementalDecoder(IncrementalDecoder):
                 out.add(errorret[0])
                 offset = errorret[1]
                 if offset < 0:
-                    offset += len(string)
+                    offset += len(data)
 
 register_kuroko_codec(["gb18030", "gb18030_2000"], Gb18030IncrementalEncoder, Gb18030IncrementalDecoder)
 register_kuroko_codec(
@@ -159,6 +172,7 @@ register_kuroko_codec(
     GbkIncrementalEncoder, Gb18030IncrementalDecoder)
 
 class Iso2022JpIncrementalEncoder(IncrementalEncoder):
+    """IncrementalEncoder implementation for ISO-2022-JP (7-bit stateful Japanese JIS)"""
     name = "iso-2022-jp"
     html5name = "iso-2022-jp"
     encodes_sbcs = []
@@ -187,6 +201,7 @@ class Iso2022JpIncrementalEncoder(IncrementalEncoder):
             raise ValueError("set to invalid state: " + repr(state))
         self.state = state
     def encode(string, final = False):
+        """Implements `IncrementalEncoder.encode`"""
         let out = ByteCatenator()
         let offset = 0
         while 1: # offset can be arbitrarily changed by the error handler, so not a for
@@ -261,17 +276,21 @@ class Iso2022JpIncrementalEncoder(IncrementalEncoder):
             else:
                 raise RuntimeError("inconsistently configured encoder")
     def reset():
+        """Implements `IncrementalEncoder.reset`"""
         self.state = 0
         self.state_greekmode = False
         self.state_desigsupershift = False
     def getstate():
+        """Implements `IncrementalEncoder.getstate`"""
         return (self.state, self.state_desigsupershift, self.state_greekmode)
     def setstate(state):
+        """Implements `IncrementalEncoder.setstate`"""
         self.state = state[0]
         self.state_desigsupershift = state[1]
         self.state_greekmode = state[2]
 
 class Iso2022JpIncrementalDecoder(IncrementalDecoder):
+    """IncrementalDecoder implementation for ISO-2022-JP (7-bit stateful Japanese JIS)"""
     name = "iso-2022-jp"
     html5name = "iso-2022-jp"
     @lazy_property
@@ -291,6 +310,7 @@ class Iso2022JpIncrementalDecoder(IncrementalDecoder):
     super_shift = False
     concat_lenient = False
     def decode(data_in, final = False):
+        """Implements `IncrementalDecoder.decode`"""
         let data = self.pending + data_in
         self.pending = b""
         let out = StringCatenator()
@@ -457,8 +477,9 @@ class Iso2022JpIncrementalDecoder(IncrementalDecoder):
                 out.add(errorret[0])
                 offset = errorret[1]
                 if offset < 0:
-                    offset += len(string)
+                    offset += len(data)
     def reset():
+        """Implements `IncrementalDecoder.reset`"""
         self.pending = b""
         self.state_set = 0
         self.state_greekmode = False
@@ -475,9 +496,11 @@ class Iso2022JpIncrementalDecoder(IncrementalDecoder):
         self.state_last646seen = None
         self.scrutinising_inter646 = False
     def getstate():
+        """Implements `IncrementalDecoder.getstate`"""
         return (self.pending, self.state_set, self.state_greekmode, self.state_shiftoutmode,
                 self.state_justswitched, self.state_last646seen, self.scrutinising_inter646)
     def setstate(state):
+        """Implements `IncrementalDecoder.setstate`"""
         self.pending = state[0]
         self.state_set = state[1]
         self.state_greekmode = state[2]
@@ -491,6 +514,7 @@ register_kuroko_codec(["iso-2022-jp", "iso2022-jp", "iso2022jp", "csiso2022jp", 
 
 
 class Utf16IncrementalEncoder(IncrementalEncoder):
+    """IncrementalEncoder implementation for UTF-16 with Byte Order Mark"""
     name = "utf-16"
     html5name = "utf-16"
     encoding_map = {}
@@ -507,6 +531,7 @@ class Utf16IncrementalEncoder(IncrementalEncoder):
         else:
             raise ValueError("unexpected endian value: " + repr(self.endian))
     def encode(string, final = False):
+        """Implements `IncrementalEncoder.encode`"""
         let out = ByteCatenator()
         let offset = 0
         if self.include_bom and self.state == -1:
@@ -536,13 +561,17 @@ class Utf16IncrementalEncoder(IncrementalEncoder):
                 if offset < 0:
                     offset += len(string)
     def reset():
+        """Implements `IncrementalEncoder.reset`"""
         self.state = -1
     def getstate():
+        """Implements `IncrementalEncoder.getstate`"""
         return self.state
     def setstate(state):
+        """Implements `IncrementalEncoder.setstate`"""
         self.state = state
 
 class Utf16IncrementalDecoder(IncrementalDecoder):
+    """IncrementalDecoder implementation for UTF-16"""
     name = "utf-16"
     html5name = "utf-16"
     force_endian = None # subclass may set to "little" or "big"
@@ -552,6 +581,7 @@ class Utf16IncrementalDecoder(IncrementalDecoder):
     state = None
     pending = b""
     def decode(data_in, final = False):
+        """Implements `IncrementalDecoder.decode`"""
         let data = self.pending + data_in
         self.pending = b""
         let out = StringCatenator()
@@ -616,34 +646,41 @@ class Utf16IncrementalDecoder(IncrementalDecoder):
                 out.add(errorret[0])
                 offset = errorret[1]
                 if offset < 0:
-                    offset += len(string)
+                    offset += len(data)
     def reset():
+        """Implements `IncrementalDecoder.reset`"""
         self.pending = b""
         self.state = -1
     def getstate():
+        """Implements `IncrementalDecoder.getstate`"""
         return (self.pending, self.state)
     def setstate(state):
+        """Implements `IncrementalDecoder.setstate`"""
         self.pending = state[0]
         self.state = state[1]
 
 class Utf16BeIncrementalEncoder(Utf16IncrementalEncoder):
+    """IncrementalEncoder implementation for UTF-16 Big Endian without Byte Order Mark"""
     name = "utf-16be"
     html5name = "utf-16be"
     endian = "big"
     include_bom = False
 
 class Utf16BeIncrementalDecoder(Utf16IncrementalDecoder):
+    """IncrementalDecoder implementation for UTF-16 Big Endian without Byte Order Mark"""
     name = "utf-16be"
     html5name = "utf-16be"
     force_endian = "big"
 
 class Utf16LeIncrementalEncoder(Utf16IncrementalEncoder):
+    """IncrementalEncoder implementation for UTF-16 Little Endian without Byte Order Mark"""
     name = "utf-16le"
     html5name = "utf-16le"
     endian = "little"
     include_bom = False
 
 class Utf16LeIncrementalDecoder(Utf16IncrementalDecoder):
+    """IncrementalDecoder implementation for UTF-16 Little Endian without Byte Order Mark"""
     name = "utf-16le"
     html5name = "utf-16le"
     force_endian = "little"
@@ -660,6 +697,7 @@ register_kuroko_codec(["utf-16be", "utf-16-be", "unicodefffe", "unicodebigunmark
 
 
 class Utf8IncrementalEncoder(IncrementalEncoder):
+    """IncrementalEncoder implementation for UTF-8"""
     name = "utf-8"
     html5name = "utf-8"
     # -1: expecting BOM
@@ -667,6 +705,7 @@ class Utf8IncrementalEncoder(IncrementalEncoder):
     state = None
     include_bom = False
     def encode(string, final = False):
+        """Implements `IncrementalEncoder.encode`"""
         # We use UTF-8 natively, so this is fairly simple
         let out = ByteCatenator()
         if self.include_bom and self.state == -1:
@@ -675,13 +714,17 @@ class Utf8IncrementalEncoder(IncrementalEncoder):
         out.add(string.encode())
         return out.getvalue()
     def reset():
+        """Implements `IncrementalEncoder.reset`"""
         self.state = -1
     def getstate():
+        """Implements `IncrementalEncoder.getstate`"""
         return self.state
     def setstate(state):
+        """Implements `IncrementalEncoder.setstate`"""
         self.state = state
 
 class Utf8IncrementalDecoder(IncrementalDecoder):
+    """IncrementalDecoder implementation for UTF-8"""
     name = "utf-8"
     html5name = "utf-8"
     # -1: expecting BOM
@@ -692,6 +735,7 @@ class Utf8IncrementalDecoder(IncrementalDecoder):
     def _error_handler(error):
         return lookup_error(self.errors)(error)
     def decode(data_in, final = False):
+        """Implements `IncrementalDecoder.decode`"""
         # We use UTF-8 natively, so this only validates it and applies the error handler
         #   (and removes a BOM if remove_bom is set)
         let data = self.pending + data_in
@@ -762,7 +806,7 @@ class Utf8IncrementalDecoder(IncrementalDecoder):
                 out.add(errorret[0])
                 running_offset = errorret[1]
                 if running_offset < 0:
-                    running_offset += len(string)
+                    running_offset += len(data)
                 countdown = 0
                 bolster = 1
                 first_offset = running_offset
@@ -777,20 +821,25 @@ class Utf8IncrementalDecoder(IncrementalDecoder):
             self.pending = bytes(dlist[second_offset:])
         return out.getvalue()
     def reset():
+        """Implements `IncrementalDecoder.reset`"""
         self.pending = b""
         self.state = -1
     def getstate():
+        """Implements `IncrementalDecoder.getstate`"""
         return (self.pending, self.state)
     def setstate(state):
+        """Implements `IncrementalDecoder.setstate`"""
         self.pending = state[0]
         self.state = state[1]
 
 class Utf8SigIncrementalEncoder(Utf8IncrementalEncoder):
+    """IncrementalEncoder implementation for UTF-8 with Byte Order Mark"""
     name = "utf-8-sig"
     html5name = None
     include_bom = True
 
 class Utf8SigIncrementalDecoder(Utf8IncrementalDecoder):
+    """IncrementalDecoder implementation for UTF-8 with Byte Order Mark"""
     name = "utf-8-sig"
     html5name = None
     remove_bom = True
