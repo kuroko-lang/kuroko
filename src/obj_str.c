@@ -331,7 +331,7 @@ KRK_METHOD(str,__mul__,{
 	}
 
 	*c = '\0';
-	return OBJECT_VAL(krk_copyString(out, totalLength));
+	return OBJECT_VAL(krk_takeString(out, totalLength));
 })
 
 #define unpackArray(counter, indexer) do { \
