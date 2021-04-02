@@ -231,7 +231,7 @@ KRK_METHOD(str,format,{
 					} else if (counterOffset) {
 						goto _formatSwitchedNumbering;
 					} else {
-						positionalOffset = atoi(fieldStart);
+						positionalOffset = parseStrInt(fieldStart,NULL,10);
 					}
 					if (positionalOffset >= argc - 1) {
 						erroneousIndex = positionalOffset;

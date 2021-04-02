@@ -2186,7 +2186,7 @@ static void string(int type) {
 		} \
 		tmpbuf[i] = c[i+2]; \
 	} \
-	unsigned long value = strtoul(tmpbuf, NULL, 16); \
+	unsigned long value = parseStrInt(tmpbuf, NULL, 16); \
 	if (value >= 0x110000) { \
 		error("invalid codepoint in \\%c escape", type); \
 	} \
