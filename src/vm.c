@@ -156,6 +156,7 @@ void krk_dumpTraceback() {
 					lineNo,
 					(function->name ? function->name->chars : "(unnamed)"));
 
+#ifndef NO_SOURCE_IN_TRACEBACK
 				/* Try to open the file */
 				if (function->chunk.filename) {
 					FILE * f = fopen(function->chunk.filename->chars, "r");
@@ -182,6 +183,7 @@ void krk_dumpTraceback() {
 						fclose(f);
 					}
 				}
+#endif
 			}
 		}
 
@@ -1303,6 +1305,7 @@ void krk_initVM(int flags) {
 	KrkValue module_paths = krk_list_of(0,NULL,0);
 	krk_attachNamedValue(&vm.system->fields, "module_paths", module_paths);
 	krk_writeValueArray(AS_LIST(module_paths), OBJECT_VAL(S("./")));
+#ifndef NO_FILESYSTEM
 	if (vm.binpath) {
 		krk_attachNamedObject(&vm.system->fields, "executable_path", (KrkObj*)krk_copyString(vm.binpath, strlen(vm.binpath)));
 		char * dir = strdup(vm.binpath);
@@ -1332,6 +1335,7 @@ void krk_initVM(int flags) {
 #endif
 		free(dir);
 	}
+#endif
 
 	/* The VM is now ready to start executing code. */
 	krk_resetStack();
@@ -1570,6 +1574,8 @@ int krk_loadModule(KrkString * path, KrkValue * moduleOut, KrkString * runAs) {
 		return 1;
 	}
 
+#ifndef NO_FILESYSTEM
+
 	/* Obtain __builtins__.module_paths */
 	if (!krk_tableGet_fast(&vm.system->fields, S("module_paths"), &modulePaths) || !IS_INSTANCE(modulePaths)) {
 		*moduleOut = NONE_VAL();
@@ -1709,6 +1715,8 @@ int krk_loadModule(KrkString * path, KrkValue * moduleOut, KrkString * runAs) {
 		krk_tableSet(&vm.modules, OBJECT_VAL(runAs), *moduleOut);
 		return 1;
 	}
+#endif
+
 #endif
 
 	/* If we still haven't found anything, fail. */
@@ -2929,6 +2937,7 @@ KrkValue krk_interpret(const char * src, char * fromFile) {
 	return run();
 }
 
+#ifndef NO_FILESYSTEM
 KrkValue krk_runfile(const char * fileName, char * fromFile) {
 	FILE * f = fopen(fileName,"r");
 	if (!f) {
@@ -2961,4 +2970,4 @@ KrkValue krk_callfile(const char * fileName, char * fromFile) {
 	krk_currentThread.exitOnFrame = previousExitFrame;
 	return out;
 }
-
+#endif
