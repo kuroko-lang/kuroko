@@ -7,6 +7,7 @@
 #undef IS_int
 #undef IS_bool
 #undef IS_float
+#undef bool
 
 #define IS_int(o) (IS_INTEGER(o) || krk_isInstanceOf(o,vm.baseClasses->intClass))
 #define IS_bool(o) (IS_BOOLEAN(o) || krk_isInstanceOf(o,vm.baseClasses->boolClass))
