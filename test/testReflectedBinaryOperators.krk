@@ -7,8 +7,8 @@ class RAdder:
         print("__rmul__ called", o)
         return f'{o} * RAdder()'
 
-    def __rdiv__(self, o):
-        print("__rdiv__ called", o)
+    def __rtruediv__(self, o):
+        print("__rtruediv__ called", o)
         return f'{o} / RAdder()'
 
     def __rpow__(self, o):
@@ -41,7 +41,7 @@ class RAdder:
 
 print(42 + RAdder())
 print(42 * RAdder())
-#print(42 / RAdder())
+print(42 / RAdder())
 print(42 ** RAdder())
 print(42 >> RAdder())
 print(42 << RAdder())

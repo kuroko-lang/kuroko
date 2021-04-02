@@ -29,7 +29,7 @@ if __name__ == '__main__':
     print("Starting {} threads.".format(numThreads))
     let threads = []
     let totalCount = 5000000
-    let chunkSize  = totalCount / numThreads
+    let chunkSize  = totalCount // numThreads
     let numbers    = list(range(totalCount))
     let cnt        = 0
     if totalCount > chunkSize * numThreads:

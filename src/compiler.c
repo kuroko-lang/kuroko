@@ -583,6 +583,7 @@ static void binary(int canAssign) {
 		case TOKEN_ASTERISK: emitByte(OP_MULTIPLY); break;
 		case TOKEN_POW:      emitByte(OP_POW); break;
 		case TOKEN_SOLIDUS:  emitByte(OP_DIVIDE); break;
+		case TOKEN_DOUBLE_SOLIDUS: emitByte(OP_FLOORDIV); break;
 		case TOKEN_MODULO:   emitByte(OP_MODULO); break;
 		case TOKEN_IN:       emitByte(OP_EQUAL); break;
 		default: return;
@@ -625,6 +626,7 @@ static void assignmentValue(void) {
 		case TOKEN_ASTERISK_EQUAL:  emitByte(OP_MULTIPLY); break;
 		case TOKEN_POW_EQUAL:       emitByte(OP_POW); break;
 		case TOKEN_SOLIDUS_EQUAL:   emitByte(OP_DIVIDE); break;
+		case TOKEN_DSOLIDUS_EQUAL:  emitByte(OP_FLOORDIV); break;
 		case TOKEN_MODULO_EQUAL:    emitByte(OP_MODULO); break;
 
 		default:
@@ -2787,6 +2789,7 @@ ParseRule krk_parseRules[] = {
 	RULE(TOKEN_PLUS,          unary,    binary, PREC_TERM),
 	RULE(TOKEN_SEMICOLON,     NULL,     NULL,   PREC_NONE),
 	RULE(TOKEN_SOLIDUS,       NULL,     binary, PREC_FACTOR),
+	RULE(TOKEN_DOUBLE_SOLIDUS,NULL,     binary, PREC_FACTOR),
 	RULE(TOKEN_ASTERISK,      NULL,     binary, PREC_FACTOR),
 	RULE(TOKEN_POW,           NULL,     binary, PREC_EXPONENT),
 	RULE(TOKEN_MODULO,        NULL,     binary, PREC_FACTOR),
@@ -2850,6 +2853,7 @@ ParseRule krk_parseRules[] = {
 	RULE(TOKEN_RSHIFT_EQUAL,  NULL,     NULL,   PREC_NONE),
 	RULE(TOKEN_AMP_EQUAL,     NULL,     NULL,   PREC_NONE),
 	RULE(TOKEN_SOLIDUS_EQUAL, NULL,     NULL,   PREC_NONE),
+	RULE(TOKEN_DSOLIDUS_EQUAL,NULL,     NULL,   PREC_NONE),
 	RULE(TOKEN_ASTERISK_EQUAL,NULL,     NULL,   PREC_NONE),
 	RULE(TOKEN_MODULO_EQUAL,  NULL,     NULL,   PREC_NONE),
 

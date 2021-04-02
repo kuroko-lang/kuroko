@@ -9,10 +9,10 @@ def process_row(seat):
     let size = 128
     for c in seat[:7]:
         if c == 'F':
-            top -= size / 2
+            top -= size // 2
         else if c == 'B':
-            bottom += size / 2
-        size = size / 2
+            bottom += size // 2
+        size = size // 2
     return bottom
 
 def process_seat(seat):
@@ -21,10 +21,10 @@ def process_seat(seat):
     let size = 8
     for c in seat[7:]:
         if c == 'L':
-            top -= size / 2
+            top -= size // 2
         else if c == 'R':
-            bottom += size / 2
-        size = size / 2
+            bottom += size // 2
+        size = size // 2
     return bottom
 
 print(process_row("FBFBBFFRLR")) # 44
