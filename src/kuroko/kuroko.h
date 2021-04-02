@@ -34,22 +34,24 @@ typedef int krk_integer_type;
 #endif
 
 #ifndef _WIN32
+# define PATH_SEP "/"
 # ifndef STATIC_ONLY
 #  include <dlfcn.h>
+#  define dlRefType void *
+#  define dlSymType void *
+#  define dlOpen(fileName) dlopen(fileName, RTLD_NOW)
+#  define dlSym(dlRef, handlerName) dlsym(dlRef,handlerName)
+#  define dlClose(dlRef) dlclose(dlRef)
 # endif
-# define PATH_SEP "/"
-# define dlRefType void *
-# define dlSymType void *
-# define dlOpen(fileName) dlopen(fileName, RTLD_NOW)
-# define dlSym(dlRef, handlerName) dlsym(dlRef,handlerName)
-# define dlClose(dlRef) dlclose(dlRef)
 #else
 # include <windows.h>
 # define PATH_SEP "\\"
-# define dlRefType HINSTANCE
-# define dlSymType FARPROC
-# define dlOpen(fileName) LoadLibraryA(fileName)
-# define dlSym(dlRef, handlerName) GetProcAddress(dlRef, handlerName)
-# define dlClose(dlRef)
+# ifndef STATIC_ONLY
+#  define dlRefType HINSTANCE
+#  define dlSymType FARPROC
+#  define dlOpen(fileName) LoadLibraryA(fileName)
+#  define dlSym(dlRef, handlerName) GetProcAddress(dlRef, handlerName)
+#  define dlClose(dlRef)
+# endif
 #endif
 

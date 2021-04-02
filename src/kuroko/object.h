@@ -322,7 +322,9 @@ struct DictKeys {
  */
 struct KrkModule {
 	KrkInstance inst;
+#ifndef STATIC_ONLY
 	dlRefType libHandle;
+#endif
 };
 
 /**
