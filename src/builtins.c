@@ -897,6 +897,13 @@ KRK_FUNC(next,{
 	return krk_pop();
 })
 
+static void module_sweep(KrkInstance * inst) {
+	struct KrkModule * module = (struct KrkModule*)inst;
+	if (module->libHandle) {
+		dlClose(module->libHandle);
+	}
+}
+
 _noexport
 void _createAndBind_builtins(void) {
 	vm.baseClasses->objectClass = krk_newClass(S("object"), NULL);
@@ -916,6 +923,8 @@ void _createAndBind_builtins(void) {
 	);
 
 	vm.baseClasses->moduleClass = krk_newClass(S("module"), vm.baseClasses->objectClass);
+	vm.baseClasses->moduleClass->allocSize = sizeof(struct KrkModule);
+	vm.baseClasses->moduleClass->_ongcsweep = module_sweep;
 	krk_push(OBJECT_VAL(vm.baseClasses->moduleClass));
 	krk_defineNative(&vm.baseClasses->moduleClass->methods, "__repr__", _module_repr);
 	krk_defineNative(&vm.baseClasses->moduleClass->methods, "__str__", _module_repr);

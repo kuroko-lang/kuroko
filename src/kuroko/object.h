@@ -317,6 +317,15 @@ struct DictKeys {
 };
 
 /**
+ * @extends KrkInstance
+ * @brief Representation of a loaded module.
+ */
+struct KrkModule {
+	KrkInstance inst;
+	dlRefType libHandle;
+};
+
+/**
  * @brief Yield ownership of a C string to the GC and obtain a string object.
  * @memberof KrkString
  *

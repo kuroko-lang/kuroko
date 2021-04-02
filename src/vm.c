@@ -38,24 +38,6 @@
 # define KRK_BUILD_COMPILER ""
 #endif
 
-#ifndef _WIN32
-# ifndef STATIC_ONLY
-#  include <dlfcn.h>
-# endif
-# define PATH_SEP "/"
-# define dlRefType void *
-# define dlSymType void *
-# define dlOpen(fileName) dlopen(fileName, RTLD_NOW)
-# define dlSym(dlRef, handlerName) dlsym(dlRef,handlerName)
-#else
-# include <windows.h>
-# define PATH_SEP "\\"
-# define dlRefType HINSTANCE
-# define dlSymType FARPROC
-# define dlOpen(fileName) LoadLibraryA(fileName)
-# define dlSym(dlRef, handlerName) GetProcAddress(dlRef, handlerName)
-#endif
-
 /* Ensure we don't have a macro for this so we can reference a local version. */
 #undef krk_currentThread
 
@@ -1673,6 +1655,7 @@ int krk_loadModule(KrkString * path, KrkValue * moduleOut, KrkString * runAs) {
 		memcpy(&moduleOnLoad,&out,sizeof(out));
 
 		if (!moduleOnLoad) {
+			dlClose(dlRef);
 			*moduleOut = NONE_VAL();
 			krk_runtimeError(vm.exceptions->importError,
 				"Failed to run module initialization method '%s' from shared object '%s'",
@@ -1683,7 +1666,8 @@ int krk_loadModule(KrkString * path, KrkValue * moduleOut, KrkString * runAs) {
 		krk_pop(); /* onload function */
 
 		*moduleOut = moduleOnLoad(runAs);
-		if (!IS_INSTANCE(*moduleOut)) {
+		if (!krk_isInstanceOf(*moduleOut, vm.baseClasses->moduleClass)) {
+			dlClose(dlRef);
 			krk_runtimeError(vm.exceptions->importError,
 				"Failed to load module '%s' from '%s'", runAs->chars, fileName);
 			return 0;
@@ -1691,6 +1675,9 @@ int krk_loadModule(KrkString * path, KrkValue * moduleOut, KrkString * runAs) {
 
 		krk_push(*moduleOut);
 		krk_swap(1);
+
+		struct KrkModule * moduleAsStruct = (struct KrkModule*)AS_INSTANCE(*moduleOut);
+		moduleAsStruct->libHandle = dlRef;
 
 		krk_attachNamedObject(&AS_INSTANCE(*moduleOut)->fields, "__name__", (KrkObj*)runAs);
 		krk_attachNamedValue(&AS_INSTANCE(*moduleOut)->fields, "__file__", krk_peek(0));
