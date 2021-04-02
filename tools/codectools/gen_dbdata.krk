@@ -107,7 +107,7 @@ let trailrange_big5 = tupleOf(*range(0x40, 0x7E + 1), *range(0xA1, 0xFE + 1))
 
 for pointer, ucs in enumerate(indices['jis0208']):
     if ucs == None: continue
-    let sku   = (pointer / 188) + 1
+    let sku   = (pointer // 188) + 1
     let sten  = (pointer % 188) + 1
     let first = 0x80 + sku
     if first >= 0xA0: first += 0x40
@@ -116,7 +116,7 @@ for pointer, ucs in enumerate(indices['jis0208']):
     decode_shiftjis[(first,second)] = ucs
     if ucs not in encode_shiftjis and not (8272 <= pointer and pointer <= 8835):
         encode_shiftjis[ucs] = (first, second)
-    let ku  = (pointer / 94) + 1
+    let ku  = (pointer // 94) + 1
     let ten = (pointer % 94) + 1
     if ku <= 94:
         let firste  = 0xA0 + ku
@@ -130,7 +130,7 @@ for pointer, ucs in enumerate(indices['jis0208']):
 
 for pointer, ucs in enumerate(indices['jis0212']):
     if ucs == None: continue
-    let ku  = (pointer / 94) + 1
+    let ku  = (pointer // 94) + 1
     let ten = (pointer % 94) + 1
     let second = 0xA0 + ku
     let third  = 0xA0 + ten
@@ -150,7 +150,7 @@ for i in range(63):
 for i in range(94 * 20):
     let pointer = 8836 + i
     let ucs     = 0xE000 + i
-    let sku     = (pointer / 188) + 1
+    let sku     = (pointer // 188) + 1
     let sten    = (pointer % 188) + 1
     let first   = 0xC0 + sku
     let second  = 0x3F + sten
@@ -159,7 +159,7 @@ for i in range(94 * 20):
 
 for pointer, ucs in enumerate(indices['euc-kr']):
     if ucs == None: continue
-    let uku  = (pointer / 190) + 1
+    let uku  = (pointer // 190) + 1
     let uten = (pointer % 190) + 1
     let first  = 0x80 + uku
     let second = 0x40 + uten
@@ -168,7 +168,7 @@ for pointer, ucs in enumerate(indices['euc-kr']):
 
 for pointer, ucs in enumerate(indices['gb18030']):
     if ucs == None: continue
-    let uku  = (pointer / 190) + 1
+    let uku  = (pointer // 190) + 1
     let uten = (pointer % 190) + 1
     let first  = 0x80 + uku
     let second = 0x3F + uten
@@ -179,7 +179,7 @@ for pointer, ucs in enumerate(indices['gb18030']):
 
 for pointer, ucs in enumerate(indices['big5']):
     if ucs == None: continue
-    let bku  = (pointer / 157) + 1
+    let bku  = (pointer // 157) + 1
     let bten = (pointer % 157) + 1
     let first  = 0x80 + bku
     let second = 0x3F + bten

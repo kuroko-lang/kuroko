@@ -2,6 +2,8 @@ __radd__ called 42
 42 + RAdder()
 __rmul__ called 42
 42 * RAdder()
+__rtruediv__ called 42
+42 / RAdder()
 __rpow__ called 42
 42 ** RAdder()
 __rrshift__ called 42

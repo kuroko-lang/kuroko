@@ -54,11 +54,11 @@ class Gb18030IncrementalEncoder(IncrementalEncoder):
                         basecodepoint = nextcodepoint
                     pointer = (ord(i) - basecodepoint) + basepointer
                 let running = pointer
-                let first = 0x81 + (running / (10 * 126 * 10))
+                let first = 0x81 + (running // (10 * 126 * 10))
                 running %= 10 * 126 * 10
-                let second = 0x30 + (running / (10 * 126))
+                let second = 0x30 + (running // (10 * 126))
                 running %= 10 * 126
-                let third = 0x81 + (running / 10)
+                let third = 0x81 + (running // 10)
                 let fourth = 0x30 + (running % 10)
                 out.add(bytes([first, second, third, fourth]))
                 offset += 1

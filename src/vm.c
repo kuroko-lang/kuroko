@@ -1429,7 +1429,30 @@ _success:
 MAKE_BIN_OP(add,+,radd)
 MAKE_BIN_OP(sub,-,ssub)
 MAKE_BIN_OP(mul,*,rmul)
-MAKE_BIN_OP(div,/,rdiv)
+
+/**
+ * Division operators.
+ */
+KrkValue krk_operator_truediv(KrkValue a, KrkValue b) {
+	if (IS_INTEGER(a)) {
+		if (IS_INTEGER(b)) return FLOATING_VAL((double)AS_INTEGER(a) / (double)AS_INTEGER(b));
+		else if (IS_FLOATING(b)) return FLOATING_VAL((double)AS_INTEGER(a) / AS_FLOATING(b));
+	} else if (IS_FLOATING(a)) {
+		if (IS_FLOATING(b)) return FLOATING_VAL(AS_FLOATING(a) / AS_FLOATING(b));
+		else if (IS_INTEGER(b)) return FLOATING_VAL(AS_FLOATING(a) / (double)AS_INTEGER(b));
+	}
+	return tryBind("__truediv__", a, b, "/", "unsupported operand types for %s: '%s' and '%s'", "__rtruediv__");
+}
+
+KrkValue krk_operator_floordiv(KrkValue numerator, KrkValue divisor) {
+	if (IS_INTEGER(divisor) && IS_INTEGER(numerator)) return INTEGER_VAL(AS_INTEGER(numerator) / AS_INTEGER(divisor));
+	else if (IS_INTEGER(divisor) && IS_FLOATING(numerator)) return FLOATING_VAL(__builtin_floor(AS_FLOATING(numerator) / (double)AS_INTEGER(divisor)));
+	else if (IS_FLOATING(divisor)) {
+		if (IS_FLOATING(numerator)) return FLOATING_VAL(__builtin_floor(AS_FLOATING(numerator) / AS_FLOATING(divisor)));
+		else if (IS_INTEGER(numerator)) return FLOATING_VAL(__builtin_floor((double)AS_INTEGER(numerator) / AS_FLOATING(divisor)));
+	}
+	return tryBind("__floordiv__", numerator, divisor, "//", "unsupported operand types for %s: '%s' and '%s'", "__rfloordiv__");
+}
 
 #define MAKE_UNOPTIMIZED_BIN_OP(name,operator,inv) \
 	KrkValue krk_operator_ ## name (KrkValue a, KrkValue b) { \
@@ -1986,11 +2009,14 @@ KrkValue krk_valueSetAttribute(KrkValue owner, char * name, KrkValue to) {
 }
 
 #define READ_BYTE() (*frame->ip++)
-#define BINARY_OP(op) { KrkValue b = krk_pop(); KrkValue a = krk_pop(); krk_push(krk_operator_ ## op (a,b)); break; }
-#define BINARY_OP_CHECK_ZERO(op) { KrkValue b = krk_pop(); KrkValue a = krk_pop(); \
+#define BINARY_OP(op) { KrkValue b = krk_peek(0); KrkValue a = krk_peek(1); \
+	a = krk_operator_ ## op (a,b); \
+	krk_currentThread.stackTop[-2] = a; krk_pop(); break; }
+#define BINARY_OP_CHECK_ZERO(op) { KrkValue b = krk_peek(0); KrkValue a = krk_peek(1); \
 	if ((IS_INTEGER(b) && AS_INTEGER(b) == 0)) { krk_runtimeError(vm.exceptions->zeroDivisionError, "integer division or modulo by zero"); goto _finishException; } \
 	else if ((IS_FLOATING(b) && AS_FLOATING(b) == 0.0)) { krk_runtimeError(vm.exceptions->zeroDivisionError, "float division by zero"); goto _finishException; } \
-	krk_push(krk_operator_ ## op (a,b)); break; }
+	a = krk_operator_ ## op (a,b); \
+	krk_currentThread.stackTop[-2] = a; krk_pop(); break; }
 #define READ_CONSTANT(s) (frame->closure->function->chunk.constants.values[OPERAND])
 #define READ_STRING(s) AS_STRING(READ_CONSTANT(s))
 
@@ -2150,7 +2176,8 @@ _finishReturn: (void)0;
 			case OP_ADD: BINARY_OP(add);
 			case OP_SUBTRACT: BINARY_OP(sub)
 			case OP_MULTIPLY: BINARY_OP(mul)
-			case OP_DIVIDE: BINARY_OP_CHECK_ZERO(div)
+			case OP_DIVIDE: BINARY_OP_CHECK_ZERO(truediv)
+			case OP_FLOORDIV: BINARY_OP_CHECK_ZERO(floordiv)
 			case OP_MODULO: BINARY_OP_CHECK_ZERO(mod)
 			case OP_BITOR: BINARY_OP(or)
 			case OP_BITXOR: BINARY_OP(xor)

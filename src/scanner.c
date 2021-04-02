@@ -360,7 +360,7 @@ KrkToken krk_scanToken() {
 		case '^': return makeToken(match('=') ? TOKEN_CARET_EQUAL   : TOKEN_CARET);
 		case '|': return makeToken(match('=') ? TOKEN_PIPE_EQUAL    : TOKEN_PIPE);
 		case '&': return makeToken(match('=') ? TOKEN_AMP_EQUAL     : TOKEN_AMPERSAND);
-		case '/': return makeToken(match('=') ? TOKEN_SOLIDUS_EQUAL : TOKEN_SOLIDUS);
+		case '/': return makeToken(match('=') ? TOKEN_SOLIDUS_EQUAL : (match('/') ? (match('=') ? TOKEN_DSOLIDUS_EQUAL : TOKEN_DOUBLE_SOLIDUS) : TOKEN_SOLIDUS));
 		case '*': return makeToken(match('=') ? TOKEN_ASTERISK_EQUAL: (match('*') ? (match('=') ? TOKEN_POW_EQUAL : TOKEN_POW) : TOKEN_ASTERISK));
 		case '%': return makeToken(match('=') ? TOKEN_MODULO_EQUAL  : TOKEN_MODULO);
 
