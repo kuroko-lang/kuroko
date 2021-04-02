@@ -910,6 +910,7 @@ KrkValue krk_callSimple(KrkValue value, int argCount, int isMethod) {
  * Works for managed and native method calls.
  */
 int krk_bindMethod(KrkClass * _class, KrkString * name) {
+	KrkClass * originalClass = _class;
 	KrkValue method, out;
 	while (_class) {
 		if (krk_tableGet_fast(&_class->methods, name, &method)) break;
@@ -920,7 +921,7 @@ int krk_bindMethod(KrkClass * _class, KrkString * name) {
 		if (((KrkNative*)AS_OBJECT(method))->flags & KRK_NATIVE_FLAGS_IS_DYNAMIC_PROPERTY) {
 			out = AS_NATIVE(method)->function(1, (KrkValue[]){krk_peek(0)}, 0);
 		} else if (((KrkNative*)AS_OBJECT(method))->flags & KRK_NATIVE_FLAGS_IS_CLASS_METHOD) {
-			out = OBJECT_VAL(krk_newBoundMethod(OBJECT_VAL(_class), AS_OBJECT(method)));
+			out = OBJECT_VAL(krk_newBoundMethod(OBJECT_VAL(originalClass), AS_OBJECT(method)));
 		} else if (((KrkNative*)AS_OBJECT(method))->flags & KRK_NATIVE_FLAGS_IS_STATIC_METHOD) {
 			out = method;
 		} else {
@@ -928,7 +929,7 @@ int krk_bindMethod(KrkClass * _class, KrkString * name) {
 		}
 	} else if (IS_CLOSURE(method)) {
 		if (AS_CLOSURE(method)->flags & KRK_FUNCTION_FLAGS_IS_CLASS_METHOD) {
-			out = OBJECT_VAL(krk_newBoundMethod(OBJECT_VAL(_class), AS_OBJECT(method)));
+			out = OBJECT_VAL(krk_newBoundMethod(OBJECT_VAL(originalClass), AS_OBJECT(method)));
 		} else if (AS_CLOSURE(method)->flags & KRK_FUNCTION_FLAGS_IS_STATIC_METHOD) {
 			out = method;
 		} else {

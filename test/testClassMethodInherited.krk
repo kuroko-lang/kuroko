@@ -1,0 +1,10 @@
+class Foo:
+    @classmethod
+    def doThing(cls):
+        print("Called from a",cls)
+class Bar(Foo):
+    pass
+Foo.doThing()
+Foo().doThing()
+Bar.doThing()
+Bar().doThing()
