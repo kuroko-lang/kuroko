@@ -20,7 +20,7 @@
 #include "chunk.h"
 #include "object.h"
 
-#ifdef DEBUG
+#ifdef KRK_ENABLE_DEBUG
 
 /**
  * @brief Print a disassembly of 'func' to the stream 'f'.

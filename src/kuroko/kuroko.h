@@ -30,7 +30,7 @@ typedef int krk_integer_type;
 # undef ENABLE_THREADING
 #endif
 
-#ifdef DEBUG
+#ifdef KRK_ENABLE_DEBUG
 # define ENABLE_DISASSEMBLY
 # define ENABLE_TRACING
 # define ENABLE_SCAN_TRACING

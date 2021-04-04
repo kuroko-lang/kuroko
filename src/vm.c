@@ -1033,7 +1033,7 @@ int krk_isFalsey(KrkValue value) {
 	return 0; /* Assume anything else is truthy */
 }
 
-#ifdef DEBUG
+#ifdef KRK_ENABLE_DEBUG
 KRK_FUNC(set_tracing,{
 	if (hasKw) {
 		KrkValue test;
@@ -1252,7 +1252,7 @@ void krk_initVM(int flags) {
 	_createAndBind_timeMod();
 	_createAndBind_osMod();
 	_createAndBind_fileioMod();
-#ifdef DEBUG
+#ifdef KRK_ENABLE_DEBUG
 	_createAndBind_disMod();
 #endif
 #ifdef ENABLE_THREADING
@@ -2391,7 +2391,7 @@ _finishReturn: (void)0;
 				}
 				break;
 			}
-#ifdef DEBUG
+#ifdef KRK_ENABLE_DEBUG
 			case OP_BREAKPOINT: {
 				/* First off, halt execution. */
 				krk_debugBreakpointHandler();

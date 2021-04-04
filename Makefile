@@ -71,7 +71,7 @@ ifndef KRK_DISABLE_DEBUG
   # Disabling debug functions doesn't really do much; it may result in a smaller
   # library when stripped as there's a lot of debug text, but no performance
   # difference has ever been noted from disabling, eg., instruction tracing.
-  CFLAGS  += -DDEBUG
+  CFLAGS  += -DKRK_ENABEL_DEBUG
 endif
 
 ifdef KRK_ENABLE_BUNDLE
