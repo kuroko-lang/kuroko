@@ -119,7 +119,7 @@ KRK_METHOD(list,__repr__,{
 #define unpackArray(counter, indexer) do { \
 			if (positionals->count + counter > positionals->capacity) { \
 				size_t old = positionals->capacity; \
-				positionals->capacity = positionals->count + counter; \
+				positionals->capacity = (counter == 1) ? GROW_CAPACITY(old) : positionals->count + counter; \
 				positionals->values = GROW_ARRAY(KrkValue,positionals->values,old,positionals->capacity); \
 			} \
 			for (size_t i = 0; i < counter; ++i) { \
