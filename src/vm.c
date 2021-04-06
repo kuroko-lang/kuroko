@@ -2209,6 +2209,7 @@ _finishReturn: (void)0;
 			case OP_NONE:  krk_push(NONE_VAL()); break;
 			case OP_TRUE:  krk_push(BOOLEAN_VAL(1)); break;
 			case OP_FALSE: krk_push(BOOLEAN_VAL(0)); break;
+			case OP_UNSET: krk_push(KWARGS_VAL(0)); break;
 			case OP_NOT:   krk_push(BOOLEAN_VAL(krk_isFalsey(krk_pop()))); break;
 			case OP_POP:   krk_pop(); break;
 			case OP_RAISE: {

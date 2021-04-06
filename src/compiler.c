@@ -1113,8 +1113,7 @@ static void function(FunctionType type, size_t blockWidth) {
 				size_t myLocal = current->localCount - 1;
 				EMIT_CONSTANT_OP(OP_GET_LOCAL, myLocal);
 				/* Check if it's equal to the unset-kwarg-sentinel value */
-				emitConstant(KWARGS_VAL(0));
-				emitByte(OP_IS);
+				emitBytes(OP_UNSET, OP_IS);
 				int jumpIndex = emitJump(OP_JUMP_IF_FALSE_OR_POP);
 				/* And if it is, set it to the appropriate type */
 				beginScope();
@@ -1150,8 +1149,7 @@ static void function(FunctionType type, size_t blockWidth) {
 				 */
 				size_t myLocal = current->localCount - 1;
 				EMIT_CONSTANT_OP(OP_GET_LOCAL, myLocal);
-				emitConstant(KWARGS_VAL(0));
-				emitByte(OP_IS);
+				emitBytes(OP_UNSET, OP_IS);
 				int jumpIndex = emitJump(OP_JUMP_IF_FALSE_OR_POP);
 				beginScope();
 				expression(); /* Read expression */
@@ -2462,7 +2460,7 @@ static void super_(int canAssign) {
 		if (match(TOKEN_COMMA)) {
 			expression();
 		} else {
-			emitConstant(KWARGS_VAL(0));
+			emitByte(OP_UNSET);
 		}
 		consume(TOKEN_RIGHT_PAREN, "Expected ')' after argument list");
 	}
