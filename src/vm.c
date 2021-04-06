@@ -440,6 +440,20 @@ void krk_finalizeClass(KrkClass * _class) {
  * Internal version of type().
  */
 inline KrkClass * krk_getType(KrkValue of) {
+
+	static size_t objClasses[] = {
+		[KRK_OBJ_CODEOBJECT]   = offsetof(struct BaseClasses, codeobjectClass),
+		[KRK_OBJ_NATIVE]       = offsetof(struct BaseClasses, functionClass),
+		[KRK_OBJ_CLOSURE]      = offsetof(struct BaseClasses, functionClass),
+		[KRK_OBJ_BOUND_METHOD] = offsetof(struct BaseClasses, methodClass),
+		[KRK_OBJ_STRING]       = offsetof(struct BaseClasses, strClass),
+		[KRK_OBJ_UPVALUE]      = offsetof(struct BaseClasses, objectClass),
+		[KRK_OBJ_CLASS]        = offsetof(struct BaseClasses, typeClass),
+		[KRK_OBJ_TUPLE]        = offsetof(struct BaseClasses, tupleClass),
+		[KRK_OBJ_BYTES]        = offsetof(struct BaseClasses, bytesClass),
+		[KRK_OBJ_INSTANCE]     = 0,
+	};
+
 	switch (KRK_VAL_TYPE(of)) {
 		case KRK_VAL_INTEGER:
 			return vm.baseClasses->intClass;
@@ -450,27 +464,8 @@ inline KrkClass * krk_getType(KrkValue of) {
 		case KRK_VAL_NOTIMPL:
 			return vm.baseClasses->notImplClass;
 		case KRK_VAL_OBJECT:
-			switch (AS_OBJECT(of)->type) {
-				case KRK_OBJ_CLASS:
-					return vm.baseClasses->typeClass;
-				case KRK_OBJ_CODEOBJECT:
-					return vm.baseClasses->codeobjectClass;
-				case KRK_OBJ_NATIVE:
-				case KRK_OBJ_CLOSURE:
-					return vm.baseClasses->functionClass;
-				case KRK_OBJ_BOUND_METHOD:
-					return vm.baseClasses->methodClass;
-				case KRK_OBJ_STRING:
-					return vm.baseClasses->strClass;
-				case KRK_OBJ_TUPLE:
-					return vm.baseClasses->tupleClass;
-				case KRK_OBJ_BYTES:
-					return vm.baseClasses->bytesClass;
-				case KRK_OBJ_INSTANCE:
-					return AS_INSTANCE(of)->_class;
-				default:
-					return vm.baseClasses->objectClass;
-			} break;
+			if (IS_INSTANCE(of)) return AS_INSTANCE(of)->_class;
+			return *(KrkClass **)((char*)vm.baseClasses + objClasses[AS_OBJECT(of)->type]);
 		default:
 			if (IS_FLOATING(of)) return vm.baseClasses->floatClass;
 			return vm.baseClasses->objectClass;
