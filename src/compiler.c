@@ -2183,13 +2183,22 @@ static void string(int type) {
 
 	int isBytes = (parser.previous.type == TOKEN_PREFIX_B);
 	int isFormat = (parser.previous.type == TOKEN_PREFIX_F);
+	int isRaw = (parser.previous.type == TOKEN_PREFIX_R);
 
 	int atLeastOne = 0;
 	const char * lineBefore = krk_tellScanner().linePtr;
 	size_t lineNo = krk_tellScanner().line;
 
-	if ((isBytes || isFormat) && !(match(TOKEN_STRING) || match(TOKEN_BIG_STRING))) {
+	if ((isBytes || isFormat || isRaw) && !(match(TOKEN_STRING) || match(TOKEN_BIG_STRING))) {
 		error("Expected string after prefix? (Internal error - scanner should not have produced this.)");
+		return;
+	}
+
+	if (isRaw) {
+		emitConstant(OBJECT_VAL(krk_copyString(
+			parser.previous.start + (parser.previous.type == TOKEN_BIG_STRING ? 3 : 1),
+			parser.previous.length - (parser.previous.type == TOKEN_BIG_STRING ? 6 : 2))));
+		return;
 	}
 
 	/* This should capture everything but the quotes. */
@@ -2783,6 +2792,7 @@ ParseRule krk_parseRules[] = {
 	RULE(TOKEN_BIG_STRING,    string,   NULL,   PREC_NONE),
 	RULE(TOKEN_PREFIX_B,      string,   NULL,   PREC_NONE),
 	RULE(TOKEN_PREFIX_F,      string,   NULL,   PREC_NONE),
+	RULE(TOKEN_PREFIX_R,      string,   NULL,   PREC_NONE),
 	RULE(TOKEN_NUMBER,        number,   NULL,   PREC_NONE),
 	RULE(TOKEN_AND,           NULL,     and_,   PREC_AND),
 	RULE(TOKEN_CLASS,         NULL,     NULL,   PREC_NONE),
