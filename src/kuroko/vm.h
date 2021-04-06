@@ -540,7 +540,7 @@ extern KrkClass * krk_getType(KrkValue value);
  * @param type Class object to test for membership of.
  * @return 1 if @p obj is an instance of @p type or of a subclass of @p type
  */
-extern int krk_isInstanceOf(KrkValue obj, KrkClass * type);
+extern int krk_isInstanceOf(KrkValue obj, const KrkClass * type);
 
 /**
  * @brief Perform method binding on the stack.
@@ -667,7 +667,7 @@ extern void krk_finalizeClass(KrkClass * _class);
  * open source files to print faulting lines and may call into the VM if the
  * exception object has a managed implementation of @c \__str__.
  */
-extern void krk_dumpTraceback();
+extern void krk_dumpTraceback(void);
 
 /**
  * @brief Set up a new module object in the current thread.

@@ -109,7 +109,7 @@ static KrkValue _specialMethodNames[METHOD__MAX];
  * clear the exception flag and current exception;
  * happens on startup (twice) and after an exception.
  */
-void krk_resetStack() {
+void krk_resetStack(void) {
 	krk_currentThread.stackTop = krk_currentThread.stack;
 	krk_currentThread.frameCount = 0;
 	krk_currentThread.openUpvalues = NULL;
@@ -124,7 +124,7 @@ void krk_resetStack() {
  * and then move inwards; on each call frame we try to open
  * the source file and print the corresponding line.
  */
-void krk_dumpTraceback() {
+void krk_dumpTraceback(void) {
 	if (!krk_valuesEqual(krk_currentThread.currentException,NONE_VAL())) {
 		krk_push(krk_currentThread.currentException);
 		KrkValue tracebackEntries;
@@ -480,7 +480,7 @@ inline KrkClass * krk_getType(KrkValue of) {
  * type and didn't inherit from object(), everything is eventually
  * an object - even basic types like INTEGERs and FLOATINGs.
  */
-int krk_isInstanceOf(KrkValue obj, KrkClass * type) {
+int krk_isInstanceOf(KrkValue obj, const KrkClass * type) {
 	KrkClass * mine = krk_getType(obj);
 	while (mine) {
 		if (mine == type) return 1;
@@ -489,7 +489,7 @@ int krk_isInstanceOf(KrkValue obj, KrkClass * type) {
 	return 0;
 }
 
-static inline int checkArgumentCount(KrkClosure * closure, int argCount) {
+static inline int checkArgumentCount(const KrkClosure * closure, int argCount) {
 	int minArgs = closure->function->requiredArgs;
 	int maxArgs = minArgs + closure->function->keywordArgs;
 	if (unlikely(argCount < minArgs || argCount > maxArgs)) {
@@ -504,7 +504,7 @@ static inline int checkArgumentCount(KrkClosure * closure, int argCount) {
 	return 1;
 }
 
-static void multipleDefs(KrkClosure * closure, int destination) {
+static void multipleDefs(const KrkClosure * closure, int destination) {
 	krk_runtimeError(vm.exceptions->typeError, "%s() got multiple values for argument '%s'",
 		closure->function->name ? closure->function->name->chars : "<unnamed>",
 		(destination < closure->function->requiredArgs ? AS_CSTRING(closure->function->requiredArgNames.values[destination]) :
@@ -711,37 +711,34 @@ _finishKwarg:
 		}
 
 		argCountX = argCount - (!!(closure->function->flags & KRK_CODEOBJECT_FLAGS_COLLECTS_ARGS) + !!(closure->function->flags & KRK_CODEOBJECT_FLAGS_COLLECTS_KWS));
-	} else {
-		/* We can't have had any kwargs. */
-		if ((size_t)argCount > potentialPositionalArgs && (closure->function->flags & KRK_CODEOBJECT_FLAGS_COLLECTS_ARGS)) {
-			krk_push(NONE_VAL()); krk_push(NONE_VAL()); krk_pop(); krk_pop();
-			startOfPositionals = &krk_currentThread.stackTop[-argCount];
-			KrkValue tmp = krk_list_of(argCount - potentialPositionalArgs,
-				&startOfPositionals[potentialPositionalArgs], 0);
-			startOfPositionals = &krk_currentThread.stackTop[-argCount];
-			startOfPositionals[offsetOfExtraArgs] = tmp;
-			argCount = closure->function->requiredArgs + 1;
-			argCountX = argCount - 1;
-			while (krk_currentThread.stackTop > startOfPositionals + argCount) krk_pop();
-		}
+	} else if ((size_t)argCount > potentialPositionalArgs && (closure->function->flags & KRK_CODEOBJECT_FLAGS_COLLECTS_ARGS)) {
+		krk_push(NONE_VAL()); krk_push(NONE_VAL()); krk_pop(); krk_pop();
+		startOfPositionals = &krk_currentThread.stackTop[-argCount];
+		KrkValue tmp = krk_list_of(argCount - potentialPositionalArgs,
+			&startOfPositionals[potentialPositionalArgs], 0);
+		startOfPositionals = &krk_currentThread.stackTop[-argCount];
+		startOfPositionals[offsetOfExtraArgs] = tmp;
+		argCount = closure->function->requiredArgs + 1;
+		argCountX = argCount - 1;
+		while (krk_currentThread.stackTop > startOfPositionals + argCount) krk_pop();
 	}
-	if (unlikely(!checkArgumentCount(closure, argCountX))) {
-		return 0;
-	}
+
+	if (unlikely(!checkArgumentCount(closure, argCountX))) goto _errorAfterKeywords;
+
 	while (argCount < (int)totalArguments) {
 		krk_push(KWARGS_VAL(0));
 		argCount++;
 	}
+
 	if (unlikely(closure->function->flags & (KRK_CODEOBJECT_FLAGS_IS_GENERATOR | KRK_CODEOBJECT_FLAGS_IS_COROUTINE))) {
 		KrkInstance * gen = krk_buildGenerator(closure, krk_currentThread.stackTop - argCount, argCount);
 		krk_currentThread.stackTop = krk_currentThread.stackTop - argCount - extra;
 		krk_push(OBJECT_VAL(gen));
 		return 2;
 	}
-	if (unlikely(krk_currentThread.frameCount == KRK_CALL_FRAMES_MAX)) {
-		krk_runtimeError(vm.exceptions->baseException, "Too many call frames.");
-		return 0;
-	}
+
+	if (unlikely(krk_currentThread.frameCount == KRK_CALL_FRAMES_MAX)) goto _errorAfterKeywords;
+
 	KrkCallFrame * frame = &krk_currentThread.frames[krk_currentThread.frameCount++];
 	frame->closure = closure;
 	frame->ip = closure->function->chunk.code;
@@ -781,18 +778,18 @@ _errorAfterKeywords:
  *   and it is not necessary to raise another exception.
  */
 int krk_callValue(KrkValue callee, int argCount, int extra) {
-	if (IS_OBJECT(callee)) {
+	if (likely(IS_OBJECT(callee))) {
 		switch (OBJECT_TYPE(callee)) {
 			case KRK_OBJ_CLOSURE:
 				return call(AS_CLOSURE(callee), argCount, extra);
 			case KRK_OBJ_NATIVE: {
 				NativeFn native = (NativeFn)AS_NATIVE(callee)->function;
-				if (argCount && IS_KWARGS(krk_currentThread.stackTop[-1])) {
+				if (unlikely(argCount && IS_KWARGS(krk_currentThread.stackTop[-1]))) {
 					KrkValue myList = krk_list_of(0,NULL,0);
 					krk_currentThread.scratchSpace[0] = myList;
 					KrkValue myDict = krk_dict_of(0,NULL,0);
 					krk_currentThread.scratchSpace[1] = myDict;
-					if (!krk_processComplexArguments(argCount, AS_LIST(myList), AS_DICT(myDict), AS_NATIVE(callee)->name)) {
+					if (unlikely(!krk_processComplexArguments(argCount, AS_LIST(myList), AS_DICT(myDict), AS_NATIVE(callee)->name))) {
 						return 0;
 					}
 					argCount--; /* Because that popped the kwargs value */
@@ -803,7 +800,7 @@ int krk_callValue(KrkValue callee, int argCount, int extra) {
 					krk_currentThread.scratchSpace[1] = NONE_VAL();
 					krk_writeValueArray(AS_LIST(myList), myDict);
 					KrkValue result = native(AS_LIST(myList)->count-1, AS_LIST(myList)->values, 1);
-					if (krk_currentThread.stackTop == krk_currentThread.stack) return 0;
+					if (unlikely(krk_currentThread.stackTop == krk_currentThread.stack)) return 0;
 					krk_pop();
 					krk_pop();
 					krk_push(result);
@@ -819,7 +816,7 @@ int krk_callValue(KrkValue callee, int argCount, int extra) {
 						result = native(argCount, stackCopy, 0);
 						free(stackCopy);
 					}
-					if (krk_currentThread.stackTop == krk_currentThread.stack) return 0;
+					if (unlikely(krk_currentThread.stackTop == krk_currentThread.stack)) return 0;
 					krk_currentThread.stackTop -= argCount + extra;
 					krk_push(result);
 				}
@@ -828,7 +825,7 @@ int krk_callValue(KrkValue callee, int argCount, int extra) {
 			case KRK_OBJ_INSTANCE: {
 				KrkClass * _class = AS_INSTANCE(callee)->_class;
 				KrkValue callFunction;
-				if (_class->_call) {
+				if (likely(_class->_call)) {
 					return krk_callValue(OBJECT_VAL(_class->_call), argCount + 1, 0);
 				} else if (krk_tableGet(&_class->methods, vm.specialMethodNames[METHOD_CALL], &callFunction)) {
 					return krk_callValue(callFunction, argCount + 1, 0);
@@ -842,11 +839,11 @@ int krk_callValue(KrkValue callee, int argCount, int extra) {
 				KrkInstance * newInstance = krk_newInstance(_class);
 				krk_currentThread.stackTop[-argCount - 1] = OBJECT_VAL(newInstance);
 				KrkValue initializer;
-				if (_class->_init) {
+				if (likely(_class->_init)) {
 					return krk_callValue(OBJECT_VAL(_class->_init), argCount + 1, 0);
 				} else if (krk_tableGet(&_class->methods, vm.specialMethodNames[METHOD_INIT], &initializer)) {
 					return krk_callValue(initializer, argCount + 1, 0);
-				} else if (argCount != 0) {
+				} else if (unlikely(argCount != 0)) {
 					krk_runtimeError(vm.exceptions->typeError, "%s() takes no arguments (%d given)",
 						_class->name->chars, argCount);
 					return 0;
@@ -856,7 +853,7 @@ int krk_callValue(KrkValue callee, int argCount, int extra) {
 			case KRK_OBJ_BOUND_METHOD: {
 				KrkBoundMethod * bound = AS_BOUND_METHOD(callee);
 				krk_currentThread.stackTop[-argCount - 1] = bound->receiver;
-				if (!bound->method) {
+				if (unlikely(!bound->method)) {
 					krk_runtimeError(vm.exceptions->argumentError, "???");
 					return 0;
 				}
@@ -874,14 +871,13 @@ int krk_callValue(KrkValue callee, int argCount, int extra) {
  * Takes care of runnext/pop
  */
 KrkValue krk_callSimple(KrkValue value, int argCount, int isMethod) {
-	int result = krk_callValue(value, argCount, isMethod);
-	if (result == 2) {
-		return krk_pop();
-	} else if (result == 1) {
-		return krk_runNext();
+	switch (krk_callValue(value, argCount, isMethod)) {
+		case 2: return krk_pop();
+		case 1: return krk_runNext();
+		default:
+			if (!IS_NONE(krk_currentThread.currentException)) return NONE_VAL();
 	}
-	if (!IS_NONE(krk_currentThread.currentException)) return NONE_VAL();
-	return krk_runtimeError(vm.exceptions->typeError, "Invalid internal method call: %d ('%s')", result, krk_typeName(value));
+	return krk_runtimeError(vm.exceptions->typeError, "Invalid internal method call: '%s'", krk_typeName(value));
 }
 
 /**
