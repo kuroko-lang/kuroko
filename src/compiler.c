@@ -1720,9 +1720,6 @@ static void forStatement() {
 
 		emitByte(OP_INVOKE_ITER);
 
-		/* assign */
-		EMIT_CONSTANT_OP(OP_SET_LOCAL, indLoopIter);
-
 		/* LOOP STARTS HERE */
 		loopStart = currentChunk()->count;
 
@@ -2496,7 +2493,6 @@ static void generatorInner(KrkScanner scannerBefore, Parser parserBefore, void (
 	defineVariable(indLoopIter);
 
 	emitByte(OP_INVOKE_ITER);
-	EMIT_CONSTANT_OP(OP_SET_LOCAL, indLoopIter);
 
 	int loopStart = currentChunk()->count;
 
