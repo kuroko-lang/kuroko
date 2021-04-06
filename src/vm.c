@@ -2505,6 +2505,14 @@ _finishReturn: (void)0;
 				frame->ip = exitIp;
 				break;
 			}
+			case OP_CALL_ITER: {
+				uint16_t offset = OPERAND;
+				KrkValue iter = krk_peek(0);
+				krk_push(iter);
+				krk_push(krk_callSimple(iter, 0, 1));
+				if (krk_valuesSame(iter, krk_peek(0))) frame->ip += offset;
+				break;
+			}
 
 			case OP_CONSTANT_LONG:
 			case OP_CONSTANT: {

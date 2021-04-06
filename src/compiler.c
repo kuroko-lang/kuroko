@@ -1708,38 +1708,25 @@ static void forStatement() {
 
 	if (!matchedEquals && match(TOKEN_IN)) {
 
-		/* ITERABLE.__iter__() */
 		beginScope();
 		expression();
 		endScope();
 
-		size_t indLoopIter = addLocal(syntheticToken(""));
-		defineVariable(indLoopIter);
-
+		addLocal(syntheticToken(""));
+		markInitialized();
 		emitByte(OP_INVOKE_ITER);
-
-		/* LOOP STARTS HERE */
 		loopStart = currentChunk()->count;
-
-		/* Call the iterator */
-		EMIT_CONSTANT_OP(OP_GET_LOCAL, indLoopIter);
-		emitBytes(OP_CALL, 0);
-
-		/* Assign the result to our loop index */
-		EMIT_CONSTANT_OP(OP_SET_LOCAL, loopInd);
-
-		/* Get the loop iterator again */
-		EMIT_CONSTANT_OP(OP_GET_LOCAL, indLoopIter);
-		emitByte(OP_IS);
-		exitJump = emitJump(OP_JUMP_IF_TRUE_OR_POP);
+		exitJump = emitJump(OP_CALL_ITER);
 
 		if (varCount > 1) {
-			EMIT_CONSTANT_OP(OP_GET_LOCAL, loopInd);
 			EMIT_CONSTANT_OP(OP_UNPACK, varCount);
 			for (ssize_t i = loopInd + varCount - 1; i >= loopInd; i--) {
 				EMIT_CONSTANT_OP(OP_SET_LOCAL, i);
 				emitByte(OP_POP);
 			}
+		} else {
+			EMIT_CONSTANT_OP(OP_SET_LOCAL, loopInd);
+			emitByte(OP_POP);
 		}
 
 	} else {
@@ -2486,29 +2473,21 @@ static void generatorInner(KrkScanner scannerBefore, Parser parserBefore, void (
 	parsePrecedence(PREC_OR); /* Otherwise we can get trapped on a ternary */
 	endScope();
 
-	size_t indLoopIter = current->localCount;
 	addLocal(syntheticToken(""));
-	defineVariable(indLoopIter);
-
+	markInitialized();
 	emitByte(OP_INVOKE_ITER);
-
 	int loopStart = currentChunk()->count;
-
-	EMIT_CONSTANT_OP(OP_GET_LOCAL, indLoopIter);
-	emitBytes(OP_CALL, 0);
-	EMIT_CONSTANT_OP(OP_SET_LOCAL, loopInd);
-
-	EMIT_CONSTANT_OP(OP_GET_LOCAL, indLoopIter);
-	emitByte(OP_IS);
-	int exitJump = emitJump(OP_JUMP_IF_TRUE_OR_POP);
+	int exitJump = emitJump(OP_CALL_ITER);
 
 	if (varCount > 1) {
-		EMIT_CONSTANT_OP(OP_GET_LOCAL, loopInd);
 		EMIT_CONSTANT_OP(OP_UNPACK, varCount);
 		for (ssize_t i = loopInd + varCount - 1; i >= loopInd; i--) {
 			EMIT_CONSTANT_OP(OP_SET_LOCAL, i);
 			emitByte(OP_POP);
 		}
+	} else {
+		EMIT_CONSTANT_OP(OP_SET_LOCAL, loopInd);
+		emitByte(OP_POP);
 	}
 
 	if (match(TOKEN_IF)) {
