@@ -2571,13 +2571,6 @@ _finishReturn: (void)0;
 				krk_currentThread.stack[frame->slots + slot] = krk_peek(0);
 				break;
 			}
-			/* Sometimes you just want to increment a stack-local integer quickly. */
-			case OP_INC_LONG:
-			case OP_INC: {
-				uint32_t slot = OPERAND;
-				krk_currentThread.stack[frame->slots + slot] = INTEGER_VAL(AS_INTEGER(krk_currentThread.stack[frame->slots+slot])+1);
-				break;
-			}
 			case OP_CALL_LONG:
 			case OP_CALL: {
 				int argCount = OPERAND;
