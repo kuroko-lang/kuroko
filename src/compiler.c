@@ -3214,6 +3214,7 @@ KrkCodeObject * krk_compile(const char * src, char * fileName) {
 	_obtain_lock(_compilerLock);
 
 	krk_initScanner(src);
+	memset(&parser, 0, sizeof(parser));
 	Compiler compiler;
 	initCompiler(&compiler, TYPE_MODULE);
 	compiler.codeobject->chunk.filename = krk_copyString(fileName, strlen(fileName));
