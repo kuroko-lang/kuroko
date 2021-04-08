@@ -1360,7 +1360,7 @@ const char * krk_typeName(KrkValue value) {
 	return krk_getType(value)->name->chars;
 }
 
-static KrkValue tryBind(const char * name, KrkValue a, KrkValue b, const char * operator, const char * msg, const char * inverse) {
+static KrkValue tryBind(const char * name, KrkValue a, KrkValue b, const char * operator, const char * inverse) {
 	krk_currentThread.scratchSpace[0] = a;
 	krk_currentThread.scratchSpace[1] = b;
 
@@ -1397,7 +1397,9 @@ static KrkValue tryBind(const char * name, KrkValue a, KrkValue b, const char * 
 		krk_pop(); /* name */
 	}
 
-	return krk_runtimeError(vm.exceptions->typeError, msg, operator, krk_typeName(a), krk_typeName(b));
+	return krk_runtimeError(vm.exceptions->typeError,
+		"unsupported operand types for %s: '%s' and '%s'",
+		operator, krk_typeName(a), krk_typeName(b));
 
 _success:
 	krk_pop(); /* name */
@@ -1418,7 +1420,7 @@ _success:
 		} else if (IS_FLOATING(b)) { \
 			if (IS_INTEGER(a)) return FLOATING_VAL((double)AS_INTEGER(a) operator AS_FLOATING(b)); \
 		} \
-		return tryBind("__" #name "__", a, b, #operator, "unsupported operand types for %s: '%s' and '%s'", "__" #inv "__"); \
+		return tryBind("__" #name "__", a, b, #operator, "__" #inv "__"); \
 	}
 
 MAKE_BIN_OP(add,+,radd)
@@ -1436,7 +1438,7 @@ KrkValue krk_operator_truediv(KrkValue a, KrkValue b) {
 		if (IS_FLOATING(b)) return FLOATING_VAL(AS_FLOATING(a) / AS_FLOATING(b));
 		else if (IS_INTEGER(b)) return FLOATING_VAL(AS_FLOATING(a) / (double)AS_INTEGER(b));
 	}
-	return tryBind("__truediv__", a, b, "/", "unsupported operand types for %s: '%s' and '%s'", "__rtruediv__");
+	return tryBind("__truediv__", a, b, "/", "__rtruediv__");
 }
 
 KrkValue krk_operator_floordiv(KrkValue numerator, KrkValue divisor) {
@@ -1446,12 +1448,12 @@ KrkValue krk_operator_floordiv(KrkValue numerator, KrkValue divisor) {
 		if (IS_FLOATING(numerator)) return FLOATING_VAL(__builtin_floor(AS_FLOATING(numerator) / AS_FLOATING(divisor)));
 		else if (IS_INTEGER(numerator)) return FLOATING_VAL(__builtin_floor((double)AS_INTEGER(numerator) / AS_FLOATING(divisor)));
 	}
-	return tryBind("__floordiv__", numerator, divisor, "//", "unsupported operand types for %s: '%s' and '%s'", "__rfloordiv__");
+	return tryBind("__floordiv__", numerator, divisor, "//", "__rfloordiv__");
 }
 
 #define MAKE_UNOPTIMIZED_BIN_OP(name,operator,inv) \
 	KrkValue krk_operator_ ## name (KrkValue a, KrkValue b) { \
-		return tryBind("__" #name "__", a, b, #operator, "unsupported operand types for %s: '%s' and '%s'", "__" #inv "__"); \
+		return tryBind("__" #name "__", a, b, #operator, "__" #inv "__"); \
 	}
 
 MAKE_UNOPTIMIZED_BIN_OP(pow,**,rpow)
@@ -1462,12 +1464,12 @@ MAKE_UNOPTIMIZED_BIN_OP(pow,**,rpow)
 	KrkValue krk_operator_ ## name (KrkValue a, KrkValue b) { \
 		if (IS_BOOLEAN(a) && IS_BOOLEAN(b)) return BOOLEAN_VAL(AS_INTEGER(a) operator AS_INTEGER(b)); \
 		if (IS_INTEGER(a) && IS_INTEGER(b)) return INTEGER_VAL(AS_INTEGER(a) operator AS_INTEGER(b)); \
-		return tryBind("__" #name "__", a, b, #operator, "unsupported operand types for %s: '%s' and '%s'", "__" #inv "__"); \
+		return tryBind("__" #name "__", a, b, #operator, "__" #inv "__"); \
 	}
 #define MAKE_BIT_OP(name,operator,inv) \
 	KrkValue krk_operator_ ## name (KrkValue a, KrkValue b) { \
 		if (IS_INTEGER(a) && IS_INTEGER(b)) return INTEGER_VAL(AS_INTEGER(a) operator AS_INTEGER(b)); \
-		return tryBind("__" #name "__", a, b, #operator, "unsupported operand types for %s: '%s' and '%s'", "__" #inv "__"); \
+		return tryBind("__" #name "__", a, b, #operator, "__" #inv "__"); \
 	}
 
 MAKE_BIT_OP_BOOL(or,|,ror)
@@ -1486,7 +1488,7 @@ MAKE_BIT_OP(mod,%,rmod) /* not a bit op, but doesn't work on floating point */
 		} else if (IS_FLOATING(b)) { \
 			if (IS_INTEGER(a)) return BOOLEAN_VAL(AS_INTEGER(a) operator AS_INTEGER(b)); \
 		} \
-		return tryBind("__" #name "__", a, b, #operator, "unsupported operand types for %s: '%s' and '%s'", "__" #inv "__"); \
+		return tryBind("__" #name "__", a, b, #operator, "__" #inv "__"); \
 	}
 
 MAKE_COMPARATOR(lt, <, gt)
@@ -2077,7 +2079,9 @@ static KrkValue run() {
 		}
 #endif
 
+#ifdef ENABLE_TRACING
 _resumeHook: (void)0;
+#endif
 
 		/* Each instruction begins with one opcode byte */
 		KrkOpCode opcode = READ_BYTE();
@@ -2383,14 +2387,17 @@ _finishReturn: (void)0;
 				}
 				break;
 			}
-#ifdef KRK_ENABLE_DEBUG
 			case OP_BREAKPOINT: {
+#ifdef KRK_ENABLE_DEBUG
 				/* First off, halt execution. */
 				krk_debugBreakpointHandler();
 				if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) goto _finishException;
 				goto _resumeHook;
-			}
+#else
+				krk_runtimeError(vm.exceptions->baseException, "Breakpoint.");
+				goto _finishException;
 #endif
+			}
 			case OP_YIELD: {
 				KrkValue result = krk_peek(0);
 				krk_currentThread.frameCount--;
