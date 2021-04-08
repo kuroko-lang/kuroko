@@ -111,6 +111,7 @@ static KrkValue _specialMethodNames[METHOD__MAX];
  */
 void krk_resetStack(void) {
 	krk_currentThread.stackTop = krk_currentThread.stack;
+	krk_currentThread.stackMax = krk_currentThread.stack + krk_currentThread.stackSize;
 	krk_currentThread.frameCount = 0;
 	krk_currentThread.openUpvalues = NULL;
 	krk_currentThread.flags &= ~KRK_THREAD_HAS_EXCEPTION;
@@ -267,6 +268,15 @@ KrkValue krk_runtimeError(KrkClass * type, const char * fmt, ...) {
 	return NONE_VAL();
 }
 
+void krk_growStack(void) {
+	size_t old = krk_currentThread.stackSize;
+	size_t old_offset = krk_currentThread.stackTop - krk_currentThread.stack;
+	krk_currentThread.stackSize = GROW_CAPACITY(old);
+	krk_currentThread.stack = GROW_ARRAY(KrkValue, krk_currentThread.stack, old, krk_currentThread.stackSize);
+	krk_currentThread.stackTop = krk_currentThread.stack + old_offset;
+	krk_currentThread.stackMax = krk_currentThread.stack + krk_currentThread.stackSize;
+}
+
 /**
  * Since the stack can potentially move when something is pushed to it
  * if it this triggers a grow condition, it may be necessary to ensure
@@ -274,11 +284,7 @@ KrkValue krk_runtimeError(KrkClass * type, const char * fmt, ...) {
  */
 void krk_reserve_stack(size_t space) {
 	while ((size_t)(krk_currentThread.stackTop - krk_currentThread.stack) + space > krk_currentThread.stackSize) {
-		size_t old = krk_currentThread.stackSize;
-		size_t old_offset = krk_currentThread.stackTop - krk_currentThread.stack;
-		krk_currentThread.stackSize = GROW_CAPACITY(old);
-		krk_currentThread.stack = GROW_ARRAY(KrkValue, krk_currentThread.stack, old, krk_currentThread.stackSize);
-		krk_currentThread.stackTop = krk_currentThread.stack + old_offset;
+		krk_growStack();
 	}
 }
 
@@ -290,15 +296,8 @@ void krk_reserve_stack(size_t space) {
  * to do anything, or if you are pushing anything.
  */
 inline void krk_push(KrkValue value) {
-	if (unlikely((size_t)(krk_currentThread.stackTop - krk_currentThread.stack) + 1 > krk_currentThread.stackSize)) {
-		size_t old = krk_currentThread.stackSize;
-		size_t old_offset = krk_currentThread.stackTop - krk_currentThread.stack;
-		krk_currentThread.stackSize = GROW_CAPACITY(old);
-		krk_currentThread.stack = GROW_ARRAY(KrkValue, krk_currentThread.stack, old, krk_currentThread.stackSize);
-		krk_currentThread.stackTop = krk_currentThread.stack + old_offset;
-	}
-	*krk_currentThread.stackTop = value;
-	krk_currentThread.stackTop++;
+	if (unlikely(krk_currentThread.stackTop == krk_currentThread.stackMax)) krk_growStack();
+	*krk_currentThread.stackTop++ = value;
 }
 
 /**
@@ -310,12 +309,11 @@ inline void krk_push(KrkValue value) {
  * pushed value and display it (if it's not None).
  */
 inline KrkValue krk_pop() {
-	krk_currentThread.stackTop--;
-	if (unlikely(krk_currentThread.stackTop < krk_currentThread.stack)) {
+	if (unlikely(krk_currentThread.stackTop == krk_currentThread.stack)) {
 		abort();
-		return NONE_VAL();
+		__builtin_unreachable();
 	}
-	return *krk_currentThread.stackTop;
+	return *--krk_currentThread.stackTop;
 }
 
 /* Read a value `distance` units from the top of the stack without poping it. */
@@ -2033,7 +2031,7 @@ static inline size_t readBytes(KrkCallFrame * frame, int num) {
 		case 1: out <<= 8; out |= READ_BYTE(); /* fallthrough */
 		case 0: return out;
 	}
-	return out;
+	__builtin_unreachable();
 }
 
 extern FUNC_SIG(list,append);

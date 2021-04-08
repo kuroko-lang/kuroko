@@ -194,6 +194,7 @@ typedef struct KrkThreadState {
 	long watchdog;             /**< Decrementing watchdog timer for embedding. */
 
 	KrkValue scratchSpace[KRK_THREAD_SCRATCH_SIZE]; /**< A place to store a few values to keep them from being prematurely GC'd. */
+	KrkValue * stackMax;
 } KrkThreadState;
 
 /**
