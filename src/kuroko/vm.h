@@ -482,7 +482,8 @@ extern void krk_attachNamedObject(KrkTable * table, const char name[], KrkObj * 
  * @param fmt  Format string.
  * @return As a convenience to C extension authors, returns @c None
  */
-extern KrkValue krk_runtimeError(KrkClass * type, const char * fmt, ...);
+extern KrkValue krk_runtimeError(KrkClass * type, const char * fmt, ...)
+	__attribute__((format (printf, 2, 3)));
 
 /**
  * @brief Get a pointer to the current thread state.

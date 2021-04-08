@@ -54,7 +54,7 @@
 #define TYPE_ERROR(expected,value) krk_runtimeError(vm.exceptions->typeError, "%s() expects %s, not '%s'", \
 		/* Function name */ _method_name, /* expected type */ #expected, krk_typeName(value))
 
-#define NOT_ENOUGH_ARGS(name) krk_runtimeError(vm.exceptions->argumentError, "")
+#define NOT_ENOUGH_ARGS(name) krk_runtimeError(vm.exceptions->argumentError, "Expected more args.")
 
 #define CHECK_ARG(i, type, ctype, name) \
 	if (unlikely(argc < (i+1))) return NOT_ENOUGH_ARGS(name); \

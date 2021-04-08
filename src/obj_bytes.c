@@ -118,7 +118,7 @@ KRK_METHOD(bytes,__getitem__,{
 
 	if (asInt < 0) asInt += (long)self->length;
 	if (asInt < 0 || asInt >= (long)self->length) {
-		return krk_runtimeError(vm.exceptions->indexError, "bytes index out of range: %ld", asInt);
+		return krk_runtimeError(vm.exceptions->indexError, "bytes index out of range: %d", (int)asInt);
 	}
 
 	return INTEGER_VAL(self->bytes[asInt]);

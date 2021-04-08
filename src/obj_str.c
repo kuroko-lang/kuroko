@@ -26,7 +26,7 @@ static KrkValue FUNC_NAME(striterator,__init__)(int,KrkValue[],int);
 KRK_METHOD(str,__ord__,{
 	METHOD_TAKES_NONE();
 	if (self->codesLength != 1)
-		return krk_runtimeError(vm.exceptions->typeError, "ord() expected a character, but string of length %d found", self->codesLength);
+		return krk_runtimeError(vm.exceptions->typeError, "ord() expected a character, but string of length %d found", (int)self->codesLength);
 	return INTEGER_VAL(krk_unicodeCodepoint(self,0));
 })
 

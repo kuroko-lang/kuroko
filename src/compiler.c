@@ -328,7 +328,7 @@ static void advance() {
 		if (parser.current.type == TOKEN_RETRY) continue;
 		if (parser.current.type != TOKEN_ERROR) break;
 
-		errorAtCurrent(parser.current.start);
+		errorAtCurrent("%s", parser.current.start);
 	}
 }
 
@@ -350,7 +350,7 @@ static void consume(KrkTokenType type, const char * message) {
 		return;
 	}
 
-	errorAtCurrent(message);
+	errorAtCurrent("%s", message);
 }
 
 static int check(KrkTokenType type) {
