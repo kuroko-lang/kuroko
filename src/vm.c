@@ -2070,8 +2070,15 @@ _resumeHook: (void)0;
 		KrkOpCode opcode = READ_BYTE();
 		int OPERAND = 0;
 
+/* Only GCC lets us put these on empty statements; just hope clang doesn't start complaining */
+#ifndef __clang__
+# define FALLTHROUGH __attribute__((fallthrough));
+#else
+# define FALLTHROUGH
+#endif
+
 #define TWO_BYTE_OPERAND { OPERAND = (frame->ip[0] << 8) | frame->ip[1]; frame->ip += 2; }
-#define THREE_BYTE_OPERAND { OPERAND = (frame->ip[0] << 16) | (frame->ip[1] << 8); frame->ip += 2; } __attribute__((fallthrough));
+#define THREE_BYTE_OPERAND { OPERAND = (frame->ip[0] << 16) | (frame->ip[1] << 8); frame->ip += 2; } FALLTHROUGH
 #define ONE_BYTE_OPERAND { OPERAND |= READ_BYTE(); }
 
 		switch (opcode) {
