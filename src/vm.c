@@ -2019,21 +2019,6 @@ KrkValue krk_valueSetAttribute(KrkValue owner, char * name, KrkValue to) {
 #define READ_CONSTANT(s) (frame->closure->function->chunk.constants.values[OPERAND])
 #define READ_STRING(s) AS_STRING(READ_CONSTANT(s))
 
-/**
- * Read bytes after an opcode. Most instructions take 1, 2, or 3 bytes as an
- * operand referring to a local slot, constant slot, or offset.
- */
-static inline size_t readBytes(KrkCallFrame * frame, int num) {
-	size_t out = 0;
-	switch (num) {
-		case 3: out = READ_BYTE(); /* fallthrough*/
-		case 2: out <<= 8; out |= READ_BYTE(); /* fallthrough */
-		case 1: out <<= 8; out |= READ_BYTE(); /* fallthrough */
-		case 0: return out;
-	}
-	__builtin_unreachable();
-}
-
 extern FUNC_SIG(list,append);
 extern FUNC_SIG(dict,__setitem__);
 extern FUNC_SIG(set,add);
@@ -2083,10 +2068,11 @@ _resumeHook: (void)0;
 
 		/* Each instruction begins with one opcode byte */
 		KrkOpCode opcode = READ_BYTE();
+		int OPERAND = 0;
 
-		/* The top two bits of the opcode indicate how many bytes
-		 * of operands it takes: 0, 1, 2, or 3 (naturally) */
-		size_t OPERAND = readBytes(frame, opcode >> 6);
+#define TWO_BYTE_OPERAND { OPERAND = (frame->ip[0] << 8) | frame->ip[1]; frame->ip += 2; }
+#define THREE_BYTE_OPERAND { OPERAND = (frame->ip[0] << 16) | (frame->ip[1] << 8); frame->ip += 2; } __attribute__((fallthrough));
+#define ONE_BYTE_OPERAND { OPERAND |= READ_BYTE(); }
 
 		switch (opcode) {
 			case OP_CLEANUP_WITH: {
@@ -2422,27 +2408,32 @@ _finishReturn: (void)0;
 			 * Two-byte operands
 			 */
 			case OP_JUMP_IF_FALSE_OR_POP: {
+				TWO_BYTE_OPERAND;
 				uint16_t offset = OPERAND;
 				if (krk_isFalsey(krk_peek(0))) frame->ip += offset;
 				else krk_pop();
 				break;
 			}
 			case OP_JUMP_IF_TRUE_OR_POP: {
+				TWO_BYTE_OPERAND;
 				uint16_t offset = OPERAND;
 				if (!krk_isFalsey(krk_peek(0))) frame->ip += offset;
 				else krk_pop();
 				break;
 			}
 			case OP_JUMP: {
+				TWO_BYTE_OPERAND;
 				frame->ip += OPERAND;
 				break;
 			}
 			case OP_LOOP: {
+				TWO_BYTE_OPERAND;
 				uint16_t offset = OPERAND;
 				frame->ip -= offset;
 				break;
 			}
 			case OP_PUSH_TRY: {
+				TWO_BYTE_OPERAND;
 				uint16_t tryTarget = OPERAND + (frame->ip - frame->closure->function->chunk.code);
 				krk_push(NONE_VAL());
 				KrkValue handler = HANDLER_VAL(OP_PUSH_TRY, tryTarget);
@@ -2450,6 +2441,7 @@ _finishReturn: (void)0;
 				break;
 			}
 			case OP_PUSH_WITH: {
+				TWO_BYTE_OPERAND;
 				uint16_t cleanupTarget = OPERAND + (frame->ip - frame->closure->function->chunk.code);
 				KrkValue contextManager = krk_peek(0);
 				KrkClass * type = krk_getType(contextManager);
@@ -2467,6 +2459,7 @@ _finishReturn: (void)0;
 				break;
 			}
 			case OP_YIELD_FROM: {
+				TWO_BYTE_OPERAND;
 				uint8_t * exitIp = frame->ip + OPERAND;
 				/* Stack has [iterator] [sent value] */
 				/* Is this a generator or something with a 'send' method? */
@@ -2502,6 +2495,7 @@ _finishReturn: (void)0;
 				break;
 			}
 			case OP_CALL_ITER: {
+				TWO_BYTE_OPERAND;
 				uint16_t offset = OPERAND;
 				KrkValue iter = krk_peek(0);
 				krk_push(iter);
@@ -2511,21 +2505,27 @@ _finishReturn: (void)0;
 			}
 
 			case OP_CONSTANT_LONG:
+				THREE_BYTE_OPERAND;
 			case OP_CONSTANT: {
+				ONE_BYTE_OPERAND;
 				size_t index = OPERAND;
 				KrkValue constant = frame->closure->function->chunk.constants.values[index];
 				krk_push(constant);
 				break;
 			}
 			case OP_DEFINE_GLOBAL_LONG:
+				THREE_BYTE_OPERAND;
 			case OP_DEFINE_GLOBAL: {
+				ONE_BYTE_OPERAND;
 				KrkString * name = READ_STRING(OPERAND);
 				krk_tableSet(frame->globals, OBJECT_VAL(name), krk_peek(0));
 				krk_pop();
 				break;
 			}
 			case OP_GET_GLOBAL_LONG:
+				THREE_BYTE_OPERAND;
 			case OP_GET_GLOBAL: {
+				ONE_BYTE_OPERAND;
 				KrkString * name = READ_STRING(OPERAND);
 				KrkValue value;
 				if (!krk_tableGet_fast(frame->globals, name, &value)) {
@@ -2538,7 +2538,9 @@ _finishReturn: (void)0;
 				break;
 			}
 			case OP_SET_GLOBAL_LONG:
+				THREE_BYTE_OPERAND;
 			case OP_SET_GLOBAL: {
+				ONE_BYTE_OPERAND;
 				KrkString * name = READ_STRING(OPERAND);
 				if (krk_tableSet(frame->globals, OBJECT_VAL(name), krk_peek(0))) {
 					krk_tableDelete(frame->globals, OBJECT_VAL(name));
@@ -2548,7 +2550,9 @@ _finishReturn: (void)0;
 				break;
 			}
 			case OP_DEL_GLOBAL_LONG:
+				THREE_BYTE_OPERAND;
 			case OP_DEL_GLOBAL: {
+				ONE_BYTE_OPERAND;
 				KrkString * name = READ_STRING(OPERAND);
 				if (!krk_tableDelete(frame->globals, OBJECT_VAL(name))) {
 					krk_runtimeError(vm.exceptions->nameError, "Undefined variable '%s'.", name->chars);
@@ -2557,7 +2561,9 @@ _finishReturn: (void)0;
 				break;
 			}
 			case OP_IMPORT_LONG:
+				THREE_BYTE_OPERAND;
 			case OP_IMPORT: {
+				ONE_BYTE_OPERAND;
 				KrkString * name = READ_STRING(OPERAND);
 				if (!krk_doRecursiveModuleLoad(name)) {
 					goto _finishException;
@@ -2565,38 +2571,53 @@ _finishReturn: (void)0;
 				break;
 			}
 			case OP_GET_LOCAL_LONG:
+				THREE_BYTE_OPERAND;
 			case OP_GET_LOCAL: {
+				ONE_BYTE_OPERAND;
 				uint32_t slot = OPERAND;
 				krk_push(krk_currentThread.stack[frame->slots + slot]);
 				break;
 			}
 			case OP_SET_LOCAL_LONG:
+				THREE_BYTE_OPERAND;
 			case OP_SET_LOCAL: {
+				ONE_BYTE_OPERAND;
 				uint32_t slot = OPERAND;
 				krk_currentThread.stack[frame->slots + slot] = krk_peek(0);
 				break;
 			}
 			case OP_CALL_LONG:
+				THREE_BYTE_OPERAND;
 			case OP_CALL: {
+				ONE_BYTE_OPERAND;
 				int argCount = OPERAND;
 				if (unlikely(!krk_callValue(krk_peek(argCount), argCount, 1))) goto _finishException;
 				frame = &krk_currentThread.frames[krk_currentThread.frameCount - 1];
 				break;
 			}
 			case OP_EXPAND_ARGS_LONG:
+				THREE_BYTE_OPERAND;
 			case OP_EXPAND_ARGS: {
+				ONE_BYTE_OPERAND;
 				int type = OPERAND;
 				krk_push(KWARGS_VAL(KWARGS_SINGLE-type));
 				break;
 			}
 			case OP_CLOSURE_LONG:
+				THREE_BYTE_OPERAND;
 			case OP_CLOSURE: {
+				ONE_BYTE_OPERAND;
 				KrkCodeObject * function = AS_codeobject(READ_CONSTANT(OPERAND));
 				KrkClosure * closure = krk_newClosure(function);
 				krk_push(OBJECT_VAL(closure));
 				for (size_t i = 0; i < closure->upvalueCount; ++i) {
 					int isLocal = READ_BYTE();
-					int index = readBytes(frame,(i > 255) ? 3 : 1);
+					int index = 0;
+					if (i > 255) {
+						index = (frame->ip[0] << 16) | (frame->ip[1] << 8);
+						frame->ip += 2;
+					}
+					index |= READ_BYTE();
 					if (isLocal) {
 						closure->upvalues[i] = captureUpvalue(frame->slots + index);
 					} else {
@@ -2606,19 +2627,25 @@ _finishReturn: (void)0;
 				break;
 			}
 			case OP_GET_UPVALUE_LONG:
+				THREE_BYTE_OPERAND;
 			case OP_GET_UPVALUE: {
+				ONE_BYTE_OPERAND;
 				int slot = OPERAND;
 				krk_push(*UPVALUE_LOCATION(frame->closure->upvalues[slot]));
 				break;
 			}
 			case OP_SET_UPVALUE_LONG:
+				THREE_BYTE_OPERAND;
 			case OP_SET_UPVALUE: {
+				ONE_BYTE_OPERAND;
 				int slot = OPERAND;
 				*UPVALUE_LOCATION(frame->closure->upvalues[slot]) = krk_peek(0);
 				break;
 			}
 			case OP_CLASS_LONG:
+				THREE_BYTE_OPERAND;
 			case OP_CLASS: {
+				ONE_BYTE_OPERAND;
 				KrkString * name = READ_STRING(OPERAND);
 				KrkClass * _class = krk_newClass(name, vm.baseClasses->objectClass);
 				krk_push(OBJECT_VAL(_class));
@@ -2627,7 +2654,9 @@ _finishReturn: (void)0;
 				break;
 			}
 			case OP_IMPORT_FROM_LONG:
+				THREE_BYTE_OPERAND;
 			case OP_IMPORT_FROM: {
+				ONE_BYTE_OPERAND;
 				KrkString * name = READ_STRING(OPERAND);
 				if (unlikely(!valueGetProperty(name))) {
 					/* Try to import... */
@@ -2650,7 +2679,9 @@ _finishReturn: (void)0;
 				}
 			} break;
 			case OP_GET_PROPERTY_LONG:
+				THREE_BYTE_OPERAND;
 			case OP_GET_PROPERTY: {
+				ONE_BYTE_OPERAND;
 				KrkString * name = READ_STRING(OPERAND);
 				if (unlikely(!valueGetProperty(name))) {
 					krk_runtimeError(vm.exceptions->attributeError, "'%s' object has no attribute '%s'", krk_typeName(krk_peek(0)), name->chars);
@@ -2659,7 +2690,9 @@ _finishReturn: (void)0;
 				break;
 			}
 			case OP_DEL_PROPERTY_LONG:
+				THREE_BYTE_OPERAND;
 			case OP_DEL_PROPERTY: {
+				ONE_BYTE_OPERAND;
 				KrkString * name = READ_STRING(OPERAND);
 				if (unlikely(!valueDelProperty(name))) {
 					krk_runtimeError(vm.exceptions->attributeError, "'%s' object has no attribute '%s'", krk_typeName(krk_peek(0)), name->chars);
@@ -2668,7 +2701,9 @@ _finishReturn: (void)0;
 				break;
 			}
 			case OP_SET_PROPERTY_LONG:
+				THREE_BYTE_OPERAND;
 			case OP_SET_PROPERTY: {
+				ONE_BYTE_OPERAND;
 				KrkString * name = READ_STRING(OPERAND);
 				if (unlikely(!valueSetProperty(name))) {
 					krk_runtimeError(vm.exceptions->attributeError, "'%s' object has no attribute '%s'", krk_typeName(krk_peek(1)), name->chars);
@@ -2677,7 +2712,9 @@ _finishReturn: (void)0;
 				break;
 			}
 			case OP_CLASS_PROPERTY_LONG:
+				THREE_BYTE_OPERAND;
 			case OP_CLASS_PROPERTY: {
+				ONE_BYTE_OPERAND;
 				KrkValue method = krk_peek(0);
 				KrkClass * _class = AS_CLASS(krk_peek(1));
 				KrkValue name = OBJECT_VAL(READ_STRING(OPERAND));
@@ -2689,7 +2726,9 @@ _finishReturn: (void)0;
 				break;
 			}
 			case OP_GET_SUPER_LONG:
+				THREE_BYTE_OPERAND;
 			case OP_GET_SUPER: {
+				ONE_BYTE_OPERAND;
 				KrkString * name = READ_STRING(OPERAND);
 				KrkValue baseClass = krk_peek(1);
 				if (!IS_CLASS(baseClass)) {
@@ -2721,11 +2760,15 @@ _finishReturn: (void)0;
 				break;
 			}
 			case OP_DUP_LONG:
+				THREE_BYTE_OPERAND;
 			case OP_DUP:
+				ONE_BYTE_OPERAND;
 				krk_push(krk_peek(OPERAND));
 				break;
 			case OP_KWARGS_LONG:
+				THREE_BYTE_OPERAND;
 			case OP_KWARGS: {
+				ONE_BYTE_OPERAND;
 				krk_push(KWARGS_VAL(OPERAND));
 				break;
 			}
@@ -2743,27 +2786,37 @@ _finishReturn: (void)0;
 	} \
 }
 			case OP_TUPLE_LONG:
+				THREE_BYTE_OPERAND;
 			case OP_TUPLE: {
+				ONE_BYTE_OPERAND;
 				doMake(krk_tuple_of);
 				break;
 			}
 			case OP_MAKE_LIST_LONG:
+				THREE_BYTE_OPERAND;
 			case OP_MAKE_LIST: {
+				ONE_BYTE_OPERAND;
 				doMake(krk_list_of);
 				break;
 			}
 			case OP_MAKE_DICT_LONG:
+				THREE_BYTE_OPERAND;
 			case OP_MAKE_DICT: {
+				ONE_BYTE_OPERAND;
 				doMake(krk_dict_of);
 				break;
 			}
 			case OP_MAKE_SET_LONG:
+				THREE_BYTE_OPERAND;
 			case OP_MAKE_SET: {
+				ONE_BYTE_OPERAND;
 				doMake(krk_set_of);
 				break;
 			}
 			case OP_LIST_APPEND_LONG:
+				THREE_BYTE_OPERAND;
 			case OP_LIST_APPEND: {
+				ONE_BYTE_OPERAND;
 				uint32_t slot = OPERAND;
 				KrkValue list = krk_currentThread.stack[frame->slots + slot];
 				FUNC_NAME(list,append)(2,(KrkValue[]){list,krk_peek(0)},0);
@@ -2771,7 +2824,9 @@ _finishReturn: (void)0;
 				break;
 			}
 			case OP_DICT_SET_LONG:
+				THREE_BYTE_OPERAND;
 			case OP_DICT_SET: {
+				ONE_BYTE_OPERAND;
 				uint32_t slot = OPERAND;
 				KrkValue dict = krk_currentThread.stack[frame->slots + slot];
 				FUNC_NAME(dict,__setitem__)(3,(KrkValue[]){dict,krk_peek(1),krk_peek(0)},0);
@@ -2780,7 +2835,9 @@ _finishReturn: (void)0;
 				break;
 			}
 			case OP_SET_ADD_LONG:
+				THREE_BYTE_OPERAND;
 			case OP_SET_ADD: {
+				ONE_BYTE_OPERAND;
 				uint32_t slot = OPERAND;
 				KrkValue set = krk_currentThread.stack[frame->slots + slot];
 				FUNC_NAME(set,add)(2,(KrkValue[]){set,krk_peek(0)},0);
@@ -2788,9 +2845,11 @@ _finishReturn: (void)0;
 				break;
 			}
 			case OP_REVERSE_LONG:
+				THREE_BYTE_OPERAND;
 			case OP_REVERSE: {
+				ONE_BYTE_OPERAND;
 				krk_push(NONE_VAL()); /* Storage space */
-				for (size_t i = 0; i < OPERAND / 2; ++i) {
+				for (int i = 0; i < OPERAND / 2; ++i) {
 					krk_currentThread.stackTop[-1] = krk_currentThread.stackTop[-i-2];
 					krk_currentThread.stackTop[-i-2] = krk_currentThread.stackTop[-(OPERAND-i)-1];
 					krk_currentThread.stackTop[-(OPERAND-i)-1] = krk_currentThread.stackTop[-1];
@@ -2799,7 +2858,9 @@ _finishReturn: (void)0;
 				break;
 			}
 			case OP_UNPACK_LONG:
+				THREE_BYTE_OPERAND;
 			case OP_UNPACK: {
+				ONE_BYTE_OPERAND;
 				size_t count = OPERAND;
 				KrkValue sequence = krk_peek(0);
 				/* First figure out what it is and if we can unpack it. */
