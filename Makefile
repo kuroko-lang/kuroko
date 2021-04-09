@@ -10,7 +10,7 @@ MODULES  = $(patsubst src/module_%.c, modules/%.so, $(sort $(wildcard src/module
 HEADERS  = $(wildcard src/kuroko/*.h)
 TOOLS    = $(patsubst tools/%.c, krk-%, $(sort $(wildcard tools/*.c)))
 GENMODS  = modules/codecs/sbencs.krk modules/codecs/dbdata.krk
-BIN_OBJS = $(OBJS)
+BIN_OBJS = libkuroko.a
 
 # These are used by the install target. We call the local kuroko to get the
 # version string to use for the final library, so, uh, probably don't
