@@ -1,13 +1,16 @@
 CFLAGS  ?= -g -O3 -Wall -Wextra -pedantic -Wno-unused-parameter
 
 CFLAGS += -Isrc
+LDFLAGS += -L.
 
 TARGET   = kuroko
 OBJS     = $(patsubst %.c, %.o, $(filter-out src/module_% src/kuroko.c,$(sort $(wildcard src/*.c))))
+SOOBJS   = $(patsubst %.o, %.lo, $(OBJS))
 MODULES  = $(patsubst src/module_%.c, modules/%.so, $(sort $(wildcard src/module_*.c)))
 HEADERS  = $(wildcard src/kuroko/*.h)
 TOOLS    = $(patsubst tools/%.c, krk-%, $(sort $(wildcard tools/*.c)))
 GENMODS  = modules/codecs/sbencs.krk modules/codecs/dbdata.krk
+BIN_OBJS = $(OBJS)
 
 # These are used by the install target. We call the local kuroko to get the
 # version string to use for the final library, so, uh, probably don't
@@ -16,76 +19,38 @@ VERSION  = $(shell ./kuroko --version | sed 's/.* //')
 SONAME   = libkuroko-$(VERSION).so
 KRKMODS  = $(wildcard modules/*.krk modules/*/*.krk modules/*/*/*.krk)
 
-ifndef KRK_ENABLE_STATIC
-  # The normal build configuration is as a shared library or DLL (on Windows)
-  all: ${TARGET} ${MODULES} ${TOOLS} ${GENMODS}
-  CFLAGS  += -fPIC
-  ifeq (,$(findstring mingw,$(CC)))
-    # We set rpath here mostly so you can run the locally-built interpreter
-    # with the correct library; it shouldn't be needed in a real installation.
-    LDFLAGS += -Wl,-rpath -Wl,'$$ORIGIN' -L.
-    # On POSIX-like platforms, link with libdl and assume -lkuroko gives us
-    # our own library.
-    LDLIBS  += -ldl -lpthread
-    ifeq (Darwin,$(shell uname -s))
-      # macOS needs us to link modules back to the main library at build time
-      MODLIBS = libkuroko.so
-    endif
-  else
-    # For Windows, disable format string warnings because gcc will get mad
-    # about non-portable Windows format specifiers...
-    CFLAGS  += -Wno-format -static-libgcc
-    # And we need to link this by name with extension because I don't want
-    # to actually rename it to kuroko.dll or whatever.
-    MODLIBS = libkuroko.so
-    ${OBJS}: CFLAGS += -DKRKINLIB
-    libkuroko.so: LDLIBS += -l:libwinpthread.a -Wl,--require-defined=tc_malloc libtcmalloc_minimal.a -l:libpsapi.a -l:libstdc++.a
-    libkuroko.so: libtcmalloc_minimal.a
-    modules/socket.so: LDLIBS += -lws2_32
+all: ${TARGET} ${MODULES} ${TOOLS} ${GENMODS}
+
+ifeq (,$(findstring mingw,$(CC)))
+  LDLIBS  += -ldl -lpthread
+  BIN_FLAGS = -rdynamic
+  LIBRARY = libkuroko.so
+  ifeq (Darwin,$(shell uname -s))
+    MODLIBS += -undefined dynamic_lookup -DKRK_MEDIOCRE_TLS
   endif
-  KUROKO_LIBS = libkuroko.so
 else
-  # Static builds are a little different...
-  CFLAGS +=-DSTATIC_ONLY
-  LDFLAGS += -static
-  all: ${TARGET} ${GENMODS}
-  KUROKO_LIBS = ${OBJS} -lpthread
+  CFLAGS  += -Wno-format -static-libgcc
+  ${SOOBJS}: CFLAGS += -DKRKINLIB
+  BIN_OBJS =
+  LIBRARY = libkuroko.dll
+  kuroko: LDLIBS = -lkuroko
+  kuroko: ${LIBRARY}
+  MODLIBS += -lkuroko
+  modules/socket.so: MODLIBS += -lws2_32
 endif
 
-ifdef KRK_NO_DOCUMENTATION
+ifdef KRK_DISABLE_DOCS
   CFLAGS += -DKRK_NO_DOCUMENTATION -Wno-unused-value
 endif
 
 ifndef KRK_DISABLE_RLINE
-  # Normally, we link the rich line editor into the
-  # interpreter (and not the main library!)
-  KUROKO_LIBS += src/vendor/rline.o
+  BIN_OBJS += src/vendor/rline.o
 else
-  # ... but it can be disabled if you want a more "pure" build,
-  # or if you don't have solid support for the escape sequences
-  # it requires on your target platform.
   CFLAGS  += -DNO_RLINE
 endif
 
 ifndef KRK_DISABLE_DEBUG
-  # Disabling debug functions doesn't really do much; it may result in a smaller
-  # library when stripped as there's a lot of debug text, but no performance
-  # difference has ever been noted from disabling, eg., instruction tracing.
   CFLAGS  += -DKRK_ENABLE_DEBUG
-endif
-
-ifdef KRK_ENABLE_BUNDLE
-  # When bundling, disable shared object modules.
-  MODULES =
-  # Add the sources from the shared object modules as regular sources.
-  KUROKO_LIBS += $(patsubst %.c,%.o,$(sort $(wildcard src/module_*.c)))
-  # Enable the build flag so the interpreter binary knows to run startup functions
-  CFLAGS += -DBUNDLE_LIBS=1
-  # And link anything our core modules would have needed
-  LDLIBS += -lm
-  ifeq (,$(findstring mingw,$(CC)))
-    LDLIBS += -lws2_32
-  endif
 endif
 
 .PHONY: help
@@ -94,35 +59,35 @@ help:
 	@echo "Configuration options available:"
 	@echo "   KRK_DISABLE_RLINE=1    Do not build with the rich line editing library enabled."
 	@echo "   KRK_DISABLE_DEBUG=1    Disable debugging features (might be faster)."
-	@echo "   KRK_ENABLE_STATIC=1    Build a single static binary."
-	@echo "   KRK_ENABLE_BUNDLE=1    Link C modules directly into the interpreter."
-	@echo "   KRK_NO_DOCUMENTATION=1 Do not include docstrings for builtins."
+	@echo "   KRK_DISABLE_DOCS=1     Do not include docstrings for builtins."
 	@echo ""
 	@echo "Available tools: ${TOOLS}"
 
-kuroko: src/kuroko.o ${KUROKO_LIBS}
-	${CC} ${CFLAGS} ${LDFLAGS} -o $@ src/kuroko.o ${KUROKO_LIBS}
+kuroko: src/kuroko.c ${BIN_OBJS} ${HEADERS}
+	${CC} ${CFLAGS} ${LDFLAGS} ${BIN_FLAGS} -o $@ $< ${BIN_OBJS} ${LDLIBS}
 
-krk-%: tools/%.c ${KUROKO_LIBS}
-	${CC} -Itools ${CFLAGS} ${LDFLAGS} -o $@ $< ${KUROKO_LIBS}
+krk-%: tools/%.c ${LIBRARY} ${HEADERS}
+	${CC} -Itools ${CFLAGS} ${LDFLAGS} -o $@ $< -lkuroko
 
-libkuroko.so: ${OBJS}
-	${CC} ${CFLAGS} ${LDFLAGS} -shared -o $@ ${OBJS} ${LDLIBS}
+libkuroko.so: ${SOOBJS} ${HEADERS}
+	${CC} ${CFLAGS} ${LDFLAGS} -fPIC -shared -o $@ ${SOOBJS} ${LDLIBS}
 
-# Make sure we rebuild things when headers change as we have a lot of
-# headers that define build flags...
-%.o: ${HEADERS}
+WINLIBS= -l:libwinpthread.a -Wl,--require-defined=tc_malloc libtcmalloc_minimal.a -l:libpsapi.a -l:libstdc++.a
+libkuroko.dll: ${SOOBJS} ${HEADERS} libtcmalloc_minimal.a
+	${CC} ${CFLAGS} ${LDFLAGS} -fPIC -shared -o $@ ${SOOBJS} ${WINLIBS} -Wl,--export-all-symbols,--out-implib,libkuroko.a
 
-# Modules are built as shared objects. We link them with LDLIBS
-# as well, but this probably isn't necessary?
-modules/%.so: src/module_%.c libkuroko.so
-	${CC} ${CFLAGS} ${LDFLAGS} -shared -o $@ $< ${LDLIBS} ${MODLIBS}
+libkuroko.a: ${OBJS}
+	${AR} ${ARFLAGS} $@ ${OBJS}
 
-# A module can have dependencies that didn't exist in the main lib,
-# like how the math library pulls in libm but we kept references
-# to that out of the main interpreter.
-modules/math.so: src/module_math.c libkuroko.so
-	${CC} ${CFLAGS} ${LDFLAGS} -shared -o $@ $< -lm ${LDLIBS} ${MODLIBS}
+%.o: %.c ${HEADERS}
+	${CC} ${CFLAGS} -c -o $@ $<
+
+%.lo: %.c ${HEADERS}
+	${CC} ${CFLAGS} -fPIC -c -o $@ $<
+
+modules/math.so: MODLIBS += -lm
+modules/%.so: src/module_%.c ${LIBRARY}
+	${CC} ${CFLAGS} ${LDFLAGS} -fPIC -shared -o $@ $< ${LDLIBS} ${MODLIBS}
 
 modules/codecs/sbencs.krk: tools/codectools/gen_sbencs.krk tools/codectools/encodings.json tools/codectools/indexes.json | kuroko
 	./kuroko tools/codectools/gen_sbencs.krk
@@ -132,8 +97,11 @@ modules/codecs/dbdata.krk: tools/codectools/gen_dbdata.krk tools/codectools/enco
 
 .PHONY: clean
 clean:
-	@rm -f ${OBJS} ${TARGET} ${MODULES} libkuroko.so *.so.debug src/*.o src/vendor/*.o kuroko.exe ${TOOLS} $(patsubst %,%.exe,${TOOLS})
-	@rm -rf docs/html
+	-rm -f ${OBJS} ${SOOBJS} ${TARGET} ${MODULES}
+	-rm -f libkuroko.so libkuroko.a libkuroko.dll *.so.debug
+	-rm -f src/*.o src/*.lo src/vendor/*.o
+	-rm -f kuroko.exe ${TOOLS} $(patsubst %,%.exe,${TOOLS})
+	-rm -rf docs/html *.dSYM modules/*.dSYM
 
 tags: $(wildcard src/*.c) $(wildcard src/*.h)
 	@ctags --c-kinds=+lx src/*.c src/*.h  src/kuroko/*.h src/vendor/*.h
@@ -186,6 +154,7 @@ install: all libkuroko.so ${HEADERS} $(KRKMODS) $(MODULES)
 	@echo "Installing libraries..."
 	$(INSTALL_PROGRAM) libkuroko.so $(DESTDIR)$(libdir)/$(SONAME)
 	ln -s -f $(SONAME) $(DESTDIR)$(libdir)/libkuroko.so
+	$(INSTALL_DATA) libkuroko.a $(DESTDIR)$(libdir)/
 	@echo "Installing source modules..."
 	$(INSTALL_DATA) modules/*.krk         $(DESTDIR)$(bindir)/../lib/kuroko/
 	$(INSTALL_DATA) modules/foo/*.krk     $(DESTDIR)$(bindir)/../lib/kuroko/foo/
