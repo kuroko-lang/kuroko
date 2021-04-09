@@ -671,7 +671,7 @@ class Iso2022JpExtIncrementalEncoder(Iso2022JpIncrementalEncoder):
     """
     IncrementalEncoder implementation for 7-bit stateful Japanese.
 
-    This differs from the ISO-2022-JP encoder in that it preserves katakana width.
+    This differs from the ISO-2022-JP-1 encoder in that it preserves katakana width.
     """
     name = "iso-2022-jp-ext"
     html5name = None
