@@ -255,7 +255,7 @@ typedef struct KrkVM {
  *
  * See @c KrkThreadState for more information.
  */
-#if defined(_WIN32) && !defined(KRKINLIB)
+#if (defined(_WIN32) && !defined(KRKINLIB)) || defined(KRK_MEDIOCRE_TLS)
 #define krk_currentThread (*krk_getCurrentThread())
 #else
 extern threadLocal KrkThreadState krk_currentThread;
