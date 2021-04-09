@@ -191,7 +191,7 @@ typedef struct KrkThreadState {
 	KrkInstance * module;      /**< The current module execution context. */
 	KrkValue currentException; /**< When an exception is thrown, it is stored here. */
 	int flags;                 /**< Thread-local VM flags; each thread inherits the low byte of the global VM flags. */
-	long watchdog;             /**< Decrementing watchdog timer for embedding. */
+	long _padding;             /**< Unused. */
 
 	KrkValue scratchSpace[KRK_THREAD_SCRATCH_SIZE]; /**< A place to store a few values to keep them from being prematurely GC'd. */
 	KrkValue * stackMax;

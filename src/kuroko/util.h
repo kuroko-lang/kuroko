@@ -14,8 +14,8 @@
 /* Quick macro for turning string constants into KrkString*s */
 #define S(c) (krk_copyString(c,sizeof(c)-1))
 
-#define likely(cond)   __builtin_expect(!!(cond), 1)
-#define unlikely(cond) __builtin_expect(!!(cond), 0)
+#define likely(cond)   __builtin_expect((cond), 1)
+#define unlikely(cond) __builtin_expect((cond), 0)
 #ifndef _WIN32
 #define _noexport __attribute__((visibility("hidden")))
 #else

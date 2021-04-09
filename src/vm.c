@@ -823,7 +823,7 @@ int krk_callValue(KrkValue callee, int argCount, int extra) {
 			case KRK_OBJ_INSTANCE: {
 				KrkClass * _class = AS_INSTANCE(callee)->_class;
 				KrkValue callFunction;
-				if (likely(_class->_call)) {
+				if (likely(_class->_call != NULL)) {
 					return krk_callValue(OBJECT_VAL(_class->_call), argCount + 1, 0);
 				} else if (krk_tableGet(&_class->methods, vm.specialMethodNames[METHOD_CALL], &callFunction)) {
 					return krk_callValue(callFunction, argCount + 1, 0);
@@ -837,7 +837,7 @@ int krk_callValue(KrkValue callee, int argCount, int extra) {
 				KrkInstance * newInstance = krk_newInstance(_class);
 				krk_currentThread.stackTop[-argCount - 1] = OBJECT_VAL(newInstance);
 				KrkValue initializer;
-				if (likely(_class->_init)) {
+				if (likely(_class->_init != NULL)) {
 					return krk_callValue(OBJECT_VAL(_class->_init), argCount + 1, 0);
 				} else if (krk_tableGet(&_class->methods, vm.specialMethodNames[METHOD_INIT], &initializer)) {
 					return krk_callValue(initializer, argCount + 1, 0);
@@ -1149,7 +1149,6 @@ void krk_initVM(int flags) {
 	krk_currentThread.frames   = calloc(KRK_CALL_FRAMES_MAX,sizeof(KrkCallFrame));
 	krk_currentThread.flags    = flags & 0x00FF;
 	krk_currentThread.module   = NULL;
-	krk_currentThread.watchdog = 0;
 	vm.threads = &krk_currentThread;
 	vm.threads->next = NULL;
 
@@ -2031,38 +2030,23 @@ static KrkValue run() {
 
 	while (1) {
 #ifdef ENABLE_TRACING
-		if (krk_currentThread.flags & KRK_THREAD_ENABLE_TRACING) {
-			krk_debug_dumpStack(stderr, frame);
-			krk_disassembleInstruction(stderr, frame->closure->function,
-				(size_t)(frame->ip - frame->closure->function->chunk.code));
-		}
+		if (unlikely(krk_currentThread.flags & (KRK_THREAD_ENABLE_TRACING | KRK_THREAD_SINGLE_STEP | KRK_THREAD_SIGNALLED))) {
+			if (krk_currentThread.flags & KRK_THREAD_ENABLE_TRACING) {
+				krk_debug_dumpStack(stderr, frame);
+				krk_disassembleInstruction(stderr, frame->closure->function,
+					(size_t)(frame->ip - frame->closure->function->chunk.code));
+			}
 
-		if (krk_currentThread.flags & KRK_THREAD_SINGLE_STEP) {
-			krk_debuggerHook(frame);
-		}
+			if (krk_currentThread.flags & KRK_THREAD_SINGLE_STEP) {
+				krk_debuggerHook(frame);
+			}
 
-		if (krk_currentThread.flags & KRK_THREAD_SIGNALLED) {
-			krk_currentThread.flags &= ~(KRK_THREAD_SIGNALLED); /* Clear signal flag */
-			krk_runtimeError(vm.exceptions->keyboardInterrupt, "Keyboard interrupt.");
-			goto _finishException;
+			if (krk_currentThread.flags & KRK_THREAD_SIGNALLED) {
+				krk_currentThread.flags &= ~(KRK_THREAD_SIGNALLED); /* Clear signal flag */
+				krk_runtimeError(vm.exceptions->keyboardInterrupt, "Keyboard interrupt.");
+				goto _finishException;
+			}
 		}
-#endif
-
-#ifdef ENABLE_WATCHDOG
-		if (vm.watchdog - 1 == 0) {
-			fprintf(stderr, "Watchdog timer tripped.\n\n");
-			krk_dumpTraceback();
-			krk_resetStack();
-			fprintf(stderr, "\n\n");
-			vm.watchdog = 0;
-			exit(0);
-			return NONE_VAL();
-		} else if (vm.watchdog > 0) {
-			vm.watchdog--;
-		}
-#endif
-
-#ifdef ENABLE_TRACING
 _resumeHook: (void)0;
 #endif
 
@@ -2214,7 +2198,7 @@ _finishReturn: (void)0;
 				break;
 			case OP_INVOKE_GETTER: {
 				KrkClass * type = krk_getType(krk_peek(1));
-				if (likely(type->_getter)) {
+				if (likely(type->_getter != NULL)) {
 					krk_push(krk_callSimple(OBJECT_VAL(type->_getter), 2, 0));
 				} else if (IS_CLASS(krk_peek(1)) && AS_CLASS(krk_peek(1))->_classgetitem) {
 					krk_push(krk_callSimple(OBJECT_VAL(AS_CLASS(krk_peek(1))->_classgetitem), 2, 0));
@@ -2225,7 +2209,7 @@ _finishReturn: (void)0;
 			}
 			case OP_INVOKE_SETTER: {
 				KrkClass * type = krk_getType(krk_peek(2));
-				if (likely(type->_setter)) {
+				if (likely(type->_setter != NULL)) {
 					krk_push(krk_callSimple(OBJECT_VAL(type->_setter), 3, 0));
 				} else {
 					if (type->_getter) {
@@ -2238,7 +2222,7 @@ _finishReturn: (void)0;
 			}
 			case OP_INVOKE_GETSLICE: {
 				KrkClass * type = krk_getType(krk_peek(2));
-				if (likely(type->_getslice)) {
+				if (likely(type->_getslice != NULL)) {
 					krk_push(krk_callSimple(OBJECT_VAL(type->_getslice), 3, 0));
 				} else {
 					krk_runtimeError(vm.exceptions->attributeError, "'%s' object is not sliceable", krk_typeName(krk_peek(2)));
@@ -2247,7 +2231,7 @@ _finishReturn: (void)0;
 			}
 			case OP_INVOKE_SETSLICE: {
 				KrkClass * type = krk_getType(krk_peek(3));
-				if (likely(type->_setslice)) {
+				if (likely(type->_setslice != NULL)) {
 					krk_push(krk_callSimple(OBJECT_VAL(type->_setslice), 4, 0));
 				} else {
 					krk_runtimeError(vm.exceptions->attributeError, "'%s' object is not sliceable", krk_typeName(krk_peek(3)));
@@ -2256,7 +2240,7 @@ _finishReturn: (void)0;
 			}
 			case OP_INVOKE_DELSLICE: {
 				KrkClass * type = krk_getType(krk_peek(2));
-				if (likely(type->_delslice)) {
+				if (likely(type->_delslice != NULL)) {
 					krk_push(krk_callSimple(OBJECT_VAL(type->_delslice), 3, 0));
 				} else {
 					krk_runtimeError(vm.exceptions->attributeError, "'%s' object is not sliceable", krk_typeName(krk_peek(2)));
@@ -2265,7 +2249,7 @@ _finishReturn: (void)0;
 			}
 			case OP_INVOKE_DELETE: {
 				KrkClass * type = krk_getType(krk_peek(1));
-				if (likely(type->_delitem)) {
+				if (likely(type->_delitem != NULL)) {
 					krk_callSimple(OBJECT_VAL(type->_delitem), 2, 0);
 				} else {
 					if (type->_getter) {
@@ -2278,7 +2262,7 @@ _finishReturn: (void)0;
 			}
 			case OP_INVOKE_ITER: {
 				KrkClass * type = krk_getType(krk_peek(0));
-				if (likely(type->_iter)) {
+				if (likely(type->_iter != NULL)) {
 					krk_push(krk_callSimple(OBJECT_VAL(type->_iter), 1, 0));
 				} else {
 					krk_runtimeError(vm.exceptions->attributeError, "'%s' object is not iterable", krk_typeName(krk_peek(0)));
@@ -2287,7 +2271,7 @@ _finishReturn: (void)0;
 			}
 			case OP_INVOKE_CONTAINS: {
 				KrkClass * type = krk_getType(krk_peek(0));
-				if (likely(type->_contains)) {
+				if (likely(type->_contains != NULL)) {
 					krk_swap(1);
 					krk_push(krk_callSimple(OBJECT_VAL(type->_contains), 2, 0));
 				} else {
@@ -2932,21 +2916,22 @@ _finishReturn: (void)0;
 				break;
 			}
 		}
-		if (likely(!(krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION))) continue;
+		if (unlikely(krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION)) {
 _finishException:
-		if (!handleException()) {
-			frame = &krk_currentThread.frames[krk_currentThread.frameCount - 1];
-			frame->ip = frame->closure->function->chunk.code + AS_HANDLER_TARGET(krk_peek(0));
-			/* Stick the exception into the exception slot */
-			if (AS_HANDLER_TYPE(krk_currentThread.stackTop[-1])== OP_FILTER_EXCEPT) {
-				krk_currentThread.stackTop[-1] = HANDLER_VAL(OP_END_FINALLY,AS_HANDLER_TARGET(krk_peek(0)));
+			if (!handleException()) {
+				frame = &krk_currentThread.frames[krk_currentThread.frameCount - 1];
+				frame->ip = frame->closure->function->chunk.code + AS_HANDLER_TARGET(krk_peek(0));
+				/* Stick the exception into the exception slot */
+				if (AS_HANDLER_TYPE(krk_currentThread.stackTop[-1])== OP_FILTER_EXCEPT) {
+					krk_currentThread.stackTop[-1] = HANDLER_VAL(OP_END_FINALLY,AS_HANDLER_TARGET(krk_peek(0)));
+				} else {
+					krk_currentThread.stackTop[-1] = HANDLER_VAL(OP_RAISE,AS_HANDLER_TARGET(krk_peek(0)));
+				}
+				krk_currentThread.stackTop[-2] = krk_currentThread.currentException;
+				krk_currentThread.currentException = NONE_VAL();
 			} else {
-				krk_currentThread.stackTop[-1] = HANDLER_VAL(OP_RAISE,AS_HANDLER_TARGET(krk_peek(0)));
+				return NONE_VAL();
 			}
-			krk_currentThread.stackTop[-2] = krk_currentThread.currentException;
-			krk_currentThread.currentException = NONE_VAL();
-		} else {
-			return NONE_VAL();
 		}
 	}
 #undef BINARY_OP
