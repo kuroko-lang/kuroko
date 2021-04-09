@@ -213,7 +213,7 @@ deb: kuroko libkuroko.so
 		-m            "K. Lange <klange@toaruos.org>" \
 		--description "Bytecode-compiled interpreted dynamic programming language." \
 		--url         "https://kuroko-lang.github.io/" \
-		--license     "ISC" \
+		--license     "MIT" \
 		--category    "devel" \
 		-d            "libc6 (>= $(LIBCMIN))" \
 		--version     $(VERSION) \
