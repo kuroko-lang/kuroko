@@ -24,7 +24,8 @@
  * 2-operand opcodes are generally jump instructions.
  */
 typedef enum {
-	OP_ADD = 1,
+	OP_NONE,
+	OP_ADD,
 	OP_BITAND,
 	OP_BITNEGATE,
 	OP_BITOR,
@@ -49,7 +50,6 @@ typedef enum {
 	OP_MODULO,
 	OP_MULTIPLY,
 	OP_NEGATE,
-	OP_NONE,
 	OP_NOT,
 	OP_POP,
 	OP_POW,
@@ -63,7 +63,7 @@ typedef enum {
 	OP_FILTER_EXCEPT,
 	OP_INVOKE_ITER,
 	OP_INVOKE_CONTAINS,
-	OP_BREAKPOINT, /* NEVER output this instruction in the compiler or bad things can happen */
+	OP_BREAKPOINT,
 	OP_YIELD,
 	OP_ANNOTATE,
 	OP_BEGIN_FINALLY,
@@ -73,9 +73,9 @@ typedef enum {
 	OP_INVOKE_AWAIT,
 	OP_FLOORDIV,
 	OP_UNSET,
-	/* current highest: 50 */
 
-	OP_CALL = 64,
+	/* One-opcode instructions */
+	OP_CALL,
 	OP_CLASS,
 	OP_CLOSURE,
 	OP_CONSTANT,
@@ -107,7 +107,8 @@ typedef enum {
 	OP_MAKE_SET,
 	OP_REVERSE,
 
-	OP_JUMP_IF_FALSE_OR_POP = 128,
+	/* Two opcode instructions */
+	OP_JUMP_IF_FALSE_OR_POP,
 	OP_JUMP_IF_TRUE_OR_POP,
 	OP_JUMP,
 	OP_LOOP,
@@ -116,7 +117,8 @@ typedef enum {
 	OP_YIELD_FROM,
 	OP_CALL_ITER,
 
-	OP_CALL_LONG = 192,
+	/* Three opcode instructions */
+	OP_CALL_LONG,
 	OP_CLASS_LONG,
 	OP_CLOSURE_LONG,
 	OP_CONSTANT_LONG,
