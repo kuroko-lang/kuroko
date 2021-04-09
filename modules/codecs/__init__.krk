@@ -129,7 +129,7 @@ The list of codecs (not an exhaustive list of labels, nor close to one) is as fo
 |`hz-gb-2312`|HZ (Usenet Simplified Chinese) encoding|
 |`iso-2022-cn`|7-bit stateful Chinese (Simplified and Traditional)|
 |`iso-2022-jp`|7-bit stateful Japanese, web version|
-|`iso-2022-jp-ext`|7-bit stateful Japanese, preserving katakana width|
+|`iso-2022-jp-ext`|7-bit stateful Japanese, including JIS X 0212 and preserving katakana width|
 |`iso-2022-jp-1`|7-bit stateful Japanese, including JIS X 0212|
 |`iso-2022-jp-2`|7-bit stateful Multilingual (Japanese, Korean, Greek, Simplified Chinese, Western European)|
 |`iso-2022-jp-3`|7-bit stateful Japanese, including JIS X 0213 (2000 edition format)|
