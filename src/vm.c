@@ -382,6 +382,7 @@ KrkClass * krk_makeClass(KrkInstance * module, KrkClass ** _class, const char * 
  *
  * For a class built by managed code, called by OP_FINALIZE
  */
+__attribute__((nonnull))
 void krk_finalizeClass(KrkClass * _class) {
 	KrkValue tmp;
 
@@ -588,7 +589,6 @@ int krk_processComplexArguments(int argCount, KrkValueArray * positionals, KrkTa
  * where we need to restore the stack to when we return from this call.
  */
 static int call(KrkClosure * closure, int argCount, int extra) {
-	KrkValue * startOfPositionals = &krk_currentThread.stackTop[-argCount];
 	size_t potentialPositionalArgs = closure->function->requiredArgs + closure->function->keywordArgs;
 	size_t totalArguments = closure->function->requiredArgs + closure->function->keywordArgs + !!(closure->function->flags & KRK_CODEOBJECT_FLAGS_COLLECTS_ARGS) + !!(closure->function->flags & KRK_CODEOBJECT_FLAGS_COLLECTS_KWS);
 	size_t offsetOfExtraArgs = closure->function->requiredArgs + closure->function->keywordArgs;
@@ -711,7 +711,7 @@ _finishKwarg:
 		argCountX = argCount - (!!(closure->function->flags & KRK_CODEOBJECT_FLAGS_COLLECTS_ARGS) + !!(closure->function->flags & KRK_CODEOBJECT_FLAGS_COLLECTS_KWS));
 	} else if ((size_t)argCount > potentialPositionalArgs && (closure->function->flags & KRK_CODEOBJECT_FLAGS_COLLECTS_ARGS)) {
 		krk_push(NONE_VAL()); krk_push(NONE_VAL()); krk_pop(); krk_pop();
-		startOfPositionals = &krk_currentThread.stackTop[-argCount];
+		KrkValue * startOfPositionals = &krk_currentThread.stackTop[-argCount];
 		KrkValue tmp = krk_list_of(argCount - potentialPositionalArgs,
 			&startOfPositionals[potentialPositionalArgs], 0);
 		startOfPositionals = &krk_currentThread.stackTop[-argCount];
@@ -2565,8 +2565,7 @@ _finishReturn: (void)0;
 				THREE_BYTE_OPERAND;
 			case OP_GET_LOCAL: {
 				ONE_BYTE_OPERAND;
-				uint32_t slot = OPERAND;
-				krk_push(krk_currentThread.stack[frame->slots + slot]);
+				krk_push(krk_currentThread.stack[frame->slots + OPERAND]);
 				break;
 			}
 			case OP_SET_LOCAL_LONG:
