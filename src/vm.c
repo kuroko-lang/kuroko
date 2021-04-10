@@ -822,11 +822,8 @@ int krk_callValue(KrkValue callee, int argCount, int extra) {
 			}
 			case KRK_OBJ_INSTANCE: {
 				KrkClass * _class = AS_INSTANCE(callee)->_class;
-				KrkValue callFunction;
 				if (likely(_class->_call != NULL)) {
 					return krk_callValue(OBJECT_VAL(_class->_call), argCount + 1, 0);
-				} else if (krk_tableGet(&_class->methods, vm.specialMethodNames[METHOD_CALL], &callFunction)) {
-					return krk_callValue(callFunction, argCount + 1, 0);
 				} else {
 					krk_runtimeError(vm.exceptions->typeError, "'%s' object is not callable", krk_typeName(callee));
 					return 0;
@@ -836,11 +833,8 @@ int krk_callValue(KrkValue callee, int argCount, int extra) {
 				KrkClass * _class = AS_CLASS(callee);
 				KrkInstance * newInstance = krk_newInstance(_class);
 				krk_currentThread.stackTop[-argCount - 1] = OBJECT_VAL(newInstance);
-				KrkValue initializer;
 				if (likely(_class->_init != NULL)) {
 					return krk_callValue(OBJECT_VAL(_class->_init), argCount + 1, 0);
-				} else if (krk_tableGet(&_class->methods, vm.specialMethodNames[METHOD_INIT], &initializer)) {
-					return krk_callValue(initializer, argCount + 1, 0);
 				} else if (unlikely(argCount != 0)) {
 					krk_runtimeError(vm.exceptions->typeError, "%s() takes no arguments (%d given)",
 						_class->name->chars, argCount);
