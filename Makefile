@@ -22,6 +22,7 @@ KRKMODS  = $(wildcard modules/*.krk modules/*/*.krk modules/*/*/*.krk)
 all: ${TARGET} ${MODULES} ${TOOLS} ${GENMODS}
 
 ifeq (,$(findstring mingw,$(CC)))
+  CFLAGS  += -pthread
   LDLIBS  += -ldl -lpthread
   BIN_FLAGS = -rdynamic
   LIBRARY = libkuroko.so
@@ -29,7 +30,7 @@ ifeq (,$(findstring mingw,$(CC)))
     MODLIBS += -undefined dynamic_lookup -DKRK_MEDIOCRE_TLS
   endif
 else
-  CFLAGS  += -Wno-format -static-libgcc
+  CFLAGS  += -Wno-format -static-libgcc -pthread
   ${SOOBJS}: CFLAGS += -DKRKINLIB
   BIN_OBJS =
   LIBRARY = libkuroko.dll
