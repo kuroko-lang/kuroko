@@ -1,4 +1,4 @@
-CFLAGS  ?= -g -O3 -Wall -Wextra -pedantic -Wno-unused-parameter
+CFLAGS  ?= -g -O2 -Wall -Wextra -pedantic -Wno-unused-parameter
 
 CFLAGS += -Isrc
 LDFLAGS += -L.
