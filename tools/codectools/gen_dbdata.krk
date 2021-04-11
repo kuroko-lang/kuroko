@@ -85,7 +85,6 @@ register_kuroko_codec({labels2}, {idnameenc2}IncrementalEncoder, {idnamedec}Incr
 
 let decode_eucjp = {}
 let decode_shiftjis = {}
-let decode_jis7 = {}
 let decode_jis7katakana = {}
 let decode_uhc = {}
 let decode_big5eten = {}
@@ -94,7 +93,7 @@ let decode_gbk = {}
 let encode_eucjp = {}
 let encode_eucjp_extra = {}
 let encode_shiftjis = {}
-let encode_jis7 = {}
+let encode_jis7_onewaykana = {}
 let encode_uhc = {}
 let encode_big5eten = {}
 let encode_big5web = {}
@@ -132,10 +131,6 @@ for pointer, ucs in enumerate(indices['jis0208']):
         let seconde = 0xA0 + ten
         decode_eucjp[(firste,seconde)] = ucs
         encode_eucjp[ucs] = (firste,seconde)
-        let first7  = 0x20 + ku
-        let second7 = 0x20 + ten
-        decode_jis7[(first7,second7)] = ucs
-        encode_jis7[ucs] = (first7, second7)
 
 for pointer, ucs in enumerate(indices['jis0212']):
     if ucs == None: continue
@@ -154,7 +149,8 @@ for i in range(63):
     decode_eucjp[(0x8E, byte)] = ucs
     encode_eucjp[ucs] = (0x8E, byte)
     decode_jis7katakana[0x21 + i] = ucs
-    encode_jis7[ucs] = encode_jis7[indices['iso-2022-jp-katakana'][i]]
+    let eucbytes = encode_eucjp[indices['iso-2022-jp-katakana'][i]]
+    encode_jis7_onewaykana[ucs] = (eucbytes[0] - 0x80, eucbytes[1] - 0x80)
 
 for i in range(94 * 20):
     let pointer = 8836 + i
@@ -218,7 +214,6 @@ encode_shiftjis[0x203E] = 0x7E
 encode_eucjp[0x203E] = 0x7E
 encode_shiftjis[0x2212] = encode_shiftjis[0xFF0D]
 encode_eucjp[0x2212] = encode_eucjp[0xFF0D]
-encode_jis7[0x2212] = encode_jis7[0xFF0D]
 decode_big5hkscs[(0x88, 0x62)] = (0xCA, 0x304)
 decode_big5hkscs[(0x88, 0x64)] = (0xCA, 0x30C)
 decode_big5hkscs[(0x88, 0xA3)] = (0xEA, 0x304)
@@ -275,7 +270,7 @@ with fileio.open('modules/codecs/dbdata.krk', 'w') as f:
     f.write("\nclass _MoreDBData:")
     f.write("\n    @lazy_property")
     f.write("\n    def encode_jis7():")
-    f.write("\n        return encodesto7bit(XEucJpIncrementalEncoder(\"strict\").encoding_map)")
+    f.write("\n        return xraydict(encodesto7bit(XEucJpIncrementalEncoder(\"strict\").encoding_map), {})".format(smartrepr(encode_jis7_onewaykana)))
     f.write("\n    @lazy_property")
     f.write("\n    def decode_jis7():")
     f.write("\n        return decodesto7bit(XEucJpIncrementalDecoder(\"strict\").decoding_map)")
