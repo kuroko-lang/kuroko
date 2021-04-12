@@ -4,15 +4,13 @@
 
 ## Build Kuroko
 
-On most platforms, `make` is sufficient to build in the standard configuration which will produce a dynamically-linked REPL binary (`kuroko`) and a shared library containing the compiler and bytecode interpreter (`libkuroko.so`).
+On most platforms, `make` is sufficient to build in the standard configuration which will produce both REPL binary (`kuroko`) with the compiler and interpreter included, as well as both a static (`libkuroko.a`) and shared library version (`libkuroko.so`) that can be used for embedding.
 
-Addition build configurations are available with the following options:
+Additional build configurations are available with the following options:
 
-- `KRK_ENABLE_STATIC=1`: Build a single static binary. This will also disable support for C extension modules.
 - `KRK_DISABLE_RLINE=1`: Do not build with support for the rich syntax-highlighted line editor.
 - `KRK_DISABLE_DEBUG=1`: Do not build support for disassembly. Not recommended, as it does not offer any visible improvement in performance.
-- `KRK_ENABLE_BUNDLE=1`: Embed C extension modules (which are normally built as shared objects) into the REPL binary. Generally used with `KRK_ENABLE_STATIC`.
-- `KRK_NO_DOCUMENTATION=1`: Do not include documentation strings for builtins. Can reduce the library size by around 100KB depending on other configuration options.
+- `KRK_DISABLE_DOCS=1`: Do not include documentation strings for builtins. Can reduce the library size by around 100KB depending on other configuration options.
 
 ### Windows
 
