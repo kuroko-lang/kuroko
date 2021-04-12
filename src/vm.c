@@ -2235,7 +2235,7 @@ _finishReturn: (void)0;
 			case OP_INVOKE_DELSLICE: {
 				KrkClass * type = krk_getType(krk_peek(2));
 				if (likely(type->_delslice != NULL)) {
-					krk_push(krk_callSimple(OBJECT_VAL(type->_delslice), 3, 0));
+					krk_callSimple(OBJECT_VAL(type->_delslice), 3, 0);
 				} else {
 					krk_runtimeError(vm.exceptions->attributeError, "'%s' object is not sliceable", krk_typeName(krk_peek(2)));
 				}
