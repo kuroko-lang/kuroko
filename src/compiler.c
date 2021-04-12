@@ -77,7 +77,7 @@ typedef enum {
 typedef void (*ParseFn)(int);
 
 typedef struct {
-#ifdef ENABLE_SCAN_TRACING
+#ifndef KRK_NO_SCAN_TRACING
 	const char * name;
 #endif
 	ParseFn prefix;
@@ -313,7 +313,7 @@ static void advance() {
 		if (parser.eatingWhitespace &&
 			(parser.current.type == TOKEN_INDENTATION || parser.current.type == TOKEN_EOL)) continue;
 
-#ifdef ENABLE_SCAN_TRACING
+#ifndef KRK_NO_SCAN_TRACING
 		if (krk_currentThread.flags & KRK_THREAD_ENABLE_SCAN_TRACING) {
 			fprintf(stderr, "  [%s<%d> %d:%d '%.*s']\n",
 				getRule(parser.current.type)->name,
@@ -442,7 +442,7 @@ static KrkCodeObject * endCompiler() {
 		args++;
 	}
 
-#ifdef ENABLE_DISASSEMBLY
+#ifndef KRK_NO_DISASSEMBLY
 	if ((krk_currentThread.flags & KRK_THREAD_ENABLE_DISASSEMBLY) && !parser.hadError) {
 		krk_disassembleCodeObject(stderr, function, function->name ? function->name->chars : "(module)");
 	}
@@ -1012,7 +1012,7 @@ static void block(size_t indentation, const char * blockName) {
 					advance();
 				}
 			};
-#ifdef ENABLE_SCAN_TRACING
+#ifndef KRK_NO_SCAN_TRACING
 			if (krk_currentThread.flags & KRK_THREAD_ENABLE_SCAN_TRACING) {
 				fprintf(stderr, "\n\nfinished with block %s (ind=%d) on line %d, sitting on a %s (len=%d)\n\n",
 					blockName, (int)indentation, (int)parser.current.line,
@@ -1340,7 +1340,7 @@ static KrkToken classDeclaration() {
 				advance(); /* Pass the indentation */
 				method(currentIndentation);
 			}
-#ifdef ENABLE_SCAN_TRACING
+#ifndef KRK_NO_SCAN_TRACING
 			if (krk_currentThread.flags & KRK_THREAD_ENABLE_SCAN_TRACING) fprintf(stderr, "Exiting from class definition on %s\n", getRule(parser.current.type)->name);
 #endif
 			/* Exit from block */
@@ -2751,7 +2751,7 @@ static void dict(int canAssign) {
 	consume(TOKEN_RIGHT_BRACE,"Expected } at end of dict expression.");
 }
 
-#ifndef ENABLE_SCAN_TRACING
+#ifdef KRK_NO_SCAN_TRACING
 # define RULE(token, a, b, c) [token] = {a, b, c}
 #else
 # define RULE(token, a, b, c) [token] = {# token, a, b, c}

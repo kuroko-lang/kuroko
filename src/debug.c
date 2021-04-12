@@ -6,7 +6,7 @@
 #include <kuroko/util.h>
 #include <kuroko/compiler.h>
 
-#ifdef KRK_ENABLE_DEBUG
+#ifndef KRK_DISABLE_DEBUG
 
 /**
  * When tracing is enabled, we will present the elements on the stack with

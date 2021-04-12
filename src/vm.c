@@ -62,7 +62,7 @@ __thread KrkThreadState krk_currentThread;
 KrkThreadState krk_currentThread;
 #endif
 
-#if defined(ENABLE_TRACING) && !defined(__EMSCRIPTEN__)
+#if !defined(KRK_NO_TRACING) && !defined(__EMSCRIPTEN__)
 # define FRAME_IN(frame) if (vm.globalFlags & KRK_GLOBAL_CALLGRIND) { clock_gettime(CLOCK_MONOTONIC, &frame->in_time); }
 # define FRAME_OUT(frame) \
 	if (vm.globalFlags & KRK_GLOBAL_CALLGRIND && !(frame->closure->function->flags & KRK_CODEOBJECT_FLAGS_IS_GENERATOR)) { \
@@ -1016,7 +1016,7 @@ int krk_isFalsey(KrkValue value) {
 	return 0; /* Assume anything else is truthy */
 }
 
-#ifdef KRK_ENABLE_DEBUG
+#ifndef KRK_DISABLE_DEBUG
 KRK_FUNC(set_tracing,{
 	if (hasKw) {
 		KrkValue test;
@@ -1234,7 +1234,7 @@ void krk_initVM(int flags) {
 	_createAndBind_timeMod();
 	_createAndBind_osMod();
 	_createAndBind_fileioMod();
-#ifdef KRK_ENABLE_DEBUG
+#ifndef KRK_DISABLE_DEBUG
 	_createAndBind_disMod();
 #endif
 #ifdef ENABLE_THREADING
@@ -2023,7 +2023,7 @@ static KrkValue run() {
 	KrkCallFrame* frame = &krk_currentThread.frames[krk_currentThread.frameCount - 1];
 
 	while (1) {
-#ifdef ENABLE_TRACING
+#ifndef KRK_NO_TRACING
 		if (unlikely(krk_currentThread.flags & (KRK_THREAD_ENABLE_TRACING | KRK_THREAD_SINGLE_STEP | KRK_THREAD_SIGNALLED))) {
 			if (krk_currentThread.flags & KRK_THREAD_ENABLE_TRACING) {
 				krk_debug_dumpStack(stderr, frame);
@@ -2357,7 +2357,7 @@ _finishReturn: (void)0;
 				break;
 			}
 			case OP_BREAKPOINT: {
-#ifdef KRK_ENABLE_DEBUG
+#ifndef KRK_DISABLE_DEBUG
 				/* First off, halt execution. */
 				krk_debugBreakpointHandler();
 				if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) goto _finishException;

@@ -359,7 +359,7 @@ _cleanup:
 }
 #endif
 
-#ifdef KRK_ENABLE_DEBUG
+#ifndef KRK_DISABLE_DEBUG
 static char * lastDebugCommand = NULL;
 static int debuggerHook(KrkCallFrame * frame) {
 
@@ -849,7 +849,7 @@ _finishArgs:
 	findInterpreter(argv);
 	krk_initVM(flags);
 
-#ifdef KRK_ENABLE_DEBUG
+#ifndef KRK_DISABLE_DEBUG
 	krk_debug_registerCallback(debuggerHook);
 #endif
 

@@ -26,6 +26,12 @@ WASM builds can be built from [kuroko-lang/kuroko-wasm-repl](https://github.com/
 
 Kuroko can be built with the Asyncify option and as a worker.
 
+### Fully Static
+
+Normally, the main interpreter binary statically links with the VM library, but is otherwise built as a dynamic executable and links to shared libraries for libc, pthreads, and so on. To build a fully static binary, adding `-static` to `CFLAGS` and building only the `kuroko` target should suffice.
+
+Whether a static build supports importing C extension modules depends on the specifics of your target platform.
+
 ## Extend and Embed Kuroko
 
 Kuroko is easy to embed in a host application or extend with C modules. Please see [the documentation on our website](https://kuroko-lang.github.io/docs/embedding.html) for further information.

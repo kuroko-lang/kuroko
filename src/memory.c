@@ -9,7 +9,7 @@ void * krk_reallocate(void * ptr, size_t old, size_t new) {
 	vm.bytesAllocated += new - old;
 
 	if (new > old && ptr != krk_currentThread.stack && &krk_currentThread == vm.threads && !(vm.globalFlags & KRK_GLOBAL_GC_PAUSED)) {
-#ifdef ENABLE_STRESS_GC
+#ifndef KRK_NO_STRESS_GC
 		if (vm.globalFlags & KRK_GLOBAL_ENABLE_STRESS_GC) {
 			krk_collectGarbage();
 		}

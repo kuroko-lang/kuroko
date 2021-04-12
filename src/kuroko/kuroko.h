@@ -26,15 +26,8 @@ typedef int krk_integer_type;
 # define ENABLE_THREADING
 #endif
 
-#ifdef STRICTLY_NO_THREADS
+#ifdef KRK_DISABLE_THREADS
 # undef ENABLE_THREADING
-#endif
-
-#ifdef KRK_ENABLE_DEBUG
-# define ENABLE_DISASSEMBLY
-# define ENABLE_TRACING
-# define ENABLE_SCAN_TRACING
-# define ENABLE_STRESS_GC
 #endif
 
 #ifndef _WIN32
