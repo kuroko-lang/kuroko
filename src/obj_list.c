@@ -546,7 +546,7 @@ void _createAndBind_listClass(void) {
 		"that the sort is in-place. If a sorted copy is desired, use @ref sorted instead.");
 	krk_defineNative(&list->methods, "__delitem__", FUNC_NAME(list,pop));
 	krk_defineNative(&list->methods, "__str__", FUNC_NAME(list,__repr__));
-	krk_defineNative(&list->methods, "__class_getitem__", KrkGenericAlias);
+	krk_defineNative(&list->methods, "__class_getitem__", KrkGenericAlias)->flags |= KRK_NATIVE_FLAGS_IS_CLASS_METHOD;
 	krk_attachNamedValue(&list->methods, "__hash__", NONE_VAL());
 	krk_finalizeClass(list);
 	KRK_DOC(list, "Mutable sequence of arbitrary values.");
