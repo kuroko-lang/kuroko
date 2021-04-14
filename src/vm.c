@@ -1830,41 +1830,39 @@ int krk_doRecursiveModuleLoad(KrkString * name) {
  * "something" will replace [stack top].
  */
 static int valueGetProperty(KrkString * name) {
+	KrkValue this = krk_peek(0);
 	KrkClass * objectClass;
 	KrkValue value;
-	if (IS_INSTANCE(krk_peek(0))) {
-		KrkInstance * instance = AS_INSTANCE(krk_peek(0));
+	if (IS_INSTANCE(this)) {
+		KrkInstance * instance = AS_INSTANCE(this);
 		if (krk_tableGet_fast(&instance->fields, name, &value)) {
-			krk_pop();
-			krk_push(value);
+			krk_currentThread.stackTop[-1] = value;
 			return 1;
 		}
 		objectClass = instance->_class;
-	} else if (IS_CLASS(krk_peek(0))) {
-		KrkClass * _class = AS_CLASS(krk_peek(0));
-		while (_class) {
-			if (krk_tableGet_fast(&_class->methods, name, &value)) break;
-			_class = _class->base;
-		}
-		if (_class) {
-			if (IS_CLOSURE(value) && (AS_CLOSURE(value)->flags & KRK_FUNCTION_FLAGS_IS_CLASS_METHOD)) {
-				value = OBJECT_VAL(krk_newBoundMethod(krk_peek(0), AS_OBJECT(value)));
+	} else if (IS_CLASS(this)) {
+		KrkClass * _class = AS_CLASS(this);
+		do {
+			if (krk_tableGet_fast(&_class->methods, name, &value)) {
+				if ((IS_CLOSURE(value) && (AS_CLOSURE(value)->flags & KRK_FUNCTION_FLAGS_IS_CLASS_METHOD)) ||
+				    (IS_NATIVE(value) && (AS_NATIVE(value)->flags & KRK_NATIVE_FLAGS_IS_CLASS_METHOD))) {
+					value = OBJECT_VAL(krk_newBoundMethod(this, AS_OBJECT(value)));
+				}
+				krk_currentThread.stackTop[-1] = value;
+				return 1;
 			}
-			krk_pop();
-			krk_push(value);
-			return 1;
-		}
-		objectClass = krk_getType(krk_peek(0));
+			_class = _class->base;
+		} while (_class);
+		objectClass = vm.baseClasses->typeClass;
 	} else if (IS_CLOSURE(krk_peek(0))) {
-		KrkClosure * closure = AS_CLOSURE(krk_peek(0));
+		KrkClosure * closure = AS_CLOSURE(this);
 		if (krk_tableGet_fast(&closure->fields, name, &value)) {
-			krk_pop();
-			krk_push(value);
+			krk_currentThread.stackTop[-1] = value;
 			return 1;
 		}
 		objectClass = vm.baseClasses->functionClass;
 	} else {
-		objectClass = krk_getType(krk_peek(0));
+		objectClass = krk_getType(this);
 	}
 
 	/* See if the base class for this non-instance type has a method available */
