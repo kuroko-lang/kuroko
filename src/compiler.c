@@ -283,6 +283,7 @@ static KrkToken decorator(size_t level, FunctionType type);
 static void call(int exprType);
 static void complexAssignment(size_t count, KrkScanner oldScanner, Parser oldParser, size_t targetCount, int parenthesized);
 static void complexAssignmentTargets(size_t count, KrkScanner oldScanner, Parser oldParser, size_t targetCount, int parenthesized);
+static int invalidTarget(int exprType, const char * description);
 
 static void finishError(KrkToken * token) {
 	size_t i = 0;
@@ -482,6 +483,7 @@ static size_t emitConstant(KrkValue value) {
 
 static void number(int exprType) {
 	const char * start = parser.previous.start;
+	invalidTarget(exprType, "literal");
 	int base = 10;
 
 	/*  These special cases for hexadecimal, binary, octal values. */
@@ -575,12 +577,14 @@ static void compareChained(int inner) {
 
 static void compare(int exprType) {
 	compareChained(0);
+	invalidTarget(exprType, "operator");
 }
 
 static void binary(int exprType) {
 	KrkTokenType operatorType = parser.previous.type;
 	ParseRule * rule = getRule(operatorType);
 	parsePrecedence((Precedence)(rule->precedence + 1));
+	invalidTarget(exprType, "operator");
 
 	switch (operatorType) {
 		case TOKEN_PIPE:        emitByte(OP_BITOR); break;
@@ -617,6 +621,20 @@ static int matchComplexEnd(void) {
 	return match(TOKEN_COMMA) ||
 			match(TOKEN_EQUAL) ||
 			match(TOKEN_RIGHT_PAREN);
+}
+
+static int invalidTarget(int exprType, const char * description) {
+	if (exprType == EXPR_CAN_ASSIGN && matchAssignment()) {
+		error("Can not assign to %s", description);
+		return 0;
+	}
+
+	if (exprType == EXPR_DEL_TARGET && checkEndOfDel()) {
+		error("Can not delete %s", description);
+		return 0;
+	}
+
+	return 1;
 }
 
 static void assignmentValue(void) {
@@ -815,6 +833,7 @@ _dotDone:
 }
 
 static void literal(int exprType) {
+	invalidTarget(exprType, "literal");
 	switch (parser.previous.type) {
 		case TOKEN_FALSE: emitByte(OP_FALSE); break;
 		case TOKEN_NONE:  emitByte(OP_NONE); break;
@@ -1392,6 +1411,7 @@ static void lambda(int exprType) {
 	EMIT_CONSTANT_OP(OP_CLOSURE, ind);
 	doUpvalues(&lambdaCompiler, lambda);
 	freeCompiler(&lambdaCompiler);
+	invalidTarget(exprType, "lambda");
 }
 
 static void defDeclaration() {
@@ -2106,6 +2126,7 @@ static void yield(int exprType) {
 		parsePrecedence(PREC_ASSIGNMENT);
 		emitByte(OP_YIELD);
 	}
+	invalidTarget(exprType, "yield");
 }
 
 static void await(int exprType) {
@@ -2122,16 +2143,19 @@ static void await(int exprType) {
 	emitByte(OP_YIELD);
 	emitLoop(loopContinue);
 	patchJump(exitJump);
+	invalidTarget(exprType, "await");
 }
 
 static void unot_(int exprType) {
 	parsePrecedence(PREC_NOT);
 	emitByte(OP_NOT);
+	invalidTarget(exprType, "operator");
 }
 
 static void bitunary(int exprType) {
 	KrkTokenType operatorType = parser.previous.type;
 	parsePrecedence(PREC_BITUNARY);
+	invalidTarget(exprType, "operator");
 	switch (operatorType) {
 		case TOKEN_TILDE: emitByte(OP_BITNEGATE); break;
 		case TOKEN_BANG:  emitByte(OP_NOT); break;
@@ -2142,6 +2166,7 @@ static void bitunary(int exprType) {
 static void unary(int exprType) {
 	KrkTokenType operatorType = parser.previous.type;
 	parsePrecedence(PREC_UNARY);
+	invalidTarget(exprType, "operator");
 	switch (operatorType) {
 		case TOKEN_PLUS: break; /* no op, but explicitly listed here for clarity */
 		case TOKEN_MINUS: emitByte(OP_NEGATE); break;
@@ -3184,12 +3209,15 @@ static void call(int exprType) {
 		argCount += 1 /* for the sentinel */ + 2 * specialArgs;
 	}
 	EMIT_CONSTANT_OP(OP_CALL, argCount);
+
+	invalidTarget(exprType, "function call");
 }
 
 static void and_(int exprType) {
 	int endJump = emitJump(OP_JUMP_IF_FALSE_OR_POP);
 	parsePrecedence(PREC_AND);
 	patchJump(endJump);
+	invalidTarget(exprType, "operator");
 }
 
 static void ternary(int exprType) {
@@ -3200,6 +3228,7 @@ static void or_(int exprType) {
 	int endJump = emitJump(OP_JUMP_IF_TRUE_OR_POP);
 	parsePrecedence(PREC_OR);
 	patchJump(endJump);
+	invalidTarget(exprType, "operator");
 }
 
 static ParseRule * getRule(KrkTokenType type) {
