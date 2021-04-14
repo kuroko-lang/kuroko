@@ -743,12 +743,12 @@ static void dot(int exprType) {
 		stopEatingWhitespace();
 		consume(TOKEN_RIGHT_PAREN, "Expected ) after attribute list");
 
-		if (exprType == 2) {
+		if (exprType == EXPR_ASSIGN_TARGET) {
 			error("Can not use .( in multiple target list");
 			goto _dotDone;
 		}
 
-		if (exprType && match(TOKEN_EQUAL)) {
+		if (exprType == EXPR_CAN_ASSIGN && match(TOKEN_EQUAL)) {
 			size_t expressionCount = 0;
 			do {
 				expressionCount++;
@@ -999,7 +999,7 @@ static void block(size_t indentation, const char * blockName) {
 			advance();
 			if (!strcmp(blockName,"def") && (match(TOKEN_STRING) || match(TOKEN_BIG_STRING))) {
 				size_t before = currentChunk()->count;
-				string(parser.previous.type == TOKEN_BIG_STRING);
+				string(EXPR_NORMAL);
 				/* That wrote to the chunk, rewind it; this should only ever go back two bytes
 				 * because this should only happen as the first thing in a function definition,
 				 * and thus this _should_ be the first constant and thus opcode + one-byte operand
@@ -1336,7 +1336,7 @@ static KrkToken classDeclaration() {
 			}
 			advance();
 			if (match(TOKEN_STRING) || match(TOKEN_BIG_STRING)) {
-				string(parser.previous.type == TOKEN_BIG_STRING);
+				string(EXPR_NORMAL);
 				emitByte(OP_DOCSTRING);
 				consume(TOKEN_EOL,"Garbage after docstring defintion");
 				if (!check(TOKEN_INDENTATION) || parser.current.length != currentIndentation) {
@@ -2153,7 +2153,7 @@ static int isHex(int c) {
 	return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
 }
 
-static void string(int type) {
+static void string(int exprType) {
 	/* We'll just build with a flexible array like everything else. */
 	size_t stringCapacity = 0;
 	size_t stringLength   = 0;
@@ -3229,7 +3229,7 @@ KrkCodeObject * krk_compile(const char * src, char * fileName) {
 		KrkValue doc;
 		if (!krk_tableGet(&krk_currentThread.module->fields, OBJECT_VAL(krk_copyString("__doc__", 7)), &doc)) {
 			if (match(TOKEN_STRING) || match(TOKEN_BIG_STRING)) {
-				string(parser.previous.type == TOKEN_BIG_STRING);
+				string(EXPR_NORMAL);
 				krk_attachNamedObject(&krk_currentThread.module->fields, "__doc__",
 					(KrkObj*)AS_STRING(currentChunk()->constants.values[currentChunk()->constants.count-1]));
 				emitByte(OP_POP); /* string() actually put an instruction for that, pop its result */
