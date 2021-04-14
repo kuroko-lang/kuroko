@@ -981,6 +981,12 @@ static void markInitialized() {
 	current->locals[current->localCount - 1].depth = current->scopeDepth;
 }
 
+static size_t anonymousLocal(void) {
+	size_t val = addLocal(syntheticToken(""));
+	markInitialized();
+	return val;
+}
+
 static void block(size_t indentation, const char * blockName) {
 	if (match(TOKEN_EOL)) {
 		if (check(TOKEN_INDENTATION)) {
@@ -1534,18 +1540,15 @@ static void withStatement() {
 		defineVariable(ind);
 	} else {
 		/* Otherwise we want an unnamed local */
-		addLocal(syntheticToken(""));
-		markInitialized();
+		anonymousLocal();
 	}
 
 	/* Storage for return / exception */
-	addLocal(syntheticToken(""));
-	markInitialized();
+	anonymousLocal();
 
 	/* Handler object */
-	addLocal(syntheticToken(""));
+	anonymousLocal();
 	int withJump = emitJump(OP_PUSH_WITH);
-	markInitialized();
 
 	if (check(TOKEN_COMMA)) {
 		parser.previous = myPrevious;
@@ -1712,8 +1715,7 @@ static void forStatement() {
 		expression();
 		endScope();
 
-		addLocal(syntheticToken(""));
-		markInitialized();
+		anonymousLocal();
 		emitByte(OP_INVOKE_ITER);
 		loopStart = currentChunk()->count;
 		exitJump = emitJump(OP_CALL_ITER);
@@ -1792,11 +1794,8 @@ static void tryStatement() {
 	beginScope();
 	int tryJump = emitJump(OP_PUSH_TRY);
 
-	size_t exceptionObject = addLocal(syntheticToken(""));
-	markInitialized();
-
-	addLocal(syntheticToken("")); /* Try */
-	markInitialized();
+	size_t exceptionObject = anonymousLocal();
+	anonymousLocal(); /* Try */
 
 	beginScope();
 	block(blockWidth,"try");
@@ -2482,8 +2481,7 @@ static void generatorInner(KrkScanner scannerBefore, Parser parserBefore, void (
 	parsePrecedence(PREC_OR); /* Otherwise we can get trapped on a ternary */
 	endScope();
 
-	addLocal(syntheticToken(""));
-	markInitialized();
+	anonymousLocal();
 	emitByte(OP_INVOKE_ITER);
 	int loopStart = currentChunk()->count;
 	int exitJump = emitJump(OP_CALL_ITER);
@@ -2570,10 +2568,7 @@ static void comprehensionExpression(KrkScanner scannerBefore, Parser parserBefor
 	emitBytes(type,0);
 
 	/* Make a variable to store our list */
-	KrkToken blank = syntheticToken("");
-	size_t ind = current->localCount;
-	addLocal(blank);
-	defineVariable(ind);
+	size_t ind = anonymousLocal();
 
 	beginScope();
 	generatorInner(scannerBefore, parserBefore, body, ind);
