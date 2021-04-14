@@ -163,6 +163,12 @@ typedef struct ClassCompiler {
 	int hasAnnotations;
 } ClassCompiler;
 
+typedef struct ChunkRecorder {
+	size_t count;
+	size_t lines;
+	size_t constants;
+} ChunkRecorder;
+
 static Parser parser;
 static Compiler * current = NULL;
 static ClassCompiler * currentClass = NULL;
@@ -206,6 +212,16 @@ static char * calculateQualName(void) {
 	}
 
 	return writer;
+}
+
+static ChunkRecorder recordChunk(KrkChunk * in) {
+	return (ChunkRecorder){in->count, in->linesCount, in->constants.count};
+}
+
+static void rewindChunk(KrkChunk * out, ChunkRecorder from) {
+	out->count = from.count;
+	out->linesCount = from.lines;
+	out->constants.count = from.constants;
 }
 
 static void initCompiler(Compiler * compiler, FunctionType type) {
@@ -281,8 +297,8 @@ static size_t renameLocal(size_t ind, KrkToken name);
 static void string(int exprType);
 static KrkToken decorator(size_t level, FunctionType type);
 static void call(int exprType);
-static void complexAssignment(size_t count, KrkScanner oldScanner, Parser oldParser, size_t targetCount, int parenthesized);
-static void complexAssignmentTargets(size_t count, KrkScanner oldScanner, Parser oldParser, size_t targetCount, int parenthesized);
+static void complexAssignment(ChunkRecorder before, KrkScanner oldScanner, Parser oldParser, size_t targetCount, int parenthesized);
+static void complexAssignmentTargets(KrkScanner oldScanner, Parser oldParser, size_t targetCount, int parenthesized);
 static int invalidTarget(int exprType, const char * description);
 
 static void finishError(KrkToken * token) {
@@ -2617,7 +2633,7 @@ static void comprehensionExpression(KrkScanner scannerBefore, Parser parserBefor
 
 static void grouping(int exprType) {
 	int maybeValidAssignment = 0;
-	size_t chunkBefore = currentChunk()->count;
+	ChunkRecorder before = recordChunk(currentChunk());
 	KrkScanner scannerBefore = krk_tellScanner();
 	Parser  parserBefore = parser;
 	size_t argCount = 0;
@@ -2630,7 +2646,7 @@ static void grouping(int exprType) {
 		argCount = 1;
 		if (match(TOKEN_FOR)) {
 			maybeValidAssignment = 0;
-			currentChunk()->count = chunkBefore;
+			rewindChunk(currentChunk(), before);
 			generatorExpression(scannerBefore, parserBefore, yieldInner);
 		} else if (match(TOKEN_COMMA)) {
 			if (!check(TOKEN_RIGHT_PAREN)) {
@@ -2656,7 +2672,7 @@ static void grouping(int exprType) {
 		} else if (!maybeValidAssignment) {
 			error("Can not assign to generator expression.");
 		} else {
-			complexAssignment(chunkBefore, scannerBefore, parserBefore, argCount, 1);
+			complexAssignment(before, scannerBefore, parserBefore, argCount, 1);
 		}
 	} else if (exprType == EXPR_ASSIGN_TARGET && (check(TOKEN_EQUAL) || check(TOKEN_COMMA) || check(TOKEN_RIGHT_PAREN))) {
 		if (!argCount) {
@@ -2664,8 +2680,8 @@ static void grouping(int exprType) {
 		} else if (!maybeValidAssignment) {
 			error("Can not assign to generator expression.");
 		} else {
-			currentChunk()->count = chunkBefore;
-			complexAssignmentTargets(chunkBefore, scannerBefore, parserBefore, argCount, 2);
+			rewindChunk(currentChunk(), before);
+			complexAssignmentTargets(scannerBefore, parserBefore, argCount, 2);
 			if (!matchComplexEnd()) {
 				errorAtCurrent("Unexpected end of nested target list");
 			}
@@ -2679,7 +2695,7 @@ static void listInner(size_t arg) {
 }
 
 static void list(int exprType) {
-	size_t     chunkBefore = currentChunk()->count;
+	ChunkRecorder before = recordChunk(currentChunk());
 
 	startEatingWhitespace();
 
@@ -2697,7 +2713,7 @@ static void list(int exprType) {
 		 * loop of counting arguments. */
 		if (match(TOKEN_FOR)) {
 			/* Roll back the earlier compiler */
-			currentChunk()->count = chunkBefore;
+			rewindChunk(currentChunk(), before);
 			/* Nested fun times */
 			parser.previous = syntheticToken("<listcomp>");
 			comprehensionExpression(scannerBefore, parserBefore, listInner, OP_MAKE_LIST);
@@ -2730,7 +2746,7 @@ static void setInner(size_t arg) {
 }
 
 static void dict(int exprType) {
-	size_t     chunkBefore = currentChunk()->count;
+	ChunkRecorder before = recordChunk(currentChunk());
 
 	startEatingWhitespace();
 
@@ -2747,7 +2763,7 @@ static void dict(int exprType) {
 			}
 			EMIT_CONSTANT_OP(OP_MAKE_SET, argCount);
 		} else if (match(TOKEN_FOR)) {
-			currentChunk()->count = chunkBefore;
+			rewindChunk(currentChunk(), before);
 			parser.previous = syntheticToken("<setcomp>");
 			comprehensionExpression(scannerBefore, parserBefore, setInner, OP_MAKE_SET);
 		} else {
@@ -2756,7 +2772,7 @@ static void dict(int exprType) {
 
 			if (match(TOKEN_FOR)) {
 				/* Roll back the earlier compiler */
-				currentChunk()->count = chunkBefore;
+				rewindChunk(currentChunk(), before);
 				parser.previous = syntheticToken("<dictcomp>");
 				comprehensionExpression(scannerBefore, parserBefore, dictInner, OP_MAKE_DICT);
 			} else {
@@ -2877,8 +2893,8 @@ ParseRule krk_parseRules[] = {
 	RULE(TOKEN_RETRY,         NULL,     NULL,   PREC_NONE),
 };
 
-static void actualTernary(size_t count, KrkScanner oldScanner, Parser oldParser) {
-	currentChunk()->count = count;
+static void actualTernary(ChunkRecorder before, KrkScanner oldScanner, Parser oldParser) {
+	rewindChunk(currentChunk(), before);
 
 	parsePrecedence(PREC_OR);
 
@@ -2903,7 +2919,7 @@ static void actualTernary(size_t count, KrkScanner oldScanner, Parser oldParser)
 	parser = outParser;
 }
 
-static void complexAssignmentTargets(size_t count, KrkScanner oldScanner, Parser oldParser, size_t targetCount, int parenthesized) {
+static void complexAssignmentTargets(KrkScanner oldScanner, Parser oldParser, size_t targetCount, int parenthesized) {
 	emitBytes(OP_DUP, 0);
 
 	if (targetCount > 1) {
@@ -2952,23 +2968,23 @@ _errorAtCurrent:
 	errorAtCurrent("Invalid complex assignment target");
 }
 
-static void complexAssignment(size_t count, KrkScanner oldScanner, Parser oldParser, size_t targetCount, int parenthesized) {
+static void complexAssignment(ChunkRecorder before, KrkScanner oldScanner, Parser oldParser, size_t targetCount, int parenthesized) {
 
-	currentChunk()->count = count;
+	rewindChunk(currentChunk(), before);
 	parsePrecedence(PREC_ASSIGNMENT);
 
 	/* Store end state */
 	KrkScanner outScanner = krk_tellScanner();
 	Parser outParser = parser;
 
-	complexAssignmentTargets(count,oldScanner,oldParser,targetCount,parenthesized);
+	complexAssignmentTargets(oldScanner,oldParser,targetCount,parenthesized);
 
 	/* Restore end state */
 	krk_rewindScanner(outScanner);
 	parser = outParser;
 }
 
-static void actualComma(int exprType, size_t count, KrkScanner oldScanner, Parser oldParser) {
+static void actualComma(int exprType, ChunkRecorder before, KrkScanner oldScanner, Parser oldParser) {
 	size_t expressionCount = 1;
 	do {
 		if (!getRule(parser.current.type)->prefix) break;
@@ -2979,14 +2995,14 @@ static void actualComma(int exprType, size_t count, KrkScanner oldScanner, Parse
 	EMIT_CONSTANT_OP(OP_TUPLE,expressionCount);
 
 	if (exprType == EXPR_CAN_ASSIGN && match(TOKEN_EQUAL)) {
-		complexAssignment(count, oldScanner, oldParser, expressionCount, 0);
+		complexAssignment(before, oldScanner, oldParser, expressionCount, 0);
 	}
 }
 
 static void comma(int exprType) { }
 
 static void parsePrecedence(Precedence precedence) {
-	size_t count = currentChunk()->count;
+	ChunkRecorder before = recordChunk(currentChunk());
 	KrkScanner oldScanner = krk_tellScanner();
 	Parser oldParser = parser;
 
@@ -3024,9 +3040,9 @@ static void parsePrecedence(Precedence precedence) {
 		advance();
 		ParseFn infixRule = getRule(parser.previous.type)->infix;
 		if (infixRule == ternary) {
-			actualTernary(count, oldScanner, oldParser);
+			actualTernary(before, oldScanner, oldParser);
 		} else if (infixRule == comma) {
-			actualComma(exprType, count, oldScanner, oldParser);
+			actualComma(exprType, before, oldScanner, oldParser);
 		} else {
 			infixRule(exprType);
 		}
