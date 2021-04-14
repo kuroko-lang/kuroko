@@ -1,0 +1,11 @@
+from timeit import timeit
+
+let l = []
+let add = l.append
+let pop = l.pop
+
+def func():
+    add(1)
+    pop()
+
+print(timeit(func), "list append")

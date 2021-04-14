@@ -139,7 +139,7 @@ libtcmalloc_minimal.a:
 # Test targets run against all .krk files in the test/ directory, writing
 # stdout to `.expect` files, and then comparing with `git`.
 # To update the tests if changes are expected, run `make test` and commit the result.
-.PHONY: test stress-test update-tests
+.PHONY: test stress-test update-tests bench
 test:
 	@for i in test/*.krk; do echo $$i; KUROKO_TEST_ENV=1 $(TESTWRAPPER) ./kuroko $$i > $$i.actual; diff $$i.expect $$i.actual || exit 1; rm $$i.actual; done
 
@@ -149,6 +149,12 @@ update-tests:
 # You can also set TESTWRAPPER to other things to run the tests in other tools.
 stress-test:
 	$(MAKE) TESTWRAPPER='valgrind' test
+
+bench:
+	@echo "Kuroko:"
+	@for i in bench/*.krk; do ./kuroko "$$i"; done
+	@echo "CPython:"
+	@for i in bench/*.py; do python3 "$$i"; done
 
 # Really should be up to you to set, not us...
 multiarch   ?= $(shell gcc -print-multiarch)
