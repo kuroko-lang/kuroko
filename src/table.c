@@ -59,7 +59,7 @@ KrkTableEntry * krk_findEntry(KrkTableEntry * entries, size_t capacity, KrkValue
 	if (krk_hashValue(key, &index)) {
 		return NULL;
 	}
-	index %= capacity;
+	index &= (capacity-1);
 	KrkTableEntry * tombstone = NULL;
 	for (;;) {
 		KrkTableEntry * entry = &entries[index];
@@ -72,11 +72,18 @@ KrkTableEntry * krk_findEntry(KrkTableEntry * entries, size_t capacity, KrkValue
 		} else if (krk_valuesEqual(entry->key, key)) {
 			return entry;
 		}
-		index = (index + 1) % capacity;
+		index = (index + 1) & (capacity-1);
 	}
 }
 
 void krk_tableAdjustCapacity(KrkTable * table, size_t capacity) {
+	if (capacity) {
+		/* Fast power-of-two calculation */
+		size_t powerOfTwoCapacity = __builtin_clz((size_t)1) - __builtin_clz(capacity);
+		if ((1UL << powerOfTwoCapacity) != capacity) powerOfTwoCapacity++;
+		capacity = (1UL << powerOfTwoCapacity);
+	}
+
 	KrkTableEntry * entries = ALLOCATE(KrkTableEntry, capacity);
 	for (size_t i = 0; i < capacity; ++i) {
 		entries[i].key = KWARGS_VAL(0);
@@ -134,15 +141,15 @@ int krk_tableGet(KrkTable * table, KrkValue key, KrkValue * value) {
 
 int krk_tableGet_fast(KrkTable * table, KrkString * str, KrkValue * value) {
 	if (unlikely(table->count == 0)) return 0;
-	uint32_t index = str->obj.hash % table->capacity;
+	uint32_t index = str->obj.hash & (table->capacity-1);
 	for (;;) {
 		KrkTableEntry * entry = &table->entries[index];
 		if (IS_KWARGS(entry->key)) return 0;
-		if (IS_STRING(entry->key) && AS_STRING(entry->key) == str) {
+		if (IS_OBJECT(entry->key) && AS_OBJECT(entry->key) == (KrkObj*)str) {
 			*value = entry->value;
 			return 1;
 		}
-		index = (index + 1) % table->capacity;
+		index = (index + 1) & (table->capacity-1);
 	}
 }
 
@@ -160,7 +167,7 @@ int krk_tableDelete(KrkTable * table, KrkValue key) {
 KrkString * krk_tableFindString(KrkTable * table, const char * chars, size_t length, uint32_t hash) {
 	if (table->count == 0) return NULL;
 
-	uint32_t index = hash % table->capacity;
+	uint32_t index = hash & (table->capacity-1);
 	for (;;) {
 		KrkTableEntry * entry = &table->entries[index];
 		if (IS_KWARGS(entry->key)) {
@@ -172,6 +179,6 @@ KrkString * krk_tableFindString(KrkTable * table, const char * chars, size_t len
 		           memcmp(AS_STRING(entry->key)->chars, chars, length) == 0) {
 			return AS_STRING(entry->key);
 		}
-		index = (index + 1) % table->capacity;
+		index = (index + 1) & (table->capacity-1);
 	}
 }
