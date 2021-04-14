@@ -4,6 +4,7 @@
 #include <errno.h>
 #include <unistd.h>
 #include <time.h>
+#include <sys/time.h>
 
 #include <kuroko/vm.h>
 #include <kuroko/value.h>
@@ -28,7 +29,12 @@ KRK_FUNC(sleep,{
 
 KRK_FUNC(time,{
 	FUNCTION_TAKES_NONE();
-	time_t out = time(NULL);
+
+	struct timeval tv;
+	gettimeofday(&tv,NULL);
+
+	double out = (double)tv.tv_sec + (double)tv.tv_usec / 1000000.0;
+
 	return FLOATING_VAL(out);
 })
 
