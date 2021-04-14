@@ -55,6 +55,7 @@ typedef enum {
 	PREC_COMMA,      /* , */
 	PREC_MUST_ASSIGN,/* Multple assignment target   */
 	PREC_CAN_ASSIGN, /* Single assignment target, inside grouping */
+	PREC_DEL_TARGET, /* Like above, but del target list */
 	PREC_TERNARY,    /* TrueBranch if Condition else FalseBranch */
 	PREC_OR,         /* or */
 	PREC_AND,        /* and */
@@ -73,6 +74,14 @@ typedef enum {
 	PREC_CALL,       /* . () */
 	PREC_PRIMARY
 } Precedence;
+
+typedef enum {
+	EXPR_NORMAL,
+	EXPR_CAN_ASSIGN,
+	EXPR_ASSIGN_TARGET,
+	EXPR_DEL_TARGET,
+	EXPR_DEL_DONE
+} ExpressionType;
 
 typedef void (*ParseFn)(int);
 
@@ -144,6 +153,8 @@ typedef struct Compiler {
 	struct IndexWithNext * properties;
 	struct Compiler * enclosed;
 	size_t annotationCount;
+
+	int delSatisfied;
 } Compiler;
 
 typedef struct ClassCompiler {
@@ -155,7 +166,6 @@ typedef struct ClassCompiler {
 static Parser parser;
 static Compiler * current = NULL;
 static ClassCompiler * currentClass = NULL;
-static int inDel = 0;
 
 #define currentChunk() (&current->codeobject->chunk)
 
@@ -222,6 +232,7 @@ static void initCompiler(Compiler * compiler, FunctionType type) {
 	compiler->localNameCapacity = 0;
 	compiler->properties = NULL;
 	compiler->annotationCount = 0;
+	compiler->delSatisfied = 0;
 
 	if (type != TYPE_MODULE) {
 		current->codeobject->name = krk_copyString(parser.previous.start, parser.previous.length);
@@ -248,7 +259,7 @@ static void rememberClassProperty(size_t ind) {
 
 static void parsePrecedence(Precedence precedence);
 static ssize_t parseVariable(const char * errorMessage);
-static void variable(int canAssign);
+static void variable(int exprType);
 static void defineVariable(size_t global);
 static ssize_t identifierConstant(KrkToken * name);
 static ssize_t resolveLocal(Compiler * compiler, KrkToken * name);
@@ -258,18 +269,18 @@ static void asyncDeclaration(int);
 static void expression();
 static void statement();
 static void declaration();
-static void or_(int canAssign);
-static void ternary(int canAssign);
-static void comma(int canAssign);
-static void and_(int canAssign);
+static void or_(int exprType);
+static void ternary(int exprType);
+static void comma(int exprType);
+static void and_(int exprType);
 static KrkToken classDeclaration();
 static void declareVariable();
-static void namedVariable(KrkToken name, int canAssign);
+static void namedVariable(KrkToken name, int exprType);
 static size_t addLocal(KrkToken name);
 static size_t renameLocal(size_t ind, KrkToken name);
-static void string(int canAssign);
+static void string(int exprType);
 static KrkToken decorator(size_t level, FunctionType type);
-static void call(int canAssign);
+static void call(int exprType);
 static void complexAssignment(size_t count, KrkScanner oldScanner, Parser oldParser, size_t targetCount, int parenthesized);
 static void complexAssignmentTargets(size_t count, KrkScanner oldScanner, Parser oldParser, size_t targetCount, int parenthesized);
 
@@ -469,7 +480,7 @@ static size_t emitConstant(KrkValue value) {
 	return krk_writeConstant(currentChunk(), value, parser.previous.line);
 }
 
-static void number(int canAssign) {
+static void number(int exprType) {
 	const char * start = parser.previous.start;
 	int base = 10;
 
@@ -562,11 +573,11 @@ static void compareChained(int inner) {
 	}
 }
 
-static void compare(int canAssign) {
+static void compare(int exprType) {
 	compareChained(0);
 }
 
-static void binary(int canAssign) {
+static void binary(int exprType) {
 	KrkTokenType operatorType = parser.previous.type;
 	ParseRule * rule = getRule(operatorType);
 	parsePrecedence((Precedence)(rule->precedence + 1));
@@ -594,8 +605,12 @@ static int matchAssignment(void) {
 	return (parser.current.type >= TOKEN_EQUAL && parser.current.type <= TOKEN_MODULO_EQUAL) ? (advance(), 1) : 0;
 }
 
-static int matchEndOfDel(void) {
-	return check(TOKEN_COMMA) || check(TOKEN_EOL) || check(TOKEN_EOF) || check(TOKEN_SEMICOLON);
+static int checkEndOfDel(void) {
+	if (check(TOKEN_COMMA) || check(TOKEN_EOL) || check(TOKEN_EOF) || check(TOKEN_SEMICOLON)) {
+		current->delSatisfied = 1;
+		return 1;
+	}
+	return 0;
 }
 
 static int matchComplexEnd(void) {
@@ -635,7 +650,7 @@ static void assignmentValue(void) {
 	}
 }
 
-static void get_(int canAssign) {
+static void get_(int exprType) {
 	int isSlice = 0;
 	if (match(TOKEN_COLON)) {
 		emitByte(OP_NONE);
@@ -654,19 +669,19 @@ static void get_(int canAssign) {
 			parsePrecedence(PREC_COMMA);
 			consume(TOKEN_RIGHT_SQUARE, "Expected ending square bracket after slice.");
 		}
-		if (canAssign == 2) {
+		if (exprType == EXPR_ASSIGN_TARGET) {
 			if (matchComplexEnd()) {
 				EMIT_CONSTANT_OP(OP_DUP, 3);
 				emitByte(OP_INVOKE_SETSLICE);
 				emitByte(OP_POP);
 				return;
 			}
-			canAssign = 0;
+			exprType = EXPR_NORMAL;
 		}
-		if (canAssign && (match(TOKEN_EQUAL))) {
+		if (exprType == EXPR_CAN_ASSIGN && (match(TOKEN_EQUAL))) {
 			parsePrecedence(PREC_ASSIGNMENT);
 			emitByte(OP_INVOKE_SETSLICE);
-		} else if (canAssign && matchAssignment()) {
+		} else if (exprType ==EXPR_CAN_ASSIGN && matchAssignment()) {
 			/* o s e */
 			emitBytes(OP_DUP, 2); /* o s e o */
 			emitBytes(OP_DUP, 2); /* o s e o s */
@@ -674,46 +689,40 @@ static void get_(int canAssign) {
 			emitByte(OP_INVOKE_GETSLICE); /* o s e v */
 			assignmentValue();
 			emitByte(OP_INVOKE_SETSLICE);
-		} else if (inDel && matchEndOfDel()) {
+		} else if (exprType == EXPR_DEL_TARGET && checkEndOfDel()) {
 			emitByte(OP_INVOKE_DELSLICE);
-			inDel = 2;
 		} else {
 			emitByte(OP_INVOKE_GETSLICE);
 		}
 	} else {
 		consume(TOKEN_RIGHT_SQUARE, "Expected ending square bracket after index.");
-		if (canAssign == 2) {
+		if (exprType == EXPR_ASSIGN_TARGET) {
 			if (matchComplexEnd()) {
 				EMIT_CONSTANT_OP(OP_DUP, 2);
 				emitByte(OP_INVOKE_SETTER);
 				emitByte(OP_POP);
 				return;
 			}
-			canAssign = 0;
+			exprType = EXPR_NORMAL;
 		}
-		if (canAssign && match(TOKEN_EQUAL)) {
+		if (exprType == EXPR_CAN_ASSIGN && match(TOKEN_EQUAL)) {
 			parsePrecedence(PREC_ASSIGNMENT);
 			emitByte(OP_INVOKE_SETTER);
-		} else if (canAssign && matchAssignment()) {
+		} else if (exprType == EXPR_CAN_ASSIGN && matchAssignment()) {
 			emitBytes(OP_DUP, 1); /* o e o */
 			emitBytes(OP_DUP, 1); /* o e o e */
 			emitByte(OP_INVOKE_GETTER); /* o e v */
 			assignmentValue(); /* o e v a */
 			emitByte(OP_INVOKE_SETTER); /* r */
-		} else if (inDel && matchEndOfDel()) {
-			if (!canAssign || inDel != 1) {
-				error("Invalid del target");
-			} else if (canAssign) {
-				emitByte(OP_INVOKE_DELETE);
-				inDel = 2;
-			}
+		} else if (exprType == EXPR_DEL_TARGET && checkEndOfDel()) {
+			emitByte(OP_INVOKE_DELETE);
 		} else {
 			emitByte(OP_INVOKE_GETTER);
 		}
 	}
 }
 
-static void dot(int canAssign) {
+static void dot(int exprType) {
 	if (match(TOKEN_LEFT_PAREN)) {
 		startEatingWhitespace();
 		size_t argCount = 0;
@@ -734,12 +743,12 @@ static void dot(int canAssign) {
 		stopEatingWhitespace();
 		consume(TOKEN_RIGHT_PAREN, "Expected ) after attribute list");
 
-		if (canAssign == 2) {
+		if (exprType == 2) {
 			error("Can not use .( in multiple target list");
 			goto _dotDone;
 		}
 
-		if (canAssign && match(TOKEN_EQUAL)) {
+		if (exprType && match(TOKEN_EQUAL)) {
 			size_t expressionCount = 0;
 			do {
 				expressionCount++;
@@ -781,36 +790,31 @@ _dotDone:
 	}
 	consume(TOKEN_IDENTIFIER, "Expected property name");
 	size_t ind = identifierConstant(&parser.previous);
-	if (canAssign == 2) {
+	if (exprType == EXPR_ASSIGN_TARGET) {
 		if (matchComplexEnd()) {
 			EMIT_CONSTANT_OP(OP_DUP, 1);
 			EMIT_CONSTANT_OP(OP_SET_PROPERTY, ind);
 			emitByte(OP_POP);
 			return;
 		}
-		canAssign = 0;
+		exprType = EXPR_NORMAL;
 	}
-	if (canAssign && match(TOKEN_EQUAL)) {
+	if (exprType == EXPR_CAN_ASSIGN && match(TOKEN_EQUAL)) {
 		parsePrecedence(PREC_ASSIGNMENT);
 		EMIT_CONSTANT_OP(OP_SET_PROPERTY, ind);
-	} else if (canAssign && matchAssignment()) {
+	} else if (exprType == EXPR_CAN_ASSIGN && matchAssignment()) {
 		emitBytes(OP_DUP, 0); /* Duplicate the object */
 		EMIT_CONSTANT_OP(OP_GET_PROPERTY, ind);
 		assignmentValue();
 		EMIT_CONSTANT_OP(OP_SET_PROPERTY, ind);
-	} else if (inDel && matchEndOfDel()) {
-		if (!canAssign || inDel != 1) {
-			error("Invalid del target");
-		} else {
-			EMIT_CONSTANT_OP(OP_DEL_PROPERTY, ind);
-			inDel = 2;
-		}
+	} else if (exprType == EXPR_DEL_TARGET && checkEndOfDel()) {
+		EMIT_CONSTANT_OP(OP_DEL_PROPERTY, ind);
 	} else {
 		EMIT_CONSTANT_OP(OP_GET_PROPERTY, ind);
 	}
 }
 
-static void literal(int canAssign) {
+static void literal(int exprType) {
 	switch (parser.previous.type) {
 		case TOKEN_FALSE: emitByte(OP_FALSE); break;
 		case TOKEN_NONE:  emitByte(OP_NONE); break;
@@ -1365,7 +1369,7 @@ _pop_class:
 	return classCompiler.name;
 }
 
-static void lambda(int canAssign) {
+static void lambda(int exprType) {
 	Compiler lambdaCompiler;
 	parser.previous = syntheticToken("<lambda>");
 	initCompiler(&lambdaCompiler, TYPE_LAMBDA);
@@ -1991,10 +1995,12 @@ static void fromImportStatement() {
 
 static void delStatement() {
 	do {
-		inDel = 1;
-		parsePrecedence(PREC_CAN_ASSIGN);
+		current->delSatisfied = 0;
+		parsePrecedence(PREC_DEL_TARGET);
+		if (!current->delSatisfied) {
+			errorAtCurrent("Invalid del target");
+		}
 	} while (match(TOKEN_COMMA));
-	inDel = 0;
 }
 
 static void assertStatement() {
@@ -2076,7 +2082,7 @@ _anotherSimpleStatement:
 	}
 }
 
-static void yield(int canAssign) {
+static void yield(int exprType) {
 	if (current->type == TYPE_MODULE ||
 		current->type == TYPE_INIT ||
 		current->type == TYPE_CLASS) {
@@ -2102,7 +2108,7 @@ static void yield(int canAssign) {
 	}
 }
 
-static void await(int canAssign) {
+static void await(int exprType) {
 	if (!isCoroutine(current->type)) {
 		error("'await' outside async function");
 		return;
@@ -2118,12 +2124,12 @@ static void await(int canAssign) {
 	patchJump(exitJump);
 }
 
-static void unot_(int canAssign) {
+static void unot_(int exprType) {
 	parsePrecedence(PREC_NOT);
 	emitByte(OP_NOT);
 }
 
-static void bitunary(int canAssign) {
+static void bitunary(int exprType) {
 	KrkTokenType operatorType = parser.previous.type;
 	parsePrecedence(PREC_BITUNARY);
 	switch (operatorType) {
@@ -2133,7 +2139,7 @@ static void bitunary(int canAssign) {
 	}
 }
 
-static void unary(int canAssign) {
+static void unary(int exprType) {
 	KrkTokenType operatorType = parser.previous.type;
 	parsePrecedence(PREC_UNARY);
 	switch (operatorType) {
@@ -2387,28 +2393,28 @@ static ssize_t resolveUpvalue(Compiler * compiler, KrkToken * name) {
 
 #define OP_NONE_LONG -1
 #define DO_VARIABLE(opset,opget,opdel) do { \
-	if (canAssign == 2) { \
+	if (exprType == EXPR_ASSIGN_TARGET) { \
 		if (matchComplexEnd()) { \
 			EMIT_CONSTANT_OP(opset, arg); \
 			break; \
 		} \
-		canAssign = 0; \
+		exprType = EXPR_NORMAL; \
 	} \
-	if (canAssign && match(TOKEN_EQUAL)) { \
+	if (exprType == EXPR_CAN_ASSIGN && match(TOKEN_EQUAL)) { \
 		parsePrecedence(PREC_ASSIGNMENT); \
 		EMIT_CONSTANT_OP(opset, arg); \
-	} else if (canAssign && matchAssignment()) { \
+	} else if (exprType == EXPR_CAN_ASSIGN && matchAssignment()) { \
 		EMIT_CONSTANT_OP(opget, arg); \
 		assignmentValue(); \
 		EMIT_CONSTANT_OP(opset, arg); \
-	} else if (inDel && matchEndOfDel()) {\
-		if (opdel == OP_NONE || !canAssign || inDel != 1) { error("Invalid del target"); } else { \
-		EMIT_CONSTANT_OP(opdel, arg); inDel = 2; } \
+	} else if (exprType == EXPR_DEL_TARGET && checkEndOfDel()) {\
+		if (opdel == OP_NONE) error("Invalid del target (OP == NONE?)"); \
+		else { EMIT_CONSTANT_OP(opdel, arg); } \
 	} else { \
 		EMIT_CONSTANT_OP(opget, arg); \
 	} } while (0)
 
-static void namedVariable(KrkToken name, int canAssign) {
+static void namedVariable(KrkToken name, int exprType) {
 	if (current->type == TYPE_CLASS) {
 		/* Only at the class body level, see if this is a class property. */
 		struct IndexWithNext * properties = current->properties;
@@ -2435,11 +2441,11 @@ static void namedVariable(KrkToken name, int canAssign) {
 }
 #undef DO_VARIABLE
 
-static void variable(int canAssign) {
-	namedVariable(parser.previous, canAssign);
+static void variable(int exprType) {
+	namedVariable(parser.previous, exprType);
 }
 
-static void super_(int canAssign) {
+static void super_(int exprType) {
 	consume(TOKEN_LEFT_PAREN, "Expected `super` to be called.");
 
 	/* Argument time */
@@ -2584,7 +2590,7 @@ static void comprehensionExpression(KrkScanner scannerBefore, Parser parserBefor
 	emitBytes(OP_CALL, 0);
 }
 
-static void grouping(int canAssign) {
+static void grouping(int exprType) {
 	int maybeValidAssignment = 0;
 	size_t chunkBefore = currentChunk()->count;
 	KrkScanner scannerBefore = krk_tellScanner();
@@ -2619,7 +2625,7 @@ static void grouping(int canAssign) {
 				(int)parser.previous.length, parser.previous.start);
 		}
 	}
-	if (canAssign == 1 && match(TOKEN_EQUAL)) {
+	if (exprType == EXPR_CAN_ASSIGN && match(TOKEN_EQUAL)) {
 		if (!argCount) {
 			error("Can not assign to empty target list.");
 		} else if (!maybeValidAssignment) {
@@ -2627,7 +2633,7 @@ static void grouping(int canAssign) {
 		} else {
 			complexAssignment(chunkBefore, scannerBefore, parserBefore, argCount, 1);
 		}
-	} else if (canAssign == 2 && (check(TOKEN_EQUAL) || check(TOKEN_COMMA) || check(TOKEN_RIGHT_PAREN))) {
+	} else if (exprType == EXPR_ASSIGN_TARGET && (check(TOKEN_EQUAL) || check(TOKEN_COMMA) || check(TOKEN_RIGHT_PAREN))) {
 		if (!argCount) {
 			error("Can not assign to empty target list.");
 		} else if (!maybeValidAssignment) {
@@ -2647,7 +2653,7 @@ static void listInner(size_t arg) {
 	EMIT_CONSTANT_OP(OP_LIST_APPEND, arg);
 }
 
-static void list(int canAssign) {
+static void list(int exprType) {
 	size_t     chunkBefore = currentChunk()->count;
 
 	startEatingWhitespace();
@@ -2698,7 +2704,7 @@ static void setInner(size_t arg) {
 	EMIT_CONSTANT_OP(OP_SET_ADD, arg);
 }
 
-static void dict(int canAssign) {
+static void dict(int exprType) {
 	size_t     chunkBefore = currentChunk()->count;
 
 	startEatingWhitespace();
@@ -2937,7 +2943,7 @@ static void complexAssignment(size_t count, KrkScanner oldScanner, Parser oldPar
 	parser = outParser;
 }
 
-static void actualComma(int canAssign, size_t count, KrkScanner oldScanner, Parser oldParser) {
+static void actualComma(int exprType, size_t count, KrkScanner oldScanner, Parser oldParser) {
 	size_t expressionCount = 1;
 	do {
 		if (!getRule(parser.current.type)->prefix) break;
@@ -2947,12 +2953,12 @@ static void actualComma(int canAssign, size_t count, KrkScanner oldScanner, Pars
 
 	EMIT_CONSTANT_OP(OP_TUPLE,expressionCount);
 
-	if (canAssign == 1 && match(TOKEN_EQUAL)) {
+	if (exprType == EXPR_CAN_ASSIGN && match(TOKEN_EQUAL)) {
 		complexAssignment(count, oldScanner, oldParser, expressionCount, 0);
 	}
 }
 
-static void comma(int canAssign) { }
+static void comma(int exprType) { }
 
 static void parsePrecedence(Precedence precedence) {
 	size_t count = currentChunk()->count;
@@ -2982,28 +2988,27 @@ static void parsePrecedence(Precedence precedence) {
 		}
 		return;
 	}
-	int canAssign = (precedence <= PREC_ASSIGNMENT || precedence == PREC_CAN_ASSIGN);
-	if (precedence == PREC_MUST_ASSIGN) canAssign = 2;
-	prefixRule(canAssign);
+	int exprType = 0;
+	if (precedence <= PREC_ASSIGNMENT || precedence == PREC_CAN_ASSIGN) exprType = EXPR_CAN_ASSIGN;
+	if (precedence == PREC_MUST_ASSIGN) exprType = EXPR_ASSIGN_TARGET;
+	if (precedence == PREC_DEL_TARGET) exprType = EXPR_DEL_TARGET;
+	prefixRule(exprType);
 	while (precedence <= getRule(parser.current.type)->precedence) {
-		if (canAssign == 2 && (parser.previous.type == TOKEN_COMMA ||
+		if (exprType == EXPR_ASSIGN_TARGET && (parser.previous.type == TOKEN_COMMA ||
 			parser.previous.type == TOKEN_EQUAL)) break;
 		advance();
 		ParseFn infixRule = getRule(parser.previous.type)->infix;
 		if (infixRule == ternary) {
 			actualTernary(count, oldScanner, oldParser);
 		} else if (infixRule == comma) {
-			actualComma(canAssign, count, oldScanner, oldParser);
+			actualComma(exprType, count, oldScanner, oldParser);
 		} else {
-			infixRule(canAssign);
+			infixRule(exprType);
 		}
 	}
 
-	if (canAssign == 1 && matchAssignment()) {
+	if (exprType == EXPR_CAN_ASSIGN && matchAssignment()) {
 		error("Invalid assignment target");
-	}
-	if (inDel == 1 && matchEndOfDel()) {
-		error("Invalid del target");
 	}
 }
 
@@ -3088,7 +3093,7 @@ static void defineVariable(size_t global) {
 	EMIT_CONSTANT_OP(OP_DEFINE_GLOBAL, global);
 }
 
-static void call(int canAssign) {
+static void call(int exprType) {
 	startEatingWhitespace();
 	size_t argCount = 0, specialArgs = 0, keywordArgs = 0, seenKeywordUnpacking = 0;
 	if (!check(TOKEN_RIGHT_PAREN)) {
@@ -3181,17 +3186,17 @@ static void call(int canAssign) {
 	EMIT_CONSTANT_OP(OP_CALL, argCount);
 }
 
-static void and_(int canAssign) {
+static void and_(int exprType) {
 	int endJump = emitJump(OP_JUMP_IF_FALSE_OR_POP);
 	parsePrecedence(PREC_AND);
 	patchJump(endJump);
 }
 
-static void ternary(int canAssign) {
+static void ternary(int exprType) {
 	error("This function should not run.");
 }
 
-static void or_(int canAssign) {
+static void or_(int exprType) {
 	int endJump = emitJump(OP_JUMP_IF_TRUE_OR_POP);
 	parsePrecedence(PREC_OR);
 	patchJump(endJump);
