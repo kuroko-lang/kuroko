@@ -10,3 +10,5 @@ jobs:
         run:  make clean && make
       - name: Test
         run:  make test
+      - name: Benchmark
+        run: make bench
