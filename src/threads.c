@@ -106,6 +106,9 @@ static void * _startthread(void * _threadObj) {
 	}
 	_release_lock(_threadLock);
 
+	FREE_ARRAY(size_t, krk_currentThread.stack, krk_currentThread.stackSize);
+	free(krk_currentThread.frames);
+
 	return NULL;
 }
 
