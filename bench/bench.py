@@ -120,10 +120,10 @@ def write_instancevar():
     a.x = 1;    a.x = 1;    a.x = 1;    a.x = 1;    a.x = 1
 
 if __name__=='__main__':
-    from timeit import timeit
+    from fasttimer import timeit
     for f in [read_local, read_nonlocal, read_global, read_builtin,
               read_classvar, read_instancevar, read_unboundmethod, read_boundmethod,
               write_local, write_nonlocal, write_global,
               write_classvar, write_instancevar]:
-        print(timeit(f,number=1000000), f.__qualname__)
+        print(timeit(f,number=1000000), f.__qualname__ if hasattr(f,'__qualname__') else f.__name__ if hasattr(f,'__name__') else '?')
 

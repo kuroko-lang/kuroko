@@ -5,6 +5,6 @@ def __main__():
     fib(30)
 
 if __name__ == '__main__':
-    from timeit import timeit
+    from fasttimer import timeit
     print(timeit(__main__,number=1),'fib(30)')
 

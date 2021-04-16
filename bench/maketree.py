@@ -10,5 +10,5 @@ def makeTree(depth):
     return Node(n1,n2)
 
 if __name__ == '__main__':
-    from timeit import timeit
+    from fasttimer import timeit
     print(timeit(lambda: makeTree(16), number=10), 'makeTree')

@@ -1,4 +1,4 @@
-from timeit import timeit
+from fasttimer import timeit
 
 l = []
 add = l.append

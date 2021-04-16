@@ -155,6 +155,8 @@ bench:
 	@for i in bench/*.krk; do ./kuroko "$$i"; done
 	@echo "CPython:"
 	@for i in bench/*.py; do python3 "$$i"; done
+	@echo "Micropython:"
+	@for i in bench/*.py; do micropython -X heapsize=128M "$$i"; done
 
 # Really should be up to you to set, not us...
 multiarch   ?= $(shell gcc -print-multiarch)
