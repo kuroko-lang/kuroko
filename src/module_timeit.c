@@ -19,17 +19,12 @@ KRK_FUNC(timeit,{
 		times = AS_INTEGER(number);
 	}
 
-	int flagsBefore = vm.globalFlags;
-	vm.globalFlags |= KRK_GLOBAL_GC_PAUSED;
-
 	struct timeval tv_before, tv_after;
 	gettimeofday(&tv_before,NULL);
 	for (krk_integer_type t = 0; t < times; ++t) {
 		krk_callSimple(argv[0],0,0);
 	}
 	gettimeofday(&tv_after,NULL);
-
-	vm.globalFlags = flagsBefore;
 
 	double before = (double)tv_before.tv_sec + (double)tv_before.tv_usec / 1000000.0;
 	double after = (double)tv_after.tv_sec + (double)tv_after.tv_usec / 1000000.0;
