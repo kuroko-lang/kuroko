@@ -217,7 +217,12 @@ static void tab_complete_func(rline_context_t * c) {
 					/* If we hit None, we found something invalid (or literally hit a None
 					 * object, but really the difference is minimal in this case: Nothing
 					 * useful to tab complete from here. */
-					goto _cleanup;
+					if (!isGlobal) goto _cleanup;
+					/* Does this match a builtin? */
+					if (!krk_tableGet_fast(&vm.builtins->fields,
+						krk_copyString(space[count-n].start,space[count-n].literalWidth), &next) || IS_NONE(next)) {
+						goto _cleanup;
+					}
 				}
 				isGlobal = 0;
 				root = next;
