@@ -458,6 +458,7 @@ static int debuggerHook(KrkCallFrame * frame) {
 					krk_push(OBJECT_VAL(expression));
 					krk_push(OBJECT_VAL(krk_newClosure(expression)));
 					krk_swap(1);
+					krk_pop();
 					/* Stack silliness, don't ask. */
 					krk_push(NONE_VAL());
 					krk_pop();
