@@ -99,7 +99,7 @@ KRK_METHOD(list,__repr__,{
 		/* repr(self[i]) */
 		KrkClass * type = krk_getType(self->values.values[i]);
 		krk_push(self->values.values[i]);
-		KrkValue result = krk_callSimple(OBJECT_VAL(type->_reprer), 1, 0);
+		KrkValue result = krk_callDirect(type->_reprer, 1);
 
 		if (IS_STRING(result)) {
 			pushStringBuilderStr(&sb, AS_STRING(result)->chars, AS_STRING(result)->length);

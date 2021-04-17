@@ -86,9 +86,9 @@ static void * _startthread(void * _threadObj) {
 	if (!krk_tableGet(&ourType->methods, OBJECT_VAL(S("run")), &runMethod)) {
 		krk_runtimeError(ThreadError, "Thread object has no run() method");
 	} else {
+		krk_push(runMethod);
 		krk_push(OBJECT_VAL(self));
-		krk_callValue(runMethod, 1, 0);
-		krk_runNext();
+		krk_callStack(1);
 	}
 
 	self->alive = 0;

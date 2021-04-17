@@ -40,7 +40,7 @@ KRK_METHOD(str,__init__,{
 	/* Find the type of arg */
 	krk_push(argv[1]);
 	if (!krk_getType(argv[1])->_tostr) return krk_runtimeError(vm.exceptions->typeError, "Can not convert %s to str", krk_typeName(argv[1]));
-	return krk_callSimple(OBJECT_VAL(krk_getType(argv[1])->_tostr), 1, 0);
+	return krk_callDirect(krk_getType(argv[1])->_tostr, 1);
 })
 
 KRK_METHOD(str,__add__,{
@@ -257,13 +257,13 @@ KRK_METHOD(str,format,{
 					krk_push(value);
 					KrkClass * type = krk_getType(value);
 					if (type->_tostr) {
-						asString = krk_callSimple(OBJECT_VAL(type->_tostr), 1, 0);
+						asString = krk_callDirect(type->_tostr, 1);
 					} else {
 						if (!krk_bindMethod(type, AS_STRING(vm.specialMethodNames[METHOD_STR]))) {
 							errorStr = "Failed to convert field to string.";
 							goto _formatError;
 						}
-						asString = krk_callSimple(krk_peek(0), 0, 1);
+						asString = krk_callStack(0);
 					}
 					if (!IS_STRING(asString)) goto _freeAndDone;
 				}

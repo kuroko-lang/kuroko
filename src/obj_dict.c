@@ -7,7 +7,7 @@
 #define KEY_ERROR(value) {\
 	KrkClass * type = krk_getType(value); \
 	krk_push(value); \
-	KrkValue asString = krk_callSimple(OBJECT_VAL(type->_reprer), 1, 0); \
+	KrkValue asString = krk_callDirect(type->_reprer, 1); \
 	if (IS_STRING(asString)) return krk_runtimeError(vm.exceptions->keyError, "%s", AS_CSTRING(asString)); \
 	return krk_runtimeError(vm.exceptions->keyError, "key error"); }
 
@@ -110,7 +110,7 @@ KRK_METHOD(dict,__repr__,{
 		{
 			KrkClass * type = krk_getType(entry->key);
 			krk_push(entry->key);
-			KrkValue result = krk_callSimple(OBJECT_VAL(type->_reprer), 1, 0);
+			KrkValue result = krk_callDirect(type->_reprer, 1);
 			if (IS_STRING(result)) {
 				pushStringBuilderStr(&sb, AS_CSTRING(result), AS_STRING(result)->length);
 			}
@@ -121,7 +121,7 @@ KRK_METHOD(dict,__repr__,{
 		{
 			KrkClass * type = krk_getType(entry->value);
 			krk_push(entry->value);
-			KrkValue result = krk_callSimple(OBJECT_VAL(type->_reprer), 1, 0);
+			KrkValue result = krk_callDirect(type->_reprer, 1);
 			if (IS_STRING(result)) {
 				pushStringBuilderStr(&sb, AS_CSTRING(result), AS_STRING(result)->length);
 			}
@@ -272,7 +272,7 @@ KRK_METHOD(dictitems,__repr__,{
 		{
 			KrkClass * type = krk_getType(entry->key);
 			krk_push(entry->key);
-			KrkValue result = krk_callSimple(OBJECT_VAL(type->_reprer), 1, 0);
+			KrkValue result = krk_callDirect(type->_reprer, 1);
 			if (IS_STRING(result)) {
 				pushStringBuilderStr(&sb, AS_CSTRING(result), AS_STRING(result)->length);
 			}
@@ -283,7 +283,7 @@ KRK_METHOD(dictitems,__repr__,{
 		{
 			KrkClass * type = krk_getType(entry->value);
 			krk_push(entry->value);
-			KrkValue result = krk_callSimple(OBJECT_VAL(type->_reprer), 1, 0);
+			KrkValue result = krk_callDirect(type->_reprer, 1);
 			if (IS_STRING(result)) {
 				pushStringBuilderStr(&sb, AS_CSTRING(result), AS_STRING(result)->length);
 			}
@@ -351,7 +351,7 @@ KRK_METHOD(dictkeys,__repr__,{
 		{
 			KrkClass * type = krk_getType(entry->key);
 			krk_push(entry->key);
-			KrkValue result = krk_callSimple(OBJECT_VAL(type->_reprer), 1, 0);
+			KrkValue result = krk_callDirect(type->_reprer, 1);
 			if (IS_STRING(result)) {
 				pushStringBuilderStr(&sb, AS_CSTRING(result), AS_STRING(result)->length);
 			}

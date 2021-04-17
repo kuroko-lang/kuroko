@@ -86,7 +86,7 @@ KRK_METHOD(set,__repr__,{
 
 		KrkClass * type = krk_getType(entry->key);
 		krk_push(entry->key);
-		KrkValue result = krk_callSimple(OBJECT_VAL(type->_reprer), 1, 0);
+		KrkValue result = krk_callDirect(type->_reprer, 1);
 		if (IS_STRING(result)) {
 			pushStringBuilderStr(&sb, AS_CSTRING(result), AS_STRING(result)->length);
 		}
@@ -115,9 +115,10 @@ KRK_METHOD(set,__and__,{
 		KrkTableEntry * entry = &self->entries.entries[i];
 		if (IS_KWARGS(entry->key)) continue;
 
+		krk_push(contains);
 		krk_push(argv[1]);
 		krk_push(entry->key);
-		KrkValue result = krk_callSimple(contains, 2, 0);
+		KrkValue result = krk_callStack(2);
 
 		if (IS_BOOLEAN(result) && AS_BOOLEAN(result)) {
 			krk_tableSet(&AS_set(outSet)->entries, entry->key, BOOLEAN_VAL(1));

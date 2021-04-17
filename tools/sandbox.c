@@ -36,7 +36,7 @@ int main(int argc, char * argv[]) {
 			KrkClass * type = krk_getType(result);
 			if (type->_reprer) {
 				krk_push(result);
-				result = krk_callSimple(OBJECT_VAL(type->_reprer), 1, 0);
+				result = krk_callDirect(type->_reprer, 1);
 			}
 			if (IS_STRING(result)) {
 				fprintf(stdout, " => %s\n", AS_CSTRING(result));

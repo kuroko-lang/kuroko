@@ -50,7 +50,7 @@ static KrkValue _exception_repr(int argc, KrkValue argv[], int hasKw) {
 	if (krk_tableGet(&self->fields, OBJECT_VAL(S("arg")), &arg)) {
 		/* repr it */
 		krk_push(arg);
-		KrkValue repred = krk_callSimple(OBJECT_VAL(krk_getType(arg)->_reprer), 1, 0);
+		KrkValue repred = krk_callDirect(krk_getType(arg)->_reprer, 1);
 		pushStringBuilderStr(&sb, AS_CSTRING(repred), AS_STRING(repred)->length);
 	}
 
@@ -74,7 +74,7 @@ static KrkValue _exception_str(int argc, KrkValue argv[], int hasKw) {
 		return NONE_VAL();
 	} else if (!IS_STRING(arg)) {
 		krk_push(arg);
-		return krk_callSimple(OBJECT_VAL(krk_getType(arg)->_tostr), 1, 0);
+		return krk_callDirect(krk_getType(arg)->_tostr, 1);
 	} else {
 		return arg;
 	}

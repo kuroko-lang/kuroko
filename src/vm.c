@@ -190,14 +190,14 @@ void krk_dumpTraceback(void) {
 
 		/* Is this a SyntaxError? Handle those specially. */
 		if (krk_isInstanceOf(krk_currentThread.currentException, vm.exceptions->syntaxError)) {
-			KrkValue result = krk_callSimple(OBJECT_VAL(krk_getType(krk_currentThread.currentException)->_tostr), 1, 0);
+			KrkValue result = krk_callDirect(krk_getType(krk_currentThread.currentException)->_tostr, 1);
 			fprintf(stderr, "%s\n", AS_CSTRING(result));
 			return;
 		}
 		/* Clear the exception state while printing the exception. */
 		krk_currentThread.flags &= ~(KRK_THREAD_HAS_EXCEPTION);
 		fprintf(stderr, "%s", krk_typeName(krk_currentThread.currentException));
-		KrkValue result = krk_callSimple(OBJECT_VAL(krk_getType(krk_currentThread.currentException)->_tostr), 1, 0);
+		KrkValue result = krk_callDirect(krk_getType(krk_currentThread.currentException)->_tostr, 1);
 		if (!IS_STRING(result)) {
 			fprintf(stderr, "\n");
 		} else {
@@ -588,7 +588,7 @@ int krk_processComplexArguments(int argCount, KrkValueArray * positionals, KrkTa
  * `extra` is passed by `callValue` to tell us which case we have, and thus
  * where we need to restore the stack to when we return from this call.
  */
-static int call(KrkClosure * closure, int argCount, int extra) {
+static int call(KrkClosure * closure, int argCount, int callableOnStack) {
 	size_t potentialPositionalArgs = closure->function->requiredArgs + closure->function->keywordArgs;
 	size_t totalArguments = closure->function->requiredArgs + closure->function->keywordArgs + !!(closure->function->flags & KRK_CODEOBJECT_FLAGS_COLLECTS_ARGS) + !!(closure->function->flags & KRK_CODEOBJECT_FLAGS_COLLECTS_KWS);
 	size_t offsetOfExtraArgs = closure->function->requiredArgs + closure->function->keywordArgs;
@@ -730,7 +730,7 @@ _finishKwarg:
 
 	if (unlikely(closure->function->flags & (KRK_CODEOBJECT_FLAGS_IS_GENERATOR | KRK_CODEOBJECT_FLAGS_IS_COROUTINE))) {
 		KrkInstance * gen = krk_buildGenerator(closure, krk_currentThread.stackTop - argCount, argCount);
-		krk_currentThread.stackTop = krk_currentThread.stackTop - argCount - extra;
+		krk_currentThread.stackTop = krk_currentThread.stackTop - argCount - callableOnStack;
 		krk_push(OBJECT_VAL(gen));
 		return 2;
 	}
@@ -741,7 +741,7 @@ _finishKwarg:
 	frame->closure = closure;
 	frame->ip = closure->function->chunk.code;
 	frame->slots = (krk_currentThread.stackTop - argCount) - krk_currentThread.stack;
-	frame->outSlots = (krk_currentThread.stackTop - argCount - extra) - krk_currentThread.stack;
+	frame->outSlots = (krk_currentThread.stackTop - argCount - callableOnStack) - krk_currentThread.stack;
 	frame->globals = &closure->function->globalsContext->fields;
 	FRAME_IN(frame);
 	return 1;
@@ -775,11 +775,11 @@ _errorAfterKeywords:
  *   If callValue returns 0, the VM should already be in the exception state
  *   and it is not necessary to raise another exception.
  */
-int krk_callValue(KrkValue callee, int argCount, int extra) {
+int krk_callValue(KrkValue callee, int argCount, int callableOnStack) {
 	if (likely(IS_OBJECT(callee))) {
 		switch (OBJECT_TYPE(callee)) {
 			case KRK_OBJ_CLOSURE:
-				return call(AS_CLOSURE(callee), argCount, extra);
+				return call(AS_CLOSURE(callee), argCount, callableOnStack);
 			case KRK_OBJ_NATIVE: {
 				NativeFn native = (NativeFn)AS_NATIVE(callee)->function;
 				if (unlikely(argCount && IS_KWARGS(krk_currentThread.stackTop[-1]))) {
@@ -791,7 +791,7 @@ int krk_callValue(KrkValue callee, int argCount, int extra) {
 						return 0;
 					}
 					argCount--; /* Because that popped the kwargs value */
-					krk_currentThread.stackTop -= argCount + extra; /* We can just put the stack back to normal */
+					krk_currentThread.stackTop -= argCount + callableOnStack; /* We can just put the stack back to normal */
 					krk_push(myList);
 					krk_push(myDict);
 					krk_currentThread.scratchSpace[0] = NONE_VAL();
@@ -815,7 +815,7 @@ int krk_callValue(KrkValue callee, int argCount, int extra) {
 						free(stackCopy);
 					}
 					if (unlikely(krk_currentThread.stackTop == krk_currentThread.stack)) return 0;
-					krk_currentThread.stackTop -= argCount + extra;
+					krk_currentThread.stackTop -= argCount + callableOnStack;
 					krk_push(result);
 				}
 				return 2;
@@ -862,14 +862,23 @@ int krk_callValue(KrkValue callee, int argCount, int extra) {
 /**
  * Takes care of runnext/pop
  */
-KrkValue krk_callSimple(KrkValue value, int argCount, int isMethod) {
-	switch (krk_callValue(value, argCount, isMethod)) {
+KrkValue krk_callStack(int argCount) {
+	switch (krk_callValue(krk_peek(argCount), argCount, 1)) {
 		case 2: return krk_pop();
 		case 1: return krk_runNext();
-		default:
-			if (!IS_NONE(krk_currentThread.currentException)) return NONE_VAL();
+		default: return NONE_VAL();
 	}
-	return krk_runtimeError(vm.exceptions->typeError, "Invalid internal method call: '%s'", krk_typeName(value));
+}
+
+KrkValue krk_callDirect(KrkObj * callable, int argCount) {
+	if (unlikely(callable->type != KRK_OBJ_CLOSURE && callable->type != KRK_OBJ_NATIVE)) {
+		return krk_runtimeError(vm.exceptions->typeError, "'%s' is not a function.", krk_typeName(OBJECT_VAL(callable)));
+	}
+	switch (krk_callValue(OBJECT_VAL(callable), argCount, 0)) {
+		case 2: return krk_pop();
+		case 1: return krk_runNext();
+		default: return NONE_VAL();
+	}
 }
 
 /**
@@ -908,7 +917,7 @@ int krk_bindMethod(KrkClass * _class, KrkString * name) {
 		if (type->_descget) {
 			krk_push(method);
 			krk_swap(1);
-			krk_push(krk_callSimple(OBJECT_VAL(type->_descget), 2, 0));
+			krk_push(krk_callDirect(type->_descget, 2));
 			return 1;
 		}
 		out = method;
@@ -1011,7 +1020,7 @@ int krk_isFalsey(KrkValue value) {
 	/* If it has a length, and that length is 0, it's Falsey */
 	if (type->_len) {
 		krk_push(value);
-		return !AS_INTEGER(krk_callSimple(OBJECT_VAL(type->_len),1,0));
+		return !AS_INTEGER(krk_callDirect(type->_len,1));
 	}
 	return 0; /* Assume anything else is truthy */
 }
@@ -1371,7 +1380,7 @@ static KrkValue tryBind(const char * name, KrkValue a, KrkValue b, const char * 
 	krk_push(a);
 	if (krk_bindMethod(type, methodName)) {
 		krk_push(b);
-		value = krk_callSimple(krk_peek(1), 1, 1);
+		value = krk_callStack(1);
 		if (!IS_NOTIMPL(value)) goto _success;
 		krk_pop(); /* name */
 	} else {
@@ -1386,7 +1395,7 @@ static KrkValue tryBind(const char * name, KrkValue a, KrkValue b, const char * 
 	krk_push(b);
 	if (krk_bindMethod(type, methodName)) {
 		krk_push(a);
-		value = krk_callSimple(krk_peek(1), 1, 1);
+		value = krk_callStack(1);
 		if (!IS_NOTIMPL(value)) goto _success;
 		krk_pop(); /* name */
 	} else {
@@ -1718,7 +1727,7 @@ int krk_loadModule(KrkString * path, KrkValue * moduleOut, KrkString * runAs) {
 		krk_push(krk_valueGetAttribute(OBJECT_VAL(path), "replace"));
 		krk_push(OBJECT_VAL(S(PATH_SEP)));
 		krk_push(OBJECT_VAL(S(".")));
-		krk_push(krk_callSimple(krk_peek(2), 2, 1));
+		krk_push(krk_callStack(2));
 	} else {
 		krk_push(OBJECT_VAL(runAs));
 	}
@@ -1878,7 +1887,7 @@ static int valueGetProperty(KrkString * name) {
 
 	if (objectClass->_getattr) {
 		krk_push(OBJECT_VAL(name));
-		krk_push(krk_callSimple(OBJECT_VAL(objectClass->_getattr), 2, 0));
+		krk_push(krk_callDirect(objectClass->_getattr, 2));
 		return 1;
 	}
 
@@ -1953,7 +1962,7 @@ static int trySetDescriptor(KrkValue owner, KrkString * name, KrkValue value) {
 			krk_push(property); /* owner value property */
 			krk_swap(2);        /* property value owner */
 			krk_swap(1);        /* property owner value */
-			krk_push(krk_callSimple(OBJECT_VAL(type->_descset), 3, 0));
+			krk_push(krk_callDirect(type->_descset, 3));
 			return 1;
 		}
 	}
@@ -2078,7 +2087,7 @@ _resumeHook: (void)0;
 					if (IS_INSTANCE(exceptionObject))
 						krk_tableGet_fast(&AS_INSTANCE(exceptionObject)->fields, S("traceback"), &tracebackEntries);
 					krk_push(tracebackEntries);
-					krk_callSimple(OBJECT_VAL(type->_exit), 4, 0);
+					krk_callDirect(type->_exit, 4);
 					/* Top of stack is now either someone else's problem or a return value */
 					if (!(krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION)) {
 						krk_pop(); /* Handler object */
@@ -2090,7 +2099,7 @@ _resumeHook: (void)0;
 					krk_push(NONE_VAL());
 					krk_push(NONE_VAL());
 					krk_push(NONE_VAL());
-					krk_callSimple(OBJECT_VAL(type->_exit), 4, 0);
+					krk_callDirect(type->_exit, 4);
 					if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) goto _finishException;
 				}
 				if (AS_HANDLER_TYPE(handler) != OP_RETURN) break;
@@ -2182,7 +2191,7 @@ _finishReturn: (void)0;
 			case OP_POP:   krk_pop(); break;
 			case OP_RAISE: {
 				if (IS_CLASS(krk_peek(0))) {
-					krk_currentThread.currentException = krk_callSimple(krk_peek(0), 0, 1);
+					krk_currentThread.currentException = krk_callStack(0);
 				} else {
 					krk_currentThread.currentException = krk_pop();
 				}
@@ -2197,9 +2206,9 @@ _finishReturn: (void)0;
 			case OP_INVOKE_GETTER: {
 				KrkClass * type = krk_getType(krk_peek(1));
 				if (likely(type->_getter != NULL)) {
-					krk_push(krk_callSimple(OBJECT_VAL(type->_getter), 2, 0));
+					krk_push(krk_callDirect(type->_getter, 2));
 				} else if (IS_CLASS(krk_peek(1)) && AS_CLASS(krk_peek(1))->_classgetitem) {
-					krk_push(krk_callSimple(OBJECT_VAL(AS_CLASS(krk_peek(1))->_classgetitem), 2, 0));
+					krk_push(krk_callDirect(AS_CLASS(krk_peek(1))->_classgetitem, 2));
 				} else {
 					krk_runtimeError(vm.exceptions->attributeError, "'%s' object is not subscriptable", krk_typeName(krk_peek(1)));
 				}
@@ -2208,7 +2217,7 @@ _finishReturn: (void)0;
 			case OP_INVOKE_SETTER: {
 				KrkClass * type = krk_getType(krk_peek(2));
 				if (likely(type->_setter != NULL)) {
-					krk_push(krk_callSimple(OBJECT_VAL(type->_setter), 3, 0));
+					krk_push(krk_callDirect(type->_setter, 3));
 				} else {
 					if (type->_getter) {
 						krk_runtimeError(vm.exceptions->attributeError, "'%s' object is not mutable", krk_typeName(krk_peek(2)));
@@ -2221,7 +2230,7 @@ _finishReturn: (void)0;
 			case OP_INVOKE_GETSLICE: {
 				KrkClass * type = krk_getType(krk_peek(2));
 				if (likely(type->_getslice != NULL)) {
-					krk_push(krk_callSimple(OBJECT_VAL(type->_getslice), 3, 0));
+					krk_push(krk_callDirect(type->_getslice, 3));
 				} else {
 					krk_runtimeError(vm.exceptions->attributeError, "'%s' object is not sliceable", krk_typeName(krk_peek(2)));
 				}
@@ -2230,7 +2239,7 @@ _finishReturn: (void)0;
 			case OP_INVOKE_SETSLICE: {
 				KrkClass * type = krk_getType(krk_peek(3));
 				if (likely(type->_setslice != NULL)) {
-					krk_push(krk_callSimple(OBJECT_VAL(type->_setslice), 4, 0));
+					krk_push(krk_callDirect(type->_setslice, 4));
 				} else {
 					krk_runtimeError(vm.exceptions->attributeError, "'%s' object is not sliceable", krk_typeName(krk_peek(3)));
 				}
@@ -2239,7 +2248,7 @@ _finishReturn: (void)0;
 			case OP_INVOKE_DELSLICE: {
 				KrkClass * type = krk_getType(krk_peek(2));
 				if (likely(type->_delslice != NULL)) {
-					krk_callSimple(OBJECT_VAL(type->_delslice), 3, 0);
+					krk_callDirect(type->_delslice, 3);
 				} else {
 					krk_runtimeError(vm.exceptions->attributeError, "'%s' object is not sliceable", krk_typeName(krk_peek(2)));
 				}
@@ -2248,7 +2257,7 @@ _finishReturn: (void)0;
 			case OP_INVOKE_DELETE: {
 				KrkClass * type = krk_getType(krk_peek(1));
 				if (likely(type->_delitem != NULL)) {
-					krk_callSimple(OBJECT_VAL(type->_delitem), 2, 0);
+					krk_callDirect(type->_delitem, 2);
 				} else {
 					if (type->_getter) {
 						krk_runtimeError(vm.exceptions->attributeError, "'%s' object is not mutable", krk_typeName(krk_peek(1)));
@@ -2261,7 +2270,7 @@ _finishReturn: (void)0;
 			case OP_INVOKE_ITER: {
 				KrkClass * type = krk_getType(krk_peek(0));
 				if (likely(type->_iter != NULL)) {
-					krk_push(krk_callSimple(OBJECT_VAL(type->_iter), 1, 0));
+					krk_push(krk_callDirect(type->_iter, 1));
 				} else {
 					krk_runtimeError(vm.exceptions->attributeError, "'%s' object is not iterable", krk_typeName(krk_peek(0)));
 				}
@@ -2271,7 +2280,7 @@ _finishReturn: (void)0;
 				KrkClass * type = krk_getType(krk_peek(0));
 				if (likely(type->_contains != NULL)) {
 					krk_swap(1);
-					krk_push(krk_callSimple(OBJECT_VAL(type->_contains), 2, 0));
+					krk_push(krk_callDirect(type->_contains, 2));
 				} else {
 					krk_runtimeError(vm.exceptions->attributeError, "'%s' object can not be tested for membership", krk_typeName(krk_peek(0)));
 				}
@@ -2440,7 +2449,7 @@ _finishReturn: (void)0;
 					goto _finishException;
 				}
 				krk_push(contextManager);
-				krk_callSimple(OBJECT_VAL(type->_enter), 1, 0);
+				krk_callDirect(type->_enter, 1);
 				/* Ignore result; don't need to pop */
 				krk_push(NONE_VAL());
 				KrkValue handler = HANDLER_VAL(OP_PUSH_WITH, cleanupTarget);
@@ -2456,11 +2465,11 @@ _finishReturn: (void)0;
 				if (!IS_NONE(method)) {
 					krk_push(method);
 					krk_swap(1);
-					krk_push(krk_callSimple(krk_peek(1),1,0));
+					krk_push(krk_callStack(1));
 				} else {
 					krk_pop();
 					krk_push(krk_peek(0));
-					krk_push(krk_callSimple(krk_peek(0),0,0));
+					krk_push(krk_callStack(0));
 				}
 				if (!krk_valuesSame(krk_peek(0), krk_peek(1))) {
 					/* Value to yield */
@@ -2475,7 +2484,7 @@ _finishReturn: (void)0;
 					krk_push(method);
 					krk_swap(1);
 					krk_pop();
-					krk_push(krk_callSimple(krk_peek(0),0,0));
+					krk_push(krk_callStack(0));
 				} else {
 					krk_pop();
 					krk_push(NONE_VAL());
@@ -2488,7 +2497,7 @@ _finishReturn: (void)0;
 				uint16_t offset = OPERAND;
 				KrkValue iter = krk_peek(0);
 				krk_push(iter);
-				krk_push(krk_callSimple(iter, 0, 1));
+				krk_push(krk_callStack(0));
 				if (krk_valuesSame(iter, krk_peek(0))) frame->ip += offset;
 				break;
 			}
@@ -2570,16 +2579,14 @@ _finishReturn: (void)0;
 				THREE_BYTE_OPERAND;
 			case OP_SET_LOCAL: {
 				ONE_BYTE_OPERAND;
-				uint32_t slot = OPERAND;
-				krk_currentThread.stack[frame->slots + slot] = krk_peek(0);
+				krk_currentThread.stack[frame->slots + OPERAND] = krk_peek(0);
 				break;
 			}
 			case OP_CALL_LONG:
 				THREE_BYTE_OPERAND;
 			case OP_CALL: {
 				ONE_BYTE_OPERAND;
-				int argCount = OPERAND;
-				if (unlikely(!krk_callValue(krk_peek(argCount), argCount, 1))) goto _finishException;
+				if (unlikely(!krk_callValue(krk_peek(OPERAND), OPERAND, 1))) goto _finishException;
 				frame = &krk_currentThread.frames[krk_currentThread.frameCount - 1];
 				break;
 			}
@@ -2587,8 +2594,7 @@ _finishReturn: (void)0;
 				THREE_BYTE_OPERAND;
 			case OP_EXPAND_ARGS: {
 				ONE_BYTE_OPERAND;
-				int type = OPERAND;
-				krk_push(KWARGS_VAL(KWARGS_SINGLE-type));
+				krk_push(KWARGS_VAL(KWARGS_SINGLE-OPERAND));
 				break;
 			}
 			case OP_CLOSURE_LONG:
@@ -2618,16 +2624,14 @@ _finishReturn: (void)0;
 				THREE_BYTE_OPERAND;
 			case OP_GET_UPVALUE: {
 				ONE_BYTE_OPERAND;
-				int slot = OPERAND;
-				krk_push(*UPVALUE_LOCATION(frame->closure->upvalues[slot]));
+				krk_push(*UPVALUE_LOCATION(frame->closure->upvalues[OPERAND]));
 				break;
 			}
 			case OP_SET_UPVALUE_LONG:
 				THREE_BYTE_OPERAND;
 			case OP_SET_UPVALUE: {
 				ONE_BYTE_OPERAND;
-				int slot = OPERAND;
-				*UPVALUE_LOCATION(frame->closure->upvalues[slot]) = krk_peek(0);
+				*UPVALUE_LOCATION(frame->closure->upvalues[OPERAND]) = krk_peek(0);
 				break;
 			}
 			case OP_CLASS_LONG:
@@ -2883,12 +2887,12 @@ _finishReturn: (void)0;
 						}
 						/* Create the iterator */
 						krk_push(krk_currentThread.stack[stackStart]);
-						krk_push(krk_callSimple(OBJECT_VAL(type->_iter), 1, 0));
+						krk_push(krk_callDirect(type->_iter, 1));
 
 						do {
 							/* Call it until it gives us itself */
 							krk_push(krk_currentThread.stackTop[-1]);
-							krk_push(krk_callSimple(krk_peek(0), 0, 1));
+							krk_push(krk_callStack(0));
 							if (krk_valuesSame(krk_currentThread.stackTop[-2], krk_currentThread.stackTop[-1])) {
 								/* We're done. */
 								krk_pop(); /* The result of iteration */

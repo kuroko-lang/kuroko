@@ -31,12 +31,12 @@ void krk_printValue(FILE * f, KrkValue printable) {
 	KrkClass * type = krk_getType(printable);
 	if (type->_tostr) {
 		krk_push(printable);
-		printable = krk_callSimple(OBJECT_VAL(type->_tostr), 1, 0);
+		printable = krk_callDirect(type->_tostr, 1);
 		if (!IS_STRING(printable)) return;
 		fprintf(f, "%s", AS_CSTRING(printable));
 	} else if (type->_reprer) {
 		krk_push(printable);
-		printable = krk_callSimple(OBJECT_VAL(type->_reprer), 1, 0);
+		printable = krk_callDirect(type->_reprer, 1);
 		if (!IS_STRING(printable)) return;
 		fprintf(f, "%s", AS_CSTRING(printable));
 	} else {
@@ -166,7 +166,7 @@ int krk_valuesEqual(KrkValue a, KrkValue b) {
 	if (type && type->_eq) {
 		krk_push(a);
 		krk_push(b);
-		KrkValue result = krk_callSimple(OBJECT_VAL(type->_eq),2,0);
+		KrkValue result = krk_callDirect(type->_eq,2);
 		if (IS_BOOLEAN(result)) return AS_BOOLEAN(result);
 		if (IS_NOTIMPL(result)) goto _next;
 		return !krk_isFalsey(result);
@@ -177,7 +177,7 @@ _next:
 	if (type && type->_eq) {
 		krk_push(b);
 		krk_push(a);
-		KrkValue result = krk_callSimple(OBJECT_VAL(type->_eq),2,0);
+		KrkValue result = krk_callDirect(type->_eq,2);
 		if (IS_BOOLEAN(result)) return AS_BOOLEAN(result);
 		return !krk_isFalsey(result);
 	}

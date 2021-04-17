@@ -27,7 +27,7 @@
 			if (!krk_bindMethod(type, S("__float__"))) { \
 				krk_pop(); \
 			} else { \
-				arg = krk_callSimple(krk_peek(0), 0, 1); \
+				arg = krk_callStack(0); \
 			} \
 		} break; \
 	} }
@@ -48,7 +48,7 @@ static KrkValue _math_ ## func(int argc, KrkValue argv[], int hasKw) { \
 		KrkClass * type = krk_getType(argv[0]); \
 		krk_push(argv[0]); \
 		if (!krk_bindMethod(type, S("__" #func "__"))) REAL_NUMBER_NOT(func,argv[0]) \
-		return krk_callSimple(krk_peek(0), 0, 1); \
+		return krk_callStack(0); \
 	} \
 }
 

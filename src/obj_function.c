@@ -234,7 +234,7 @@ KRK_METHOD(method,__str__,{
 
 	KrkClass * type = krk_getType(self->receiver);
 	krk_push(self->receiver);
-	KrkValue reprVal = krk_callSimple(OBJECT_VAL(type->_reprer), 1, 0);
+	KrkValue reprVal = krk_callDirect(type->_reprer, 1);
 
 	size_t len = AS_STRING(s)->length + AS_STRING(reprVal)->length + sizeof("<bound method of >") + 1;
 	char * tmp = malloc(len);

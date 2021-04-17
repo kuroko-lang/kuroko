@@ -22,7 +22,8 @@ KRK_FUNC(timeit,{
 	struct timeval tv_before, tv_after;
 	gettimeofday(&tv_before,NULL);
 	for (krk_integer_type t = 0; t < times; ++t) {
-		krk_callSimple(argv[0],0,0);
+		krk_push(argv[0]);
+		krk_callStack(0);
 	}
 	gettimeofday(&tv_after,NULL);
 

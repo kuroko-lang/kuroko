@@ -16,10 +16,11 @@ static KrkValue _tuple_init(int argc, KrkValue argv[], int hasKw) {
 		/* Convert this to a call to tupleOf(*arg) */
 		KrkValue tupleOf;
 		krk_tableGet(&vm.builtins->fields, OBJECT_VAL(S("tupleOf")), &tupleOf);
+		krk_push(tupleOf);
 		krk_push(KWARGS_VAL(KWARGS_LIST));
 		krk_push(argv[1]);
 		krk_push(KWARGS_VAL(1));
-		krk_push(krk_callSimple(tupleOf, 3, 0));
+		krk_push(krk_callStack(3));
 		return krk_pop();
 	} else {
 		return krk_runtimeError(vm.exceptions->argumentError,
@@ -87,7 +88,7 @@ KRK_METHOD(tuple,__repr__,{
 	for (size_t i = 0; i < self->values.count; ++i) {
 		KrkClass * type = krk_getType(self->values.values[i]);
 		krk_push(self->values.values[i]);
-		KrkValue result = krk_callSimple(OBJECT_VAL(type->_reprer), 1, 0);
+		KrkValue result = krk_callDirect(type->_reprer, 1);
 		if (IS_STRING(result)) {
 			pushStringBuilderStr(&sb, AS_STRING(result)->chars, AS_STRING(result)->length);
 		}

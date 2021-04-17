@@ -573,19 +573,16 @@ extern int krk_bindMethod(KrkClass * _class, KrkString * name);
  *
  * @param callee   Value referencing a callable object.
  * @param argCount Arguments to retreive from stack.
- * @param extra    Whether extra arguments below argCount should be
- *                 considered as part of this call frame. Generally,
- *                 when this is 1, the value below the arguments is
- *                 the callable object. Most library users will want
- *                 to leave this as 0 when calling normal functions,
- *                 bound method objects, or ubound methods when the
- *                 instance is included in the arguments already.
+ * @param callableOnStack Whether @p callee is on the stack below the arguments,
+ *                        which must be the case for bound methods, classes,
+ *                        and instances, as that space will be used for the implicit
+ *                        first argument passed to these kinds of callables.
  * @return An indicator of how the result should be obtained:
  *         1: The VM must be resumed to run managed code.
  *         2: The callable was a native function and result should be popped now.
  *         Else: The call failed. An exception may have already been set.
  */
-extern int krk_callValue(KrkValue callee, int argCount, int extra);
+extern int krk_callValue(KrkValue callee, int argCount, int callableOnStack);
 
 /**
  * @brief Create a list object.
@@ -620,20 +617,31 @@ extern KrkValue krk_tuple_of(int argc, KrkValue argv[], int hasKw);
 extern KrkValue krk_set_of(int argc, KrkValue argv[], int hasKw);
 
 /**
- * @brief Call a callable and manage VM state to obtain the return value.
- * @memberof KrkValue
+ * @brief Call a callable on the stack with @p argCount arguments.
  *
- * This is a wrapper around various mechanisms including krk_callValue
- * intended for use by C extensions to call arbitrary functions without
- * knowledge of their implementation details. See the notes for
- * @c krk_callValue 's @c extra paramater for details on how @p isMethod is used.
+ * Calls the callable @p argCount stack entries down from the top
+ * of the stack, passing @p argCount arguments. Resumes execution
+ * of the VM for managed calls until they are completed. Pops
+ * @p argCount items from the stack and returns the result of
+ * the call.
  *
- * @param value    Callable object reference.
  * @param argCount Arguments to collect from the stack.
- * @param isMethod This should almost always be 0.
  * @return The return value of the function.
  */
-extern KrkValue krk_callSimple(KrkValue value, int argCount, int isMethod);
+extern KrkValue krk_callStack(int argCount);
+
+/**
+ * @brief Call a closure or native function with @p argCount arguments.
+ *
+ * Calls the closure or native @p callable with arguments from the
+ * top of the stack. @p argCount arguments are popped from the stack
+ * and the return value of the call is returned.
+ *
+ * @param callable Closure or native function.
+ * @param argCount Arguments to collect from the stack.
+ * @return The return value of the function.
+ */
+extern KrkValue krk_callDirect(KrkObj * callable, int argCount);
 
 /**
  * @brief Convenience function for creating new types.

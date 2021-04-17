@@ -43,7 +43,7 @@ static KrkValue typeToString(KrkValue val) {
 		/* Just repr it. */
 		KrkClass * type = krk_getType(val);
 		krk_push(val);
-		return krk_callSimple(OBJECT_VAL(type->_reprer), 1, 0);
+		return krk_callDirect(type->_reprer, 1);
 	}
 }
 

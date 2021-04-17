@@ -206,7 +206,7 @@ int krk_getAwaitable(void) {
 		krk_push(method);
 		krk_swap(1);
 		krk_pop();
-		krk_push(krk_callSimple(krk_peek(0),0,0));
+		krk_push(krk_callStack(0));
 		KrkClass * _type = krk_getType(krk_peek(0));
 		if (!_type || !_type->_iter) {
 			krk_runtimeError(vm.exceptions->attributeError, "__await__ returned non-iterator of type '%s'", krk_typeName(krk_peek(0)));

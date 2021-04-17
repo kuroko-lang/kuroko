@@ -108,7 +108,7 @@ KRK_METHOD(Environ,__setitem__,{
 		krk_push(argv[0]);
 		krk_push(argv[1]);
 		krk_push(argv[2]);
-		return krk_callSimple(OBJECT_VAL(vm.baseClasses->dictClass->_setter), 3, 0);
+		return krk_callDirect(vm.baseClasses->dictClass->_setter, 3);
 	}
 
 	return krk_runtimeError(OSError, "%s", strerror(errno));
@@ -132,7 +132,7 @@ KRK_METHOD(Environ,__delitem__,{
 	_unsetVar(key);
 	krk_push(argv[0]);
 	krk_push(argv[1]);
-	return krk_callSimple(OBJECT_VAL(vm.baseClasses->dictClass->_delitem), 2, 0);
+	return krk_callDirect(vm.baseClasses->dictClass->_delitem, 2);
 })
 
 static void _loadEnviron(KrkInstance * module) {

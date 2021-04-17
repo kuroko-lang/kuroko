@@ -495,7 +495,7 @@ extern KrkClass *       krk_newClass(KrkString * name, KrkClass * base);
  *
  * Handles allocation, but not __init__, of the new instance.
  * Be sure to populate any fields expected by the class or call
- * its __init__ function (eg. with @ref krk_callSimple) as needed.
+ * its __init__ function (eg. with @ref krk_callStack) as needed.
  */
 extern KrkInstance *    krk_newInstance(KrkClass * _class);
 

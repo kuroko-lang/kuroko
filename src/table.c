@@ -44,7 +44,7 @@ inline int krk_hashValue(KrkValue value, uint32_t *hashOut) {
 	KrkClass * type = krk_getType(value);
 	if (type && type->_hash) {
 		krk_push(value);
-		KrkValue result = krk_callSimple(OBJECT_VAL(type->_hash), 1, 0);
+		KrkValue result = krk_callDirect(type->_hash, 1);
 		if (!IS_INTEGER(result)) goto _unhashable;
 		*hashOut = (uint32_t)AS_INTEGER(result);
 		return 0;

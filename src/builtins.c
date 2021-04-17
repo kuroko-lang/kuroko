@@ -91,7 +91,7 @@ KRK_FUNC(len,{
 	if (!type->_len) return krk_runtimeError(vm.exceptions->typeError, "object of type '%s' has no len()", krk_typeName(argv[0]));
 	krk_push(argv[0]);
 
-	return krk_callSimple(OBJECT_VAL(type->_len), 1, 0);
+	return krk_callDirect(type->_len, 1);
 })
 
 KRK_FUNC(dir,{
@@ -101,7 +101,7 @@ KRK_FUNC(dir,{
 		return krk_dirObject(argc,argv,hasKw); /* Fallback */
 	}
 	krk_push(argv[0]);
-	return krk_callSimple(OBJECT_VAL(type->_dir), 1, 0);
+	return krk_callDirect(type->_dir, 1);
 })
 
 KRK_FUNC(repr,{
@@ -109,7 +109,7 @@ KRK_FUNC(repr,{
 	/* Everything should have a __repr__ */
 	KrkClass * type = krk_getType(argv[0]);
 	krk_push(argv[0]);
-	return krk_callSimple(OBJECT_VAL(type->_reprer), 1, 0);
+	return krk_callDirect(type->_reprer, 1);
 })
 
 KRK_FUNC(ord,{
@@ -117,8 +117,9 @@ KRK_FUNC(ord,{
 	KrkClass * type = krk_getType(argv[0]);
 	KrkValue method;
 	if (krk_tableGet(&type->methods, vm.specialMethodNames[METHOD_ORD], &method)) {
+		krk_push(method);
 		krk_push(argv[0]);
-		return krk_callSimple(method, 1, 0);
+		return krk_callStack(1);
 	}
 	return TYPE_ERROR(string of length 1,argv[0]);
 })
@@ -128,8 +129,9 @@ KRK_FUNC(chr,{
 	KrkClass * type = krk_getType(argv[0]);
 	KrkValue method;
 	if (krk_tableGet(&type->methods, vm.specialMethodNames[METHOD_CHR], &method)) {
+		krk_push(method);
 		krk_push(argv[0]);
-		return krk_callSimple(method, 1, 0);
+		return krk_callStack(1);
 	}
 	return TYPE_ERROR(int,argv[0]);
 })
@@ -229,7 +231,7 @@ KRK_METHOD(map,__init__,{
 			return krk_runtimeError(vm.exceptions->typeError, "'%s' object is not iterable", krk_typeName(argv[i]));
 		}
 		krk_push(argv[i]);
-		KrkValue asIter = krk_callSimple(OBJECT_VAL(type->_iter), 1, 0);
+		KrkValue asIter = krk_callDirect(type->_iter, 1);
 		if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) return NONE_VAL();
 		/* Attach it to the tuple */
 		iters->values.values[iters->values.count++] = asIter;
@@ -261,7 +263,7 @@ KRK_METHOD(map,__call__,{
 	for (size_t i = 0; i < AS_TUPLE(iterators)->values.count; ++i) {
 		/* Obtain the next value and push it */
 		krk_push(AS_TUPLE(iterators)->values.values[i]);
-		krk_push(krk_callSimple(AS_TUPLE(iterators)->values.values[i], 0, 0));
+		krk_push(krk_callStack(0));
 		if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) return NONE_VAL();
 		/* End iteration whenever one runs out */
 		if (krk_valuesEqual(krk_peek(0), AS_TUPLE(iterators)->values.values[i])) {
@@ -272,7 +274,7 @@ KRK_METHOD(map,__call__,{
 	}
 
 	/* Call the function */
-	KrkValue val = krk_callSimple(function, AS_TUPLE(iterators)->values.count, 0);
+	KrkValue val = krk_callStack(AS_TUPLE(iterators)->values.count);
 	krk_currentThread.stackTop = krk_currentThread.stack + stackOffset;
 	return val;
 })
@@ -285,12 +287,13 @@ KRK_FUNC(zip,{
 	krk_tableGet(&vm.builtins->fields, OBJECT_VAL(S("map")), &map);
 	krk_tableGet(&vm.builtins->fields, OBJECT_VAL(S("tupleOf")), &tupleOfFunc);
 
+	krk_push(map);
 	krk_push(tupleOfFunc);
 	for (int i = 0; i < argc; ++i) {
 		krk_push(argv[i]);
 	}
 
-	return krk_callSimple(map, argc+1, 0);
+	return krk_callStack(argc+1);
 })
 
 #define IS_filter(o) (krk_isInstanceOf(o,filter))
@@ -304,7 +307,7 @@ KRK_METHOD(filter,__init__,{
 		return krk_runtimeError(vm.exceptions->typeError, "'%s' object is not iterable", krk_typeName(argv[2]));
 	}
 	krk_push(argv[2]);
-	KrkValue asIter = krk_callSimple(OBJECT_VAL(type->_iter), 1, 0);
+	KrkValue asIter = krk_callDirect(type->_iter, 1);
 	if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) return NONE_VAL();
 	krk_attachNamedValue(&self->fields, "_iterator", asIter);
 	return argv[0];
@@ -326,7 +329,7 @@ KRK_METHOD(filter,__call__,{
 
 	while (1) {
 		krk_push(iterator);
-		krk_push(krk_callSimple(iterator, 0, 0));
+		krk_push(krk_callStack(0));
 
 		if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) return NONE_VAL();
 		if (krk_valuesEqual(iterator, krk_peek(0))) {
@@ -340,8 +343,9 @@ KRK_METHOD(filter,__call__,{
 				continue;
 			}
 		} else {
-			krk_push(krk_peek(0));
-			KrkValue result = krk_callSimple(function, 1, 0);
+			krk_push(function);
+			krk_push(krk_peek(1));
+			KrkValue result = krk_callStack(1);
 			if (krk_isFalsey(result)) {
 				krk_pop(); /* iterator result */
 				continue;
@@ -370,7 +374,7 @@ KRK_METHOD(enumerate,__init__,{
 		return krk_runtimeError(vm.exceptions->typeError, "'%s' object is not iterable", krk_typeName(argv[1]));
 	}
 	krk_push(argv[1]);
-	KrkValue asIter = krk_callSimple(OBJECT_VAL(type->_iter), 1, 0);
+	KrkValue asIter = krk_callDirect(type->_iter, 1);
 	if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) return NONE_VAL();
 	krk_attachNamedValue(&self->fields, "_iterator", asIter);
 
@@ -396,7 +400,7 @@ KRK_METHOD(enumerate,__call__,{
 	krk_push(OBJECT_VAL(tupleOut));
 
 	krk_push(iterator);
-	krk_push(krk_callSimple(iterator, 0, 0));
+	krk_push(krk_callStack(0));
 
 	if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) {
 		krk_currentThread.stackTop = krk_currentThread.stack + stackOffset;
@@ -780,13 +784,14 @@ KRK_METHOD(Helper,__call__,{
 
 	if (argc == 2) {
 		krk_tableGet(&AS_INSTANCE(helpModule)->fields, OBJECT_VAL(S("simple")), &callable);
-		krk_push(argv[1]);
 	} else {
 		krk_tableGet(&AS_INSTANCE(helpModule)->fields, OBJECT_VAL(S("interactive")), &callable);
 	}
 
 	if (!IS_NONE(callable)) {
-		return krk_callSimple(callable, argc == 2, 0);
+		krk_push(callable);
+		if (argc == 2) krk_push(argv[1]);
+		return krk_callStack(argc == 2);
 	}
 
 	return krk_runtimeError(vm.exceptions->typeError, "unexpected error");
@@ -856,23 +861,29 @@ KRK_METHOD(property,__get__,{
 	if (!krk_tableGet(&self->fields, OBJECT_VAL(S("fget")), &fget))
 		return krk_runtimeError(vm.exceptions->attributeError, "'%s' object has no attribute '%s'", "property", "fget");
 
+	krk_push(fget);
 	krk_push(argv[1]);
-	return krk_callSimple(fget, 1, 0);
+	return krk_callStack(1);
 })
 
 KRK_METHOD(property,__set__,{
 	METHOD_TAKES_EXACTLY(2); /* the owner and the value */
 
-	krk_push(argv[1]);
-	krk_push(argv[2]);
-
 	KrkValue fset;
-	if (krk_tableGet(&self->fields, OBJECT_VAL(S("fset")), &fset))
-		return krk_callSimple(fset, 2, 0);
+	if (krk_tableGet(&self->fields, OBJECT_VAL(S("fset")), &fset)) {
+		krk_push(fset);
+		krk_push(argv[1]);
+		krk_push(argv[2]);
+		return krk_callStack(2);
+	}
 
 	KrkValue fget;
-	if (krk_tableGet(&self->fields, OBJECT_VAL(S("fget")), &fget))
-		return krk_callSimple(fget, 2, 0);
+	if (krk_tableGet(&self->fields, OBJECT_VAL(S("fget")), &fget)) {
+		krk_push(fget);
+		krk_push(argv[1]);
+		krk_push(argv[2]);
+		return krk_callStack(2);
+	}
 
 	return krk_runtimeError(vm.exceptions->attributeError, "attribute can not be set");
 })
@@ -893,8 +904,7 @@ KRK_FUNC(hash,{
 KRK_FUNC(next,{
 	FUNCTION_TAKES_EXACTLY(1);
 	krk_push(argv[0]);
-	krk_push(krk_callSimple(argv[0], 0, 0));
-	return krk_pop();
+	return krk_callStack(0);
 })
 
 #ifndef STATIC_ONLY

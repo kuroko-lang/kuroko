@@ -234,10 +234,10 @@ extern KrkValue FUNC_NAME(str,format)(int,KrkValue*,int);
 	if (type->_iter) { \
 		size_t stackOffset = krk_currentThread.stackTop - krk_currentThread.stack; \
 		krk_push(fromInput); \
-		krk_push(krk_callSimple(OBJECT_VAL(type->_iter), 1, 0)); \
+		krk_push(krk_callDirect(type->_iter,1)); \
 		do { \
 			krk_push(krk_currentThread.stack[stackOffset]); \
-			krk_push(krk_callSimple(krk_peek(0), 0, 1)); \
+			krk_push(krk_callStack(0)); \
 			if (krk_valuesSame(krk_currentThread.stack[stackOffset], krk_peek(0))) { \
 				krk_pop(); \
 				krk_pop(); \
