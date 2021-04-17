@@ -81,6 +81,7 @@ h2.groupheader {
 }
 .contents .center {
   text-align: center;
+  overflow-x: auto;
 }
 .legend {
 }
@@ -337,6 +338,9 @@ div.memdoc {
   padding: 0.5rem 1rem;
   border-top: 1px solid #d8d8d8;
   background-color: #f0f0f0;
+}
+#nav-path {
+  display: flex;
 }
 #nav-path ul {
   display: flex;

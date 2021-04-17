@@ -310,8 +310,13 @@ extern void krk_resetStack(void);
 /**
  * @brief Compile and execute a source code input.
  *
- * This is the lowest level call for most usecases, including execution
- * of commands from a REPL or when executing a file.
+ * Compiles and executes the source code in @p src and returns the result
+ * of execution - generally the return value of a function body or the
+ * last value on the stack in a REPL expression. This is the lowest level
+ * call for most usecases, including execution of commands from a REPL or
+ * when executing a file.
+ *
+ * The string provided in @p fromFile is used in exception tracebacks.
  *
  * @param src      Source code to compile and run.
  * @param fromFile Path to the source file, or a representative string like "<stdin>".
