@@ -40,18 +40,21 @@ def read_builtin():
     oct; oct; oct; oct; oct
     oct; oct; oct; oct; oct
 
+_A.x = 1
+
 def read_classvar():
     A = _A
-    A.x = 1
     A.x;    A.x;    A.x;    A.x;    A.x
     A.x;    A.x;    A.x;    A.x;    A.x
     A.x;    A.x;    A.x;    A.x;    A.x
     A.x;    A.x;    A.x;    A.x;    A.x
     A.x;    A.x;    A.x;    A.x;    A.x
 
+_a = _A()
+_a.x = 1
+
 def read_instancevar():
-    a = _A()
-    a.x = 1
+    a = _a
     a.x;    a.x;    a.x;    a.x;    a.x
     a.x;    a.x;    a.x;    a.x;    a.x
     a.x;    a.x;    a.x;    a.x;    a.x
@@ -67,7 +70,7 @@ def read_unboundmethod():
     A.m;    A.m;    A.m;    A.m;    A.m
 
 def read_boundmethod():
-    a = _A()
+    a = _a
     a.m;    a.m;    a.m;    a.m;    a.m
     a.m;    a.m;    a.m;    a.m;    a.m
     a.m;    a.m;    a.m;    a.m;    a.m
@@ -112,7 +115,7 @@ def write_classvar():
     A.x = 1;    A.x = 1;    A.x = 1;    A.x = 1;    A.x = 1
 
 def write_instancevar():
-    a = _A()
+    a = _a
     a.x = 1;    a.x = 1;    a.x = 1;    a.x = 1;    a.x = 1
     a.x = 1;    a.x = 1;    a.x = 1;    a.x = 1;    a.x = 1
     a.x = 1;    a.x = 1;    a.x = 1;    a.x = 1;    a.x = 1
