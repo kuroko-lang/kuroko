@@ -41,129 +41,212 @@
 #include <kuroko/debug.h>
 #include <kuroko/vm.h>
 
+/**
+ * @brief Token parser state.
+ *
+ * The parser is fairly simplistic, requiring essentially
+ * no lookahead. 'previous' is generally the currently-parsed
+ * token: whatever was matched by @ref match. 'current' is the
+ * token to be parsed, and can be examined with @ref check.
+ */
 typedef struct {
-	KrkToken current;
-	KrkToken previous;
-	int hadError;
-	int panicMode;
-	int eatingWhitespace;
+	KrkToken current;              /**< Token to be parsed. */
+	KrkToken previous;             /**< Last token matched, consumed, or advanced over. */
+	char hadError;                 /**< Flag indicating if the parser encountered an error. */
+	char panicMode;                /**< Flag if the parser is trying to recover enough to exit. */
+	unsigned int eatingWhitespace; /**< Depth of whitespace-ignoring parse functions. */
 } Parser;
 
+/**
+ * @brief Parse precedence ladder.
+ *
+ * Lower values (values listed first) bind more loosely than
+ * higher values (values listed later).
+ */
 typedef enum {
 	PREC_NONE,
-	PREC_ASSIGNMENT, /* = */
-	PREC_COMMA,      /* , */
-	PREC_MUST_ASSIGN,/* Multple assignment target   */
-	PREC_CAN_ASSIGN, /* Single assignment target, inside parens */
-	PREC_DEL_TARGET, /* Like above, but del target list */
-	PREC_TERNARY,    /* TrueBranch if Condition else FalseBranch */
-	PREC_OR,         /* or */
-	PREC_AND,        /* and */
-	PREC_NOT,        /* not */
-	PREC_COMPARISON, /* < > <= >= in 'not in' */
-	PREC_BITOR,      /* | */
-	PREC_BITXOR,     /* ^ */
-	PREC_BITAND,     /* & */
-	PREC_SHIFT,      /* << >> */
-	PREC_SUM,        /* + - */
-	PREC_TERM,       /* * / % */
-	PREC_FACTOR,     /* + - ~ !*/
-	PREC_EXPONENT,   /* ** */
-	PREC_PRIMARY,    /* . () [] */
+	PREC_ASSIGNMENT, /**<  `=` */
+	PREC_COMMA,      /**<  `,` */
+	PREC_MUST_ASSIGN,/**<  Multple assignment target   */
+	PREC_CAN_ASSIGN, /**<  Single assignment target, inside parens */
+	PREC_DEL_TARGET, /**<  Like above, but del target list */
+	PREC_TERNARY,    /**<  TrueBranch `if` Condition `else` FalseBranch */
+	PREC_OR,         /**<  `or` */
+	PREC_AND,        /**<  `and` */
+	PREC_NOT,        /**<  `not` */
+	PREC_COMPARISON, /**<  `< > <= >= in not in` */
+	PREC_BITOR,      /**<  `|` */
+	PREC_BITXOR,     /**<  `^` */
+	PREC_BITAND,     /**<  `&` */
+	PREC_SHIFT,      /**<  `<< >>` */
+	PREC_SUM,        /**<  `+ -` */
+	PREC_TERM,       /**<  `* / %` */
+	PREC_FACTOR,     /**<  `+ - ~ !` */
+	PREC_EXPONENT,   /**<  `**` */
+	PREC_PRIMARY,    /**<  `. () []` */
 } Precedence;
 
+/**
+ * @brief Expression type.
+ *
+ * Determines how an expression should be compiled.
+ */
 typedef enum {
-	EXPR_NORMAL,
-	EXPR_CAN_ASSIGN,
-	EXPR_ASSIGN_TARGET,
-	EXPR_DEL_TARGET,
-	EXPR_DEL_DONE
+	EXPR_NORMAL,        /**< This expression can not be an assignment target. */
+	EXPR_CAN_ASSIGN,    /**< This expression may be an assignment target, check for assignment operators at the end. */
+	EXPR_ASSIGN_TARGET, /**< This expression is definitely an assignment target or chained to one. */
+	EXPR_DEL_TARGET,    /**< This expression is in the target list of a 'del' statement. */
 } ExpressionType;
 
+/**
+ * @brief Subexpression parser function.
+ *
+ * Used by the parse rule table for infix and prefix expression
+ * parser functions. The argument passed is the @ref ExpressionType
+ * to compile the expression as.
+ */
 typedef void (*ParseFn)(int);
 
+/**
+ * @brief Parse rule table entry.
+ *
+ * Maps tokens to prefix and infix rules. Precedence values here
+ * are for the infix parsing.
+ */
 typedef struct {
 #ifndef KRK_NO_SCAN_TRACING
-	const char * name;
+	const char * name;     /**< Stringified token name for error messages and debugging. */
 #endif
-	ParseFn prefix;
-	ParseFn infix;
-	Precedence precedence;
+	ParseFn prefix;        /**< Parse function to call when this token appears at the start of an expression. */
+	ParseFn infix;         /**< Parse function to call when this token appears after an expression. */
+	Precedence precedence; /**< Precedence ordering for Pratt parsing, @ref Precedence */
 } ParseRule;
 
+/**
+ * @brief Local variable reference.
+ *
+ * Tracks the names and scope depth of local variables.
+ * Locals are mapped to stack locations by their index
+ * in the compiler's locals array.
+ */
 typedef struct {
-	KrkToken name;
-	ssize_t depth;
-	int isCaptured;
+	KrkToken name;   /**< Token that provided the name for this variable. */
+	ssize_t depth;   /**< Stack depth, or -1 if uninitialized. */
+	char isCaptured; /**< Flag indicating if the variable is captured by a closure. */
 } Local;
 
+/**
+ * @brief Closure upvalue reference.
+ *
+ * Tracks references to local variables from enclosing scopes.
+ */
 typedef struct {
-	size_t index;
-	int    isLocal;
+	size_t index;    /**< Enclosing local index or upvalue index. */
+	char   isLocal;  /**< Flag indicating if @ref index is a local or upvalue index. */
 } Upvalue;
 
+/**
+ * @brief Function compilation type.
+ *
+ * Determines the context of the function being compiled,
+ * as different kinds of functions have different semantics.
+ */
 typedef enum {
-	TYPE_FUNCTION,
-	TYPE_MODULE,
-	TYPE_METHOD,
-	TYPE_INIT,
-	TYPE_LAMBDA,
-	TYPE_STATIC,
-	TYPE_PROPERTY,
-	TYPE_CLASS,
-	TYPE_CLASSMETHOD,
-	TYPE_COROUTINE,
-	TYPE_COROUTINE_METHOD,
+	TYPE_FUNCTION,          /**< Normal 'def' function. */
+	TYPE_MODULE,            /**< Top level of a script. */
+	TYPE_METHOD,            /**< Class method with `self` binding. */
+	TYPE_INIT,              /**< Class \__init__ */
+	TYPE_LAMBDA,            /**< Lambda expression body, must be a single expression. */
+	TYPE_STATIC,            /**< Static class method, no `self` binding. */
+	TYPE_CLASS,             /**< Class body, not a normal series of declarations. */
+	TYPE_CLASSMETHOD,       /**< Class method, binds first argument to the class. */
+	TYPE_COROUTINE,         /**< `await def` function. */
+	TYPE_COROUTINE_METHOD,  /**< `await def` class method. */
 } FunctionType;
 
+/**
+ * @brief Linked list of indices.
+ *
+ * Primarily used to track the indices of class properties
+ * so that they can be referenced again later. @ref ind
+ * will be the index of an identifier constant.
+ */
 struct IndexWithNext {
-	size_t ind;
-	struct IndexWithNext * next;
+	size_t ind;                   /**< Index of an identifier constant. */
+	struct IndexWithNext * next;  /**< Linked list next pointer. */
 };
 
+/**
+ * @brief Tracks 'break' and 'continue' statements.
+ */
 struct LoopExit {
-	int offset;
-	KrkToken token;
+	int offset;     /**< Offset of the jump expression to patch. */
+	KrkToken token; /**< Token for this exit statement, so its location can be printed in an error message. */
 };
 
+/**
+ * @brief Subcompiler state.
+ *
+ * Each function is compiled in its own context, with its
+ * own codeobject, locals, type, scopes, etc.
+ */
 typedef struct Compiler {
-	struct Compiler * enclosing;
-	KrkCodeObject * codeobject;
-	FunctionType type;
-	size_t localCount;
-	size_t scopeDepth;
-	size_t localsSpace;
-	Local  * locals;
-	size_t upvaluesSpace;
-	Upvalue * upvalues;
+	struct Compiler * enclosing;       /**< Enclosing function compiler, or NULL for a module. */
+	KrkCodeObject * codeobject;        /**< Bytecode emitter */
+	FunctionType type;                 /**< Type of function being compiled. */
+	size_t scopeDepth;                 /**< Depth of nested scope blocks. */
+	size_t localCount;                 /**< Total number of local variables. */
+	size_t localsSpace;                /**< Space in the locals array. */
+	Local  * locals;                   /**< Array of local variable references. */
+	size_t upvaluesSpace;              /**< Space in the upvalues array. */
+	Upvalue * upvalues;                /**< Array of upvalue references. Count is stored in the codeobject. */
 
-	size_t loopLocalCount;
-	size_t breakCount;
-	size_t breakSpace;
-	struct LoopExit * breaks;
-	size_t continueCount;
-	size_t continueSpace;
-	struct LoopExit * continues;
+	size_t loopLocalCount;             /**< Tracks how many locals to pop off the stack when exiting a loop. */
+	size_t breakCount;                 /**< Number of break statements. */
+	size_t breakSpace;                 /**< Space in breaks array. */
+	struct LoopExit * breaks;          /**< Array of loop exit instruction indices for break statements. */
+	size_t continueCount;              /**< Number of continue statements. */
+	size_t continueSpace;              /**< Space in continues array. */
+	struct LoopExit * continues;       /**< Array of loop exit instruction indices for continue statements. */
 
-	size_t localNameCapacity;
+	size_t localNameCapacity;          /**< How much space is available in the codeobject's local names table. */
 
-	struct IndexWithNext * properties;
-	struct Compiler * enclosed;
-	size_t annotationCount;
+	struct IndexWithNext * properties; /**< Linked list of class property constant indices. */
+	struct Compiler * enclosed;        /**< Subcompiler we are enclosing, need for type annotation compilation. */
+	size_t annotationCount;            /**< Number of type annotations found while compiling function signature. */
 
-	int delSatisfied;
+	int delSatisfied;                  /**< Flag indicating if a 'del' target has been completed. */
 } Compiler;
 
+/**
+ * @brief Class compilation context.
+ *
+ * Allows for things like @ref super to be bound correctly.
+ * Also allows us to establish qualified names for functions
+ * and nested class definitions.
+ */
 typedef struct ClassCompiler {
-	struct ClassCompiler * enclosing;
-	KrkToken name;
-	int hasAnnotations;
+	struct ClassCompiler * enclosing; /**< Enclosing class scope. */
+	KrkToken name;                    /**< Name of the current class. */
+	int hasAnnotations;               /**< Flag indicating if an annotation dictionary has been attached to this class. */
 } ClassCompiler;
 
+/**
+ * @brief Bytecode emitter backtracking breadcrumb.
+ *
+ * Records the state of the bytecode emitter so it may be rewound
+ * when an expression needs to be re-parsed. Allows us to implement
+ * backtracking to compile the inner expression of a comprehension,
+ * the left hand side of a ternary, or the targets list of a
+ * complex assignment.
+ *
+ * We rewind the bytecode, line mapping, and constants table,
+ * so that we don't keep around duplicate constants or debug info.
+ */
 typedef struct ChunkRecorder {
-	size_t count;
-	size_t lines;
-	size_t constants;
+	size_t count;      /**< Offset into the bytecode */
+	size_t lines;      /**< Offset into the line map */
+	size_t constants;  /**< Number of constants in the constants table */
 } ChunkRecorder;
 
 static Parser parser;
@@ -176,7 +259,7 @@ static ClassCompiler * currentClass = NULL;
 	else { emitBytes(opc ## _LONG, arg >> 16); emitBytes(arg >> 8, arg); } } while (0)
 
 static int isMethod(int type) {
-	return type == TYPE_METHOD || type == TYPE_INIT || type == TYPE_PROPERTY || type == TYPE_COROUTINE_METHOD;
+	return type == TYPE_METHOD || type == TYPE_INIT || type == TYPE_COROUTINE_METHOD;
 }
 
 static int isCoroutine(int type) {
@@ -816,7 +899,7 @@ static void getitem(int exprType) {
 			emitByte(OP_INVOKE_GETSLICE);
 		}
 	} else {
-		consume(TOKEN_RIGHT_SQUARE, "Expected ending square bracket after index.");
+		consume(TOKEN_RIGHT_SQUARE, "Expected ']' after index.");
 		if (exprType == EXPR_ASSIGN_TARGET) {
 			if (matchComplexEnd()) {
 				EMIT_OPERAND_OP(OP_DUP, 2);
@@ -3041,7 +3124,6 @@ static void comma(int exprType, ChunkRecorder before, KrkScanner oldScanner, Par
 	}
 }
 
-
 static void call(int exprType) {
 	startEatingWhitespace();
 	size_t argCount = 0, specialArgs = 0, keywordArgs = 0, seenKeywordUnpacking = 0;
@@ -3054,7 +3136,7 @@ static void call(int exprType) {
 				specialArgs++;
 				if (match(TOKEN_POW)) {
 					seenKeywordUnpacking = 1;
-					emitBytes(OP_EXPAND_ARGS, 2); /* Outputs something special */
+					emitBytes(OP_EXPAND_ARGS, 2); /* creates a KWARGS_DICT */
 					expression(); /* Expect dict */
 					continue;
 				} else {
@@ -3062,7 +3144,7 @@ static void call(int exprType) {
 						error("Iterable expansion follows keyword argument unpacking.");
 						return;
 					}
-					emitBytes(OP_EXPAND_ARGS, 1); /* outputs something special */
+					emitBytes(OP_EXPAND_ARGS, 1); /* creates a KWARGS_LIST */
 					expression();
 					continue;
 				}
@@ -3095,7 +3177,7 @@ static void call(int exprType) {
 				return;
 			}
 			if (specialArgs) {
-				emitBytes(OP_EXPAND_ARGS, 0);
+				emitBytes(OP_EXPAND_ARGS, 0); /* creates a KWARGS_SINGLE */
 				expression();
 				specialArgs++;
 				continue;
