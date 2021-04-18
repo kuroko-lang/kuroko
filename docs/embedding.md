@@ -27,8 +27,6 @@ Kuroko's public API is exposed primarily through the `<kuroko/kuroko.h>` header.
 
 `<kuroko/vm.h>` provides internal functions for finer control over how the VM operates.
 
-@bsnote{warning,Headers are in the process of being reorganized and the above statements are not necessarily true _yet_.}
-
 Other headers provide convenience functions and macros for building C extensions.
 
 #### Initializing the VM

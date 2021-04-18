@@ -3,6 +3,7 @@
   <!-- Navigation index tabs for HTML output -->
   <navindex>
     <tab type="mainpage" visible="yes" title="Home"/>
+    <!-- Temporarily removed until it actually gets written.
     <tab type="usergroup" visible="yes" url="@ref lang_intro" title="Language">
       <tab type="user" url="@ref lang_intro" title="Language"/>
       <tab type="user" url="@ref lang_compiler" title="Compilation"/>
@@ -10,6 +11,7 @@
       <tab type="user" url="@ref lang_expressions" title="Expressions"/>
       <tab type="user" url="@ref lang_statements" title="Statements"/>
     </tab>
+    -->
     <tab type="usergroup" visible="yes" url="@ref modulelist" title="Modules">
       <tab type="user" url="@ref modulelist" title="Module List"/>
       <tab type="user" url="@ref classindex" title="Class Index"/>

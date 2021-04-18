@@ -45,6 +45,8 @@
 }
 .header {
   margin-top: 1em;
+  margin-left: 1rem;
+  margin-right: 1rem;
 }
 .header a { text-decoration: none; }
 .header a:hover { text-decoration: underline; }
@@ -53,10 +55,11 @@
   font-size: small;
 }
 .header>.headertitle {
-  font-size: 25px;
+  font-size: 26px;
   font-weight: bold;
 }
 .contents {
+  margin: 1rem;
   margin-bottom: 2rem;
 }
 .contents a { text-decoration: none; }
@@ -68,6 +71,12 @@
 }
 .contents h2 {
   font-size: 26px;
+}
+.contents h3 {
+  font-size: 22px;
+}
+.contents h4 {
+  font-size: 18px;
 }
 .contents a {
   scroll-margin-top: 4rem;
@@ -264,11 +273,11 @@ div.memdoc {
   white-space: pre-wrap;
 }
 .fragment {
-  margin: 1rem;
   background-color: #1f1f1f;
   padding: 0.5rem;
   border-radius: 5px;
   color: #e6e6e6;
+  margin-bottom: 0.5rem;
 }
 .fragment a {
   color: inherit;

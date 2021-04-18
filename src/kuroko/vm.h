@@ -622,8 +622,8 @@ extern KrkValue krk_set_of(int argc, KrkValue argv[], int hasKw);
  * Calls the callable @p argCount stack entries down from the top
  * of the stack, passing @p argCount arguments. Resumes execution
  * of the VM for managed calls until they are completed. Pops
- * @p argCount items from the stack and returns the result of
- * the call.
+ * all arguments and the callable from the stack and returns the
+ * return value of the call.
  *
  * @param argCount Arguments to collect from the stack.
  * @return The return value of the function.
