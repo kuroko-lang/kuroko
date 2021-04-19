@@ -1044,7 +1044,7 @@ static void letDeclaration(void) {
 			args = GROW_ARRAY(ssize_t,args,old,argSpace);
 		}
 		ssize_t ind = parseVariable("Expected variable name.");
-		if (parser.hadError) return;
+		if (parser.hadError) goto _letDone;
 		if (current->scopeDepth > 0) {
 			/* Need locals space */
 			args[argCount++] = current->localCount - 1;
@@ -2276,6 +2276,7 @@ _anotherSimpleStatement:
 					errorAtCurrent("Unexpected %.*s after statement.",10,"identifier");
 					break;
 				case TOKEN_STRING:
+				case TOKEN_BIG_STRING:
 					errorAtCurrent("Unexpected %.*s after statement.",6,"string");
 					break;
 				default:
@@ -2858,8 +2859,7 @@ static void parens(int exprType) {
 	if (!match(TOKEN_RIGHT_PAREN)) {
 		switch (parser.current.type) {
 			case TOKEN_EQUAL: error("Assignment value expression must be enclosed in parentheses."); break;
-			default: error("Expected ')' after '%.*s'",
-				(int)parser.previous.length, parser.previous.start);
+			default: error("Expected ')' at end of parenthesized expression."); break;
 		}
 	}
 
