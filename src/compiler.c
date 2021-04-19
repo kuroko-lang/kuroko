@@ -53,7 +53,6 @@ typedef struct {
 	KrkToken current;              /**< Token to be parsed. */
 	KrkToken previous;             /**< Last token matched, consumed, or advanced over. */
 	char hadError;                 /**< Flag indicating if the parser encountered an error. */
-	char panicMode;                /**< Flag if the parser is trying to recover enough to exit. */
 	unsigned int eatingWhitespace; /**< Depth of whitespace-ignoring parse functions. */
 } Parser;
 
@@ -273,7 +272,7 @@ static char * calculateQualName(void) {
 
 #define WRITE(s) do { \
 	size_t len = strlen(s); \
-	if (writer - len < space) break; \
+	if (writer - len < space) goto _exit; \
 	writer -= len; \
 	memcpy(writer, s, len); \
 } while (0)
@@ -291,6 +290,7 @@ static char * calculateQualName(void) {
 		ptr = ptr->enclosing;
 	}
 
+_exit:
 	return writer;
 }
 
@@ -390,14 +390,13 @@ static void finishError(KrkToken * token) {
 		krk_attachNamedValue(&AS_INSTANCE(krk_currentThread.currentException)->fields, "func", name);
 	}
 
-	parser.panicMode = 1;
 	parser.hadError = 1;
 }
 
 #ifdef KRK_NO_DOCUMENTATION
-# define raiseSyntaxError(token, ...) do { if (parser.panicMode) break; krk_runtimeError(vm.exceptions->syntaxError, "syntax error"); finishError(token); } while (0)
+# define raiseSyntaxError(token, ...) do { if (parser.hadError) break; krk_runtimeError(vm.exceptions->syntaxError, "syntax error"); finishError(token); } while (0)
 #else
-# define raiseSyntaxError(token, ...) do { if (parser.panicMode) break; krk_runtimeError(vm.exceptions->syntaxError, __VA_ARGS__); finishError(token); } while (0)
+# define raiseSyntaxError(token, ...) do { if (parser.hadError) break; krk_runtimeError(vm.exceptions->syntaxError, __VA_ARGS__); finishError(token); } while (0)
 #endif
 
 #define error(...) raiseSyntaxError(&parser.previous, __VA_ARGS__)
@@ -428,7 +427,12 @@ static void advance(void) {
 		if (parser.current.type != TOKEN_ERROR) break;
 
 		errorAtCurrent("%s", parser.current.start);
+		break;
 	}
+}
+
+static void skipToEnd(void) {
+	while (parser.current.type != TOKEN_EOF) advance();
 }
 
 static void startEatingWhitespace(void) {
@@ -1040,6 +1044,7 @@ static void letDeclaration(void) {
 			args = GROW_ARRAY(ssize_t,args,old,argSpace);
 		}
 		ssize_t ind = parseVariable("Expected variable name.");
+		if (parser.hadError) return;
 		if (current->scopeDepth > 0) {
 			/* Need locals space */
 			args[argCount++] = current->localCount - 1;
@@ -1098,33 +1103,11 @@ static void letDeclaration(void) {
 
 _letDone:
 	if (!match(TOKEN_EOL) && !match(TOKEN_EOF)) {
-		errorAtCurrent("Expected end of line after 'let' statement, not '%.*s'",
-			(int)parser.current.length, parser.current.start);
+		errorAtCurrent("Expected end of line after 'let' statement.");
 	}
 
 	FREE_ARRAY(ssize_t,args,argSpace);
 	return;
-}
-
-static void synchronize(void) {
-	while (parser.current.type != TOKEN_EOF) {
-		if (parser.previous.type == TOKEN_EOL) return;
-
-		switch (parser.current.type) {
-			case TOKEN_CLASS:
-			case TOKEN_DEF:
-			case TOKEN_LET:
-			case TOKEN_FOR:
-			case TOKEN_IF:
-			case TOKEN_WHILE:
-			case TOKEN_RETURN:
-			case TOKEN_ASYNC:
-				return;
-			default: break;
-		}
-
-		advance();
-	}
 }
 
 static void declaration(void) {
@@ -1150,7 +1133,7 @@ static void declaration(void) {
 		statement();
 	}
 
-	if (parser.panicMode) synchronize();
+	if (parser.hadError) skipToEnd();
 }
 
 static void expressionStatement(void) {
@@ -1211,6 +1194,7 @@ static void block(size_t indentation, const char * blockName) {
 				if (check(TOKEN_EOL)) {
 					advance();
 				}
+				if (parser.hadError) skipToEnd();
 			};
 #ifndef KRK_NO_SCAN_TRACING
 			if (krk_currentThread.flags & KRK_THREAD_ENABLE_SCAN_TRACING) {
@@ -1272,7 +1256,7 @@ static void function(FunctionType type, size_t blockWidth) {
 					identifiersEqual(&parser.current, &self)) {
 				if (hasCollectors || current->codeobject->requiredArgs != 1) {
 					errorAtCurrent("Argument name 'self' in a method signature is reserved for the implicit first argument.");
-					break;
+					goto _bail;
 				}
 				advance();
 				if (check(TOKEN_COLON)) {
@@ -1282,6 +1266,7 @@ static void function(FunctionType type, size_t blockWidth) {
 				}
 				if (check(TOKEN_EQUAL)) {
 					errorAtCurrent("'self' can not be a keyword argument.");
+					goto _bail;
 				}
 				continue;
 			}
@@ -1289,14 +1274,14 @@ static void function(FunctionType type, size_t blockWidth) {
 				if (match(TOKEN_POW)) {
 					if (hasCollectors == 2) {
 						error("Duplicate ** in parameter list.");
-						return;
+						goto _bail;
 					}
 					hasCollectors = 2;
 					current->codeobject->flags |= KRK_CODEOBJECT_FLAGS_COLLECTS_KWS;
 				} else {
 					if (hasCollectors) {
 						error("Syntax error.");
-						return;
+						goto _bail;
 					}
 					hasCollectors = 1;
 					current->codeobject->flags |= KRK_CODEOBJECT_FLAGS_COLLECTS_ARGS;
@@ -1304,6 +1289,7 @@ static void function(FunctionType type, size_t blockWidth) {
 				/* Collect a name, specifically "args" or "kwargs" are commont */
 				ssize_t paramConstant = parseVariable(
 					(hasCollectors == 1) ? "Expected parameter name after '*'." : "Expected parameter name after '**'.");
+				if (parser.hadError) goto _bail;
 				defineVariable(paramConstant);
 				if (check(TOKEN_COLON)) {
 					KrkToken name = parser.previous;
@@ -1332,6 +1318,7 @@ static void function(FunctionType type, size_t blockWidth) {
 				break;
 			}
 			ssize_t paramConstant = parseVariable("Expected parameter name.");
+			if (parser.hadError) goto _bail;
 			defineVariable(paramConstant);
 			if (check(TOKEN_COLON)) {
 				KrkToken name = parser.previous;
@@ -1377,6 +1364,7 @@ static void function(FunctionType type, size_t blockWidth) {
 
 	consume(TOKEN_COLON, "Expected colon after function signature.");
 	block(blockWidth,"def");
+_bail: (void)0;
 	KrkCodeObject * function = endCompiler();
 	if (compiler.annotationCount) {
 		EMIT_OPERAND_OP(OP_MAKE_DICT, compiler.annotationCount * 2);
@@ -1448,23 +1436,20 @@ static void classBody(size_t blockWidth) {
 			type = TYPE_COROUTINE_METHOD;
 			consume(TOKEN_DEF, "Expected 'def' after 'async'");
 		} else if (!match(TOKEN_DEF)) {
-			error("Expected method, decorator, or class variable, not '%.*s'.",
-					(int)parser.previous.length, parser.previous.start);
+			error("Expected method, decorator, or class variable.");
 		}
 		consume(TOKEN_IDENTIFIER, "Expected method name after 'def'");
 		size_t ind = identifierConstant(&parser.previous);
 
 		if (parser.previous.length == 8 && memcmp(parser.previous.start, "__init__", 8) == 0) {
 			if (type == TYPE_COROUTINE_METHOD) {
-				error("'%.*s' can not be a coroutine",
-					(int)parser.previous.length, parser.previous.start);
+				error("'%s' can not be a coroutine","__init__");
 				return;
 			}
 			type = TYPE_INIT;
 		} else if (parser.previous.length == 17 && memcmp(parser.previous.start, "__class_getitem__", 17) == 0) {
 			if (type == TYPE_COROUTINE_METHOD) {
-				error("'%.*s' can not be a coroutine",
-					(int)parser.previous.length, parser.previous.start);
+				error("'%s' can not be a coroutine","__class_getitem__");
 				return;
 			}
 			/* This magic method is implicitly always a class method,
@@ -1579,6 +1564,7 @@ static void lambda(int exprType) {
 	if (!check(TOKEN_COLON)) {
 		do {
 			ssize_t paramConstant = parseVariable("Expected parameter name.");
+			if (parser.hadError) goto _bail;
 			defineVariable(paramConstant);
 			current->codeobject->requiredArgs++;
 		} while (match(TOKEN_COMMA));
@@ -1587,6 +1573,7 @@ static void lambda(int exprType) {
 	consume(TOKEN_COLON, "Expected ':' after lambda arguments");
 	expression();
 
+_bail: (void)0;
 	KrkCodeObject * lambda = endCompiler();
 	size_t ind = krk_addConstant(currentChunk(), OBJECT_VAL(lambda));
 	EMIT_OPERAND_OP(OP_CLOSURE, ind);
@@ -1600,8 +1587,10 @@ static void defDeclaration(void) {
 	advance(); /* Collect the `def` */
 
 	ssize_t global = parseVariable("Expected function name after 'def'.");
+	if (parser.hadError) return;
 	markInitialized();
 	function(TYPE_FUNCTION, blockWidth);
+	if (parser.hadError) return;
 	defineVariable(global);
 }
 
@@ -1615,8 +1604,10 @@ static void asyncDeclaration(int declarationLevel) {
 			return;
 		}
 		ssize_t global = parseVariable("Expected coroutine name after 'async def'");
+		if (parser.hadError) return;
 		markInitialized();
 		function(TYPE_COROUTINE, blockWidth);
+		if (parser.hadError) return;
 		defineVariable(global);
 	} else if (match(TOKEN_FOR)) {
 		if (!isCoroutine(current->type)) {
@@ -1633,8 +1624,7 @@ static void asyncDeclaration(int declarationLevel) {
 		error("'async with' unsupported (GH-12)");
 		return;
 	} else {
-		errorAtCurrent("'%.*s' can not be prefixed with 'async'",
-			(int)parser.current.length, parser.current.start);
+		errorAtCurrent("Expected 'def' after 'async'.");
 		return;
 	}
 }
@@ -1787,12 +1777,16 @@ static void ifStatement(void) {
 	/* if EXPR: */
 	consume(TOKEN_COLON, "Expected ':' after 'if' condition.");
 
+	if (parser.hadError) return;
+
 	int thenJump = emitJump(OP_JUMP_IF_FALSE_OR_POP);
 
 	/* Start a new scope and enter a block */
 	beginScope();
 	block(blockWidth,"if");
 	endScope();
+
+	if (parser.hadError) return;
 
 	int elseJump = emitJump(OP_JUMP);
 	patchJump(thenJump);
@@ -1901,6 +1895,7 @@ static void forStatement(void) {
 	int matchedEquals = 0;
 	do {
 		ssize_t ind = parseVariable("Expected name for loop iterator.");
+		if (parser.hadError) return;
 		if (match(TOKEN_EQUAL)) {
 			matchedEquals = 1;
 			expression();
@@ -2006,6 +2001,8 @@ static void tryStatement(void) {
 	block(blockWidth,"try");
 	endScope();
 
+	if (parser.hadError) return;
+
 #define EXIT_JUMP_MAX 32
 	int exitJumps = 1;
 	int exitJumpOffsets[EXIT_JUMP_MAX] = {0};
@@ -2016,6 +2013,7 @@ static void tryStatement(void) {
 	int nextJump = -1;
 
 _anotherExcept:
+	if (parser.hadError) return;
 	if (blockWidth == 0 || (check(TOKEN_INDENTATION) && (parser.current.length == blockWidth))) {
 		KrkToken previous;
 		if (blockWidth) {
@@ -2274,8 +2272,14 @@ _anotherSimpleStatement:
 					errorAtCurrent("Unmatched '%.*s'",
 						(int)parser.current.length, parser.current.start);
 					break;
+				case TOKEN_IDENTIFIER:
+					errorAtCurrent("Unexpected %.*s after statement.",10,"identifier");
+					break;
+				case TOKEN_STRING:
+					errorAtCurrent("Unexpected %.*s after statement.",6,"string");
+					break;
 				default:
-					errorAtCurrent("'%.*s' unexpected after statement.",
+					errorAtCurrent("Unexpected %.*s after statement.",
 						(int)parser.current.length, parser.current.start);
 			}
 		}
@@ -2672,6 +2676,7 @@ static void comprehensionInner(KrkScanner scannerBefore, Parser parserBefore, vo
 	ssize_t varCount = 0;
 	do {
 		defineVariable(parseVariable("Expected name for iteration variable."));
+		if (parser.hadError) return;
 		emitByte(OP_NONE);
 		defineVariable(loopInd);
 		varCount++;
@@ -3267,6 +3272,11 @@ static void parsePrecedence(Precedence precedence) {
 	if (precedence == PREC_DEL_TARGET) exprType = EXPR_DEL_TARGET;
 	prefixRule(exprType);
 	while (precedence <= getRule(parser.current.type)->precedence) {
+		if (parser.hadError) {
+			skipToEnd();
+			return;
+		}
+
 		if (exprType == EXPR_ASSIGN_TARGET && (parser.previous.type == TOKEN_COMMA ||
 			parser.previous.type == TOKEN_EQUAL)) break;
 		advance();
