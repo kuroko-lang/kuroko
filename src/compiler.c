@@ -1891,9 +1891,11 @@ static void forStatement(void) {
 	beginScope();
 
 	ssize_t loopInd = current->localCount;
+	int sawComma = 0;
 	ssize_t varCount = 0;
 	int matchedEquals = 0;
 	do {
+		if (!check(TOKEN_IDENTIFIER)) break;
 		ssize_t ind = parseVariable("Expected name for loop iterator.");
 		if (parser.hadError) return;
 		if (match(TOKEN_EQUAL)) {
@@ -1904,6 +1906,7 @@ static void forStatement(void) {
 		}
 		defineVariable(ind);
 		varCount++;
+		if (check(TOKEN_COMMA)) sawComma = 1;
 	} while (match(TOKEN_COMMA));
 
 	int loopStart;
@@ -1920,7 +1923,7 @@ static void forStatement(void) {
 		loopStart = currentChunk()->count;
 		exitJump = emitJump(OP_CALL_ITER);
 
-		if (varCount > 1) {
+		if (varCount > 1 || sawComma) {
 			EMIT_OPERAND_OP(OP_UNPACK, varCount);
 			for (ssize_t i = loopInd + varCount - 1; i >= loopInd; i--) {
 				EMIT_OPERAND_OP(OP_SET_LOCAL, i);
@@ -2675,12 +2678,15 @@ static void super_(int exprType) {
 static void comprehensionInner(KrkScanner scannerBefore, Parser parserBefore, void (*body)(size_t), size_t arg) {
 	ssize_t loopInd = current->localCount;
 	ssize_t varCount = 0;
+	int sawComma = 0;
 	do {
+		if (!check(TOKEN_IDENTIFIER)) break;
 		defineVariable(parseVariable("Expected name for iteration variable."));
 		if (parser.hadError) return;
 		emitByte(OP_NONE);
 		defineVariable(loopInd);
 		varCount++;
+		if (check(TOKEN_COMMA)) sawComma = 1;
 	} while (match(TOKEN_COMMA));
 
 	consume(TOKEN_IN, "Only iterator loops (for ... in ...) are allowed in generator expressions.");
@@ -2694,7 +2700,7 @@ static void comprehensionInner(KrkScanner scannerBefore, Parser parserBefore, vo
 	int loopStart = currentChunk()->count;
 	int exitJump = emitJump(OP_CALL_ITER);
 
-	if (varCount > 1) {
+	if (varCount > 1 || sawComma) {
 		EMIT_OPERAND_OP(OP_UNPACK, varCount);
 		for (ssize_t i = loopInd + varCount - 1; i >= loopInd; i--) {
 			EMIT_OPERAND_OP(OP_SET_LOCAL, i);
@@ -3052,7 +3058,7 @@ static void ternary(ChunkRecorder before, KrkScanner oldScanner, Parser oldParse
 static void complexAssignmentTargets(KrkScanner oldScanner, Parser oldParser, size_t targetCount, int parenthesized) {
 	emitBytes(OP_DUP, 0);
 
-	if (targetCount > 1) {
+	if (targetCount > 0) {
 		EMIT_OPERAND_OP(OP_UNPACK,targetCount);
 		EMIT_OPERAND_OP(OP_REVERSE,targetCount);
 	}

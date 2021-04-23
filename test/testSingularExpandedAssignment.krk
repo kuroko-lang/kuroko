@@ -1,0 +1,19 @@
+let x, y, z
+
+x, = (1,)
+
+assert x == 1
+
+y, = [2]
+
+assert y == 2
+
+for a, in [(1,),(2,),(3,)]:
+    print(a)
+
+try:
+    z, = 1
+except TypeError:
+    print("okay")
+
+print(list(x * x for x, in [(1,),[2],(3,)]))
