@@ -99,8 +99,8 @@ krk-%: tools/%.c ${LIBRARY} ${HEADERS}
 libkuroko.so: ${SOOBJS} ${HEADERS}
 	${CC} ${CFLAGS} ${LDFLAGS} -fPIC -shared -o $@ ${SOOBJS} ${LDLIBS}
 
-WINLIBS= -l:libwinpthread.a -Wl,--require-defined=tc_malloc libtcmalloc_minimal.a -l:libpsapi.a -l:libstdc++.a
-libkuroko.dll: ${SOOBJS} ${HEADERS} libtcmalloc_minimal.a
+WINLIBS= -l:libwinpthread.a
+libkuroko.dll: ${SOOBJS} ${HEADERS}
 	${CC} ${CFLAGS} ${LDFLAGS} -fPIC -shared -o $@ ${SOOBJS} ${WINLIBS} -Wl,--export-all-symbols,--out-implib,libkuroko.a
 
 libkuroko.a: ${OBJS}
@@ -132,9 +132,6 @@ clean:
 
 tags: $(wildcard src/*.c) $(wildcard src/*.h)
 	@ctags --c-kinds=+lx src/*.c src/*.h  src/kuroko/*.h src/vendor/*.h
-
-libtcmalloc_minimal.a:
-	curl -O https://klange.dev/libtcmalloc_minimal.a
 
 # Test targets run against all .krk files in the test/ directory, writing
 # stdout to `.expect` files, and then comparing with `git`.
