@@ -1884,31 +1884,18 @@ static void history_previous(void) {
  * Cycle to next history entry
  */
 static void history_next(void) {
-	if (rline_scroll > 1) {
+	if (rline_scroll >= 1) {
+		unsigned char * buf;
+		if (rline_scroll > 1) buf = (unsigned char *)rline_history_prev(rline_scroll);
+		else buf = (unsigned char *)temp_buffer;
 		rline_scroll--;
 
 		/* Copy in from history */
 		the_line->actual = 0;
 		column = 0;
 		loading = 1;
-		unsigned char * buf = (unsigned char *)rline_history_prev(rline_scroll);
 		uint32_t istate = 0, c = 0;
 		for (unsigned int i = 0; i < strlen((char *)buf); ++i) {
-			if (!decode(&istate, &c, buf[i])) {
-				insert_char(c);
-			}
-		}
-		loading = 0;
-	} else if (rline_scroll == 1) {
-		/* Copy in from temp */
-		rline_scroll = 0;
-
-		the_line->actual = 0;
-		column = 0;
-		loading = 1;
-		char * buf = temp_buffer;
-		uint32_t istate = 0, c = 0;
-		for (unsigned int i = 0; i < strlen(buf); ++i) {
 			if (!decode(&istate, &c, buf[i])) {
 				insert_char(c);
 			}
