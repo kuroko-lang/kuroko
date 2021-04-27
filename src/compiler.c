@@ -3143,6 +3143,7 @@ static void call(int exprType) {
 		KrkScanner scannerBefore = krk_tellScanner();
 		Parser  parserBefore = parser;
 		do {
+			if (check(TOKEN_RIGHT_PAREN)) break;
 			if (match(TOKEN_ASTERISK) || check(TOKEN_POW)) {
 				specialArgs++;
 				if (match(TOKEN_POW)) {
