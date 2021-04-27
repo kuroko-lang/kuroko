@@ -252,6 +252,7 @@ extern KrkValue FUNC_NAME(str,format)(int,KrkValue*,int);
 } while (0)
 
 #define unpackIterableFast(fromInput) do { \
+	__attribute__((unused)) int unpackingIterable = 0; \
 	KrkValue iterableValue = (fromInput); \
 	if (IS_TUPLE(iterableValue)) { \
 		unpackArray(AS_TUPLE(iterableValue)->values.count, AS_TUPLE(iterableValue)->values.values[i]); \
@@ -262,6 +263,7 @@ extern KrkValue FUNC_NAME(str,format)(int,KrkValue*,int);
 	} else if (IS_STRING(iterableValue)) { \
 		unpackArray(AS_STRING(iterableValue)->codesLength, krk_string_get(2,(KrkValue[]){iterableValue,INTEGER_VAL(i)},0)); \
 	} else { \
+		unpackingIterable = 1; \
 		unpackIterable(iterableValue); \
 	} \
 } while (0)

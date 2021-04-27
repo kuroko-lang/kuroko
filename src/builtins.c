@@ -183,7 +183,10 @@ KRK_FUNC(bin,{
 
 #define unpackArray(counter, indexer) do { \
 	for (size_t i = 0; i < counter; ++i) { \
-		if (!krk_isFalsey(indexer)) return BOOLEAN_VAL(1); \
+		if (!krk_isFalsey(indexer)) { \
+			if (unpackingIterable) { krk_pop(); krk_pop(); } \
+			return BOOLEAN_VAL(1); \
+		} \
 	} \
 } while (0)
 KRK_FUNC(any,{
@@ -195,7 +198,10 @@ KRK_FUNC(any,{
 
 #define unpackArray(counter, indexer) do { \
 	for (size_t i = 0; i < counter; ++i) { \
-		if (krk_isFalsey(indexer)) return BOOLEAN_VAL(0); \
+		if (krk_isFalsey(indexer)) { \
+			if (unpackingIterable) { krk_pop(); krk_pop(); } \
+			return BOOLEAN_VAL(0); \
+		} \
 	} \
 } while (0)
 KRK_FUNC(all,{
