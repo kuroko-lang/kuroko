@@ -629,7 +629,7 @@ static void handleSigtrap(int sigNum) {
 #endif
 
 static void bindSignalHandlers(void) {
-#ifndef _WIN32
+#if !defined(_WIN32) && !defined(__toaru__)
 	struct sigaction sigIntAction;
 	sigIntAction.sa_handler = handleSigint;
 	sigemptyset(&sigIntAction.sa_mask);
@@ -649,7 +649,10 @@ static void bindSignalHandlers(void) {
 		NULL);
 #else
 	signal(SIGINT, handleSigint);
+# ifndef _WIN32
+	signal(SIGTRAP, handleSigtrap);
 	/* No SIGTRAP on windows? */
+# endif
 #endif
 }
 
