@@ -147,6 +147,24 @@ KRK_METHOD(set,__len__,{
 	return INTEGER_VAL(self->entries.count);
 })
 
+KRK_METHOD(set,__eq__,{
+	METHOD_TAKES_EXACTLY(1);
+	if (!IS_set(argv[1]))
+		return NOTIMPL_VAL();
+	CHECK_ARG(1,set,struct Set*,them);
+	if (self->entries.count != them->entries.count)
+		return BOOLEAN_VAL(0);
+
+	KrkValue _unused;
+
+	for (unsigned int i = 0; i < self->entries.capacity; ++i) {
+		if (IS_KWARGS(self->entries.entries[i].key)) continue;
+		if (!krk_tableGet(&them->entries, self->entries.entries[i].key, &_unused)) return BOOLEAN_VAL(0);
+	}
+
+	return BOOLEAN_VAL(1);
+})
+
 KRK_METHOD(set,add,{
 	METHOD_TAKES_EXACTLY(1);
 	krk_tableSet(&self->entries, argv[1], BOOLEAN_VAL(1));
@@ -225,6 +243,7 @@ void _createAndBind_setClass(void) {
 	BIND_METHOD(set,__init__);
 	BIND_METHOD(set,__repr__);
 	BIND_METHOD(set,__len__);
+	BIND_METHOD(set,__eq__);
 	BIND_METHOD(set,__and__);
 	BIND_METHOD(set,__or__);
 	BIND_METHOD(set,__contains__);
