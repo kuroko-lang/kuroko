@@ -4,9 +4,9 @@ CFLAGS += -Isrc
 LDFLAGS += -L.
 
 TARGET   = kuroko
-OBJS     = $(patsubst %.c, %.o, $(filter-out src/module_% src/kuroko.c,$(sort $(wildcard src/*.c))))
+OBJS     = $(patsubst %.c, %.o, $(filter-out src/kuroko.c,$(sort $(wildcard src/*.c))))
 SOOBJS   = $(patsubst %.o, %.lo, $(OBJS))
-MODULES  = $(patsubst src/module_%.c, modules/%.so, $(sort $(wildcard src/module_*.c)))
+MODULES  = $(patsubst src/modules/module_%.c, modules/%.so, $(sort $(wildcard src/modules/module_*.c)))
 HEADERS  = $(wildcard src/kuroko/*.h)
 TOOLS    = $(patsubst tools/%.c, krk-%, $(sort $(wildcard tools/*.c)))
 GENMODS  = modules/codecs/sbencs.krk modules/codecs/dbdata.krk
@@ -113,7 +113,7 @@ libkuroko.a: ${OBJS}
 	${CC} ${CFLAGS} -fPIC -c -o $@ $<
 
 modules/math.so: MODLIBS += -lm
-modules/%.so: src/module_%.c ${LIBRARY}
+modules/%.so: src/modules/module_%.c ${LIBRARY}
 	${CC} ${CFLAGS} ${LDFLAGS} -fPIC -shared -o $@ $< ${LDLIBS} ${MODLIBS}
 
 modules/codecs/sbencs.krk: tools/codectools/gen_sbencs.krk tools/codectools/encodings.json tools/codectools/indexes.json | kuroko
