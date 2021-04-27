@@ -1886,7 +1886,7 @@ static void history_previous(void) {
 static void history_next(void) {
 	if (rline_scroll >= 1) {
 		unsigned char * buf;
-		if (rline_scroll > 1) buf = (unsigned char *)rline_history_prev(rline_scroll);
+		if (rline_scroll > 1) buf = (unsigned char *)rline_history_prev(rline_scroll-1);
 		else buf = (unsigned char *)temp_buffer;
 		rline_scroll--;
 
