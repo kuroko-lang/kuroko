@@ -76,7 +76,7 @@ KrkTableEntry * krk_findEntry(KrkTableEntry * entries, size_t capacity, KrkValue
 	}
 }
 
-#ifndef __builtin_clz
+#ifdef __TINYC__
 int __builtin_clz(unsigned int x) {
 	int i = 31;
 	while (!(x & (1 << i)) && i >= 0) i--;

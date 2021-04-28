@@ -1446,7 +1446,7 @@ KrkValue krk_operator_truediv(KrkValue a, KrkValue b) {
 	return tryBind("__truediv__", a, b, "/", "__rtruediv__");
 }
 
-#ifndef __builtin_floor
+#ifdef __TINYC__
 #include <math.h>
 #define __builtin_floor floor
 #endif
