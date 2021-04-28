@@ -7,7 +7,7 @@ OPTIMIZE_OUTPUT_FOR_C  = YES
 LAYOUT_FILE            = docs/DoxygenLayout.xml
 
 # Make docs for interpreter and tools
-INPUT                  = src/ src/kuroko/ tools/ docs/
+INPUT                  = src/ src/kuroko/ tools/ docs/ src/modules/
 FILE_PATTERNS = *.c *.h *.md
 
 ENABLE_PREPROCESSING = YES
