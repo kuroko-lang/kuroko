@@ -86,7 +86,7 @@ KRK_METHOD(dict,__contains__,{
 })
 
 KRK_METHOD(dict,capacity,{
-	METHOD_TAKES_EXACTLY(1);
+	METHOD_TAKES_NONE();
 	return INTEGER_VAL(self->entries.capacity);
 })
 
