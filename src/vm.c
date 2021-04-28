@@ -311,7 +311,6 @@ inline void krk_push(KrkValue value) {
 inline KrkValue krk_pop() {
 	if (unlikely(krk_currentThread.stackTop == krk_currentThread.stack)) {
 		abort();
-		__builtin_unreachable();
 	}
 	return *--krk_currentThread.stackTop;
 }
@@ -1446,6 +1445,11 @@ KrkValue krk_operator_truediv(KrkValue a, KrkValue b) {
 	}
 	return tryBind("__truediv__", a, b, "/", "__rtruediv__");
 }
+
+#ifndef __builtin_floor
+#include <math.h>
+#define __builtin_floor floor
+#endif
 
 KrkValue krk_operator_floordiv(KrkValue numerator, KrkValue divisor) {
 	if (IS_INTEGER(divisor) && IS_INTEGER(numerator)) return INTEGER_VAL(AS_INTEGER(numerator) / AS_INTEGER(divisor));

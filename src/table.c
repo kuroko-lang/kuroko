@@ -76,10 +76,18 @@ KrkTableEntry * krk_findEntry(KrkTableEntry * entries, size_t capacity, KrkValue
 	}
 }
 
+#ifndef __builtin_clz
+int __builtin_clz(unsigned int x) {
+	int i = 31;
+	while (!(x & (1 << i)) && i >= 0) i--;
+	return 31-i;
+}
+#endif
+
 void krk_tableAdjustCapacity(KrkTable * table, size_t capacity) {
 	if (capacity) {
 		/* Fast power-of-two calculation */
-		size_t powerOfTwoCapacity = __builtin_clz((size_t)1) - __builtin_clz(capacity);
+		size_t powerOfTwoCapacity = __builtin_clz(1) - __builtin_clz(capacity);
 		if ((1UL << powerOfTwoCapacity) != capacity) powerOfTwoCapacity++;
 		capacity = (1UL << powerOfTwoCapacity);
 	}
