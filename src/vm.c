@@ -3006,7 +3006,7 @@ KrkValue krk_runfile(const char * fileName, char * fromFile) {
 	fseek(f, 0, SEEK_SET);
 
 	char * buf = malloc(size+1);
-	if (fread(buf, 1, size, f) != size) {
+	if (fread(buf, 1, size, f) == 0) {
 		fprintf(stderr, "%s: could not read file '%s': %s\n", "kuroko", fileName, strerror(errno));
 		return INTEGER_VAL(errno);
 	}

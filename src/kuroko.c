@@ -716,7 +716,7 @@ static int compileFile(char * argv[], int flags, char * fileName) {
 	size_t size = ftell(f);
 	fseek(f, 0, SEEK_SET);
 	char * buf = malloc(size+1);
-	if (fread(buf, 1, size, f) != size) return 2;
+	if (fread(buf, 1, size, f) == 0) return 2;
 	fclose(f);
 	buf[size] = '\0';
 
