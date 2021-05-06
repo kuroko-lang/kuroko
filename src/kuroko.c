@@ -668,7 +668,9 @@ static void findInterpreter(char * argv[]) {
 			binpath = realpath(argv[0], tmp);
 		} else {
 			/* Search PATH for argv[0] */
-			char * _path = strdup(getenv("PATH"));
+			char * p = getenv("PATH");
+			if (!p) return;
+			char * _path = strdup(p);
 			char * path = _path;
 			while (path) {
 				char * next = strchr(path,':');
