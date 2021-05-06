@@ -432,7 +432,7 @@ KRK_FUNC(ttyname,{
 #endif
 
 static int makeArgs(int count, KrkValue * values, char *** argsOut, const char * _method_name) {
-	char ** out = malloc(sizeof(char*)*count);
+	char ** out = malloc(sizeof(char*)*(count+1));
 	for (int i = 0; i < count; ++i) {
 		if (!IS_STRING(values[i])) {
 			free(out);
@@ -441,6 +441,7 @@ static int makeArgs(int count, KrkValue * values, char *** argsOut, const char *
 		}
 		out[i] = AS_CSTRING(values[i]);
 	}
+	out[count] = NULL;
 	*argsOut = out;
 	return 0;
 }
