@@ -2997,7 +2997,7 @@ KrkValue krk_interpret(const char * src, char * fromFile) {
 KrkValue krk_runfile(const char * fileName, char * fromFile) {
 	FILE * f = fopen(fileName,"r");
 	if (!f) {
-		fprintf(stderr, "%s: could not read file '%s': %s\n", "kuroko", fileName, strerror(errno));
+		fprintf(stderr, "%s: could not open file '%s': %s\n", "kuroko", fileName, strerror(errno));
 		return INTEGER_VAL(errno);
 	}
 
@@ -3006,7 +3006,7 @@ KrkValue krk_runfile(const char * fileName, char * fromFile) {
 	fseek(f, 0, SEEK_SET);
 
 	char * buf = malloc(size+1);
-	if (fread(buf, 1, size, f) == 0) {
+	if (fread(buf, 1, size, f) == 0 && size != 0) {
 		fprintf(stderr, "%s: could not read file '%s': %s\n", "kuroko", fileName, strerror(errno));
 		return INTEGER_VAL(errno);
 	}
