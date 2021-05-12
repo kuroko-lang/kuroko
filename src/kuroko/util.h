@@ -17,7 +17,7 @@
 #define likely(cond)   __builtin_expect((cond), 1)
 #define unlikely(cond) __builtin_expect((cond), 0)
 
-#ifndef _WIN32
+#if !defined(_WIN32) && !defined(EFI_PLATFORM)
 #define _noexport __attribute__((visibility("hidden")))
 #else
 #define _noexport
