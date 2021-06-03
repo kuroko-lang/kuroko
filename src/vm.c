@@ -164,7 +164,7 @@ void krk_dumpTraceback(void) {
 					if (f) {
 						int line = 1;
 						do {
-							char c = fgetc(f);
+							int c = fgetc(f);
 							if (c < -1) break;
 							if (c == '\n') {
 								line++;
