@@ -317,6 +317,7 @@ _freeAndDone:
 
 KRK_METHOD(str,__mul__,{
 	METHOD_TAKES_EXACTLY(1);
+	if (!IS_INTEGER(argv[1])) return NOTIMPL_VAL();
 	CHECK_ARG(1,int,krk_integer_type,howMany);
 	if (howMany < 0) howMany = 0;
 
@@ -332,6 +333,12 @@ KRK_METHOD(str,__mul__,{
 
 	*c = '\0';
 	return OBJECT_VAL(krk_takeString(out, totalLength));
+})
+
+KRK_METHOD(str,__rmul__,{
+	METHOD_TAKES_EXACTLY(1);
+	if (IS_INTEGER(argv[1])) return FUNC_NAME(str,__mul__)(argc,argv,hasKw);
+	return NOTIMPL_VAL();
 })
 
 #define unpackArray(counter, indexer) do { \
@@ -882,6 +889,7 @@ void _createAndBind_strClass(void) {
 	BIND_METHOD(str,__add__);
 	BIND_METHOD(str,__len__);
 	BIND_METHOD(str,__mul__);
+	BIND_METHOD(str,__rmul__);
 	BIND_METHOD(str,__contains__);
 	BIND_METHOD(str,__lt__);
 	BIND_METHOD(str,__gt__);
