@@ -1235,6 +1235,37 @@ static void typeHint(KrkToken name) {
 	current->enclosing->enclosed = NULL;
 }
 
+static void argumentDefinition(void) {
+	if (match(TOKEN_EQUAL)) {
+		/*
+		 * We inline default arguments by checking if they are equal
+		 * to a sentinel value and replacing them with the requested
+		 * argument. This allows us to send None (useful) to override
+		 * defaults that are something else. This essentially ends
+		 * up as the following at the top of the function:
+		 * if param == KWARGS_SENTINEL:
+		 *     param = EXPRESSION
+		 */
+		size_t myLocal = current->localCount - 1;
+		EMIT_OPERAND_OP(OP_GET_LOCAL, myLocal);
+		emitBytes(OP_UNSET, OP_IS);
+		int jumpIndex = emitJump(OP_JUMP_IF_FALSE_OR_POP);
+		beginScope();
+		expression(); /* Read expression */
+		EMIT_OPERAND_OP(OP_SET_LOCAL, myLocal);
+		endScope();
+		patchJump(jumpIndex);
+		emitByte(OP_POP); /* comparison result or expression value */
+		current->codeobject->keywordArgs++;
+	} else {
+		if (current->codeobject->keywordArgs) {
+			error("non-keyword argument follows keyword argument");
+			return;
+		}
+		current->codeobject->requiredArgs++;
+	}
+}
+
 static void function(FunctionType type, size_t blockWidth) {
 	Compiler compiler;
 	initCompiler(&compiler, type);
@@ -1325,34 +1356,7 @@ static void function(FunctionType type, size_t blockWidth) {
 				match(TOKEN_COLON);
 				typeHint(name);
 			}
-			if (match(TOKEN_EQUAL)) {
-				/*
-				 * We inline default arguments by checking if they are equal
-				 * to a sentinel value and replacing them with the requested
-				 * argument. This allows us to send None (useful) to override
-				 * defaults that are something else. This essentially ends
-				 * up as the following at the top of the function:
-				 * if param == KWARGS_SENTINEL:
-				 *     param = EXPRESSION
-				 */
-				size_t myLocal = current->localCount - 1;
-				EMIT_OPERAND_OP(OP_GET_LOCAL, myLocal);
-				emitBytes(OP_UNSET, OP_IS);
-				int jumpIndex = emitJump(OP_JUMP_IF_FALSE_OR_POP);
-				beginScope();
-				expression(); /* Read expression */
-				EMIT_OPERAND_OP(OP_SET_LOCAL, myLocal);
-				endScope();
-				patchJump(jumpIndex);
-				emitByte(OP_POP); /* comparison result or expression value */
-				current->codeobject->keywordArgs++;
-			} else {
-				if (current->codeobject->keywordArgs) {
-					error("non-keyword argument follows keyword argument");
-					break;
-				}
-				current->codeobject->requiredArgs++;
-			}
+			argumentDefinition();
 		} while (match(TOKEN_COMMA));
 	}
 	stopEatingWhitespace();
@@ -1566,7 +1570,7 @@ static void lambda(int exprType) {
 			ssize_t paramConstant = parseVariable("Expected parameter name.");
 			if (parser.hadError) goto _bail;
 			defineVariable(paramConstant);
-			current->codeobject->requiredArgs++;
+			argumentDefinition();
 		} while (match(TOKEN_COMMA));
 	}
 
