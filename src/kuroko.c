@@ -762,7 +762,8 @@ int main(int argc, char * argv[]) {
 	int moduleAsMain = 0;
 	int inspectAfter = 0;
 	int opt;
-	while ((opt = getopt(argc, argv, "+:c:C:dgGim:rstTMSV-:")) != -1) {
+	int maxDepth = -1;
+	while ((opt = getopt(argc, argv, "+:c:C:dgGim:rR:stTMSV-:")) != -1) {
 		switch (opt) {
 			case 'c':
 				runCmd = optarg;
@@ -804,6 +805,9 @@ int main(int argc, char * argv[]) {
 			case 'r':
 				enableRline = 0;
 				break;
+			case 'R':
+				maxDepth = atoi(optarg);
+				break;
 			case 'M':
 				return runString(argv,0,"import kuroko; print(kuroko.module_paths)\n");
 			case 'V':
@@ -834,6 +838,7 @@ int main(int argc, char * argv[]) {
 						" -i          Enter repl after a running -c, -m, or FILE.\n"
 						" -m mod      Run a module as a script.\n"
 						" -r          Disable complex line editing in the REPL.\n"
+						" -R depth    Set maximum recursion depth.\n"
 						" -s          Debug output from the scanner/tokenizer.\n"
 						" -t          Disassemble instructions as they are exceuted.\n"
 						" -T          Write call trace file.\n"
@@ -860,6 +865,10 @@ int main(int argc, char * argv[]) {
 _finishArgs:
 	findInterpreter(argv);
 	krk_initVM(flags);
+
+	if (maxDepth != -1) {
+		krk_setMaximumRecursionDepth(maxDepth);
+	}
 
 #ifndef KRK_DISABLE_DEBUG
 	krk_debug_registerCallback(debuggerHook);

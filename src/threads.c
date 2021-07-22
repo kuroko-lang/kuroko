@@ -67,7 +67,7 @@ KRK_FUNC(current_thread,{
 static volatile int _threadLock = 0;
 static void * _startthread(void * _threadObj) {
 	memset(&krk_currentThread, 0, sizeof(KrkThreadState));
-	krk_currentThread.frames = calloc(KRK_CALL_FRAMES_MAX,sizeof(KrkCallFrame));
+	krk_currentThread.frames = calloc(vm.maximumCallDepth,sizeof(KrkCallFrame));
 	vm.globalFlags |= KRK_GLOBAL_THREADS;
 	_obtain_lock(_threadLock);
 	if (vm.threads->next) {

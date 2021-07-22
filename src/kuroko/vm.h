@@ -225,6 +225,7 @@ typedef struct KrkVM {
 
 	KrkThreadState * threads;         /**< Invasive linked list of all VM threads. */
 	FILE * callgrindFile;             /**< File to write unprocessed callgrind data to. */
+	size_t maximumCallDepth;          /**< Maximum recursive call depth. */
 } KrkVM;
 
 /* Thread-specific flags */
@@ -824,3 +825,7 @@ extern KrkValue krk_operator_lt(KrkValue,KrkValue);
  */
 extern KrkValue krk_operator_gt(KrkValue,KrkValue);
 
+/**
+ * @brief Set the maximum recursion call depth.
+ */
+extern void krk_setMaximumRecursionDepth(size_t maxDepth);
