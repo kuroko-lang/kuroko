@@ -1134,7 +1134,7 @@ _finishArgs:
 				KrkValue result = krk_interpret(allData, "<stdin>");
 				if (!IS_NONE(result)) {
 					KrkClass * type = krk_getType(result);
-					const char * formatStr = " \033[1;30m=> %s\033[0m\n";
+					const char * formatStr = " \033[1;90m=> %s\033[0m\n";
 					if (type->_reprer) {
 						krk_push(result);
 						result = krk_callDirect(type->_reprer, 1);
@@ -1143,7 +1143,7 @@ _finishArgs:
 						result = krk_callDirect(type->_tostr, 1);
 					}
 					if (!IS_STRING(result)) {
-						fprintf(stdout, " \033[1;31m=> Unable to produce representation for value.\033[0m\n");
+						fprintf(stdout, " \033[1;91m=> Unable to produce representation for value.\033[0m\n");
 					} else {
 						fprintf(stdout, formatStr, AS_CSTRING(result));
 					}
