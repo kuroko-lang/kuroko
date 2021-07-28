@@ -411,45 +411,39 @@ KRK_METHOD(list,__iter__,{
 })
 
 #undef CURRENT_CTYPE
-#define CURRENT_CTYPE KrkInstance*
+
+struct ListIterator {
+	KrkInstance inst;
+	KrkValue l;
+	size_t i;
+};
+
+#define CURRENT_CTYPE struct ListIterator *
+#define IS_listiterator(o) krk_isInstanceOf(o,vm.baseClasses->listiteratorClass)
+#define AS_listiterator(o) (struct ListIterator*)AS_OBJECT(o)
+
+static void _listiterator_gcscan(KrkInstance * self) {
+	krk_markValue(((struct ListIterator*)self)->l);
+}
 
 KRK_METHOD(listiterator,__init__,{
 	METHOD_TAKES_EXACTLY(1);
 	CHECK_ARG(1,list,KrkList*,list);
-
-	krk_push(argv[0]);
-	krk_attachNamedValue(&self->fields, "l", OBJECT_VAL(list));
-	krk_attachNamedValue(&self->fields, "i", INTEGER_VAL(0));
-	krk_pop();
-
+	self->l = argv[1];
+	self->i = 0;
 	return argv[0];
 })
 
 KRK_METHOD(listiterator,__call__,{
-	KrkValue _list;
-	KrkValue _counter;
-	const char * errorStr = NULL;
-
-	if (!krk_tableGet(&self->fields, OBJECT_VAL(S("l")), &_list)) {
-		errorStr = "no list pointer";
-		goto _corrupt;
-	}
-	if (!krk_tableGet(&self->fields, OBJECT_VAL(S("i")), &_counter)) {
-		errorStr = "no index";
-		goto _corrupt;
-	}
-
-	if ((size_t)AS_INTEGER(_counter) >= AS_LIST(_list)->count) {
+	KrkValue _list = self->l;
+	size_t _counter = self->i;
+	if (_counter >= AS_LIST(_list)->count) {
 		return argv[0];
 	} else {
-		krk_attachNamedValue(&self->fields, "i", INTEGER_VAL(AS_INTEGER(_counter)+1));
-		return AS_LIST(_list)->values[AS_INTEGER(_counter)];
+		self->i = _counter + 1;
+		return AS_LIST(_list)->values[_counter];
 	}
-
-_corrupt:
-	return krk_runtimeError(vm.exceptions->typeError, "Corrupt list iterator: %s", errorStr);
 })
-
 
 static KrkValue _sorted(int argc, KrkValue argv[], int hasKw) {
 	if (argc != 1) return krk_runtimeError(vm.exceptions->argumentError,"%s() takes %s %d argument%s (%d given)","sorted","exactly",1,"",argc);
@@ -565,6 +559,8 @@ void _createAndBind_listClass(void) {
 		"Creates a new, reversed list from the elements of @p iterable.");
 
 	KrkClass * listiterator = ADD_BASE_CLASS(vm.baseClasses->listiteratorClass, "listiterator", vm.baseClasses->objectClass);
+	listiterator->allocSize = sizeof(struct ListIterator);
+	listiterator->_ongcscan = _listiterator_gcscan;
 	BIND_METHOD(listiterator,__init__);
 	BIND_METHOD(listiterator,__call__);
 	krk_finalizeClass(listiterator);
