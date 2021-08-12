@@ -51,16 +51,22 @@ class Gb18030IncrementalEncoder(IncrementalEncoder):
                 if ord(i) == 0xE7C7:
                     pointer = 7457
                 else:
-                    let basepointer = 0
-                    let basecodepoint = 0
-                    for nexttuple in more_dbdata.gb_surrogate_ranges:
-                        let nextpointer = nexttuple[0]
-                        let nextcodepoint = nexttuple[1]
-                        if nextcodepoint > ord(i):
+                    let leftindex = 0
+                    let rightindex = len(more_dbdata.gb_surrogate_ranges) - 1
+                    while leftindex != rightindex:
+                        if leftindex == rightindex - 1:
+                            if more_dbdata.gb_surrogate_ranges[rightindex][1] > ord(i):
+                                rightindex = leftindex
+                            else:
+                                leftindex = rightindex
                             break
-                        basepointer = nextpointer
-                        basecodepoint = nextcodepoint
-                    pointer = (ord(i) - basecodepoint) + basepointer
+                        let centreindex = (leftindex + rightindex) // 2
+                        if more_dbdata.gb_surrogate_ranges[centreindex][1] > ord(i):
+                            rightindex = centreindex
+                        else:
+                            leftindex = centreindex
+                    pointer = ((ord(i) - more_dbdata.gb_surrogate_ranges[leftindex][1]) 
+                        + more_dbdata.gb_surrogate_ranges[rightindex][0])
                 let running = pointer
                 let first = 0x81 + (running // (10 * 126 * 10))
                 running %= 10 * 126 * 10
@@ -125,22 +131,28 @@ class Gb18030IncrementalDecoder(IncrementalDecoder):
             else if bytemode == 4 and len(leader) == 2 and (0x81 <= i and i <= 0xFE):
                 leader.append(i)
                 offset += 1
-            else if bytemode == 4 and len(leader) == 3 and _get_gbsurrogate_pointer(leader, i):
+            else if bytemode == 4 and len(leader) == 3 and (_get_gbsurrogate_pointer(leader, i) != None):
                 let pointer = _get_gbsurrogate_pointer(leader, i)
                 let codepoint
                 if pointer == 7457:
                     codepoint = 0xE7C7
                 else:
-                    let basecodepoint = 0
-                    let basepointer = 0
-                    for nexttuple in more_dbdata.gb_surrogate_ranges:
-                        let nextpointer = nexttuple[0]
-                        let nextcodepoint = nexttuple[1]
-                        if nextpointer > pointer:
+                    let leftindex = 0
+                    let rightindex = len(more_dbdata.gb_surrogate_ranges) - 1
+                    while leftindex != rightindex:
+                        if leftindex == rightindex - 1:
+                            if more_dbdata.gb_surrogate_ranges[rightindex][0] > pointer:
+                                rightindex = leftindex
+                            else:
+                                leftindex = rightindex
                             break
-                        basecodepoint = nextcodepoint
-                        basepointer = nextpointer
-                    codepoint = (pointer - basepointer) + basecodepoint
+                        let centreindex = (leftindex + rightindex) // 2
+                        if more_dbdata.gb_surrogate_ranges[centreindex][0] > pointer:
+                            rightindex = centreindex
+                        else:
+                            leftindex = centreindex
+                    codepoint = ((pointer - more_dbdata.gb_surrogate_ranges[leftindex][0]) 
+                        + more_dbdata.gb_surrogate_ranges[rightindex][1])
                 out.add(chr(codepoint))
                 offset += 1
                 bytemode = 1
