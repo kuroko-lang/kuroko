@@ -12,6 +12,8 @@ class Cp037IncrementalEncoder(BaseEbcdicIncrementalEncoder):
 
     This is what might be considered the "default" EBCDIC set, and is used in the United States,
     the Netherlands, Portugal, Brazil, Australia and New Zealand, and on the ESA/390 in Canada.
+    Amongst EBCDIC pages with the Latin-1 character repertoire, it is characterised by placing the
+    hard brackets (`[]`) at 0xBA and 0xBB.
     """
     name = 'cp037'
     html5name = None
@@ -25,6 +27,8 @@ class Cp037IncrementalDecoder(BaseEbcdicIncrementalDecoder):
 
     This is what might be considered the "default" EBCDIC set, and is used in the United States,
     the Netherlands, Portugal, Brazil, Australia and New Zealand, and on the ESA/390 in Canada.
+    Amongst EBCDIC pages with the Latin-1 character repertoire, it is characterised by placing the
+    hard brackets (`[]`) at 0xBA and 0xBB.
     """
     name = 'cp037'
     html5name = None
@@ -37,7 +41,9 @@ register_kuroko_codec(['cp037', '037', 'csibm037', 'ebcdic-cp-ca', 'ebcdic-cp-nl
 
 class Cp273IncrementalEncoder(BaseEbcdicIncrementalEncoder):
     """
-    IncrementalEncoder implementation for EBCDIC-273 (used in German-speaking locales).
+    IncrementalEncoder implementation for EBCDIC-273 (used in German-speaking locales). This is
+    somewhat related to EBCDIC-500, but with several character swaps corresponding to the
+    differences between DIN 66003 and ASCII.
     """
     name = 'cp273'
     html5name = None
@@ -47,7 +53,9 @@ class Cp273IncrementalEncoder(BaseEbcdicIncrementalEncoder):
 
 class Cp273IncrementalDecoder(BaseEbcdicIncrementalDecoder):
     """
-    IncrementalDecoder implementation for EBCDIC-273 (used in German-speaking locales).
+    IncrementalDecoder implementation for EBCDIC-273 (used in German-speaking locales). This is
+    somewhat related to EBCDIC-500, but with several character swaps corresponding to the
+    differences between DIN 66003 and ASCII.
     """
     name = 'cp273'
     html5name = None
@@ -60,7 +68,7 @@ register_kuroko_codec(['cp273', '273', 'ibm273', 'csibm273'], Cp273IncrementalEn
 
 class Cp424IncrementalEncoder(BaseEbcdicIncrementalEncoder):
     """
-    IncrementalEncoder implementation for EBCDIC-273 (used in Hebrew-speaking locales).
+    IncrementalEncoder implementation for EBCDIC-424 (used in Hebrew-speaking locales).
     """
     name = 'cp424'
     html5name = None
@@ -70,7 +78,7 @@ class Cp424IncrementalEncoder(BaseEbcdicIncrementalEncoder):
 
 class Cp424IncrementalDecoder(BaseEbcdicIncrementalDecoder):
     """
-    IncrementalEncoder implementation for EBCDIC-273 (used in Hebrew-speaking locales).
+    IncrementalEncoder implementation for EBCDIC-424 (used in Hebrew-speaking locales).
     """
     name = 'cp424'
     html5name = None
@@ -109,7 +117,8 @@ class Cp500IncrementalEncoder(BaseEbcdicIncrementalEncoder):
     IncrementalEncoder implementation for EBCDIC-500.
 
     This is the so-called "International" EBCDIC locale, used in Belgium and Switzerland, as well
-    as on the AS/400 in Canada.
+    as on the AS/400 in Canada. Amongst EBCDIC pages with the Latin-1 character repertoire, it is
+    characterised by placing the hard brackets (`[]`) at 0x4A and 0x5A.
     """
     name = 'cp500'
     html5name = None
@@ -122,7 +131,8 @@ class Cp500IncrementalDecoder(BaseEbcdicIncrementalDecoder):
     IncrementalDecoder implementation for EBCDIC-500.
 
     This is the so-called "International" EBCDIC locale, used in Belgium and Switzerland, as well
-    as on the AS/400 in Canada.
+    as on the AS/400 in Canada. Amongst EBCDIC pages with the Latin-1 character repertoire, it is
+    characterised by placing the hard brackets (`[]`) at 0x4A and 0x5A.
     """
     name = 'cp500'
     html5name = None
@@ -651,7 +661,8 @@ register_kuroko_codec(['cp1125', '1125', 'ibm1125', 'cp866u', 'ruscii'], Cp1125I
 
 class Cp1140IncrementalEncoder(BaseEbcdicIncrementalEncoder):
     """
-    IncrementalEncoder implementation for EBCDIC-1140 (EBCDIC with Euro sign).
+    IncrementalEncoder implementation for EBCDIC-1140 (EBCDIC with Euro sign). In particular, this
+    is the Euro update of EBCDIC-037.
     """
     name = 'cp1140'
     html5name = None
@@ -661,7 +672,8 @@ class Cp1140IncrementalEncoder(BaseEbcdicIncrementalEncoder):
 
 class Cp1140IncrementalDecoder(BaseEbcdicIncrementalDecoder):
     """
-    IncrementalDecoder implementation for EBCDIC-1140 (EBCDIC with Euro sign).
+    IncrementalDecoder implementation for EBCDIC-1140 (EBCDIC with Euro sign). In particular, this
+    is the Euro update of EBCDIC-037.
     """
     name = 'cp1140'
     html5name = None
@@ -749,7 +761,7 @@ class PalmosIncrementalEncoder(AsciiIncrementalEncoder):
     """
     IncrementalEncoder implementation for the PalmOS encoding.
 
-    This is an modification of ISO-8859-1 along similar lines to Windows-1252.
+    This is a modification of ISO-8859-1 along similar lines to Windows-1252.
     """
     name = 'palmos'
     html5name = None
@@ -761,7 +773,7 @@ class PalmosIncrementalDecoder(AsciiIncrementalDecoder):
     """
     IncrementalDecoder implementation for the PalmOS encoding.
 
-    This is an modification of ISO-8859-1 along similar lines to Windows-1252.
+    This is a modification of ISO-8859-1 along similar lines to Windows-1252.
     """
     name = 'palmos'
     html5name = None
