@@ -97,7 +97,8 @@ MATH_ONE(erfc)
 MATH_ONE(gamma)
 MATH_ONE(lgamma)
 #endif
-MATH_ONE_NAME(log,log1p)
+MATH_ONE(log1p)
+MATH_ONE(expm1)
 
 #define MATH_TWO(func) \
 static KrkValue _math_ ## func(int argc, KrkValue argv[], int hasKw) { \
@@ -249,7 +250,10 @@ KrkValue krk_module_onload_math(void) {
 		"@brief Somehow different from `fmod`.");
 #endif
 	KRK_DOC(bind(log1p),
-		"@brief Equivalent to `log(x) + 1`\n"
+		"@brief Equivalent to `log(x + 1)`\n"
+		"@arguments x");
+	KRK_DOC(bind(expm1),
+		"@brief Equivalent to `exp(x) - 1`\n"
 		"@arguments x");
 	KRK_DOC(bind(pow),
 		"@brief Calculates `x^p`\n"
