@@ -285,12 +285,9 @@ KrkValue krk_module_onload_math(void) {
 	krk_defineNative(&vm.baseClasses->floatClass->methods, "__pow__", _math_pow);
 
 	krk_attachNamedValue(&module->fields, "pi",  FLOATING_VAL(M_PI));
-#ifndef __toaru__
-	/* TODO: Add these to toaru... */
 	krk_attachNamedValue(&module->fields, "e",   FLOATING_VAL(M_E));
 	krk_attachNamedValue(&module->fields, "inf", FLOATING_VAL(INFINITY));
 	krk_attachNamedValue(&module->fields, "nan", FLOATING_VAL(NAN));
-#endif
 
 	krk_pop();
 	return OBJECT_VAL(module);
