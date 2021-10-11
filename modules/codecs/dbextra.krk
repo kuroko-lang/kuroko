@@ -871,9 +871,14 @@ class Utf32IncrementalDecoder(IncrementalDecoder):
                 else if i == 0xFFFE0000:
                     self.state = 1
                     i = None
-                else if i & 0xFF000000:
-                    # UTF-32's highest byte will never be used, so if it has a value it's obviously
-                    #   the other endian.
+                else if i & 0xFFE00000:
+                    # UTF-32's highest eleven bits will never be used, so if they have a value it's
+                    #   obviously the other endian.
+                    self.state = 1
+                    i = data[offset + 3] | (data[offset + 2] << 8) | (data[offset + 1] << 16) | (data[offset] << 24)
+                else if not i & 0xFFFF:
+                    # More likely to the the other endian than the first character in a plane (null,
+                    #   a Linear B character, two rare Chinese characters and two PUA characters).
                     self.state = 1
                     i = data[offset + 3] | (data[offset + 2] << 8) | (data[offset + 1] << 16) | (data[offset] << 24)
                 else:
