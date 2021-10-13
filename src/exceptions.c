@@ -105,10 +105,11 @@ static KrkValue _syntaxerror_str(int argc, KrkValue argv[], int hasKw) {
 	if (AS_INTEGER(colno) <= 0) colno = INTEGER_VAL(1);
 
 	krk_push(OBJECT_VAL(S("  File \"{}\", line {}{}\n    {}\n    {}^\n{}: {}")));
-	char * tmp = malloc(AS_INTEGER(colno));
-	memset(tmp,' ',AS_INTEGER(colno));
-	tmp[AS_INTEGER(colno)-1] = '\0';
-	krk_push(OBJECT_VAL(krk_takeString(tmp,AS_INTEGER(colno)-1)));
+	unsigned int column = AS_INTEGER(colno);
+	char * tmp = malloc(column);
+	memset(tmp,' ',column);
+	tmp[column-1] = '\0';
+	krk_push(OBJECT_VAL(krk_takeString(tmp,column-1)));
 	krk_push(OBJECT_VAL(self->_class->name));
 	if (IS_STRING(func)) {
 		krk_push(OBJECT_VAL(S(" in ")));

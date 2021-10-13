@@ -153,7 +153,7 @@ KRK_METHOD(str,__getitem__,{
 	CHECK_ARG(1,int,krk_integer_type,asInt);
 	if (asInt < 0) asInt += (int)AS_STRING(argv[0])->codesLength;
 	if (asInt < 0 || asInt >= (int)AS_STRING(argv[0])->codesLength) {
-		return krk_runtimeError(vm.exceptions->indexError, "String index out of range: %d", asInt);
+		return krk_runtimeError(vm.exceptions->indexError, "String index out of range: " PRIkrk_int, asInt);
 	}
 	if (self->type == KRK_STRING_ASCII) {
 		return OBJECT_VAL(krk_copyString(self->chars + asInt, 1));

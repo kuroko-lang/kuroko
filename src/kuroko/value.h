@@ -175,8 +175,8 @@ typedef union {
 
 #define NONE_VAL(value)     ((KrkValue)(KRK_VAL_MASK_LOW | KRK_VAL_MASK_NONE))
 #define NOTIMPL_VAL(value)  ((KrkValue)(KRK_VAL_MASK_LOW | KRK_VAL_MASK_NOTIMPL))
-#define BOOLEAN_VAL(value)  ((KrkValue)((uint32_t)(value) | KRK_VAL_MASK_BOOLEAN))
-#define INTEGER_VAL(value)  ((KrkValue)((uint32_t)(value) | KRK_VAL_MASK_INTEGER))
+#define BOOLEAN_VAL(value)  ((KrkValue)(((uint64_t)(value) & KRK_VAL_MASK_LOW) | KRK_VAL_MASK_BOOLEAN))
+#define INTEGER_VAL(value)  ((KrkValue)(((uint64_t)(value) & KRK_VAL_MASK_LOW) | KRK_VAL_MASK_INTEGER))
 #define KWARGS_VAL(value)   ((KrkValue)((uint32_t)(value) | KRK_VAL_MASK_KWARGS))
 #define OBJECT_VAL(value)   ((KrkValue)(((uintptr_t)(value) & KRK_VAL_MASK_LOW) | KRK_VAL_MASK_OBJECT))
 #define HANDLER_VAL(ty,ta)  ((KrkValue)((uint32_t)((((uint16_t)ty) << 16) | ((uint16_t)ta)) | KRK_VAL_MASK_HANDLER))
@@ -184,8 +184,11 @@ typedef union {
 
 #define KRK_VAL_TYPE(value) ((value) >> 48)
 
-#define AS_BOOLEAN(value)   ((krk_integer_type)((value) & KRK_VAL_MASK_LOW))
-#define AS_INTEGER(value)   ((krk_integer_type)((value) & KRK_VAL_MASK_LOW))
+#define KRK_IX(value)  ((uint64_t)((value) & KRK_VAL_MASK_LOW))
+#define KRK_SX(value)  ((uint64_t)((value) & 0x800000000000))
+#define AS_INTEGER(value) ((krk_integer_type)(KRK_SX(value) ? (KRK_IX(value) | KRK_VAL_MASK_NONE) : (KRK_IX(value))))
+#define AS_BOOLEAN(value) AS_INTEGER(value)
+
 #define AS_NOTIMPL(value)   ((krk_integer_type)((value) & KRK_VAL_MASK_LOW))
 #define AS_HANDLER(value)   ((uint32_t)((value) & KRK_VAL_MASK_LOW))
 #define AS_OBJECT(value)    ((KrkObj*)(uintptr_t)((value) & KRK_VAL_MASK_LOW))

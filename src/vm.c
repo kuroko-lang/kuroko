@@ -17,8 +17,8 @@
 #include "private.h"
 
 #define KRK_VERSION_MAJOR  "1"
-#define KRK_VERSION_MINOR  "1"
-#define KRK_VERSION_PATCH  "2"
+#define KRK_VERSION_MINOR  "2"
+#define KRK_VERSION_PATCH  "0"
 
 #define KRK_VERSION_EXTRA_BASE  ""
 
@@ -1022,7 +1022,8 @@ int krk_isFalsey(KrkValue value) {
 	/* If it has a length, and that length is 0, it's Falsey */
 	if (type->_len) {
 		krk_push(value);
-		return !AS_INTEGER(krk_callDirect(type->_len,1));
+		KrkValue result = krk_callDirect(type->_len,1);
+		return !AS_INTEGER(result);
 	}
 	return 0; /* Assume anything else is truthy */
 }
