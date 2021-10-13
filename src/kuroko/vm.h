@@ -166,6 +166,7 @@ struct BaseClasses {
 	KrkClass * codeobjectClass;      /**< Static compiled bytecode container (KrkCodeObject) */
 	KrkClass * generatorClass;       /**< Generator object. */
 	KrkClass * notImplClass;         /**< NotImplementedType */
+	KrkClass * bytearrayClass;       /**< Mutable array of bytes */
 };
 
 /**

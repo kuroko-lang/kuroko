@@ -207,8 +207,8 @@ static inline KrkValue discardStringBuilder(struct StringBuilder * sb) {
 #define IS_dictkeys(o) krk_isInstanceOf(o,vm.baseClasses->dictkeysClass)
 #define AS_dictkeys(o) ((struct DictKeys*)AS_OBJECT(o))
 
-#define IS_bytesiterator(o) (krk_isInstanceOf(o,vm.baseClasses->bytesiteratorClass))
-#define AS_bytesiterator(o) (AS_INSTANCE(o))
+#define IS_bytearray(o) (krk_isInstanceOf(o,vm.baseClasses->bytearrayClass))
+#define AS_bytearray(o) ((struct ByteArray*)AS_INSTANCE(o))
 
 #ifndef unpackError
 #define unpackError(fromInput) return krk_runtimeError(vm.exceptions->typeError, "'%s' object is not iterable", krk_typeName(fromInput));
