@@ -333,6 +333,36 @@ KRK_METHOD(socket,send,{
 	return INTEGER_VAL(result);
 })
 
+KRK_METHOD(socket,sendto,{
+	METHOD_TAKES_AT_LEAST(1);
+	METHOD_TAKES_AT_MOST(3);
+	CHECK_ARG(1,bytes,KrkBytes*,buf);
+	int flags = 0;
+	if (argc > 3) {
+		CHECK_ARG(2,int,krk_integer_type,_flags);
+		flags = _flags;
+	}
+
+	struct sockaddr_storage sock_addr;
+	socklen_t sock_size = 0;
+
+	/* What do we take? I guess a tuple for AF_INET */
+	int parseResult = socket_parse_address(self, argv[argc-1], &sock_addr, &sock_size);
+	if (parseResult) {
+		if (!(krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION))
+			return krk_runtimeError(SocketError, "Unspecified error.");
+		return NONE_VAL();
+	}
+
+	ssize_t result = sendto(self->sockfd, (void*)buf->bytes, buf->length, flags, (struct sockaddr*)&sock_addr, sock_size);
+	if (result < 0) {
+		return krk_runtimeError(SocketError, "Socket error: %s", strerror(errno));
+	}
+
+	return INTEGER_VAL(result);
+})
+
+
 KRK_METHOD(socket,fileno,{
 	return INTEGER_VAL(self->sockfd);
 })
@@ -406,6 +436,11 @@ KrkValue krk_module_onload_socket(void) {
 	KRK_DOC(BIND_METHOD(socket,send),
 		"@brief Send data to a connected socket.\n"
 		"@arguments buf,[flags]\n\n"
+		"Send the data in the @ref bytes object @p buf to the socket. Returns the number "
+		"of bytes written to the socket.");
+	KRK_DOC(BIND_METHOD(socket,sendto),
+		"@brief Send data to an socket with a particular destination.\n"
+		"@arguments buf,[flags],addr\n\n"
 		"Send the data in the @ref bytes object @p buf to the socket. Returns the number "
 		"of bytes written to the socket.");
 	KRK_DOC(BIND_METHOD(socket,fileno),
