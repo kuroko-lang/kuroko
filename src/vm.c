@@ -18,7 +18,7 @@
 
 #define KRK_VERSION_MAJOR  "1"
 #define KRK_VERSION_MINOR  "2"
-#define KRK_VERSION_PATCH  "0"
+#define KRK_VERSION_PATCH  "1"
 
 #define KRK_VERSION_EXTRA_BASE  ""
 
@@ -2878,6 +2878,7 @@ _finishReturn: (void)0;
 #define unpackArray(counter, indexer) do { \
 					if (counter != count) { \
 						krk_runtimeError(vm.exceptions->valueError, "Wrong number of values to unpack (wanted %d, got %d)", (int)count, (int)counter); \
+						break; \
 					} \
 					for (size_t i = 1; i < counter; ++i) { \
 						krk_push(indexer); \
