@@ -32,6 +32,18 @@ typedef enum {
 	KRK_VAL_NOTIMPL  = 0x7FFE,
 } KrkValueType;
 
+/*
+ * The following poorly-named macros define bit patterns for identifying
+ * various boxed types.
+ *
+ * Boxing is done by first setting all of the bits of MASK_NAN. If all of
+ * these bits are set, a value is not a float. If any of them are not set,
+ * then a value is a float - and possibly a real NaN.
+ *
+ * Three other bits - one before and two after the MASK_NAN bits - determine
+ * what type the value actually is. KWARGS sets none of the identifying bits,
+ * NONE sets all of them.
+ */
 #define KRK_VAL_MASK_BOOLEAN ((uint64_t)0xFFFC000000000000) /* 1..1100 */
 #define KRK_VAL_MASK_INTEGER ((uint64_t)0xFFFD000000000000) /* 1..1101 */
 #define KRK_VAL_MASK_HANDLER ((uint64_t)0xFFFE000000000000) /* 1..1110 */
@@ -194,6 +206,11 @@ typedef union {
 #define AS_OBJECT(value)    ((KrkObj*)(uintptr_t)((value) & KRK_VAL_MASK_LOW))
 #define AS_FLOATING(value)  (((KrkValueDbl){.val = (value)}).dbl)
 
+/* This is a silly optimization: because of the arrangement of the identifying
+ * bits, (TYPE & MASK_HANDLER) == MASK_BOOLEAN can be used to tell if something
+ * is either an integer or a boolean - and booleans are also integers, so this
+ * is how we check if something is an integer in the general case; for everything
+ * else, we check against MASK_NONE because it sets all the identifying bits. */
 #define IS_INTEGER(value)   (((value) & KRK_VAL_MASK_HANDLER) == KRK_VAL_MASK_BOOLEAN)
 #define IS_BOOLEAN(value)   (((value) & KRK_VAL_MASK_NONE) == KRK_VAL_MASK_BOOLEAN)
 #define IS_NONE(value)      (((value) & KRK_VAL_MASK_NONE) == KRK_VAL_MASK_NONE)
@@ -201,6 +218,7 @@ typedef union {
 #define IS_OBJECT(value)    (((value) & KRK_VAL_MASK_NONE) == KRK_VAL_MASK_OBJECT)
 #define IS_KWARGS(value)    (((value) & KRK_VAL_MASK_NONE) == KRK_VAL_MASK_KWARGS)
 #define IS_NOTIMPL(value)   (((value) & KRK_VAL_MASK_NONE) == KRK_VAL_MASK_NOTIMPL)
+/* ... and as we said above, if any of the MASK_NAN bits are unset, it's a float. */
 #define IS_FLOATING(value)  (((value) & KRK_VAL_MASK_NAN) != KRK_VAL_MASK_NAN)
 
 #define AS_HANDLER_TYPE(value)    (AS_HANDLER(value) >> 16)

@@ -138,9 +138,13 @@ void krk_printValueSafe(FILE * f, KrkValue printable) {
 }
 
 int krk_valuesSame(KrkValue a, KrkValue b) {
+	/* This is accidentally correctly identifying 0.0 is not -0.0, and also short circuits some non-equal floats early. */
 	if (KRK_VAL_TYPE(a) != KRK_VAL_TYPE(b)) return 0;
+
 	if (IS_OBJECT(a)) return AS_OBJECT(a) == AS_OBJECT(b);
-	return krk_valuesEqual(a,b);
+
+	/* This tricky little bit of boolean logic establishes nan is nan */
+	return krk_valuesEqual(a,b) || (!krk_valuesEqual(a,a) && !krk_valuesEqual(b,b));
 }
 
 __attribute__((hot))
