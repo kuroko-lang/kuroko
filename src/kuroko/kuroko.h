@@ -7,19 +7,18 @@
 #include <stddef.h>
 #include <stdlib.h>
 
-#if defined(__EMSCRIPTEN__)
 typedef int64_t krk_integer_type;
+
+#if defined(__EMSCRIPTEN__) || defined(EFI_PLATFORM)
 # define PRIkrk_int "%lld"
 # define PRIkrk_hex "%llx"
 # define parseStrInt strtoll
 #elif defined(_WIN32)
-typedef int64_t krk_integer_type;
 # define PRIkrk_int "%I64d"
 # define PRIkrk_hex "%I64x"
 # define parseStrInt strtoll
 # define ENABLE_THREADING
 # else
-typedef int64_t krk_integer_type;
 # define PRIkrk_int "%ld"
 # define PRIkrk_hex "%lx"
 # define parseStrInt strtol
