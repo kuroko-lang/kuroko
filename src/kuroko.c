@@ -662,10 +662,14 @@ static void findInterpreter(char * argv[]) {
 #else
 	/* Try asking /proc */
 	char tmp[4096];
-	char * binpath = realpath("/proc/self/exe", tmp);
+	char * binpath = realpath("/proc/self/exe", NULL);
 	if (!binpath || (access(binpath, X_OK) != 0)) {
+		if (binpath) {
+			free(binpath);
+			binpath = NULL;
+		}
 		if (strchr(argv[0], '/')) {
-			binpath = realpath(argv[0], tmp);
+			binpath = realpath(argv[0], NULL);
 		} else {
 			/* Search PATH for argv[0] */
 			char * p = getenv("PATH");
@@ -678,7 +682,7 @@ static void findInterpreter(char * argv[]) {
 
 				snprintf(tmp, 4096, "%s/%s", path, argv[0]);
 				if (access(tmp, X_OK) == 0) {
-					binpath = tmp;
+					binpath = strdup(tmp);
 					break;
 				}
 				path = next;
@@ -687,7 +691,7 @@ static void findInterpreter(char * argv[]) {
 		}
 	}
 	if (binpath) {
-		vm.binpath = strdup(binpath);
+		vm.binpath = binpath;
 	} /* Else, give up at this point and just don't attach it at all. */
 #endif
 }
