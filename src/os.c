@@ -380,10 +380,12 @@ KRK_FUNC(pipe,{
 	return krk_pop();
 })
 
+#ifdef sync
 KRK_FUNC(sync,{
 	FUNCTION_TAKES_NONE();
 	sync();
 })
+#endif
 
 KRK_FUNC(kill,{
 	FUNCTION_TAKES_EXACTLY(2);
@@ -826,8 +828,10 @@ void _createAndBind_osMod(void) {
 		"@brief Create a symbolic link.\n"
 		"@arguments src,dst\n\n"
 		"Creates a symbolic link at @p src pointing to @p dst.");
+	#ifdef sync
 	KRK_DOC(BIND_FUNC(module,sync),
 		"@brief Commit filesystem caches to disk.");
+	#endif
 
 	KRK_DOC(BIND_FUNC(module,tcgetpgrp),
 		"@brief Get the terminal foreground process group.\n"
