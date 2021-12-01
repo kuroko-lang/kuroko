@@ -96,14 +96,22 @@ static KrkClass * Environ;
 #define IS_Environ(o) (krk_isInstanceOf(o,Environ))
 #define CURRENT_CTYPE KrkInstance*
 
+static int _setVar(KrkString * key, KrkString * val) {
+#ifndef putenv
+	return setenv(key->chars, val->chars, 1);
+#else
+	size_t len = key->length + val->length;
+	char * tmp = malloc(len);
+	snprintf(tmp, len, "%s=%s", key->chars, val->chars);
+	int r= putenv(tmp);
+#endif
+}
+
 KRK_METHOD(Environ,__setitem__,{
 	METHOD_TAKES_EXACTLY(2);
 	CHECK_ARG(1,str,KrkString*,key);
 	CHECK_ARG(2,str,KrkString*,val);
-	size_t len = key->length + val->length;
-	char * tmp = malloc(len);
-	snprintf(tmp, len, "%s=%s", key->chars, val->chars);
-	int r = putenv(tmp);
+	int r = _setVar(key,val);
 	if (r == 0) {
 		krk_push(argv[0]);
 		krk_push(argv[1]);
