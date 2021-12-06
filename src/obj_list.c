@@ -66,6 +66,17 @@ KRK_METHOD(list,__setitem__,{
 	if (vm.globalFlags & KRK_GLOBAL_THREADS) pthread_rwlock_unlock(&self->rwlock);
 })
 
+KRK_METHOD(list,__eq__,{
+	METHOD_TAKES_EXACTLY(1);
+	if (!IS_list(argv[1])) return NOTIMPL_VAL();
+	KrkList * them = AS_list(argv[1]);
+	if (self->values.count != them->values.count) return BOOLEAN_VAL(0);
+	for (size_t i = 0; i < self->values.count; ++i) {
+		if (!krk_valuesEqual(self->values.values[i], them->values.values[i])) return BOOLEAN_VAL(0);
+	}
+	return BOOLEAN_VAL(1);
+})
+
 KRK_METHOD(list,append,{
 	METHOD_TAKES_EXACTLY(1);
 	pthread_rwlock_wrlock(&self->rwlock);
@@ -476,6 +487,7 @@ void _createAndBind_listClass(void) {
 	list->_ongcscan = _list_gcscan;
 	list->_ongcsweep = _list_gcsweep;
 	BIND_METHOD(list,__init__);
+	BIND_METHOD(list,__eq__);
 	BIND_METHOD(list,__getitem__);
 	BIND_METHOD(list,__setitem__);
 	BIND_METHOD(list,__len__);
