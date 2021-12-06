@@ -512,6 +512,11 @@ KRK_FUNC(print,{
 			endLen = AS_STRING(endVal)->length;
 		}
 	}
+	if (!argc) {
+		for (size_t j = 0; j < endLen; ++j) {
+			fputc(end[j], stdout);
+		}
+	}
 	for (int i = 0; i < argc; ++i) {
 		KrkValue printable = argv[i];
 		if (IS_STRING(printable)) { /* krk_printValue runs repr */
