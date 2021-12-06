@@ -39,9 +39,13 @@ static void _dict_gcsweep(KrkInstance * self) {
 #define CURRENT_NAME  self
 
 KRK_METHOD(dict,__init__,{
-	METHOD_TAKES_NONE();
-	krk_initTable(&self->entries);
-	return argv[0];
+	if (hasKw) {
+		return argv[argc];
+	} else {
+		METHOD_TAKES_NONE();
+		krk_initTable(&self->entries);
+		return argv[0];
+	}
 })
 
 KRK_METHOD(dict,__getitem__,{
