@@ -97,7 +97,7 @@ static KrkClass * Environ;
 #define CURRENT_CTYPE KrkInstance*
 
 static int _setVar(KrkString * key, KrkString * val) {
-#ifndef putenv
+#ifndef _WIN32
 	return setenv(key->chars, val->chars, 1);
 #else
 	size_t len = key->length + val->length;
