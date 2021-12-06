@@ -151,13 +151,15 @@ KRK_METHOD(tuple,__hash__,{
 	if (self->obj.flags & KRK_OBJ_FLAGS_VALID_HASH) {
 		return INTEGER_VAL(self->obj.hash);
 	}
-	self->obj.hash = self->values.count;
+	uint32_t t = self->values.count;
+	uint32_t m = 0x3456;
 	for (size_t i = 0; i < (size_t)self->values.count; ++i) {
-		self->obj.hash <<= 8;
 		uint32_t step = 0;
 		if (krk_hashValue(self->values.values[i], &step)) goto _unhashable;
-		self->obj.hash ^= step;
+		t = (t ^ step) * m;
+		m += 2 * (self->values.count - i) + 82520;
 	}
+	self->obj.hash = t;
 	self->obj.flags |= KRK_OBJ_FLAGS_VALID_HASH;
 	return INTEGER_VAL(self->obj.hash);
 _unhashable:
