@@ -54,9 +54,7 @@ static KrkValue _math_ ## func(int argc, KrkValue argv[], int hasKw) { \
 
 MATH_DELEGATE(ceil)
 MATH_DELEGATE(floor)
-#ifdef trunc
 MATH_DELEGATE(trunc)
-#endif
 
 #define MATH_ONE_NAME(func,name) \
 static KrkValue _math_ ## name(int argc, KrkValue argv[], int hasKw) { \
@@ -69,9 +67,7 @@ static KrkValue _math_ ## name(int argc, KrkValue argv[], int hasKw) { \
 #define MATH_ONE(func) MATH_ONE_NAME(func,func)
 
 MATH_ONE(exp)
-#ifdef expm1
 MATH_ONE(expm1)
-#endif
 MATH_ONE(log2)
 MATH_ONE(log10)
 MATH_ONE(sqrt)
@@ -81,24 +77,17 @@ MATH_ONE(atan)
 MATH_ONE(cos)
 MATH_ONE(sin)
 MATH_ONE(tan)
-#ifdef acosh
 MATH_ONE(acosh)
 MATH_ONE(asinh)
 MATH_ONE(atanh)
-#endif
 MATH_ONE(cosh)
 MATH_ONE(sinh)
 MATH_ONE(tanh)
-#ifdef erf
 MATH_ONE(erf)
 MATH_ONE(erfc)
-#endif
-#ifdef gamma
 MATH_ONE(gamma)
 MATH_ONE(lgamma)
-#endif
 MATH_ONE(log1p)
-MATH_ONE(expm1)
 
 #define MATH_TWO(func) \
 static KrkValue _math_ ## func(int argc, KrkValue argv[], int hasKw) { \
@@ -110,13 +99,9 @@ static KrkValue _math_ ## func(int argc, KrkValue argv[], int hasKw) { \
 	return FLOATING_VAL(func(AS_FLOATING(argv[0]),AS_FLOATING(argv[1]))); \
 }
 
-#ifdef copysign
 MATH_TWO(copysign)
-#endif
 MATH_TWO(fmod)
-#ifdef remainder
 MATH_TWO(remainder)
-#endif
 MATH_TWO(pow)
 MATH_TWO(atan2)
 
@@ -142,11 +127,9 @@ static KrkValue _math_ ## func(int argc, KrkValue argv[], int hasKw) { \
 	return BOOLEAN_VAL(func(AS_FLOATING(argv[0]))); \
 }
 
-#ifdef isfinite
 MATH_IS(isfinite)
 MATH_IS(isinf)
 MATH_IS(isnan)
-#endif
 
 #define bind(name) krk_defineNative(&module->fields, #name, _math_ ## name)
 
@@ -161,19 +144,15 @@ KrkValue krk_module_onload_math(void) {
 	KRK_DOC(bind(floor),
 		"@brief Returns the largest integer value not greater than the input.\n"
 		"@arguments x");
-#ifdef _math_trunc
 	KRK_DOC(bind(trunc),
 		"@brief Rounds the input towards zero to an integer.\n"
 		"@arguments x");
-#endif
 	KRK_DOC(bind(exp),
 		"@brief Returns the base-e exponentiation of the input.\n"
 		"@arguments x");
-#ifdef _math_expm1
 	KRK_DOC(bind(expm1),
 		"@brief Equivalent to `exp(x) - 1`.\n"
 		"@arguments x");
-#endif
 	KRK_DOC(bind(log2),
 		"@brief Calculates the base-2 logarithm of the input.\n"
 		"@arguments x");
@@ -201,7 +180,6 @@ KrkValue krk_module_onload_math(void) {
 	KRK_DOC(bind(tan),
 		"@brief Calculates the tangent of the radian input.\n"
 		"@arguments x");
-#ifdef _math_acosh
 	KRK_DOC(bind(acosh),
 		"@brief Calculates the inverse hyperbolic cosine of the input.\n"
 		"@arguments x");
@@ -211,7 +189,6 @@ KrkValue krk_module_onload_math(void) {
 	KRK_DOC(bind(atanh),
 		"@brief Calculates the inverse hyperbolic tangent of the input.\n"
 		"@arguments x");
-#endif
 	KRK_DOC(bind(cosh),
 		"@brief Calculates the hyperbolic cosine of the input.\n"
 		"@arguments x");
@@ -221,34 +198,26 @@ KrkValue krk_module_onload_math(void) {
 	KRK_DOC(bind(tanh),
 		"@brief Calculates the hyperbolic tangent of the input.\n"
 		"@arguments x");
-#ifdef _math_erf
 	KRK_DOC(bind(erf),
 		"@brief Calculates the error function of the input.\n"
 		"@arguments x");
 	KRK_DOC(bind(erfc),
 		"@brief Calculates the complementary error function of the input.\n"
 		"@arguments x");
-#endif
-#ifdef _math_gamma
 	KRK_DOC(bind(gamma),
 		"@brief Calculates the gamma of the input.\n"
 		"@arguments x");
 	KRK_DOC(bind(lgamma),
 		"@brief Calculates the log gamma of the input.\n"
 		"@arguments x");
-#endif
-#ifdef _math_copysign
 	KRK_DOC(bind(copysign),
 		"@brief Copies the sign from @p x to @p y\n"
 		"@arguments x,y");
-#endif
 	KRK_DOC(bind(fmod),
 		"@brief Returns the floating point remainder of @p x over @p y\n"
 		"@arguments x,y");
-#ifdef _math_remainder
 	KRK_DOC(bind(remainder),
 		"@brief Somehow different from `fmod`.");
-#endif
 	KRK_DOC(bind(log1p),
 		"@brief Equivalent to `log(x + 1)`\n"
 		"@arguments x");
@@ -265,7 +234,6 @@ KrkValue krk_module_onload_math(void) {
 		"@brief Converts a floating point input to a fractional and integer component pair, returned as a tuple.\n"
 		"@arguments x\n"
 		"@returns @ref tuple of two @ref int");
-#ifdef isfinite
 	KRK_DOC(bind(isfinite),
 		"@brief Determines if the input is finite.\n"
 		"@arguments x\n");
@@ -275,7 +243,6 @@ KrkValue krk_module_onload_math(void) {
 	KRK_DOC(bind(isnan),
 		"@brief Determines if the input is the floating point `NaN`.\n"
 		"@arguments x\n");
-#endif
 
 	/**
 	 * Maybe the math library should be a core one, but I'm not sure if I want
