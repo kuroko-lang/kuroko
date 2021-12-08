@@ -918,6 +918,20 @@ KRK_FUNC(next,{
 	return krk_callStack(0);
 })
 
+KRK_FUNC(abs,{
+	FUNCTION_TAKES_EXACTLY(1);
+	if (IS_INTEGER(argv[0])) {
+		krk_integer_type i = AS_INTEGER(argv[0]);
+		return INTEGER_VAL(i >= 0 ? i : -i);
+	} else if (IS_FLOATING(argv[0])) {
+		double i = AS_FLOATING(argv[0]);
+		return FLOATING_VAL(i >= 0 ? i : -i);
+	} else {
+		return krk_runtimeError(vm.exceptions->typeError, "bad operand type for 'abs()': '%s'",
+			krk_typeName(argv[0]));
+	}
+})
+
 #ifndef STATIC_ONLY
 static void module_sweep(KrkInstance * inst) {
 	struct KrkModule * module = (struct KrkModule*)inst;
@@ -1174,6 +1188,9 @@ void _createAndBind_builtins(void) {
 		"of @p iterables is exhuasted.");
 	BUILTIN_FUNCTION("next", FUNC_NAME(krk,next),
 		"@brief Compatibility function. Calls an iterable.\n"
+		"@arguments iterable");
+	BUILTIN_FUNCTION("abs", FUNC_NAME(krk,abs),
+		"@brief Obtain the absolute value of a numeric.\n"
 		"@arguments iterable");
 }
 
