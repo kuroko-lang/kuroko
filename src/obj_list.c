@@ -64,6 +64,7 @@ KRK_METHOD(list,__setitem__,{
 	LIST_WRAP_INDEX();
 	self->values.values[index] = argv[2];
 	if (vm.globalFlags & KRK_GLOBAL_THREADS) pthread_rwlock_unlock(&self->rwlock);
+	return argv[2];
 })
 
 KRK_METHOD(list,__eq__,{

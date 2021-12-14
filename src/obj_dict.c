@@ -59,6 +59,7 @@ KRK_METHOD(dict,__getitem__,{
 KRK_METHOD(dict,__setitem__,{
 	METHOD_TAKES_EXACTLY(2);
 	krk_tableSet(&self->entries, argv[1], argv[2]);
+	return argv[2];
 })
 
 KRK_METHOD(dict,__or__,{
