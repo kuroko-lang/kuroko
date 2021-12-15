@@ -583,6 +583,9 @@ static ssize_t resolveLocal(Compiler * compiler, KrkToken * name) {
 			if (local->depth == -1) {
 				error("Invalid recursive reference in declaration initializer");
 			}
+			if (local->depth == -2) {
+				continue;
+			}
 			return i;
 		}
 	}
@@ -1235,6 +1238,10 @@ static void typeHint(KrkToken name) {
 	current->enclosing->enclosed = NULL;
 }
 
+static void hideLocal(void) {
+	current->locals[current->localCount - 1].depth = -2;
+}
+
 static void argumentDefinition(void) {
 	if (match(TOKEN_EQUAL)) {
 		/*
@@ -1350,13 +1357,14 @@ static void function(FunctionType type, size_t blockWidth) {
 			}
 			ssize_t paramConstant = parseVariable("Expected parameter name.");
 			if (parser.hadError) goto _bail;
-			defineVariable(paramConstant);
+			hideLocal();
 			if (check(TOKEN_COLON)) {
 				KrkToken name = parser.previous;
 				match(TOKEN_COLON);
 				typeHint(name);
 			}
 			argumentDefinition();
+			defineVariable(paramConstant);
 		} while (match(TOKEN_COMMA));
 	}
 	stopEatingWhitespace();
@@ -1569,8 +1577,9 @@ static void lambda(int exprType) {
 		do {
 			ssize_t paramConstant = parseVariable("Expected parameter name.");
 			if (parser.hadError) goto _bail;
-			defineVariable(paramConstant);
+			hideLocal();
 			argumentDefinition();
+			defineVariable(paramConstant);
 		} while (match(TOKEN_COMMA));
 	}
 
