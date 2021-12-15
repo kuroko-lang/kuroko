@@ -1,0 +1,4 @@
+def foo(print=print):
+    print("hello world")
+
+foo()
