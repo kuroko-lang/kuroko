@@ -1,0 +1,12 @@
+
+let d = {1: 2, 3: 4, 5: 6}
+print(len(d))
+del d[3]
+print(len(d))
+
+let s = {1,2,3}
+print(len(s))
+s.remove(2)
+print(len(s))
+s.add(2)
+print(len(s))

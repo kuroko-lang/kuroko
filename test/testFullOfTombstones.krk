@@ -1,0 +1,44 @@
+let open = {(0,0)}
+open.remove( (0, 0) )
+(1, 0) not in open
+open.add( (1, 0) )
+(0, 1) not in open
+open.add( (0, 1) )
+open.remove( (0, 1) )
+(1, 1) not in open
+open.add( (1, 1) )
+(0, 2) not in open
+open.add( (0, 2) )
+open.remove( (1, 0) )
+(2, 0) not in open
+open.add( (2, 0) )
+open.remove( (2, 0) )
+(3, 0) not in open
+open.add( (3, 0) )
+(2, 1) not in open
+open.add( (2, 1) )
+open.remove( (1, 1) )
+(1, 2) not in open
+open.add( (1, 2) )
+open.remove( (0, 2) )
+(0, 3) not in open
+open.add( (0, 3) )
+open.remove( (2, 1) )
+(3, 1) not in open
+open.add( (3, 1) )
+(2, 2) not in open
+open.add( (2, 2) )
+open.remove( (3, 0) )
+(4, 0) not in open
+open.add( (4, 0) )
+open.remove( (0, 3) )
+(1, 3) not in open
+open.add( (1, 3) )
+print((0, 4) not in open)
+open.add( (0, 4) )
+open.remove( (1, 2) )
+open.remove( (2, 2) )
+print((3, 2) not in open)
+
+
+print("done")

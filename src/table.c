@@ -67,6 +67,7 @@ KrkTableEntry * krk_findEntry(KrkTableEntry * entries, size_t capacity, KrkValue
 			if (IS_NONE(entry->value)) {
 				return tombstone != NULL ? tombstone : entry;
 			} else {
+				if (tombstone == entry) return tombstone;
 				if (tombstone == NULL) tombstone = entry;
 			}
 		} else if (krk_valuesEqual(entry->key, key)) {
@@ -121,7 +122,7 @@ int krk_tableSet(KrkTable * table, KrkValue key, KrkValue value) {
 	KrkTableEntry * entry = krk_findEntry(table->entries, table->capacity, key);
 	if (!entry) return 0;
 	int isNewKey = IS_KWARGS(entry->key);
-	if (isNewKey && IS_NONE(entry->value)) table->count++;
+	if (isNewKey) table->count++;
 	entry->key = key;
 	entry->value = value;
 	return isNewKey;
@@ -167,8 +168,9 @@ int krk_tableDelete(KrkTable * table, KrkValue key) {
 	if (!entry || IS_KWARGS(entry->key)) {
 		return 0;
 	}
+	table->count--;
 	entry->key = KWARGS_VAL(0);
-	entry->value = BOOLEAN_VAL(1);
+	entry->value = KWARGS_VAL(0);
 	return 1;
 }
 
