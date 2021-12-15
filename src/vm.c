@@ -1508,10 +1508,10 @@ MAKE_BIT_OP(mod,%,rmod) /* not a bit op, but doesn't work on floating point */
 	KrkValue krk_operator_ ## name (KrkValue a, KrkValue b) { \
 		if (IS_INTEGER(a) && IS_INTEGER(b)) return BOOLEAN_VAL(AS_INTEGER(a) operator AS_INTEGER(b)); \
 		if (IS_FLOATING(a)) { \
-			if (IS_INTEGER(b)) return BOOLEAN_VAL(AS_FLOATING(a) operator AS_INTEGER(b)); \
+			if (IS_INTEGER(b)) return BOOLEAN_VAL(AS_FLOATING(a) operator (double)AS_INTEGER(b)); \
 			else if (IS_FLOATING(b)) return BOOLEAN_VAL(AS_FLOATING(a) operator AS_FLOATING(b)); \
 		} else if (IS_FLOATING(b)) { \
-			if (IS_INTEGER(a)) return BOOLEAN_VAL(AS_INTEGER(a) operator AS_INTEGER(b)); \
+			if (IS_INTEGER(a)) return BOOLEAN_VAL((double)AS_INTEGER(a) operator AS_FLOATING(b)); \
 		} \
 		return tryBind("__" #name "__", a, b, #operator, "__" #inv "__"); \
 	}
