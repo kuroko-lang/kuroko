@@ -18,6 +18,10 @@ typedef int64_t krk_integer_type;
 # define PRIkrk_hex "%I64x"
 # define parseStrInt strtoll
 # define ENABLE_THREADING
+#elif defined(__arm64__) && defined(__APPLE__)
+# define PRIkrk_int "%lld"
+# define PRIkrk_hex "%llx"
+# define parseStrInt strtoll
 # else
 # define PRIkrk_int "%ld"
 # define PRIkrk_hex "%lx"
