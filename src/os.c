@@ -235,6 +235,12 @@ KRK_FUNC(abort,{
 	abort();
 })
 
+KRK_FUNC(exit,{
+	FUNCTION_TAKES_EXACTLY(1);
+	CHECK_ARG(0,int,krk_integer_type,retcode);
+	exit(retcode);
+})
+
 KRK_FUNC(remove,{
 	FUNCTION_TAKES_EXACTLY(1);
 	CHECK_ARG(0,str,KrkString*,path);
@@ -716,6 +722,9 @@ void _createAndBind_osMod(void) {
 		"Provides the string description for the error code specified by @p errorno.");
 	KRK_DOC(BIND_FUNC(module,abort),
 		"@brief Abort the current process.\n\n"
+		"@bsnote{This will exit the interpreter without calling cleanup routines.}");
+	KRK_DOC(BIND_FUNC(module,exit),
+		"@brief Exit the current process.\n\n"
 		"@bsnote{This will exit the interpreter without calling cleanup routines.}");
 	KRK_DOC(BIND_FUNC(module,remove),
 		"@brief Delete a file.\n"
