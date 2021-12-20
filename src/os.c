@@ -103,7 +103,7 @@ static int _setVar(KrkString * key, KrkString * val) {
 	size_t len = key->length + val->length;
 	char * tmp = malloc(len);
 	snprintf(tmp, len, "%s=%s", key->chars, val->chars);
-	int r= putenv(tmp);
+	return putenv(tmp);
 #endif
 }
 
