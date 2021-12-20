@@ -167,6 +167,7 @@ struct BaseClasses {
 	KrkClass * generatorClass;       /**< Generator object. */
 	KrkClass * notImplClass;         /**< NotImplementedType */
 	KrkClass * bytearrayClass;       /**< Mutable array of bytes */
+	KrkClass * dictvaluesClass;      /**< Iterator over values of a dict */
 };
 
 /**

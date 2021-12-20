@@ -318,6 +318,15 @@ struct DictKeys {
 
 /**
  * @extends KrkInstance
+ */
+struct DictValues {
+	KrkInstance inst;
+	KrkValue dict;
+	size_t i;
+};
+
+/**
+ * @extends KrkInstance
  * @brief Representation of a loaded module.
  */
 struct KrkModule {

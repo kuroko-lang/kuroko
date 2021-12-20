@@ -207,6 +207,9 @@ static inline KrkValue discardStringBuilder(struct StringBuilder * sb) {
 #define IS_dictkeys(o) krk_isInstanceOf(o,vm.baseClasses->dictkeysClass)
 #define AS_dictkeys(o) ((struct DictKeys*)AS_OBJECT(o))
 
+#define IS_dictvalues(o) krk_isInstanceOf(o,vm.baseClasses->dictvaluesClass)
+#define AS_dictvalues(o) ((struct DictValues*)AS_OBJECT(o))
+
 #define IS_bytearray(o) (krk_isInstanceOf(o,vm.baseClasses->bytearrayClass))
 #define AS_bytearray(o) ((struct ByteArray*)AS_INSTANCE(o))
 

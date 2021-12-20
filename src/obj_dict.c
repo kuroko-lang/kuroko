@@ -208,6 +208,17 @@ KRK_METHOD(dict,items,{
 	return OBJECT_VAL(output);
 })
 
+FUNC_SIG(dictvalues,__init__);
+
+KRK_METHOD(dict,values,{
+	METHOD_TAKES_NONE();
+	KrkInstance * output = krk_newInstance(vm.baseClasses->dictvaluesClass);
+	krk_push(OBJECT_VAL(output));
+	FUNC_NAME(dictvalues,__init__)(2, (KrkValue[]){krk_peek(0), argv[0]},0);
+	krk_pop();
+	return OBJECT_VAL(output);
+})
+
 KrkValue krk_dict_nth_key_fast(size_t capacity, KrkTableEntry * entries, size_t index) {
 	size_t found = 0;
 	for (size_t i = 0; i < capacity; ++i) {
@@ -368,6 +379,72 @@ KRK_METHOD(dictkeys,__repr__,{
 	return finishStringBuilder(&sb);
 })
 
+#undef CURRENT_CTYPE
+#define CURRENT_CTYPE struct DictValues *
+
+static void _dictvalues_gcscan(KrkInstance * self) {
+	krk_markValue(((struct DictValues*)self)->dict);
+}
+
+KRK_METHOD(dictvalues,__init__,{
+	METHOD_TAKES_EXACTLY(1);
+	CHECK_ARG(1,dict,KrkDict*,source);
+	self->dict = argv[1];
+	self->i = 0;
+	return argv[0];
+})
+
+KRK_METHOD(dictvalues,__iter__,{
+	METHOD_TAKES_NONE();
+	self->i = 0;
+	return argv[0];
+})
+
+KRK_METHOD(dictvalues,__call__,{
+	METHOD_TAKES_NONE();
+	do {
+		if (self->i >= AS_DICT(self->dict)->capacity) return argv[0];
+		if (!IS_KWARGS(AS_DICT(self->dict)->entries[self->i].key)) {
+			krk_push(AS_DICT(self->dict)->entries[self->i].value);
+			self->i++;
+			return krk_pop();
+		}
+		self->i++;
+	} while (1);
+})
+
+KRK_METHOD(dictvalues,__repr__,{
+	METHOD_TAKES_NONE();
+	if (((KrkObj*)self)->flags & KRK_OBJ_FLAGS_IN_REPR) return OBJECT_VAL(S("dictvalues([...])"));
+	((KrkObj*)self)->flags |= KRK_OBJ_FLAGS_IN_REPR;
+	struct StringBuilder sb = {0};
+	pushStringBuilderStr(&sb,"dictvalues([",12);
+
+	size_t c = 0;
+	size_t len = AS_DICT(self->dict)->capacity;
+	for (size_t i = 0; i < len; ++i) {
+		KrkTableEntry * entry = &AS_DICT(self->dict)->entries[i];
+		if (IS_KWARGS(entry->key)) continue;
+		if (c > 0) {
+			pushStringBuilderStr(&sb, ", ", 2);
+		}
+		c++;
+
+		{
+			KrkClass * type = krk_getType(entry->value);
+			krk_push(entry->value);
+			KrkValue result = krk_callDirect(type->_reprer, 1);
+			if (IS_STRING(result)) {
+				pushStringBuilderStr(&sb, AS_CSTRING(result), AS_STRING(result)->length);
+			}
+		}
+	}
+
+	pushStringBuilderStr(&sb,"])",2);
+	((KrkObj*)self)->flags &= ~(KRK_OBJ_FLAGS_IN_REPR);
+	return finishStringBuilder(&sb);
+})
+
 _noexport
 void _createAndBind_dictClass(void) {
 	KrkClass * dict = ADD_BASE_CLASS(vm.baseClasses->dictClass, "dict", vm.baseClasses->objectClass);
@@ -384,6 +461,7 @@ void _createAndBind_dictClass(void) {
 	BIND_METHOD(dict,__contains__);
 	BIND_METHOD(dict,keys);
 	BIND_METHOD(dict,items);
+	BIND_METHOD(dict,values);
 	BIND_METHOD(dict,capacity);
 	BIND_METHOD(dict,copy);
 	BIND_METHOD(dict,clear);
@@ -416,4 +494,13 @@ void _createAndBind_dictClass(void) {
 	BIND_METHOD(dictkeys,__call__);
 	BIND_METHOD(dictkeys,__repr__);
 	krk_finalizeClass(dictkeys);
+
+	KrkClass * dictvalues = ADD_BASE_CLASS(vm.baseClasses->dictvaluesClass, "dictvalues", vm.baseClasses->objectClass);
+	dictvalues->allocSize = sizeof(struct DictValues);
+	dictvalues->_ongcscan = _dictvalues_gcscan;
+	BIND_METHOD(dictvalues,__init__);
+	BIND_METHOD(dictvalues,__iter__);
+	BIND_METHOD(dictvalues,__call__);
+	BIND_METHOD(dictvalues,__repr__);
+	krk_finalizeClass(dictvalues);
 }
