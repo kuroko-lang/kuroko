@@ -6,30 +6,16 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdlib.h>
+#include <inttypes.h>
 
 typedef int64_t krk_integer_type;
 
-#if defined(__EMSCRIPTEN__) || defined(EFI_PLATFORM)
-# define PRIkrk_int "%lld"
-# define PRIkrk_hex "%llx"
-# define parseStrInt strtoll
-#elif defined(_WIN32)
-# define PRIkrk_int "%I64d"
-# define PRIkrk_hex "%I64x"
-# define parseStrInt strtoll
-# define ENABLE_THREADING
-#elif defined(__arm64__) && defined(__APPLE__)
-# define PRIkrk_int "%lld"
-# define PRIkrk_hex "%llx"
-# define parseStrInt strtoll
-# else
-# define PRIkrk_int "%ld"
-# define PRIkrk_hex "%lx"
-# define parseStrInt strtol
-# define ENABLE_THREADING
-#endif
+#define ENABLE_THREADING
+#define PRIkrk_int "%" PRId64
+#define PRIkrk_hex "%" PRIx64
+#define parseStrInt strtoll
 
-#ifdef KRK_DISABLE_THREADS
+#if defined(KRK_DISABLE_THREADS) || defined(__EMSCRIPTEN__) || defined(EFI_PLATFORM)
 # undef ENABLE_THREADING
 #endif
 
