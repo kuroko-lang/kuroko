@@ -18,7 +18,7 @@
 
 #define KRK_VERSION_MAJOR  "1"
 #define KRK_VERSION_MINOR  "2"
-#define KRK_VERSION_PATCH  "3"
+#define KRK_VERSION_PATCH  "4"
 
 #define KRK_VERSION_EXTRA_BASE  ""
 
