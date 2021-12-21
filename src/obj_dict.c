@@ -41,7 +41,8 @@ static void _dict_gcsweep(KrkInstance * self) {
 #define unpackArray(counter, indexer) do { \
 		for (size_t i = 0; i < counter; ++i) { \
 			if (keyOrValue == 0) { keyOrValue = 1; key = indexer; } \
-			else if (keyOrValue == 1) { keyOrValue = 0; krk_tableSet(&self->entries, key, indexer); } \
+			else if (keyOrValue == 1) { keyOrValue = 2; krk_tableSet(&self->entries, key, indexer); } \
+			else if (keyOrValue == 2) { keyOrValue = -1; goto _unpackError; } \
 			if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) return 1; \
 		} \
 	} while (0)
@@ -49,6 +50,11 @@ static int unpackKeyValuePair(KrkDict * self, KrkValue pair) {
 	KrkValue key;
 	int keyOrValue = 0;
 	unpackIterableFast(pair);
+	if (keyOrValue != 2) {
+		_unpackError:
+		krk_runtimeError(vm.exceptions->valueError, "dictionary update sequence element has invalid length");
+		return 1;
+	}
 	return 0;
 }
 #undef unpackArray
