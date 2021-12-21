@@ -597,6 +597,10 @@ void paint_krk_string_shared(struct syntax_state * state, int type, int isFormat
 			paint(2, FLAG_ESCAPE);
 		}
 	} else if (isFormat && charat() == '{') {
+		if (nextchar() == '{') {
+			paint(2, FLAG_STRING);
+			return;
+		}
 		paint(1, FLAG_ESCAPE);
 		if (charat() == '}') {
 			state->i--;

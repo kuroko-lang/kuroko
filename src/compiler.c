@@ -2493,7 +2493,21 @@ static void string(int exprType) {
 						}
 				}
 				c += 2;
+			} else if (isFormat && *c == '}') {
+				if (c[1] != '}') {
+					error("single '}' not allowed in f-string");
+					FREE_ARRAY(char,stringBytes,stringCapacity);
+					return;
+				}
+				PUSH_CHAR('}');
+				c += 2;
+				continue;
 			} else if (isFormat && *c == '{') {
+				if (c[1] == '{') {
+					PUSH_CHAR('{');
+					c += 2;
+					continue;
+				}
 				if (!atLeastOne || stringLength) { /* Make sure there's a string for coersion reasons */
 					emitConstant(OBJECT_VAL(krk_copyString(stringBytes,stringLength)));
 					if (atLeastOne) emitByte(OP_ADD);
