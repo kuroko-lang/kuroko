@@ -38,14 +38,45 @@ static void _dict_gcsweep(KrkInstance * self) {
 #define CURRENT_CTYPE KrkDict *
 #define CURRENT_NAME  self
 
+#define unpackArray(counter, indexer) do { \
+		for (size_t i = 0; i < counter; ++i) { \
+			if (keyOrValue == 0) { keyOrValue = 1; key = indexer; } \
+			else if (keyOrValue == 1) { keyOrValue = 0; krk_tableSet(&self->entries, key, indexer); } \
+			if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) return 1; \
+		} \
+	} while (0)
+static int unpackKeyValuePair(KrkDict * self, KrkValue pair) {
+	KrkValue key;
+	int keyOrValue = 0;
+	unpackIterableFast(pair);
+	return 0;
+}
+#undef unpackArray
+
+#define unpackArray(counter, indexer) do { \
+		for (size_t i = 0; i < counter; ++i) { \
+			if (unpackKeyValuePair(self, indexer) || (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION)) \
+				return 1; \
+		} \
+	} while (0)
+static int unpackKeyValueSequence(KrkDict * self, KrkValue array) {
+	unpackIterableFast(array);
+	return 0;
+}
+#undef unpackArray
+
 KRK_METHOD(dict,__init__,{
-	if (hasKw) {
-		return argv[argc];
-	} else {
-		METHOD_TAKES_NONE();
-		krk_initTable(&self->entries);
-		return argv[0];
+	METHOD_TAKES_AT_MOST(1);
+	krk_initTable(&self->entries);
+
+	if (argc > 1) {
+		if (unpackKeyValueSequence(self, argv[1])) return NONE_VAL();
 	}
+
+	if (hasKw) {
+		krk_tableAddAll(AS_DICT(argv[argc]), &self->entries);
+	}
+	return argv[0];
 })
 
 KRK_METHOD(dict,__getitem__,{
