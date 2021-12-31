@@ -271,7 +271,6 @@ static void markThreadRoots(KrkThreadState * thread) {
 }
 
 static void markRoots() {
-	/* TODO all threads */
 	KrkThreadState * thread = vm.threads;
 	while (thread) {
 		markThreadRoots(thread);
@@ -290,14 +289,68 @@ static void markRoots() {
 	}
 }
 
+static int smartSize(char _out[100], size_t s) {
+	size_t count = 5;
+	char * prefix = "PTGMK";
+	for (; count > 0 && *prefix; count--, prefix++) {
+		size_t base = 1UL << (count * 10);
+		if (s >= base) {
+			size_t t = s / base;
+			return snprintf(_out, 100, "%zu.%1zu %ciB", t, (s - t * base) / (base / 10), *prefix);
+		}
+	}
+	return snprintf(_out, 100, "%d B", (int)s);
+}
+
 size_t krk_collectGarbage(void) {
+	struct timespec outTime, inTime;
+
+	if (vm.globalFlags & KRK_GLOBAL_REPORT_GC_COLLECTS) {
+		clock_gettime(CLOCK_MONOTONIC, &inTime);
+	}
+
+	size_t bytesBefore = vm.bytesAllocated;
+
 	markRoots();
 	traceReferences();
 	tableRemoveWhite(&vm.strings);
 	size_t out = sweep();
-	vm.nextGC = vm.bytesAllocated * 2;
+
+	/**
+	 * The GC scheduling is in need of some improvement. The strategy at the moment
+	 * is to schedule the next collect at double the current post-collection byte
+	 * allocation size, up until that reaches 128MiB (64*2). Beyond that point,
+	 * the next collection is scheduled for 64MiB after the current value.
+	 *
+	 * Previously, we always doubled as that was what Lox did, but this rather
+	 * quickly runs into issues when memory allocation climbs into the GiB range.
+	 * 64MiB seems to be a good switchover point.
+	 */
+	if (vm.bytesAllocated < 0x4000000) {
+		vm.nextGC = vm.bytesAllocated * 2;
+	} else {
+		vm.nextGC = vm.bytesAllocated + 0x4000000;
+	}
+
 	if (vm.globalFlags & KRK_GLOBAL_REPORT_GC_COLLECTS) {
-		fprintf(stderr, "[gc] collected %llu, next collection at %llu\n", (unsigned long long)out, (unsigned long long)vm.nextGC);
+		clock_gettime(CLOCK_MONOTONIC, &outTime);
+		struct timespec diff;
+		diff.tv_sec  = outTime.tv_sec  - inTime.tv_sec;
+		diff.tv_nsec = outTime.tv_nsec - inTime.tv_nsec;
+		if (diff.tv_nsec < 0) { diff.tv_sec--; diff.tv_nsec += 1000000000L; }
+
+		char smartBefore[100];
+		smartSize(smartBefore, bytesBefore);
+		char smartAfter[100];
+		smartSize(smartAfter, vm.bytesAllocated);
+		char smartFreed[100];
+		smartSize(smartFreed, bytesBefore - vm.bytesAllocated);
+		char smartNext[100];
+		smartSize(smartNext, vm.nextGC);
+
+		fprintf(stderr, "[gc] %lld.%.9lds %s before; %s after; freed %s in %llu objects; next collection at %s\n",
+			(long long)diff.tv_sec, diff.tv_nsec,
+			smartBefore,smartAfter,smartFreed,(unsigned long long)out, smartNext);
 	}
 	return out;
 }
