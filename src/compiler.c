@@ -2639,7 +2639,7 @@ static ssize_t resolveUpvalue(Compiler * compiler, KrkToken * name) {
 		assignmentValue(); \
 		EMIT_OPERAND_OP(opset, arg); \
 	} else if (exprType == EXPR_DEL_TARGET && checkEndOfDel()) {\
-		if (opdel == OP_NONE) error("Invalid del target"); \
+		if (opdel == OP_NONE) { emitByte(OP_NONE); EMIT_OPERAND_OP(opset, arg); } \
 		else { EMIT_OPERAND_OP(opdel, arg); } \
 	} else { \
 		EMIT_OPERAND_OP(opget, arg); \
