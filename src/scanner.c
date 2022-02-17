@@ -97,9 +97,10 @@ static KrkToken makeIndentation() {
 	}
 	KrkToken out = makeToken(TOKEN_INDENTATION);
 	if (reject == ' ') out.length *= 8;
-	if (peek() == '#') {
-		/* Skip the entirety of the comment but not the line feed */
+	if (peek() == '#' || peek() == '\n') {
 		while (!isAtEnd() && peek() != '\n') advance();
+		scanner.startOfLine = 1;
+		return makeToken(TOKEN_RETRY);
 	}
 	return out;
 }

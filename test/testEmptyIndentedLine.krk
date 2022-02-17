@@ -1,0 +1,28 @@
+if True:
+    if False:
+        print("fail")
+    
+    else:
+        print("pass")
+
+if True:
+    if False:
+        print("fail")
+    # test
+    else:
+        print("pass")
+
+if True:
+    if False:
+        print("fail")
+            # test
+    else:
+        print("pass")
+
+if True:
+    if False:
+        print("fail")
+
+            #test
+    else:
+        print("pass")
