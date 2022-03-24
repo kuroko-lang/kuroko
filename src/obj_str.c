@@ -573,8 +573,8 @@ KRK_METHOD(str,replace,{
 	char * c = self->chars;
 	while (i < self->length) {
 		if ( substringMatch(c, self->length - i, oldStr->chars, oldStr->length) && (IS_NONE(count) || replacements < AS_INTEGER(count))) {
-			for (char * o = newStr->chars; *o; o++ ){
-				PUSH_CHAR(*o);
+			for (size_t j = 0; j < newStr->length; j++) {
+				PUSH_CHAR(newStr->chars[j]);
 			}
 			if (oldStr->length == 0) {
 				PUSH_CHAR(*c);
