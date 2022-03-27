@@ -356,6 +356,24 @@ struct KrkModule {
 extern KrkString * krk_takeString(char * chars, size_t length);
 
 /**
+ * @brief Like @ref krk_takeString but for when the caller has already calculated
+ *        code lengths, hash, and string type.
+ * @memberof KrkString
+ *
+ * Creates a new string object in cases where the caller has already calculated
+ * codepoint length, expanded string type, and hash. Useful for functions that
+ * create strings from other KrkStrings, where it's easier to know these things
+ * without having to start from scratch.
+ *
+ * @param chars C string to take ownership of.
+ * @param length Length of the C string.
+ * @param codesLength Length of the expected resulting KrkString in codepoints.
+ * @param type Compact type of the string, eg. UCS1, UCS2, UCS4... @see KrkStringType
+ * @param hash Precalculated string hash.
+ */
+extern KrkString * krk_takeStringVetted(char * chars, size_t length, size_t codesLength, KrkStringType type, uint32_t hash);
+
+/**
  * @brief Obtain a string object representation of the given C string.
  * @memberof KrkString
  *

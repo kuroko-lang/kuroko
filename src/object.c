@@ -231,6 +231,30 @@ KrkString * krk_copyString(const char * chars, size_t length) {
 	return result;
 }
 
+KrkString * krk_takeStringVetted(char * chars, size_t length, size_t codesLength, KrkStringType type, uint32_t hash) {
+	_obtain_lock(_stringLock);
+	KrkString * interned = krk_tableFindString(&vm.strings, chars, length, hash);
+	if (interned != NULL) {
+		FREE_ARRAY(char, chars, length + 1);
+		_release_lock(_stringLock);
+		return interned;
+	}
+	KrkString * string = ALLOCATE_OBJECT(KrkString, KRK_OBJ_STRING);
+	string->length = length;
+	string->chars = chars;
+	string->obj.hash = hash;
+	string->obj.flags |= KRK_OBJ_FLAGS_VALID_HASH;
+	string->codesLength = codesLength;
+	string->type = type;
+	string->codes = NULL;
+	if (string->type == KRK_STRING_ASCII) string->codes = string->chars;
+	krk_push(OBJECT_VAL(string));
+	krk_tableSet(&vm.strings, OBJECT_VAL(string), NONE_VAL());
+	krk_pop();
+	_release_lock(_stringLock);
+	return string;
+}
+
 KrkCodeObject * krk_newCodeObject(void) {
 	KrkCodeObject * codeobject = ALLOCATE_OBJECT(KrkCodeObject, KRK_OBJ_CODEOBJECT);
 	codeobject->requiredArgs = 0;

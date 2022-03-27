@@ -64,7 +64,16 @@ KRK_METHOD(str,__add__,{
 	memcpy(chars + al, b, bl);
 	chars[length] = '\0';
 
-	KrkString * result = krk_takeString(chars, length);
+	size_t cpLength = self->codesLength + them->codesLength;
+	KrkStringType type = self->type > them->type ? self->type : them->type;
+
+	/* Hashes can be extended, which saves us calculating the whole thing */
+	uint32_t hash = self->obj.hash;
+	for (size_t i = 0; i < bl; ++i) {
+		hash = (int)b[i] + (hash << 6) + (hash << 16) - hash;
+	}
+
+	KrkString * result = krk_takeStringVetted(chars, length, cpLength, type, hash);
 	if (needsPop) krk_pop();
 	return OBJECT_VAL(result);
 })
@@ -158,17 +167,10 @@ KRK_METHOD(str,__getitem__,{
 	if (self->type == KRK_STRING_ASCII) {
 		return OBJECT_VAL(krk_copyString(self->chars + asInt, 1));
 	} else {
-		size_t offset = 0;
-		size_t length = 0;
-		/* Figure out where the UTF8 for this string starts. */
 		krk_unicodeString(self);
-		for (long i = 0; i < asInt; ++i) {
-			uint32_t cp = KRK_STRING_FAST(self,i);
-			offset += CODEPOINT_BYTES(cp);
-		}
-		uint32_t cp = KRK_STRING_FAST(self,asInt);
-		length = CODEPOINT_BYTES(cp);
-		return OBJECT_VAL(krk_copyString(self->chars + offset, length));
+		unsigned char asbytes[5];
+		size_t length = krk_codepointToBytes(KRK_STRING_FAST(self,asInt),(unsigned char*)&asbytes);
+		return OBJECT_VAL(krk_copyString((char*)&asbytes, length));
 	}
 })
 
