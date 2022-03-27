@@ -9,6 +9,8 @@
 #include <sys/types.h>
 #ifndef _WIN32
 #include <sys/utsname.h>
+#include <sys/ioctl.h>
+#include <termios.h>
 #else
 #include <windows.h>
 #endif
@@ -438,6 +440,28 @@ KRK_FUNC(ttyname,{
 	}
 	return OBJECT_VAL(krk_copyString(result,strlen(result)));
 })
+
+KRK_FUNC(get_terminal_size,{
+	FUNCTION_TAKES_AT_MOST(1);
+	int fd = 1;
+	if (argc > 0) {
+		CHECK_ARG(0,int,krk_integer_type,_fd);
+		fd = _fd;
+	}
+
+	struct winsize wsz;
+	int res = ioctl(fd, TIOCGWINSZ, &wsz);
+
+	if (res < 0) {
+		return krk_runtimeError(OSError, "%s", strerror(errno));
+	}
+
+	krk_push(OBJECT_VAL(krk_newTuple(2)));
+	AS_TUPLE(krk_peek(0))->values.values[0] = INTEGER_VAL(wsz.ws_col);
+	AS_TUPLE(krk_peek(0))->values.values[1] = INTEGER_VAL(wsz.ws_row);
+	AS_TUPLE(krk_peek(0))->values.count = 2;
+	return krk_pop();
+})
 #endif
 
 static int makeArgs(int count, KrkValue * values, char *** argsOut, const char * _method_name) {
@@ -843,6 +867,11 @@ void _createAndBind_osMod(void) {
 		"@brief Get the path to a terminal device.\n"
 		"@arguments fd\n\n"
 		"Returns a @ref str representing the path to the terminal device provided by the file descriptor @p fd.");
+
+	KRK_DOC(BIND_FUNC(module,get_terminal_size),
+		"@brief Obtain the size of the terminal window.\n"
+		"@arguments fd=1\n"
+		"Obtain the size of the host terminal as a tuple of columns and lines.");
 #endif
 
 	_loadEnviron(module);
