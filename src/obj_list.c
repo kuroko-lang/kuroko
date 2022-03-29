@@ -218,7 +218,6 @@ KRK_METHOD(list,__delslice__,{
 	METHOD_TAKES_EXACTLY(2);
 	if (!(IS_INTEGER(argv[1]) || IS_NONE(argv[1]))) return TYPE_ERROR(int or None, argv[1]);
 	if (!(IS_INTEGER(argv[2]) || IS_NONE(argv[2]))) return TYPE_ERROR(int or None, argv[2]);
-	pthread_rwlock_wrlock(&self->rwlock);
 	krk_integer_type start = IS_NONE(argv[1]) ? 0 : AS_INTEGER(argv[1]);
 	krk_integer_type end   = IS_NONE(argv[2]) ? (krk_integer_type)self->values.count : AS_INTEGER(argv[2]);
 	LIST_WRAP_SOFT(start);
@@ -230,7 +229,6 @@ KRK_METHOD(list,__delslice__,{
 		FUNC_NAME(list,pop)(2,(KrkValue[]){argv[0],INTEGER_VAL(start)},0);
 		len--;
 	}
-	pthread_rwlock_unlock(&self->rwlock);
 })
 
 KRK_METHOD(list,__setslice__,{
@@ -238,7 +236,6 @@ KRK_METHOD(list,__setslice__,{
 	if (!(IS_INTEGER(argv[1]) || IS_NONE(argv[1]))) return TYPE_ERROR(int or None, argv[1]);
 	if (!(IS_INTEGER(argv[2]) || IS_NONE(argv[2]))) return TYPE_ERROR(int or None, argv[2]);
 	if (!IS_list(argv[3])) return TYPE_ERROR(list,argv[3]); /* TODO other sequence types */
-	pthread_rwlock_wrlock(&self->rwlock);
 	krk_integer_type start = IS_NONE(argv[1]) ? 0 : AS_INTEGER(argv[1]);
 	krk_integer_type end   = IS_NONE(argv[2]) ? (krk_integer_type)self->values.count : AS_INTEGER(argv[2]);
 	LIST_WRAP_SOFT(start);
@@ -261,8 +258,6 @@ KRK_METHOD(list,__setslice__,{
 		FUNC_NAME(list,pop)(2, (KrkValue[]){argv[0], INTEGER_VAL(start + len - 1)}, 0);
 		len--;
 	}
-
-	pthread_rwlock_unlock(&self->rwlock);
 })
 
 KRK_METHOD(list,pop,{
