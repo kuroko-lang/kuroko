@@ -901,6 +901,34 @@ _finishArgs:
 
 	KrkValue result = INTEGER_VAL(0);
 
+	char * _KUROKOPATH = getenv("KUROKOPATH");
+
+	if (_KUROKOPATH) {
+		/* Build a path by splitting */
+		krk_push(OBJECT_VAL(krk_copyString(_KUROKOPATH,strlen(_KUROKOPATH))));
+		krk_push(OBJECT_VAL(S(":")));
+
+		/* Split into list */
+		KrkValue list = krk_string_split(2,(KrkValue[]){krk_peek(1),krk_peek(0)},0);
+		krk_push(list);
+		krk_swap(2);
+		krk_pop(); /* colon */
+		krk_pop(); /* path */
+
+		/* Extend with current module_paths */
+		krk_push(krk_valueGetAttribute(OBJECT_VAL(vm.system), "module_paths"));
+
+		extern FUNC_SIG(list,extend);
+		FUNC_NAME(list,extend)(2,(KrkValue[]){krk_peek(1),krk_peek(0)},0);
+
+		/* Store */
+		krk_attachNamedValue(&vm.system->fields, "module_paths", list);
+
+		/* Clean up our mess */
+		krk_pop();
+		krk_pop(); /* list */
+	}
+
 	/**
 	 * Add general builtins that aren't part of the core VM.
 	 * This is where we provide @c input in particular.
