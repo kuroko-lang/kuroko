@@ -1165,6 +1165,7 @@ _finishArgs:
 			if (valid) {
 				KrkValue result = krk_interpret(allData, "<stdin>");
 				if (!IS_NONE(result)) {
+					krk_attachNamedValue(&vm.builtins->fields, "_", result);
 					KrkClass * type = krk_getType(result);
 					const char * formatStr = " \033[1;90m=> %s\033[0m\n";
 					if (type->_reprer) {
