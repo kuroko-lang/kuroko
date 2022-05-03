@@ -392,9 +392,6 @@ void krk_finalizeClass(KrkClass * _class) {
 	struct TypeMap specials[] = {
 		{&_class->_getter, METHOD_GET},
 		{&_class->_setter, METHOD_SET},
-		{&_class->_getslice, METHOD_GETSLICE},
-		{&_class->_setslice, METHOD_SETSLICE},
-		{&_class->_delslice, METHOD_DELSLICE},
 		{&_class->_reprer, METHOD_REPR},
 		{&_class->_tostr, METHOD_STR},
 		{&_class->_call, METHOD_CALL},
@@ -1199,10 +1196,6 @@ void krk_initVM(int flags) {
 		_(METHOD_GET, "__getitem__"),
 		_(METHOD_SET, "__setitem__"),
 		_(METHOD_DELITEM, "__delitem__"),
-		/* Slice subscripting */
-		_(METHOD_GETSLICE, "__getslice__"),
-		_(METHOD_SETSLICE, "__setslice__"),
-		_(METHOD_DELSLICE, "__delslice__"),
 		/* Dynamic properties */
 		_(METHOD_CLASS, "__class__"),
 		_(METHOD_NAME, "__name__"),
@@ -1251,6 +1244,7 @@ void krk_initVM(int flags) {
 	_createAndBind_functionClass();
 	_createAndBind_rangeClass();
 	_createAndBind_setClass();
+	_createAndBind_sliceClass();
 	_createAndBind_exceptions();
 	_createAndBind_generatorClass();
 	_createAndBind_gcMod();
@@ -2246,33 +2240,6 @@ _finishReturn: (void)0;
 				}
 				break;
 			}
-			case OP_INVOKE_GETSLICE: {
-				KrkClass * type = krk_getType(krk_peek(2));
-				if (likely(type->_getslice != NULL)) {
-					krk_push(krk_callDirect(type->_getslice, 3));
-				} else {
-					krk_runtimeError(vm.exceptions->attributeError, "'%s' object is not sliceable", krk_typeName(krk_peek(2)));
-				}
-				break;
-			}
-			case OP_INVOKE_SETSLICE: {
-				KrkClass * type = krk_getType(krk_peek(3));
-				if (likely(type->_setslice != NULL)) {
-					krk_push(krk_callDirect(type->_setslice, 4));
-				} else {
-					krk_runtimeError(vm.exceptions->attributeError, "'%s' object is not sliceable", krk_typeName(krk_peek(3)));
-				}
-				break;
-			}
-			case OP_INVOKE_DELSLICE: {
-				KrkClass * type = krk_getType(krk_peek(2));
-				if (likely(type->_delslice != NULL)) {
-					krk_callDirect(type->_delslice, 3);
-				} else {
-					krk_runtimeError(vm.exceptions->attributeError, "'%s' object is not sliceable", krk_typeName(krk_peek(2)));
-				}
-				break;
-			}
 			case OP_INVOKE_DELETE: {
 				KrkClass * type = krk_getType(krk_peek(1));
 				if (likely(type->_delitem != NULL)) {
@@ -2822,6 +2789,13 @@ _finishReturn: (void)0;
 			case OP_MAKE_SET: {
 				ONE_BYTE_OPERAND;
 				doMake(krk_set_of);
+				break;
+			}
+			case OP_SLICE_LONG:
+				THREE_BYTE_OPERAND;
+			case OP_SLICE: {
+				ONE_BYTE_OPERAND;
+				doMake(krk_slice_of);
 				break;
 			}
 			case OP_LIST_APPEND_LONG:

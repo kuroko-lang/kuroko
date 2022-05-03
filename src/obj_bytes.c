@@ -123,14 +123,37 @@ KRK_METHOD(bytes,__repr__,{
 
 KRK_METHOD(bytes,__getitem__,{
 	METHOD_TAKES_EXACTLY(1);
-	CHECK_ARG(1,int,krk_integer_type,asInt);
 
-	if (asInt < 0) asInt += (long)self->length;
-	if (asInt < 0 || asInt >= (long)self->length) {
-		return krk_runtimeError(vm.exceptions->indexError, "bytes index out of range: %d", (int)asInt);
+	if (IS_INTEGER(argv[1])) {
+		CHECK_ARG(1,int,krk_integer_type,asInt);
+
+		if (asInt < 0) asInt += (long)self->length;
+		if (asInt < 0 || asInt >= (long)self->length) {
+			return krk_runtimeError(vm.exceptions->indexError, "bytes index out of range: %d", (int)asInt);
+		}
+
+		return INTEGER_VAL(self->bytes[asInt]);
+
+	} else if (IS_slice(argv[1])) {
+		KRK_SLICER(argv[1],self->length) {
+			return NONE_VAL();
+		}
+
+		if (step == 1) {
+			krk_integer_type len = end - start;
+			return OBJECT_VAL(krk_newBytes(len, &self->bytes[start]));
+		} else {
+			struct StringBuilder sb = {0};
+			krk_integer_type i = start;
+			while ((step < 0) ? (i > end) : (i < end)) {
+				pushStringBuilder(&sb, self->bytes[i]);
+				i += step;
+			}
+			return finishStringBuilderBytes(&sb);
+		}
+	} else {
+		return TYPE_ERROR(int or slice, argv[1]);
 	}
-
-	return INTEGER_VAL(self->bytes[asInt]);
 })
 
 KRK_METHOD(bytes,__len__,{
@@ -184,25 +207,6 @@ KRK_METHOD(bytes,__add__,{
 	pushStringBuilderStr(&sb, (char*)them->bytes, them->length);
 
 	return finishStringBuilderBytes(&sb);
-})
-
-#define BYTES_WRAP_SOFT(val) \
-	if (val < 0) val += self->length; \
-	if (val < 0) val = 0; \
-	if (val > (krk_integer_type)self->length) val = self->length
-
-KRK_METHOD(bytes,__getslice__,{
-	METHOD_TAKES_EXACTLY(2);
-	if (!(IS_INTEGER(argv[1]) || IS_NONE(argv[1]))) return TYPE_ERROR(int or None, argv[1]);
-	if (!(IS_INTEGER(argv[2]) || IS_NONE(argv[2]))) return TYPE_ERROR(int or None, argv[2]);
-	krk_integer_type start = IS_NONE(argv[1]) ? 0 : AS_INTEGER(argv[1]);
-	krk_integer_type end   = IS_NONE(argv[2]) ? (krk_integer_type)self->length : AS_INTEGER(argv[2]);
-	BYTES_WRAP_SOFT(start);
-	BYTES_WRAP_SOFT(end);
-	if (end < start) end = start;
-	krk_integer_type len = end - start;
-
-	return OBJECT_VAL(krk_newBytes(len, &self->bytes[start]));
 })
 
 FUNC_SIG(bytesiterator,__init__);
@@ -295,14 +299,37 @@ KRK_METHOD(bytearray,__repr__,{
 
 KRK_METHOD(bytearray,__getitem__,{
 	METHOD_TAKES_EXACTLY(1);
-	CHECK_ARG(1,int,krk_integer_type,asInt);
 
-	if (asInt < 0) asInt += (long)AS_BYTES(self->actual)->length;
-	if (asInt < 0 || asInt >= (long)AS_BYTES(self->actual)->length) {
-		return krk_runtimeError(vm.exceptions->indexError, "bytearray index out of range: %d", (int)asInt);
+	if (IS_INTEGER(argv[1])) {
+		CHECK_ARG(1,int,krk_integer_type,asInt);
+
+		if (asInt < 0) asInt += (long)AS_BYTES(self->actual)->length;
+		if (asInt < 0 || asInt >= (long)AS_BYTES(self->actual)->length) {
+			return krk_runtimeError(vm.exceptions->indexError, "bytearray index out of range: %d", (int)asInt);
+		}
+
+		return INTEGER_VAL(AS_BYTES(self->actual)->bytes[asInt]);
+	} else if (IS_slice(argv[1])) {
+		KRK_SLICER(argv[1],AS_BYTES(self->actual)->length) {
+			return NONE_VAL();
+		}
+
+		if (step == 1) {
+			krk_integer_type len = end - start;
+			return OBJECT_VAL(krk_newBytes(len, &AS_BYTES(self->actual)->bytes[start]));
+		} else {
+			struct StringBuilder sb = {0};
+			krk_integer_type i = start;
+			while ((step < 0) ? (i > end) : (i < end)) {
+				pushStringBuilder(&sb, AS_BYTES(self->actual)->bytes[i]);
+				i += step;
+			}
+			return finishStringBuilderBytes(&sb);
+		}
+
+	} else {
+		return TYPE_ERROR(int or slice, argv[1]);
 	}
-
-	return INTEGER_VAL(AS_BYTES(self->actual)->bytes[asInt]);
 })
 
 KRK_METHOD(bytearray,__setitem__,{
@@ -337,25 +364,6 @@ KRK_METHOD(bytearray,decode,{
 	return OBJECT_VAL(krk_copyString((char*)AS_BYTES(self->actual)->bytes, AS_BYTES(self->actual)->length));
 })
 
-#define BYTEARRAY_WRAP_SOFT(val) \
-	if (val < 0) val += AS_BYTES(self->actual)->length; \
-	if (val < 0) val = 0; \
-	if (val > (krk_integer_type)AS_BYTES(self->actual)->length) val = AS_BYTES(self->actual)->length
-
-KRK_METHOD(bytearray,__getslice__,{
-	METHOD_TAKES_EXACTLY(2);
-	if (!(IS_INTEGER(argv[1]) || IS_NONE(argv[1]))) return TYPE_ERROR(int or None, argv[1]);
-	if (!(IS_INTEGER(argv[2]) || IS_NONE(argv[2]))) return TYPE_ERROR(int or None, argv[2]);
-	krk_integer_type start = IS_NONE(argv[1]) ? 0 : AS_INTEGER(argv[1]);
-	krk_integer_type end   = IS_NONE(argv[2]) ? (krk_integer_type)AS_BYTES(self->actual)->length : AS_INTEGER(argv[2]);
-	BYTEARRAY_WRAP_SOFT(start);
-	BYTEARRAY_WRAP_SOFT(end);
-	if (end < start) end = start;
-	krk_integer_type len = end - start;
-
-	return OBJECT_VAL(krk_newBytes(len, &AS_BYTES(self->actual)->bytes[start]));
-})
-
 KRK_METHOD(bytearray,__iter__,{
 	METHOD_TAKES_NONE();
 	KrkInstance * output = krk_newInstance(vm.baseClasses->bytesiteratorClass);
@@ -380,7 +388,6 @@ void _createAndBind_bytesClass(void) {
 	BIND_METHOD(bytes,__len__);
 	BIND_METHOD(bytes,__contains__);
 	BIND_METHOD(bytes,__getitem__);
-	BIND_METHOD(bytes,__getslice__);
 	BIND_METHOD(bytes,__eq__);
 	BIND_METHOD(bytes,__add__);
 	BIND_METHOD(bytes,__iter__);
@@ -408,7 +415,6 @@ void _createAndBind_bytesClass(void) {
 	BIND_METHOD(bytearray,__contains__);
 	BIND_METHOD(bytearray,__getitem__);
 	BIND_METHOD(bytearray,__setitem__);
-	BIND_METHOD(bytearray,__getslice__);
 	BIND_METHOD(bytearray,__eq__);
 	BIND_METHOD(bytearray,__iter__);
 	BIND_METHOD(bytearray,decode);

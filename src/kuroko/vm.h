@@ -168,6 +168,7 @@ struct BaseClasses {
 	KrkClass * notImplClass;         /**< NotImplementedType */
 	KrkClass * bytearrayClass;       /**< Mutable array of bytes */
 	KrkClass * dictvaluesClass;      /**< Iterator over values of a dict */
+	KrkClass * sliceClass;           /**< Slice object */
 };
 
 /**
@@ -618,6 +619,12 @@ extern KrkValue krk_tuple_of(int argc, KrkValue argv[], int hasKw);
  * This is the native function bound to @c setOf
  */
 extern KrkValue krk_set_of(int argc, KrkValue argv[], int hasKw);
+
+/**
+ * @brief Create a slice object.
+ * @memberof KrkSlice
+ */
+extern KrkValue krk_slice_of(int argc, KrkValue argv[], int hasKw);
 
 /**
  * @brief Call a callable on the stack with @p argCount arguments.

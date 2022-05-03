@@ -90,46 +90,6 @@ KRK_METHOD(str,__setitem__,{
 	return krk_runtimeError(vm.exceptions->typeError, "Strings are not mutable.");
 })
 
-/**
- * Unlike in Python, we actually handle negative values here rather than
- * somewhere else? I'm not even sure where Python does do it, but a quick
- * says not if you call __getslice__ directly...
- */
-KRK_METHOD(str,__getslice__,{
-	METHOD_TAKES_EXACTLY(2);
-	if (!(IS_INTEGER(argv[1]) || IS_NONE(argv[1])))
-		return TYPE_ERROR(int,argv[1]);
-	if (!(IS_INTEGER(argv[2]) || IS_NONE(argv[2])))
-		return TYPE_ERROR(int,argv[2]);
-	/* bounds check */
-	long start = IS_NONE(argv[1]) ? 0 : AS_INTEGER(argv[1]);
-	long end   = IS_NONE(argv[2]) ? (long)self->codesLength : AS_INTEGER(argv[2]);
-	if (start < 0) start = self->codesLength + start;
-	if (start < 0) start = 0;
-	if (end < 0) end = self->codesLength + end;
-	if (start > (long)self->codesLength) start = self->codesLength;
-	if (end > (long)self->codesLength) end = self->codesLength;
-	if (end < start) end = start;
-	long len = end - start;
-	if (self->type == KRK_STRING_ASCII) {
-		return OBJECT_VAL(krk_copyString(self->chars + start, len));
-	} else {
-		size_t offset = 0;
-		size_t length = 0;
-		/* Figure out where the UTF8 for this string starts. */
-		krk_unicodeString(self);
-		for (long i = 0; i < start; ++i) {
-			uint32_t cp = KRK_STRING_FAST(self,i);
-			offset += CODEPOINT_BYTES(cp);
-		}
-		for (long i = start; i < end; ++i) {
-			uint32_t cp = KRK_STRING_FAST(self,i);
-			length += CODEPOINT_BYTES(cp);
-		}
-		return OBJECT_VAL(krk_copyString(self->chars + offset, length));
-	}
-})
-
 /* str.__int__(base=10) */
 KRK_METHOD(str,__int__,{
 	METHOD_TAKES_AT_MOST(1);
@@ -159,18 +119,61 @@ KRK_METHOD(str,__float__,{
 
 KRK_METHOD(str,__getitem__,{
 	METHOD_TAKES_EXACTLY(1);
-	CHECK_ARG(1,int,krk_integer_type,asInt);
-	if (asInt < 0) asInt += (int)AS_STRING(argv[0])->codesLength;
-	if (asInt < 0 || asInt >= (int)AS_STRING(argv[0])->codesLength) {
-		return krk_runtimeError(vm.exceptions->indexError, "String index out of range: " PRIkrk_int, asInt);
-	}
-	if (self->type == KRK_STRING_ASCII) {
-		return OBJECT_VAL(krk_copyString(self->chars + asInt, 1));
+	if (IS_INTEGER(argv[1])) {
+		CHECK_ARG(1,int,krk_integer_type,asInt);
+		if (asInt < 0) asInt += (int)AS_STRING(argv[0])->codesLength;
+		if (asInt < 0 || asInt >= (int)AS_STRING(argv[0])->codesLength) {
+			return krk_runtimeError(vm.exceptions->indexError, "String index out of range: " PRIkrk_int, asInt);
+		}
+		if (self->type == KRK_STRING_ASCII) {
+			return OBJECT_VAL(krk_copyString(self->chars + asInt, 1));
+		} else {
+			krk_unicodeString(self);
+			unsigned char asbytes[5];
+			size_t length = krk_codepointToBytes(KRK_STRING_FAST(self,asInt),(unsigned char*)&asbytes);
+			return OBJECT_VAL(krk_copyString((char*)&asbytes, length));
+		}
+	} else if (IS_slice(argv[1])) {
+		KRK_SLICER(argv[1], self->codesLength) {
+			return NONE_VAL();
+		}
+
+		if (step == 1) {
+			long len = end - start;
+			if (self->type == KRK_STRING_ASCII) {
+				return OBJECT_VAL(krk_copyString(self->chars + start, len));
+			} else {
+				size_t offset = 0;
+				size_t length = 0;
+				/* Figure out where the UTF8 for this string starts. */
+				krk_unicodeString(self);
+				for (long i = 0; i < start; ++i) {
+					uint32_t cp = KRK_STRING_FAST(self,i);
+					offset += CODEPOINT_BYTES(cp);
+				}
+				for (long i = start; i < end; ++i) {
+					uint32_t cp = KRK_STRING_FAST(self,i);
+					length += CODEPOINT_BYTES(cp);
+				}
+				return OBJECT_VAL(krk_copyString(self->chars + offset, length));
+			}
+		} else {
+			struct StringBuilder sb = {0};
+			krk_unicodeString(self);
+
+			unsigned char asbytes[5];
+			krk_integer_type i = start;
+
+			while ((step < 0) ? (i > end) : (i < end)) {
+				size_t length = krk_codepointToBytes(KRK_STRING_FAST(self,i),(unsigned char*)&asbytes);
+				pushStringBuilderStr(&sb, (char*)asbytes, length);
+				i += step;
+			}
+
+			return finishStringBuilder(&sb);
+		}
 	} else {
-		krk_unicodeString(self);
-		unsigned char asbytes[5];
-		size_t length = krk_codepointToBytes(KRK_STRING_FAST(self,asInt),(unsigned char*)&asbytes);
-		return OBJECT_VAL(krk_copyString((char*)&asbytes, length));
+		return TYPE_ERROR(int or slice, argv[1]);
 	}
 })
 
@@ -885,7 +888,6 @@ void _createAndBind_strClass(void) {
 	BIND_METHOD(str,__ord__);
 	BIND_METHOD(str,__int__);
 	BIND_METHOD(str,__float__);
-	BIND_METHOD(str,__getslice__);
 	BIND_METHOD(str,__getitem__);
 	BIND_METHOD(str,__setitem__);
 	BIND_METHOD(str,__add__);

@@ -861,75 +861,78 @@ static void expression(void) {
 	parsePrecedence(PREC_CAN_ASSIGN);
 }
 
-static void getitem(int exprType) {
+static void sliceExpression(void) {
 	int isSlice = 0;
 	if (match(TOKEN_COLON)) {
 		emitByte(OP_NONE);
 		isSlice = 1;
 	} else {
-		parsePrecedence(PREC_COMMA);
+		parsePrecedence(PREC_CAN_ASSIGN);
 	}
 	if (isSlice || match(TOKEN_COLON)) {
-		if (isSlice && match(TOKEN_COLON)) {
-			error("Step value not supported in slice. (GH-11)");
+		/* We have the start value, which is either something or None */
+		if (check(TOKEN_RIGHT_SQUARE) || check(TOKEN_COMMA)) {
+			/* foo[x:] */
+			emitByte(OP_NONE);
+			EMIT_OPERAND_OP(OP_SLICE, 2);
+		} else {
+			if (check(TOKEN_COLON)) {
+				/* foo[x::... */
+				emitByte(OP_NONE);
+			} else {
+				/* foo[x:e... */
+				parsePrecedence(PREC_CAN_ASSIGN);
+			}
+			if (match(TOKEN_COLON) && !check(TOKEN_RIGHT_SQUARE) && !check(TOKEN_COMMA)) {
+				/* foo[x:e:s] */
+				parsePrecedence(PREC_CAN_ASSIGN);
+				EMIT_OPERAND_OP(OP_SLICE, 3);
+			} else {
+				/* foo[x:e] */
+				EMIT_OPERAND_OP(OP_SLICE, 2);
+			}
+		}
+	}
+}
+
+static void getitem(int exprType) {
+
+	sliceExpression();
+
+	if (match(TOKEN_COMMA)) {
+		size_t argCount = 1;
+		if (!check(TOKEN_RIGHT_SQUARE)) {
+			do {
+				sliceExpression();
+				argCount++;
+			} while (match(TOKEN_COMMA) && !check(TOKEN_RIGHT_SQUARE));
+		}
+		EMIT_OPERAND_OP(OP_TUPLE, argCount);
+	}
+
+	consume(TOKEN_RIGHT_SQUARE, "Expected ']' after index.");
+	if (exprType == EXPR_ASSIGN_TARGET) {
+		if (matchComplexEnd()) {
+			EMIT_OPERAND_OP(OP_DUP, 2);
+			emitByte(OP_INVOKE_SETTER);
+			emitByte(OP_POP);
 			return;
 		}
-		if (match(TOKEN_RIGHT_SQUARE)) {
-			emitByte(OP_NONE);
-		} else {
-			parsePrecedence(PREC_COMMA);
-			consume(TOKEN_RIGHT_SQUARE, "Expected ']' after slice.");
-		}
-		if (exprType == EXPR_ASSIGN_TARGET) {
-			if (matchComplexEnd()) {
-				EMIT_OPERAND_OP(OP_DUP, 3);
-				emitByte(OP_INVOKE_SETSLICE);
-				emitByte(OP_POP);
-				return;
-			}
-			exprType = EXPR_NORMAL;
-		}
-		if (exprType == EXPR_CAN_ASSIGN && (match(TOKEN_EQUAL))) {
-			parsePrecedence(PREC_ASSIGNMENT);
-			emitByte(OP_INVOKE_SETSLICE);
-		} else if (exprType ==EXPR_CAN_ASSIGN && matchAssignment()) {
-			/* o s e */
-			emitBytes(OP_DUP, 2); /* o s e o */
-			emitBytes(OP_DUP, 2); /* o s e o s */
-			emitBytes(OP_DUP, 2); /* o s e o s e */
-			emitByte(OP_INVOKE_GETSLICE); /* o s e v */
-			assignmentValue();
-			emitByte(OP_INVOKE_SETSLICE);
-		} else if (exprType == EXPR_DEL_TARGET && checkEndOfDel()) {
-			emitByte(OP_INVOKE_DELSLICE);
-		} else {
-			emitByte(OP_INVOKE_GETSLICE);
-		}
+		exprType = EXPR_NORMAL;
+	}
+	if (exprType == EXPR_CAN_ASSIGN && match(TOKEN_EQUAL)) {
+		parsePrecedence(PREC_ASSIGNMENT);
+		emitByte(OP_INVOKE_SETTER);
+	} else if (exprType == EXPR_CAN_ASSIGN && matchAssignment()) {
+		emitBytes(OP_DUP, 1); /* o e o */
+		emitBytes(OP_DUP, 1); /* o e o e */
+		emitByte(OP_INVOKE_GETTER); /* o e v */
+		assignmentValue(); /* o e v a */
+		emitByte(OP_INVOKE_SETTER); /* r */
+	} else if (exprType == EXPR_DEL_TARGET && checkEndOfDel()) {
+		emitByte(OP_INVOKE_DELETE);
 	} else {
-		consume(TOKEN_RIGHT_SQUARE, "Expected ']' after index.");
-		if (exprType == EXPR_ASSIGN_TARGET) {
-			if (matchComplexEnd()) {
-				EMIT_OPERAND_OP(OP_DUP, 2);
-				emitByte(OP_INVOKE_SETTER);
-				emitByte(OP_POP);
-				return;
-			}
-			exprType = EXPR_NORMAL;
-		}
-		if (exprType == EXPR_CAN_ASSIGN && match(TOKEN_EQUAL)) {
-			parsePrecedence(PREC_ASSIGNMENT);
-			emitByte(OP_INVOKE_SETTER);
-		} else if (exprType == EXPR_CAN_ASSIGN && matchAssignment()) {
-			emitBytes(OP_DUP, 1); /* o e o */
-			emitBytes(OP_DUP, 1); /* o e o e */
-			emitByte(OP_INVOKE_GETTER); /* o e v */
-			assignmentValue(); /* o e v a */
-			emitByte(OP_INVOKE_SETTER); /* r */
-		} else if (exprType == EXPR_DEL_TARGET && checkEndOfDel()) {
-			emitByte(OP_INVOKE_DELETE);
-		} else {
-			emitByte(OP_INVOKE_GETTER);
-		}
+		emitByte(OP_INVOKE_GETTER);
 	}
 }
 

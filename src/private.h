@@ -17,6 +17,7 @@ extern void _createAndBind_functionClass(void);
 extern void _createAndBind_rangeClass(void);
 extern void _createAndBind_setClass(void);
 extern void _createAndBind_generatorClass(void);
+extern void _createAndBind_sliceClass(void);
 extern void _createAndBind_builtins(void);
 extern void _createAndBind_type(void);
 extern void _createAndBind_exceptions(void);

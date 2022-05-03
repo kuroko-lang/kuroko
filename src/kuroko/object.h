@@ -190,7 +190,6 @@ typedef struct KrkClass {
 
 	KrkObj * _getter;         /**< @brief @c %__getitem__  Called when an instance is subscripted */
 	KrkObj * _setter;         /**< @brief @c %__setitem__  Called when a subscripted instance is assigned to */
-	KrkObj * _getslice;       /**< @brief @c %__getslice__ Called when a slice is used with a subscript access */
 	KrkObj * _reprer;         /**< @brief @c %__repr__     Called to create a reproducible string representation of an instance */
 	KrkObj * _tostr;          /**< @brief @c %__str__      Called to produce a string from an instance */
 	KrkObj * _call;           /**< @brief @c %__call__     Called when an instance is called like a function */
@@ -203,8 +202,6 @@ typedef struct KrkClass {
 	KrkObj * _iter;           /**< @brief @c %__iter__     Called by `for ... in ...`, etc. */
 	KrkObj * _getattr;        /**< @brief @c %__getattr__  Overrides normal behavior for attribute access */
 	KrkObj * _dir;            /**< @brief @c %__dir__      Overrides normal behavior for @c dir() */
-	KrkObj * _setslice;       /**< @brief @c %__setslice__ Called when a slice subscript is an assignment target */
-	KrkObj * _delslice;       /**< @brief @c %__delslice__ Called when a slice subscript is a `del` target */
 	KrkObj * _contains;       /**< @brief @c %__contains__ Called to resolve `in` (as a binary operator) */
 	KrkObj * _descget;        /**< @brief @c %__get__      Called when a descriptor object is bound as a property */
 	KrkObj * _descset;        /**< @brief @c %__set__      Called when a descriptor object is assigned to as a property */
@@ -334,6 +331,16 @@ struct KrkModule {
 #ifndef STATIC_ONLY
 	dlRefType libHandle;
 #endif
+};
+
+/**
+ * @extends KrkInstance
+ */
+struct KrkSlice {
+	KrkInstance inst;
+	KrkValue    start;
+	KrkValue    end;
+	KrkValue    step;
 };
 
 /**

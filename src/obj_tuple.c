@@ -62,9 +62,43 @@ KRK_METHOD(tuple,__len__,{
 
 KRK_METHOD(tuple,__getitem__,{
 	METHOD_TAKES_EXACTLY(1);
-	CHECK_ARG(1,int,krk_integer_type,index);
-	TUPLE_WRAP_INDEX();
-	return self->values.values[index];
+	if (IS_INTEGER(argv[1])) {
+		CHECK_ARG(1,int,krk_integer_type,index);
+		TUPLE_WRAP_INDEX();
+		return self->values.values[index];
+	} else if (IS_slice(argv[1])) {
+		KRK_SLICER(argv[1],self->values.count) {
+			return NONE_VAL();
+		}
+
+		if (step == 1) {
+			krk_integer_type len = end - start;
+			KrkValue result = krk_tuple_of(len, &self->values.values[start], 0);
+			return result;
+		} else {
+			/* iterate and push */
+			krk_push(NONE_VAL());
+			krk_integer_type len = 0;
+			krk_integer_type i = start;
+			while ((step < 0) ? (i > end) : (i < end)) {
+				krk_push(self->values.values[i]);
+				len++;
+				i += step;
+			}
+
+			/* make into a list */
+			KrkValue result = krk_tuple_of(len, &krk_currentThread.stackTop[-len], 0);
+			krk_currentThread.stackTop[-len-1] = result;
+			while (len) {
+				krk_pop();
+				len--;
+			}
+
+			return krk_pop();
+		}
+	} else {
+		return TYPE_ERROR(int or slice, argv[1]);
+	}
 })
 
 KRK_METHOD(tuple,__eq__,{

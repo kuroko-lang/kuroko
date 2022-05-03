@@ -213,6 +213,9 @@ static inline KrkValue discardStringBuilder(struct StringBuilder * sb) {
 #define IS_bytearray(o) (krk_isInstanceOf(o,vm.baseClasses->bytearrayClass))
 #define AS_bytearray(o) ((struct ByteArray*)AS_INSTANCE(o))
 
+#define IS_slice(o) krk_isInstanceOf(o,vm.baseClasses->sliceClass)
+#define AS_slice(o) ((struct KrkSlice*)AS_INSTANCE(o))
+
 #ifndef unpackError
 #define unpackError(fromInput) return krk_runtimeError(vm.exceptions->typeError, "'%s' object is not iterable", krk_typeName(fromInput));
 #endif
@@ -303,4 +306,11 @@ static inline void _setDoc_native(KrkNative * thing, const char * text, size_t s
 #endif
 
 #define BUILTIN_FUNCTION(name, func, docStr) KRK_DOC(krk_defineNative(&vm.builtins->fields, name, func), docStr)
+
+extern int krk_extractSlicer(const char * _method_name, KrkValue slicerVal, krk_integer_type count, krk_integer_type *start, krk_integer_type *end, krk_integer_type *step);
+#define KRK_SLICER(arg,count) \
+	krk_integer_type start; \
+	krk_integer_type end; \
+	krk_integer_type step; \
+	if (krk_extractSlicer(_method_name, arg, count, &start, &end, &step)) 
 

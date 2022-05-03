@@ -88,8 +88,10 @@ KRK_METHOD(dict,__init__,{
 KRK_METHOD(dict,__getitem__,{
 	METHOD_TAKES_EXACTLY(1);
 	KrkValue out;
-	if (!krk_tableGet(&self->entries, argv[1], &out))
+	if (!krk_tableGet(&self->entries, argv[1], &out)) {
+		if (!IS_NONE(krk_currentThread.currentException)) return NONE_VAL();
 		KEY_ERROR(argv[1]);
+	}
 	return out;
 })
 
@@ -112,6 +114,7 @@ KRK_METHOD(dict,__or__,{
 KRK_METHOD(dict,__delitem__,{
 	METHOD_TAKES_EXACTLY(1);
 	if (!krk_tableDelete(&self->entries, argv[1])) {
+		if (!IS_NONE(krk_currentThread.currentException)) return NONE_VAL();
 		KEY_ERROR(argv[1]);
 	}
 })

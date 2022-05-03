@@ -49,22 +49,51 @@ KrkValue krk_list_of(int argc, KrkValue argv[], int hasKw) {
 
 KRK_METHOD(list,__getitem__,{
 	METHOD_TAKES_EXACTLY(1);
-	CHECK_ARG(1,int,krk_integer_type,index);
-	if (vm.globalFlags & KRK_GLOBAL_THREADS) pthread_rwlock_rdlock(&self->rwlock);
-	LIST_WRAP_INDEX();
-	KrkValue result = self->values.values[index];
-	if (vm.globalFlags & KRK_GLOBAL_THREADS) pthread_rwlock_unlock(&self->rwlock);
-	return result;
-})
+	if (IS_INTEGER(argv[1])) {
+		CHECK_ARG(1,int,krk_integer_type,index);
+		if (vm.globalFlags & KRK_GLOBAL_THREADS) pthread_rwlock_rdlock(&self->rwlock);
+		LIST_WRAP_INDEX();
+		KrkValue result = self->values.values[index];
+		if (vm.globalFlags & KRK_GLOBAL_THREADS) pthread_rwlock_unlock(&self->rwlock);
+		return result;
+	} else if (IS_slice(argv[1])) {
+		pthread_rwlock_rdlock(&self->rwlock);
 
-KRK_METHOD(list,__setitem__,{
-	METHOD_TAKES_EXACTLY(2);
-	CHECK_ARG(1,int,krk_integer_type,index);
-	if (vm.globalFlags & KRK_GLOBAL_THREADS) pthread_rwlock_rdlock(&self->rwlock);
-	LIST_WRAP_INDEX();
-	self->values.values[index] = argv[2];
-	if (vm.globalFlags & KRK_GLOBAL_THREADS) pthread_rwlock_unlock(&self->rwlock);
-	return argv[2];
+		KRK_SLICER(argv[1],self->values.count) {
+			pthread_rwlock_unlock(&self->rwlock);
+			return NONE_VAL();
+		}
+
+		if (step == 1) {
+			krk_integer_type len = end - start;
+			KrkValue result = krk_list_of(len, &AS_LIST(argv[0])->values[start], 0);
+			pthread_rwlock_unlock(&self->rwlock);
+			return result;
+		} else {
+			/* iterate and push */
+			krk_push(NONE_VAL());
+			krk_integer_type len = 0;
+			krk_integer_type i = start;
+			while ((step < 0) ? (i > end) : (i < end)) {
+				krk_push(self->values.values[i]);
+				len++;
+				i += step;
+			}
+
+			/* make into a list */
+			KrkValue result = krk_list_of(len, &krk_currentThread.stackTop[-len], 0);
+			krk_currentThread.stackTop[-len-1] = result;
+			while (len) {
+				krk_pop();
+				len--;
+			}
+
+			pthread_rwlock_unlock(&self->rwlock);
+			return krk_pop();
+		}
+	} else {
+		return TYPE_ERROR(int or slice,argv[1]);
+	}
 })
 
 KRK_METHOD(list,__eq__,{
@@ -196,70 +225,6 @@ KRK_METHOD(list,__contains__,{
 	return BOOLEAN_VAL(0);
 })
 
-KRK_METHOD(list,__getslice__,{
-	METHOD_TAKES_EXACTLY(2);
-	if (!(IS_INTEGER(argv[1]) || IS_NONE(argv[1]))) return TYPE_ERROR(int or None, argv[1]);
-	if (!(IS_INTEGER(argv[2]) || IS_NONE(argv[2]))) return TYPE_ERROR(int or None, argv[2]);
-	pthread_rwlock_rdlock(&self->rwlock);
-	krk_integer_type start = IS_NONE(argv[1]) ? 0 : AS_INTEGER(argv[1]);
-	krk_integer_type end   = IS_NONE(argv[2]) ? (krk_integer_type)self->values.count : AS_INTEGER(argv[2]);
-	LIST_WRAP_SOFT(start);
-	LIST_WRAP_SOFT(end);
-	if (end < start) end = start;
-	krk_integer_type len = end - start;
-
-	KrkValue result = krk_list_of(len, &AS_LIST(argv[0])->values[start], 0);
-	pthread_rwlock_unlock(&self->rwlock);
-	return result;
-})
-
-FUNC_SIG(list,pop);
-KRK_METHOD(list,__delslice__,{
-	METHOD_TAKES_EXACTLY(2);
-	if (!(IS_INTEGER(argv[1]) || IS_NONE(argv[1]))) return TYPE_ERROR(int or None, argv[1]);
-	if (!(IS_INTEGER(argv[2]) || IS_NONE(argv[2]))) return TYPE_ERROR(int or None, argv[2]);
-	krk_integer_type start = IS_NONE(argv[1]) ? 0 : AS_INTEGER(argv[1]);
-	krk_integer_type end   = IS_NONE(argv[2]) ? (krk_integer_type)self->values.count : AS_INTEGER(argv[2]);
-	LIST_WRAP_SOFT(start);
-	LIST_WRAP_SOFT(end);
-	if (end < start) end = start;
-	krk_integer_type len = end - start;
-
-	while (len > 0) {
-		FUNC_NAME(list,pop)(2,(KrkValue[]){argv[0],INTEGER_VAL(start)},0);
-		len--;
-	}
-})
-
-KRK_METHOD(list,__setslice__,{
-	METHOD_TAKES_EXACTLY(3);
-	if (!(IS_INTEGER(argv[1]) || IS_NONE(argv[1]))) return TYPE_ERROR(int or None, argv[1]);
-	if (!(IS_INTEGER(argv[2]) || IS_NONE(argv[2]))) return TYPE_ERROR(int or None, argv[2]);
-	if (!IS_list(argv[3])) return TYPE_ERROR(list,argv[3]); /* TODO other sequence types */
-	krk_integer_type start = IS_NONE(argv[1]) ? 0 : AS_INTEGER(argv[1]);
-	krk_integer_type end   = IS_NONE(argv[2]) ? (krk_integer_type)self->values.count : AS_INTEGER(argv[2]);
-	LIST_WRAP_SOFT(start);
-	LIST_WRAP_SOFT(end);
-	if (end < start) end = start;
-	krk_integer_type len = end - start;
-
-	krk_integer_type newLen = (krk_integer_type)AS_LIST(argv[3])->count;
-
-	for (krk_integer_type i = 0; (i < len && i < newLen); ++i) {
-		AS_LIST(argv[0])->values[start+i] = AS_LIST(argv[3])->values[i];
-	}
-
-	while (len < newLen) {
-		FUNC_NAME(list,insert)(3, (KrkValue[]){argv[0], INTEGER_VAL(start + len), AS_LIST(argv[3])->values[len]}, 0);
-		len++;
-	}
-
-	while (newLen < len) {
-		FUNC_NAME(list,pop)(2, (KrkValue[]){argv[0], INTEGER_VAL(start + len - 1)}, 0);
-		len--;
-	}
-})
-
 KRK_METHOD(list,pop,{
 	METHOD_TAKES_AT_MOST(1);
 	pthread_rwlock_wrlock(&self->rwlock);
@@ -282,6 +247,77 @@ KRK_METHOD(list,pop,{
 		AS_LIST(argv[0])->count--;
 		pthread_rwlock_unlock(&self->rwlock);
 		return outItem;
+	}
+})
+
+KRK_METHOD(list,__setitem__,{
+	METHOD_TAKES_EXACTLY(2);
+	if (IS_INTEGER(argv[1])) {
+		CHECK_ARG(1,int,krk_integer_type,index);
+		if (vm.globalFlags & KRK_GLOBAL_THREADS) pthread_rwlock_rdlock(&self->rwlock);
+		LIST_WRAP_INDEX();
+		self->values.values[index] = argv[2];
+		if (vm.globalFlags & KRK_GLOBAL_THREADS) pthread_rwlock_unlock(&self->rwlock);
+		return argv[2];
+	} else if (IS_slice(argv[1])) {
+		if (!IS_list(argv[2])) {
+			return TYPE_ERROR(list,argv[2]); /* TODO other sequence types */
+		}
+
+		KRK_SLICER(argv[1],self->values.count) {
+			return NONE_VAL();
+		}
+
+		if (step != 1) {
+			return krk_runtimeError(vm.exceptions->valueError, "step value unsupported");
+		}
+
+		krk_integer_type len = end - start;
+		krk_integer_type newLen = (krk_integer_type)AS_LIST(argv[2])->count;
+
+		for (krk_integer_type i = 0; (i < len && i < newLen); ++i) {
+			AS_LIST(argv[0])->values[start+i] = AS_LIST(argv[2])->values[i];
+		}
+
+		while (len < newLen) {
+			FUNC_NAME(list,insert)(3, (KrkValue[]){argv[0], INTEGER_VAL(start + len), AS_LIST(argv[2])->values[len]}, 0);
+			len++;
+		}
+
+		while (newLen < len) {
+			FUNC_NAME(list,pop)(2, (KrkValue[]){argv[0], INTEGER_VAL(start + len - 1)}, 0);
+			len--;
+		}
+
+		return OBJECT_VAL(self);
+	} else {
+		return TYPE_ERROR(int or slice, argv[1]);
+	}
+})
+
+
+KRK_METHOD(list,__delitem__,{
+	METHOD_TAKES_EXACTLY(1);
+
+	if (IS_INTEGER(argv[1])) {
+		FUNC_NAME(list,pop)(2,(KrkValue[]){argv[0],INTEGER_VAL(argv[1])},0);
+	} else if (IS_slice(argv[1])) {
+		KRK_SLICER(argv[1],self->values.count) {
+			return NONE_VAL();
+		}
+
+		if (step != 1) {
+			return krk_runtimeError(vm.exceptions->valueError, "step value unsupported");
+		}
+
+		krk_integer_type len = end - start;
+
+		while (len > 0) {
+			FUNC_NAME(list,pop)(2,(KrkValue[]){argv[0],INTEGER_VAL(start)},0);
+			len--;
+		}
+	} else {
+		return TYPE_ERROR(int or slice, argv[1]);
 	}
 })
 
@@ -486,12 +522,10 @@ void _createAndBind_listClass(void) {
 	BIND_METHOD(list,__eq__);
 	BIND_METHOD(list,__getitem__);
 	BIND_METHOD(list,__setitem__);
+	BIND_METHOD(list,__delitem__);
 	BIND_METHOD(list,__len__);
 	BIND_METHOD(list,__repr__);
 	BIND_METHOD(list,__contains__);
-	BIND_METHOD(list,__getslice__);
-	BIND_METHOD(list,__delslice__);
-	BIND_METHOD(list,__setslice__);
 	BIND_METHOD(list,__iter__);
 	BIND_METHOD(list,__mul__);
 	BIND_METHOD(list,__add__);
@@ -546,7 +580,6 @@ void _createAndBind_listClass(void) {
 		"@brief Sort the contents of a list.\n\n"
 		"Performs an in-place sort of the elements in the list, returning @c None as a gentle reminder "
 		"that the sort is in-place. If a sorted copy is desired, use @ref sorted instead.");
-	krk_defineNative(&list->methods, "__delitem__", FUNC_NAME(list,pop));
 	krk_defineNative(&list->methods, "__str__", FUNC_NAME(list,__repr__));
 	krk_defineNative(&list->methods, "__class_getitem__", KrkGenericAlias)->flags |= KRK_NATIVE_FLAGS_IS_CLASS_METHOD;
 	krk_attachNamedValue(&list->methods, "__hash__", NONE_VAL());
