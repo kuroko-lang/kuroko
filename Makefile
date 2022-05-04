@@ -148,11 +148,13 @@ stress-test:
 	$(MAKE) TESTWRAPPER='valgrind' test
 
 bench:
-	@echo "Kuroko:"
+	@echo "Kuroko: ($$(./kuroko --version))"
 	@for i in bench/*.krk; do ./kuroko "$$i"; done
-	@echo "CPython:"
+	@echo "Kuroko ($$(kuroko --version)):"
+	@for i in bench/*.krk; do kuroko "$$i"; done
+	@echo "CPython ($$(python3 --version))"
 	@for i in bench/*.py; do python3 "$$i"; done
-	@echo "Micropython:"
+	@echo "Micropython ($$(micropython -c 'import sys; print(sys.version)'))"
 	@for i in bench/*.py; do micropython -X heapsize=128M "$$i"; done
 
 # Really should be up to you to set, not us...
