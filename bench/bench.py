@@ -77,6 +77,14 @@ def read_boundmethod():
     a.m;    a.m;    a.m;    a.m;    a.m
     a.m;    a.m;    a.m;    a.m;    a.m
 
+def call_boundmethod():
+    a = _a
+    a.m();    a.m();    a.m();    a.m();    a.m()
+    a.m();    a.m();    a.m();    a.m();    a.m()
+    a.m();    a.m();    a.m();    a.m();    a.m()
+    a.m();    a.m();    a.m();    a.m();    a.m()
+    a.m();    a.m();    a.m();    a.m();    a.m()
+
 def write_local():
     v_local = 1
     v_local = 1; v_local = 1; v_local = 1; v_local = 1; v_local = 1
@@ -125,7 +133,7 @@ def write_instancevar():
 if __name__=='__main__':
     from fasttimer import timeit
     for f in [read_local, read_nonlocal, read_global, read_builtin,
-              read_classvar, read_instancevar, read_unboundmethod, read_boundmethod,
+              read_classvar, read_instancevar, read_unboundmethod, read_boundmethod, call_boundmethod,
               write_local, write_nonlocal, write_global,
               write_classvar, write_instancevar]:
         print(timeit(f,number=1000000), f.__qualname__ if hasattr(f,'__qualname__') else f.__name__ if hasattr(f,'__name__') else '?')
