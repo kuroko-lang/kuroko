@@ -165,6 +165,7 @@ int krk_valuesEqual(KrkValue a, KrkValue b) {
 	}
 	if (IS_FLOATING(a) && IS_FLOATING(b)) return AS_FLOATING(a) == AS_FLOATING(b);
 	if (IS_KWARGS(a) || IS_KWARGS(b)) return 0;
+	if (IS_STRING(a) && IS_STRING(b)) return 0;
 
 	KrkClass * type = krk_getType(a);
 	if (type && type->_eq) {
