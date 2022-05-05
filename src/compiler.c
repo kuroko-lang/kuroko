@@ -95,6 +95,7 @@ typedef enum {
 	EXPR_CAN_ASSIGN,    /**< This expression may be an assignment target, check for assignment operators at the end. */
 	EXPR_ASSIGN_TARGET, /**< This expression is definitely an assignment target or chained to one. */
 	EXPR_DEL_TARGET,    /**< This expression is in the target list of a 'del' statement. */
+	EXPR_METHOD_CALL,   /**< This expression is the parameter list of a method call; only used by @ref dot and @ref call */
 } ExpressionType;
 
 /**
@@ -367,6 +368,7 @@ static KrkToken decorator(size_t level, FunctionType type);
 static void complexAssignment(ChunkRecorder before, KrkScanner oldScanner, Parser oldParser, size_t targetCount, int parenthesized);
 static void complexAssignmentTargets(KrkScanner oldScanner, Parser oldParser, size_t targetCount, int parenthesized);
 static int invalidTarget(int exprType, const char * description);
+static void call(int exprType);
 
 /* These are not the real parse functions. */
 static void commaX(int exprType) { }
@@ -1023,6 +1025,9 @@ _dotDone:
 		EMIT_OPERAND_OP(OP_SET_PROPERTY, ind);
 	} else if (exprType == EXPR_DEL_TARGET && checkEndOfDel()) {
 		EMIT_OPERAND_OP(OP_DEL_PROPERTY, ind);
+	} else if (match(TOKEN_LEFT_PAREN)) {
+		EMIT_OPERAND_OP(OP_GET_METHOD, ind);
+		call(EXPR_METHOD_CALL);
 	} else {
 		EMIT_OPERAND_OP(OP_GET_PROPERTY, ind);
 	}
@@ -3256,7 +3261,12 @@ static void call(int exprType) {
 		 */
 		argCount += 1 /* for the sentinel */ + 2 * specialArgs;
 	}
-	EMIT_OPERAND_OP(OP_CALL, argCount);
+
+	if (exprType == EXPR_METHOD_CALL) {
+		EMIT_OPERAND_OP(OP_CALL_METHOD, argCount);
+	} else {
+		EMIT_OPERAND_OP(OP_CALL, argCount);
+	}
 
 	invalidTarget(exprType, "function call");
 }

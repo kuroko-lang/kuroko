@@ -104,6 +104,8 @@ typedef enum {
 	OP_MAKE_SET,
 	OP_REVERSE,
 	OP_SLICE,
+	OP_GET_METHOD,
+	OP_CALL_METHOD,
 
 	/* Two opcode instructions */
 	OP_JUMP_IF_FALSE_OR_POP,
@@ -148,6 +150,8 @@ typedef enum {
 	OP_MAKE_SET_LONG,
 	OP_REVERSE_LONG,
 	OP_SLICE_LONG,
+	OP_GET_METHOD_LONG,
+	OP_CALL_METHOD_LONG,
 } KrkOpCode;
 
 /**

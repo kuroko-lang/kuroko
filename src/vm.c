@@ -584,7 +584,7 @@ int krk_processComplexArguments(int argCount, KrkValueArray * positionals, KrkTa
  * `extra` is passed by `callValue` to tell us which case we have, and thus
  * where we need to restore the stack to when we return from this call.
  */
-static int call(KrkClosure * closure, int argCount, int callableOnStack) {
+static int call(KrkClosure * closure, int argCount, int returnDepth) {
 	size_t potentialPositionalArgs = closure->function->requiredArgs + closure->function->keywordArgs;
 	size_t totalArguments = closure->function->requiredArgs + closure->function->keywordArgs + !!(closure->function->flags & KRK_CODEOBJECT_FLAGS_COLLECTS_ARGS) + !!(closure->function->flags & KRK_CODEOBJECT_FLAGS_COLLECTS_KWS);
 	size_t offsetOfExtraArgs = closure->function->requiredArgs + closure->function->keywordArgs;
@@ -726,7 +726,7 @@ _finishKwarg:
 
 	if (unlikely(closure->function->flags & (KRK_CODEOBJECT_FLAGS_IS_GENERATOR | KRK_CODEOBJECT_FLAGS_IS_COROUTINE))) {
 		KrkInstance * gen = krk_buildGenerator(closure, krk_currentThread.stackTop - argCount, argCount);
-		krk_currentThread.stackTop = krk_currentThread.stackTop - argCount - callableOnStack;
+		krk_currentThread.stackTop = krk_currentThread.stackTop - argCount - returnDepth;
 		krk_push(OBJECT_VAL(gen));
 		return 2;
 	}
@@ -740,7 +740,7 @@ _finishKwarg:
 	frame->closure = closure;
 	frame->ip = closure->function->chunk.code;
 	frame->slots = (krk_currentThread.stackTop - argCount) - krk_currentThread.stack;
-	frame->outSlots = (krk_currentThread.stackTop - argCount - callableOnStack) - krk_currentThread.stack;
+	frame->outSlots = (krk_currentThread.stackTop - argCount - returnDepth) - krk_currentThread.stack;
 	frame->globals = &closure->function->globalsContext->fields;
 	FRAME_IN(frame);
 	return 1;
@@ -774,11 +774,11 @@ _errorAfterKeywords:
  *   If callValue returns 0, the VM should already be in the exception state
  *   and it is not necessary to raise another exception.
  */
-int krk_callValue(KrkValue callee, int argCount, int callableOnStack) {
+int krk_callValue(KrkValue callee, int argCount, int returnDepth) {
 	if (likely(IS_OBJECT(callee))) {
 		switch (OBJECT_TYPE(callee)) {
 			case KRK_OBJ_CLOSURE:
-				return call(AS_CLOSURE(callee), argCount, callableOnStack);
+				return call(AS_CLOSURE(callee), argCount, returnDepth);
 			case KRK_OBJ_NATIVE: {
 				NativeFn native = (NativeFn)AS_NATIVE(callee)->function;
 				if (unlikely(argCount && IS_KWARGS(krk_currentThread.stackTop[-1]))) {
@@ -790,7 +790,7 @@ int krk_callValue(KrkValue callee, int argCount, int callableOnStack) {
 						return 0;
 					}
 					argCount--; /* Because that popped the kwargs value */
-					krk_currentThread.stackTop -= argCount + callableOnStack; /* We can just put the stack back to normal */
+					krk_currentThread.stackTop -= argCount + returnDepth; /* We can just put the stack back to normal */
 					krk_push(myList);
 					krk_push(myDict);
 					krk_currentThread.scratchSpace[0] = NONE_VAL();
@@ -814,7 +814,7 @@ int krk_callValue(KrkValue callee, int argCount, int callableOnStack) {
 						free(stackCopy);
 					}
 					if (unlikely(krk_currentThread.stackTop == krk_currentThread.stack)) return 0;
-					krk_currentThread.stackTop -= argCount + callableOnStack;
+					krk_currentThread.stackTop -= argCount + returnDepth;
 					krk_push(result);
 				}
 				return 2;
@@ -822,7 +822,7 @@ int krk_callValue(KrkValue callee, int argCount, int callableOnStack) {
 			case KRK_OBJ_INSTANCE: {
 				KrkClass * _class = AS_INSTANCE(callee)->_class;
 				if (likely(_class->_call != NULL)) {
-					return krk_callValue(OBJECT_VAL(_class->_call), argCount + 1, 0);
+					return krk_callValue(OBJECT_VAL(_class->_call), argCount + 1, returnDepth ? (returnDepth - 1) : 0);
 				} else {
 					krk_runtimeError(vm.exceptions->typeError, "'%s' object is not callable", krk_typeName(callee));
 					return 0;
@@ -833,7 +833,7 @@ int krk_callValue(KrkValue callee, int argCount, int callableOnStack) {
 				KrkInstance * newInstance = krk_newInstance(_class);
 				krk_currentThread.stackTop[-argCount - 1] = OBJECT_VAL(newInstance);
 				if (likely(_class->_init != NULL)) {
-					return krk_callValue(OBJECT_VAL(_class->_init), argCount + 1, 0);
+					return krk_callValue(OBJECT_VAL(_class->_init), argCount + 1, returnDepth ? (returnDepth - 1) : 0);
 				} else if (unlikely(argCount != 0)) {
 					krk_runtimeError(vm.exceptions->typeError, "%s() takes no arguments (%d given)",
 						_class->name->chars, argCount);
@@ -848,7 +848,7 @@ int krk_callValue(KrkValue callee, int argCount, int callableOnStack) {
 					krk_runtimeError(vm.exceptions->argumentError, "???");
 					return 0;
 				}
-				return krk_callValue(OBJECT_VAL(bound->method), argCount + 1, 0);
+				return krk_callValue(OBJECT_VAL(bound->method), argCount + 1, returnDepth ? (returnDepth - 1): 0);
 			}
 			default:
 				break;
@@ -925,6 +925,61 @@ int krk_bindMethod(KrkClass * _class, KrkString * name) {
 	krk_push(out);
 	return 1;
 }
+
+/**
+ * Similar to @ref krk_bindMethod but does not create bound method objects.
+ * @returns 1 if the result was an (unbound) method, 2 if it was something else, 0 if it was not found.
+ */
+int krk_unbindMethod(KrkClass * _class, KrkString * name) {
+	KrkClass * originalClass = _class;
+	KrkValue method, out;
+	while (_class) {
+		if (krk_tableGet_fast(&_class->methods, name, &method)) break;
+		_class = _class->base;
+	}
+	if (!_class) return 0;
+	if (IS_NATIVE(method)) {
+		if (((KrkNative*)AS_OBJECT(method))->flags & KRK_NATIVE_FLAGS_IS_DYNAMIC_PROPERTY) {
+			out = AS_NATIVE(method)->function(1, (KrkValue[]){krk_peek(0)}, 0);
+		} else if (((KrkNative*)AS_OBJECT(method))->flags & KRK_NATIVE_FLAGS_IS_CLASS_METHOD) {
+			krk_pop(); /* the object */
+			krk_push(OBJECT_VAL(originalClass));
+			krk_push(method);
+			return 1;
+		} else if (((KrkNative*)AS_OBJECT(method))->flags & KRK_NATIVE_FLAGS_IS_STATIC_METHOD) {
+			out = method;
+		} else {
+			krk_push(method);
+			return 1;
+		}
+	} else if (IS_CLOSURE(method)) {
+		if (AS_CLOSURE(method)->flags & KRK_FUNCTION_FLAGS_IS_CLASS_METHOD) {
+			krk_pop();
+			krk_push(OBJECT_VAL(originalClass));
+			krk_push(method);
+			return 1;
+		} else if (AS_CLOSURE(method)->flags & KRK_FUNCTION_FLAGS_IS_STATIC_METHOD) {
+			out = method;
+		} else {
+			krk_push(method);
+			return 1;
+		}
+	} else {
+		/* Does it have a descriptor __get__? */
+		KrkClass * type = krk_getType(method);
+		if (type->_descget) {
+			krk_push(krk_peek(0));
+			krk_push(method);
+			krk_swap(1);
+			krk_push(krk_callDirect(type->_descget, 2));
+			return 2;
+		}
+		out = method;
+	}
+	krk_push(out);
+	return 2;
+}
+
 
 /**
  * Capture upvalues and mark them as open. Called upon closure creation to
@@ -1384,11 +1439,16 @@ static KrkValue tryBind(const char * name, KrkValue a, KrkValue b, const char * 
 	krk_push(OBJECT_VAL(methodName));
 
 	/* Bind from a */
+	int res;
 	KrkClass * type = krk_getType(a);
 	krk_push(a);
-	if (krk_bindMethod(type, methodName)) {
+	if ((res = krk_unbindMethod(type, methodName))) {
+		krk_swap(1);
+		if (res == 2) {
+			krk_pop();
+		}
 		krk_push(b);
-		value = krk_callStack(1);
+		value = krk_callStack(res == 2 ? 1 : 2);
 		if (!IS_NOTIMPL(value)) goto _success;
 		krk_pop(); /* name */
 	} else {
@@ -1401,9 +1461,13 @@ static KrkValue tryBind(const char * name, KrkValue a, KrkValue b, const char * 
 	krk_push(OBJECT_VAL(methodName));
 	type = krk_getType(b);
 	krk_push(b);
-	if (krk_bindMethod(type, methodName)) {
+	if ((res = krk_unbindMethod(type, methodName))) {
+		krk_swap(1);
+		if (res == 2) {
+			krk_pop();
+		}
 		krk_push(a);
-		value = krk_callStack(1);
+		value = krk_callStack(res == 2 ? 1 : 2);
 		if (!IS_NOTIMPL(value)) goto _success;
 		krk_pop(); /* name */
 	} else {
@@ -1906,6 +1970,64 @@ static int valueGetProperty(KrkString * name) {
 
 	return 0;
 }
+
+/**
+ * Similar to the above, but specifically for getting properties that will be
+ * immediately called, eg. for GET_METHOD that is followed by argument pushing
+ * and then CALL_METHOD.
+ */
+static int valueGetMethod(KrkString * name) {
+	KrkValue this = krk_peek(0);
+	KrkClass * objectClass;
+	KrkValue value;
+	if (IS_INSTANCE(this)) {
+		KrkInstance * instance = AS_INSTANCE(this);
+		if (krk_tableGet_fast(&instance->fields, name, &value)) {
+			krk_push(value);
+			return 2;
+		}
+		objectClass = instance->_class;
+	} else if (IS_CLASS(this)) {
+		KrkClass * _class = AS_CLASS(this);
+		do {
+			if (krk_tableGet_fast(&_class->methods, name, &value)) {
+				if ((IS_CLOSURE(value) && (AS_CLOSURE(value)->flags & KRK_FUNCTION_FLAGS_IS_CLASS_METHOD)) ||
+				    (IS_NATIVE(value) && (AS_NATIVE(value)->flags & KRK_NATIVE_FLAGS_IS_CLASS_METHOD))) {
+					krk_push(value);
+					return 1;
+				}
+				krk_push(value);
+				return 2;
+			}
+			_class = _class->base;
+		} while (_class);
+		objectClass = vm.baseClasses->typeClass;
+	} else if (IS_CLOSURE(krk_peek(0))) {
+		KrkClosure * closure = AS_CLOSURE(this);
+		if (krk_tableGet_fast(&closure->fields, name, &value)) {
+			krk_push(value);
+			return 2;
+		}
+		objectClass = vm.baseClasses->functionClass;
+	} else {
+		objectClass = krk_getType(this);
+	}
+
+	/* See if the base class for this non-instance type has a method available */
+	int maybe = krk_unbindMethod(objectClass, name);
+	if (maybe) return maybe;
+
+	if (objectClass->_getattr) {
+		krk_push(krk_peek(0));
+		krk_push(OBJECT_VAL(name));
+		krk_push(krk_callDirect(objectClass->_getattr, 2));
+		return 2;
+	}
+
+	return 0;
+
+}
+
 
 KrkValue krk_valueGetAttribute(KrkValue value, char * name) {
 	krk_push(OBJECT_VAL(krk_copyString(name,strlen(name))));
@@ -2576,6 +2698,18 @@ _finishReturn: (void)0;
 				frame = &krk_currentThread.frames[krk_currentThread.frameCount - 1];
 				break;
 			}
+			case OP_CALL_METHOD_LONG:
+				THREE_BYTE_OPERAND;
+			case OP_CALL_METHOD: {
+				ONE_BYTE_OPERAND;
+				if (IS_NONE(krk_peek(OPERAND+1))) {
+					if (unlikely(!krk_callValue(krk_peek(OPERAND), OPERAND, 2))) goto _finishException;
+				} else {
+					if (unlikely(!krk_callValue(krk_peek(OPERAND+1), OPERAND+1, 1))) goto _finishException;
+				}
+				frame = &krk_currentThread.frames[krk_currentThread.frameCount - 1];
+				break;
+			}
 			case OP_EXPAND_ARGS_LONG:
 				THREE_BYTE_OPERAND;
 			case OP_EXPAND_ARGS: {
@@ -2735,6 +2869,24 @@ _finishReturn: (void)0;
 				krk_swap(1);
 				/* Pop super class */
 				krk_pop();
+				break;
+			}
+			case OP_GET_METHOD_LONG:
+				THREE_BYTE_OPERAND;
+			case OP_GET_METHOD: {
+				ONE_BYTE_OPERAND;
+				KrkString * name = READ_STRING(OPERAND);
+				int result = valueGetMethod(name);
+				if (result == 2) {
+					krk_push(NONE_VAL());
+					krk_swap(2);
+					krk_pop();
+				} else if (unlikely(!result)) {
+					krk_runtimeError(vm.exceptions->attributeError, "'%s' object has no attribute '%s'", krk_typeName(krk_peek(0)), name->chars);
+					goto _finishException;
+				} else {
+					krk_swap(1); /* unbound-method object */
+				}
 				break;
 			}
 			case OP_DUP_LONG:
