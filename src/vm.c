@@ -543,7 +543,7 @@ int krk_processComplexArguments(int argCount, KrkValueArray * positionals, KrkTa
 			if (AS_INTEGER(key) == KWARGS_LIST) { /* unpack list */
 				unpackIterableFast(value);
 			} else if (AS_INTEGER(key) == KWARGS_DICT) { /* unpack dict */
-				if (!IS_INSTANCE(value)) {
+				if (!IS_dict(value)) {
 					krk_runtimeError(vm.exceptions->typeError, "%s(): **expression value is not a dict.", name);
 					return 0;
 				}
