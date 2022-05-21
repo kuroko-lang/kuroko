@@ -206,10 +206,13 @@ KrkString * krk_takeString(char * chars, size_t length) {
 	_obtain_lock(_stringLock);
 	KrkString * interned = krk_tableFindString(&vm.strings, chars, length, hash);
 	if (interned != NULL) {
-		FREE_ARRAY(char, chars, length + 1);
+		free(chars); /* This string isn't owned by us yet, so free, not FREE_ARRAY */
 		_release_lock(_stringLock);
 		return interned;
 	}
+
+	/* Part of taking ownership of this string is that we track its memory usage */
+	vm.bytesAllocated += length + 1;
 	KrkString * result = allocateString(chars, length, hash);
 	return result;
 }
