@@ -13,7 +13,7 @@ static KrkValue FUNC_NAME(striterator,__init__)(int,KrkValue[],int);
 
 #define PUSH_CHAR(c) do { if (stringCapacity < stringLength + 1) { \
 		size_t old = stringCapacity; stringCapacity = GROW_CAPACITY(old); \
-		stringBytes = realloc(stringBytes, stringCapacity); \
+		stringBytes = GROW_ARRAY(char, stringBytes, old, stringCapacity); \
 	} stringBytes[stringLength++] = c; } while (0)
 
 #define KRK_STRING_FAST(string,offset)  (uint32_t)\
