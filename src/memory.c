@@ -6,7 +6,8 @@
 #include <kuroko/util.h>
 
 void * krk_reallocate(void * ptr, size_t old, size_t new) {
-	vm.bytesAllocated += new - old;
+	vm.bytesAllocated -= old;
+	vm.bytesAllocated += new;
 
 	if (new > old && ptr != krk_currentThread.stack && &krk_currentThread == vm.threads && !(vm.globalFlags & KRK_GLOBAL_GC_PAUSED)) {
 #ifndef KRK_NO_STRESS_GC
@@ -68,9 +69,12 @@ static void freeObject(KrkObj * object) {
 			break;
 		}
 		case KRK_OBJ_INSTANCE: {
-			if (((KrkInstance*)object)->_class->_ongcsweep) ((KrkInstance*)object)->_class->_ongcsweep((KrkInstance*)object);
-			krk_freeTable(&((KrkInstance*)object)->fields);
-			FREE(KrkInstance, object);
+			KrkInstance * inst = (KrkInstance*)object;
+			if (inst->_class->_ongcsweep) {
+				inst->_class->_ongcsweep(inst);
+			}
+			krk_freeTable(&inst->fields);
+			krk_reallocate(object,inst->_class->allocSize,0);
 			break;
 		}
 		case KRK_OBJ_BOUND_METHOD:
