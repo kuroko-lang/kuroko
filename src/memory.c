@@ -294,8 +294,13 @@ static void markRoots() {
 }
 
 static int smartSize(char _out[100], size_t s) {
+#if UINTPTR_MAX == 0xFFFFFFFF
+	size_t count = 3;
+	char * prefix = "GMK";
+#else
 	size_t count = 5;
 	char * prefix = "PTGMK";
+#endif
 	for (; count > 0 && *prefix; count--, prefix++) {
 		size_t base = 1UL << (count * 10);
 		if (s >= base) {
