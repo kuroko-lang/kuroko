@@ -350,6 +350,7 @@ KRK_FUNC(read,{
 	uint8_t * tmp = malloc(n);
 	ssize_t result = read(fd,tmp,n);
 	if (result == -1) {
+		free(tmp);
 		return krk_runtimeError(OSError, "%s", strerror(errno));
 	} else {
 		krk_push(OBJECT_VAL(krk_newBytes(result,tmp)));
@@ -485,6 +486,7 @@ KRK_FUNC(execl,{
 	char ** args;
 	if (makeArgs(argc-1,&argv[1],&args,_method_name)) return NONE_VAL();
 	if (execv(path->chars, args) == -1) {
+		free(args);
 		return krk_runtimeError(OSError, "%s", strerror(errno));
 	}
 	return krk_runtimeError(OSError, "Expected to not return from exec, but did.");
@@ -496,6 +498,7 @@ KRK_FUNC(execlp,{
 	char ** args;
 	if (makeArgs(argc-1,&argv[1],&args,_method_name)) return NONE_VAL();
 	if (execvp(filename->chars, args) == -1) {
+		free(args);
 		return krk_runtimeError(OSError, "%s", strerror(errno));
 	}
 	return krk_runtimeError(OSError, "Expected to not return from exec, but did.");
@@ -508,8 +511,13 @@ KRK_FUNC(execle,{
 	char ** args;
 	char ** env;
 	if (makeArgs(argc-2,&argv[1],&args,_method_name)) return NONE_VAL();
-	if (makeArgs(envp->values.count, envp->values.values,&env,_method_name)) return NONE_VAL();
+	if (makeArgs(envp->values.count, envp->values.values,&env,_method_name)) {
+		free(args);
+		return NONE_VAL();
+	}
 	if (execve(path->chars, args, env) == -1) {
+		free(args);
+		free(env);
 		return krk_runtimeError(OSError, "%s", strerror(errno));
 	}
 	return krk_runtimeError(OSError, "Expected to not return from exec, but did.");
@@ -612,7 +620,9 @@ KRK_METHOD(stat_result,__repr__,{
 		(int)AS_INTEGER(st_size));
 
 	if (len > 1023) len = 1023;
-	return OBJECT_VAL(krk_copyString(buf,len));
+	krk_push(OBJECT_VAL(krk_copyString(buf,len)));
+	free(buf);
+	return krk_pop();
 })
 
 KRK_FUNC(S_ISBLK,{
