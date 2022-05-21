@@ -2581,6 +2581,7 @@ static void string(int exprType) {
 		goto _cleanupError;
 	}
 	if (isBytes) {
+		stringBytes = krk_reallocate(stringBytes, stringCapacity, stringLength);
 		KrkBytes * bytes = krk_newBytes(0,NULL);
 		bytes->bytes = (uint8_t*)stringBytes;
 		bytes->length = stringLength;
