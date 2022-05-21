@@ -39,7 +39,7 @@ void krk_writeChunk(KrkChunk * chunk, uint8_t byte, size_t line) {
 
 void krk_freeChunk(KrkChunk * chunk) {
 	FREE_ARRAY(uint8_t, chunk->code, chunk->capacity);
-	FREE_ARRAY(size_t, chunk->lines, chunk->capacity);
+	FREE_ARRAY(KrkLineMap, chunk->lines, chunk->linesCapacity);
 	krk_freeValueArray(&chunk->constants);
 	krk_initChunk(chunk);
 }
