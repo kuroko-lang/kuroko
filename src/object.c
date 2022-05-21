@@ -212,7 +212,7 @@ KrkString * krk_takeString(char * chars, size_t length) {
 	}
 
 	/* Part of taking ownership of this string is that we track its memory usage */
-	vm.bytesAllocated += length + 1;
+	krk_gcTakeBytes(chars, length + 1);
 	KrkString * result = allocateString(chars, length, hash);
 	return result;
 }

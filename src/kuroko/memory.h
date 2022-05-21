@@ -78,3 +78,15 @@ extern void krk_markObject(KrkObj * object);
  */
 extern void krk_markTable(KrkTable * table);
 
+/**
+ * @brief Assume ownership of @p size bytes at @p ptr
+ *
+ * Future memory allocation operations with this ptr must be
+ * through @c krk_reallocate - @p size will be added to the
+ * VM allocation count, and if extensively memory debugging
+ * is enabled then the pointer will be marked as owned.
+ *
+ * @param ptr Pointer to take ownership of
+ * @param size Size of data at @p ptr
+ */
+extern void krk_gcTakeBytes(const void * ptr, size_t size);

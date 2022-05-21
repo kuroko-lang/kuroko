@@ -5,7 +5,26 @@
 #include <kuroko/table.h>
 #include <kuroko/util.h>
 
+#if defined(KRK_EXTENSIVE_MEMORY_DEBUGGING)
+/**
+ * Extensive memory debugging tracks every allocation
+ * in a table, but we don't want to use our table...
+ */
+#include "../../toaruos/lib/list.c"
+#include "../../toaruos/lib/hashmap.c"
+static hashmap_t * _debug_hash = NULL;
+#endif
+
+void krk_gcTakeBytes(const void * ptr, size_t size) {
+#if defined(KRK_EXTENSIVE_MEMORY_DEBUGGING)
+	hashmap_set(_debug_hash, (void*)ptr, (void*)(uintptr_t)(size));
+#endif
+
+	vm.bytesAllocated += size;
+}
+
 void * krk_reallocate(void * ptr, size_t old, size_t new) {
+
 	vm.bytesAllocated -= old;
 	vm.bytesAllocated += new;
 
@@ -20,12 +39,40 @@ void * krk_reallocate(void * ptr, size_t old, size_t new) {
 		}
 	}
 
+	void * out;
 	if (new == 0) {
 		free(ptr);
-		return NULL;
+		out = NULL;
+	} else {
+		out = realloc(ptr, new);
 	}
 
-	return realloc(ptr, new);
+#if defined(KRK_EXTENSIVE_MEMORY_DEBUGGING)
+	if (!_debug_hash) {
+		_debug_hash = hashmap_create_int(1000);
+	}
+	if (ptr != NULL) {
+		if (!hashmap_has(_debug_hash, ptr)) {
+			fprintf(stderr, "Invalid reallocation of %p from %zu to %zu\n", ptr, old, new);
+			abort();
+		}
+
+		uintptr_t t = (uintptr_t)hashmap_get(_debug_hash, ptr);
+		if (t != old) {
+			fprintf(stderr, "Invalid reallocation of %p from %zu - should be %zu - to %zu\n", ptr, old, t, new);
+			abort();
+		}
+	}
+
+	if (ptr) {
+		hashmap_remove(_debug_hash, ptr);
+	}
+	if (out) {
+		hashmap_set(_debug_hash, out, (void*)(uintptr_t)new);
+	}
+#endif
+
+	return out;
 }
 
 static void freeObject(KrkObj * object) {
