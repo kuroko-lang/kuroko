@@ -2521,6 +2521,7 @@ static void string(int exprType) {
 					if (atLeastOne) emitByte(OP_ADD);
 					atLeastOne = 1;
 				}
+				const char * start = c+1;
 				stringLength = 0;
 				KrkScanner beforeExpression = krk_tellScanner();
 				Parser  parserBefore = parser;
@@ -2537,6 +2538,15 @@ static void string(int exprType) {
 				parser = parserBefore;
 				c = inner.start;
 				KrkToken which = syntheticToken("str");
+				int hasEq = 0;
+				while (*c == ' ') c++;
+				if (*c == '=') {
+					c++;
+					while (*c == ' ') c++;
+					emitConstant(OBJECT_VAL(krk_copyString(start,c-start)));
+					emitByte(OP_SWAP);
+					hasEq = 1;
+				}
 				if (*c == '!') {
 					c++;
 					/* Conversion specifiers, must only be one */
@@ -2563,6 +2573,7 @@ static void string(int exprType) {
 					error("Expected closing '}' after expression in f-string");
 					goto _cleanupError;
 				}
+				if (hasEq) emitByte(OP_ADD);
 				if (atLeastOne) emitByte(OP_ADD);
 				atLeastOne = 1;
 				c++;
