@@ -24,6 +24,7 @@ KRK_FUNC(timeit,{
 	for (krk_integer_type t = 0; t < times; ++t) {
 		krk_push(argv[0]);
 		krk_callStack(0);
+		if (unlikely(krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION)) return NONE_VAL();
 	}
 	gettimeofday(&tv_after,NULL);
 
