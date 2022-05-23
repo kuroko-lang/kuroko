@@ -152,10 +152,10 @@ inline
 int krk_valuesEqual(KrkValue a, KrkValue b) {
 	if (KRK_VAL_TYPE(a) == KRK_VAL_TYPE(b)) {
 		switch (KRK_VAL_TYPE(a)) {
-			case KRK_VAL_BOOLEAN:  return AS_BOOLEAN(a) == AS_BOOLEAN(b);
+			case KRK_VAL_BOOLEAN:  return a == b;
 			case KRK_VAL_NONE:     return 1; /* None always equals None */
 			case KRK_VAL_KWARGS:   /* Equal if same number of args; may be useful for comparing sentinels (0) to arg lists. */
-			case KRK_VAL_INTEGER:  return AS_INTEGER(a) == AS_INTEGER(b);
+			case KRK_VAL_INTEGER:  return a == b;
 			case KRK_VAL_HANDLER:  krk_runtimeError(vm.exceptions->valueError,"Invalid value"); return 0;
 			case KRK_VAL_OBJECT: {
 				if (AS_OBJECT(a) == AS_OBJECT(b)) return 1;

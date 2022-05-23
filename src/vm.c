@@ -2519,7 +2519,7 @@ _finishReturn: (void)0;
 			case OP_JUMP_IF_FALSE_OR_POP: {
 				TWO_BYTE_OPERAND;
 				uint16_t offset = OPERAND;
-				if (krk_isFalsey(krk_peek(0))) frame->ip += offset;
+				if (krk_peek(0) == BOOLEAN_VAL(0) || krk_isFalsey(krk_peek(0))) frame->ip += offset;
 				else krk_pop();
 				break;
 			}
@@ -2609,7 +2609,8 @@ _finishReturn: (void)0;
 				KrkValue iter = krk_peek(0);
 				krk_push(iter);
 				krk_push(krk_callStack(0));
-				if (krk_valuesSame(iter, krk_peek(0))) frame->ip += offset;
+				/* krk_valuesSame() */
+				if (iter == krk_peek(0)) frame->ip += offset;
 				break;
 			}
 
