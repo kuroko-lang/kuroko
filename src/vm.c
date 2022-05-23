@@ -1419,6 +1419,9 @@ void krk_freeVM() {
 	memset(&krk_vm,0,sizeof(krk_vm));
 	free(krk_currentThread.frames);
 	memset(&krk_currentThread,0,sizeof(KrkThreadState));
+
+	extern void krk_freeMemoryDebugger(void);
+	krk_freeMemoryDebugger();
 }
 
 /**

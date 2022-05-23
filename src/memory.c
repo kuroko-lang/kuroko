@@ -7,17 +7,143 @@
 
 #if defined(KRK_EXTENSIVE_MEMORY_DEBUGGING)
 /**
- * Extensive memory debugging tracks every allocation
- * in a table, but we don't want to use our table...
+ * Extensive Memory Debugging
+ *
+ * When memory is allocated for Kuroko objects, it should be tracked.
+ * This tracking allows us to schedule garbage collection at reasonable
+ * periods based on memory load. In order for this to work correctly,
+ * allocation and deallocation, as well resizing, must correctly track
+ * the sizes of objects by both using the appropriate macros and by
+ * ensuring the right sizes are passed to those macros. This is a very
+ * easy thing to get wrong - allocate with @c malloc but free with the
+ * @c FREE_ARRAY macros, for example, and the memory tracking now has
+ * a net negative, which may lead to underflowing. Use the right macros,
+ * but mix up sizes between allocation and deallocation, and we may have
+ * a "leak" of bytes and garbage collection may happen more often than
+ * needs to. Because sizes are generally stored somewhere in an object,
+ * but that 'somewhere' can be different between objects, and some objects
+ * store more than one size, it can be difficult to automatically track
+ * the right sizes. We could add it to the actual allocation, or try to
+ * steal the information from the underlying system allocator, but both
+ * of these have their respective issues.
+ *
+ * Enter the extensive memory debugger, which is just a glorified hash
+ * table of allocated pointers to their sizes. Every time we perform
+ * an allocation, we store the right size in the hash. This hash table
+ * is based on the chaining hashtable from ToaruOS, simplified for our
+ * use case, and it does not use the allocation macros, so it doesn't
+ * have the bootstrapping problem using @c KrkTable would.
+ *
+ * When we resize an allocation, including freeing (which is just resizing
+ * to 0), we can check that the "old" size passed to @c krk_reallocate
+ * matches what is in our hash. If it doesn't, we can abort, and in so
+ * doing acquire a stack trace that tells us exactly who screwed up.
+ *
+ * This hash does have some overhead, so enabling it is only intended
+ * for debugging. It's also not very flexible - we use a fixed-size
+ * chaining hash, so we only have so many slots, and those slots are
+ * not keyed well for pointers.
+ *
+ * @warning The extensive memory debugger is not thread safe.
  */
-#include "../../toaruos/lib/list.c"
-#include "../../toaruos/lib/hashmap.c"
-static hashmap_t * _debug_hash = NULL;
+typedef struct DHE {
+	const void* ptr;
+	size_t size;
+	struct DHE * next;
+} _dhe;
+
+/**
+ * Use a power of two so we can make our hash
+ * just do quick bitmasking
+ */
+#define DHE_SIZE 256
+static struct DHE * _debug_mem[DHE_SIZE];
+
+static inline unsigned int _debug_mem_hash(const void * ptr) {
+	/* Pointers to objects are very often 16-byte aligned, and most
+	 * allocations are of objects, so it would make sense to ignore
+	 * the lower bits or we'll end up with a pretty bad hash. */
+	uintptr_t p = (uintptr_t)ptr;
+	return (p >> 4) & (DHE_SIZE-1);
+}
+
+static void _debug_mem_set(const void* ptr, size_t size) {
+	unsigned int hash = _debug_mem_hash(ptr);
+	_dhe * x = _debug_mem[hash];
+	if (!x) {
+		x = malloc(sizeof(_dhe));
+		x->ptr = ptr;
+		x->size = size;
+		x->next = NULL;
+		_debug_mem[hash] = x;
+	} else {
+		_dhe * p = NULL;
+		do {
+			if (x->ptr == ptr) {
+				x->size = size;
+				return;
+			} else {
+				p = x;
+				x = x->next;
+			}
+		} while (x);
+		x = malloc(sizeof(_dhe));
+		x->ptr = ptr;
+		x->size = size;
+		x->next = NULL;
+		p->next = x;
+	}
+}
+
+static size_t _debug_mem_get(const void * ptr) {
+	unsigned int hash = _debug_mem_hash(ptr);
+	_dhe * x = _debug_mem[hash];
+	if (!x) return 0;
+	do {
+		if (x->ptr == ptr) return x->size;
+		x = x->next;
+	} while (x);
+	return 0;
+}
+
+static void _debug_mem_remove(const void *ptr) {
+	unsigned int hash = _debug_mem_hash(ptr);
+	_dhe * x = _debug_mem[hash];
+	if (!x) return;
+
+	if (x->ptr == ptr) {
+		_debug_mem[hash] = x->next;
+		free(x);
+	} else {
+		_dhe * p = x;
+		x = x->next;
+		do {
+			if (x->ptr == ptr) {
+				p->next = x->next;
+				free(x);
+				return;
+			}
+			p = x;
+			x = x->next;
+		} while (x);
+	}
+}
+
+static int _debug_mem_has(const void *ptr) {
+	unsigned int hash = _debug_mem_hash(ptr);
+	_dhe * x = _debug_mem[hash];
+	if (!x) return 0;
+	do {
+		if (x->ptr == ptr) return 1;
+		x = x->next;
+	} while (x);
+	return 0;
+}
 #endif
 
 void krk_gcTakeBytes(const void * ptr, size_t size) {
 #if defined(KRK_EXTENSIVE_MEMORY_DEBUGGING)
-	hashmap_set(_debug_hash, (void*)ptr, (void*)(uintptr_t)(size));
+	_debug_mem_set(ptr, size);
 #endif
 
 	vm.bytesAllocated += size;
@@ -48,27 +174,22 @@ void * krk_reallocate(void * ptr, size_t old, size_t new) {
 	}
 
 #if defined(KRK_EXTENSIVE_MEMORY_DEBUGGING)
-	if (!_debug_hash) {
-		_debug_hash = hashmap_create_int(1000);
-	}
-	if (ptr != NULL) {
-		if (!hashmap_has(_debug_hash, ptr)) {
+	if (ptr) {
+		if (!_debug_mem_has(ptr)) {
 			fprintf(stderr, "Invalid reallocation of %p from %zu to %zu\n", ptr, old, new);
 			abort();
 		}
 
-		uintptr_t t = (uintptr_t)hashmap_get(_debug_hash, ptr);
+		size_t t = _debug_mem_get(ptr);
 		if (t != old) {
 			fprintf(stderr, "Invalid reallocation of %p from %zu - should be %zu - to %zu\n", ptr, old, t, new);
 			abort();
 		}
-	}
 
-	if (ptr) {
-		hashmap_remove(_debug_hash, ptr);
+		_debug_mem_remove(ptr);
 	}
 	if (out) {
-		hashmap_set(_debug_hash, out, (void*)(uintptr_t)new);
+		_debug_mem_set(out, new);
 	}
 #endif
 
@@ -164,6 +285,23 @@ void krk_freeObjects() {
 	}
 
 	free(vm.grayStack);
+}
+
+void krk_freeMemoryDebugger(void) {
+#if defined(KRK_EXTENSIVE_MEMORY_DEBUGGING)
+	for (unsigned int i = 0; i < DHE_SIZE; ++i) {
+		_dhe * x = _debug_mem[i];
+		_debug_mem[i] = NULL;
+		while (x) {
+			_dhe * n = x->next;
+			free(x);
+			x = n;
+		}
+	}
+	if (vm.bytesAllocated != 0) {
+		abort();
+	}
+#endif
 }
 
 void krk_markObject(KrkObj * object) {
