@@ -1721,7 +1721,7 @@ static KrkToken decorator(size_t level, FunctionType type) {
 	return funcName;
 }
 
-static void emitLoop(int loopStart) {
+static void emitLoop(int loopStart, uint8_t loopType) {
 
 	/* Patch continue statements to point to here, before the loop operation (yes that's silly) */
 	while (current->continueCount > 0 && current->continues[current->continueCount-1].offset > loopStart) {
@@ -1729,9 +1729,9 @@ static void emitLoop(int loopStart) {
 		current->continueCount--;
 	}
 
-	emitByte(OP_LOOP);
+	emitByte(loopType);
 
-	int offset = currentChunk()->count - loopStart + 2;
+	int offset = currentChunk()->count - loopStart + ((loopType == OP_LOOP_ITER) ? -1 : 2);
 	if (offset > 0xFFFF) error("Loop jump offset is too large for opcode.");
 	emitBytes(offset >> 8, offset);
 
@@ -1800,7 +1800,7 @@ static void ifStatement(void) {
 
 	if (parser.hadError) return;
 
-	int thenJump = emitJump(OP_JUMP_IF_FALSE_OR_POP);
+	int thenJump = emitJump(OP_POP_JUMP_IF_FALSE);
 
 	/* Start a new scope and enter a block */
 	beginScope();
@@ -1811,7 +1811,6 @@ static void ifStatement(void) {
 
 	int elseJump = emitJump(OP_JUMP);
 	patchJump(thenJump);
-	emitByte(OP_POP);
 
 	/* See if we have a matching else block */
 	if (blockWidth == 0 || (check(TOKEN_INDENTATION) && (parser.current.length == blockWidth))) {
@@ -1914,7 +1913,7 @@ static void whileStatement(void) {
 	endScope();
 
 	current->loopLocalCount = oldLocalCount;
-	emitLoop(loopStart);
+	emitLoop(loopStart, OP_LOOP);
 	patchJump(exitJump);
 	emitByte(OP_POP);
 	optionalElse(blockWidth);
@@ -1950,6 +1949,7 @@ static void forStatement(void) {
 
 	int loopStart;
 	int exitJump;
+	int isIter = 0;
 
 	if (!matchedEquals && match(TOKEN_IN)) {
 
@@ -1965,13 +1965,13 @@ static void forStatement(void) {
 		if (varCount > 1 || sawComma) {
 			EMIT_OPERAND_OP(OP_UNPACK, varCount);
 			for (ssize_t i = loopInd + varCount - 1; i >= loopInd; i--) {
-				EMIT_OPERAND_OP(OP_SET_LOCAL, i);
-				emitByte(OP_POP);
+				EMIT_OPERAND_OP(OP_SET_LOCAL_POP, i);
 			}
 		} else {
-			EMIT_OPERAND_OP(OP_SET_LOCAL, loopInd);
-			emitByte(OP_POP);
+			EMIT_OPERAND_OP(OP_SET_LOCAL_POP, loopInd);
 		}
+
+		isIter = 1;
 
 	} else {
 		consume(TOKEN_SEMICOLON,"Expected ';' after C-style loop initializer.");
@@ -1992,7 +1992,7 @@ static void forStatement(void) {
 			} while (match(TOKEN_COMMA));
 			endScope();
 
-			emitLoop(loopStart);
+			emitLoop(loopStart, OP_LOOP);
 			loopStart = incrementStart;
 			patchJump(bodyJump);
 		}
@@ -2007,7 +2007,7 @@ static void forStatement(void) {
 	endScope();
 
 	current->loopLocalCount = oldLocalCount;
-	emitLoop(loopStart);
+	emitLoop(loopStart, isIter ? OP_LOOP_ITER : OP_LOOP);
 	patchJump(exitJump);
 	emitByte(OP_POP);
 	optionalElse(blockWidth);
@@ -2344,7 +2344,7 @@ static void yield(int exprType) {
 		size_t loopContinue = currentChunk()->count;
 		size_t exitJump = emitJump(OP_YIELD_FROM);
 		emitByte(OP_YIELD);
-		emitLoop(loopContinue);
+		emitLoop(loopContinue, OP_LOOP);
 		patchJump(exitJump);
 	} else if (check(TOKEN_EOL) || check(TOKEN_EOF) || check(TOKEN_RIGHT_PAREN) || check(TOKEN_RIGHT_BRACE)) {
 		emitByte(OP_NONE);
@@ -2368,7 +2368,7 @@ static void await(int exprType) {
 	size_t loopContinue = currentChunk()->count;
 	size_t exitJump = emitJump(OP_YIELD_FROM);
 	emitByte(OP_YIELD);
-	emitLoop(loopContinue);
+	emitLoop(loopContinue, OP_LOOP);
 	patchJump(exitJump);
 	invalidTarget(exprType, "await");
 }
@@ -2768,18 +2768,16 @@ static void comprehensionInner(KrkScanner scannerBefore, Parser parserBefore, vo
 	if (varCount > 1 || sawComma) {
 		EMIT_OPERAND_OP(OP_UNPACK, varCount);
 		for (ssize_t i = loopInd + varCount - 1; i >= loopInd; i--) {
-			EMIT_OPERAND_OP(OP_SET_LOCAL, i);
-			emitByte(OP_POP);
+			EMIT_OPERAND_OP(OP_SET_LOCAL_POP, i);
 		}
 	} else {
-		EMIT_OPERAND_OP(OP_SET_LOCAL, loopInd);
-		emitByte(OP_POP);
+		EMIT_OPERAND_OP(OP_SET_LOCAL_POP, loopInd);
 	}
 
 	if (match(TOKEN_IF)) {
 		parsePrecedence(PREC_OR);
 		int acceptJump = emitJump(OP_JUMP_IF_TRUE_OR_POP);
-		emitLoop(loopStart);
+		emitLoop(loopStart, OP_LOOP_ITER);
 		patchJump(acceptJump);
 		emitByte(OP_POP); /* Pop condition */
 	}
@@ -2800,7 +2798,7 @@ static void comprehensionInner(KrkScanner scannerBefore, Parser parserBefore, vo
 	}
 	endScope();
 
-	emitLoop(loopStart);
+	emitLoop(loopStart, OP_LOOP_ITER);
 	patchJump(exitJump);
 	emitByte(OP_POP);
 }

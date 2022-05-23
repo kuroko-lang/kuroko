@@ -2533,6 +2533,13 @@ _finishReturn: (void)0;
 				else krk_pop();
 				break;
 			}
+			case OP_POP_JUMP_IF_FALSE: {
+				TWO_BYTE_OPERAND;
+				uint16_t offset = OPERAND;
+				if (krk_peek(0) == BOOLEAN_VAL(0) || krk_isFalsey(krk_peek(0))) frame->ip += offset;
+				krk_pop();
+				break;
+			}
 			case OP_JUMP_IF_TRUE_OR_POP: {
 				TWO_BYTE_OPERAND;
 				uint16_t offset = OPERAND;
@@ -2623,6 +2630,15 @@ _finishReturn: (void)0;
 				if (iter == krk_peek(0)) frame->ip += offset;
 				break;
 			}
+			case OP_LOOP_ITER: {
+				TWO_BYTE_OPERAND;
+				uint16_t offset = OPERAND;
+				KrkValue iter = krk_peek(0);
+				krk_push(iter);
+				krk_push(krk_callStack(0));
+				if (iter != krk_peek(0)) frame->ip -= offset;
+				break;
+			}
 
 			case OP_CONSTANT_LONG:
 				THREE_BYTE_OPERAND;
@@ -2702,6 +2718,13 @@ _finishReturn: (void)0;
 			case OP_SET_LOCAL: {
 				ONE_BYTE_OPERAND;
 				krk_currentThread.stack[frame->slots + OPERAND] = krk_peek(0);
+				break;
+			}
+			case OP_SET_LOCAL_POP_LONG:
+				THREE_BYTE_OPERAND;
+			case OP_SET_LOCAL_POP: {
+				ONE_BYTE_OPERAND;
+				krk_currentThread.stack[frame->slots + OPERAND] = krk_pop();
 				break;
 			}
 			case OP_CALL_LONG:
