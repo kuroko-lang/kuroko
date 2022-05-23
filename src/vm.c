@@ -776,6 +776,7 @@ _errorAfterKeywords:
  */
 int krk_callValue(KrkValue callee, int argCount, int returnDepth) {
 	if (likely(IS_OBJECT(callee))) {
+		_innerObject:
 		switch (OBJECT_TYPE(callee)) {
 			case KRK_OBJ_CLOSURE:
 				return call(AS_CLOSURE(callee), argCount, returnDepth);
@@ -822,7 +823,10 @@ int krk_callValue(KrkValue callee, int argCount, int returnDepth) {
 			case KRK_OBJ_INSTANCE: {
 				KrkClass * _class = AS_INSTANCE(callee)->_class;
 				if (likely(_class->_call != NULL)) {
-					return krk_callValue(OBJECT_VAL(_class->_call), argCount + 1, returnDepth ? (returnDepth - 1) : 0);
+					callee = OBJECT_VAL(_class->_call);
+					argCount++;
+					returnDepth = returnDepth ? (returnDepth - 1) : 0;
+					goto _innerObject;
 				} else {
 					krk_runtimeError(vm.exceptions->typeError, "'%s' object is not callable", krk_typeName(callee));
 					return 0;
@@ -833,7 +837,10 @@ int krk_callValue(KrkValue callee, int argCount, int returnDepth) {
 				KrkInstance * newInstance = krk_newInstance(_class);
 				krk_currentThread.stackTop[-argCount - 1] = OBJECT_VAL(newInstance);
 				if (likely(_class->_init != NULL)) {
-					return krk_callValue(OBJECT_VAL(_class->_init), argCount + 1, returnDepth ? (returnDepth - 1) : 0);
+					callee = OBJECT_VAL(_class->_init);
+					argCount++;
+					returnDepth = returnDepth ? (returnDepth - 1) : 0;
+					goto _innerObject;
 				} else if (unlikely(argCount != 0)) {
 					krk_runtimeError(vm.exceptions->typeError, "%s() takes no arguments (%d given)",
 						_class->name->chars, argCount);
@@ -848,7 +855,10 @@ int krk_callValue(KrkValue callee, int argCount, int returnDepth) {
 					krk_runtimeError(vm.exceptions->argumentError, "???");
 					return 0;
 				}
-				return krk_callValue(OBJECT_VAL(bound->method), argCount + 1, returnDepth ? (returnDepth - 1): 0);
+				callee = OBJECT_VAL(bound->method);
+				argCount++;
+				returnDepth = returnDepth ? (returnDepth - 1) : 0;
+				goto _innerObject;
 			}
 			default:
 				break;
