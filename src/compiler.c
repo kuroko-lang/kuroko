@@ -1879,6 +1879,23 @@ static void continueStatement(void) {
 	current->continues[current->continueCount++] = (struct LoopExit){emitJump(OP_JUMP),parser.previous};
 }
 
+static void optionalElse(size_t blockWidth) {
+	KrkScanner scannerBefore = krk_tellScanner();
+	Parser  parserBefore = parser;
+	if (blockWidth == 0 || (check(TOKEN_INDENTATION) && (parser.current.length == blockWidth))) {
+		if (blockWidth) advance();
+		if (match(TOKEN_ELSE)) {
+			consume(TOKEN_COLON, "Expected ':' after 'else'.");
+			beginScope();
+			block(blockWidth,"else");
+			endScope();
+		} else {
+			krk_rewindScanner(scannerBefore);
+			parser = parserBefore;
+		}
+	}
+}
+
 static void whileStatement(void) {
 	size_t blockWidth = (parser.previous.type == TOKEN_INDENTATION) ? parser.previous.length : 0;
 	advance();
@@ -1900,6 +1917,7 @@ static void whileStatement(void) {
 	emitLoop(loopStart);
 	patchJump(exitJump);
 	emitByte(OP_POP);
+	optionalElse(blockWidth);
 	patchBreaks(loopStart);
 }
 
@@ -1992,8 +2010,8 @@ static void forStatement(void) {
 	emitLoop(loopStart);
 	patchJump(exitJump);
 	emitByte(OP_POP);
+	optionalElse(blockWidth);
 	patchBreaks(loopStart);
-
 	endScope();
 }
 

@@ -1,0 +1,32 @@
+
+def func(breakPoint):
+    let j = 0
+    for i in range(20):
+        if i == breakPoint:
+            break
+        j += 1
+    else:
+        print('finished for')
+    print('out of for')
+    return j
+
+print(func(20))
+print(func(15))
+print(func(20))
+print(func(15))
+
+def func2(breakPoint):
+    let i = 0
+    while i < 20:
+        if i == breakPoint:
+            break
+        i++
+    else:
+        print('finished while')
+    print('out of while')
+    return i
+
+print(func2(20))
+print(func2(15))
+print(func2(20))
+print(func2(15))
