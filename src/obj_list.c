@@ -462,7 +462,7 @@ struct ListIterator {
 };
 
 #define CURRENT_CTYPE struct ListIterator *
-#define IS_listiterator(o) krk_isInstanceOf(o,vm.baseClasses->listiteratorClass)
+#define IS_listiterator(o) (likely(IS_INSTANCE(o) && AS_INSTANCE(o)->_class == vm.baseClasses->listiteratorClass) || krk_isInstanceOf(o,vm.baseClasses->listiteratorClass))
 #define AS_listiterator(o) (struct ListIterator*)AS_OBJECT(o)
 
 static void _listiterator_gcscan(KrkInstance * self) {
