@@ -66,6 +66,9 @@ KRK_FUNC(current_thread,{
 
 static volatile int _threadLock = 0;
 static void * _startthread(void * _threadObj) {
+#if defined(ENABLE_THREADING) && defined(__APPLE__) && defined(__aarch64__)
+	krk_forceThreadData();
+#endif
 	memset(&krk_currentThread, 0, sizeof(KrkThreadState));
 	krk_currentThread.frames = calloc(vm.maximumCallDepth,sizeof(KrkCallFrame));
 	vm.globalFlags |= KRK_GLOBAL_THREADS;

@@ -62,6 +62,32 @@ __thread KrkThreadState krk_currentThread;
 KrkThreadState krk_currentThread;
 #endif
 
+#if defined(ENABLE_THREADING) && defined(__APPLE__) && defined(__aarch64__)
+/**
+ * I have not checked how this works on x86-64, so we only do this
+ * on M1 Macs at the moment, but TLS is disastrously poorly implemented
+ * with a function pointer thunk, provided by dyld. This is very slow.
+ * We can emulate the behavior inline, and achieve better performance -
+ * much closer to the direct access case, though not as good as a dedicated
+ * register - but in order for that to work we have to do at least one
+ * traditional access to trigger the "bootstrap" and ensure our thread
+ * state is actually allocated. We do that here, called by @c krk_initVM
+ * as well as by @c _startthread, and check that our approach yields
+ * the same address.
+ */
+void krk_forceThreadData(void) {
+	krk_currentThread.next = NULL;
+	assert(&krk_currentThread == _macos_currentThread());
+}
+/**
+ * And then we macro away @c krk_currentThread behind the inlinable emulation
+ * which is defined in src/kuroko/vm.h so the rest of the interpreter can do
+ * the same - not strictly necessary, just doing it locally here is enough
+ * for major performance gains, but it's nice to be consistent.
+ */
+#define krk_currentThread (*_macos_currentThread())
+#endif
+
 #if !defined(KRK_NO_TRACING) && !defined(__EMSCRIPTEN__)
 # define FRAME_IN(frame) if (vm.globalFlags & KRK_GLOBAL_CALLGRIND) { clock_gettime(CLOCK_MONOTONIC, &frame->in_time); }
 # define FRAME_OUT(frame) \
@@ -1220,6 +1246,10 @@ void krk_setMaximumRecursionDepth(size_t maxDepth) {
 }
 
 void krk_initVM(int flags) {
+#if defined(ENABLE_THREADING) && defined(__APPLE__) && defined(__aarch64__)
+	krk_forceThreadData();
+#endif
+
 	vm.globalFlags = flags & 0xFF00;
 	vm.maximumCallDepth = KRK_CALL_FRAMES_MAX;
 

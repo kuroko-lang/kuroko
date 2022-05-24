@@ -258,7 +258,16 @@ typedef struct KrkVM {
  *
  * See @c KrkThreadState for more information.
  */
-#if (defined(_WIN32) && !defined(KRKINLIB)) || defined(KRK_MEDIOCRE_TLS)
+#if defined(ENABLE_THREADING) && ((defined(__APPLE__)) && defined(__aarch64__))
+extern void krk_forceThreadData(void);
+#define krk_currentThread (*_macos_currentThread())
+#pragma clang diagnostic ignored "-Wlanguage-extension-token"
+inline KrkThreadState * _macos_currentThread(void) {
+	extern const uint64_t tls_desc[] asm("_krk_currentThread");
+	const uintptr_t * threadptr; asm ("mrs %0, TPIDRRO_EL0" : "=r"(threadptr));
+	return (KrkThreadState*)(threadptr[tls_desc[1]] + tls_desc[2]);
+}
+#elif defined(ENABLE_THREADING) && ((defined(_WIN32) && !defined(KRKINLIB)) || defined(KRK_MEDIOCRE_TLS))
 #define krk_currentThread (*krk_getCurrentThread())
 #else
 extern threadLocal KrkThreadState krk_currentThread;
