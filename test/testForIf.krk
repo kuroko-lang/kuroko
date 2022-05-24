@@ -1,0 +1,9 @@
+
+let candidates = {'foo','bar','baz'}
+
+let values = {
+    x for x in ['foo','bar','baz','qux']
+    if x in candidates
+}
+
+print(sorted(list(values)))
