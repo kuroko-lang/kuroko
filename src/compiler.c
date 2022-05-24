@@ -2777,7 +2777,7 @@ static void comprehensionInner(KrkScanner scannerBefore, Parser parserBefore, vo
 	if (match(TOKEN_IF)) {
 		parsePrecedence(PREC_OR);
 		int acceptJump = emitJump(OP_JUMP_IF_TRUE_OR_POP);
-		emitLoop(loopStart, OP_LOOP_ITER);
+		emitLoop(loopStart, OP_LOOP);
 		patchJump(acceptJump);
 		emitByte(OP_POP); /* Pop condition */
 	}
