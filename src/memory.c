@@ -284,6 +284,9 @@ void krk_freeObjects() {
 
 	while (other) {
 		KrkObj * next = other->next;
+		if (other->type == KRK_OBJ_CLASS) {
+			((KrkClass*)other)->base = NULL;
+		}
 		freeObject(other);
 		other = next;
 	}
