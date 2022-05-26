@@ -809,7 +809,7 @@ KRK_METHOD(Helper,__call__,{
 })
 
 KRK_METHOD(LicenseReader,__repr__,{
-	return OBJECT_VAL(S("Copyright 2020-2021 K. Lange <klange@toaruos.org>. Type `license()` for more information."));
+	return OBJECT_VAL(S("Copyright 2020-2022 K. Lange <klange@toaruos.org>. Type `license()` for more information."));
 })
 
 KRK_METHOD(LicenseReader,__call__,{
