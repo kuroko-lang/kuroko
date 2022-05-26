@@ -312,12 +312,15 @@ KrkClass * krk_newClass(KrkString * name, KrkClass * baseClass) {
 	_class->name = name;
 	_class->allocSize = sizeof(KrkInstance);
 	krk_initTable(&_class->methods);
+	krk_initTable(&_class->subclasses);
 
 	if (baseClass) {
 		_class->base = baseClass;
 		_class->allocSize = baseClass->allocSize;
 		_class->_ongcscan = baseClass->_ongcscan;
 		_class->_ongcsweep = baseClass->_ongcsweep;
+
+		krk_tableSet(&baseClass->subclasses, OBJECT_VAL(_class), NONE_VAL());
 	}
 
 	return _class;

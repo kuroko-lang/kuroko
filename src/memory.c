@@ -233,6 +233,10 @@ static void freeObject(KrkObj * object) {
 		case KRK_OBJ_CLASS: {
 			KrkClass * _class = (KrkClass*)object;
 			krk_freeTable(&_class->methods);
+			krk_freeTable(&_class->subclasses);
+			if (_class->base) {
+				krk_tableDelete(&_class->base->subclasses, OBJECT_VAL(object));
+			}
 			FREE(KrkClass, object);
 			break;
 		}

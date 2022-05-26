@@ -49,6 +49,9 @@ inline int krk_hashValue(KrkValue value, uint32_t *hashOut) {
 		*hashOut = (uint32_t)AS_INTEGER(result);
 		return 0;
 	}
+	if (IS_CLASS(value)) {
+		return INTEGER_VAL((int)(intptr_t)AS_OBJECT(value));
+	}
 _unhashable:
 	if (IS_NONE(krk_currentThread.currentException))
 		krk_runtimeError(vm.exceptions->typeError, "unhashable type: '%s'", krk_typeName(value));

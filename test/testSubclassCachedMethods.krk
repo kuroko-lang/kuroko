@@ -1,0 +1,36 @@
+class A():
+    def __iter__(self):
+        def _():
+            return _
+        return _
+class B(A):
+    pass
+
+let a = A()
+let b = B()
+
+def __iter__(self):
+    let o = 4
+    def _():
+        if o:
+            return (o -= 1)
+        return _
+    return _
+
+A.__iter__ = __iter__
+
+for i in a:
+    print(i)
+
+for i in b:
+    print(i)
+
+# now what if we remove it
+del A.__iter__
+
+try:
+    for i in b:
+        print(i)
+    print('did not raise attribute error')
+except AttributeError:
+    print('raised attribute error')

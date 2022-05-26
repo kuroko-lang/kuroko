@@ -207,6 +207,8 @@ typedef struct KrkClass {
 	KrkObj * _descset;        /**< @brief @c %__set__      Called when a descriptor object is assigned to as a property */
 	KrkObj * _classgetitem;   /**< @brief @c %__class_getitem__ Class method called when a type object is subscripted; used for type hints */
 	KrkObj * _hash;           /**< @brief @c %__hash__     Called when an instance is a key in a dict or an entry in a set */
+
+	KrkTable subclasses;
 } KrkClass;
 
 /**

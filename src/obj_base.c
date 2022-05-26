@@ -59,6 +59,23 @@ static KrkValue _class_to_str(int argc, KrkValue argv[], int hasKw) {
 	return OBJECT_VAL(out);
 }
 
+static KrkValue _class_subclasses(int argc, KrkValue argv[], int hasKw) {
+	if (!IS_CLASS(argv[0])) return krk_runtimeError(vm.exceptions->typeError, "expected class");
+
+	KrkClass * _class = AS_CLASS(argv[0]);
+
+	KrkValue myList = krk_list_of(0,NULL,0);
+	krk_push(myList);
+
+	for (size_t i = 0; i < _class->subclasses.capacity; ++i) {
+		KrkTableEntry * entry = &_class->subclasses.entries[i];
+		if (IS_KWARGS(entry->key)) continue;
+		krk_writeValueArray(AS_LIST(myList), entry->key);
+	}
+
+	return krk_pop();
+}
+
 _noexport
 void _createAndBind_type(void) {
 	ADD_BASE_CLASS(vm.baseClasses->typeClass, "type", vm.baseClasses->objectClass);
@@ -69,6 +86,7 @@ void _createAndBind_type(void) {
 	krk_defineNative(&vm.baseClasses->typeClass->methods, "__init__", _type_init);
 	krk_defineNative(&vm.baseClasses->typeClass->methods, "__str__", _class_to_str);
 	krk_defineNative(&vm.baseClasses->typeClass->methods, "__repr__", _class_to_str);
+	krk_defineNative(&vm.baseClasses->typeClass->methods, "__subclasses__", _class_subclasses);
 	krk_finalizeClass(vm.baseClasses->typeClass);
 	KRK_DOC(vm.baseClasses->typeClass, "Obtain the object representation of the class of an object.");
 }

@@ -439,6 +439,7 @@ void krk_finalizeClass(KrkClass * _class) {
 	};
 
 	for (struct TypeMap * entry = specials; entry->method; ++entry) {
+		*entry->method = NULL;
 		KrkClass * _base = _class;
 		while (_base) {
 			if (krk_tableGet(&_base->methods, vm.specialMethodNames[entry->index], &tmp)) break;
@@ -453,6 +454,12 @@ void krk_finalizeClass(KrkClass * _class) {
 		if (_class->_hash == _class->base->_hash) {
 			_class->_hash = NULL;
 		}
+	}
+
+	for (size_t i = 0; i < _class->subclasses.capacity; ++i) {
+		KrkTableEntry * entry = &_class->subclasses.entries[i];
+		if (IS_KWARGS(entry->key)) continue;
+		krk_finalizeClass(AS_CLASS(entry->key));
 	}
 }
 
@@ -2109,6 +2116,9 @@ static int valueDelProperty(KrkString * name) {
 		if (!krk_tableDelete(&_class->methods, OBJECT_VAL(name))) {
 			return 0;
 		}
+		if (name->length && name->chars[0] == '_') {
+			krk_finalizeClass(_class);
+		}
 		krk_pop(); /* the original value */
 		return 1;
 	}
@@ -2455,10 +2465,14 @@ _finishReturn: (void)0;
 					goto _finishException;
 				}
 				KrkClass * subclass = AS_CLASS(krk_peek(1));
+				if (subclass->base) {
+					krk_tableDelete(&subclass->base->subclasses, krk_peek(1));
+				}
 				subclass->base = AS_CLASS(superclass);
 				subclass->allocSize = AS_CLASS(superclass)->allocSize;
 				subclass->_ongcsweep = AS_CLASS(superclass)->_ongcsweep;
 				subclass->_ongcscan = AS_CLASS(superclass)->_ongcscan;
+				krk_tableSet(&AS_CLASS(superclass)->subclasses, krk_peek(1), NONE_VAL());
 				krk_pop(); /* Super class */
 				break;
 			}
