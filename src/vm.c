@@ -2982,6 +2982,25 @@ _finishReturn: (void)0;
 				krk_push(KWARGS_VAL(OPERAND));
 				break;
 			}
+			case OP_CLOSE_MANY_LONG:
+				THREE_BYTE_OPERAND;
+			case OP_CLOSE_MANY: {
+				ONE_BYTE_OPERAND;
+				for (int i = 0; i < OPERAND; ++i) {
+					closeUpvalues((krk_currentThread.stackTop - krk_currentThread.stack)-1);
+					krk_pop();
+				}
+				break;
+			}
+			case OP_POP_MANY_LONG:
+				THREE_BYTE_OPERAND;
+			case OP_POP_MANY: {
+				ONE_BYTE_OPERAND;
+				for (int i = 0; i < OPERAND; ++i) {
+					krk_pop();
+				}
+				break;
+			}
 #define doMake(func) { \
 	size_t count = OPERAND; \
 	krk_reserve_stack(4); \

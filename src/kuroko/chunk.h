@@ -107,6 +107,8 @@ typedef enum {
 	OP_SLICE,
 	OP_GET_METHOD,
 	OP_CALL_METHOD,
+	OP_CLOSE_MANY,
+	OP_POP_MANY,
 
 	/* Two opcode instructions */
 	OP_JUMP_IF_FALSE_OR_POP,
@@ -156,6 +158,8 @@ typedef enum {
 	OP_SLICE_LONG,
 	OP_GET_METHOD_LONG,
 	OP_CALL_METHOD_LONG,
+	OP_CLOSE_MANY_LONG,
+	OP_POP_MANY_LONG,
 } KrkOpCode;
 
 /**

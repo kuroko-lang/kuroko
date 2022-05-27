@@ -1158,20 +1158,44 @@ static void beginScope(void) {
 
 static void endScope(void) {
 	current->scopeDepth--;
+
+	int closeCount = 0;
+	int popCount = 0;
+
 	while (current->localCount > 0 &&
 	       current->locals[current->localCount - 1].depth > (ssize_t)current->scopeDepth) {
+		if (current->locals[current->localCount - 1].isCaptured) {
+			if (popCount) {
+				if (popCount == 1) emitByte(OP_POP);
+				else { EMIT_OPERAND_OP(OP_POP_MANY, popCount); }
+				popCount = 0;
+			}
+			closeCount++;
+		} else {
+			if (closeCount) {
+				if (closeCount == 1) emitByte(OP_CLOSE_UPVALUE);
+				else { EMIT_OPERAND_OP(OP_CLOSE_MANY, closeCount); }
+				closeCount = 0;
+			}
+			popCount++;
+		}
+
 		for (size_t i = 0; i < current->codeobject->localNameCount; i++) {
 			if (current->codeobject->localNames[i].id == current->localCount - 1 &&
 				current->codeobject->localNames[i].deathday == 0) {
 				current->codeobject->localNames[i].deathday = (size_t)currentChunk()->count;
 			}
 		}
-		if (current->locals[current->localCount - 1].isCaptured) {
-			emitByte(OP_CLOSE_UPVALUE);
-		} else {
-			emitByte(OP_POP);
-		}
 		current->localCount--;
+	}
+
+	if (popCount) {
+		if (popCount == 1) emitByte(OP_POP);
+		else { EMIT_OPERAND_OP(OP_POP_MANY, popCount); }
+	}
+	if (closeCount) {
+		if (closeCount == 1) emitByte(OP_CLOSE_UPVALUE);
+		else { EMIT_OPERAND_OP(OP_CLOSE_MANY, closeCount); }
 	}
 }
 
