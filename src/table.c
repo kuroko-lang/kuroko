@@ -50,7 +50,8 @@ inline int krk_hashValue(KrkValue value, uint32_t *hashOut) {
 		return 0;
 	}
 	if (IS_CLASS(value)) {
-		return INTEGER_VAL((int)(intptr_t)AS_OBJECT(value));
+		*hashOut = INTEGER_VAL((int)(intptr_t)AS_OBJECT(value));
+		return 0;
 	}
 _unhashable:
 	if (IS_NONE(krk_currentThread.currentException))
