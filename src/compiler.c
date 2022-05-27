@@ -1223,12 +1223,13 @@ static void block(size_t indentation, const char * blockName) {
 static void doUpvalues(Compiler * compiler, KrkCodeObject * function) {
 	assert(!!function->upvalueCount == !!compiler->upvalues);
 	for (size_t i = 0; i < function->upvalueCount; ++i) {
-		emitByte(compiler->upvalues[i].isLocal ? 1 : 0);
-		if (i > 255) {
-			emitByte((compiler->upvalues[i].index >> 16) & 0xFF);
-			emitByte((compiler->upvalues[i].index >> 8) & 0xFF);
+		size_t index = compiler->upvalues[i].index;
+		emitByte((compiler->upvalues[i].isLocal ? 1 : 0) | ((index > 255) ? 2 : 0));
+		if (index > 255) {
+			emitByte((index >> 16) & 0xFF);
+			emitByte((index >> 8) & 0xFF);
 		}
-		emitByte((compiler->upvalues[i].index) & 0xFF);
+		emitByte(index & 0xFF);
 	}
 }
 

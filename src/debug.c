@@ -103,7 +103,15 @@ static int isJumpTarget(KrkCodeObject * func, size_t startPoint) {
 	case opc ## _LONG: { size = 4; more; break; }
 #define JUMP(opc,sign) case opc: { uint16_t jump = (chunk->code[offset + 1] << 8) | (chunk->code[offset + 2]); \
 	if ((size_t)(offset + 3 sign jump) == startPoint) return 1; size = 3; break; }
-#define CLOSURE_MORE size += AS_codeobject(chunk->constants.values[constant])->upvalueCount * 2
+#define CLOSURE_MORE \
+	KrkCodeObject * function = AS_codeobject(chunk->constants.values[constant]); \
+	for (size_t j = 0; j < function->upvalueCount; ++j) { \
+		int isLocal = chunk->code[offset++ + size]; \
+		offset++; \
+		if (isLocal & 2) { \
+			offset += 2; \
+		} \
+	}
 #define EXPAND_ARGS_MORE
 #define LOCAL_MORE
 
@@ -130,22 +138,20 @@ static int isJumpTarget(KrkCodeObject * func, size_t startPoint) {
 #define CONSTANT(opc,more) case opc: { size_t constant = chunk->code[offset + 1]; \
 	fprintf(f, "%-16s %4d ", opcodeClean(#opc), (int)constant); \
 	krk_printValueSafe(f, chunk->constants.values[constant]); \
-	more; \
-	size = 2; break; } \
+	size = 2; more; break; } \
 	case opc ## _LONG: { size_t constant = (chunk->code[offset + 1] << 16) | \
 	(chunk->code[offset + 2] << 8) | (chunk->code[offset + 3]); \
 	fprintf(f, "%-16s %4d ", opcodeClean(#opc "_LONG"), (int)constant); \
 	krk_printValueSafe(f, chunk->constants.values[constant]); \
-	more; size = 4; break; }
+	size = 4; more; break; }
 #define OPERANDB(opc,more) case opc: { uint32_t operand = chunk->code[offset + 1]; \
 	fprintf(f, "%-16s %4d", opcodeClean(#opc), (int)operand); \
-	more; size = 2; break; }
+	size = 2; more; break; }
 #define OPERAND(opc,more) OPERANDB(opc,more) \
 	case opc ## _LONG: { uint32_t operand = (chunk->code[offset + 1] << 16) | \
 	(chunk->code[offset + 2] << 8) | (chunk->code[offset + 3]); \
 	fprintf(f, "%-16s %4d", opcodeClean(#opc "_LONG"), (int)operand); \
-	more; fprintf(f,"\n"); \
-	size = 4; break; }
+	size = 4; more; fprintf(f,"\n"); break; }
 #define JUMP(opc,sign) case opc: { uint16_t jump = (chunk->code[offset + 1] << 8) | \
 	(chunk->code[offset + 2]); \
 	fprintf(f, "%-16s %4d (to %d)", opcodeClean(#opc), (int)jump, (int)(offset + 3 sign jump)); \
@@ -155,9 +161,13 @@ static int isJumpTarget(KrkCodeObject * func, size_t startPoint) {
 	KrkCodeObject * function = AS_codeobject(chunk->constants.values[constant]); \
 	fprintf(f, " "); \
 	for (size_t j = 0; j < function->upvalueCount; ++j) { \
-		int isLocal = chunk->code[offset++ + 2]; \
-		int index = chunk->code[offset++ + 2]; \
-		if (isLocal) { \
+		int isLocal = chunk->code[offset++ + size]; \
+		int index = chunk->code[offset++ + size]; \
+		if (isLocal & 2) { \
+			index = (index << 16) | (chunk->code[offset + size] << 8) | chunk->code[offset + 1 + size]; \
+			offset += 2; \
+		} \
+		if (isLocal & 1) { \
 			for (size_t i = 0; i < func->localNameCount; ++i) { \
 				if (func->localNames[i].id == (size_t)index && func->localNames[i].birthday <= offset && func->localNames[i].deathday >= offset) { \
 					fprintf(f, "%s", func->localNames[i].name->chars); \
@@ -621,7 +631,15 @@ KRK_FUNC(build,{
 	(chunk->code[offset + 2] << 8) | (chunk->code[offset + 3]); size = 4; more; break; }
 #define JUMP(opc,sign) case opc: { jump = 0 sign ((chunk->code[offset + 1] << 8) | (chunk->code[offset + 2])); \
 	size = 3; break; }
-#define CLOSURE_MORE size += AS_codeobject(chunk->constants.values[constant])->upvalueCount * 2
+#define CLOSURE_MORE \
+	KrkCodeObject * function = AS_codeobject(chunk->constants.values[constant]); \
+	for (size_t j = 0; j < function->upvalueCount; ++j) { \
+		int isLocal = chunk->code[offset++ + size]; \
+		offset++; \
+		if (isLocal & 2) { \
+			offset += 2; \
+		} \
+	}
 #define EXPAND_ARGS_MORE
 #define LOCAL_MORE local = operand;
 static KrkValue _examineInternal(KrkCodeObject* func) {

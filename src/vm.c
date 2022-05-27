@@ -2807,13 +2807,12 @@ _finishReturn: (void)0;
 				krk_push(OBJECT_VAL(closure));
 				for (size_t i = 0; i < closure->upvalueCount; ++i) {
 					int isLocal = READ_BYTE();
-					int index = 0;
-					if (i > 255) {
-						index = (frame->ip[0] << 16) | (frame->ip[1] << 8);
+					int index = READ_BYTE();
+					if (isLocal & 2) {
+						index = (index << 16) | (frame->ip[0] << 8) | (frame->ip[1]);
 						frame->ip += 2;
 					}
-					index |= READ_BYTE();
-					if (isLocal) {
+					if (isLocal & 1) {
 						closure->upvalues[i] = captureUpvalue(frame->slots + index);
 					} else {
 						closure->upvalues[i] = frame->closure->upvalues[index];

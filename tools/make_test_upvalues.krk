@@ -1,0 +1,17 @@
+import fileio
+
+if __name__ == '__main__':
+    with fileio.open('test/testLotsOfUpvalues.krk','w') as f:
+        f.write('if True:\n')
+        for i in range(20):
+            f.write(f'    let red_herring_{i} = {i}\n')
+        for i in range(500):
+            f.write(f'    let a_{i} = {i}\n')
+        f.write('    def inner():\n')
+        f.write('        let s = 0\n')
+        for i in range(20):
+            f.write(f'        let inner_red_herring{i} = {i}\n')
+        for i in range(500):
+            f.write(f'        s += a_{i}\n')
+        f.write('        return s\n')
+        f.write('    print(inner())\n')
