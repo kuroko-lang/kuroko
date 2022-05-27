@@ -297,21 +297,18 @@ KrkValue krk_runtimeError(KrkClass * type, const char * fmt, ...) {
 void krk_growStack(void) {
 	size_t old = krk_currentThread.stackSize;
 	size_t old_offset = krk_currentThread.stackTop - krk_currentThread.stack;
-	krk_currentThread.stackSize = GROW_CAPACITY(old);
-	krk_currentThread.stack = GROW_ARRAY(KrkValue, krk_currentThread.stack, old, krk_currentThread.stackSize);
+	size_t newsize = GROW_CAPACITY(old);
+	if (krk_currentThread.flags & KRK_THREAD_DEFER_STACK_FREE) {
+		KrkValue * newStack = GROW_ARRAY(KrkValue, NULL, 0, newsize);
+		memcpy(newStack, krk_currentThread.stack, sizeof(KrkValue) * old);
+		krk_currentThread.stack = newStack;
+		krk_currentThread.flags &= ~(KRK_THREAD_DEFER_STACK_FREE);
+	} else {
+		krk_currentThread.stack = GROW_ARRAY(KrkValue, krk_currentThread.stack, old, newsize);
+	}
+	krk_currentThread.stackSize = newsize;
 	krk_currentThread.stackTop = krk_currentThread.stack + old_offset;
 	krk_currentThread.stackMax = krk_currentThread.stack + krk_currentThread.stackSize;
-}
-
-/**
- * Since the stack can potentially move when something is pushed to it
- * if it this triggers a grow condition, it may be necessary to ensure
- * that this has already happened before actually dealing with the stack.
- */
-void krk_reserve_stack(size_t space) {
-	while ((size_t)(krk_currentThread.stackTop - krk_currentThread.stack) + space > krk_currentThread.stackSize) {
-		krk_growStack();
-	}
 }
 
 /**
@@ -789,6 +786,34 @@ _errorAfterKeywords:
 }
 
 /**
+ * Make a call to a native function using values on the stack without moving them.
+ * If the stack is reallocated within this call, the old stack will not be freed until
+ * all such nested calls through krk_callNativeOnStack have returned.
+ */
+KrkValue krk_callNativeOnStack(NativeFn native, size_t argCount, KrkValue *stackArgs, int hasKw) {
+
+	/**
+	 * If someone is already preserving this stack, we can just call directly.
+	 */
+	if (unlikely(krk_currentThread.flags & KRK_THREAD_DEFER_STACK_FREE)) {
+		return native(argCount, stackArgs, hasKw);
+	}
+
+	/* Mark the thread's stack as preserved. */
+	krk_currentThread.flags |= KRK_THREAD_DEFER_STACK_FREE;
+	void * stackBefore = krk_currentThread.stack;
+	size_t sizeBefore  = krk_currentThread.stackSize;
+	KrkValue result = native(argCount, stackArgs, hasKw);
+
+	if (unlikely(krk_currentThread.stack != stackBefore)) {
+		FREE_ARRAY(KrkValue, stackBefore, sizeBefore);
+	}
+
+	krk_currentThread.flags &= ~(KRK_THREAD_DEFER_STACK_FREE);
+	return result;
+}
+
+/**
  * Call a callable.
  *
  *   For native methods, the result is available "immediately" upon return
@@ -836,17 +861,7 @@ int krk_callValue(KrkValue callee, int argCount, int returnDepth) {
 					krk_pop();
 					krk_push(result);
 				} else {
-					KrkValue result;
-					if (argCount < 9) {
-						KrkValue stackCopy[8];
-						memcpy(stackCopy, krk_currentThread.stackTop - argCount, argCount * sizeof(KrkValue));
-						result = native(argCount, stackCopy, 0);
-					} else {
-						KrkValue * stackCopy = malloc(argCount * sizeof(KrkValue));
-						memcpy(stackCopy, krk_currentThread.stackTop - argCount, argCount * sizeof(KrkValue));
-						result = native(argCount, stackCopy, 0);
-						free(stackCopy);
-					}
+					KrkValue result = krk_callNativeOnStack(native, argCount, krk_currentThread.stackTop - argCount, 0);
 					if (unlikely(krk_currentThread.stackTop == krk_currentThread.stack)) return 0;
 					krk_currentThread.stackTop -= argCount + returnDepth;
 					krk_push(result);
@@ -3003,8 +3018,7 @@ _finishReturn: (void)0;
 			}
 #define doMake(func) { \
 	size_t count = OPERAND; \
-	krk_reserve_stack(4); \
-	KrkValue collection = func(count, &krk_currentThread.stackTop[-count], 0); \
+	KrkValue collection = krk_callNativeOnStack(func, count, &krk_currentThread.stackTop[-count], 0); \
 	if (count) { \
 		krk_currentThread.stackTop[-count] = collection; \
 		while (count > 1) { \

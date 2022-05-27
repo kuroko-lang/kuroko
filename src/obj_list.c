@@ -81,7 +81,7 @@ KRK_METHOD(list,__getitem__,{
 			}
 
 			/* make into a list */
-			KrkValue result = krk_list_of(len, &krk_currentThread.stackTop[-len], 0);
+			KrkValue result = krk_callNativeOnStack(krk_list_of, len, &krk_currentThread.stackTop[-len], 0);
 			krk_currentThread.stackTop[-len-1] = result;
 			while (len) {
 				krk_pop();

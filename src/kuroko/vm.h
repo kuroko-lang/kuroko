@@ -238,6 +238,7 @@ typedef struct KrkVM {
 #define KRK_THREAD_HAS_EXCEPTION       (1 << 3)
 #define KRK_THREAD_SINGLE_STEP         (1 << 4)
 #define KRK_THREAD_SIGNALLED           (1 << 5)
+#define KRK_THREAD_DEFER_STACK_FREE    (1 << 6)
 
 /* Global flags */
 #define KRK_GLOBAL_ENABLE_STRESS_GC    (1 << 8)
@@ -847,3 +848,15 @@ extern KrkValue krk_operator_gt(KrkValue,KrkValue);
  * @brief Set the maximum recursion call depth.
  */
 extern void krk_setMaximumRecursionDepth(size_t maxDepth);
+
+/**
+ * @brief Call a native function using a reference to stack arguments safely.
+ *
+ * Passing the address of the stack to a native function directly would be unsafe:
+ * the stack can be reallocated at any time through pushes. To allow for native functions
+ * to be called with arguments from the stack safely, this wrapper holds on to a reference
+ * to the stack at the call time, unless one was already held by an outer call; if a
+ * held stack is reallocated, it will be freed when execution returns to the call
+ * to @c krk_callNativeOnStack that holds it.
+ */
+KrkValue krk_callNativeOnStack(NativeFn native, size_t argCount, KrkValue *stackArgs, int hasKw);
