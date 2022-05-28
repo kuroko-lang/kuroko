@@ -123,6 +123,10 @@ KRK_METHOD(NotImplementedType,__str__,{
 	return OBJECT_VAL(S("NotImplemented"));
 })
 
+KRK_METHOD(NotImplementedType,__hash__,{
+	return INTEGER_VAL(0);
+})
+
 #undef BIND_METHOD
 #define BIND_METHOD(klass,method) do { krk_defineNative(& _ ## klass->methods, #method, _ ## klass ## _ ## method); } while (0)
 _noexport
@@ -164,6 +168,7 @@ void _createAndBind_numericClasses(void) {
 
 	KrkClass * _NotImplementedType = ADD_BASE_CLASS(vm.baseClasses->notImplClass, "NotImplementedType", vm.baseClasses->objectClass);
 	BIND_METHOD(NotImplementedType, __str__);
+	BIND_METHOD(NotImplementedType, __hash__);
 	krk_defineNative(&_NotImplementedType->methods, "__repr__", FUNC_NAME(NotImplementedType,__str__));
 	krk_finalizeClass(_NotImplementedType);
 
