@@ -1,0 +1,3 @@
+from .extra import exportablething
+
+let myexport = exportablething

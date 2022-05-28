@@ -1,0 +1,9 @@
+Imported foo.__init__ as foo
+hi
+Imported bar.__init__ as foo.bar
+hi there
+failed with ImportError
+failed with ImportError
+hi
+hi
+hi there

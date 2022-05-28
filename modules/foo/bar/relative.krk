@@ -1,0 +1,6 @@
+from ..extra import exportablething
+
+let myotherexport = exportablething + ' there'
+
+if __name__ == '__main__':
+    print(__package__,__name__)

@@ -112,7 +112,7 @@ static inline void pushStringBuilder(struct StringBuilder * sb, char c) {
  * @param str C string to add.
  * @param len Length of the C string.
  */
-static inline void pushStringBuilderStr(struct StringBuilder * sb, char *str, size_t len) {
+static inline void pushStringBuilderStr(struct StringBuilder * sb, const char *str, size_t len) {
 	if (sb->capacity < sb->length + len) {
 		size_t prevcap = sb->capacity;
 		while (sb->capacity < sb->length + len) {

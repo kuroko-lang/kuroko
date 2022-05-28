@@ -40,6 +40,7 @@
 #include <kuroko/object.h>
 #include <kuroko/debug.h>
 #include <kuroko/vm.h>
+#include <kuroko/util.h>
 
 /**
  * @brief Token parser state.
@@ -2177,34 +2178,43 @@ static void raiseStatement(void) {
 	emitByte(OP_RAISE);
 }
 
-static size_t importModule(KrkToken * startOfName) {
-	consume(TOKEN_IDENTIFIER, "Expected module name after 'import'.");
-	*startOfName = parser.previous;
-	while (match(TOKEN_DOT)) {
-		if (startOfName->start + startOfName->literalWidth != parser.previous.start) {
-			error("Unexpected whitespace after module path element");
-			return 0;
-		}
-		startOfName->literalWidth += parser.previous.literalWidth;
-		startOfName->length += parser.previous.length;
-		consume(TOKEN_IDENTIFIER, "Expected module path element after '.'");
-		if (startOfName->start + startOfName->literalWidth != parser.previous.start) {
-			error("Unexpected whitespace after '.'");
-			return 0;
-		}
-		startOfName->literalWidth += parser.previous.literalWidth;
-		startOfName->length += parser.previous.length;
+static size_t importModule(KrkToken * startOfName, int leadingDots) {
+	size_t ind = 0;
+	struct StringBuilder sb = {0};
+
+	for (int i = 0; i < leadingDots; ++i) {
+		pushStringBuilder(&sb, '.');
 	}
-	size_t ind = identifierConstant(startOfName);
+
+	if (!(leadingDots && check(TOKEN_IMPORT))) {
+		consume(TOKEN_IDENTIFIER, "Expected module name after 'import'.");
+		if (parser.hadError) goto _freeImportName;
+		pushStringBuilderStr(&sb, parser.previous.start, parser.previous.length);
+
+		while (match(TOKEN_DOT)) {
+			pushStringBuilderStr(&sb, parser.previous.start, parser.previous.length);
+			consume(TOKEN_IDENTIFIER, "Expected module path element after '.'");
+			if (parser.hadError) goto _freeImportName;
+			pushStringBuilderStr(&sb, parser.previous.start, parser.previous.length);
+		}
+	}
+
+	startOfName->start  = sb.bytes;
+	startOfName->length = sb.length;
+
+	ind = identifierConstant(startOfName);
 	EMIT_OPERAND_OP(OP_IMPORT, ind);
+
+_freeImportName:
+	discardStringBuilder(&sb);
 	return ind;
 }
 
 static void importStatement(void) {
 	do {
 		KrkToken firstName = parser.current;
-		KrkToken startOfName;
-		size_t ind = importModule(&startOfName);
+		KrkToken startOfName = {0};
+		size_t ind = importModule(&startOfName, 0);
 		if (match(TOKEN_AS)) {
 			consume(TOKEN_IDENTIFIER, "Expected identifier after 'as'.");
 			ind = identifierConstant(&parser.previous);
@@ -2228,8 +2238,14 @@ static void importStatement(void) {
 
 static void fromImportStatement(void) {
 	int expectCloseParen = 0;
-	KrkToken startOfName;
-	importModule(&startOfName);
+	KrkToken startOfName = {0};
+	int leadingDots = 0;
+
+	while (match(TOKEN_DOT)) {
+		leadingDots++;
+	}
+
+	importModule(&startOfName, leadingDots);
 	consume(TOKEN_IMPORT, "Expected 'import' after module name");
 	if (match(TOKEN_LEFT_PAREN)) {
 		expectCloseParen = 1;

@@ -732,9 +732,10 @@ extern KrkValue krk_dirObject(int argc, KrkValue argv[], int hasKw);
  * @param path      Dotted path of the module, used for file lookup.
  * @param moduleOut Receives a value with the module object.
  * @param runAs     Name to attach to @c \__name__ for this module, different from @p path
+ * @param parent    Parent module object, if loaded from a package.
  * @return 1 if the module was loaded, 0 if an @ref ImportError occurred.
  */
-extern int krk_loadModule(KrkString * path, KrkValue * moduleOut, KrkString * runAs);
+extern int krk_loadModule(KrkString * path, KrkValue * moduleOut, KrkString * runAs, KrkValue parent);
 
 /**
  * @brief Load a module by a dotted name.

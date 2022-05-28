@@ -1706,7 +1706,7 @@ static int handleException() {
  * a later search path has a krk source and an earlier search path has a shared
  * object module, the later search path will still win.
  */
-int krk_loadModule(KrkString * path, KrkValue * moduleOut, KrkString * runAs) {
+int krk_loadModule(KrkString * path, KrkValue * moduleOut, KrkString * runAs, KrkValue parent) {
 	KrkValue modulePaths;
 
 	/* See if the module is already loaded */
@@ -1771,7 +1771,20 @@ int krk_loadModule(KrkString * path, KrkValue * moduleOut, KrkString * runAs) {
 		 * returns to the current call frame; modules should return objects. */
 		KrkInstance * enclosing = krk_currentThread.module;
 		krk_startModule(runAs->chars);
-		if (isPackage) krk_attachNamedValue(&krk_currentThread.module->fields,"__ispackage__",BOOLEAN_VAL(1));
+		if (isPackage) {
+			krk_attachNamedValue(&krk_currentThread.module->fields,"__ispackage__",BOOLEAN_VAL(1));
+			/* For a module that is a package, __package__ is its own name */
+			krk_attachNamedValue(&krk_currentThread.module->fields,"__package__",OBJECT_VAL(runAs));
+		} else {
+			KrkValue parentName;
+			if (IS_INSTANCE(parent) && krk_tableGet_fast(&AS_INSTANCE(parent)->fields, S("__name__"), &parentName) && IS_STRING(parentName)) {
+				krk_attachNamedValue(&krk_currentThread.module->fields, "__package__", parentName);
+			} else {
+				/* If there is no parent, or the parent doesn't have a string __name__ attribute,
+				 * set the __package__ to None, so it at least exists. */
+				krk_attachNamedValue(&krk_currentThread.module->fields, "__package__", NONE_VAL());
+			}
+		}
 		krk_callfile(fileName,fileName);
 		*moduleOut = OBJECT_VAL(krk_currentThread.module);
 		krk_currentThread.module = enclosing;
@@ -1891,7 +1904,105 @@ int krk_importModule(KrkString * name, KrkString * runAs) {
 
 	if (isClear) {
 		KrkValue base;
-		return krk_loadModule(name,&base,runAs);
+		return krk_loadModule(name,&base,runAs,NONE_VAL());
+	}
+
+	if (name->chars[0] == '.') {
+		/**
+		 * For relative imports, we canonicalize the import name based on the current package,
+		 * and then trying importModule again with the fully qualified name.
+		 */
+
+		KrkValue packageName;
+		if (!krk_tableGet_fast(&krk_currentThread.module->fields, S("__package__"), &packageName) || !IS_STRING(packageName)) {
+			/* We must have __package__ set to a string for this to make any sense. */
+			krk_runtimeError(vm.exceptions->importError, "attempted relative import without a package context");
+			return 0;
+		}
+
+		if (name->length == 1) {
+			/* from . import ... */
+			return krk_importModule(AS_STRING(packageName), AS_STRING(packageName));
+		}
+
+		if (name->chars[1] != '.') {
+			/* from .something import ... */
+			krk_push(packageName);
+			krk_push(OBJECT_VAL(name));
+			krk_addObjects();
+
+			if (krk_importModule(AS_STRING(krk_peek(0)), AS_STRING(krk_peek(0)))) {
+				krk_swap(1); /* Imported module */
+				krk_pop(); /* Name */
+				return 1;
+			}
+
+			return 0;
+		}
+
+		/**
+		 * from .. import ...
+		 *   or
+		 * from ..something import ...
+		 *
+		 * If there n dots, there are n-1 components to pop from the end of
+		 * the package name, as '..' is "go up one" and '...' is "go up two".
+		 */
+		size_t dots = 0;
+		while (name->chars[dots+1] == '.') dots++;
+
+		/* We'll split the package name is str.split(__package__,'.') */
+		krk_push(packageName);
+		krk_push(OBJECT_VAL(S(".")));
+		KrkValue components = krk_string_split(2,(KrkValue[]){krk_peek(1),krk_peek(0)}, 0);
+		if (!IS_list(components)) {
+			krk_runtimeError(vm.exceptions->importError, "internal error while calculating package path");
+			return 0;
+		}
+		krk_push(components);
+		krk_swap(2);
+		krk_pop();
+		krk_pop();
+
+		/* If there are not enough components to "go up" through, that's an error. */
+		if (AS_LIST(components)->count <= dots) {
+			krk_runtimeError(vm.exceptions->importError, "attempted relative import beyond top-level package");
+			return 0;
+		}
+
+		size_t count = AS_LIST(components)->count - dots;
+		struct StringBuilder sb = {0};
+
+		/* Now rebuild the dotted form from the remaining components... */
+		for (size_t i = 0; i < count; i++) {
+			KrkValue node = AS_LIST(components)->values[i];
+			if (!IS_STRING(node)) {
+				discardStringBuilder(&sb);
+				krk_runtimeError(vm.exceptions->importError, "internal error while calculating package path");
+				return 0;
+			}
+			pushStringBuilderStr(&sb, AS_CSTRING(node), AS_STRING(node)->length);
+			if (i + 1 != count) {
+				pushStringBuilder(&sb, '.');
+			}
+		}
+
+		krk_pop(); /* components */
+
+		if (name->chars[dots+1]) {
+			/* from ..something import ... - append '.something' */
+			pushStringBuilderStr(&sb, &name->chars[dots], name->length - dots);
+		}
+
+		krk_push(OBJECT_VAL(finishStringBuilder(&sb)));
+
+		/* Now to try to import the fully qualified module path */
+		if (krk_importModule(AS_STRING(krk_peek(0)), AS_STRING(krk_peek(0)))) {
+			krk_swap(1); /* Imported module */
+			krk_pop(); /* Name */
+			return 1;
+		}
+		return 0;
 	}
 
 	/**
@@ -1938,7 +2049,7 @@ int krk_importModule(KrkString * name, KrkString * runAs) {
 			krk_pop(); /* dot */
 			krk_pop(); /* remainder */
 			KrkValue current;
-			if (!krk_loadModule(AS_STRING(krk_currentThread.stack[argBase+1]), &current, runAs)) return 0;
+			if (!krk_loadModule(AS_STRING(krk_currentThread.stack[argBase+1]), &current, runAs, krk_currentThread.stack[argBase-1])) return 0;
 			krk_pop(); /* dot-sepaerated */
 			krk_pop(); /* slash-separated */
 			krk_push(current);
@@ -1949,7 +2060,7 @@ int krk_importModule(KrkString * name, KrkString * runAs) {
 			return 1;
 		} else {
 			KrkValue current;
-			if (!krk_loadModule(AS_STRING(krk_currentThread.stack[argBase+1]), &current, AS_STRING(krk_currentThread.stack[argBase+2]))) return 0;
+			if (!krk_loadModule(AS_STRING(krk_currentThread.stack[argBase+1]), &current, AS_STRING(krk_currentThread.stack[argBase+2]),NONE_VAL())) return 0;
 			krk_push(current);
 			if (!IS_NONE(krk_currentThread.stack[argBase-1])) {
 				krk_tableSet(&AS_INSTANCE(krk_currentThread.stack[argBase-1])->fields, krk_currentThread.stack[argBase+0], krk_peek(0));

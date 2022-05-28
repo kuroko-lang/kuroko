@@ -1,0 +1,34 @@
+# Should work
+import foo.relative
+print(foo.relative.myexport)
+
+# Should also work
+import foo.bar.relative
+print(foo.bar.relative.myotherexport)
+
+# Should not work:
+try:
+    from . import this_is_not_a_package
+except Exception as e:
+    print("failed with", type(e).__name__)
+
+# Nor should this:
+try:
+    from .tools import this_is_not_a_package
+except Exception as e:
+    print("failed with", type(e).__name__)
+
+# But if we set __package__, we can pretend we're part of a package.
+let __package__ = 'foo'
+
+from .extra import exportablething as a
+print(a)
+
+# And if we do this...
+let __package__ = 'foo.bar.bax.qux'
+
+from ....extra import exportablething as b
+print(b)
+
+from ...relative import myotherexport as c
+print(c)
