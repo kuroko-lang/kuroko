@@ -53,7 +53,7 @@ KRK_METHOD(int,__eq__,{
 })
 
 KRK_METHOD(int,__hash__,{
-	return argv[0];
+	return INTEGER_VAL((uint32_t)AS_INTEGER(argv[0]));
 })
 
 #undef CURRENT_CTYPE
@@ -117,6 +117,10 @@ KRK_METHOD(NoneType,__str__,{
 	return OBJECT_VAL(S("None"));
 })
 
+KRK_METHOD(NoneType,__hash__,{
+	return INTEGER_VAL((uint32_t)AS_INTEGER(argv[0]));
+})
+
 #define IS_NotImplementedType(o) IS_NOTIMPL(o)
 #define AS_NotImplementedType(o) (1)
 KRK_METHOD(NotImplementedType,__str__,{
@@ -163,6 +167,7 @@ void _createAndBind_numericClasses(void) {
 
 	KrkClass * _NoneType = ADD_BASE_CLASS(vm.baseClasses->noneTypeClass, "NoneType", vm.baseClasses->objectClass);
 	BIND_METHOD(NoneType, __str__);
+	BIND_METHOD(NoneType, __hash__);
 	krk_defineNative(&_NoneType->methods, "__repr__", FUNC_NAME(NoneType,__str__));
 	krk_finalizeClass(_NoneType);
 
