@@ -1,0 +1,1 @@
+print("I am foo.__main__, my name is:",__name__,"and my package is:",__package__)

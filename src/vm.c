@@ -1738,6 +1738,9 @@ int krk_loadModule(KrkString * path, KrkValue * moduleOut, KrkString * runAs, Kr
 
 	/* First search for {path}.krk in the module search paths */
 	for (int i = 0; i < moduleCount; ++i, krk_pop()) {
+		int isPackage = 0;
+		char * fileName;
+
 		krk_push(AS_LIST(modulePaths)->values[i]);
 		if (!IS_STRING(krk_peek(0))) {
 			*moduleOut = NONE_VAL();
@@ -1745,28 +1748,77 @@ int krk_loadModule(KrkString * path, KrkValue * moduleOut, KrkString * runAs, Kr
 				"Module search paths must be strings; check the search path at index %d", i);
 			return 0;
 		}
+
+		/* Try .../path/__init__.krk */
+		krk_push(OBJECT_VAL(path));
+		krk_addObjects();
+		krk_push(OBJECT_VAL(S(PATH_SEP "__init__.krk")));
+		krk_addObjects();
+		fileName = AS_CSTRING(krk_peek(0));
+		if (stat(fileName,&statbuf) == 0) {
+			isPackage = 1;
+			if (runAs == S("__main__")) {
+				krk_pop(); /* concatenated name */
+
+				/* Convert back to .-formatted */
+				krk_push(krk_valueGetAttribute(OBJECT_VAL(path), "replace"));
+				krk_push(OBJECT_VAL(S(PATH_SEP)));
+				krk_push(OBJECT_VAL(S(".")));
+				krk_push(krk_callStack(2));
+				KrkValue packageName = krk_peek(0);
+				krk_push(packageName);
+				krk_push(OBJECT_VAL(S(".")));
+				krk_addObjects();
+				krk_push(OBJECT_VAL(runAs));
+				krk_addObjects();
+
+				/* Try to import that. */
+				KrkValue dotted_main = krk_peek(0);
+				if (!krk_importModule(AS_STRING(dotted_main),runAs)) {
+					krk_runtimeError(vm.exceptions->importError, "No module named %s; '%s' is a package and cannot be executed directly",
+						AS_CSTRING(dotted_main), AS_CSTRING(packageName));
+					return 0;
+				}
+
+				krk_swap(2);
+				krk_pop(); /* package name */
+				krk_pop(); /* dotted_main */
+				*moduleOut = krk_peek(0);
+				return 1;
+			}
+			goto _normalFile;
+		}
+
+#ifndef STATIC_ONLY
+		/* Try .../path.so */
+		krk_pop();
+		krk_push(AS_LIST(modulePaths)->values[i]);
+		krk_push(OBJECT_VAL(path));
+		krk_addObjects(); /* Concatenate path... */
+		krk_push(OBJECT_VAL(S(".so")));
+		krk_addObjects(); /* and file extension */
+		fileName = AS_CSTRING(krk_peek(0));
+		if (stat(fileName,&statbuf) == 0) {
+			goto _sharedObject;
+		}
+#endif
+
+		/* Try .../path.krk */
+		krk_pop();
+		krk_push(AS_LIST(modulePaths)->values[i]);
 		krk_push(OBJECT_VAL(path));
 		krk_addObjects(); /* Concatenate path... */
 		krk_push(OBJECT_VAL(S(".krk")));
 		krk_addObjects(); /* and file extension */
-		int isPackage = 0;
-
-		char * fileName = AS_CSTRING(krk_peek(0));
-		if (stat(fileName,&statbuf) < 0) {
-			krk_pop();
-			/* try /__init__.krk */
-			krk_push(AS_LIST(modulePaths)->values[i]);
-			krk_push(OBJECT_VAL(path));
-			krk_addObjects();
-			krk_push(OBJECT_VAL(S(PATH_SEP "__init__.krk")));
-			krk_addObjects();
-			fileName = AS_CSTRING(krk_peek(0));
-			if (stat(fileName,&statbuf) < 0) {
-				continue;
-			}
-			isPackage = 1;
+		fileName = AS_CSTRING(krk_peek(0));
+		if (stat(fileName,&statbuf) == 0) {
+			goto _normalFile;
 		}
 
+		/* Try next search path */
+		continue;
+
+	_normalFile: (void)0;
 		/* Compile and run the module in a new context and exit the VM when it
 		 * returns to the current call frame; modules should return objects. */
 		KrkInstance * enclosing = krk_currentThread.module;
@@ -1799,20 +1851,9 @@ int krk_loadModule(KrkString * path, KrkValue * moduleOut, KrkString * runAs, Kr
 		krk_pop(); /* concatenated filename on stack */
 		krk_push(*moduleOut);
 		return 1;
-	}
 
 #ifndef STATIC_ONLY
-	/* If we didn't find {path}.krk, try {path}.so in the same order */
-	for (int i = 0; i < moduleCount; ++i, krk_pop()) {
-		/* Assume things haven't changed and all of these are strings. */
-		krk_push(AS_LIST(modulePaths)->values[i]);
-		krk_push(OBJECT_VAL(path));
-		krk_addObjects(); /* this should just be basic concatenation */
-		krk_push(OBJECT_VAL(S(".so")));
-		krk_addObjects();
-
-		char * fileName = AS_CSTRING(krk_peek(0));
-		if (stat(fileName,&statbuf) < 0) continue;
+	_sharedObject: (void)0;
 
 		dlRefType dlRef = dlOpen(fileName);
 		if (!dlRef) {
@@ -1868,8 +1909,8 @@ int krk_loadModule(KrkString * path, KrkValue * moduleOut, KrkString * runAs, Kr
 		krk_pop(); /* filename */
 		krk_tableSet(&vm.modules, OBJECT_VAL(runAs), *moduleOut);
 		return 1;
-	}
 #endif
+	}
 
 #endif
 
