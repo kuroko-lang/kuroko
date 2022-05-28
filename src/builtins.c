@@ -95,13 +95,36 @@ KRK_FUNC(len,{
 })
 
 KRK_FUNC(dir,{
-	FUNCTION_TAKES_EXACTLY(1);
-	KrkClass * type = krk_getType(argv[0]);
-	if (!type->_dir) {
-		return krk_dirObject(argc,argv,hasKw); /* Fallback */
+	FUNCTION_TAKES_AT_MOST(1);
+	if (argc) {
+		KrkClass * type = krk_getType(argv[0]);
+		if (!type->_dir) {
+			return krk_dirObject(argc,argv,hasKw); /* Fallback */
+		}
+		krk_push(argv[0]);
+		return krk_callDirect(type->_dir, 1);
+	} else {
+		/* Current globals */
+		if (!krk_currentThread.frameCount) {
+			return krk_runtimeError(vm.exceptions->nameError, "No active globals context");
+		}
+
+		/* Set up a new list for our output */
+		KrkValue myList = krk_list_of(0,NULL,0);
+		krk_push(myList);
+
+		/* Put all the keys from the globals table in it */
+		KrkTable * globals = krk_currentThread.frames[krk_currentThread.frameCount-1].globals;
+		for (size_t i = 0; i < globals->capacity; ++i) {
+			KrkTableEntry * entry = &globals->entries[i];
+			if (IS_KWARGS(entry->key)) continue;
+			krk_writeValueArray(AS_LIST(myList), entry->key);
+		}
+
+		/* Now sort it */
+		FUNC_NAME(list,sort)(1,(KrkValue[]){krk_peek(0)},0);
+		return krk_pop(); /* Return the list */
 	}
-	krk_push(argv[0]);
-	return krk_callDirect(type->_dir, 1);
 })
 
 KRK_FUNC(repr,{
@@ -1087,9 +1110,10 @@ void _createAndBind_builtins(void) {
 		"call depth is out of range, an exception will be raised.");
 	BUILTIN_FUNCTION("dir", FUNC_NAME(krk,dir),
 		"@brief Return a list of known property names for a given object.\n"
-		"@arguments obj\n\n"
+		"@arguments [obj]\n\n"
 		"Uses various internal methods to collect a list of property names of @p obj, returning "
-		"that list sorted lexicographically.");
+		"that list sorted lexicographically. If no argument is given, the returned list will "
+		"be the valid global names in the calling scope.");
 	BUILTIN_FUNCTION("len", FUNC_NAME(krk,len),
 		"@brief Return the length of a given sequence object.\n"
 		"@arguments seq\n\n"
