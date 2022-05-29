@@ -465,7 +465,7 @@ KRK_FUNC(get_terminal_size,{
 })
 #endif
 
-static int makeArgs(int count, KrkValue * values, char *** argsOut, const char * _method_name) {
+static int makeArgs(int count, const KrkValue * values, char *** argsOut, const char * _method_name) {
 	char ** out = malloc(sizeof(char*)*(count+1));
 	for (int i = 0; i < count; ++i) {
 		if (!IS_STRING(values[i])) {

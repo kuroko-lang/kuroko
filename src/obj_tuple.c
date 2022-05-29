@@ -9,7 +9,7 @@
 	if (index < 0) index += self->values.count; \
 	if (index < 0 || index >= (krk_integer_type)self->values.count) return krk_runtimeError(vm.exceptions->indexError, "tuple index out of range: " PRIkrk_int, index)
 
-static KrkValue _tuple_init(int argc, KrkValue argv[], int hasKw) {
+static KrkValue _tuple_init(int argc, const KrkValue argv[], int hasKw) {
 	if (argc == 1) {
 		return OBJECT_VAL(krk_newTuple(0));
 	} else if (argc == 2) {
@@ -30,7 +30,7 @@ static KrkValue _tuple_init(int argc, KrkValue argv[], int hasKw) {
 }
 
 /* tuple creator */
-KrkValue krk_tuple_of(int argc, KrkValue argv[], int hasKw) {
+KrkValue krk_tuple_of(int argc, const KrkValue argv[], int hasKw) {
 	KrkTuple * self = krk_newTuple(argc);
 	krk_push(OBJECT_VAL(self));
 	for (size_t i = 0; i < (size_t)argc; ++i) {
@@ -150,7 +150,7 @@ struct TupleIter {
 	int i;
 };
 
-static KrkValue _tuple_iter_init(int argc, KrkValue argv[], int hasKw) {
+static KrkValue _tuple_iter_init(int argc, const KrkValue argv[], int hasKw) {
 	struct TupleIter * self = (struct TupleIter *)AS_OBJECT(argv[0]);
 	self->myTuple = argv[1];
 	self->i = 0;
@@ -161,7 +161,7 @@ static void _tuple_iter_gcscan(KrkInstance * self) {
 	krk_markValue(((struct TupleIter*)self)->myTuple);
 }
 
-static KrkValue _tuple_iter_call(int argc, KrkValue argv[], int hasKw) {
+static KrkValue _tuple_iter_call(int argc, const KrkValue argv[], int hasKw) {
 	struct TupleIter * self = (struct TupleIter *)AS_OBJECT(argv[0]);
 	KrkValue t = self->myTuple; /* Tuple to iterate */
 	int i = self->i;

@@ -604,7 +604,7 @@ extern int krk_callValue(KrkValue callee, int argCount, int callableOnStack);
  *
  * This is the native function bound to @c listOf
  */
-extern KrkValue krk_list_of(int argc, KrkValue argv[], int hasKw);
+extern KrkValue krk_list_of(int argc, const KrkValue argv[], int hasKw);
 
 /**
  * @brief Create a dict object.
@@ -612,7 +612,7 @@ extern KrkValue krk_list_of(int argc, KrkValue argv[], int hasKw);
  *
  * This is the native function bound to @c dictOf
  */
-extern KrkValue krk_dict_of(int argc, KrkValue argv[], int hasKw);
+extern KrkValue krk_dict_of(int argc, const KrkValue argv[], int hasKw);
 
 /**
  * @brief Create a tuple object.
@@ -620,7 +620,7 @@ extern KrkValue krk_dict_of(int argc, KrkValue argv[], int hasKw);
  *
  * This is the native function bound to @c tupleOf
  */
-extern KrkValue krk_tuple_of(int argc, KrkValue argv[], int hasKw);
+extern KrkValue krk_tuple_of(int argc, const KrkValue argv[], int hasKw);
 
 /**
  * @brief Create a set object.
@@ -628,13 +628,13 @@ extern KrkValue krk_tuple_of(int argc, KrkValue argv[], int hasKw);
  *
  * This is the native function bound to @c setOf
  */
-extern KrkValue krk_set_of(int argc, KrkValue argv[], int hasKw);
+extern KrkValue krk_set_of(int argc, const KrkValue argv[], int hasKw);
 
 /**
  * @brief Create a slice object.
  * @memberof KrkSlice
  */
-extern KrkValue krk_slice_of(int argc, KrkValue argv[], int hasKw);
+extern KrkValue krk_slice_of(int argc, const KrkValue argv[], int hasKw);
 
 /**
  * @brief Call a callable on the stack with @p argCount arguments.
@@ -720,7 +720,7 @@ extern KrkInstance * krk_startModule(const char * name);
  *
  * This is the native function bound to @c object.__dir__
  */
-extern KrkValue krk_dirObject(int argc, KrkValue argv[], int hasKw);
+extern KrkValue krk_dirObject(int argc, const KrkValue argv[], int hasKw);
 
 /**
  * @brief Load a module from a file with a specified name.
@@ -860,4 +860,4 @@ extern void krk_setMaximumRecursionDepth(size_t maxDepth);
  * held stack is reallocated, it will be freed when execution returns to the call
  * to @c krk_callNativeOnStack that holds it.
  */
-KrkValue krk_callNativeOnStack(NativeFn native, size_t argCount, KrkValue *stackArgs, int hasKw);
+KrkValue krk_callNativeOnStack(NativeFn native, size_t argCount, const KrkValue *stackArgs, int hasKw);

@@ -790,7 +790,7 @@ _errorAfterKeywords:
  * If the stack is reallocated within this call, the old stack will not be freed until
  * all such nested calls through krk_callNativeOnStack have returned.
  */
-KrkValue krk_callNativeOnStack(NativeFn native, size_t argCount, KrkValue *stackArgs, int hasKw) {
+KrkValue krk_callNativeOnStack(NativeFn native, size_t argCount, const KrkValue *stackArgs, int hasKw) {
 
 	/**
 	 * If someone is already preserving this stack, we can just call directly.

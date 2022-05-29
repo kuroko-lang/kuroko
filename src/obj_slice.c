@@ -11,7 +11,7 @@ static void _slice_gcscan(KrkInstance * self) {
 	krk_markValue(((struct KrkSlice*)self)->step);
 }
 
-KrkValue krk_slice_of(int argc, KrkValue argv[], int hasKw) {
+KrkValue krk_slice_of(int argc, const KrkValue argv[], int hasKw) {
 	KrkValue outSlice = OBJECT_VAL(krk_newInstance(vm.baseClasses->sliceClass));
 	krk_push(outSlice);
 

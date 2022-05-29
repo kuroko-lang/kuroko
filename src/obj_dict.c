@@ -15,7 +15,7 @@
  * Exposed method called to produce dictionaries from `{expr: expr, ...}` sequences in managed code.
  * Presented in the global namespace as `dictOf(...)`. Expects arguments as `key,value,key,value`...
  */
-KrkValue krk_dict_of(int argc, KrkValue argv[], int hasKw) {
+KrkValue krk_dict_of(int argc, const KrkValue argv[], int hasKw) {
 	if (argc % 2 != 0) return krk_runtimeError(vm.exceptions->argumentError, "Expected even number of arguments to dictOf");
 	KrkInstance * outDict = krk_newInstance(vm.baseClasses->dictClass);
 	krk_push(OBJECT_VAL(outDict));

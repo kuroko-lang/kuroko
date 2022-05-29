@@ -28,7 +28,7 @@ static void _list_gcsweep(KrkInstance * self) {
  * Exposed method called to produce lists from [expr,...] sequences in managed code.
  * Presented in the global namespace as listOf(...)
  */
-KrkValue krk_list_of(int argc, KrkValue argv[], int hasKw) {
+KrkValue krk_list_of(int argc, const KrkValue argv[], int hasKw) {
 	KrkValue outList = OBJECT_VAL(krk_newInstance(vm.baseClasses->listClass));
 	krk_push(outList);
 	krk_initValueArray(AS_LIST(outList));
@@ -173,10 +173,11 @@ KRK_METHOD(list,extend,{
 	METHOD_TAKES_EXACTLY(1);
 	pthread_rwlock_wrlock(&self->rwlock);
 	KrkValueArray *  positionals = AS_LIST(argv[0]);
-	if (krk_valuesSame(argv[0],argv[1])) {
-		argv[1] = krk_list_of(self->values.count, self->values.values, 0);
+	KrkValue other = argv[1];
+	if (krk_valuesSame(argv[0],other)) {
+		other = krk_list_of(self->values.count, self->values.values, 0);
 	}
-	unpackIterableFast(argv[1]);
+	unpackIterableFast(other);
 _break_loop:
 	pthread_rwlock_unlock(&self->rwlock);
 })
@@ -488,7 +489,7 @@ KRK_METHOD(listiterator,__call__,{
 	}
 })
 
-static KrkValue _sorted(int argc, KrkValue argv[], int hasKw) {
+static KrkValue _sorted(int argc, const KrkValue argv[], int hasKw) {
 	if (argc != 1) return krk_runtimeError(vm.exceptions->argumentError,"%s() takes %s %d argument%s (%d given)","sorted","exactly",1,"",argc);
 	KrkValue listOut = krk_list_of(0,NULL,0);
 	krk_push(listOut);
@@ -499,7 +500,7 @@ static KrkValue _sorted(int argc, KrkValue argv[], int hasKw) {
 	return krk_pop();
 }
 
-static KrkValue _reversed(int argc, KrkValue argv[], int hasKw) {
+static KrkValue _reversed(int argc, const KrkValue argv[], int hasKw) {
 	/* FIXME The Python reversed() function produces an iterator and only works for things with indexing or a __reversed__ method;
 	 *       Building a list and reversing it like we do here is not correct! */
 	if (argc != 1) return krk_runtimeError(vm.exceptions->argumentError,"%s() takes %s %d argument%s (%d given)","reversed","exactly",1,"",argc);

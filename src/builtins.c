@@ -12,7 +12,7 @@ static KrkClass * property;
 FUNC_SIG(list,__init__);
 FUNC_SIG(list,sort);
 
-KrkValue krk_dirObject(int argc, KrkValue argv[], int hasKw) {
+KrkValue krk_dirObject(int argc, const KrkValue argv[], int hasKw) {
 	if (argc != 1)
 		return krk_runtimeError(vm.exceptions->argumentError, "%s() takes %s %d argument%s (%d given)",
 			"dir", "exactly", 1, "", argc);
@@ -679,7 +679,7 @@ KRK_FUNC(issubclass,{
 	}
 })
 
-static KrkValue _module_repr(int argc, KrkValue argv[], int hasKw) {
+static KrkValue _module_repr(int argc, const KrkValue argv[], int hasKw) {
 	KrkInstance * self = AS_INSTANCE(argv[0]);
 
 	KrkValue name = NONE_VAL();
@@ -706,7 +706,7 @@ static KrkValue _module_repr(int argc, KrkValue argv[], int hasKw) {
 	return out;
 }
 
-static KrkValue obj_hash(int argc, KrkValue argv[], int hasKw) {
+static KrkValue obj_hash(int argc, const KrkValue argv[], int hasKw) {
 	KrkObj * self = AS_OBJECT(argv[0]);
 	if (!(self->flags & KRK_OBJ_FLAGS_VALID_HASH)) {
 		self->hash = INTEGER_VAL((int)(intptr_t)self);
@@ -715,7 +715,7 @@ static KrkValue obj_hash(int argc, KrkValue argv[], int hasKw) {
 	return INTEGER_VAL(self->hash);
 }
 
-static KrkValue obj_eq(int argc, KrkValue argv[], int hasKw) {
+static KrkValue obj_eq(int argc, const KrkValue argv[], int hasKw) {
 	return BOOLEAN_VAL(argc == 2 && IS_OBJECT(argv[0]) && IS_OBJECT(argv[1]) && AS_OBJECT(argv[0]) == AS_OBJECT(argv[1]));
 }
 
@@ -732,7 +732,7 @@ static KrkValue obj_eq(int argc, KrkValue argv[], int hasKw) {
  * all types should have a string representation available through
  * those methods.
  */
-static KrkValue _strBase(int argc, KrkValue argv[], int hasKw) {
+static KrkValue _strBase(int argc, const KrkValue argv[], int hasKw) {
 	KrkClass * type = krk_getType(argv[0]);
 
 	KrkValue module = NONE_VAL();

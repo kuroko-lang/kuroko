@@ -63,14 +63,14 @@
 	ctype name __attribute__((unused)) = AS_ ## type (argv[i])
 
 #define FUNC_NAME(klass, name) _ ## klass ## _ ## name
-#define FUNC_SIG(klass, name) _noexport KrkValue FUNC_NAME(klass,name) (int argc, KrkValue argv[], int hasKw)
+#define FUNC_SIG(klass, name) _noexport KrkValue FUNC_NAME(klass,name) (int argc, const KrkValue argv[], int hasKw)
 #define KRK_METHOD(klass, name, ...) FUNC_SIG(klass, name) { \
 	static __attribute__ ((unused)) const char* _method_name = # name; \
 	CHECK_ARG(0,klass,CURRENT_CTYPE,CURRENT_NAME); \
 	__VA_ARGS__ \
 	return NONE_VAL(); }
 
-#define KRK_FUNC(name,...) static KrkValue _krk_ ## name (int argc, KrkValue argv[], int hasKw) { \
+#define KRK_FUNC(name,...) static KrkValue _krk_ ## name (int argc, const KrkValue argv[], int hasKw) { \
 	static __attribute__ ((unused)) const char* _method_name = # name; \
 	__VA_ARGS__ \
 	return NONE_VAL(); }
@@ -222,11 +222,11 @@ static inline KrkValue discardStringBuilder(struct StringBuilder * sb) {
 #endif
 
 extern KrkValue krk_dict_nth_key_fast(size_t capacity, KrkTableEntry * entries, size_t index);
-extern KrkValue FUNC_NAME(str,__getitem__)(int,KrkValue*,int);
-extern KrkValue FUNC_NAME(str,__int__)(int,KrkValue*,int);
-extern KrkValue FUNC_NAME(str,__float__)(int,KrkValue*,int);
-extern KrkValue FUNC_NAME(str,split)(int,KrkValue*,int);
-extern KrkValue FUNC_NAME(str,format)(int,KrkValue*,int);
+extern KrkValue FUNC_NAME(str,__getitem__)(int,const KrkValue*,int);
+extern KrkValue FUNC_NAME(str,__int__)(int,const KrkValue*,int);
+extern KrkValue FUNC_NAME(str,__float__)(int,const KrkValue*,int);
+extern KrkValue FUNC_NAME(str,split)(int,const KrkValue*,int);
+extern KrkValue FUNC_NAME(str,format)(int,const KrkValue*,int);
 #define krk_string_get FUNC_NAME(str,__getitem__)
 #define krk_string_int FUNC_NAME(str,__int__)
 #define krk_string_float FUNC_NAME(str,__float__)

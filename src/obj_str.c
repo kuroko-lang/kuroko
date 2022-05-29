@@ -4,7 +4,7 @@
 #include <kuroko/memory.h>
 #include <kuroko/util.h>
 
-static KrkValue FUNC_NAME(striterator,__init__)(int,KrkValue[],int);
+static KrkValue FUNC_NAME(striterator,__init__)(int,const KrkValue[],int);
 
 #define CURRENT_CTYPE KrkString *
 #define CURRENT_NAME  self
@@ -410,7 +410,7 @@ static int charIn(char c, const char * str) {
  * Implements all three of strip, lstrip, rstrip.
  * Set which = 0, 1, 2 respectively
  */
-static KrkValue _string_strip_shared(int argc, KrkValue argv[], int which) {
+static KrkValue _string_strip_shared(int argc, const KrkValue argv[], int which) {
 	if (argc > 1 && IS_STRING(argv[1]) && AS_STRING(argv[1])->type != KRK_STRING_ASCII) {
 		return krk_runtimeError(vm.exceptions->notImplementedError, "str.strip() not implemented for Unicode strip lists");
 	}

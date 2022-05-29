@@ -239,7 +239,7 @@ typedef struct {
 	KrkObj * method;    /**< @brief Function to call */
 } KrkBoundMethod;
 
-typedef KrkValue (*NativeFn)(int argCount, KrkValue* args, int hasKwargs);
+typedef KrkValue (*NativeFn)(int argCount, const KrkValue* args, int hasKwargs);
 
 /**
  * @brief Managed binding to a C function.

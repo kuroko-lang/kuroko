@@ -26,7 +26,7 @@
  *
  * @param arg Optional string to attach to the exception object.
  */
-static KrkValue krk_initException(int argc, KrkValue argv[], int hasKw) {
+static KrkValue krk_initException(int argc, const KrkValue argv[], int hasKw) {
 	KrkInstance * self = AS_INSTANCE(argv[0]);
 	krk_attachNamedValue(&self->fields, "arg", argc > 1 ? argv[1] : NONE_VAL());
 	return argv[0];
@@ -39,7 +39,7 @@ static KrkValue krk_initException(int argc, KrkValue argv[], int hasKw) {
  *
  * Generates a string representation of the form @c "Exception(arg)" .
  */
-static KrkValue _exception_repr(int argc, KrkValue argv[], int hasKw) {
+static KrkValue _exception_repr(int argc, const KrkValue argv[], int hasKw) {
 	KrkInstance * self = AS_INSTANCE(argv[0]);
 	KrkValue arg;
 	struct StringBuilder sb = {0};
@@ -67,7 +67,7 @@ static KrkValue _exception_repr(int argc, KrkValue argv[], int hasKw) {
  * For most exceptions, this is the 'arg' value attached at initialization
  * and is printed during a traceback after the name of the exception type.
  */
-static KrkValue _exception_str(int argc, KrkValue argv[], int hasKw) {
+static KrkValue _exception_str(int argc, const KrkValue argv[], int hasKw) {
 	KrkInstance * self = AS_INSTANCE(argv[0]);
 	KrkValue arg;
 	if (!krk_tableGet(&self->fields, OBJECT_VAL(S("arg")), &arg) || IS_NONE(arg)) {
@@ -91,7 +91,7 @@ static KrkValue _exception_str(int argc, KrkValue argv[], int hasKw) {
  * {str(Exception)} for syntax errors and they handle the rest. This is a bit
  * of a kludge, but it works for now.
  */
-static KrkValue _syntaxerror_str(int argc, KrkValue argv[], int hasKw) {
+static KrkValue _syntaxerror_str(int argc, const KrkValue argv[], int hasKw) {
 	KrkInstance * self = AS_INSTANCE(argv[0]);
 	/* .arg */
 	KrkValue file, line, lineno, colno, arg, func;
