@@ -187,6 +187,7 @@ typedef struct KrkClass {
 	size_t allocSize;         /**< @brief Size to allocate when creating instances of this class */
 	KrkCleanupCallback _ongcscan;   /**< @brief C function to call when the garbage collector visits an instance of this class in the scan phase */
 	KrkCleanupCallback _ongcsweep;  /**< @brief C function to call when the garbage collector is discarding an instance of this class */
+	KrkTable subclasses;
 
 	KrkObj * _getter;         /**< @brief @c %__getitem__  Called when an instance is subscripted */
 	KrkObj * _setter;         /**< @brief @c %__setitem__  Called when a subscripted instance is assigned to */
@@ -207,8 +208,6 @@ typedef struct KrkClass {
 	KrkObj * _descset;        /**< @brief @c %__set__      Called when a descriptor object is assigned to as a property */
 	KrkObj * _classgetitem;   /**< @brief @c %__class_getitem__ Class method called when a type object is subscripted; used for type hints */
 	KrkObj * _hash;           /**< @brief @c %__hash__     Called when an instance is a key in a dict or an entry in a set */
-
-	KrkTable subclasses;
 } KrkClass;
 
 /**
