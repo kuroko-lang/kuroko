@@ -790,7 +790,7 @@ _errorAfterKeywords:
  * If the stack is reallocated within this call, the old stack will not be freed until
  * all such nested calls through krk_callNativeOnStack have returned.
  */
-KrkValue krk_callNativeOnStack(NativeFn native, size_t argCount, const KrkValue *stackArgs, int hasKw) {
+inline KrkValue krk_callNativeOnStack(size_t argCount, const KrkValue *stackArgs, int hasKw, NativeFn native) {
 
 	/**
 	 * If someone is already preserving this stack, we can just call directly.
@@ -861,7 +861,7 @@ int krk_callValue(KrkValue callee, int argCount, int returnDepth) {
 					krk_pop();
 					krk_push(result);
 				} else {
-					KrkValue result = krk_callNativeOnStack(native, argCount, krk_currentThread.stackTop - argCount, 0);
+					KrkValue result = krk_callNativeOnStack(argCount, krk_currentThread.stackTop - argCount, 0, native);
 					if (unlikely(krk_currentThread.stackTop == krk_currentThread.stack)) return 0;
 					krk_currentThread.stackTop -= argCount + returnDepth;
 					krk_push(result);
@@ -3170,7 +3170,7 @@ _finishReturn: (void)0;
 			}
 #define doMake(func) { \
 	size_t count = OPERAND; \
-	KrkValue collection = krk_callNativeOnStack(func, count, &krk_currentThread.stackTop[-count], 0); \
+	KrkValue collection = krk_callNativeOnStack(count, &krk_currentThread.stackTop[-count], 0, func); \
 	if (count) { \
 		krk_currentThread.stackTop[-count] = collection; \
 		while (count > 1) { \

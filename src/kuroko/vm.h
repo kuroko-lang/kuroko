@@ -860,4 +860,4 @@ extern void krk_setMaximumRecursionDepth(size_t maxDepth);
  * held stack is reallocated, it will be freed when execution returns to the call
  * to @c krk_callNativeOnStack that holds it.
  */
-KrkValue krk_callNativeOnStack(NativeFn native, size_t argCount, const KrkValue *stackArgs, int hasKw);
+KrkValue krk_callNativeOnStack(size_t argCount, const KrkValue *stackArgs, int hasKw, NativeFn native);

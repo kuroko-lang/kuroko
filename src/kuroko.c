@@ -883,7 +883,7 @@ _finishArgs:
 	for (int arg = optind; arg < argc; ++arg) {
 		krk_push(OBJECT_VAL(krk_copyString(argv[arg],strlen(argv[arg]))));
 	}
-	KrkValue argList = krk_callNativeOnStack(krk_list_of, argc - optind + (optind == argc), &krk_currentThread.stackTop[-(argc - optind + (optind == argc))], 0);
+	KrkValue argList = krk_callNativeOnStack(argc - optind + (optind == argc), &krk_currentThread.stackTop[-(argc - optind + (optind == argc))], 0, krk_list_of);
 	krk_push(argList);
 	krk_attachNamedValue(&vm.system->fields, "argv", argList);
 	krk_pop();
