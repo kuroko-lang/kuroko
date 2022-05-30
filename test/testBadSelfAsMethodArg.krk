@@ -1,0 +1,48 @@
+import dis
+
+let template = '''
+class Foo:
+    def method(__args__):
+        pass
+'''
+
+# 'self' can only be the first argument
+try:
+    dis.build(template.replace('__args__','a,self'))
+    print('fail')
+except SyntaxError as e:
+    print('pass' if 'implicit' in str(e) else 'fail')
+
+# 'self' can not be a star arg
+try:
+    dis.build(template.replace('__args__','a,*self'))
+    print('fail')
+except SyntaxError as e:
+    print('pass' if 'implicit' in str(e) else 'fail')
+
+# 'self' can not be a star-star arg
+try:
+    dis.build(template.replace('__args__','a,**self'))
+    print('fail')
+except SyntaxError as e:
+    print('pass' if 'implicit' in str(e) else 'fail')
+
+# 'self' can not take a default value
+try:
+    dis.build(template.replace('__args__','self=42'))
+    print('fail')
+except SyntaxError as e:
+    print('pass' if 'keyword argument' in str(e) else 'fail')
+
+# for that matter, neither can star args
+try:
+    dis.build(template.replace('__args__','*args=[]'))
+    print('fail')
+except SyntaxError as e:
+    print('pass' if 'end of' in str(e) else 'fail')
+
+try:
+    dis.build(template.replace('__args__','**args=[]'))
+    print('fail')
+except SyntaxError as e:
+    print('pass' if 'end of' in str(e) else 'fail')

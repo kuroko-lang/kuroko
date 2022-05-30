@@ -1309,6 +1309,109 @@ static void argumentDefinition(void) {
 	}
 }
 
+static void functionPrologue(Compiler * compiler) {
+	KrkCodeObject * func = endCompiler();
+	if (compiler->annotationCount) {
+		EMIT_OPERAND_OP(OP_MAKE_DICT, compiler->annotationCount * 2);
+	}
+	size_t ind = krk_addConstant(currentChunk(), OBJECT_VAL(func));
+	EMIT_OPERAND_OP(OP_CLOSURE, ind);
+	doUpvalues(compiler, func);
+	if (compiler->annotationCount) {
+		emitByte(OP_ANNOTATE);
+	}
+	freeCompiler(compiler);
+}
+
+static int argumentList(FunctionType type) {
+	int hasCollectors = 0;
+	KrkToken self = syntheticToken("self");
+
+	do {
+		if (isMethod(type) && check(TOKEN_IDENTIFIER) &&
+				identifiersEqual(&parser.current, &self)) {
+			if (hasCollectors || current->codeobject->requiredArgs != 1) {
+				errorAtCurrent("Argument name 'self' in a method signature is reserved for the implicit first argument.");
+				return 1;
+			}
+			advance();
+			if (type != TYPE_LAMBDA && check(TOKEN_COLON)) {
+				KrkToken name = parser.previous;
+				match(TOKEN_COLON);
+				typeHint(name);
+			}
+			if (check(TOKEN_EQUAL)) {
+				errorAtCurrent("'self' can not be a keyword argument.");
+				return 1;
+			}
+			continue;
+		}
+		if (match(TOKEN_ASTERISK) || check(TOKEN_POW)) {
+			if (match(TOKEN_POW)) {
+				if (hasCollectors == 2) {
+					error("Duplicate ** in parameter list.");
+					return 1;
+				}
+				hasCollectors = 2;
+				current->codeobject->flags |= KRK_CODEOBJECT_FLAGS_COLLECTS_KWS;
+			} else {
+				if (hasCollectors) {
+					error("Syntax error.");
+					return 1;
+				}
+				hasCollectors = 1;
+				current->codeobject->flags |= KRK_CODEOBJECT_FLAGS_COLLECTS_ARGS;
+			}
+			/* Collect a name, specifically "args" or "kwargs" are commont */
+			ssize_t paramConstant = parseVariable(
+				(hasCollectors == 1) ? "Expected parameter name after '*'." : "Expected parameter name after '**'.");
+			if (parser.hadError) return 1;
+			defineVariable(paramConstant);
+			KrkToken name = parser.previous;
+			if (isMethod(type) && identifiersEqual(&name,&self)) {
+				errorAtCurrent("Argument name 'self' in a method signature is reserved for the implicit first argument.");
+				return 1;
+			}
+			if (type != TYPE_LAMBDA && check(TOKEN_COLON)) {
+				match(TOKEN_COLON);
+				typeHint(name);
+			}
+			/* Make that a valid local for this function */
+			size_t myLocal = current->localCount - 1;
+			EMIT_OPERAND_OP(OP_GET_LOCAL, myLocal);
+			/* Check if it's equal to the unset-kwarg-sentinel value */
+			emitBytes(OP_UNSET, OP_IS);
+			int jumpIndex = emitJump(OP_JUMP_IF_FALSE_OR_POP);
+			/* And if it is, set it to the appropriate type */
+			beginScope();
+			if (hasCollectors == 1) EMIT_OPERAND_OP(OP_MAKE_LIST,0);
+			else EMIT_OPERAND_OP(OP_MAKE_DICT,0);
+			EMIT_OPERAND_OP(OP_SET_LOCAL, myLocal);
+			endScope();
+			/* Otherwise pop the comparison. */
+			patchJump(jumpIndex);
+			emitByte(OP_POP); /* comparison value or expression */
+			continue;
+		}
+		if (hasCollectors) {
+			error("arguments follow catch-all collector");
+			break;
+		}
+		ssize_t paramConstant = parseVariable("Expected parameter name.");
+		if (parser.hadError) return 1;
+		hideLocal();
+		if (type != TYPE_LAMBDA && check(TOKEN_COLON)) {
+			KrkToken name = parser.previous;
+			match(TOKEN_COLON);
+			typeHint(name);
+		}
+		argumentDefinition();
+		defineVariable(paramConstant);
+	} while (match(TOKEN_COMMA));
+
+	return 0;
+}
+
 static void function(FunctionType type, size_t blockWidth) {
 	Compiler compiler;
 	initCompiler(&compiler, type);
@@ -1319,89 +1422,10 @@ static void function(FunctionType type, size_t blockWidth) {
 	if (isMethod(type)) current->codeobject->requiredArgs = 1;
 	if (isCoroutine(type)) current->codeobject->flags |= KRK_CODEOBJECT_FLAGS_IS_COROUTINE;
 
-	int hasCollectors = 0;
-	KrkToken self = syntheticToken("self");
-
 	consume(TOKEN_LEFT_PAREN, "Expected start of parameter list after function name.");
 	startEatingWhitespace();
 	if (!check(TOKEN_RIGHT_PAREN)) {
-		do {
-			if (isMethod(type) && check(TOKEN_IDENTIFIER) &&
-					identifiersEqual(&parser.current, &self)) {
-				if (hasCollectors || current->codeobject->requiredArgs != 1) {
-					errorAtCurrent("Argument name 'self' in a method signature is reserved for the implicit first argument.");
-					goto _bail;
-				}
-				advance();
-				if (check(TOKEN_COLON)) {
-					KrkToken name = parser.previous;
-					match(TOKEN_COLON);
-					typeHint(name);
-				}
-				if (check(TOKEN_EQUAL)) {
-					errorAtCurrent("'self' can not be a keyword argument.");
-					goto _bail;
-				}
-				continue;
-			}
-			if (match(TOKEN_ASTERISK) || check(TOKEN_POW)) {
-				if (match(TOKEN_POW)) {
-					if (hasCollectors == 2) {
-						error("Duplicate ** in parameter list.");
-						goto _bail;
-					}
-					hasCollectors = 2;
-					current->codeobject->flags |= KRK_CODEOBJECT_FLAGS_COLLECTS_KWS;
-				} else {
-					if (hasCollectors) {
-						error("Syntax error.");
-						goto _bail;
-					}
-					hasCollectors = 1;
-					current->codeobject->flags |= KRK_CODEOBJECT_FLAGS_COLLECTS_ARGS;
-				}
-				/* Collect a name, specifically "args" or "kwargs" are commont */
-				ssize_t paramConstant = parseVariable(
-					(hasCollectors == 1) ? "Expected parameter name after '*'." : "Expected parameter name after '**'.");
-				if (parser.hadError) goto _bail;
-				defineVariable(paramConstant);
-				if (check(TOKEN_COLON)) {
-					KrkToken name = parser.previous;
-					match(TOKEN_COLON);
-					typeHint(name);
-				}
-				/* Make that a valid local for this function */
-				size_t myLocal = current->localCount - 1;
-				EMIT_OPERAND_OP(OP_GET_LOCAL, myLocal);
-				/* Check if it's equal to the unset-kwarg-sentinel value */
-				emitBytes(OP_UNSET, OP_IS);
-				int jumpIndex = emitJump(OP_JUMP_IF_FALSE_OR_POP);
-				/* And if it is, set it to the appropriate type */
-				beginScope();
-				if (hasCollectors == 1) EMIT_OPERAND_OP(OP_MAKE_LIST,0);
-				else EMIT_OPERAND_OP(OP_MAKE_DICT,0);
-				EMIT_OPERAND_OP(OP_SET_LOCAL, myLocal);
-				endScope();
-				/* Otherwise pop the comparison. */
-				patchJump(jumpIndex);
-				emitByte(OP_POP); /* comparison value or expression */
-				continue;
-			}
-			if (hasCollectors) {
-				error("arguments follow catch-all collector");
-				break;
-			}
-			ssize_t paramConstant = parseVariable("Expected parameter name.");
-			if (parser.hadError) goto _bail;
-			hideLocal();
-			if (check(TOKEN_COLON)) {
-				KrkToken name = parser.previous;
-				match(TOKEN_COLON);
-				typeHint(name);
-			}
-			argumentDefinition();
-			defineVariable(paramConstant);
-		} while (match(TOKEN_COMMA));
+		if (argumentList(type)) goto _bail;
 	}
 	stopEatingWhitespace();
 	consume(TOKEN_RIGHT_PAREN, "Expected end of parameter list.");
@@ -1413,19 +1437,7 @@ static void function(FunctionType type, size_t blockWidth) {
 	consume(TOKEN_COLON, "Expected colon after function signature.");
 	block(blockWidth,"def");
 _bail: (void)0;
-	KrkCodeObject * function = endCompiler();
-	if (compiler.annotationCount) {
-		EMIT_OPERAND_OP(OP_MAKE_DICT, compiler.annotationCount * 2);
-	}
-	size_t ind = krk_addConstant(currentChunk(), OBJECT_VAL(function));
-	EMIT_OPERAND_OP(OP_CLOSURE, ind);
-	doUpvalues(&compiler, function);
-
-	if (compiler.annotationCount) {
-		emitByte(OP_ANNOTATE);
-	}
-
-	freeCompiler(&compiler);
+	functionPrologue(&compiler);
 }
 
 static void classBody(size_t blockWidth) {
@@ -1610,24 +1622,15 @@ static void lambda(int exprType) {
 	beginScope();
 
 	if (!check(TOKEN_COLON)) {
-		do {
-			ssize_t paramConstant = parseVariable("Expected parameter name.");
-			if (parser.hadError) goto _bail;
-			hideLocal();
-			argumentDefinition();
-			defineVariable(paramConstant);
-		} while (match(TOKEN_COMMA));
+		if (argumentList(TYPE_LAMBDA)) goto _bail;
 	}
 
 	consume(TOKEN_COLON, "Expected ':' after lambda arguments");
 	expression();
 
-_bail: (void)0;
-	KrkCodeObject * lambda = endCompiler();
-	size_t ind = krk_addConstant(currentChunk(), OBJECT_VAL(lambda));
-	EMIT_OPERAND_OP(OP_CLOSURE, ind);
-	doUpvalues(&lambdaCompiler, lambda);
-	freeCompiler(&lambdaCompiler);
+_bail:
+	functionPrologue(&lambdaCompiler);
+
 	invalidTarget(exprType, "lambda");
 }
 

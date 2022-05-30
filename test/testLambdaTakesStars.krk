@@ -1,0 +1,8 @@
+
+let star  = lambda *args: ', '.join(str(x) for x in args)
+
+print(star(1,2,3,'a','b','c'))
+
+let kws   = lambda **kwargs: ', '.join(sorted(f'{x}: {y}' for x, y in kwargs.items()))
+
+print(kws(a=42,b='hi',c=None))
