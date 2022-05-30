@@ -413,25 +413,11 @@ void krk_finalizeClass(KrkClass * _class) {
 		KrkSpecialMethods index;
 	};
 	struct TypeMap specials[] = {
-		{&_class->_getter, METHOD_GET},
-		{&_class->_setter, METHOD_SET},
-		{&_class->_reprer, METHOD_REPR},
-		{&_class->_tostr, METHOD_STR},
-		{&_class->_call, METHOD_CALL},
-		{&_class->_init, METHOD_INIT},
-		{&_class->_eq, METHOD_EQ},
-		{&_class->_len, METHOD_LEN},
-		{&_class->_enter, METHOD_ENTER},
-		{&_class->_exit, METHOD_EXIT},
-		{&_class->_delitem, METHOD_DELITEM},
-		{&_class->_iter, METHOD_ITER},
-		{&_class->_getattr, METHOD_GETATTR},
-		{&_class->_dir, METHOD_DIR},
-		{&_class->_contains, METHOD_CONTAINS},
-		{&_class->_descget, METHOD_DESCGET},
-		{&_class->_descset, METHOD_DESCSET},
-		{&_class->_classgetitem, METHOD_CLASSGETITEM},
-		{&_class->_hash, METHOD_HASH},
+	#define CACHED_METHOD(a,b,c) {&_class-> c, METHOD_ ## a},
+	#define SPECIAL_ATTRS(a,b)
+	#include "methods.h"
+	#undef CACHED_METHOD
+	#undef SPECIAL_ATTRS
 		{NULL, 0},
 	};
 
@@ -1303,47 +1289,11 @@ void krk_initVM(int flags) {
 	 * and unboxing, copying/hashing etc.
 	 */
 	struct { const char * s; size_t len; } _methods[] = {
-	#define _(m,s) [m] = {s,sizeof(s)-1}
-		_(METHOD_INIT, "__init__"),
-		/* String conversion */
-		_(METHOD_STR, "__str__"),
-		_(METHOD_REPR, "__repr__"),
-		/* Subscripting / Indexing */
-		_(METHOD_LEN, "__len__"),
-		_(METHOD_GET, "__getitem__"),
-		_(METHOD_SET, "__setitem__"),
-		_(METHOD_DELITEM, "__delitem__"),
-		/* Dynamic properties */
-		_(METHOD_CLASS, "__class__"),
-		_(METHOD_NAME, "__name__"),
-		_(METHOD_FILE, "__file__"),
-		_(METHOD_DOC, "__doc__"),
-		_(METHOD_BASE, "__base__"),
-		/* Numeric conversions */
-		_(METHOD_INT, "__int__"),
-		_(METHOD_CHR, "__chr__"),
-		_(METHOD_ORD, "__ord__"),
-		_(METHOD_FLOAT, "__float__"),
-		/* General overridable methods */
-		_(METHOD_CALL, "__call__"),
-		_(METHOD_EQ, "__eq__"),
-		/* Iterables */
-		_(METHOD_ITER, "__iter__"),
-		_(METHOD_CONTAINS, "__contains__"),
-		/* Context managers */
-		_(METHOD_ENTER, "__enter__"),
-		_(METHOD_EXIT, "__exit__"),
-		/* Attribute access */
-		_(METHOD_GETATTR, "__getattr__"),
-		_(METHOD_DIR, "__dir__"),
-		/* Descriptor methods */
-		_(METHOD_DESCGET, "__get__"),
-		_(METHOD_DESCSET, "__set__"),
-		/* Very special thing */
-		_(METHOD_CLASSGETITEM, "__class_getitem__"),
-		/* Hashing override */
-		_(METHOD_HASH, "__hash__"),
-	#undef _
+	#define CACHED_METHOD(a,b,c) [METHOD_ ## a] = {b,sizeof(b)-1},
+	#define SPECIAL_ATTRS(a,b)   [METHOD_ ## a] = {b,sizeof(b)-1},
+	#include "methods.h"
+	#undef CACHED_METHOD
+	#undef SPECIAL_ATTRS
 	};
 	for (size_t i = 0; i < METHOD__MAX; ++i) {
 		vm.specialMethodNames[i] = OBJECT_VAL(krk_copyString(_methods[i].s, _methods[i].len));
@@ -2283,7 +2233,7 @@ static int valueDelProperty(KrkString * name) {
 		if (!krk_tableDelete(&_class->methods, OBJECT_VAL(name))) {
 			return 0;
 		}
-		if (name->length && name->chars[0] == '_') {
+		if (name->length > 1 && name->chars[0] == '_' && name->chars[1] == '_') {
 			krk_finalizeClass(_class);
 		}
 		krk_pop(); /* the original value */
@@ -2336,7 +2286,7 @@ static int valueSetProperty(KrkString * name) {
 		}
 	} else if (IS_CLASS(owner)) {
 		krk_tableSet(&AS_CLASS(owner)->methods, OBJECT_VAL(name), value);
-		if (name->length && name->chars[0] == '_') {
+		if (name->length > 1 && name->chars[0] == '_' && name->chars[1] == '_') {
 			/* Quietly call finalizeClass to update special method table if this looks like it might be one */
 			krk_finalizeClass(AS_CLASS(owner));
 		}

@@ -42,6 +42,8 @@
 #include <kuroko/vm.h>
 #include <kuroko/util.h>
 
+#include "private.h"
+
 /**
  * @brief Token parser state.
  *

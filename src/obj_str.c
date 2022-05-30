@@ -4,6 +4,8 @@
 #include <kuroko/memory.h>
 #include <kuroko/util.h>
 
+#include "private.h"
+
 static KrkValue FUNC_NAME(striterator,__init__)(int,const KrkValue[],int);
 
 #define CURRENT_CTYPE KrkString *

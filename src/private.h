@@ -30,3 +30,23 @@ extern void _createAndBind_threadsMod(void);
 #endif
 
 
+/**
+ * @brief Index numbers for always-available interned strings representing important method and member names.
+ *
+ * The VM must look up many methods and members by fixed names. To avoid
+ * continuously having to box and unbox these from C strings to the appropriate
+ * interned @c KrkString, we keep an array of the @c KrkString pointers in the global VM state.
+ *
+ * These values are the offsets into that index for each of the relevant
+ * function names (generally with extra underscores removed). For example
+ * @c METHOD_INIT is the offset for the string value for @c "__init__".
+ */
+typedef enum {
+	#define CACHED_METHOD(a,b,c) METHOD_ ## a,
+	#define SPECIAL_ATTRS(a,b)   METHOD_ ## a,
+	#include "methods.h"
+	#undef CACHED_METHOD
+	#undef SPECIAL_ATTRS
+	METHOD__MAX,
+} KrkSpecialMethods;
+

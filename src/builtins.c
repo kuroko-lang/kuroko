@@ -5,6 +5,8 @@
 #include <kuroko/util.h>
 #include <kuroko/debug.h>
 
+#include "private.h"
+
 static KrkClass * Helper;
 static KrkClass * LicenseReader;
 static KrkClass * property;

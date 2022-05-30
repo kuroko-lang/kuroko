@@ -5,6 +5,8 @@
 #include <kuroko/table.h>
 #include <kuroko/util.h>
 
+#include "private.h"
+
 #if defined(KRK_EXTENSIVE_MEMORY_DEBUGGING)
 /**
  * Extensive Memory Debugging

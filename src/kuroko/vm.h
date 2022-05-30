@@ -53,53 +53,6 @@ typedef struct {
 } KrkCallFrame;
 
 /**
- * @brief Index numbers for always-available interned strings representing important method and member names.
- *
- * The VM must look up many methods and members by fixed names. To avoid
- * continuously having to box and unbox these from C strings to the appropriate
- * interned @c KrkString, we keep an array of the @c KrkString pointers in the global VM state.
- *
- * These values are the offsets into that index for each of the relevant
- * function names (generally with extra underscores removed). For example
- * @c METHOD_INIT is the offset for the string value for @c "__init__".
- */
-typedef enum {
-	METHOD_INIT,
-	METHOD_STR,
-	METHOD_REPR,
-	METHOD_GET,
-	METHOD_SET,
-	METHOD_CLASS,
-	METHOD_NAME,
-	METHOD_FILE,
-	METHOD_INT,
-	METHOD_FLOAT,
-	METHOD_CHR,
-	METHOD_LEN,
-	METHOD_DOC,
-	METHOD_BASE,
-	METHOD_GETSLICE,
-	METHOD_ORD,
-	METHOD_CALL,
-	METHOD_EQ,
-	METHOD_ENTER,
-	METHOD_EXIT,
-	METHOD_DELITEM,
-	METHOD_ITER,
-	METHOD_GETATTR,
-	METHOD_DIR,
-	METHOD_SETSLICE,
-	METHOD_DELSLICE,
-	METHOD_CONTAINS,
-	METHOD_DESCGET,
-	METHOD_DESCSET,
-	METHOD_CLASSGETITEM,
-	METHOD_HASH,
-
-	METHOD__MAX,
-} KrkSpecialMethods;
-
-/**
  * @brief Table of basic exception types.
  *
  * These are the core exception types, available in managed code
