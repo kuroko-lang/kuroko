@@ -39,8 +39,8 @@ typedef enum {
  * the core structures for garbage collection.
  */
 typedef struct KrkObj {
-	KrkObjType type;      /**< @brief Tag indicating core type */
-	uint32_t flags;       /**< @brief General object flags, mostly related to garbage collection. */
+	uint16_t type;        /**< @brief Tag indicating core type */
+	uint16_t flags;       /**< @brief General object flags, mostly related to garbage collection. */
 	uint32_t hash;        /**< @brief Cached hash value for table keys */
 	struct KrkObj * next; /**< @brief Invasive linked list of all objects in the VM */
 } KrkObj;
