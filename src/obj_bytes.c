@@ -379,6 +379,7 @@ KRK_METHOD(bytearray,__iter__,{
 _noexport
 void _createAndBind_bytesClass(void) {
 	KrkClass * bytes = ADD_BASE_CLASS(vm.baseClasses->bytesClass, "bytes", vm.baseClasses->objectClass);
+	bytes->allocSize = 0; /* cannot subclass */
 	KRK_DOC(BIND_METHOD(bytes,__init__),
 		"@brief An array of bytes.\n"
 		"@arguments iter=None\n\n"

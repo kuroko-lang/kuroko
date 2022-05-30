@@ -2601,6 +2601,11 @@ _finishReturn: (void)0;
 						krk_typeName(superclass));
 					goto _finishException;
 				}
+				if (AS_CLASS(superclass)->allocSize == 0) {
+					krk_runtimeError(vm.exceptions->typeError, "'%s' can not be subclassed",
+						AS_CLASS(superclass)->name->chars);
+					goto _finishException;
+				}
 				KrkClass * subclass = AS_CLASS(krk_peek(1));
 				if (subclass->base) {
 					krk_tableDelete(&subclass->base->subclasses, krk_peek(1));

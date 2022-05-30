@@ -187,7 +187,7 @@ typedef struct KrkClass {
 	size_t allocSize;         /**< @brief Size to allocate when creating instances of this class */
 	KrkCleanupCallback _ongcscan;   /**< @brief C function to call when the garbage collector visits an instance of this class in the scan phase */
 	KrkCleanupCallback _ongcsweep;  /**< @brief C function to call when the garbage collector is discarding an instance of this class */
-	KrkTable subclasses;
+	KrkTable subclasses;      /**< @brief Set of classes that subclass this class */
 
 	KrkObj * _getter;         /**< @brief @c %__getitem__  Called when an instance is subscripted */
 	KrkObj * _setter;         /**< @brief @c %__setitem__  Called when a subscripted instance is assigned to */

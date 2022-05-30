@@ -311,6 +311,7 @@ KRK_FUNC(classmethod,{
 _noexport
 void _createAndBind_functionClass(void) {
 	KrkClass * codeobject = ADD_BASE_CLASS(vm.baseClasses->codeobjectClass, "codeobject", vm.baseClasses->objectClass);
+	codeobject->allocSize = 0; /* cannot subclass */
 	BIND_METHOD(codeobject,__str__);
 	BIND_METHOD(codeobject,_ip_to_line);
 	BIND_PROP(codeobject,__constants__);
@@ -320,6 +321,7 @@ void _createAndBind_functionClass(void) {
 	krk_finalizeClass(codeobject);
 
 	KrkClass * function = ADD_BASE_CLASS(vm.baseClasses->functionClass, "function", vm.baseClasses->objectClass);
+	function->allocSize = 0; /* cannot subclass */
 	BIND_METHOD(function,__str__);
 	BIND_METHOD(function,_ip_to_line);
 	BIND_PROP(function,__doc__);
@@ -334,6 +336,7 @@ void _createAndBind_functionClass(void) {
 	krk_finalizeClass(function);
 
 	KrkClass * method = ADD_BASE_CLASS(vm.baseClasses->methodClass, "method", vm.baseClasses->objectClass);
+	method->allocSize = 0; /* cannot subclass */
 	BIND_METHOD(method,__str__);
 	BIND_METHOD(method,_ip_to_line);
 	BIND_PROP(method,__doc__);

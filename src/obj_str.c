@@ -885,6 +885,7 @@ _corrupt:
 _noexport
 void _createAndBind_strClass(void) {
 	KrkClass * str = ADD_BASE_CLASS(vm.baseClasses->strClass, "str", vm.baseClasses->objectClass);
+	str->allocSize = 0; /* cannot subclass */
 	BIND_METHOD(str,__init__);
 	BIND_METHOD(str,__iter__);
 	BIND_METHOD(str,__ord__);
