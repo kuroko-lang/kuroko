@@ -1147,40 +1147,28 @@ KRK_FUNC(set_tracing,{
 #endif
 
 KRK_FUNC(getsizeof,{
-	if (argc < 1) return INTEGER_VAL(0);
-	if (!IS_OBJECT(argv[0])) return INTEGER_VAL(sizeof(KrkValue));
-	size_t mySize = sizeof(KrkValue);
+	if (argc < 1 || !IS_OBJECT(argv[0])) return INTEGER_VAL(0);
+	size_t mySize = 0;
 	switch (AS_OBJECT(argv[0])->type) {
 		case KRK_OBJ_STRING: {
 			KrkString * self = AS_STRING(argv[0]);
-			mySize += sizeof(KrkString) + self->length /* For the UTF8 */
-			+ ((self->codes && (self->chars != self->codes)) ? (self->type * self->codesLength) : 0);
+			mySize += sizeof(KrkString) + self->length + 1; /* For the UTF8 */
+			mySize += ((self->codes && (self->chars != self->codes)) ? (self->type * self->codesLength) : 0);
 			break;
 		}
-		case KRK_OBJ_BYTES: {
-			KrkBytes * self = AS_BYTES(argv[0]);
-			mySize += sizeof(KrkBytes) + self->length;
-			break;
-		}
-		case KRK_OBJ_INSTANCE: {
-			KrkInstance * self = AS_INSTANCE(argv[0]);
-			mySize += sizeof(KrkTableEntry) * self->fields.capacity;
-			KrkClass * type = krk_getType(argv[0]);
-			if (type->allocSize) {
-				mySize += type->allocSize;
-			} else {
-				mySize += sizeof(KrkInstance);
-			}
-			if (krk_isInstanceOf(argv[0], vm.baseClasses->listClass)) {
-				mySize += sizeof(KrkValue) * AS_LIST(argv[0])->capacity;
-			} else if (krk_isInstanceOf(argv[0], vm.baseClasses->dictClass)) {
-				mySize += sizeof(KrkTableEntry) * AS_DICT(argv[0])->capacity;
-			}
-			break;
-		}
-		case KRK_OBJ_CLASS: {
-			KrkClass * self = AS_CLASS(argv[0]);
-			mySize += sizeof(KrkClass) + sizeof(KrkTableEntry) * self->methods.capacity;
+		case KRK_OBJ_CODEOBJECT: {
+			KrkCodeObject * self = (KrkCodeObject*)AS_OBJECT(argv[0]);
+			mySize += sizeof(KrkCodeObject);
+			/* Chunk size */
+			mySize += sizeof(uint8_t) * self->chunk.capacity;
+			mySize += sizeof(KrkLineMap) * self->chunk.linesCapacity;
+			mySize += sizeof(KrkValue) * self->chunk.constants.capacity;
+			/* requiredArgNames */
+			mySize += sizeof(KrkValue) * self->requiredArgNames.capacity;
+			/* keywordArgNames */
+			mySize += sizeof(KrkValue) * self->keywordArgNames.capacity;
+			/* Locals array */
+			mySize += sizeof(KrkLocalEntry) * self->localNameCount;
 			break;
 		}
 		case KRK_OBJ_NATIVE: {
@@ -1188,18 +1176,50 @@ KRK_FUNC(getsizeof,{
 			mySize += sizeof(KrkNative) + strlen(self->name) + 1;
 			break;
 		}
-		case KRK_OBJ_TUPLE: {
-			KrkTuple * self = AS_TUPLE(argv[0]);
-			mySize += sizeof(KrkTuple) + sizeof(KrkValue) * self->values.capacity;
+		case KRK_OBJ_CLOSURE: {
+			KrkClosure * self = AS_CLOSURE(argv[0]);
+			mySize += sizeof(KrkClosure) + sizeof(KrkUpvalue*) * self->function->upvalueCount;
+			break;
+		}
+		case KRK_OBJ_UPVALUE: {
+			/* It should not be possible for an upvalue to be an argument to getsizeof,
+			 * but for the sake of completeness, we'll include it here... */
+			mySize += sizeof(KrkUpvalue);
+			break;
+		}
+		case KRK_OBJ_CLASS: {
+			KrkClass * self = AS_CLASS(argv[0]);
+			mySize += sizeof(KrkClass);
+			mySize += sizeof(KrkTableEntry) * self->methods.capacity;
+			mySize += sizeof(KrkTableEntry) * self->subclasses.capacity;
+			break;
+		}
+		case KRK_OBJ_INSTANCE: {
+			KrkInstance * self = AS_INSTANCE(argv[0]);
+			mySize += sizeof(KrkTableEntry) * self->fields.capacity;
+			KrkClass * type = krk_getType(argv[0]);
+			mySize += type->allocSize; /* All instance types have an allocSize set */
+
+			/* TODO __sizeof__ */
+			if (krk_isInstanceOf(argv[0], vm.baseClasses->listClass)) {
+				mySize += sizeof(KrkValue) * AS_LIST(argv[0])->capacity;
+			} else if (krk_isInstanceOf(argv[0], vm.baseClasses->dictClass)) {
+				mySize += sizeof(KrkTableEntry) * AS_DICT(argv[0])->capacity;
+			}
 			break;
 		}
 		case KRK_OBJ_BOUND_METHOD: {
 			mySize += sizeof(KrkBoundMethod);
 			break;
 		}
-		case KRK_OBJ_CLOSURE: {
-			KrkClosure * self = AS_CLOSURE(argv[0]);
-			mySize += sizeof(KrkClosure) + sizeof(KrkUpvalue*) * self->function->upvalueCount;
+		case KRK_OBJ_TUPLE: {
+			KrkTuple * self = AS_TUPLE(argv[0]);
+			mySize += sizeof(KrkTuple) + sizeof(KrkValue) * self->values.capacity;
+			break;
+		}
+		case KRK_OBJ_BYTES: {
+			KrkBytes * self = AS_BYTES(argv[0]);
+			mySize += sizeof(KrkBytes) + self->length;
 			break;
 		}
 		default: break;
