@@ -113,17 +113,17 @@ static int checkString(const char * chars, size_t length, size_t *codepointCount
 			_release_lock(_stringLock);
 			krk_runtimeError(vm.exceptions->valueError, "Invalid UTF-8 sequence in string.");
 			*codepointCount = 0;
-			return KRK_STRING_INVALID;
+			return -1;
 		}
 	}
 	if (maxCodepoint > 0xFFFF) {
-		return KRK_STRING_UCS4;
+		return KRK_OBJ_FLAGS_STRING_UCS4;
 	} else if (maxCodepoint > 0xFF) {
-		return KRK_STRING_UCS2;
+		return KRK_OBJ_FLAGS_STRING_UCS2;
 	} else if (maxCodepoint > 0x7F) {
-		return KRK_STRING_UCS1;
+		return KRK_OBJ_FLAGS_STRING_UCS1;
 	} else {
-		return KRK_STRING_ASCII;
+		return KRK_OBJ_FLAGS_STRING_ASCII;
 	}
 }
 
@@ -149,20 +149,20 @@ GENREADY(4,uint32_t)
 
 void * krk_unicodeString(KrkString * string) {
 	if (string->codes) return string->codes;
-	if (string->type == KRK_STRING_UCS1) _readyUCS1(string);
-	else if (string->type == KRK_STRING_UCS2) _readyUCS2(string);
-	else if (string->type == KRK_STRING_UCS4) _readyUCS4(string);
+	else if ((string->obj.flags & KRK_OBJ_FLAGS_STRING_MASK) == KRK_OBJ_FLAGS_STRING_UCS1) _readyUCS1(string);
+	else if ((string->obj.flags & KRK_OBJ_FLAGS_STRING_MASK) == KRK_OBJ_FLAGS_STRING_UCS2) _readyUCS2(string);
+	else if ((string->obj.flags & KRK_OBJ_FLAGS_STRING_MASK) == KRK_OBJ_FLAGS_STRING_UCS4) _readyUCS4(string);
 	else krk_runtimeError(vm.exceptions->valueError, "Internal string error.");
 	return string->codes;
 }
 
 uint32_t krk_unicodeCodepoint(KrkString * string, size_t index) {
 	krk_unicodeString(string);
-	switch (string->type) {
-		case KRK_STRING_ASCII: return string->chars[index];
-		case KRK_STRING_UCS1: return ((uint8_t*)string->codes)[index];
-		case KRK_STRING_UCS2: return ((uint16_t*)string->codes)[index];
-		case KRK_STRING_UCS4: return ((uint32_t*)string->codes)[index];
+	switch (string->obj.flags & KRK_OBJ_FLAGS_STRING_MASK) {
+		case KRK_OBJ_FLAGS_STRING_ASCII:
+		case KRK_OBJ_FLAGS_STRING_UCS1: return ((uint8_t*)string->codes)[index];
+		case KRK_OBJ_FLAGS_STRING_UCS2: return ((uint16_t*)string->codes)[index];
+		case KRK_OBJ_FLAGS_STRING_UCS4: return ((uint32_t*)string->codes)[index];
 		default:
 			krk_runtimeError(vm.exceptions->valueError, "Internal string error.");
 			return 0;
@@ -172,18 +172,17 @@ uint32_t krk_unicodeCodepoint(KrkString * string, size_t index) {
 static KrkString * allocateString(char * chars, size_t length, uint32_t hash) {
 	size_t codesLength = 0;
 	int type = checkString(chars,length,&codesLength);
-	if (type == KRK_STRING_INVALID) {
+	if (type == -1) {
 		return krk_copyString("",0);
 	}
 	KrkString * string = ALLOCATE_OBJECT(KrkString, KRK_OBJ_STRING);
 	string->length = length;
 	string->chars = chars;
 	string->obj.hash = hash;
-	string->obj.flags |= KRK_OBJ_FLAGS_VALID_HASH;
+	string->obj.flags |= KRK_OBJ_FLAGS_VALID_HASH | type;
 	string->codesLength = codesLength;
-	string->type = type;
 	string->codes = NULL;
-	if (string->type == KRK_STRING_ASCII) string->codes = string->chars;
+	if (type == KRK_OBJ_FLAGS_STRING_ASCII) string->codes = string->chars;
 	krk_push(OBJECT_VAL(string));
 	krk_tableSet(&vm.strings, OBJECT_VAL(string), NONE_VAL());
 	krk_pop();
@@ -246,11 +245,10 @@ KrkString * krk_takeStringVetted(char * chars, size_t length, size_t codesLength
 	string->length = length;
 	string->chars = chars;
 	string->obj.hash = hash;
-	string->obj.flags |= KRK_OBJ_FLAGS_VALID_HASH;
+	string->obj.flags |= KRK_OBJ_FLAGS_VALID_HASH | type;
 	string->codesLength = codesLength;
-	string->type = type;
 	string->codes = NULL;
-	if (string->type == KRK_STRING_ASCII) string->codes = string->chars;
+	if (type == KRK_OBJ_FLAGS_STRING_ASCII) string->codes = string->chars;
 	krk_push(OBJECT_VAL(string));
 	krk_tableSet(&vm.strings, OBJECT_VAL(string), NONE_VAL());
 	krk_pop();
@@ -265,7 +263,6 @@ KrkCodeObject * krk_newCodeObject(void) {
 	codeobject->upvalueCount = 0;
 	codeobject->name = NULL;
 	codeobject->docstring = NULL;
-	codeobject->flags = 0;
 	codeobject->localNameCount = 0;
 	codeobject->localNames = NULL;
 	codeobject->globalsContext = NULL;
@@ -278,7 +275,7 @@ KrkCodeObject * krk_newCodeObject(void) {
 KrkNative * krk_newNative(NativeFn function, const char * name, int type) {
 	KrkNative * native = ALLOCATE_OBJECT(KrkNative, KRK_OBJ_NATIVE);
 	native->function = function;
-	native->flags = type;
+	native->obj.flags = type;
 	native->name = name;
 	native->doc = NULL;
 	return native;

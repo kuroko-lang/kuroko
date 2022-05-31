@@ -45,11 +45,27 @@ typedef struct KrkObj {
 	struct KrkObj * next; /**< @brief Invasive linked list of all objects in the VM */
 } KrkObj;
 
-#define KRK_OBJ_FLAGS_SECOND_CHANCE 0x0001
-#define KRK_OBJ_FLAGS_IS_MARKED  0x0010
-#define KRK_OBJ_FLAGS_IN_REPR    0x0020
-#define KRK_OBJ_FLAGS_IMMORTAL   0x0040
-#define KRK_OBJ_FLAGS_VALID_HASH 0x0080
+#define KRK_OBJ_FLAGS_STRING_MASK   0x0003
+#define KRK_OBJ_FLAGS_STRING_ASCII  0x0000
+#define KRK_OBJ_FLAGS_STRING_UCS1   0x0001
+#define KRK_OBJ_FLAGS_STRING_UCS2   0x0002
+#define KRK_OBJ_FLAGS_STRING_UCS4   0x0003
+
+#define KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_ARGS 0x0001
+#define KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_KWS  0x0002
+#define KRK_OBJ_FLAGS_CODEOBJECT_IS_GENERATOR  0x0004
+#define KRK_OBJ_FLAGS_CODEOBJECT_IS_COROUTINE  0x0008
+
+#define KRK_OBJ_FLAGS_FUNCTION_IS_CLASS_METHOD     0x0001
+#define KRK_OBJ_FLAGS_FUNCTION_IS_STATIC_METHOD    0x0002
+#define KRK_OBJ_FLAGS_FUNCTION_IS_DYNAMIC_PROPERTY 0x0004
+
+#define KRK_OBJ_FLAGS_SECOND_CHANCE 0x0100
+#define KRK_OBJ_FLAGS_IS_MARKED     0x0010
+#define KRK_OBJ_FLAGS_IN_REPR       0x0020
+#define KRK_OBJ_FLAGS_IMMORTAL      0x0040
+#define KRK_OBJ_FLAGS_VALID_HASH    0x0080
+
 
 /**
  * @brief String compact storage type.
@@ -62,11 +78,11 @@ typedef struct KrkObj {
  * but this is not possible for UCS1.
  */
 typedef enum {
-	KRK_STRING_ASCII = 0,   /**< Codepoints can be extracted directly from UTF8 data. */
-	KRK_STRING_UCS1  = 1,   /**< Codepoints are one byte. */
-	KRK_STRING_UCS2  = 2,   /**< Codepoints are two bytes. */
-	KRK_STRING_UCS4  = 4,   /**< Codepoints are four bytes. */
-	KRK_STRING_INVALID = 5, /**< This is an invalid string. */
+	/* For compatibility */
+	KRK_STRING_ASCII   = KRK_OBJ_FLAGS_STRING_ASCII,  /**< Codepoints can be extracted directly from UTF8 data. */
+	KRK_STRING_UCS1    = KRK_OBJ_FLAGS_STRING_UCS1,   /**< Codepoints are one byte. */
+	KRK_STRING_UCS2    = KRK_OBJ_FLAGS_STRING_UCS2,   /**< Codepoints are two bytes. */
+	KRK_STRING_UCS4    = KRK_OBJ_FLAGS_STRING_UCS4,   /**< Codepoints are four bytes. */
 } KrkStringType;
 
 #undef KrkString
@@ -76,7 +92,6 @@ typedef enum {
  */
 typedef struct KrkString {
 	KrkObj obj;          /**< @protected @brief Base */
-	KrkStringType type;  /**< @brief String codepoint storage format */
 	size_t length;       /**< @brief String length in bytes */
 	size_t codesLength;  /**< @brief String length in Unicode codepoints */
 	char * chars;        /**< @brief UTF8 canonical data */
@@ -139,15 +154,10 @@ typedef struct {
 	size_t localNameCapacity;              /**< @brief Capacity of @ref localNames */
 	size_t localNameCount;                 /**< @brief Number of entries in @ref localNames */
 	KrkLocalEntry * localNames;            /**< @brief Stores the names of local variables used in the function, for debugging */
-	unsigned int flags;                    /**< @brief Function type flags */
 	struct KrkInstance * globalsContext;   /**< @brief The globals namespace the function should reference when called */
 	KrkString * qualname;                  /**< @brief The dotted name of the function */
 } KrkCodeObject;
 
-#define KRK_CODEOBJECT_FLAGS_COLLECTS_ARGS 0x0001
-#define KRK_CODEOBJECT_FLAGS_COLLECTS_KWS  0x0002
-#define KRK_CODEOBJECT_FLAGS_IS_GENERATOR  0x0004
-#define KRK_CODEOBJECT_FLAGS_IS_COROUTINE  0x0008
 
 /**
  * @brief Function object.
@@ -160,13 +170,9 @@ typedef struct {
 	KrkCodeObject * function;  /**< @brief The codeobject containing the bytecode run when this function is called */
 	KrkUpvalue ** upvalues;    /**< @brief Array of upvalues collected from the surrounding context when the closure was created */
 	size_t upvalueCount;       /**< @brief Number of entries in @ref upvalues */
-	unsigned int flags;        /**< @brief Closure type flags */
 	KrkValue annotations;      /**< @brief Dictionary of type hints */
 	KrkTable fields;           /**< @brief Object attributes table */
 } KrkClosure;
-
-#define KRK_FUNCTION_FLAGS_IS_CLASS_METHOD  0x0001
-#define KRK_FUNCTION_FLAGS_IS_STATIC_METHOD 0x0002
 
 typedef void (*KrkCleanupCallback)(struct KrkInstance *);
 
@@ -251,12 +257,7 @@ typedef struct {
 	NativeFn function;    /**< @brief C function pointer */
 	const char * name;    /**< @brief Name to use when repring */
 	const char * doc;     /**< @brief Docstring to supply from @c %__doc__ */
-	unsigned int flags;   /**< @brief Binding flags */
 } KrkNative;
-
-#define KRK_NATIVE_FLAGS_IS_DYNAMIC_PROPERTY 0x0001
-#define KRK_NATIVE_FLAGS_IS_STATIC_METHOD    0x0002
-#define KRK_NATIVE_FLAGS_IS_CLASS_METHOD     0x0004
 
 /**
  * @brief Immutable sequence of arbitrary values.

@@ -76,7 +76,7 @@ KrkInstance * krk_buildGenerator(KrkClosure * closure, KrkValue * argsIn, size_t
 	self->closure = closure;
 	self->ip = self->closure->function->chunk.code;
 	self->result = NONE_VAL();
-	self->type = closure->function->flags & (KRK_CODEOBJECT_FLAGS_IS_GENERATOR | KRK_CODEOBJECT_FLAGS_IS_COROUTINE);
+	self->type = closure->function->obj.flags & (KRK_OBJ_FLAGS_CODEOBJECT_IS_GENERATOR | KRK_OBJ_FLAGS_CODEOBJECT_IS_COROUTINE);
 	return (KrkInstance *)self;
 }
 
@@ -84,10 +84,10 @@ KRK_METHOD(generator,__repr__,{
 	METHOD_TAKES_NONE();
 
 	char * typeStr = "generator";
-	if (self->type == KRK_CODEOBJECT_FLAGS_IS_COROUTINE) {
+	if (self->type == KRK_OBJ_FLAGS_CODEOBJECT_IS_COROUTINE) {
 		/* Regular coroutine */
 		typeStr = "coroutine";
-	} else if (self->type == (KRK_CODEOBJECT_FLAGS_IS_COROUTINE | KRK_CODEOBJECT_FLAGS_IS_GENERATOR)) {
+	} else if (self->type == (KRK_OBJ_FLAGS_CODEOBJECT_IS_COROUTINE | KRK_OBJ_FLAGS_CODEOBJECT_IS_GENERATOR)) {
 		typeStr = "async_generator";
 	}
 
@@ -195,7 +195,7 @@ KRK_METHOD(generator,gi_running,{
 })
 
 int krk_getAwaitable(void) {
-	if (IS_generator(krk_peek(0)) && AS_generator(krk_peek(0))->type == KRK_CODEOBJECT_FLAGS_IS_COROUTINE) {
+	if (IS_generator(krk_peek(0)) && AS_generator(krk_peek(0))->type == KRK_OBJ_FLAGS_CODEOBJECT_IS_COROUTINE) {
 		/* Good to go */
 		return 1;
 	}

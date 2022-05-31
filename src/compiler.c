@@ -533,7 +533,7 @@ static KrkCodeObject * endCompiler(void) {
 		krk_pop();
 	}
 	size_t args = current->codeobject->requiredArgs + current->codeobject->keywordArgs;
-	if (current->codeobject->flags & KRK_CODEOBJECT_FLAGS_COLLECTS_ARGS) {
+	if (current->codeobject->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_ARGS) {
 		KrkValue value = OBJECT_VAL(krk_copyString(current->locals[args].name.start,
 			current->locals[args].name.length));
 		krk_push(value);
@@ -541,7 +541,7 @@ static KrkCodeObject * endCompiler(void) {
 		krk_pop();
 		args++;
 	}
-	if (current->codeobject->flags & KRK_CODEOBJECT_FLAGS_COLLECTS_KWS) {
+	if (current->codeobject->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_KWS) {
 		KrkValue value = OBJECT_VAL(krk_copyString(current->locals[args].name.start,
 			current->locals[args].name.length));
 		krk_push(value);
@@ -1353,14 +1353,14 @@ static int argumentList(FunctionType type) {
 					return 1;
 				}
 				hasCollectors = 2;
-				current->codeobject->flags |= KRK_CODEOBJECT_FLAGS_COLLECTS_KWS;
+				current->codeobject->obj.flags |= KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_KWS;
 			} else {
 				if (hasCollectors) {
 					error("Syntax error.");
 					return 1;
 				}
 				hasCollectors = 1;
-				current->codeobject->flags |= KRK_CODEOBJECT_FLAGS_COLLECTS_ARGS;
+				current->codeobject->obj.flags |= KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_ARGS;
 			}
 			/* Collect a name, specifically "args" or "kwargs" are commont */
 			ssize_t paramConstant = parseVariable(
@@ -1420,7 +1420,7 @@ static void function(FunctionType type, size_t blockWidth) {
 	beginScope();
 
 	if (isMethod(type)) current->codeobject->requiredArgs = 1;
-	if (isCoroutine(type)) current->codeobject->flags |= KRK_CODEOBJECT_FLAGS_IS_COROUTINE;
+	if (isCoroutine(type)) current->codeobject->obj.flags |= KRK_OBJ_FLAGS_CODEOBJECT_IS_COROUTINE;
 
 	consume(TOKEN_LEFT_PAREN, "Expected start of parameter list after function name.");
 	startEatingWhitespace();
@@ -2382,7 +2382,7 @@ static void yield(int exprType) {
 		error("'yield' outside function");
 		return;
 	}
-	current->codeobject->flags |= KRK_CODEOBJECT_FLAGS_IS_GENERATOR;
+	current->codeobject->obj.flags |= KRK_OBJ_FLAGS_CODEOBJECT_IS_GENERATOR;
 	if (match(TOKEN_FROM)) {
 		parsePrecedence(PREC_ASSIGNMENT);
 		emitByte(OP_INVOKE_ITER);
@@ -2869,7 +2869,7 @@ static void generatorExpression(KrkScanner scannerBefore, Parser parserBefore, v
 	Compiler subcompiler;
 	initCompiler(&subcompiler, TYPE_FUNCTION);
 	subcompiler.codeobject->chunk.filename = subcompiler.enclosing->codeobject->chunk.filename;
-	subcompiler.codeobject->flags |= KRK_CODEOBJECT_FLAGS_IS_GENERATOR;
+	subcompiler.codeobject->obj.flags |= KRK_OBJ_FLAGS_CODEOBJECT_IS_GENERATOR;
 
 	beginScope();
 	comprehensionInner(scannerBefore, parserBefore, body, 0);

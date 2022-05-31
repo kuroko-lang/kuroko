@@ -219,11 +219,11 @@ static int doFirstPass(FILE * out) {
 		if (func->docstring) internString(func->docstring);
 		if (func->qualname) internString(func->qualname);
 
-		for (size_t i = 0; i < (size_t)func->requiredArgs + !!(func->flags & KRK_CODEOBJECT_FLAGS_COLLECTS_ARGS); ++i) {
+		for (size_t i = 0; i < (size_t)func->requiredArgs + !!(func->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_ARGS); ++i) {
 			internString(AS_STRING(func->requiredArgNames.values[i]));
 		}
 
-		for (size_t i = 0; i < (size_t)func->keywordArgs + !!(func->flags & KRK_CODEOBJECT_FLAGS_COLLECTS_KWS); ++i) {
+		for (size_t i = 0; i < (size_t)func->keywordArgs + !!(func->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_KWS); ++i) {
 			internString(AS_STRING(func->keywordArgNames.values[i]));
 		}
 
@@ -259,7 +259,7 @@ static int doSecondPass(FILE * out) {
 	for (size_t funcIndex = 0; funcIndex < AS_LIST(SeenFunctions)->count; ++funcIndex) {
 		KrkCodeObject * func = AS_codeobject(AS_LIST(SeenFunctions)->values[funcIndex]);
 
-		uint8_t flags = func->flags;
+		uint8_t flags = func->obj.flags;
 
 		struct FunctionHeader header = {
 			func->name ? internString(func->name) : UINT32_MAX,
@@ -278,11 +278,11 @@ static int doSecondPass(FILE * out) {
 		fwrite(&header, 1, sizeof(struct FunctionHeader), out);
 
 		/* Argument names first */
-		for (size_t i = 0; i < (size_t)func->requiredArgs + !!(func->flags & KRK_CODEOBJECT_FLAGS_COLLECTS_ARGS); ++i) {
+		for (size_t i = 0; i < (size_t)func->requiredArgs + !!(func->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_ARGS); ++i) {
 			WRITE_STRING(AS_STRING(func->requiredArgNames.values[i]));
 		}
 
-		for (size_t i = 0; i < (size_t)func->keywordArgs + !!(func->flags & KRK_CODEOBJECT_FLAGS_COLLECTS_KWS); ++i) {
+		for (size_t i = 0; i < (size_t)func->keywordArgs + !!(func->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_KWS); ++i) {
 			WRITE_STRING(AS_STRING(func->keywordArgNames.values[i]));
 		}
 
@@ -542,18 +542,18 @@ static int readFile(char * fileName) {
 
 		self->requiredArgs = function.reqArgs;
 		self->keywordArgs  = function.kwArgs;
-		self->flags = function.flags;
+		self->obj.flags    = function.flags;
 		self->globalsContext = krk_currentThread.module;
 		self->upvalueCount = function.upvalues;
 
 		/* Read argument names */
 		DEBUGOUT("  [Required Arguments]\n");
-		for (size_t i = 0; i < (size_t)function.reqArgs + !!(self->flags & KRK_CODEOBJECT_FLAGS_COLLECTS_ARGS); i++) {
+		for (size_t i = 0; i < (size_t)function.reqArgs + !!(self->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_ARGS); i++) {
 			krk_writeValueArray(&self->requiredArgNames, valueFromConstant(i,inFile));
 		}
 
 		DEBUGOUT("  [Keyword Arguments]\n");
-		for (size_t i = 0; i < (size_t)function.kwArgs + !!(self->flags & KRK_CODEOBJECT_FLAGS_COLLECTS_KWS); i++) {
+		for (size_t i = 0; i < (size_t)function.kwArgs + !!(self->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_KWS); i++) {
 			krk_writeValueArray(&self->keywordArgNames, valueFromConstant(i,inFile));
 		}
 

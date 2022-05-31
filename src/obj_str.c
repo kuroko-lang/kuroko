@@ -19,8 +19,8 @@ static KrkValue FUNC_NAME(striterator,__init__)(int,const KrkValue[],int);
 	} stringBytes[stringLength++] = c; } while (0)
 
 #define KRK_STRING_FAST(string,offset)  (uint32_t)\
-	(string->type <= 1 ? ((uint8_t*)string->codes)[offset] : \
-	(string->type == 2 ? ((uint16_t*)string->codes)[offset] : \
+	((string->obj.flags & KRK_OBJ_FLAGS_STRING_MASK) <= (KRK_OBJ_FLAGS_STRING_UCS1) ? ((uint8_t*)string->codes)[offset] : \
+	((string->obj.flags & KRK_OBJ_FLAGS_STRING_MASK) == (KRK_OBJ_FLAGS_STRING_UCS2) ? ((uint16_t*)string->codes)[offset] : \
 	((uint32_t*)string->codes)[offset]))
 
 #define CODEPOINT_BYTES(cp) (cp < 0x80 ? 1 : (cp < 0x800 ? 2 : (cp < 0x10000 ? 3 : 4)))
@@ -67,7 +67,11 @@ KRK_METHOD(str,__add__,{
 	chars[length] = '\0';
 
 	size_t cpLength = self->codesLength + them->codesLength;
-	KrkStringType type = self->type > them->type ? self->type : them->type;
+
+	int self_type = (self->obj.flags & KRK_OBJ_FLAGS_STRING_MASK);
+	int them_type = (them->obj.flags & KRK_OBJ_FLAGS_STRING_MASK);
+
+	KrkStringType type = self_type > them_type ? self_type : them_type;
 
 	/* Hashes can be extended, which saves us calculating the whole thing */
 	uint32_t hash = self->obj.hash;
@@ -127,7 +131,7 @@ KRK_METHOD(str,__getitem__,{
 		if (asInt < 0 || asInt >= (int)AS_STRING(argv[0])->codesLength) {
 			return krk_runtimeError(vm.exceptions->indexError, "String index out of range: " PRIkrk_int, asInt);
 		}
-		if (self->type == KRK_STRING_ASCII) {
+		if ((self->obj.flags & KRK_OBJ_FLAGS_STRING_MASK) == KRK_OBJ_FLAGS_STRING_ASCII) {
 			return OBJECT_VAL(krk_copyString(self->chars + asInt, 1));
 		} else {
 			krk_unicodeString(self);
@@ -142,7 +146,7 @@ KRK_METHOD(str,__getitem__,{
 
 		if (step == 1) {
 			long len = end - start;
-			if (self->type == KRK_STRING_ASCII) {
+			if ((self->obj.flags & KRK_OBJ_FLAGS_STRING_MASK) == KRK_OBJ_FLAGS_STRING_ASCII) {
 				return OBJECT_VAL(krk_copyString(self->chars + start, len));
 			} else {
 				size_t offset = 0;
@@ -413,7 +417,7 @@ static int charIn(char c, const char * str) {
  * Set which = 0, 1, 2 respectively
  */
 static KrkValue _string_strip_shared(int argc, const KrkValue argv[], int which) {
-	if (argc > 1 && IS_STRING(argv[1]) && AS_STRING(argv[1])->type != KRK_STRING_ASCII) {
+	if (argc > 1 && IS_STRING(argv[1]) && (AS_STRING(argv[1])->obj.flags & KRK_OBJ_FLAGS_STRING_MASK) != KRK_OBJ_FLAGS_STRING_ASCII) {
 		return krk_runtimeError(vm.exceptions->notImplementedError, "str.strip() not implemented for Unicode strip lists");
 	}
 	size_t start = 0;

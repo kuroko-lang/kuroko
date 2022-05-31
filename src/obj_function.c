@@ -104,7 +104,7 @@ KRK_METHOD(function,__args__,{
 	ATTRIBUTE_NOT_ASSIGNABLE();
 	if (!IS_CLOSURE(self)) return OBJECT_VAL(krk_newTuple(0));
 	KrkCodeObject * _self = AS_CLOSURE(self)->function;
-	KrkTuple * tuple = krk_newTuple(_self->requiredArgs + _self->keywordArgs + !!(_self->flags & KRK_CODEOBJECT_FLAGS_COLLECTS_ARGS) + !!(_self->flags & KRK_CODEOBJECT_FLAGS_COLLECTS_KWS));
+	KrkTuple * tuple = krk_newTuple(_self->requiredArgs + _self->keywordArgs + !!(_self->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_ARGS) + !!(_self->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_KWS));
 	krk_push(OBJECT_VAL(tuple));
 
 	for (short i = 0; i < _self->requiredArgs; ++i) {
@@ -118,14 +118,14 @@ KRK_METHOD(function,__args__,{
 		tuple->values.values[tuple->values.count++] = finishStringBuilder(&sb);
 	}
 
-	if (_self->flags & KRK_CODEOBJECT_FLAGS_COLLECTS_ARGS) {
+	if (_self->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_ARGS) {
 		struct StringBuilder sb = {0};
 		pushStringBuilder(&sb, '*');
 		pushStringBuilderStr(&sb, AS_CSTRING(_self->requiredArgNames.values[_self->requiredArgs]), AS_STRING(_self->requiredArgNames.values[_self->requiredArgs])->length);
 		tuple->values.values[tuple->values.count++] = finishStringBuilder(&sb);
 	}
 
-	if (_self->flags & KRK_CODEOBJECT_FLAGS_COLLECTS_KWS) {
+	if (_self->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_KWS) {
 		struct StringBuilder sb = {0};
 		pushStringBuilder(&sb, '*');
 		pushStringBuilder(&sb, '*');
@@ -199,10 +199,10 @@ KRK_METHOD(codeobject,co_flags,{
 	/* For compatibility with Python, mostly because these are specified
 	 * in at least one doc page with their raw values, we convert
 	 * our flags to the useful CPython flag values... */
-	if (self->flags & KRK_CODEOBJECT_FLAGS_COLLECTS_ARGS) out |= 0x04;
-	if (self->flags & KRK_CODEOBJECT_FLAGS_COLLECTS_KWS)  out |= 0x08;
-	if (self->flags & KRK_CODEOBJECT_FLAGS_IS_GENERATOR)  out |= 0x20;
-	if (self->flags & KRK_CODEOBJECT_FLAGS_IS_COROUTINE)  out |= 0x80;
+	if (self->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_ARGS) out |= 0x04;
+	if (self->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_KWS)  out |= 0x08;
+	if (self->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_IS_GENERATOR)  out |= 0x20;
+	if (self->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_IS_COROUTINE)  out |= 0x80;
 
 	return INTEGER_VAL(out);
 })
@@ -290,7 +290,7 @@ KRK_FUNC(staticmethod,{
 		AS_CLOSURE(krk_peek(0))->upvalues[i] = method->upvalues[i];
 	}
 	AS_CLOSURE(krk_peek(0))->annotations = method->annotations;
-	AS_CLOSURE(krk_peek(0))->flags |= KRK_FUNCTION_FLAGS_IS_STATIC_METHOD;
+	AS_CLOSURE(krk_peek(0))->obj.flags |= KRK_OBJ_FLAGS_FUNCTION_IS_STATIC_METHOD;
 	return krk_pop();
 })
 
@@ -304,7 +304,7 @@ KRK_FUNC(classmethod,{
 		AS_CLOSURE(krk_peek(0))->upvalues[i] = method->upvalues[i];
 	}
 	AS_CLOSURE(krk_peek(0))->annotations = method->annotations;
-	AS_CLOSURE(krk_peek(0))->flags |= KRK_FUNCTION_FLAGS_IS_CLASS_METHOD;
+	AS_CLOSURE(krk_peek(0))->obj.flags |= KRK_OBJ_FLAGS_FUNCTION_IS_CLASS_METHOD;
 	return krk_pop();
 })
 
@@ -332,7 +332,7 @@ void _createAndBind_functionClass(void) {
 	BIND_PROP(function,__annotations__);
 	BIND_PROP(function,__code__);
 	krk_defineNative(&function->methods, "__repr__", FUNC_NAME(function,__str__));
-	krk_defineNative(&function->methods, "__class_getitem__", KrkGenericAlias)->flags |= KRK_NATIVE_FLAGS_IS_CLASS_METHOD;
+	krk_defineNative(&function->methods, "__class_getitem__", KrkGenericAlias)->obj.flags |= KRK_OBJ_FLAGS_FUNCTION_IS_CLASS_METHOD;
 	krk_finalizeClass(function);
 
 	KrkClass * method = ADD_BASE_CLASS(vm.baseClasses->methodClass, "method", vm.baseClasses->objectClass);

@@ -615,13 +615,13 @@ KRK_FUNC(locals,{
 			krk_currentThread.stack[frame->slots + slot]);
 		slot++;
 	}
-	if (func->flags & KRK_CODEOBJECT_FLAGS_COLLECTS_ARGS) {
+	if (func->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_ARGS) {
 		krk_tableSet(AS_DICT(dict),
 			func->requiredArgNames.values[func->requiredArgs],
 			krk_currentThread.stack[frame->slots + slot]);
 		slot++;
 	}
-	if (func->flags & KRK_CODEOBJECT_FLAGS_COLLECTS_KWS) {
+	if (func->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_KWS) {
 		krk_tableSet(AS_DICT(dict),
 			func->keywordArgNames.values[func->keywordArgs],
 			krk_currentThread.stack[frame->slots + slot]);
@@ -971,7 +971,7 @@ void _createAndBind_builtins(void) {
 	vm.baseClasses->objectClass = krk_newClass(S("object"), NULL);
 	krk_push(OBJECT_VAL(vm.baseClasses->objectClass));
 
-	krk_defineNative(&vm.baseClasses->objectClass->methods, "__class__", FUNC_NAME(krk,type))->flags = KRK_NATIVE_FLAGS_IS_DYNAMIC_PROPERTY;
+	krk_defineNative(&vm.baseClasses->objectClass->methods, "__class__", FUNC_NAME(krk,type))->obj.flags = KRK_OBJ_FLAGS_FUNCTION_IS_DYNAMIC_PROPERTY;
 	krk_defineNative(&vm.baseClasses->objectClass->methods, "__dir__", krk_dirObject);
 	krk_defineNative(&vm.baseClasses->objectClass->methods, "__str__", _strBase);
 	krk_defineNative(&vm.baseClasses->objectClass->methods, "__repr__", _strBase); /* Override if necesary */

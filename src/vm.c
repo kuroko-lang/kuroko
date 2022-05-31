@@ -91,7 +91,7 @@ void krk_forceThreadData(void) {
 #if !defined(KRK_NO_TRACING) && !defined(__EMSCRIPTEN__)
 # define FRAME_IN(frame) if (vm.globalFlags & KRK_GLOBAL_CALLGRIND) { clock_gettime(CLOCK_MONOTONIC, &frame->in_time); }
 # define FRAME_OUT(frame) \
-	if (vm.globalFlags & KRK_GLOBAL_CALLGRIND && !(frame->closure->function->flags & KRK_CODEOBJECT_FLAGS_IS_GENERATOR)) { \
+	if (vm.globalFlags & KRK_GLOBAL_CALLGRIND && !(frame->closure->function->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_IS_GENERATOR)) { \
 		KrkCallFrame * caller = krk_currentThread.frameCount > 1 ? &krk_currentThread.frames[krk_currentThread.frameCount-2] : NULL; \
 		struct timespec outTime; \
 		clock_gettime(CLOCK_MONOTONIC, &outTime); \
@@ -602,7 +602,7 @@ int krk_processComplexArguments(int argCount, KrkValueArray * positionals, KrkTa
  */
 static int call(KrkClosure * closure, int argCount, int returnDepth) {
 	size_t potentialPositionalArgs = closure->function->requiredArgs + closure->function->keywordArgs;
-	size_t totalArguments = closure->function->requiredArgs + closure->function->keywordArgs + !!(closure->function->flags & KRK_CODEOBJECT_FLAGS_COLLECTS_ARGS) + !!(closure->function->flags & KRK_CODEOBJECT_FLAGS_COLLECTS_KWS);
+	size_t totalArguments = closure->function->requiredArgs + closure->function->keywordArgs + !!(closure->function->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_ARGS) + !!(closure->function->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_KWS);
 	size_t offsetOfExtraArgs = closure->function->requiredArgs + closure->function->keywordArgs;
 	size_t argCountX = argCount;
 	KrkValueArray * positionals;
@@ -622,7 +622,7 @@ static int call(KrkClosure * closure, int argCount, int returnDepth) {
 		argCount--; /* It popped the KWARGS value from the top, so we have one less argument */
 
 		/* Do we already know we have too many arguments? Let's bail before doing a bunch of work. */
-		if ((positionals->count > potentialPositionalArgs) && !(closure->function->flags & KRK_CODEOBJECT_FLAGS_COLLECTS_ARGS)) {
+		if ((positionals->count > potentialPositionalArgs) && !(closure->function->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_ARGS)) {
 			checkArgumentCount(closure,positionals->count);
 			goto _errorDuringPositionals;
 		}
@@ -649,7 +649,7 @@ static int call(KrkClosure * closure, int argCount, int returnDepth) {
 			krk_currentThread.stackTop[-argCount + i] = positionals->values[i];
 		}
 
-		if (closure->function->flags & KRK_CODEOBJECT_FLAGS_COLLECTS_ARGS) {
+		if (closure->function->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_ARGS) {
 			size_t count  = (positionals->count > potentialPositionalArgs) ? (positionals->count - potentialPositionalArgs) : 0;
 			KrkValue * offset = (count == 0) ? NULL : &positionals->values[potentialPositionalArgs];
 			krk_push(krk_list_of(count, offset, 0));
@@ -687,7 +687,7 @@ static int call(KrkClosure * closure, int argCount, int returnDepth) {
 						goto _finishKwarg;
 					}
 				}
-				if (!(closure->function->flags & KRK_CODEOBJECT_FLAGS_COLLECTS_KWS)) {
+				if (!(closure->function->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_KWS)) {
 					krk_runtimeError(vm.exceptions->typeError, "%s() got an unexpected keyword argument '%s'",
 						closure->function->name ? closure->function->name->chars : "<unnamed>",
 						AS_CSTRING(name));
@@ -702,7 +702,7 @@ _finishKwarg:
 		}
 
 		/* If this function takes a **kwargs, we need to provide it as a dict */
-		if (closure->function->flags & KRK_CODEOBJECT_FLAGS_COLLECTS_KWS) {
+		if (closure->function->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_KWS) {
 			krk_push(krk_dict_of(0,NULL,0));
 			argCount++;
 			krk_tableAddAll(keywords, AS_DICT(krk_peek(0)));
@@ -720,8 +720,8 @@ _finishKwarg:
 			}
 		}
 
-		argCountX = argCount - (!!(closure->function->flags & KRK_CODEOBJECT_FLAGS_COLLECTS_ARGS) + !!(closure->function->flags & KRK_CODEOBJECT_FLAGS_COLLECTS_KWS));
-	} else if ((size_t)argCount > potentialPositionalArgs && (closure->function->flags & KRK_CODEOBJECT_FLAGS_COLLECTS_ARGS)) {
+		argCountX = argCount - (!!(closure->function->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_ARGS) + !!(closure->function->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_KWS));
+	} else if ((size_t)argCount > potentialPositionalArgs && (closure->function->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_ARGS)) {
 		krk_push(NONE_VAL()); krk_push(NONE_VAL()); krk_pop(); krk_pop();
 		KrkValue * startOfPositionals = &krk_currentThread.stackTop[-argCount];
 		KrkValue tmp = krk_list_of(argCount - potentialPositionalArgs,
@@ -740,7 +740,7 @@ _finishKwarg:
 		argCount++;
 	}
 
-	if (unlikely(closure->function->flags & (KRK_CODEOBJECT_FLAGS_IS_GENERATOR | KRK_CODEOBJECT_FLAGS_IS_COROUTINE))) {
+	if (unlikely(closure->function->obj.flags & (KRK_OBJ_FLAGS_CODEOBJECT_IS_GENERATOR | KRK_OBJ_FLAGS_CODEOBJECT_IS_COROUTINE))) {
 		KrkInstance * gen = krk_buildGenerator(closure, krk_currentThread.stackTop - argCount, argCount);
 		krk_currentThread.stackTop = krk_currentThread.stackTop - argCount - returnDepth;
 		krk_push(OBJECT_VAL(gen));
@@ -936,21 +936,13 @@ int krk_bindMethod(KrkClass * _class, KrkString * name) {
 		_class = _class->base;
 	}
 	if (!_class) return 0;
-	if (IS_NATIVE(method)) {
-		if (((KrkNative*)AS_OBJECT(method))->flags & KRK_NATIVE_FLAGS_IS_DYNAMIC_PROPERTY) {
+	if (IS_NATIVE(method)||IS_CLOSURE(method)) {
+		if (AS_OBJECT(method)->flags & KRK_OBJ_FLAGS_FUNCTION_IS_CLASS_METHOD) {
+			out = OBJECT_VAL(krk_newBoundMethod(OBJECT_VAL(originalClass), AS_OBJECT(method)));
+		} else if (AS_OBJECT(method)->flags & KRK_OBJ_FLAGS_FUNCTION_IS_STATIC_METHOD) {
+			out = method;
+		} else if (AS_OBJECT(method)->flags & KRK_OBJ_FLAGS_FUNCTION_IS_DYNAMIC_PROPERTY) {
 			out = AS_NATIVE(method)->function(1, (KrkValue[]){krk_peek(0)}, 0);
-		} else if (((KrkNative*)AS_OBJECT(method))->flags & KRK_NATIVE_FLAGS_IS_CLASS_METHOD) {
-			out = OBJECT_VAL(krk_newBoundMethod(OBJECT_VAL(originalClass), AS_OBJECT(method)));
-		} else if (((KrkNative*)AS_OBJECT(method))->flags & KRK_NATIVE_FLAGS_IS_STATIC_METHOD) {
-			out = method;
-		} else {
-			out = OBJECT_VAL(krk_newBoundMethod(krk_peek(0), AS_OBJECT(method)));
-		}
-	} else if (IS_CLOSURE(method)) {
-		if (AS_CLOSURE(method)->flags & KRK_FUNCTION_FLAGS_IS_CLASS_METHOD) {
-			out = OBJECT_VAL(krk_newBoundMethod(OBJECT_VAL(originalClass), AS_OBJECT(method)));
-		} else if (AS_CLOSURE(method)->flags & KRK_FUNCTION_FLAGS_IS_STATIC_METHOD) {
-			out = method;
 		} else {
 			out = OBJECT_VAL(krk_newBoundMethod(krk_peek(0), AS_OBJECT(method)));
 		}
@@ -982,27 +974,15 @@ int krk_unbindMethod(KrkClass * _class, KrkString * name) {
 		_class = _class->base;
 	}
 	if (!_class) return 0;
-	if (IS_NATIVE(method)) {
-		if (((KrkNative*)AS_OBJECT(method))->flags & KRK_NATIVE_FLAGS_IS_DYNAMIC_PROPERTY) {
+	if (IS_NATIVE(method) || IS_CLOSURE(method)) {
+		if (AS_OBJECT(method)->flags & KRK_OBJ_FLAGS_FUNCTION_IS_DYNAMIC_PROPERTY) {
 			out = AS_NATIVE(method)->function(1, (KrkValue[]){krk_peek(0)}, 0);
-		} else if (((KrkNative*)AS_OBJECT(method))->flags & KRK_NATIVE_FLAGS_IS_CLASS_METHOD) {
-			krk_pop(); /* the object */
-			krk_push(OBJECT_VAL(originalClass));
-			krk_push(method);
-			return 1;
-		} else if (((KrkNative*)AS_OBJECT(method))->flags & KRK_NATIVE_FLAGS_IS_STATIC_METHOD) {
-			out = method;
-		} else {
-			krk_push(method);
-			return 1;
-		}
-	} else if (IS_CLOSURE(method)) {
-		if (AS_CLOSURE(method)->flags & KRK_FUNCTION_FLAGS_IS_CLASS_METHOD) {
+		} else if (AS_CLOSURE(method)->obj.flags & KRK_OBJ_FLAGS_FUNCTION_IS_CLASS_METHOD) {
 			krk_pop();
 			krk_push(OBJECT_VAL(originalClass));
 			krk_push(method);
 			return 1;
-		} else if (AS_CLOSURE(method)->flags & KRK_FUNCTION_FLAGS_IS_STATIC_METHOD) {
+		} else if (AS_CLOSURE(method)->obj.flags & KRK_OBJ_FLAGS_FUNCTION_IS_STATIC_METHOD) {
 			out = method;
 		} else {
 			krk_push(method);
@@ -1153,7 +1133,11 @@ KRK_FUNC(getsizeof,{
 		case KRK_OBJ_STRING: {
 			KrkString * self = AS_STRING(argv[0]);
 			mySize += sizeof(KrkString) + self->length + 1; /* For the UTF8 */
-			mySize += ((self->codes && (self->chars != self->codes)) ? (self->type * self->codesLength) : 0);
+			if (self->codes && self->chars != self->codes) {
+				if ((self->obj.flags & KRK_OBJ_FLAGS_STRING_MASK) <= KRK_OBJ_FLAGS_STRING_UCS1) mySize += self->codesLength;
+				else if ((self->obj.flags & KRK_OBJ_FLAGS_STRING_MASK) == KRK_OBJ_FLAGS_STRING_UCS2) mySize += 2 * self->codesLength;
+				else if ((self->obj.flags & KRK_OBJ_FLAGS_STRING_MASK) == KRK_OBJ_FLAGS_STRING_UCS4) mySize += 4 * self->codesLength;
+			}
 			break;
 		}
 		case KRK_OBJ_CODEOBJECT: {
@@ -2130,8 +2114,7 @@ static int valueGetProperty(KrkString * name) {
 		KrkClass * _class = AS_CLASS(this);
 		do {
 			if (krk_tableGet_fast(&_class->methods, name, &value)) {
-				if ((IS_CLOSURE(value) && (AS_CLOSURE(value)->flags & KRK_FUNCTION_FLAGS_IS_CLASS_METHOD)) ||
-				    (IS_NATIVE(value) && (AS_NATIVE(value)->flags & KRK_NATIVE_FLAGS_IS_CLASS_METHOD))) {
+				if ((IS_NATIVE(value) || IS_CLOSURE(value)) && (AS_OBJECT(value)->flags & KRK_OBJ_FLAGS_FUNCTION_IS_CLASS_METHOD)) {
 					value = OBJECT_VAL(krk_newBoundMethod(this, AS_OBJECT(value)));
 				}
 				krk_currentThread.stackTop[-1] = value;
@@ -2185,8 +2168,7 @@ static int valueGetMethod(KrkString * name) {
 		KrkClass * _class = AS_CLASS(this);
 		do {
 			if (krk_tableGet_fast(&_class->methods, name, &value)) {
-				if ((IS_CLOSURE(value) && (AS_CLOSURE(value)->flags & KRK_FUNCTION_FLAGS_IS_CLASS_METHOD)) ||
-				    (IS_NATIVE(value) && (AS_NATIVE(value)->flags & KRK_NATIVE_FLAGS_IS_CLASS_METHOD))) {
+				if ((IS_CLOSURE(value)||IS_NATIVE(value)) && (AS_OBJECT(value)->flags & KRK_OBJ_FLAGS_FUNCTION_IS_CLASS_METHOD)) {
 					krk_push(value);
 					return 1;
 				}
@@ -2464,7 +2446,7 @@ _finishReturn: (void)0;
 				}
 				krk_currentThread.stackTop = &krk_currentThread.stack[frame->outSlots];
 				if (krk_currentThread.frameCount == (size_t)krk_currentThread.exitOnFrame) {
-					if (frame->closure->function->flags & (KRK_CODEOBJECT_FLAGS_IS_GENERATOR | KRK_CODEOBJECT_FLAGS_IS_COROUTINE)) {
+					if (frame->closure->function->obj.flags & (KRK_OBJ_FLAGS_CODEOBJECT_IS_GENERATOR | KRK_OBJ_FLAGS_CODEOBJECT_IS_COROUTINE)) {
 						krk_push(result);
 						return KWARGS_VAL(0);
 					}
@@ -3061,7 +3043,7 @@ _finishReturn: (void)0;
 				KrkValue name = OBJECT_VAL(READ_STRING(OPERAND));
 				krk_tableSet(&_class->methods, name, method);
 				if (AS_STRING(name) == S("__class_getitem__") && IS_CLOSURE(method)) {
-					AS_CLOSURE(method)->flags |= KRK_FUNCTION_FLAGS_IS_CLASS_METHOD;
+					AS_CLOSURE(method)->obj.flags |= KRK_OBJ_FLAGS_FUNCTION_IS_CLASS_METHOD;
 				}
 				krk_pop();
 				break;

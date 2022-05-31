@@ -510,7 +510,7 @@ void _createAndBind_dictClass(void) {
 	BIND_METHOD(dict,update);
 	krk_defineNative(&dict->methods, "__iter__", FUNC_NAME(dict,keys));
 	krk_defineNative(&dict->methods, "__str__", FUNC_NAME(dict,__repr__));
-	krk_defineNative(&dict->methods, "__class_getitem__", KrkGenericAlias)->flags |= KRK_NATIVE_FLAGS_IS_CLASS_METHOD;
+	krk_defineNative(&dict->methods, "__class_getitem__", KrkGenericAlias)->obj.flags |= KRK_OBJ_FLAGS_FUNCTION_IS_CLASS_METHOD;
 	krk_attachNamedValue(&dict->methods, "__hash__", NONE_VAL());
 	krk_finalizeClass(dict);
 	KRK_DOC(dict, "Mapping of arbitrary keys to values.");
