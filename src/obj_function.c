@@ -22,6 +22,10 @@ static KrkValue nativeFunctionName(KrkValue func) {
 #define CURRENT_NAME  self
 #define CURRENT_CTYPE KrkValue
 
+FUNC_SIG(function,__init__) {
+	return krk_runtimeError(vm.exceptions->typeError, "function object is not instantiable");
+}
+
 KRK_METHOD(function,__doc__,{
 	ATTRIBUTE_NOT_ASSIGNABLE();
 
@@ -152,6 +156,10 @@ KRK_METHOD(function,__code__,{
 #undef CURRENT_CTYPE
 #define CURRENT_CTYPE KrkCodeObject*
 
+FUNC_SIG(codeobject,__init__) {
+	return krk_runtimeError(vm.exceptions->typeError, "codeobject object is not instantiable");
+}
+
 KRK_METHOD(codeobject,__name__,{
 	ATTRIBUTE_NOT_ASSIGNABLE();
 	return self->name ? OBJECT_VAL(self->name) : OBJECT_VAL(S(""));
@@ -209,6 +217,13 @@ KRK_METHOD(codeobject,co_flags,{
 
 #undef CURRENT_CTYPE
 #define CURRENT_CTYPE KrkBoundMethod*
+
+FUNC_SIG(method,__init__) {
+	static __attribute__ ((unused)) const char* _method_name = "__init__";
+	METHOD_TAKES_EXACTLY(2);
+	if (!IS_OBJECT(argv[1])) return krk_runtimeError(vm.exceptions->typeError, "first argument must be a heap object");
+	return OBJECT_VAL(krk_newBoundMethod(argv[2],AS_OBJECT(argv[1])));
+}
 
 KRK_METHOD(method,__name__,{
 	ATTRIBUTE_NOT_ASSIGNABLE();
@@ -283,35 +298,24 @@ KRK_METHOD(method,__self__,{
 KRK_FUNC(staticmethod,{
 	FUNCTION_TAKES_EXACTLY(1);
 	CHECK_ARG(0,CLOSURE,KrkClosure*,method);
-	/* Make a copy */
-	krk_push(OBJECT_VAL(krk_newClosure(method->function)));
-	/* Copy upvalues */
-	for (size_t i = 0; i < method->upvalueCount; ++i) {
-		AS_CLOSURE(krk_peek(0))->upvalues[i] = method->upvalues[i];
-	}
-	AS_CLOSURE(krk_peek(0))->annotations = method->annotations;
-	AS_CLOSURE(krk_peek(0))->obj.flags |= KRK_OBJ_FLAGS_FUNCTION_IS_STATIC_METHOD;
-	return krk_pop();
+	method->obj.flags &= ~(KRK_OBJ_FLAGS_FUNCTION_MASK);
+	method->obj.flags |= KRK_OBJ_FLAGS_FUNCTION_IS_STATIC_METHOD;
+	return argv[0];
 })
 
 KRK_FUNC(classmethod,{
 	FUNCTION_TAKES_EXACTLY(1);
 	CHECK_ARG(0,CLOSURE,KrkClosure*,method);
-	/* Make a copy */
-	krk_push(OBJECT_VAL(krk_newClosure(method->function)));
-	/* Copy upvalues */
-	for (size_t i = 0; i < method->upvalueCount; ++i) {
-		AS_CLOSURE(krk_peek(0))->upvalues[i] = method->upvalues[i];
-	}
-	AS_CLOSURE(krk_peek(0))->annotations = method->annotations;
-	AS_CLOSURE(krk_peek(0))->obj.flags |= KRK_OBJ_FLAGS_FUNCTION_IS_CLASS_METHOD;
-	return krk_pop();
+	method->obj.flags &= ~(KRK_OBJ_FLAGS_FUNCTION_MASK);
+	method->obj.flags |= KRK_OBJ_FLAGS_FUNCTION_IS_CLASS_METHOD;
+	return argv[0];
 })
 
 _noexport
 void _createAndBind_functionClass(void) {
 	KrkClass * codeobject = ADD_BASE_CLASS(vm.baseClasses->codeobjectClass, "codeobject", vm.baseClasses->objectClass);
 	codeobject->allocSize = 0; /* cannot subclass */
+	BIND_METHOD(codeobject,__init__);
 	BIND_METHOD(codeobject,__str__);
 	BIND_METHOD(codeobject,_ip_to_line);
 	BIND_PROP(codeobject,__constants__);
@@ -322,6 +326,7 @@ void _createAndBind_functionClass(void) {
 
 	KrkClass * function = ADD_BASE_CLASS(vm.baseClasses->functionClass, "function", vm.baseClasses->objectClass);
 	function->allocSize = 0; /* cannot subclass */
+	BIND_METHOD(function,__init__);
 	BIND_METHOD(function,__str__);
 	BIND_METHOD(function,_ip_to_line);
 	BIND_PROP(function,__doc__);
@@ -339,6 +344,7 @@ void _createAndBind_functionClass(void) {
 	method->allocSize = 0; /* cannot subclass */
 	BIND_METHOD(method,__str__);
 	BIND_METHOD(method,_ip_to_line);
+	BIND_METHOD(method,__init__);
 	BIND_PROP(method,__doc__);
 	BIND_PROP(method,__name__);
 	BIND_PROP(method,__qualname__);
