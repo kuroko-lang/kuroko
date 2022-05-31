@@ -203,7 +203,7 @@ _unhashable:
 _noexport
 void _createAndBind_tupleClass(void) {
 	KrkClass * tuple = ADD_BASE_CLASS(vm.baseClasses->tupleClass, "tuple", vm.baseClasses->objectClass);
-	tuple->allocSize = 0; /* cannot subclass */
+	tuple->obj.flags |= KRK_OBJ_FLAGS_NO_INHERIT;
 	BIND_METHOD(tuple,__repr__);
 	BIND_METHOD(tuple,__getitem__);
 	BIND_METHOD(tuple,__len__);

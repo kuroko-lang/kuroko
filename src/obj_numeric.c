@@ -136,7 +136,7 @@ KRK_METHOD(NotImplementedType,__hash__,{
 _noexport
 void _createAndBind_numericClasses(void) {
 	KrkClass * _int = ADD_BASE_CLASS(vm.baseClasses->intClass, "int", vm.baseClasses->objectClass);
-	_int->allocSize = 0; /* cannot subclass */
+	_int->obj.flags |= KRK_OBJ_FLAGS_NO_INHERIT;
 	BIND_METHOD(int,__init__);
 	BIND_METHOD(int,__str__);
 	BIND_METHOD(int,__int__);
@@ -149,7 +149,7 @@ void _createAndBind_numericClasses(void) {
 	KRK_DOC(_int, "Convert a number or string type to an integer representation.");
 
 	KrkClass * _float = ADD_BASE_CLASS(vm.baseClasses->floatClass, "float", vm.baseClasses->objectClass);
-	_float->allocSize = 0; /* cannot subclass */
+	_float->obj.flags |= KRK_OBJ_FLAGS_NO_INHERIT;
 	BIND_METHOD(float,__init__);
 	BIND_METHOD(float,__int__);
 	BIND_METHOD(float,__float__);
@@ -161,7 +161,7 @@ void _createAndBind_numericClasses(void) {
 	KRK_DOC(_float, "Convert a number or string type to a float representation.");
 
 	KrkClass * _bool = ADD_BASE_CLASS(vm.baseClasses->boolClass, "bool", vm.baseClasses->intClass);
-	_bool->allocSize = 0; /* cannot subclass */
+	_bool->obj.flags |= KRK_OBJ_FLAGS_NO_INHERIT;
 	BIND_METHOD(bool,__init__);
 	BIND_METHOD(bool,__str__);
 	krk_defineNative(&_bool->methods, "__repr__", FUNC_NAME(bool,__str__));
@@ -169,14 +169,14 @@ void _createAndBind_numericClasses(void) {
 	KRK_DOC(_bool, "Returns False if the argument is 'falsey', otherwise True.");
 
 	KrkClass * _NoneType = ADD_BASE_CLASS(vm.baseClasses->noneTypeClass, "NoneType", vm.baseClasses->objectClass);
-	_NoneType->allocSize = 0; /* cannot subclass */
+	_NoneType->obj.flags |= KRK_OBJ_FLAGS_NO_INHERIT;
 	BIND_METHOD(NoneType, __str__);
 	BIND_METHOD(NoneType, __hash__);
 	krk_defineNative(&_NoneType->methods, "__repr__", FUNC_NAME(NoneType,__str__));
 	krk_finalizeClass(_NoneType);
 
 	KrkClass * _NotImplementedType = ADD_BASE_CLASS(vm.baseClasses->notImplClass, "NotImplementedType", vm.baseClasses->objectClass);
-	_NotImplementedType->allocSize = 0; /* cannot subclass */
+	_NotImplementedType->obj.flags |= KRK_OBJ_FLAGS_NO_INHERIT;
 	BIND_METHOD(NotImplementedType, __str__);
 	BIND_METHOD(NotImplementedType, __hash__);
 	krk_defineNative(&_NotImplementedType->methods, "__repr__", FUNC_NAME(NotImplementedType,__str__));

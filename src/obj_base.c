@@ -79,7 +79,7 @@ static KrkValue _class_subclasses(int argc, const KrkValue argv[], int hasKw) {
 _noexport
 void _createAndBind_type(void) {
 	ADD_BASE_CLASS(vm.baseClasses->typeClass, "type", vm.baseClasses->objectClass);
-	vm.baseClasses->typeClass->allocSize = 0;
+	vm.baseClasses->typeClass->obj.flags |= KRK_OBJ_FLAGS_NO_INHERIT;
 	krk_defineNative(&vm.baseClasses->typeClass->methods, "__base__", krk_baseOfClass)->obj.flags = KRK_OBJ_FLAGS_FUNCTION_IS_DYNAMIC_PROPERTY;
 	krk_defineNative(&vm.baseClasses->typeClass->methods, "__file__", krk_fileOfClass)->obj.flags = KRK_OBJ_FLAGS_FUNCTION_IS_DYNAMIC_PROPERTY;
 	krk_defineNative(&vm.baseClasses->typeClass->methods, "__doc__", krk_docOfClass)  ->obj.flags = KRK_OBJ_FLAGS_FUNCTION_IS_DYNAMIC_PROPERTY;

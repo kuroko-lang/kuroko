@@ -324,8 +324,7 @@ KrkClass * krk_newClass(KrkString * name, KrkClass * baseClass) {
 }
 
 KrkInstance * krk_newInstance(KrkClass * _class) {
-	size_t allocSize = _class->allocSize ? _class->allocSize : sizeof(KrkInstance);
-	KrkInstance * instance = (KrkInstance*)allocateObject(allocSize, KRK_OBJ_INSTANCE);
+	KrkInstance * instance = (KrkInstance*)allocateObject(_class->allocSize, KRK_OBJ_INSTANCE);
 	instance->_class = _class;
 	krk_initTable(&instance->fields);
 	return instance;
