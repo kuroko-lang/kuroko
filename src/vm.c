@@ -1263,6 +1263,11 @@ KRK_FUNC(unload,{
 	}
 })
 
+KRK_FUNC(inspect_value,{
+	FUNCTION_TAKES_EXACTLY(1);
+	return OBJECT_VAL(krk_newBytes(sizeof(KrkValue),(uint8_t*)&argv[0]));
+})
+
 void krk_setMaximumRecursionDepth(size_t maxDepth) {
 	vm.maximumCallDepth = maxDepth;
 
@@ -1386,6 +1391,8 @@ void krk_initVM(int flags) {
 		"Get the list of valid names from the module table");
 	KRK_DOC(BIND_FUNC(vm.system,unload),
 		"Removes a module from the module table. It is not necessarily garbage collected if other references to it exist.");
+	KRK_DOC(BIND_FUNC(vm.system,inspect_value),
+		"Obtain the memory representation of a stack value.");
 	krk_attachNamedObject(&vm.system->fields, "module", (KrkObj*)vm.baseClasses->moduleClass);
 	krk_attachNamedObject(&vm.system->fields, "path_sep", (KrkObj*)S(PATH_SEP));
 	KrkValue module_paths = krk_list_of(0,NULL,0);
