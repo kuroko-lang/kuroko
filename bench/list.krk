@@ -8,4 +8,4 @@ def func():
     add(1)
     pop()
 
-print(timeit(func), "list append")
+print(min(timeit(func,number=100000) for x in range(10)), "list append")

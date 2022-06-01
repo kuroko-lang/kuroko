@@ -11,4 +11,4 @@ def makeTree(depth):
 
 if __name__ == '__main__':
     from timeit import timeit
-    print(timeit(lambda: makeTree(16), number=10), 'makeTree')
+    print(min(timeit(lambda: makeTree(16), number=1) for x in range(10)), 'makeTree')

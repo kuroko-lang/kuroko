@@ -1,0 +1,56 @@
+import timeit
+
+if True:
+  let xs = [[[x for x in range(30)] for y in range(30)] for z in range(30)]
+  xs[29][29][29] = 42
+
+  def breaks():
+    let _z
+    for ys in xs:
+      for zs in ys:
+        for z in zs:
+          if z == 42:
+            _z = z
+            break
+        else:
+          continue
+        break
+      else:
+        continue
+      break
+    else:
+      return None
+    return _z
+
+  class FoundIt(Exception):
+    pass
+
+  def exceptions():
+    let _z
+    try:
+      for ys in xs:
+        for zs in ys:
+          for z in zs:
+            if z == 42:
+              _z = z
+              raise FoundIt()
+    except FoundIt as e:
+      return _z
+
+  def _inner():
+    for ys in xs:
+      for zs in ys:
+        for z in zs:
+          if z == 42:
+            return z
+
+  def functions():
+    return _inner()
+
+  import gc
+  gc.collect()
+  print(min(timeit.timeit(breaks,number=100) for x in range(10)),"breaks")
+  gc.collect()
+  print(min(timeit.timeit(functions,number=100) for x in range(10)),"functions")
+  gc.collect()
+  print(min(timeit.timeit(exceptions,number=100) for x in range(10)),"exceptions")

@@ -136,5 +136,5 @@ if __name__=='__main__':
               read_classvar, read_instancevar, read_unboundmethod, read_boundmethod, call_boundmethod,
               write_local, write_nonlocal, write_global,
               write_classvar, write_instancevar]:
-        print(timeit(f,number=1000000), f.__qualname__ if hasattr(f,'__qualname__') else f.__name__ if hasattr(f,'__name__') else '?')
+        print(min(timeit(f,number=100000) for x in range(10)), f.__qualname__ if hasattr(f,'__qualname__') else f.__name__ if hasattr(f,'__name__') else '?')
 
