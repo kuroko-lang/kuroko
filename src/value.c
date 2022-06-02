@@ -131,7 +131,7 @@ void krk_printValueSafe(FILE * f, KrkValue printable) {
 			case KRK_OBJ_BOUND_METHOD: fprintf(f, "<method %s>",
 				AS_BOUND_METHOD(printable)->method ? (
 				AS_BOUND_METHOD(printable)->method->type == KRK_OBJ_CLOSURE ? ((KrkClosure*)AS_BOUND_METHOD(printable)->method)->function->name->chars :
-					((KrkNative*)AS_BOUND_METHOD(printable)->method)->name) : "(corrupt bound method)"); break;
+					(AS_BOUND_METHOD(printable)->method->type == KRK_OBJ_NATIVE ? ((KrkNative*)AS_BOUND_METHOD(printable)->method)->name : "(unknown)")) : "(corrupt bound method)"); break;
 			default: fprintf(f, "<%s>", krk_typeName(printable)); break;
 		}
 	}

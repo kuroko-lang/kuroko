@@ -218,6 +218,8 @@ KRK_METHOD(codeobject,co_flags,{
 #undef CURRENT_CTYPE
 #define CURRENT_CTYPE KrkBoundMethod*
 
+/* __init__ here will be called with a dummy instance as argv[0]; avoid
+ * complications with method argument checking by not using KRK_METHOD. */
 FUNC_SIG(method,__init__) {
 	static __attribute__ ((unused)) const char* _method_name = "__init__";
 	METHOD_TAKES_EXACTLY(2);
@@ -227,17 +229,17 @@ FUNC_SIG(method,__init__) {
 
 KRK_METHOD(method,__name__,{
 	ATTRIBUTE_NOT_ASSIGNABLE();
-	return FUNC_NAME(function,__name__)(1,(KrkValue[]){OBJECT_VAL(self->method)},0);
+	return IS_function(OBJECT_VAL(self->method)) ? FUNC_NAME(function,__name__)(1,(KrkValue[]){OBJECT_VAL(self->method)},0) : OBJECT_VAL(S("?"));
 })
 
 KRK_METHOD(method,__qualname__,{
 	ATTRIBUTE_NOT_ASSIGNABLE();
-	return FUNC_NAME(function,__qualname__)(1,(KrkValue[]){OBJECT_VAL(self->method)},0);
+	return IS_function(OBJECT_VAL(self->method)) ? FUNC_NAME(function,__qualname__)(1,(KrkValue[]){OBJECT_VAL(self->method)},0) : OBJECT_VAL(S("?"));
 })
 
 KRK_METHOD(method,_ip_to_line,{
 	METHOD_TAKES_EXACTLY(1);
-	return FUNC_NAME(function,_ip_to_line)(2,(KrkValue[]){OBJECT_VAL(self->method),argv[1]},0);
+	return IS_function(OBJECT_VAL(self->method)) ? FUNC_NAME(function,_ip_to_line)(2,(KrkValue[]){OBJECT_VAL(self->method),argv[1]},0) : OBJECT_VAL(S("?"));
 })
 
 KRK_METHOD(method,__str__,{
@@ -262,27 +264,27 @@ KRK_METHOD(method,__str__,{
 
 KRK_METHOD(method,__file__,{
 	ATTRIBUTE_NOT_ASSIGNABLE();
-	return FUNC_NAME(function,__file__)(1,(KrkValue[]){OBJECT_VAL(self->method)},0);
+	return IS_function(OBJECT_VAL(self->method)) ? FUNC_NAME(function,__file__)(1,(KrkValue[]){OBJECT_VAL(self->method)},0) : OBJECT_VAL(S("?"));
 })
 
 KRK_METHOD(method,__args__,{
 	ATTRIBUTE_NOT_ASSIGNABLE();
-	return FUNC_NAME(function,__args__)(1,(KrkValue[]){OBJECT_VAL(self->method)},0);
+	return IS_function(OBJECT_VAL(self->method)) ? FUNC_NAME(function,__args__)(1,(KrkValue[]){OBJECT_VAL(self->method)},0) : OBJECT_VAL(S("?"));
 })
 
 KRK_METHOD(method,__doc__,{
 	ATTRIBUTE_NOT_ASSIGNABLE();
-	return FUNC_NAME(function,__doc__)(1,(KrkValue[]){OBJECT_VAL(self->method)},0);
+	return IS_function(OBJECT_VAL(self->method)) ? FUNC_NAME(function,__doc__)(1,(KrkValue[]){OBJECT_VAL(self->method)},0) : OBJECT_VAL(S("?"));
 })
 
 KRK_METHOD(method,__annotations__,{
 	ATTRIBUTE_NOT_ASSIGNABLE();
-	return FUNC_NAME(function,__annotations__)(1,(KrkValue[]){OBJECT_VAL(self->method)},0);
+	return IS_function(OBJECT_VAL(self->method)) ? FUNC_NAME(function,__annotations__)(1,(KrkValue[]){OBJECT_VAL(self->method)},0) : OBJECT_VAL(S("?"));
 })
 
 KRK_METHOD(method,__code__,{
 	ATTRIBUTE_NOT_ASSIGNABLE();
-	return FUNC_NAME(function,__code__)(1,(KrkValue[]){OBJECT_VAL(self->method)},0);
+	return IS_function(OBJECT_VAL(self->method)) ? FUNC_NAME(function,__code__)(1,(KrkValue[]){OBJECT_VAL(self->method)},0) : OBJECT_VAL(S("?"));
 })
 
 KRK_METHOD(method,__func__,{
