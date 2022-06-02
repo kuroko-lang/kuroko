@@ -1,0 +1,6 @@
+callable <Callable c> received [<Foo instance>]
+<Callable c> <Foo instance> <bound method ? of <Foo instance>>
+callable <Callable Foo.c()> received [<Foo instance>]
+<Callable c> <Foo instance> <bound method ? of <Foo instance>> <bound method ? of <Foo instance>>
+a b c
+<Callable c> <Foo instance> <bound method ? of 'c'>

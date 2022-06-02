@@ -1,0 +1,31 @@
+class Callable():
+    def __init__(self,name):
+        self.name = name
+    def __str__(self):
+        return f'<Callable {self.name}>'
+    def __repr__(self):
+        return str(self)
+    def __call__(self, *args):
+        print('callable',self,'received',args)
+
+class Foo():
+    c = Callable
+    def __str__(self):
+        return f'<Foo instance>'
+    def __repr__(self):
+        return str(self)
+
+if True:
+    let c = Callable('c')
+    let f = Foo()
+    let m = method(c,f)
+    m()
+    print(c,f,m)
+
+    let n = method(Foo.c('Foo.c()'),f)
+    n()
+    print(c,f,m,n)
+
+    m = method(method(method(print,'a'),'b'),'c')
+    m()
+    print(c,f,m)
