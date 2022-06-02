@@ -800,6 +800,17 @@ inline KrkValue krk_callNativeOnStack(size_t argCount, const KrkValue *stackArgs
 }
 
 /**
+ * Sometimes we might call something with a bound receiver, which in most circumstances
+ * can replace the called object on the stack, but sometimes we don't _have_ the called
+ * object on the stack - only its arguments. If that is the case, we unfortunately need
+ * to rotate the stack so we can inject the implicit bound argument at the front.
+ */
+static void _rotate(size_t argCount) {
+	krk_push(NONE_VAL());
+	memmove(&krk_currentThread.stackTop[-argCount],&krk_currentThread.stackTop[-argCount-1],sizeof(KrkValue) * argCount);
+}
+
+/**
  * Call a callable.
  *
  *   For native methods, the result is available "immediately" upon return
@@ -857,6 +868,8 @@ int krk_callValue(KrkValue callee, int argCount, int returnDepth) {
 			case KRK_OBJ_INSTANCE: {
 				KrkClass * _class = AS_INSTANCE(callee)->_class;
 				if (likely(_class->_call != NULL)) {
+					if (unlikely(returnDepth == 0)) _rotate(argCount);
+					krk_currentThread.stackTop[-argCount - 1] = callee;
 					callee = OBJECT_VAL(_class->_call);
 					argCount++;
 					returnDepth = returnDepth ? (returnDepth - 1) : 0;
@@ -869,8 +882,9 @@ int krk_callValue(KrkValue callee, int argCount, int returnDepth) {
 			case KRK_OBJ_CLASS: {
 				KrkClass * _class = AS_CLASS(callee);
 				KrkInstance * newInstance = krk_newInstance(_class);
-				krk_currentThread.stackTop[-argCount - 1] = OBJECT_VAL(newInstance);
 				if (likely(_class->_init != NULL)) {
+					if (unlikely(returnDepth == 0)) _rotate(argCount);
+					krk_currentThread.stackTop[-argCount - 1] = OBJECT_VAL(newInstance);
 					callee = OBJECT_VAL(_class->_init);
 					argCount++;
 					returnDepth = returnDepth ? (returnDepth - 1) : 0;
@@ -880,15 +894,18 @@ int krk_callValue(KrkValue callee, int argCount, int returnDepth) {
 						_class->name->chars, argCount);
 					return 0;
 				}
-				return 1;
+				krk_currentThread.stackTop -= argCount + returnDepth;
+				krk_push(OBJECT_VAL(newInstance));
+				return 2;
 			}
 			case KRK_OBJ_BOUND_METHOD: {
 				KrkBoundMethod * bound = AS_BOUND_METHOD(callee);
-				krk_currentThread.stackTop[-argCount - 1] = bound->receiver;
 				if (unlikely(!bound->method)) {
 					krk_runtimeError(vm.exceptions->argumentError, "???");
 					return 0;
 				}
+				if (unlikely(returnDepth == 0)) _rotate(argCount);
+				krk_currentThread.stackTop[-argCount - 1] = bound->receiver;
 				callee = OBJECT_VAL(bound->method);
 				argCount++;
 				returnDepth = returnDepth ? (returnDepth - 1) : 0;
