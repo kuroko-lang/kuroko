@@ -633,13 +633,15 @@ KRK_FUNC(build,{
 	size = 3; break; }
 #define CLOSURE_MORE \
 	KrkCodeObject * function = AS_codeobject(chunk->constants.values[constant]); \
+	size_t baseOffset = offset; \
 	for (size_t j = 0; j < function->upvalueCount; ++j) { \
-		int isLocal = chunk->code[offset++ + size]; \
-		offset++; \
+		int isLocal = chunk->code[baseOffset++ + size]; \
+		baseOffset++; \
 		if (isLocal & 2) { \
-			offset += 2; \
+			baseOffset += 2; \
 		} \
-	}
+	} \
+	size += baseOffset - offset;
 #define EXPAND_ARGS_MORE
 #define LOCAL_MORE local = operand;
 static KrkValue _examineInternal(KrkCodeObject* func) {
