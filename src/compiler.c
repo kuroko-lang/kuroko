@@ -101,6 +101,7 @@ typedef enum {
 	EXPR_METHOD_CALL,   /**< This expression is the parameter list of a method call; only used by @ref dot and @ref call */
 } ExpressionType;
 
+struct RewindState;
 /**
  * @brief Subexpression parser function.
  *
@@ -108,7 +109,8 @@ typedef enum {
  * parser functions. The argument passed is the @ref ExpressionType
  * to compile the expression as.
  */
-typedef void (*ParseFn)(int);
+typedef void (*ParsePrefixFn)(int);
+typedef void (*ParseInfixFn)(int, struct RewindState *);
 
 /**
  * @brief Parse rule table entry.
@@ -120,8 +122,8 @@ typedef struct {
 #ifndef KRK_NO_SCAN_TRACING
 	const char * name;     /**< Stringified token name for error messages and debugging. */
 #endif
-	ParseFn prefix;        /**< Parse function to call when this token appears at the start of an expression. */
-	ParseFn infix;         /**< Parse function to call when this token appears after an expression. */
+	ParsePrefixFn prefix;  /**< Parse function to call when this token appears at the start of an expression. */
+	ParseInfixFn infix;    /**< Parse function to call when this token appears after an expression. */
 	Precedence precedence; /**< Precedence ordering for Pratt parsing, @ref Precedence */
 } ParseRule;
 
@@ -252,6 +254,17 @@ typedef struct ChunkRecorder {
 	size_t constants;  /**< Number of constants in the constants table */
 } ChunkRecorder;
 
+/**
+ * @brief Compiler emit and parse state prior to this expression.
+ *
+ * Used to rewind the parser for ternary and comma expressions.
+ */
+typedef struct RewindState {
+	ChunkRecorder before;     /**< Bytecode and constant table output offsets. */
+	KrkScanner    oldScanner; /**< Scanner cursor state. */
+	Parser        oldParser;  /**< Previous/current tokens. */
+} RewindState;
+
 static Parser parser;
 static Compiler * current = NULL;
 static ClassCompiler * currentClass = NULL;
@@ -371,11 +384,7 @@ static KrkToken decorator(size_t level, FunctionType type);
 static void complexAssignment(ChunkRecorder before, KrkScanner oldScanner, Parser oldParser, size_t targetCount, int parenthesized);
 static void complexAssignmentTargets(KrkScanner oldScanner, Parser oldParser, size_t targetCount, int parenthesized);
 static int invalidTarget(int exprType, const char * description);
-static void call(int exprType);
-
-/* These are not the real parse functions. */
-static void commaX(int exprType) { }
-static void ternaryX(int exprType) { }
+static void call(int exprType, RewindState *rewind);
 
 static void finishError(KrkToken * token) {
 	size_t i = 0;
@@ -770,12 +779,12 @@ static void compareChained(int inner) {
 	}
 }
 
-static void compare(int exprType) {
+static void compare(int exprType, RewindState *rewind) {
 	compareChained(0);
 	invalidTarget(exprType, "operator");
 }
 
-static void binary(int exprType) {
+static void binary(int exprType, RewindState *rewind) {
 	KrkTokenType operatorType = parser.previous.type;
 	ParseRule * rule = getRule(operatorType);
 	parsePrecedence((Precedence)(rule->precedence + 1));
@@ -901,7 +910,7 @@ static void sliceExpression(void) {
 	}
 }
 
-static void getitem(int exprType) {
+static void getitem(int exprType, RewindState *rewind) {
 
 	sliceExpression();
 
@@ -942,7 +951,7 @@ static void getitem(int exprType) {
 	}
 }
 
-static void dot(int exprType) {
+static void dot(int exprType, RewindState *rewind) {
 	if (match(TOKEN_LEFT_PAREN)) {
 		startEatingWhitespace();
 		size_t argCount = 0;
@@ -1031,7 +1040,7 @@ _dotDone:
 		EMIT_OPERAND_OP(OP_DEL_PROPERTY, ind);
 	} else if (match(TOKEN_LEFT_PAREN)) {
 		EMIT_OPERAND_OP(OP_GET_METHOD, ind);
-		call(EXPR_METHOD_CALL);
+		call(EXPR_METHOD_CALL,NULL);
 	} else {
 		EMIT_OPERAND_OP(OP_GET_PROPERTY, ind);
 	}
@@ -3139,8 +3148,8 @@ static void dict(int exprType) {
 	consume(TOKEN_RIGHT_BRACE,"Expected '}' at end of dict expression.");
 }
 
-static void ternary(ChunkRecorder before, KrkScanner oldScanner, Parser oldParser) {
-	rewindChunk(currentChunk(), before);
+static void ternary(int exprType, RewindState *rewind) {
+	rewindChunk(currentChunk(), rewind->before);
 
 	parsePrecedence(PREC_OR);
 
@@ -3156,8 +3165,8 @@ static void ternary(ChunkRecorder before, KrkScanner oldScanner, Parser oldParse
 	patchJump(thenJump);
 	emitByte(OP_POP);
 
-	krk_rewindScanner(oldScanner);
-	parser = oldParser;
+	krk_rewindScanner(rewind->oldScanner);
+	parser = rewind->oldParser;
 	parsePrecedence(PREC_OR);
 	patchJump(elseJump);
 
@@ -3230,7 +3239,7 @@ static void complexAssignment(ChunkRecorder before, KrkScanner oldScanner, Parse
 	parser = outParser;
 }
 
-static void comma(int exprType, ChunkRecorder before, KrkScanner oldScanner, Parser oldParser) {
+static void comma(int exprType, RewindState *rewind) {
 	size_t expressionCount = 1;
 	do {
 		if (!getRule(parser.current.type)->prefix) break;
@@ -3241,11 +3250,11 @@ static void comma(int exprType, ChunkRecorder before, KrkScanner oldScanner, Par
 	EMIT_OPERAND_OP(OP_TUPLE,expressionCount);
 
 	if (exprType == EXPR_CAN_ASSIGN && match(TOKEN_EQUAL)) {
-		complexAssignment(before, oldScanner, oldParser, expressionCount, 0);
+		complexAssignment(rewind->before, rewind->oldScanner, rewind->oldParser, expressionCount, 0);
 	}
 }
 
-static void call(int exprType) {
+static void call(int exprType, RewindState *rewind) {
 	startEatingWhitespace();
 	size_t argCount = 0, specialArgs = 0, keywordArgs = 0, seenKeywordUnpacking = 0;
 	if (!check(TOKEN_RIGHT_PAREN)) {
@@ -3346,14 +3355,14 @@ static void call(int exprType) {
 	invalidTarget(exprType, "function call");
 }
 
-static void and_(int exprType) {
+static void and_(int exprType, RewindState *rewind) {
 	int endJump = emitJump(OP_JUMP_IF_FALSE_OR_POP);
 	parsePrecedence(PREC_AND);
 	patchJump(endJump);
 	invalidTarget(exprType, "operator");
 }
 
-static void or_(int exprType) {
+static void or_(int exprType, RewindState *rewind) {
 	int endJump = emitJump(OP_JUMP_IF_TRUE_OR_POP);
 	parsePrecedence(PREC_OR);
 	patchJump(endJump);
@@ -3361,12 +3370,10 @@ static void or_(int exprType) {
 }
 
 static void parsePrecedence(Precedence precedence) {
-	ChunkRecorder before = recordChunk(currentChunk());
-	KrkScanner oldScanner = krk_tellScanner();
-	Parser oldParser = parser;
+	RewindState rewind = {recordChunk(currentChunk()), krk_tellScanner(), parser};
 
 	advance();
-	ParseFn prefixRule = getRule(parser.previous.type)->prefix;
+	ParsePrefixFn prefixRule = getRule(parser.previous.type)->prefix;
 	if (prefixRule == NULL) {
 		switch (parser.previous.type) {
 			case TOKEN_RIGHT_BRACE:
@@ -3402,14 +3409,8 @@ static void parsePrecedence(Precedence precedence) {
 		if (exprType == EXPR_ASSIGN_TARGET && (parser.previous.type == TOKEN_COMMA ||
 			parser.previous.type == TOKEN_EQUAL)) break;
 		advance();
-		ParseFn infixRule = getRule(parser.previous.type)->infix;
-		if (infixRule == ternaryX) {
-			ternary(before, oldScanner, oldParser);
-		} else if (infixRule == commaX) {
-			comma(exprType, before, oldScanner, oldParser);
-		} else {
-			infixRule(exprType);
-		}
+		ParseInfixFn infixRule = getRule(parser.previous.type)->infix;
+		infixRule(exprType, &rewind);
 	}
 
 	if (exprType == EXPR_CAN_ASSIGN && matchAssignment()) {
@@ -3609,11 +3610,8 @@ ParseRule krk_parseRules[] = {
 	RULE(TOKEN_RAISE,         NULL,     NULL,     PREC_NONE),
 	RULE(TOKEN_ASYNC,         NULL,     NULL,     PREC_NONE),
 
-	/* These rules are special; their infix functions are not
-	 * actually used by the parser; instead we have additional
-	 * logic to enforce rewinding. */
-	RULE(TOKEN_COMMA,         NULL,     commaX,   PREC_COMMA),
-	RULE(TOKEN_IF,            NULL,     ternaryX, PREC_TERNARY),
+	RULE(TOKEN_COMMA,         NULL,     comma,   PREC_COMMA),
+	RULE(TOKEN_IF,            NULL,     ternary, PREC_TERNARY),
 
 	RULE(TOKEN_INDENTATION,   NULL,     NULL,     PREC_NONE),
 	RULE(TOKEN_ERROR,         NULL,     NULL,     PREC_NONE),
