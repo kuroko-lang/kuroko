@@ -467,6 +467,9 @@ static void consume(KrkTokenType type, const char * message) {
 		return;
 	}
 
+	if (parser.current.type == TOKEN_EOL || parser.current.type == TOKEN_EOF) {
+		parser.current = parser.previous;
+	}
 	errorAtCurrent("%s", message);
 }
 
@@ -1973,6 +1976,12 @@ static void forStatement(void) {
 	int sawComma = 0;
 	ssize_t varCount = 0;
 	int matchedEquals = 0;
+
+	if (!check(TOKEN_IDENTIFIER)) {
+		errorAtCurrent("Empty variable list in 'for'");
+		return;
+	}
+
 	do {
 		if (!check(TOKEN_IDENTIFIER)) break;
 		ssize_t ind = parseVariable("Expected name for loop iterator.");
@@ -2800,6 +2809,10 @@ static void comprehensionInner(KrkScanner scannerBefore, Parser parserBefore, vo
 	ssize_t loopInd = current->localCount;
 	ssize_t varCount = 0;
 	int sawComma = 0;
+	if (!check(TOKEN_IDENTIFIER)) {
+		errorAtCurrent("Empty variable list in comprehension");
+		return;
+	}
 	do {
 		if (!check(TOKEN_IDENTIFIER)) break;
 		defineVariable(parseVariable("Expected name for iteration variable."));
