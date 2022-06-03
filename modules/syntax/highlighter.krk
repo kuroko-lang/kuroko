@@ -22,17 +22,27 @@ let FLAG_ESCAPE    = 13
 let keywords = [
     'and','class','def','else','export','for','if','in','import','let','not',
     'or','return','while','try','except','raise','continue','break','as','from',
-    'elif', 'lambda', 'pass', 'with', 'is', 'del'
+    'elif', 'lambda', 'pass', 'with', 'is', 'del', 'assert', 'yield', 'finally',
+    'async', 'await',
 ]
 
 let types = [
     'self','super','len','str','int','float','dir','repr','list','dict','range',
     'object','exception','isinstance','type','print','tuple','bool','any','all',
-    'hex','ord','chr'
+    'hex','ord','chr','bytes','set','getattr','setattr','input','zip','enumerate',
+    'property','staticmethod','classmethod','filter','min','max','id','map','bin',
+    'sum','sorted','issubclass','hasattr','delattr', 'NotImplemented', 'abs',
 ]
 
 let special = [
     'True', 'False', 'None'
+]
+
+let exceptions = [
+    'Exception', 'TypeError', 'ArgumentError', 'IndexError', 'KeyError',
+    'AttributeError', 'NameError', 'ImportError', 'IOError', 'ValueError',
+    'KeyboardInterrupt', 'ZeroDivisionError', 'NotImplementedError', 'SyntaxError',
+    'AssertionError',
 ]
 
 def toTerminal(processed,colors=None):
@@ -232,6 +242,8 @@ class KurokoHighlighter(State):
             else if self.lastchar() != '.' and self.findKeywords(types, FLAG_TYPE, self.cKeywordQualifier):
                 return 0
             else if self.findKeywords(special, FLAG_NUMERAL, self.cKeywordQualifier):
+                return 0
+            else if self.findKeywords(exceptions, FLAG_PRAGMA, self.cKeywordQualifier):
                 return 0
             else if not self.cKeywordQualifier(self.lastchar()) and self.isdigit(self.charat()):
                 self.paintNumeral()
