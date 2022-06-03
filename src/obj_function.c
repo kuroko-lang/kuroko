@@ -13,6 +13,40 @@ static KrkValue nativeFunctionName(KrkValue func) {
 	return OBJECT_VAL(krk_copyString(string,len));
 }
 
+static KrkTuple * functionArgs(KrkCodeObject * _self) {
+	KrkTuple * tuple = krk_newTuple(_self->requiredArgs + _self->keywordArgs + !!(_self->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_ARGS) + !!(_self->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_KWS));
+	krk_push(OBJECT_VAL(tuple));
+
+	for (short i = 0; i < _self->requiredArgs; ++i) {
+		tuple->values.values[tuple->values.count++] = _self->requiredArgNames.values[i];
+	}
+
+	for (short i = 0; i < _self->keywordArgs; ++i) {
+		struct StringBuilder sb = {0};
+		pushStringBuilderStr(&sb, AS_CSTRING(_self->keywordArgNames.values[i]), AS_STRING(_self->keywordArgNames.values[i])->length);
+		pushStringBuilder(&sb,'=');
+		tuple->values.values[tuple->values.count++] = finishStringBuilder(&sb);
+	}
+
+	if (_self->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_ARGS) {
+		struct StringBuilder sb = {0};
+		pushStringBuilder(&sb, '*');
+		pushStringBuilderStr(&sb, AS_CSTRING(_self->requiredArgNames.values[_self->requiredArgs]), AS_STRING(_self->requiredArgNames.values[_self->requiredArgs])->length);
+		tuple->values.values[tuple->values.count++] = finishStringBuilder(&sb);
+	}
+
+	if (_self->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_KWS) {
+		struct StringBuilder sb = {0};
+		pushStringBuilder(&sb, '*');
+		pushStringBuilder(&sb, '*');
+		pushStringBuilderStr(&sb, AS_CSTRING(_self->keywordArgNames.values[_self->keywordArgs]), AS_STRING(_self->keywordArgNames.values[_self->keywordArgs])->length);
+		tuple->values.values[tuple->values.count++] = finishStringBuilder(&sb);
+	}
+
+	krk_pop();
+	return tuple;
+}
+
 #define IS_method(o)     IS_BOUND_METHOD(o)
 #define IS_function(o)   (IS_CLOSURE(o)|IS_NATIVE(o))
 
@@ -107,37 +141,7 @@ KRK_METHOD(function,__file__,{
 KRK_METHOD(function,__args__,{
 	ATTRIBUTE_NOT_ASSIGNABLE();
 	if (!IS_CLOSURE(self)) return OBJECT_VAL(krk_newTuple(0));
-	KrkCodeObject * _self = AS_CLOSURE(self)->function;
-	KrkTuple * tuple = krk_newTuple(_self->requiredArgs + _self->keywordArgs + !!(_self->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_ARGS) + !!(_self->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_KWS));
-	krk_push(OBJECT_VAL(tuple));
-
-	for (short i = 0; i < _self->requiredArgs; ++i) {
-		tuple->values.values[tuple->values.count++] = _self->requiredArgNames.values[i];
-	}
-
-	for (short i = 0; i < _self->keywordArgs; ++i) {
-		struct StringBuilder sb = {0};
-		pushStringBuilderStr(&sb, AS_CSTRING(_self->keywordArgNames.values[i]), AS_STRING(_self->keywordArgNames.values[i])->length);
-		pushStringBuilder(&sb,'=');
-		tuple->values.values[tuple->values.count++] = finishStringBuilder(&sb);
-	}
-
-	if (_self->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_ARGS) {
-		struct StringBuilder sb = {0};
-		pushStringBuilder(&sb, '*');
-		pushStringBuilderStr(&sb, AS_CSTRING(_self->requiredArgNames.values[_self->requiredArgs]), AS_STRING(_self->requiredArgNames.values[_self->requiredArgs])->length);
-		tuple->values.values[tuple->values.count++] = finishStringBuilder(&sb);
-	}
-
-	if (_self->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_KWS) {
-		struct StringBuilder sb = {0};
-		pushStringBuilder(&sb, '*');
-		pushStringBuilder(&sb, '*');
-		pushStringBuilderStr(&sb, AS_CSTRING(_self->keywordArgNames.values[_self->keywordArgs]), AS_STRING(_self->keywordArgNames.values[_self->keywordArgs])->length);
-		tuple->values.values[tuple->values.count++] = finishStringBuilder(&sb);
-	}
-
-	krk_pop();
+	KrkTuple * tuple = functionArgs(AS_CLOSURE(self)->function);
 	return OBJECT_VAL(tuple);
 })
 
@@ -214,6 +218,13 @@ KRK_METHOD(codeobject,co_flags,{
 
 	return INTEGER_VAL(out);
 })
+
+KRK_METHOD(codeobject,__args__,{
+	ATTRIBUTE_NOT_ASSIGNABLE();
+	KrkTuple * tuple = functionArgs(self);
+	return OBJECT_VAL(tuple);
+})
+
 
 #undef CURRENT_CTYPE
 #define CURRENT_CTYPE KrkBoundMethod*
@@ -323,6 +334,7 @@ void _createAndBind_functionClass(void) {
 	BIND_PROP(codeobject,__constants__);
 	BIND_PROP(codeobject,__name__);
 	BIND_PROP(codeobject,co_flags);
+	BIND_PROP(codeobject,__args__);
 	krk_defineNative(&codeobject->methods, "__repr__", FUNC_NAME(codeobject,__str__));
 	krk_finalizeClass(codeobject);
 
