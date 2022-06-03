@@ -94,17 +94,28 @@ static KrkValue _exception_str(int argc, const KrkValue argv[], int hasKw) {
 static KrkValue _syntaxerror_str(int argc, const KrkValue argv[], int hasKw) {
 	KrkInstance * self = AS_INSTANCE(argv[0]);
 	/* .arg */
-	KrkValue file, line, lineno, colno, arg, func;
+	KrkValue file, line, lineno, colno, arg, func, width;
 	if (!krk_tableGet(&self->fields, OBJECT_VAL(S("file")), &file) || !IS_STRING(file)) goto _badSyntaxError;
 	if (!krk_tableGet(&self->fields, OBJECT_VAL(S("line")), &line) || !IS_STRING(line)) goto _badSyntaxError;
 	if (!krk_tableGet(&self->fields, OBJECT_VAL(S("lineno")), &lineno) || !IS_INTEGER(lineno)) goto _badSyntaxError;
 	if (!krk_tableGet(&self->fields, OBJECT_VAL(S("colno")), &colno) || !IS_INTEGER(colno)) goto _badSyntaxError;
 	if (!krk_tableGet(&self->fields, OBJECT_VAL(S("arg")), &arg) || !IS_STRING(arg)) goto _badSyntaxError;
 	if (!krk_tableGet(&self->fields, OBJECT_VAL(S("func")), &func)) goto _badSyntaxError;
+	if (!krk_tableGet(&self->fields, OBJECT_VAL(S("width")), &width) || !IS_INTEGER(width)) goto _badSyntaxError;
 
 	if (AS_INTEGER(colno) <= 0) colno = INTEGER_VAL(1);
 
-	krk_push(OBJECT_VAL(S("  File \"{}\", line {}{}\n    {}\n    {}^\n{}: {}")));
+	int definitelyNotFullWidth = !(AS_STRING(line)->obj.flags & KRK_OBJ_FLAGS_STRING_MASK);
+
+	krk_push(OBJECT_VAL(S("^")));
+	if (definitelyNotFullWidth && AS_INTEGER(width) > 1) {
+		for (krk_integer_type i = 1; i < AS_INTEGER(width); ++i) {
+			krk_push(OBJECT_VAL(S("^")));
+			krk_addObjects();
+		}
+	}
+
+	krk_push(OBJECT_VAL(S("  File \"{}\", line {}{}\n    {}\n    {}{}\n{}: {}")));
 	unsigned int column = AS_INTEGER(colno);
 	char * tmp = malloc(column);
 	memset(tmp,' ',column);
@@ -118,12 +129,13 @@ static KrkValue _syntaxerror_str(int argc, const KrkValue argv[], int hasKw) {
 	} else {
 		krk_push(OBJECT_VAL(S("")));
 	}
-	KrkValue formattedString = krk_string_format(8,
-		(KrkValue[]){krk_peek(3), file, lineno, krk_peek(0), line, krk_peek(2), krk_peek(1), arg}, 0);
+	KrkValue formattedString = krk_string_format(9,
+		(KrkValue[]){krk_peek(3), file, lineno, krk_peek(0), line, krk_peek(2), krk_peek(4), krk_peek(1), arg}, 0);
 	krk_pop(); /* instr */
 	krk_pop(); /* class */
 	krk_pop(); /* spaces */
 	krk_pop(); /* format string */
+	krk_pop(); /* carets */
 
 	return formattedString;
 
