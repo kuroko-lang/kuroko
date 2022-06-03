@@ -479,6 +479,7 @@ static KrkToken syntheticToken(const char * text) {
 	KrkToken token;
 	token.start = text;
 	token.length = (int)strlen(text);
+	token.line = parser.previous.line;
 	return token;
 }
 
