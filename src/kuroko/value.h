@@ -211,13 +211,13 @@ typedef union {
  * is either an integer or a boolean - and booleans are also integers, so this
  * is how we check if something is an integer in the general case; for everything
  * else, we check against MASK_NONE because it sets all the identifying bits. */
-#define IS_INTEGER(value)   (((value) & KRK_VAL_MASK_HANDLER) == KRK_VAL_MASK_BOOLEAN)
-#define IS_BOOLEAN(value)   (((value) & KRK_VAL_MASK_NONE) == KRK_VAL_MASK_BOOLEAN)
-#define IS_NONE(value)      (((value) & KRK_VAL_MASK_NONE) == KRK_VAL_MASK_NONE)
-#define IS_HANDLER(value)   (((value) & KRK_VAL_MASK_NONE) == KRK_VAL_MASK_HANDLER)
-#define IS_OBJECT(value)    (((value) & KRK_VAL_MASK_NONE) == KRK_VAL_MASK_OBJECT)
-#define IS_KWARGS(value)    (((value) & KRK_VAL_MASK_NONE) == KRK_VAL_MASK_KWARGS)
-#define IS_NOTIMPL(value)   (((value) & KRK_VAL_MASK_NONE) == KRK_VAL_MASK_NOTIMPL)
+#define IS_INTEGER(value)   ((((value) >> 48L) & (KRK_VAL_MASK_HANDLER >> 48L)) == (KRK_VAL_MASK_BOOLEAN >> 48L))
+#define IS_BOOLEAN(value)   (((value) >> 48L) == (KRK_VAL_MASK_BOOLEAN >> 48L))
+#define IS_NONE(value)      (((value) >> 48L) == (KRK_VAL_MASK_NONE    >> 48L))
+#define IS_HANDLER(value)   (((value) >> 48L) == (KRK_VAL_MASK_HANDLER >> 48L))
+#define IS_OBJECT(value)    (((value) >> 48L) == (KRK_VAL_MASK_OBJECT  >> 48L))
+#define IS_KWARGS(value)    (((value) >> 48L) == (KRK_VAL_MASK_KWARGS  >> 48L))
+#define IS_NOTIMPL(value)   (((value) >> 48L) == (KRK_VAL_MASK_NOTIMPL >> 48L))
 /* ... and as we said above, if any of the MASK_NAN bits are unset, it's a float. */
 #define IS_FLOATING(value)  (((value) & KRK_VAL_MASK_NAN) != KRK_VAL_MASK_NAN)
 
