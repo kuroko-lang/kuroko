@@ -145,8 +145,10 @@ struct KrkInstance;
  */
 typedef struct {
 	KrkObj obj;                            /**< @protected @brief Base */
-	short requiredArgs;                    /**< @brief Arity of required (non-default) arguments */
-	short keywordArgs;                     /**< @brief Arity of keyword (default) arguments */
+	unsigned short requiredArgs;           /**< @brief Arity of required (non-default) arguments */
+	unsigned short keywordArgs;            /**< @brief Arity of keyword (default) arguments */
+	unsigned short potentialPositionals;
+	unsigned short totalArguments;
 	size_t upvalueCount;                   /**< @brief Number of upvalues this function collects as a closure */
 	KrkChunk chunk;                        /**< @brief Bytecode data */
 	KrkString * name;                      /**< @brief Name of the function */

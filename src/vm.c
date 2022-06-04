@@ -600,15 +600,15 @@ int krk_processComplexArguments(int argCount, KrkValueArray * positionals, KrkTa
  * `extra` is passed by `callValue` to tell us which case we have, and thus
  * where we need to restore the stack to when we return from this call.
  */
-static int call(KrkClosure * closure, int argCount, int returnDepth) {
-	size_t potentialPositionalArgs = closure->function->requiredArgs + closure->function->keywordArgs;
-	size_t totalArguments = closure->function->requiredArgs + closure->function->keywordArgs + !!(closure->function->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_ARGS) + !!(closure->function->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_KWS);
-	size_t offsetOfExtraArgs = closure->function->requiredArgs + closure->function->keywordArgs;
+static inline int _callManaged(KrkClosure * closure, int argCount, int returnDepth) {
+	size_t potentialPositionalArgs = closure->function->potentialPositionals;
+	size_t totalArguments = closure->function->totalArguments;
+	size_t offsetOfExtraArgs = potentialPositionalArgs;
 	size_t argCountX = argCount;
 	KrkValueArray * positionals;
 	KrkTable * keywords;
 
-	if (argCount && IS_KWARGS(krk_currentThread.stackTop[-1])) {
+	if (argCount && unlikely(IS_KWARGS(krk_currentThread.stackTop[-1]))) {
 
 		KrkValue myList = krk_list_of(0,NULL,0);
 		krk_currentThread.scratchSpace[0] = myList;
@@ -756,7 +756,7 @@ _finishKwarg:
 	frame->closure = closure;
 	frame->ip = closure->function->chunk.code;
 	frame->slots = (krk_currentThread.stackTop - argCount) - krk_currentThread.stack;
-	frame->outSlots = (krk_currentThread.stackTop - argCount - returnDepth) - krk_currentThread.stack;
+	frame->outSlots = frame->slots - returnDepth;
 	frame->globals = &closure->function->globalsContext->fields;
 	FRAME_IN(frame);
 	return 1;
@@ -787,8 +787,8 @@ inline KrkValue krk_callNativeOnStack(size_t argCount, const KrkValue *stackArgs
 
 	/* Mark the thread's stack as preserved. */
 	krk_currentThread.flags |= KRK_THREAD_DEFER_STACK_FREE;
-	void * stackBefore = krk_currentThread.stack;
 	size_t sizeBefore  = krk_currentThread.stackSize;
+	void * stackBefore = krk_currentThread.stack;
 	KrkValue result = native(argCount, stackArgs, hasKw);
 
 	if (unlikely(krk_currentThread.stack != stackBefore)) {
@@ -808,6 +808,37 @@ inline KrkValue krk_callNativeOnStack(size_t argCount, const KrkValue *stackArgs
 static void _rotate(size_t argCount) {
 	krk_push(NONE_VAL());
 	memmove(&krk_currentThread.stackTop[-argCount],&krk_currentThread.stackTop[-argCount-1],sizeof(KrkValue) * argCount);
+}
+
+static inline int _callNative(KrkNative* callee, int argCount, int returnDepth) {
+	NativeFn native = (NativeFn)callee->function;
+	if (unlikely(argCount && IS_KWARGS(krk_currentThread.stackTop[-1]))) {
+		KrkValue myList = krk_list_of(0,NULL,0);
+		krk_currentThread.scratchSpace[0] = myList;
+		KrkValue myDict = krk_dict_of(0,NULL,0);
+		krk_currentThread.scratchSpace[1] = myDict;
+		if (unlikely(!krk_processComplexArguments(argCount, AS_LIST(myList), AS_DICT(myDict), callee->name))) {
+			return 0;
+		}
+		argCount--; /* Because that popped the kwargs value */
+		krk_currentThread.stackTop -= argCount + returnDepth; /* We can just put the stack back to normal */
+		krk_push(myList);
+		krk_push(myDict);
+		krk_currentThread.scratchSpace[0] = NONE_VAL();
+		krk_currentThread.scratchSpace[1] = NONE_VAL();
+		krk_writeValueArray(AS_LIST(myList), myDict);
+		KrkValue result = native(AS_LIST(myList)->count-1, AS_LIST(myList)->values, 1);
+		if (unlikely(krk_currentThread.stackTop == krk_currentThread.stack)) return 0;
+		krk_pop();
+		krk_pop();
+		krk_push(result);
+	} else {
+		KrkValue result = krk_callNativeOnStack(argCount, krk_currentThread.stackTop - argCount, 0, native);
+		if (unlikely(krk_currentThread.stackTop == krk_currentThread.stack)) return 0;
+		krk_currentThread.stackTop -= argCount + returnDepth;
+		krk_push(result);
+	}
+	return 2;
 }
 
 /**
@@ -833,38 +864,8 @@ int krk_callValue(KrkValue callee, int argCount, int returnDepth) {
 	if (likely(IS_OBJECT(callee))) {
 		_innerObject:
 		switch (OBJECT_TYPE(callee)) {
-			case KRK_OBJ_CLOSURE:
-				return call(AS_CLOSURE(callee), argCount, returnDepth);
-			case KRK_OBJ_NATIVE: {
-				NativeFn native = (NativeFn)AS_NATIVE(callee)->function;
-				if (unlikely(argCount && IS_KWARGS(krk_currentThread.stackTop[-1]))) {
-					KrkValue myList = krk_list_of(0,NULL,0);
-					krk_currentThread.scratchSpace[0] = myList;
-					KrkValue myDict = krk_dict_of(0,NULL,0);
-					krk_currentThread.scratchSpace[1] = myDict;
-					if (unlikely(!krk_processComplexArguments(argCount, AS_LIST(myList), AS_DICT(myDict), AS_NATIVE(callee)->name))) {
-						return 0;
-					}
-					argCount--; /* Because that popped the kwargs value */
-					krk_currentThread.stackTop -= argCount + returnDepth; /* We can just put the stack back to normal */
-					krk_push(myList);
-					krk_push(myDict);
-					krk_currentThread.scratchSpace[0] = NONE_VAL();
-					krk_currentThread.scratchSpace[1] = NONE_VAL();
-					krk_writeValueArray(AS_LIST(myList), myDict);
-					KrkValue result = native(AS_LIST(myList)->count-1, AS_LIST(myList)->values, 1);
-					if (unlikely(krk_currentThread.stackTop == krk_currentThread.stack)) return 0;
-					krk_pop();
-					krk_pop();
-					krk_push(result);
-				} else {
-					KrkValue result = krk_callNativeOnStack(argCount, krk_currentThread.stackTop - argCount, 0, native);
-					if (unlikely(krk_currentThread.stackTop == krk_currentThread.stack)) return 0;
-					krk_currentThread.stackTop -= argCount + returnDepth;
-					krk_push(result);
-				}
-				return 2;
-			}
+			case KRK_OBJ_CLOSURE: return _callManaged(AS_CLOSURE(callee), argCount, returnDepth);
+			case KRK_OBJ_NATIVE: return _callNative(AS_NATIVE(callee), argCount, returnDepth);
 			case KRK_OBJ_INSTANCE: {
 				KrkClass * _class = AS_INSTANCE(callee)->_class;
 				if (likely(_class->_call != NULL)) {
@@ -931,14 +932,15 @@ KrkValue krk_callStack(int argCount) {
 }
 
 KrkValue krk_callDirect(KrkObj * callable, int argCount) {
-	if (unlikely(callable->type != KRK_OBJ_CLOSURE && callable->type != KRK_OBJ_NATIVE)) {
-		return krk_runtimeError(vm.exceptions->typeError, "'%s' is not a function.", krk_typeName(OBJECT_VAL(callable)));
+	int result = 0;
+	switch (callable->type) {
+		case KRK_OBJ_CLOSURE: result = _callManaged((KrkClosure*)callable, argCount, 0); break;
+		case KRK_OBJ_NATIVE: result = _callNative((KrkNative*)callable, argCount, 0); break;
+		default: __builtin_unreachable();
 	}
-	switch (krk_callValue(OBJECT_VAL(callable), argCount, 0)) {
-		case 2: return krk_pop();
-		case 1: return krk_runNext();
-		default: return NONE_VAL();
-	}
+	if (likely(result == 2)) return krk_pop();
+	else if (result == 1) return krk_runNext();
+	return NONE_VAL();
 }
 
 /**
