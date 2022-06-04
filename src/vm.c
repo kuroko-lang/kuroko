@@ -871,10 +871,9 @@ int krk_callValue(KrkValue callee, int argCount, int returnDepth) {
 				if (likely(_class->_call != NULL)) {
 					if (unlikely(returnDepth == 0)) _rotate(argCount);
 					krk_currentThread.stackTop[-argCount - 1] = callee;
-					callee = OBJECT_VAL(_class->_call);
 					argCount++;
 					returnDepth = returnDepth ? (returnDepth - 1) : 0;
-					goto _innerObject;
+					return (_class->_call->type == KRK_OBJ_CLOSURE) ? _callManaged((KrkClosure*)_class->_call, argCount, returnDepth) : _callNative((KrkNative*)_class->_call, argCount, returnDepth);
 				} else {
 					krk_runtimeError(vm.exceptions->typeError, "'%s' object is not callable", krk_typeName(callee));
 					return 0;
