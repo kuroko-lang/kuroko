@@ -478,16 +478,29 @@ KRK_METHOD(listiterator,__init__,{
 	return argv[0];
 })
 
-KRK_METHOD(listiterator,__call__,{
+FUNC_SIG(listiterator,__call__) {
+	static __attribute__ ((unused)) const char* _method_name = "__call__";
+	if (unlikely((argc != 1))) goto _bad;
+	if (unlikely(!IS_OBJECT(argv[0]))) goto _bad;
+	if (unlikely(AS_INSTANCE(argv[0])->_class != vm.baseClasses->listiteratorClass)) goto _bad;
+
+_maybeGood: (void)0;
+	struct  ListIterator * self = (struct ListIterator *)AS_OBJECT(argv[0]);
+
 	KrkValue _list = self->l;
 	size_t _counter = self->i;
-	if (_counter >= AS_LIST(_list)->count) {
+	if (unlikely(_counter >= AS_LIST(_list)->count)) {
 		return argv[0];
 	} else {
 		self->i = _counter + 1;
 		return AS_LIST(_list)->values[_counter];
 	}
-})
+
+_bad:
+	if (argc != 1) return NOT_ENOUGH_ARGS(name);
+	if (!krk_isInstanceOf(argv[0], vm.baseClasses->listiteratorClass)) return TYPE_ERROR(listiterator, argv[0]);
+	goto _maybeGood;
+}
 
 static KrkValue _sorted(int argc, const KrkValue argv[], int hasKw) {
 	if (argc != 1) return krk_runtimeError(vm.exceptions->argumentError,"%s() takes %s %d argument%s (%d given)","sorted","exactly",1,"",argc);

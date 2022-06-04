@@ -4,14 +4,7 @@
 #include <kuroko/memory.h>
 #include <kuroko/util.h>
 
-#undef IS_int
-#undef IS_bool
-#undef IS_float
 #undef bool
-
-#define IS_int(o) (IS_INTEGER(o) || krk_isInstanceOf(o,vm.baseClasses->intClass))
-#define IS_bool(o) (IS_BOOLEAN(o) || krk_isInstanceOf(o,vm.baseClasses->boolClass))
-#define IS_float(o) (IS_FLOATING(o) || krk_isInstanceOf(o,vm.baseClasses->floatClass))
 
 #define IS_NoneType(o) (IS_NONE(o))
 #define AS_NoneType(o) ((char)0)
@@ -19,7 +12,8 @@
 #define CURRENT_CTYPE krk_integer_type
 #define CURRENT_NAME  self
 
-KRK_METHOD(int,__init__,{
+FUNC_SIG(int,__init__) {
+	static __attribute__ ((unused)) const char* _method_name = "__init__";
 	METHOD_TAKES_AT_MOST(1);
 	if (argc < 2) return INTEGER_VAL(0);
 	if (IS_BOOLEAN(argv[1])) return INTEGER_VAL(AS_INTEGER(argv[1]));
@@ -28,7 +22,7 @@ KRK_METHOD(int,__init__,{
 	if (IS_FLOATING(argv[1])) return INTEGER_VAL(AS_FLOATING(argv[1]));
 	if (IS_BOOLEAN(argv[1])) return INTEGER_VAL(AS_BOOLEAN(argv[1]));
 	return krk_runtimeError(vm.exceptions->typeError, "%s() argument must be a string or a number, not '%s'", "int", krk_typeName(argv[1]));
-})
+}
 
 KRK_METHOD(int,__str__,{
 	char tmp[100];
@@ -47,7 +41,7 @@ KRK_METHOD(int,__chr__,{
 
 KRK_METHOD(int,__eq__,{
 	METHOD_TAKES_EXACTLY(1);
-	if (IS_INTEGER(argv[1])) return self == AS_INTEGER(argv[1]);
+	if (likely(IS_INTEGER(argv[1]))) return self == AS_INTEGER(argv[1]);
 	else if (IS_FLOATING(argv[1])) return self == AS_FLOATING(argv[1]);
 	return NOTIMPL_VAL();
 })
@@ -56,10 +50,125 @@ KRK_METHOD(int,__hash__,{
 	return INTEGER_VAL((uint32_t)AS_INTEGER(argv[0]));
 })
 
+#define BASIC_BIN_OP(name,operator) \
+	KRK_METHOD(int,__ ## name ## __,{ \
+		if (likely(IS_INTEGER(argv[1]))) return INTEGER_VAL(self operator AS_INTEGER(argv[1])); \
+		else if (likely(IS_FLOATING(argv[1]))) return FLOATING_VAL((double)self operator AS_FLOATING(argv[1])); \
+		return NOTIMPL_VAL(); \
+	}) \
+	KRK_METHOD(int,__r ## name ## __,{ \
+		if (likely(IS_INTEGER(argv[1]))) return INTEGER_VAL(AS_INTEGER(argv[1]) operator self); \
+		else if (likely(IS_FLOATING(argv[1]))) return FLOATING_VAL(AS_FLOATING(argv[1]) operator (double)self); \
+		return NOTIMPL_VAL(); \
+	})
+
+#define INT_ONLY_BIN_OP(name,operator) \
+	KRK_METHOD(int,__ ## name ## __,{ \
+		if (likely(IS_INTEGER(argv[1]))) return INTEGER_VAL(self operator AS_INTEGER(argv[1])); \
+		return NOTIMPL_VAL(); \
+	}) \
+	KRK_METHOD(int,__r ## name ## __,{ \
+		if (likely(IS_INTEGER(argv[1]))) return INTEGER_VAL(AS_INTEGER(argv[1]) operator self); \
+		return NOTIMPL_VAL(); \
+	})
+
+#define COMPARE_OP(name,operator) \
+	KRK_METHOD(int,__ ## name ## __,{ \
+		if (likely(IS_INTEGER(argv[1]))) return BOOLEAN_VAL(self operator AS_INTEGER(argv[1])); \
+		else if (likely(IS_FLOATING(argv[1]))) return BOOLEAN_VAL((double)self operator AS_FLOATING(argv[1])); \
+		return NOTIMPL_VAL(); \
+	})
+
+BASIC_BIN_OP(add,+)
+BASIC_BIN_OP(sub,-)
+BASIC_BIN_OP(mul,*)
+INT_ONLY_BIN_OP(or,|)
+INT_ONLY_BIN_OP(xor,^)
+INT_ONLY_BIN_OP(and,&)
+INT_ONLY_BIN_OP(lshift,<<)
+INT_ONLY_BIN_OP(rshift,>>)
+
+KRK_METHOD(int,__mod__,{
+	METHOD_TAKES_EXACTLY(1);
+	if (likely(IS_INTEGER(argv[1]))) {
+		if (unlikely(AS_INTEGER(argv[1]) == 0)) return krk_runtimeError(vm.exceptions->zeroDivisionError, "integer modulo by zero");
+		return INTEGER_VAL(self % AS_INTEGER(argv[1]));
+	}
+	return NOTIMPL_VAL();
+})
+
+KRK_METHOD(int,__rmod__,{
+	METHOD_TAKES_EXACTLY(1);
+	if (unlikely(self == 0)) return krk_runtimeError(vm.exceptions->zeroDivisionError, "integer modulo by zero");
+	if (likely(IS_INTEGER(argv[1]))) {
+		return INTEGER_VAL(AS_INTEGER(argv[1]) % self);
+	}
+	return NOTIMPL_VAL();
+})
+
+COMPARE_OP(lt, <)
+COMPARE_OP(gt, >)
+COMPARE_OP(le, <=)
+COMPARE_OP(ge, >=)
+
+#undef BASIC_BIN_OP
+#undef INT_ONLY_BIN_OP
+#undef COMPARE_OP
+
+KRK_METHOD(int,__truediv__,{
+	METHOD_TAKES_EXACTLY(1);
+	if (likely(IS_INTEGER(argv[1]))) {
+		krk_integer_type b = AS_INTEGER(argv[1]);
+		if (unlikely(b == 0)) return krk_runtimeError(vm.exceptions->zeroDivisionError, "integer division by zero");
+		return FLOATING_VAL((double)self / (double)b);
+	} else if (likely(IS_FLOATING(argv[1]))) {
+		double b = AS_FLOATING(argv[1]);
+		if (unlikely(b == 0.0)) return krk_runtimeError(vm.exceptions->zeroDivisionError, "float division by zero");
+		return FLOATING_VAL((double)self / b);
+	}
+	return NOTIMPL_VAL();
+})
+
+KRK_METHOD(int,__rtruediv__,{
+	METHOD_TAKES_EXACTLY(1);
+	if (unlikely(self == 0)) return krk_runtimeError(vm.exceptions->zeroDivisionError, "integer division by zero");
+	else if (likely(IS_INTEGER(argv[1]))) return FLOATING_VAL((double)AS_INTEGER(argv[1]) / (double)self);
+	else if (likely(IS_FLOATING(argv[1]))) return FLOATING_VAL(AS_FLOATING(argv[1]) / (double)self);
+	return NOTIMPL_VAL();
+})
+
+#ifdef __TINYC__
+#include <math.h>
+#define __builtin_floor floor
+#endif
+
+KRK_METHOD(int,__floordiv__,{
+	METHOD_TAKES_EXACTLY(1);
+	if (likely(IS_INTEGER(argv[1]))) {
+		krk_integer_type b = AS_INTEGER(argv[1]);
+		if (unlikely(b == 0)) return krk_runtimeError(vm.exceptions->zeroDivisionError, "integer division by zero");
+		return INTEGER_VAL(self / b);
+	} else if (likely(IS_FLOATING(argv[1]))) {
+		double b = AS_FLOATING(argv[1]);
+		if (unlikely(b == 0.0)) return krk_runtimeError(vm.exceptions->zeroDivisionError, "float division by zero");
+		return FLOATING_VAL(__builtin_floor((double)self / b));
+	}
+	return NOTIMPL_VAL();
+})
+
+KRK_METHOD(int,__rfloordiv__,{
+	METHOD_TAKES_EXACTLY(1);
+	if (unlikely(self == 0)) return krk_runtimeError(vm.exceptions->zeroDivisionError, "integer division by zero");
+	else if (likely(IS_INTEGER(argv[1]))) return INTEGER_VAL(AS_INTEGER(argv[1]) / self);
+	else if (likely(IS_FLOATING(argv[1]))) return FLOATING_VAL(__builtin_floor(AS_FLOATING(argv[1]) / (double)self));
+	return NOTIMPL_VAL();
+})
+
 #undef CURRENT_CTYPE
 #define CURRENT_CTYPE double
 
-KRK_METHOD(float,__init__,{
+FUNC_SIG(float,__init__) {
+	static __attribute__ ((unused)) const char* _method_name = "__init__";
 	METHOD_TAKES_AT_MOST(1);
 	if (argc < 2) return FLOATING_VAL(0.0);
 	if (IS_STRING(argv[1])) return krk_string_float(1,&argv[1],0);
@@ -67,7 +176,7 @@ KRK_METHOD(float,__init__,{
 	if (IS_INTEGER(argv[1])) return FLOATING_VAL(AS_INTEGER(argv[1]));
 	if (IS_BOOLEAN(argv[1])) return FLOATING_VAL(AS_BOOLEAN(argv[1]));
 	return krk_runtimeError(vm.exceptions->typeError, "%s() argument must be a string or a number, not '%s'", "float", krk_typeName(argv[1]));
-})
+}
 
 KRK_METHOD(float,__int__,{ return INTEGER_VAL(self); })
 KRK_METHOD(float,__float__,{ return argv[0]; })
@@ -100,14 +209,92 @@ KRK_METHOD(float,__hash__,{
 	return INTEGER_VAL((uint32_t)self);
 })
 
+#define BASIC_BIN_OP(name,operator) \
+	KRK_METHOD(float,__ ## name ## __,{ \
+		METHOD_TAKES_EXACTLY(1); \
+		if (likely(IS_FLOATING(argv[1]))) return FLOATING_VAL(self operator AS_FLOATING(argv[1])); \
+		else if (likely(IS_INTEGER(argv[1]))) return FLOATING_VAL(self operator (double)AS_INTEGER(argv[1])); \
+		return NOTIMPL_VAL(); \
+	}) \
+	KRK_METHOD(float,__r ## name ## __,{ \
+		METHOD_TAKES_EXACTLY(1); \
+		if (likely(IS_FLOATING(argv[1]))) return FLOATING_VAL(AS_FLOATING(argv[1]) operator self); \
+		else if (likely(IS_INTEGER(argv[1]))) return FLOATING_VAL((double)AS_INTEGER(argv[1]) operator self); \
+		return NOTIMPL_VAL(); \
+	})
+
+#define COMPARE_OP(name,operator) \
+	KRK_METHOD(float,__ ## name ## __,{ \
+		METHOD_TAKES_EXACTLY(1); \
+		if (likely(IS_FLOATING(argv[1]))) return BOOLEAN_VAL(self operator AS_FLOATING(argv[1])); \
+		else if (likely(IS_INTEGER(argv[1]))) return BOOLEAN_VAL(self operator (double)AS_INTEGER(argv[1])); \
+		return NOTIMPL_VAL(); \
+	})
+
+BASIC_BIN_OP(add,+)
+BASIC_BIN_OP(sub,-)
+BASIC_BIN_OP(mul,*)
+COMPARE_OP(lt, <)
+COMPARE_OP(gt, >)
+COMPARE_OP(le, <=)
+COMPARE_OP(ge, >=)
+
+#undef BASIC_BIN_OP
+#undef COMPARE_OP
+
+KRK_METHOD(float,__truediv__,{
+	METHOD_TAKES_EXACTLY(1);
+	if (likely(IS_FLOATING(argv[1]))) {
+		double b = AS_FLOATING(argv[1]);
+		if (unlikely(b == 0.0)) return krk_runtimeError(vm.exceptions->zeroDivisionError, "float division by zero");
+		return FLOATING_VAL(self / b);
+	} else if (likely(IS_INTEGER(argv[1]))) {
+		krk_integer_type b = AS_INTEGER(argv[1]);
+		if (unlikely(b == 0)) return krk_runtimeError(vm.exceptions->zeroDivisionError, "integer division by zero");
+		return FLOATING_VAL(self / (double)b);
+	}
+	return NOTIMPL_VAL();
+})
+
+KRK_METHOD(float,__rtruediv__,{
+	METHOD_TAKES_EXACTLY(1);
+	if (unlikely(self == 0.0)) return krk_runtimeError(vm.exceptions->zeroDivisionError, "float division by zero");
+	else if (likely(IS_FLOATING(argv[1]))) return FLOATING_VAL(AS_FLOATING(argv[1]) / self);
+	else if (likely(IS_INTEGER(argv[1]))) return FLOATING_VAL((double)AS_INTEGER(argv[1]) / self);
+	return NOTIMPL_VAL();
+})
+
+KRK_METHOD(float,__floordiv__,{
+	METHOD_TAKES_EXACTLY(1);
+	if (likely(IS_INTEGER(argv[1]))) {
+		krk_integer_type b = AS_INTEGER(argv[1]);
+		if (unlikely(b == 0)) return krk_runtimeError(vm.exceptions->zeroDivisionError, "integer division by zero");
+		return FLOATING_VAL(__builtin_floor(self / (double)b));
+	} else if (IS_FLOATING(argv[1])) {
+		double b = AS_FLOATING(argv[1]);
+		if (unlikely(b == 0.0)) return krk_runtimeError(vm.exceptions->zeroDivisionError, "float division by zero");
+		return FLOATING_VAL(__builtin_floor(self / b));
+	}
+	return NOTIMPL_VAL();
+})
+
+KRK_METHOD(float,__rfloordiv__,{
+	METHOD_TAKES_EXACTLY(1);
+	if (unlikely(self == 0.0)) return krk_runtimeError(vm.exceptions->zeroDivisionError, "float division by zero");
+	else if (likely(IS_INTEGER(argv[1]))) return FLOATING_VAL((double)AS_INTEGER(argv[1]) / self);
+	else if (IS_FLOATING(argv[1])) return FLOATING_VAL(__builtin_floor(AS_FLOATING(argv[1]) / self));
+	return NOTIMPL_VAL();
+})
+
 #undef CURRENT_CTYPE
 #define CURRENT_CTYPE krk_integer_type
 
-KRK_METHOD(bool,__init__,{
+FUNC_SIG(bool,__init__) {
+	static __attribute__ ((unused)) const char* _method_name = "__init__";
 	METHOD_TAKES_AT_MOST(1);
 	if (argc < 2) return BOOLEAN_VAL(0);
 	return BOOLEAN_VAL(!krk_isFalsey(argv[1]));
-})
+}
 
 KRK_METHOD(bool,__str__,{
 	return OBJECT_VAL((self ? S("True") : S("False")));
@@ -144,6 +331,29 @@ void _createAndBind_numericClasses(void) {
 	BIND_METHOD(int,__float__);
 	BIND_METHOD(int,__eq__);
 	BIND_METHOD(int,__hash__);
+
+#define BIND_TRIPLET(name) \
+	BIND_METHOD(int,__ ## name ## __); \
+	BIND_METHOD(int,__r ## name ## __); \
+	krk_defineNative(&_int->methods,"__i" #name "__",_int___ ## name ## __);
+	BIND_TRIPLET(add);
+	BIND_TRIPLET(sub);
+	BIND_TRIPLET(mul);
+	BIND_TRIPLET(or);
+	BIND_TRIPLET(xor);
+	BIND_TRIPLET(and);
+	BIND_TRIPLET(lshift);
+	BIND_TRIPLET(rshift);
+	BIND_TRIPLET(mod);
+	BIND_TRIPLET(truediv);
+	BIND_TRIPLET(floordiv);
+#undef BIND_TRIPLET
+
+	BIND_METHOD(int,__lt__);
+	BIND_METHOD(int,__gt__);
+	BIND_METHOD(int,__le__);
+	BIND_METHOD(int,__ge__);
+
 	krk_defineNative(&_int->methods, "__repr__", FUNC_NAME(int,__str__));
 	krk_finalizeClass(_int);
 	KRK_DOC(_int, "Convert a number or string type to an integer representation.");
@@ -156,6 +366,20 @@ void _createAndBind_numericClasses(void) {
 	BIND_METHOD(float,__str__);
 	BIND_METHOD(float,__eq__);
 	BIND_METHOD(float,__hash__);
+#define BIND_TRIPLET(name) \
+	BIND_METHOD(float,__ ## name ## __); \
+	BIND_METHOD(float,__r ## name ## __); \
+	krk_defineNative(&_float->methods,"__i" #name "__",_float___ ## name ## __);
+	BIND_TRIPLET(add);
+	BIND_TRIPLET(sub);
+	BIND_TRIPLET(mul);
+	BIND_TRIPLET(truediv);
+	BIND_TRIPLET(floordiv);
+#undef BIND_TRIPLET
+	BIND_METHOD(float,__lt__);
+	BIND_METHOD(float,__gt__);
+	BIND_METHOD(float,__le__);
+	BIND_METHOD(float,__ge__);
 	krk_defineNative(&_float->methods, "__repr__", FUNC_NAME(float,__str__));
 	krk_finalizeClass(_float);
 	KRK_DOC(_float, "Convert a number or string type to a float representation.");

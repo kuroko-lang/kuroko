@@ -17,6 +17,30 @@ CACHED_METHOD(DESCGET,       "__get__",           _descget)
 CACHED_METHOD(DESCSET,       "__set__",           _descset)
 CACHED_METHOD(CLASSGETITEM,  "__class_getitem__", _classgetitem)
 CACHED_METHOD(HASH,          "__hash__",          _hash)
+
+#define BINOPTRIO(name) \
+    CACHED_METHOD(name, "__" #name "__", _ ## name) \
+    CACHED_METHOD(R ## name, "__r" #name "__", _r ## name) \
+    CACHED_METHOD(I ## name, "__i" #name "__", _i ## name)
+
+BINOPTRIO(add)
+BINOPTRIO(sub)
+BINOPTRIO(mul)
+BINOPTRIO(pow)
+BINOPTRIO(or)
+BINOPTRIO(xor)
+BINOPTRIO(and)
+BINOPTRIO(mod)
+BINOPTRIO(lshift)
+BINOPTRIO(rshift)
+BINOPTRIO(floordiv)
+BINOPTRIO(truediv)
+
+CACHED_METHOD(LT, "__lt__", _lt)
+CACHED_METHOD(GT, "__gt__", _gt)
+CACHED_METHOD(LE, "__le__", _le)
+CACHED_METHOD(GE, "__ge__", _ge)
+
 /* These are not methods */
 SPECIAL_ATTRS(CLASS,     "__class__")
 SPECIAL_ATTRS(NAME,      "__name__")

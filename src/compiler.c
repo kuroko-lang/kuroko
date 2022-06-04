@@ -870,21 +870,21 @@ static void assignmentValue(void) {
 	}
 
 	switch (type) {
-		case TOKEN_PIPE_EQUAL:      emitByte(OP_BITOR); break;
-		case TOKEN_CARET_EQUAL:     emitByte(OP_BITXOR); break;
-		case TOKEN_AMP_EQUAL:       emitByte(OP_BITAND); break;
-		case TOKEN_LSHIFT_EQUAL:    emitByte(OP_SHIFTLEFT); break;
-		case TOKEN_RSHIFT_EQUAL:    emitByte(OP_SHIFTRIGHT); break;
+		case TOKEN_PIPE_EQUAL:      emitByte(OP_INPLACE_BITOR); break;
+		case TOKEN_CARET_EQUAL:     emitByte(OP_INPLACE_BITXOR); break;
+		case TOKEN_AMP_EQUAL:       emitByte(OP_INPLACE_BITAND); break;
+		case TOKEN_LSHIFT_EQUAL:    emitByte(OP_INPLACE_SHIFTLEFT); break;
+		case TOKEN_RSHIFT_EQUAL:    emitByte(OP_INPLACE_SHIFTRIGHT); break;
 
-		case TOKEN_PLUS_EQUAL:      emitByte(OP_ADD); break;
-		case TOKEN_PLUS_PLUS:       emitByte(OP_ADD); break;
-		case TOKEN_MINUS_EQUAL:     emitByte(OP_SUBTRACT); break;
-		case TOKEN_MINUS_MINUS:     emitByte(OP_SUBTRACT); break;
-		case TOKEN_ASTERISK_EQUAL:  emitByte(OP_MULTIPLY); break;
-		case TOKEN_POW_EQUAL:       emitByte(OP_POW); break;
-		case TOKEN_SOLIDUS_EQUAL:   emitByte(OP_DIVIDE); break;
-		case TOKEN_DSOLIDUS_EQUAL:  emitByte(OP_FLOORDIV); break;
-		case TOKEN_MODULO_EQUAL:    emitByte(OP_MODULO); break;
+		case TOKEN_PLUS_EQUAL:      emitByte(OP_INPLACE_ADD); break;
+		case TOKEN_PLUS_PLUS:       emitByte(OP_INPLACE_ADD); break;
+		case TOKEN_MINUS_EQUAL:     emitByte(OP_INPLACE_SUBTRACT); break;
+		case TOKEN_MINUS_MINUS:     emitByte(OP_INPLACE_SUBTRACT); break;
+		case TOKEN_ASTERISK_EQUAL:  emitByte(OP_INPLACE_MULTIPLY); break;
+		case TOKEN_POW_EQUAL:       emitByte(OP_INPLACE_POW); break;
+		case TOKEN_SOLIDUS_EQUAL:   emitByte(OP_INPLACE_DIVIDE); break;
+		case TOKEN_DSOLIDUS_EQUAL:  emitByte(OP_INPLACE_FLOORDIV); break;
+		case TOKEN_MODULO_EQUAL:    emitByte(OP_INPLACE_MODULO); break;
 
 		default:
 			error("Unexpected operand in assignment");

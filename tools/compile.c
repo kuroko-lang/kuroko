@@ -546,6 +546,9 @@ static int readFile(char * fileName) {
 		self->globalsContext = krk_currentThread.module;
 		self->upvalueCount = function.upvalues;
 
+		self->potentialPositionals = self->requiredArgs + self->keywordArgs;
+		self->totalArguments = self->potentialPositionals + !!(self->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_ARGS) + !!(self->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_KWS);
+
 		/* Read argument names */
 		DEBUGOUT("  [Required Arguments]\n");
 		for (size_t i = 0; i < (size_t)function.reqArgs + !!(self->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_ARGS); i++) {

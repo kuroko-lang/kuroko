@@ -109,6 +109,18 @@ MATH_TWO(remainder)
 MATH_TWO(pow)
 MATH_TWO(atan2)
 
+static KrkValue _float_pow(int argc, const KrkValue argv[], int hasKw) {
+	TWO_ARGUMENTS(__pow__);
+	if (unlikely(!IS_FLOATING(argv[0]))) return krk_runtimeError(vm.exceptions->typeError, "expected float");
+	if (likely(IS_FLOATING(argv[1]))) {
+		return FLOATING_VAL(pow(AS_FLOATING(argv[0]),AS_FLOATING(argv[1])));
+	} else if (likely(IS_INTEGER(argv[1]))) {
+		return FLOATING_VAL(pow(AS_FLOATING(argv[0]),(double)AS_INTEGER(argv[1])));
+	}
+	return NOTIMPL_VAL();
+}
+
+
 static KrkValue _math_frexp(int argc, const KrkValue argv[], int hasKw) {
 	ONE_ARGUMENT(frexp)
 	FORCE_FLOAT(argv[0],arg_0)
@@ -255,7 +267,8 @@ KrkValue krk_module_onload_math(void) {
 	 * to have to depend on -lm in the main interpreter, so instead if we have
 	 * imported math, we'll just quietly give floats a __pow__ method...
 	 */
-	krk_defineNative(&vm.baseClasses->floatClass->methods, "__pow__", _math_pow);
+	krk_defineNative(&vm.baseClasses->floatClass->methods, "__pow__", _float_pow);
+	krk_finalizeClass(vm.baseClasses->floatClass);
 
 	krk_attachNamedValue(&module->fields, "pi",  FLOATING_VAL(M_PI));
 	krk_attachNamedValue(&module->fields, "e",   FLOATING_VAL(M_E));

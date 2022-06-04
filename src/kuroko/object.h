@@ -218,6 +218,21 @@ typedef struct KrkClass {
 	KrkObj * _descset;        /**< @brief @c %__set__      Called when a descriptor object is assigned to as a property */
 	KrkObj * _classgetitem;   /**< @brief @c %__class_getitem__ Class method called when a type object is subscripted; used for type hints */
 	KrkObj * _hash;           /**< @brief @c %__hash__     Called when an instance is a key in a dict or an entry in a set */
+
+	KrkObj * _add, * _radd, * _iadd;
+	KrkObj * _sub, * _rsub, * _isub;
+	KrkObj * _mul, * _rmul, * _imul;
+	KrkObj * _or,  * _ror,  * _ior;
+	KrkObj * _xor, * _rxor, * _ixor;
+	KrkObj * _and, * _rand, * _iand;
+	KrkObj * _mod, * _rmod, * _imod;
+	KrkObj * _pow, * _rpow, * _ipow;
+	KrkObj * _lshift, * _rlshift, * _ilshift;
+	KrkObj * _rshift, * _rrshift, * _irshift;
+	KrkObj * _truediv, * _rtruediv, * _itruediv;
+	KrkObj * _floordiv, * _rfloordiv, * _ifloordiv;
+
+	KrkObj * _lt, * _gt, * _le, * _ge;
 } KrkClass;
 
 /**
