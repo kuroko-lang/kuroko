@@ -1,11 +1,10 @@
 from fasttimer import timeit
 
-l = []
-add = l.append
-pop = l.pop
+if True:
+    l = []
 
-def func():
-    add(1)
-    pop()
+    def func():
+        l.append(1)
+        l.pop()
 
-print(min(timeit(func,number=100000) for x in range(10)), "list append")
+    print(min(timeit(func,number=100000) for x in range(10)), "list append")
