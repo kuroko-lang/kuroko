@@ -29,6 +29,10 @@ fasttimer_timeit(PyObject * self, PyObject * args, PyObject* kwargs)
 	for (int t = 0; t < times; ++t) {
 		/* Call it here */
 		PyObject_CallObject(callable, NULL);
+		if (PyErr_Occurred()) {
+			Py_XDECREF(callable);
+			return NULL;
+		}
 	}
 	gettimeofday(&tv_after,NULL);
 	Py_XDECREF(callable);
