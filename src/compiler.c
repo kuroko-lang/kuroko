@@ -221,7 +221,11 @@ typedef struct Compiler {
 	size_t annotationCount;            /**< Number of type annotations found while compiling function signature. */
 
 	int delSatisfied;                  /**< Flag indicating if a 'del' target has been completed. */
+
+	size_t optionsFlags;               /**< Special __options__ imports; similar to __future__ in Python */
 } Compiler;
+
+#define OPTIONS_FLAG_COMPILE_TIME_BUILTINS    (1 << 0)
 
 /**
  * @brief Class compilation context.
@@ -346,6 +350,7 @@ static void initCompiler(Compiler * compiler, FunctionType type) {
 	compiler->properties = NULL;
 	compiler->annotationCount = 0;
 	compiler->delSatisfied = 0;
+	compiler->optionsFlags = compiler->enclosing ? compiler->enclosing->optionsFlags : 0;
 
 	if (type != TYPE_MODULE) {
 		current->codeobject->name = krk_copyString(parser.previous.start, parser.previous.length);
@@ -661,6 +666,15 @@ static ssize_t parseVariable(const char * errorMessage) {
 
 	declareVariable();
 	if (current->scopeDepth > 0) return 0;
+
+	if ((current->optionsFlags & OPTIONS_FLAG_COMPILE_TIME_BUILTINS) && *parser.previous.start != '_') {
+		KrkValue value;
+		if (krk_tableGet_fast(&vm.builtins->fields, krk_copyString(parser.previous.start, parser.previous.length), &value)) {
+			error("Conflicting declaration of global '%.*s' is invalid when 'compile_time_builtins' is enabled.",
+				(int)parser.previous.length, parser.previous.start);
+			return 0;
+		}
+	}
 
 	return identifierConstant(&parser.previous);
 }
@@ -2260,10 +2274,55 @@ static void importStatement(void) {
 	} while (match(TOKEN_COMMA));
 }
 
+static void optionsImport(void) {
+	int expectCloseParen = 0;
+
+	KrkToken compile_time_builtins = syntheticToken("compile_time_builtins");
+
+	advance();
+	consume(TOKEN_IMPORT, "__options__ is not a package\n");
+
+	if (match(TOKEN_LEFT_PAREN)) {
+		expectCloseParen = 1;
+		startEatingWhitespace();
+	}
+
+	do {
+		consume(TOKEN_IDENTIFIER, "Expected member name");
+
+		/* Okay, what is it? */
+		if (identifiersEqual(&parser.previous, &compile_time_builtins)) {
+			current->optionsFlags |= OPTIONS_FLAG_COMPILE_TIME_BUILTINS;
+		} else {
+			error("'%.*s' is not a recognized __options__ import",
+				(int)parser.previous.length, parser.previous.start);
+			break;
+		}
+
+		if (check(TOKEN_AS)) {
+			errorAtCurrent("__options__ imports can not be given names");
+			break;
+		}
+
+	} while (match(TOKEN_COMMA) && !check(TOKEN_RIGHT_PAREN));
+
+	if (expectCloseParen) {
+		stopEatingWhitespace();
+		consume(TOKEN_RIGHT_PAREN, "Expected ')' after import list started with '('");
+	}
+}
+
 static void fromImportStatement(void) {
 	int expectCloseParen = 0;
 	KrkToken startOfName = {0};
 	int leadingDots = 0;
+
+	KrkToken options = syntheticToken("__options__");
+	if (check(TOKEN_IDENTIFIER) && identifiersEqual(&parser.current, &options)) {
+		/* from __options__ import ... */
+		optionsImport();
+		return;
+	}
 
 	while (match(TOKEN_DOT)) {
 		leadingDots++;
@@ -2769,6 +2828,23 @@ static void namedVariable(KrkToken name, int exprType) {
 	} else if ((arg = resolveUpvalue(current, &name)) != -1) {
 		DO_VARIABLE(OP_SET_UPVALUE, OP_GET_UPVALUE, OP_NONE);
 	} else {
+		if ((current->optionsFlags & OPTIONS_FLAG_COMPILE_TIME_BUILTINS) && *name.start != '_') {
+			KrkValue value;
+			if (krk_tableGet_fast(&vm.builtins->fields, krk_copyString(name.start, name.length), &value)) {
+				if ((exprType == EXPR_ASSIGN_TARGET && matchComplexEnd()) ||
+					(exprType == EXPR_CAN_ASSIGN && match(TOKEN_EQUAL)) ||
+					(exprType == EXPR_CAN_ASSIGN && matchAssignment())) {
+					error("Can not assign to '%.*s' when 'compile_time_builtins' is enabled.",
+						(int)name.length, name.start);
+				} else if (exprType == EXPR_DEL_TARGET && checkEndOfDel()) {
+					error("Can not delete '%.*s' when 'compile_time_builtins' is enabled.",
+						(int)name.length, name.start);
+				} else {
+					emitConstant(value);
+				}
+				return;
+			}
+		}
 		arg = identifierConstant(&name);
 		DO_VARIABLE(OP_SET_GLOBAL, OP_GET_GLOBAL, OP_DEL_GLOBAL);
 	}

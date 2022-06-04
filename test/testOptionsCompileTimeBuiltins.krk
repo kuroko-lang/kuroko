@@ -1,0 +1,5 @@
+from __options__ import compile_time_builtins
+
+print('hello world')
+
+print(sum(abs(x) for x in range(-4,4)))
