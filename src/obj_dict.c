@@ -226,6 +226,13 @@ KRK_METHOD(dict,update,{
 	}
 })
 
+KRK_METHOD(dict,__ior__,{
+	METHOD_TAKES_EXACTLY(1);
+	CHECK_ARG(1,dict,KrkDict*,other);
+	krk_tableAddAll(&other->entries, &self->entries);
+	return argv[0];
+})
+
 FUNC_SIG(dictkeys,__init__);
 
 KRK_METHOD(dict,keys,{
@@ -499,6 +506,7 @@ void _createAndBind_dictClass(void) {
 	BIND_METHOD(dict,__delitem__);
 	BIND_METHOD(dict,__len__);
 	BIND_METHOD(dict,__contains__);
+	BIND_METHOD(dict,__ior__);
 	BIND_METHOD(dict,keys);
 	BIND_METHOD(dict,items);
 	BIND_METHOD(dict,values);
