@@ -474,9 +474,110 @@ strCompare(__lt__,<,>,<)
 strCompare(__ge__,>,<,>=)
 strCompare(__le__,<,>,<=)
 
-/** TODO but throw a more descriptive error for now */
 KRK_METHOD(str,__mod__,{
-	return krk_runtimeError(vm.exceptions->notImplementedError, "%%-formatting for strings is not yet available");
+	METHOD_TAKES_EXACTLY(1);
+
+	KrkTuple * myTuple;
+
+	if (IS_TUPLE(argv[1])) {
+		myTuple = AS_TUPLE(argv[1]);
+		krk_push(argv[1]);
+	} else {
+		myTuple = krk_newTuple(1);
+		krk_push(OBJECT_VAL(myTuple));
+		myTuple->values.values[myTuple->values.count++] = argv[1];
+	}
+
+	struct StringBuilder sb = {0};
+	size_t ti = 0;
+
+	for (size_t i = 0; i < self->length; ++i) {
+		if (self->chars[i] == '%') {
+			int backwards = 0;
+			size_t width = 0;
+			i++;
+
+			if (self->chars[i] == '%') {
+				pushStringBuilder(&sb, self->chars[i]);
+				continue;
+			}
+
+			if (self->chars[i] == '-') { backwards = 1; i++; }
+
+			while (self->chars[i] >= '0' && self->chars[i] <= '9') {
+				width = width * 10 + (self->chars[i] - '0');
+				i++;
+			}
+
+			if (self->chars[i] == 'i') {
+				if (ti >= myTuple->values.count) goto _notEnough;
+				KrkValue arg = myTuple->values.values[ti++];
+
+				if (IS_INTEGER(arg)) {
+					krk_push(INTEGER_VAL(AS_INTEGER(arg)));
+				} else if (IS_FLOATING(arg)) {
+					krk_push(INTEGER_VAL(AS_FLOATING(arg)));
+				} else {
+					krk_runtimeError(vm.exceptions->typeError, "%%i format: a number is required, not %s",
+						krk_typeName(arg));
+					goto _exception;
+				}
+				krk_push(krk_callDirect(krk_getType(arg)->_tostr, 1));
+				goto _doit;
+			} else if (self->chars[i] == 's') {
+				if (ti >= myTuple->values.count) goto _notEnough;
+				KrkValue arg = myTuple->values.values[ti++];
+				if (!krk_getType(arg)->_tostr) {
+					krk_runtimeError(vm.exceptions->typeError, "%%s format: cannot convert %s to string",
+						krk_typeName(arg));
+					goto _exception;
+				}
+
+				krk_push(arg);
+				krk_push(krk_callDirect(krk_getType(arg)->_tostr, 1));
+				goto _doit;
+			} else {
+				krk_runtimeError(vm.exceptions->typeError, "%%%c format string specifier unsupported",
+					self->chars[i]);
+				goto _exception;
+			}
+
+_doit:
+			if (!backwards && width > AS_STRING(krk_peek(0))->codesLength) {
+				while (width > AS_STRING(krk_peek(0))->codesLength) {
+					pushStringBuilder(&sb, ' ');
+					width--;
+				}
+			}
+
+			pushStringBuilderStr(&sb, AS_CSTRING(krk_peek(0)), AS_STRING(krk_peek(0))->length);
+			if (backwards && width > AS_STRING(krk_peek(0))->codesLength) {
+				while (width > AS_STRING(krk_peek(0))->codesLength) {
+					pushStringBuilder(&sb, ' ');
+					width--;
+				}
+			}
+			krk_pop();
+		} else {
+			pushStringBuilder(&sb, self->chars[i]);
+		}
+	}
+
+	if (ti != myTuple->values.count) {
+		krk_runtimeError(vm.exceptions->typeError, "not all arguments converted durin string formatting");
+		goto _exception;
+	}
+
+	krk_pop(); /* tuple */
+	return finishStringBuilder(&sb);
+
+_notEnough:
+	krk_runtimeError(vm.exceptions->typeError, "not enough arguments for string format");
+	goto _exception;
+
+_exception:
+	discardStringBuilder(&sb);
+	return NONE_VAL();
 })
 
 /* str.split() */
