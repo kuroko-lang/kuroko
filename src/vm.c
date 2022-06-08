@@ -3061,8 +3061,8 @@ _finishReturn: (void)0;
 				THREE_BYTE_OPERAND;
 			case OP_CLOSE_MANY: {
 				ONE_BYTE_OPERAND;
+				closeUpvalues((krk_currentThread.stackTop - krk_currentThread.stack) - OPERAND);
 				for (int i = 0; i < OPERAND; ++i) {
-					closeUpvalues((krk_currentThread.stackTop - krk_currentThread.stack)-1);
 					krk_pop();
 				}
 				break;
