@@ -202,6 +202,28 @@ KRK_METHOD(codeobject,__constants__,{
 	return krk_pop();
 })
 
+KRK_METHOD(codeobject,co_code,{
+	return OBJECT_VAL(krk_newBytes(self->chunk.count, self->chunk.code));
+})
+
+KRK_METHOD(codeobject,co_argcount,{
+	return INTEGER_VAL(self->potentialPositionals);
+})
+
+KRK_METHOD(codeobject,__locals__,{
+	krk_push(OBJECT_VAL(krk_newTuple(self->localNameCount)));
+	for (size_t i = 0; i < self->localNameCount; ++i) {
+		krk_push(OBJECT_VAL(krk_newTuple(4)));
+		AS_TUPLE(krk_peek(0))->values.values[AS_TUPLE(krk_peek(0))->values.count++] = INTEGER_VAL(self->localNames[i].id);
+		AS_TUPLE(krk_peek(0))->values.values[AS_TUPLE(krk_peek(0))->values.count++] = INTEGER_VAL(self->localNames[i].birthday);
+		AS_TUPLE(krk_peek(0))->values.values[AS_TUPLE(krk_peek(0))->values.count++] = INTEGER_VAL(self->localNames[i].deathday);
+		AS_TUPLE(krk_peek(0))->values.values[AS_TUPLE(krk_peek(0))->values.count++] = OBJECT_VAL(self->localNames[i].name);
+		AS_TUPLE(krk_peek(1))->values.values[AS_TUPLE(krk_peek(1))->values.count++] = krk_peek(0);
+		krk_pop();
+	}
+	return krk_pop();
+})
+
 /* Python-compatibility */
 KRK_METHOD(codeobject,co_flags,{
 	ATTRIBUTE_NOT_ASSIGNABLE();
@@ -334,6 +356,9 @@ void _createAndBind_functionClass(void) {
 	BIND_PROP(codeobject,__constants__);
 	BIND_PROP(codeobject,__name__);
 	BIND_PROP(codeobject,co_flags);
+	BIND_PROP(codeobject,co_code);
+	BIND_PROP(codeobject,co_argcount);
+	BIND_PROP(codeobject,__locals__);
 	BIND_PROP(codeobject,__args__);
 	krk_defineNative(&codeobject->methods, "__repr__", FUNC_NAME(codeobject,__str__));
 	krk_finalizeClass(codeobject);
