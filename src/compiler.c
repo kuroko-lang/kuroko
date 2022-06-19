@@ -1966,11 +1966,22 @@ static void whileStatement(void) {
 	advance();
 
 	int loopStart = currentChunk()->count;
+	int exitJump = 0;
 
-	expression();
-	consume(TOKEN_COLON, "Expected ':' after 'while' condition.");
+	/* Identify two common infinite loops and optimize them (True and 1) */
+	RewindState rewind = {recordChunk(currentChunk()), krk_tellScanner(), parser};
+	if (!(match(TOKEN_TRUE) && match(TOKEN_COLON)) &&
+	    !(match(TOKEN_NUMBER) && (parser.previous.length == 1 && *parser.previous.start == '1') && match(TOKEN_COLON))) {
+		/* We did not match a common infinite loop, roll back... */
+		krk_rewindScanner(rewind.oldScanner);
+		parser = rewind.oldParser;
 
-	int exitJump = emitJump(OP_JUMP_IF_FALSE_OR_POP);
+		/* Otherwise, compile a real loop condition. */
+		expression();
+		consume(TOKEN_COLON, "Expected ':' after 'while' condition.");
+
+		exitJump = emitJump(OP_JUMP_IF_FALSE_OR_POP);
+	}
 
 	int oldLocalCount = current->loopLocalCount;
 	current->loopLocalCount = current->localCount;
@@ -1980,9 +1991,16 @@ static void whileStatement(void) {
 
 	current->loopLocalCount = oldLocalCount;
 	emitLoop(loopStart, OP_LOOP);
-	patchJump(exitJump);
-	emitByte(OP_POP);
+
+	if (exitJump) {
+		patchJump(exitJump);
+		emitByte(OP_POP);
+	}
+
+	/* else: block must still be compiled even if we optimized
+	 * out the loop condition check... */
 	optionalElse(blockWidth);
+
 	patchBreaks(loopStart);
 }
 
