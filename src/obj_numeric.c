@@ -4,6 +4,8 @@
 #include <kuroko/memory.h>
 #include <kuroko/util.h>
 
+#include "private.h"
+
 #undef bool
 
 #define IS_NoneType(o) (IS_NONE(o))
@@ -164,8 +166,65 @@ KRK_METHOD(int,__rfloordiv__,{
 	return NOTIMPL_VAL();
 })
 
+KRK_METHOD(int,__hex__,{
+	METHOD_TAKES_NONE();
+	char tmp[20];
+	unsigned long long val = self < 0 ? -self : self;
+	size_t len = snprintf(tmp, 20, "%s0x%llx", self < 0 ? "-" : "", val);
+	return OBJECT_VAL(krk_copyString(tmp,len));
+})
+
+KRK_METHOD(int,__oct__,{
+	METHOD_TAKES_NONE();
+	char tmp[20];
+	unsigned long long val = self < 0 ? -self : self;
+	size_t len = snprintf(tmp, 20, "%s0o%llo", self < 0 ? "-" : "", val);
+	return OBJECT_VAL(krk_copyString(tmp,len));
+})
+
+KRK_METHOD(int,__bin__,{
+	METHOD_TAKES_NONE();
+	unsigned long long val = self;
+	if (self < 0) val = -val;
+
+	struct StringBuilder sb = {0};
+
+	if (!val) pushStringBuilder(&sb, '0');
+	while (val) {
+		pushStringBuilder(&sb, (val & 1) ? '1' : '0');
+		val = val >> 1;
+	}
+
+	pushStringBuilder(&sb, 'b');
+	pushStringBuilder(&sb, '0');
+	if (self< 0) pushStringBuilder(&sb,'-');
+
+	/* Flip it */
+	for (size_t i = 0; i < sb.length / 2; ++i) {
+		char t = sb.bytes[i];
+		sb.bytes[i] = sb.bytes[sb.length - i - 1];
+		sb.bytes[sb.length - i - 1] = t;
+	}
+
+	return finishStringBuilder(&sb);
+
+})
+
 #undef CURRENT_CTYPE
 #define CURRENT_CTYPE double
+
+#define trySlowMethod(name) do { \
+	KrkClass * type = krk_getType(argv[1]); \
+	KrkValue method; \
+	while (type) { \
+		if (krk_tableGet(&type->methods, name, &method)) { \
+			krk_push(method); \
+			krk_push(argv[1]); \
+			return krk_callStack(1); \
+		} \
+		type = type->base; \
+	} \
+} while (0)
 
 FUNC_SIG(float,__init__) {
 	static __attribute__ ((unused)) const char* _method_name = "__init__";
@@ -175,6 +234,9 @@ FUNC_SIG(float,__init__) {
 	if (IS_FLOATING(argv[1])) return argv[1];
 	if (IS_INTEGER(argv[1])) return FLOATING_VAL(AS_INTEGER(argv[1]));
 	if (IS_BOOLEAN(argv[1])) return FLOATING_VAL(AS_BOOLEAN(argv[1]));
+
+	trySlowMethod(vm.specialMethodNames[METHOD_FLOAT]);
+
 	return krk_runtimeError(vm.exceptions->typeError, "%s() argument must be a string or a number, not '%s'", "float", krk_typeName(argv[1]));
 }
 
@@ -353,6 +415,10 @@ void _createAndBind_numericClasses(void) {
 	BIND_METHOD(int,__gt__);
 	BIND_METHOD(int,__le__);
 	BIND_METHOD(int,__ge__);
+
+	BIND_METHOD(int,__hex__);
+	BIND_METHOD(int,__oct__);
+	BIND_METHOD(int,__bin__);
 
 	krk_defineNative(&_int->methods, "__repr__", FUNC_NAME(int,__str__));
 	krk_finalizeClass(_int);

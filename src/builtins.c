@@ -137,73 +137,47 @@ KRK_FUNC(repr,{
 	return krk_callDirect(type->_reprer, 1);
 })
 
+#define trySlowMethod(name) do { \
+	KrkClass * type = krk_getType(argv[0]); \
+	KrkValue method; \
+	while (type) { \
+		if (krk_tableGet(&type->methods, name, &method)) { \
+			krk_push(method); \
+			krk_push(argv[0]); \
+			return krk_callStack(1); \
+		} \
+		type = type->base; \
+	} \
+} while (0)
+
 KRK_FUNC(ord,{
 	FUNCTION_TAKES_EXACTLY(1);
-	KrkClass * type = krk_getType(argv[0]);
-	KrkValue method;
-	if (krk_tableGet(&type->methods, vm.specialMethodNames[METHOD_ORD], &method)) {
-		krk_push(method);
-		krk_push(argv[0]);
-		return krk_callStack(1);
-	}
+	trySlowMethod(vm.specialMethodNames[METHOD_ORD]);
 	return TYPE_ERROR(string of length 1,argv[0]);
 })
 
 KRK_FUNC(chr,{
 	FUNCTION_TAKES_EXACTLY(1);
-	KrkClass * type = krk_getType(argv[0]);
-	KrkValue method;
-	if (krk_tableGet(&type->methods, vm.specialMethodNames[METHOD_CHR], &method)) {
-		krk_push(method);
-		krk_push(argv[0]);
-		return krk_callStack(1);
-	}
+	trySlowMethod(vm.specialMethodNames[METHOD_CHR]);
 	return TYPE_ERROR(int,argv[0]);
 })
 
 KRK_FUNC(hex,{
 	FUNCTION_TAKES_EXACTLY(1);
-	CHECK_ARG(0,int,krk_integer_type,x);
-	char tmp[20];
-	size_t len = snprintf(tmp, 20, "%s0x" PRIkrk_hex, x < 0 ? "-" : "", x < 0 ? -x : x);
-	return OBJECT_VAL(krk_copyString(tmp,len));
+	trySlowMethod(OBJECT_VAL(S("__hex__")));
+	return TYPE_ERROR(int,argv[0]);
 })
 
 KRK_FUNC(oct,{
 	FUNCTION_TAKES_EXACTLY(1);
-	CHECK_ARG(0,int,krk_integer_type,x);
-	char tmp[20];
-	size_t len = snprintf(tmp, 20, "%s0o%llo", x < 0 ? "-" : "", x < 0 ? (long long int)-x : (long long int)x);
-	return OBJECT_VAL(krk_copyString(tmp,len));
+	trySlowMethod(OBJECT_VAL(S("__oct__")));
+	return TYPE_ERROR(int,argv[0]);
 })
 
 KRK_FUNC(bin,{
 	FUNCTION_TAKES_EXACTLY(1);
-	CHECK_ARG(0,int,krk_integer_type,val);
-
-	krk_integer_type original = val;
-	if (val < 0) val = -val;
-
-	struct StringBuilder sb = {0};
-
-	if (!val) pushStringBuilder(&sb, '0');
-	while (val) {
-		pushStringBuilder(&sb, (val & 1) ? '1' : '0');
-		val = val >> 1;
-	}
-
-	pushStringBuilder(&sb, 'b');
-	pushStringBuilder(&sb, '0');
-	if (original < 0) pushStringBuilder(&sb,'-');
-
-	/* Flip it */
-	for (size_t i = 0; i < sb.length / 2; ++i) {
-		char t = sb.bytes[i];
-		sb.bytes[i] = sb.bytes[sb.length - i - 1];
-		sb.bytes[sb.length - i - 1] = t;
-	}
-
-	return finishStringBuilder(&sb);
+	trySlowMethod(OBJECT_VAL(S("__bin__")));
+	return TYPE_ERROR(int,argv[0]);
 })
 
 #define unpackArray(counter, indexer) do { \
@@ -952,6 +926,7 @@ KRK_FUNC(abs,{
 		double i = AS_FLOATING(argv[0]);
 		return FLOATING_VAL(i >= 0 ? i : -i);
 	} else {
+		trySlowMethod(OBJECT_VAL(S("__abs__")));
 		return krk_runtimeError(vm.exceptions->typeError, "bad operand type for 'abs()': '%s'",
 			krk_typeName(argv[0]));
 	}
