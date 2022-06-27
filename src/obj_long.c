@@ -82,6 +82,47 @@ static int krk_long_init_si(KrkLong * num, int64_t val) {
 }
 
 /**
+ * @brief Initialize an untouched KrkLong with an unsigned 64-bit value.
+ */
+static int krk_long_init_ui(KrkLong * num, uint64_t val) {
+
+	/* Special-case for 0: width = 0, no digits. */
+	if (val == 0) {
+		num->width = 0;
+		num->digits = NULL;
+		return 0;
+	}
+
+	if (val <= DIGIT_MAX) {
+		num->width = 1;
+		num->digits = malloc(sizeof(uint32_t));
+		num->digits[0] = val;
+		return 0;
+	}
+
+	/* Figure out how many digits we need. */
+	uint64_t tmp = val;
+	uint64_t cnt = 1;
+
+	while (tmp > DIGIT_MAX) {
+		cnt++;
+		tmp >>= DIGIT_SHIFT;
+	}
+
+	/* Allocate space */
+	num->width = cnt;
+	num->digits = malloc(sizeof(uint32_t) * cnt);
+
+	/* Extract digits. */
+	for (uint64_t i = 0; i < cnt; ++i) {
+		num->digits[i] = (val & DIGIT_MAX);
+		val >>= DIGIT_SHIFT;
+	}
+
+	return 0;
+}
+
+/**
  * @brief Variadic initializer. All values become 0.
  *
  * Be sure to pass a NULL at the end...
@@ -1069,20 +1110,29 @@ static int krk_long_parse_string(const char * str, KrkLong * num, unsigned int b
 	krk_long_init_si(num, 0);
 
 	KrkLong _base, scratch;
-	krk_long_init_si(&_base, base);
+	krk_long_init_si(&_base, 0);
 	krk_long_init_si(&scratch, 0);
 
 	while (c < end && *c) {
-		if (*c == '_') c++;
-		if (c == (str + len) || !is_valid(base, *c)) {
-			krk_long_clear_many(&_base, &scratch, num, NULL);
-			return 1;
+		uint64_t accum = 0;
+		uint64_t basediv = 1;
+		while (c < end && *c && (basediv * base < 0x10000000000000UL)) {
+			if (*c == '_') c++;
+			if (c == (str + len) || !is_valid(base, *c)) {
+				krk_long_clear_many(&_base, &scratch, num, NULL);
+				return 1;
+			}
+
+			basediv *= base;
+			accum *= base;
+			accum += convert_digit(*c);
+			c++;
 		}
+		krk_long_init_ui(&_base, basediv);
 		krk_long_mul(num, num, &_base);
-		krk_long_clear(&scratch);
-		krk_long_init_si(&scratch, convert_digit(*c));
+		krk_long_clear_many(&scratch, &_base, NULL);
+		krk_long_init_ui(&scratch, accum);
 		krk_long_add(num, num, &scratch);
-		c++;
 	}
 
 	if (sign == -1) {
