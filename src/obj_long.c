@@ -1169,7 +1169,7 @@ static KrkValue make_long_obj(KrkLong * val) {
 		maybe = -(int64_t)val->digits[0];
 	} else if (val->width == 2 && (val->digits[1] & 0xFFFF0000) == 0) {
 		maybe = ((uint64_t)val->digits[1] << 31) | val->digits[0];
-	} else if (val->width == -2 && (val->digits[1] && 0xFFFF0000) == 0) {
+	} else if (val->width == -2 && (val->digits[1] & 0xFFFF0000) == 0) {
 		maybe = -(((uint64_t)val->digits[1] << 31) | val->digits[0]);
 	} else {
 		krk_push(OBJECT_VAL(krk_newInstance(_long)));
