@@ -154,24 +154,24 @@ static KrkToken number(char c) {
 			/* Hexadecimal */
 			advance();
 			while (isDigit(peek()) || (peek() >= 'a' && peek() <= 'f') ||
-			       (peek() >= 'A' && peek() <= 'F')) advance();
+			       (peek() >= 'A' && peek() <= 'F') || (peek() == '_')) advance();
 			return makeToken(TOKEN_NUMBER);
 		} else if (peek() == 'b' || peek() == 'B') {
 			/* Binary */
 			advance();
-			while (peek() == '0' || peek() == '1') advance();
+			while (peek() == '0' || peek() == '1' || (peek() == '_')) advance();
 			return makeToken(TOKEN_NUMBER);
 		} if (peek() == 'o' || peek() == 'O') {
 			/* Octal - must be 0o, none of those silly 0123 things */
 			advance();
-			while (peek() >= '0' && peek() <= '7') advance();
+			while ((peek() >= '0' && peek() <= '7') || (peek() == '_')) advance();
 			return makeToken(TOKEN_NUMBER);
 		}
 		/* Otherwise, decimal and maybe 0.123 floating */
 	}
 
 	/* Decimal */
-	while (isDigit(peek())) advance();
+	while (isDigit(peek()) || peek() == '_') advance();
 
 	/* Floating point */
 	if (peek() == '.' && isDigit(peekNext(1))) {

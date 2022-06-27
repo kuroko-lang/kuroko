@@ -1,0 +1,53 @@
+def test(thing, operations=None, numbers=None, printers=None, shifts=None, shiftops=None):
+    print('hello world')
+
+    operations = [
+        ('+', lambda a, b: a + b),
+        ('-', lambda a, b: a - b),
+        ('*', lambda a, b: a * b),
+        ('|', lambda a, b: a | b),
+        ('^', lambda a, b: a ^ b),
+        ('&', lambda a, b: a & b),
+        ('//', lambda a, b: a // b),
+        ('%', lambda a, b: a % b),
+    ]
+
+    numbers = [
+        42, 7, 0, -2, -53, -25932, '-30250320993256832943892058390285932532',
+        '29394294398256832432748937248937198578921421', '0x29589239862',
+        '0b1000101010101010000101010010101010001001001000101010001010010',
+        '32932583298439028439285392', '-5392583232948329853251521'
+    ]
+
+    shifts = [
+        0, 3, 23, 47, 68, 135, 1035, -4
+    ]
+
+    shiftops = [
+        ('<<', lambda a, b: a << b),
+        ('>>', lambda a, b: a >> b),
+    ]
+
+    printers = [
+        str, hex, oct, bin
+    ]
+
+    for a in numbers:
+        for printer in printers:
+            print(printer.__name__,printer(thing(a)))
+        for b in numbers:
+            for opname, op in operations:
+                try:
+                    print(a, opname, b, '=', op(thing(a), thing(b)))
+                except Exception as e:
+                    print(a, opname, b, '=', str(e))
+        for shift in shifts:
+            for opname, op in shiftops:
+                try:
+                    print(a, opname, shift, '=', op(thing(a), shift))
+                except Exception as e:
+                    print(a, opname, shift, '=', str(e))
+
+
+if __name__ == '__main__':
+    test(lambda a: int(a,0) if isinstance(a,str) else int(a))

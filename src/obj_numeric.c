@@ -16,7 +16,7 @@
 
 FUNC_SIG(int,__init__) {
 	static __attribute__ ((unused)) const char* _method_name = "__init__";
-	METHOD_TAKES_AT_MOST(1);
+	METHOD_TAKES_AT_MOST(2);
 	if (argc < 2) return INTEGER_VAL(0);
 	if (IS_BOOLEAN(argv[1])) return INTEGER_VAL(AS_INTEGER(argv[1]));
 	if (IS_INTEGER(argv[1])) return argv[1];
@@ -52,14 +52,40 @@ KRK_METHOD(int,__hash__,{
 	return INTEGER_VAL((uint32_t)AS_INTEGER(argv[0]));
 })
 
+/**
+ * We _could_ use the __builtin_XXX_overflow(_p) functions gcc+clang provide,
+ * but let's just do this ourselves, I guess?
+ *
+ * We cheat: We only bother calculating + checking if both values would fit
+ * in int32_t's. This ensures multiplication works fine.
+ *
+ * For any case where an int32_t would overflow, we do the 'long' operation
+ * and then reduce if that still yields something that would fit in our 'int48'.
+ */
+#define OVERFLOW_CHECKED_INT_OPERATION(name,operator) \
+	extern KrkValue krk_long_coerced_ ## name (krk_integer_type a, krk_integer_type b); \
+	_noexport \
+	KrkValue krk_int_op_ ## name (krk_integer_type a, krk_integer_type b) { \
+		if (likely((int32_t)a == a && (int32_t)b == b)) { \
+			int32_t result_one = a operator b; \
+			int64_t result_two = a operator b; \
+			if (likely(result_one == result_two)) return INTEGER_VAL(result_two); \
+		} \
+		return krk_long_coerced_ ## name (a, b); \
+	}
+
+OVERFLOW_CHECKED_INT_OPERATION(add,+)
+OVERFLOW_CHECKED_INT_OPERATION(sub,-)
+OVERFLOW_CHECKED_INT_OPERATION(mul,*)
+
 #define BASIC_BIN_OP(name,operator) \
 	KRK_METHOD(int,__ ## name ## __,{ \
-		if (likely(IS_INTEGER(argv[1]))) return INTEGER_VAL(self operator AS_INTEGER(argv[1])); \
+		if (likely(IS_INTEGER(argv[1]))) return krk_int_op_ ## name(self, AS_INTEGER(argv[1])); \
 		else if (likely(IS_FLOATING(argv[1]))) return FLOATING_VAL((double)self operator AS_FLOATING(argv[1])); \
 		return NOTIMPL_VAL(); \
 	}) \
 	KRK_METHOD(int,__r ## name ## __,{ \
-		if (likely(IS_INTEGER(argv[1]))) return INTEGER_VAL(AS_INTEGER(argv[1]) operator self); \
+		if (likely(IS_INTEGER(argv[1]))) return krk_int_op_ ## name(AS_INTEGER(argv[1]), self); \
 		else if (likely(IS_FLOATING(argv[1]))) return FLOATING_VAL(AS_FLOATING(argv[1]) operator (double)self); \
 		return NOTIMPL_VAL(); \
 	})
@@ -87,26 +113,20 @@ BASIC_BIN_OP(mul,*)
 INT_ONLY_BIN_OP(or,|)
 INT_ONLY_BIN_OP(xor,^)
 INT_ONLY_BIN_OP(and,&)
-INT_ONLY_BIN_OP(lshift,<<)
-INT_ONLY_BIN_OP(rshift,>>)
 
-KRK_METHOD(int,__mod__,{
-	METHOD_TAKES_EXACTLY(1);
-	if (likely(IS_INTEGER(argv[1]))) {
-		if (unlikely(AS_INTEGER(argv[1]) == 0)) return krk_runtimeError(vm.exceptions->zeroDivisionError, "integer modulo by zero");
-		return INTEGER_VAL(self % AS_INTEGER(argv[1]));
-	}
-	return NOTIMPL_VAL();
-})
+#define DEFER_TO_LONG(name) \
+	extern KrkValue krk_long_coerced_ ## name (krk_integer_type a, krk_integer_type b); \
+	KRK_METHOD(int,__ ## name ## __,{ \
+		if (likely(IS_INTEGER(argv[1]))) return krk_long_coerced_ ## name (self, AS_INTEGER(argv[1])); \
+		return NOTIMPL_VAL(); \
+	}) \
+	KRK_METHOD(int,__r ## name ## __,{ \
+		if (likely(IS_INTEGER(argv[1]))) return krk_long_coerced_ ## name (AS_INTEGER(argv[1]), self); \
+		return NOTIMPL_VAL(); \
+	})
 
-KRK_METHOD(int,__rmod__,{
-	METHOD_TAKES_EXACTLY(1);
-	if (unlikely(self == 0)) return krk_runtimeError(vm.exceptions->zeroDivisionError, "integer modulo by zero");
-	if (likely(IS_INTEGER(argv[1]))) {
-		return INTEGER_VAL(AS_INTEGER(argv[1]) % self);
-	}
-	return NOTIMPL_VAL();
-})
+DEFER_TO_LONG(lshift)
+DEFER_TO_LONG(rshift)
 
 COMPARE_OP(lt, <)
 COMPARE_OP(gt, >)
@@ -144,12 +164,58 @@ KRK_METHOD(int,__rtruediv__,{
 #define __builtin_floor floor
 #endif
 
+/**
+ * These have been corrected to match the behavior with negatives
+ * that Python produces, for compatibility, and also because that's
+ * what our 'long' type does...
+ */
+static KrkValue _krk_int_div(krk_integer_type a, krk_integer_type b) {
+	if (unlikely(b == 0)) return krk_runtimeError(vm.exceptions->zeroDivisionError, "integer division or modulo by zero");
+	if (a == 0) return INTEGER_VAL(0);
+	int64_t abs_a = a < 0 ? -a : a;
+	int64_t abs_b = b < 0 ? -b : b;
+	if ((a < 0) != (b < 0)) {
+		/* If signs don't match, the result is negative, and rounding down means away from 0... */
+		int64_t res = -1 - (abs_a - 1) / abs_b;
+		return INTEGER_VAL(res);
+	}
+	return INTEGER_VAL((abs_a / abs_b));
+}
+
+static KrkValue _krk_int_mod(krk_integer_type a, krk_integer_type b) {
+	if (unlikely(b == 0)) return krk_runtimeError(vm.exceptions->zeroDivisionError, "integer division or modulo by zero");
+	if (a == 0) return INTEGER_VAL(0);
+	int64_t abs_a = a < 0 ? -a : a;
+	int64_t abs_b = b < 0 ? -b : b;
+	int64_t res;
+	if ((a < 0) != (b < 0)) {
+		/* If quotient would be negative, then remainder is inverted against the divisor. */
+		res = (abs_b - 1 - (abs_a - 1) % abs_b);
+	} else {
+		res = abs_a % abs_b;
+	}
+	/* Negative divisor always yields negative remainder, except when it's 0... */
+	return INTEGER_VAL((b < 0) ? -res : res);
+
+}
+
+KRK_METHOD(int,__mod__,{
+	METHOD_TAKES_EXACTLY(1);
+	if (likely(IS_INTEGER(argv[1]))) return _krk_int_mod(self, AS_INTEGER(argv[1]));
+	return NOTIMPL_VAL();
+})
+
+KRK_METHOD(int,__rmod__,{
+	METHOD_TAKES_EXACTLY(1);
+	if (likely(IS_INTEGER(argv[1]))) return _krk_int_mod(AS_INTEGER(argv[1]), self);
+	return NOTIMPL_VAL();
+})
+
+
 KRK_METHOD(int,__floordiv__,{
 	METHOD_TAKES_EXACTLY(1);
 	if (likely(IS_INTEGER(argv[1]))) {
-		krk_integer_type b = AS_INTEGER(argv[1]);
-		if (unlikely(b == 0)) return krk_runtimeError(vm.exceptions->zeroDivisionError, "integer division by zero");
-		return INTEGER_VAL(self / b);
+		return _krk_int_div(self,AS_INTEGER(argv[1]));
 	} else if (likely(IS_FLOATING(argv[1]))) {
 		double b = AS_FLOATING(argv[1]);
 		if (unlikely(b == 0.0)) return krk_runtimeError(vm.exceptions->zeroDivisionError, "float division by zero");
@@ -161,7 +227,7 @@ KRK_METHOD(int,__floordiv__,{
 KRK_METHOD(int,__rfloordiv__,{
 	METHOD_TAKES_EXACTLY(1);
 	if (unlikely(self == 0)) return krk_runtimeError(vm.exceptions->zeroDivisionError, "integer division by zero");
-	else if (likely(IS_INTEGER(argv[1]))) return INTEGER_VAL(AS_INTEGER(argv[1]) / self);
+	else if (likely(IS_INTEGER(argv[1]))) return _krk_int_div(AS_INTEGER(argv[1]), self);
 	else if (likely(IS_FLOATING(argv[1]))) return FLOATING_VAL(__builtin_floor(AS_FLOATING(argv[1]) / (double)self));
 	return NOTIMPL_VAL();
 })

@@ -122,6 +122,7 @@ struct BaseClasses {
 	KrkClass * bytearrayClass;       /**< Mutable array of bytes */
 	KrkClass * dictvaluesClass;      /**< Iterator over values of a dict */
 	KrkClass * sliceClass;           /**< Slice object */
+	KrkClass * longClass;            /**< Arbitrary precision integer */
 };
 
 /**

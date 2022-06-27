@@ -21,6 +21,7 @@ extern void _createAndBind_sliceClass(void);
 extern void _createAndBind_builtins(void);
 extern void _createAndBind_type(void);
 extern void _createAndBind_exceptions(void);
+extern void _createAndBind_longClass(void);
 extern void _createAndBind_gcMod(void);
 extern void _createAndBind_timeMod(void);
 extern void _createAndBind_osMod(void);

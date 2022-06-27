@@ -99,22 +99,8 @@ KRK_METHOD(str,__setitem__,{
 /* str.__int__(base=10) */
 KRK_METHOD(str,__int__,{
 	METHOD_TAKES_AT_MOST(1);
-	int base = (argc < 2 || !IS_INTEGER(argv[1])) ? 10 : (int)AS_INTEGER(argv[1]);
-	char * start = AS_CSTRING(argv[0]);
-
-	/*  These special cases for hexadecimal, binary, octal values. */
-	if (start[0] == '0' && (start[1] == 'x' || start[1] == 'X')) {
-		base = 16;
-		start += 2;
-	} else if (start[0] == '0' && (start[1] == 'b' || start[1] == 'B')) {
-		base = 2;
-		start += 2;
-	} else if (start[0] == '0' && (start[1] == 'o' || start[1] == 'O')) {
-		base = 8;
-		start += 2;
-	}
-	krk_integer_type value = parseStrInt(start, NULL, base);
-	return INTEGER_VAL(value);
+	int base = (argc < 2 || !IS_INTEGER(argv[1])) ? 0 : (int)AS_INTEGER(argv[1]);
+	return krk_parse_int(AS_CSTRING(argv[0]), AS_STRING(argv[0])->length, base);
 })
 
 /* str.__float__() */
@@ -242,7 +228,7 @@ KRK_METHOD(str,format,{
 					} else if (counterOffset) {
 						goto _formatSwitchedNumbering;
 					} else {
-						positionalOffset = parseStrInt(fieldStart,NULL,10);
+						positionalOffset = strtoul(fieldStart,NULL,10);
 					}
 					if (positionalOffset >= argc - 1) {
 						erroneousIndex = positionalOffset;

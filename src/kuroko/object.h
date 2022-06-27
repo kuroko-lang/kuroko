@@ -233,6 +233,7 @@ typedef struct KrkClass {
 	KrkObj * _floordiv, * _rfloordiv, * _ifloordiv;
 
 	KrkObj * _lt, * _gt, * _le, * _ge;
+	KrkObj * _invert, * _negate;
 } KrkClass;
 
 /**

@@ -654,15 +654,15 @@ void paint_krk_string(struct syntax_state * state, int type, int isFormat) {
 int paint_krk_numeral(struct syntax_state * state) {
 	if (charat() == '0' && (nextchar() == 'x' || nextchar() == 'X')) {
 		paint(2, FLAG_NUMERAL);
-		while (isxdigit(charat())) paint(1, FLAG_NUMERAL);
+		while (isxdigit(charat()) || charat() == '_') paint(1, FLAG_NUMERAL);
 	} else if (charat() == '0' && (nextchar() == 'o' || nextchar() == 'O')) {
 		paint(2, FLAG_NUMERAL);
-		while (charat() >= '0' && charat() <= '7') paint(1, FLAG_NUMERAL);
+		while ((charat() >= '0' && charat() <= '7') || charat() == '_') paint(1, FLAG_NUMERAL);
 	} else if (charat() == '0' && (nextchar() == 'b' || nextchar() == 'B')) {
 		paint(2, FLAG_NUMERAL);
-		while (charat() == '0' || charat() == '1') paint(1, FLAG_NUMERAL);
+		while (charat() == '0' || charat() == '1' || charat() == '_') paint(1, FLAG_NUMERAL);
 	} else {
-		while (isdigit(charat())) paint(1, FLAG_NUMERAL);
+		while (isdigit(charat()) || charat() == '_') paint(1, FLAG_NUMERAL);
 		if (charat() == '.' && isdigit(nextchar())) {
 			paint(1, FLAG_NUMERAL);
 			while (isdigit(charat())) paint(1, FLAG_NUMERAL);

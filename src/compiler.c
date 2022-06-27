@@ -705,39 +705,22 @@ static void defineVariable(size_t global) {
 static void number(int exprType) {
 	const char * start = parser.previous.start;
 	invalidTarget(exprType, "literal");
-	int base = 10;
 
-	/*
-	 * Handle base prefixes:
-	 *   0x Hexadecimal
-	 *   0b Binary
-	 *   0o Octal
-	 */
-	if (start[0] == '0' && (start[1] == 'x' || start[1] == 'X')) {
-		base = 16;
-		start += 2;
-	} else if (start[0] == '0' && (start[1] == 'b' || start[1] == 'B')) {
-		base = 2;
-		start += 2;
-	} else if (start[0] == '0' && (start[1] == 'o' || start[1] == 'O')) {
-		base = 8;
-		start += 2;
-	}
-
-	/* If it wasn't a special base, it may be a floating point value. */
-	if (base == 10) {
-		for (size_t j = 0; j < parser.previous.length; ++j) {
-			if (parser.previous.start[j] == '.') {
-				double value = strtod(start, NULL);
-				emitConstant(FLOATING_VAL(value));
-				return;
-			}
+	for (size_t j = 0; j < parser.previous.length; ++j) {
+		if (parser.previous.start[j] == '.') {
+			double value = strtod(start, NULL);
+			emitConstant(FLOATING_VAL(value));
+			return;
 		}
 	}
 
 	/* If we got here, it's an integer of some sort. */
-	krk_integer_type value = parseStrInt(start, NULL, base);
-	emitConstant(INTEGER_VAL(value));
+	KrkValue result = krk_parse_int(start, parser.previous.literalWidth, 0);
+	if (IS_NONE(result)) {
+		error("invalid numeric literal");
+		return;
+	}
+	emitConstant(result);
 }
 
 static int emitJump(uint8_t opcode) {
@@ -2566,7 +2549,7 @@ static void string(int exprType) {
 		} \
 		tmpbuf[i] = c[i+2]; \
 	} \
-	unsigned long value = parseStrInt(tmpbuf, NULL, 16); \
+	unsigned long value = strtoul(tmpbuf, NULL, 16); \
 	if (value >= 0x110000) { \
 		error("invalid codepoint in \\%c escape", type); \
 	} \

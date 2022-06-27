@@ -40,6 +40,8 @@ CACHED_METHOD(LT, "__lt__", _lt)
 CACHED_METHOD(GT, "__gt__", _gt)
 CACHED_METHOD(LE, "__le__", _le)
 CACHED_METHOD(GE, "__ge__", _ge)
+CACHED_METHOD(INVERT, "__invert__", _invert)
+CACHED_METHOD(NEGATE, "__neg__", _negate)
 
 /* These are not methods */
 SPECIAL_ATTRS(CLASS,     "__class__")

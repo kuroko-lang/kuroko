@@ -180,6 +180,8 @@ extern int krk_valuesEqual(KrkValue a, KrkValue b);
  */
 extern int krk_valuesSame(KrkValue a, KrkValue b);
 
+extern KrkValue krk_parse_int(const char * start, size_t width, unsigned int base);
+
 typedef union {
 	KrkValue val;
 	double   dbl;
@@ -233,3 +235,7 @@ typedef union {
 #define KWARGS_DICT   (INT32_MAX-2)
 #define KWARGS_NIL    (INT32_MAX-3)
 #define KWARGS_UNSET  (0)
+
+#define PRIkrk_int "%" PRId64
+#define PRIkrk_hex "%" PRIx64
+
