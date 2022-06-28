@@ -1380,7 +1380,7 @@ static void _krk_long_div(krk_long out, krk_long a, krk_long b) {
 static void _krk_long_pow(krk_long out, krk_long a, krk_long b) {
 	if (krk_long_sign(b) == 0) {
 		krk_long_clear(out);
-		krk_long_init_si(out, krk_long_sign(a) < 0 ? -1 : 1);
+		krk_long_init_si(out, 1);
 		return;
 	}
 
