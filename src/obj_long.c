@@ -1359,6 +1359,189 @@ KRK_METHOD(long,__neg__,{
 	return make_long_obj(&tmp);
 })
 
+static KrkValue long_bit_count(KrkLong * val) {
+	size_t count = 0;
+	size_t bits = _bits_in(val);
+
+	for (size_t i = 0; i < bits; ++i) {
+		count += _bit_is_set(val, i);
+	}
+
+	KrkLong tmp;
+	krk_long_init_ui(&tmp, count);
+	return make_long_obj(&tmp);
+}
+
+KRK_METHOD(long,bit_count,{
+	return long_bit_count(self->value);
+})
+
+static KrkValue long_bit_length(KrkLong * val) {
+	size_t bits = _bits_in(val);
+	KrkLong tmp;
+	krk_long_init_ui(&tmp, bits);
+	return make_long_obj(&tmp);
+}
+
+KRK_METHOD(long,bit_length,{
+	return long_bit_length(self->value);
+})
+
+static KrkValue long_to_bytes(KrkLong * val, size_t argc, const KrkValue argv[], int hasKw) {
+	static const char _method_name[] = "to_bytes";
+	/**
+	 * @fn to_bytes(length: int, byteorder: str, *, signed: bool = False) -> bytes
+	 *
+	 * @param length    size of the bytes object to produce; restricted to an int; anything bigger
+	 *                  is probably going to cause trouble for repring a result anyway, so, whatever...
+	 * @param byteorder must be either 'little' or 'big'.
+	 * @param signed    needs to be a keyword arg because apparently that's how it is in Python...
+	 *                  If a negative value is passed without @c signed=True an error will be raised.
+	 */
+
+	CHECK_ARG(1,int,krk_integer_type,length);
+	CHECK_ARG(2,str,KrkString*,byteorder);
+	int _signed = 0;
+	if (hasKw) {
+		KrkValue tmp;
+		if (krk_tableGet(AS_DICT(argv[argc]), OBJECT_VAL(S("signed")), &tmp)) {
+			_signed = !krk_isFalsey(tmp);
+		}
+	}
+
+	if (length < 0) {
+		return krk_runtimeError(vm.exceptions->valueError, "length must be non-negative");
+	}
+
+	int order = 0;
+	if (!strcmp(byteorder->chars,"little")) {
+		order = 1;
+	} else if (!strcmp(byteorder->chars,"big")) {
+		order = -1;
+	} else {
+		return krk_runtimeError(vm.exceptions->valueError, "byteorder must be either 'little' or 'big'");
+	}
+
+	if (krk_long_sign(val) < 0 && !_signed) {
+		return krk_runtimeError(vm.exceptions->notImplementedError, "can not convert negative value to unsigned");
+	}
+
+	/* We could avoid the copy for a positive value, but whatever... */
+	KrkLong tmp;
+	krk_long_init_ui(&tmp, 0);
+	krk_long_abs(&tmp, val);
+
+	/* Invert negative values; already checked for signed... */
+	if (krk_long_sign(val) < 0) {
+		KrkLong one;
+		krk_long_init_ui(&one, 1);
+		krk_long_sub(&tmp, &tmp, &one);
+		krk_long_clear(&one);
+	}
+
+	/* Use bits from inverted value */
+	size_t bitCount = _bits_in(&tmp);
+
+	/* If it is signed, we need to reserve the top bit for the sign;
+	 * eg., (127).to_bytes(1,...,signed=True) is fine, but (128) is not,
+	 * and also (-128) should work, which is taken care of by using the
+	 * inverted value... Also, as a weird special case, 0 still has no
+	 * bits even if 'signed', which allows (0).to_bytes(0,...,signed=True)
+	 * even though that makes no sense to me... */
+	if (_signed && val->width != 0) bitCount++;
+
+	if ((size_t)length * 8 < bitCount) {
+		krk_long_clear(&tmp);
+		/* Should be OverflowError, but we don't have that and I don't care to add it right now */
+		return krk_runtimeError(vm.exceptions->valueError, "int too big to convert");
+	}
+
+	/* Allocate bytes for final representation */
+	krk_push(OBJECT_VAL(krk_newBytes(length, NULL)));
+	memset(AS_BYTES(krk_peek(0))->bytes, 0, length);
+
+	/* We'll use a 'bit reader':
+	 * - We want 8 bits for each byte.
+	 * - We can collect 31 bits from each digit.
+	 * - If we run out of digits, we're done.
+	 */
+	ssize_t i = 0;
+	ssize_t j = 0;
+
+	uint64_t accum = 0;
+	int32_t remaining = 0;
+	int break_here = 0;
+
+	while (i < length && !break_here) {
+		if (remaining < 8) {
+			if (j < tmp.width) {
+				accum |= ((uint64_t)tmp.digits[j]) << remaining;
+				j++;
+			} else {
+				break_here = 1;
+			}
+			remaining += 31;
+		}
+
+		uint8_t byte = accum & 0xFF;
+		accum >>= 8;
+		remaining -= 8;
+
+		AS_BYTES(krk_peek(0))->bytes[order == 1 ? i : (length - i - 1)] = byte;
+		i++;
+	}
+
+	/* If input was negative, at this point we're producing an inverted value;
+	 * we already encoded (|n|-1), so now we just need to bit invert. */
+	if (krk_long_sign(val) < 0) {
+		for (size_t i = 0; i < (size_t)length; ++i) {
+			AS_BYTES(krk_peek(0))->bytes[i] ^= 0xFF;
+		}
+	}
+
+	/* We produced a bytes object, so we no longer need the long. */
+	krk_long_clear(&tmp);
+	return krk_pop();
+}
+
+KRK_METHOD(long,to_bytes,{
+	METHOD_TAKES_AT_LEAST(2);
+	return long_to_bytes(self->value, argc, argv, hasKw);
+})
+
+#undef CURRENT_CTYPE
+#define CURRENT_CTYPE krk_integer_type
+
+/**
+ * @c int wrapper implementations of the byte conversions.
+ *
+ * Convert to a @c long and just use those versions...
+ */
+
+KRK_METHOD(int,bit_count,{
+	krk_long value;
+	krk_long_init_si(value, self);
+	KrkValue out = long_bit_count(value);
+	krk_long_clear(value);
+	return out;
+})
+
+KRK_METHOD(int,bit_length,{
+	krk_long value;
+	krk_long_init_si(value, self);
+	KrkValue out = long_bit_length(value);
+	krk_long_clear(value);
+	return out;
+})
+
+KRK_METHOD(int,to_bytes,{
+	krk_long value;
+	krk_long_init_si(value, self);
+	KrkValue out = long_to_bytes(value, argc, argv, hasKw);
+	krk_long_clear(value);
+	return out;
+})
+
 #undef BIND_METHOD
 #define BIND_METHOD(klass,method) do { krk_defineNative(& _ ## klass->methods, #method, _ ## klass ## _ ## method); } while (0)
 _noexport
@@ -1402,7 +1585,18 @@ void _createAndBind_longClass(void) {
 	BIND_METHOD(long,__invert__);
 	BIND_METHOD(long,__neg__);
 
+	BIND_METHOD(long,bit_count);
+	BIND_METHOD(long,bit_length);
+	BIND_METHOD(long,to_bytes);
+
 	krk_finalizeClass(_long);
+
+	/* Patch in small int versions */
+	KrkClass * _int = vm.baseClasses->intClass;
+	BIND_METHOD(int,bit_count);
+	BIND_METHOD(int,bit_length);
+	BIND_METHOD(int,to_bytes);
+
 }
 
 
