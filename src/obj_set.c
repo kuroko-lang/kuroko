@@ -106,19 +106,16 @@ KRK_METHOD(set,__and__,{
 	FUNC_NAME(set,__init__)(1,&outSet,0);
 
 	KrkClass * type = krk_getType(argv[1]);
-	KrkValue contains;
-	if (!krk_tableGet(&type->methods, OBJECT_VAL(S("__contains__")), &contains))
+	if (!type->_contains)
 		return krk_runtimeError(vm.exceptions->typeError, "unsupported operand types for %s: '%s' and '%s'", "&", "set", krk_typeName(argv[1]));
 
-	size_t len = self->entries.capacity;
-	for (size_t i = 0; i < len; ++i) {
+	for (size_t i = 0; i < self->entries.capacity; ++i) {
 		KrkTableEntry * entry = &self->entries.entries[i];
 		if (IS_KWARGS(entry->key)) continue;
 
-		krk_push(contains);
 		krk_push(argv[1]);
 		krk_push(entry->key);
-		KrkValue result = krk_callStack(2);
+		KrkValue result = krk_callDirect(type->_contains, 2);
 
 		if (IS_BOOLEAN(result) && AS_BOOLEAN(result)) {
 			krk_tableSet(&AS_set(outSet)->entries, entry->key, BOOLEAN_VAL(1));
@@ -127,6 +124,51 @@ KRK_METHOD(set,__and__,{
 
 	return krk_pop();
 })
+
+KRK_METHOD(set,__xor__,{
+	METHOD_TAKES_EXACTLY(1);
+	CHECK_ARG(1,set,struct Set*,them);
+
+	KrkValue outSet = OBJECT_VAL(krk_newInstance(set));
+	krk_push(outSet);
+	FUNC_NAME(set,__init__)(1,&outSet,0);
+
+	KrkClass * type = krk_getType(argv[1]);
+	if (!type->_contains)
+		return krk_runtimeError(vm.exceptions->typeError, "unsupported operand types for %s: '%s' and '%s'", "&", "set", krk_typeName(argv[1]));
+
+	for (size_t i = 0; i < self->entries.capacity; ++i) {
+		KrkTableEntry * entry = &self->entries.entries[i];
+		if (IS_KWARGS(entry->key)) continue;
+
+		krk_push(argv[1]);
+		krk_push(entry->key);
+		KrkValue result = krk_callDirect(type->_contains, 2);
+
+		if (IS_BOOLEAN(result) && !AS_BOOLEAN(result)) {
+			krk_tableSet(&AS_set(outSet)->entries, entry->key, BOOLEAN_VAL(1));
+		}
+	}
+
+	/* Ours better have something... */
+	type = krk_getType(argv[0]);
+
+	for (size_t i = 0; i < them->entries.capacity; ++i) {
+		KrkTableEntry * entry = &them->entries.entries[i];
+		if (IS_KWARGS(entry->key)) continue;
+
+		krk_push(argv[0]);
+		krk_push(entry->key);
+		KrkValue result = krk_callDirect(type->_contains, 2);
+
+		if (IS_BOOLEAN(result) && !AS_BOOLEAN(result)) {
+			krk_tableSet(&AS_set(outSet)->entries, entry->key, BOOLEAN_VAL(1));
+		}
+	}
+
+	return krk_pop();
+})
+
 
 KRK_METHOD(set,__or__,{
 	METHOD_TAKES_EXACTLY(1);
@@ -246,6 +288,7 @@ void _createAndBind_setClass(void) {
 	BIND_METHOD(set,__eq__);
 	BIND_METHOD(set,__and__);
 	BIND_METHOD(set,__or__);
+	BIND_METHOD(set,__xor__);
 	BIND_METHOD(set,__contains__);
 	BIND_METHOD(set,__iter__);
 	KRK_DOC(BIND_METHOD(set,add),
