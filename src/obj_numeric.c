@@ -127,6 +127,7 @@ INT_ONLY_BIN_OP(and,&)
 
 DEFER_TO_LONG(lshift)
 DEFER_TO_LONG(rshift)
+DEFER_TO_LONG(pow)
 
 COMPARE_OP(lt, <)
 COMPARE_OP(gt, >)
@@ -475,6 +476,7 @@ void _createAndBind_numericClasses(void) {
 	BIND_TRIPLET(mod);
 	BIND_TRIPLET(truediv);
 	BIND_TRIPLET(floordiv);
+	BIND_TRIPLET(pow);
 #undef BIND_TRIPLET
 
 	BIND_METHOD(int,__lt__);

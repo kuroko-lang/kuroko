@@ -1377,10 +1377,52 @@ static void _krk_long_div(krk_long out, krk_long a, krk_long b) {
 	krk_long_clear(garbage);
 }
 
+static void _krk_long_pow(krk_long out, krk_long a, krk_long b) {
+	if (krk_long_sign(b) == 0) {
+		krk_long_clear(out);
+		krk_long_init_si(out, krk_long_sign(a) < 0 ? -1 : 1);
+		return;
+	}
+
+	if (krk_long_sign(b) < 0) {
+		krk_runtimeError(vm.exceptions->notImplementedError, "TODO: negative exponent");
+		return;
+	}
+
+	/**
+	 * CPython sources link here as a reference:
+	 * Handbook of Applied Cryptography
+	 * @see https://cacr.uwaterloo.ca/hac/about/chap14.pdf
+	 *
+	 * Section 14.6 covers exponentiation, and this is "left-to-right binary
+	 * exponentiation" as described in 14.79:
+	 *    A ← 1
+	 *    For i from t down to 0 do the following:
+	 *       A ← A * A
+	 *       If e_i = 1, then A ← A * g
+	 */
+
+	krk_long_clear(out);
+	krk_long_init_si(out, 1);
+
+	for (ssize_t i = 0; i < b[0].width; ++i) {
+		uint32_t b_i = b[0].digits[i];
+
+		for (size_t j = (uint32_t)1 << (DIGIT_SHIFT-1); j != 0; j >>= 1) {
+			krk_long_mul(out, out, out);
+			if (b_i & j) {
+				krk_long_mul(out, out, a);
+			}
+		}
+	}
+
+}
+
 BASIC_BIN_OP(lshift,_krk_long_lshift)
 BASIC_BIN_OP(rshift,_krk_long_rshift)
 BASIC_BIN_OP(mod,_krk_long_mod)
 BASIC_BIN_OP(floordiv,_krk_long_div)
+BASIC_BIN_OP(pow,_krk_long_pow)
 
 #define COMPARE_OP(name, comp) \
 	KRK_METHOD(long,__ ## name ## __,{ \
@@ -1642,6 +1684,7 @@ void _createAndBind_longClass(void) {
 	BIND_TRIPLET(mod);
 	BIND_TRIPLET(truediv);
 	BIND_TRIPLET(floordiv);
+	BIND_TRIPLET(pow);
 #undef BIND_TRIPLET
 
 	BIND_METHOD(long,__lt__);
