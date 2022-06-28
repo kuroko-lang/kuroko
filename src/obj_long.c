@@ -11,7 +11,7 @@
  *
  *
  * TODO:
- * - Implement float conversions and @c __truediv__.
+ * - Implement proper float conversions, make float ops more accurate.
  * - Expose better functions for extracting and converting native integers,
  *   which would be useful in modules that want to take 64-bit values,
  *   extracted unsigned values, etc.
@@ -1187,11 +1187,68 @@ KRK_METHOD(long,__init__,{
 	return argv[0];
 })
 
-#if 0
+/**
+ * Float conversions.
+ *
+ * CPython does a thing with ldexp, but I don't think I have an implementation
+ * of that in ToaruOS's libc, and I consider that a blocker to doing the same here.
+ *
+ * @warning These are probably inaccurate.
+ */
+static double krk_long_get_double(const KrkLong * value) {
+	size_t awidth = value->width < 0 ? -value->width : value->width;
+	double out = 0.0;
+	for (size_t i = 0; i < awidth; ++i) {
+		out *= (double)((uint64_t)DIGIT_MAX + 1);
+		out += (double)value->digits[awidth-i-1];
+	}
+	if (value->width < 0) return -out;
+	return out;
+}
+
 KRK_METHOD(long,__float__,{
 	return FLOATING_VAL(krk_long_get_double(self->value));
 })
-#endif
+
+static KrkValue _krk_long_truediv(KrkLong * top, KrkLong * bottom) {
+	if (bottom->width == 0) return krk_runtimeError(vm.exceptions->valueError, "float division by zero");
+
+	KrkLong quot, rem;
+	krk_long_init_many(&quot, &rem, NULL);
+
+	/* Perform division */
+	krk_long_div_rem(&quot, &rem, top, bottom);
+
+	/* Convert to floats */
+	double quot_float = krk_long_get_double(&quot);
+	double rem_float  = krk_long_get_double(&rem);
+	double div_float  = krk_long_get_double(bottom);
+
+	return FLOATING_VAL(quot_float + (rem_float / div_float));
+}
+
+static KrkValue checked_float_div(double top, double bottom) {
+	if (unlikely(bottom == 0.0)) return krk_runtimeError(vm.exceptions->valueError, "float division by zero");
+	return FLOATING_VAL(top/bottom);
+}
+
+KRK_METHOD(long,__truediv__,{
+	krk_long tmp;
+	if (IS_long(argv[1])) krk_long_init_copy(tmp, AS_long(argv[1])->value);
+	else if (IS_INTEGER(argv[1])) krk_long_init_si(tmp, AS_INTEGER(argv[1]));
+	else if (IS_FLOATING(argv[1])) return checked_float_div(krk_long_get_double(self->value), AS_FLOATING(argv[1]));
+	else return NOTIMPL_VAL();
+	return _krk_long_truediv(self->value,tmp);
+})
+
+KRK_METHOD(long,__rtruediv__,{
+	krk_long tmp;
+	if (IS_long(argv[1])) krk_long_init_copy(tmp, AS_long(argv[1])->value);
+	else if (IS_INTEGER(argv[1])) krk_long_init_si(tmp, AS_INTEGER(argv[1]));
+	else if (IS_FLOATING(argv[1])) return checked_float_div(AS_FLOATING(argv[1]), krk_long_get_double(self->value));
+	else return NOTIMPL_VAL();
+	return _krk_long_truediv(tmp,self->value);
+})
 
 #define PRINTER(name,base,prefix) \
 	KRK_METHOD(long,__ ## name ## __,{ \
@@ -1244,11 +1301,12 @@ KRK_METHOD(long,__int__,{
 	return INTEGER_VAL(krk_long_medium(self->value));
 })
 
-#define BASIC_BIN_OP(name, long_func) \
+#define BASIC_BIN_OP_FLOATS(name, long_func, MAYBE_FLOAT, MAYBE_FLOAT_INV) \
 	KRK_METHOD(long,__ ## name ## __,{ \
 		krk_long tmp; \
 		if (IS_long(argv[1])) krk_long_init_copy(tmp, AS_long(argv[1])->value); \
 		else if (IS_INTEGER(argv[1])) krk_long_init_si(tmp, AS_INTEGER(argv[1])); \
+		MAYBE_FLOAT \
 		else return NOTIMPL_VAL(); \
 		long_func(tmp,self->value,tmp); \
 		return make_long_obj(tmp); \
@@ -1257,6 +1315,7 @@ KRK_METHOD(long,__int__,{
 		krk_long tmp; \
 		if (IS_long(argv[1])) krk_long_init_copy(tmp, AS_long(argv[1])->value); \
 		else if (IS_INTEGER(argv[1])) krk_long_init_si(tmp, AS_INTEGER(argv[1])); \
+		MAYBE_FLOAT_INV \
 		else return NOTIMPL_VAL(); \
 		long_func(tmp,tmp,self->value); \
 		return make_long_obj(tmp); \
@@ -1272,9 +1331,14 @@ KRK_METHOD(long,__int__,{
 		return make_long_obj(tmp_res); \
 	}
 
-BASIC_BIN_OP(add,krk_long_add)
-BASIC_BIN_OP(sub,krk_long_sub)
-BASIC_BIN_OP(mul,krk_long_mul)
+#define BASIC_BIN_OP(a,b) BASIC_BIN_OP_FLOATS(a,b,,)
+#define FLOAT_A(op) else if (IS_FLOATING(argv[1])) return FLOATING_VAL(krk_long_get_double(self->value) op AS_FLOATING(argv[1]));
+#define FLOAT_B(op) else if (IS_FLOATING(argv[1])) return FLOATING_VAL(AS_FLOATING(argv[1]) op krk_long_get_double(self->value));
+#define BASIC_BIN_OP_FLOAT(a,b,op) BASIC_BIN_OP_FLOATS(a,b,FLOAT_A(op),FLOAT_B(op))
+
+BASIC_BIN_OP_FLOAT(add,krk_long_add,+)
+BASIC_BIN_OP_FLOAT(sub,krk_long_sub,-)
+BASIC_BIN_OP_FLOAT(mul,krk_long_mul,*)
 BASIC_BIN_OP(or, krk_long_or)
 BASIC_BIN_OP(xor,krk_long_xor)
 BASIC_BIN_OP(and,krk_long_and)
@@ -1323,6 +1387,7 @@ BASIC_BIN_OP(floordiv,_krk_long_div)
 		krk_long tmp; \
 		if (IS_long(argv[1])) krk_long_init_copy(tmp, AS_long(argv[1])->value); \
 		else if (IS_INTEGER(argv[1])) krk_long_init_si(tmp, AS_INTEGER(argv[1])); \
+		else if (IS_FLOATING(argv[1])) return BOOLEAN_VAL(krk_long_get_double(self->value) comp AS_FLOATING(argv[1])); \
 		else return NOTIMPL_VAL(); \
 		int cmp = krk_long_compare(self->value,tmp); \
 		krk_long_clear(tmp); \
@@ -1559,6 +1624,7 @@ void _createAndBind_longClass(void) {
 	BIND_METHOD(long,__bin__);
 	BIND_METHOD(long,__int__);
 	BIND_METHOD(long,__len__);
+	BIND_METHOD(long,__float__);
 	krk_defineNative(&_long->methods,"__repr__", FUNC_NAME(long,__str__));
 
 #define BIND_TRIPLET(name) \
@@ -1574,7 +1640,7 @@ void _createAndBind_longClass(void) {
 	BIND_TRIPLET(lshift);
 	BIND_TRIPLET(rshift);
 	BIND_TRIPLET(mod);
-	//BIND_TRIPLET(truediv);
+	BIND_TRIPLET(truediv);
 	BIND_TRIPLET(floordiv);
 #undef BIND_TRIPLET
 
