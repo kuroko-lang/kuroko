@@ -1402,20 +1402,34 @@ static void _krk_long_pow(krk_long out, krk_long a, krk_long b) {
 	 *       If e_i = 1, then A ← A * g
 	 */
 
+	PREP_OUTPUT(out,a,b);
+
 	krk_long_clear(out);
 	krk_long_init_si(out, 1);
 
-	for (ssize_t i = 0; i < b[0].width; ++i) {
+	krk_long scratch;
+	krk_long_init_si(scratch, 0);
+
+	for (ssize_t i = b[0].width-1; i >= 0; --i) {
 		uint32_t b_i = b[0].digits[i];
 
 		for (size_t j = (uint32_t)1 << (DIGIT_SHIFT-1); j != 0; j >>= 1) {
-			krk_long_mul(out, out, out);
+			krk_long_mul(scratch, out, out);
+			_swap(out, scratch);
+
 			if (b_i & j) {
 				krk_long_mul(out, out, a);
+			}
+
+			if (krk_currentThread.flags & KRK_THREAD_SIGNALLED) {
+				krk_long_clear_many(scratch, out, NULL);
+				return;
 			}
 		}
 	}
 
+	krk_long_clear(scratch);
+	FINISH_OUTPUT(out);
 }
 
 BASIC_BIN_OP(lshift,_krk_long_lshift)
