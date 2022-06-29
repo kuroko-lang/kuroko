@@ -1,6 +1,6 @@
 from fileio import open
 let f = open('test/day1.in','r')
-let lines = [int(x) for x in f.read().split("\n")][:-1] # because that split included a blank
+let lines = [int(x) for x in f.readlines()]
 f.close()
 
 # Make a bad set

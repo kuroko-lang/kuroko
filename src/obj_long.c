@@ -1043,6 +1043,11 @@ static int convert_digit(char c) {
 	return 0;
 }
 
+static int is_whitespace(char c) {
+	/* Same set we use in str.strip() by default */
+	return (c == ' ' || c == '\t' || c == '\n' || c == '\r');
+}
+
 /**
  * @brief Parse a number into a long.
  *
@@ -1057,7 +1062,10 @@ static int krk_long_parse_string(const char * str, KrkLong * num, unsigned int b
 	int sign = 1;
 
 	/* Skip any leading whitespace */
-	while (c < end && *c && (*c == ' ' || *c == '\t')) c++;
+	while (c < end && is_whitespace(*c)) c++;
+
+	/* Trim any trailing whitespace */
+	while (end > c && is_whitespace(end[-1])) end--;
 
 	/* If there's nothing here, that's invalid. */
 	if (c >= end) {
