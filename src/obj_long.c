@@ -1641,6 +1641,57 @@ KRK_METHOD(long,to_bytes,{
 	return long_to_bytes(self->value, argc, argv, hasKw);
 })
 
+/**
+ * @fn long._digit_count()
+ *
+ * Internal. Obtain the @c width of a long.
+ *
+ * @return The number of digits in the internal representation of the long.
+ *         The result will be negative if the long is negative.
+ */
+KRK_METHOD(long,_digit_count,{
+	krk_long result; /* since it's a ssize_t */
+	krk_long_init_si(result, self->value[0].width);
+	return make_long_obj(result);
+})
+
+/**
+ * @fn long._get_digit(index)
+ *
+ * Internal. Obtain an int value representative of a digit of a long.
+ *
+ * Basically (|n| >> (31 * index)) & 0x7FFFFFFF
+ *
+ * @param index Digit to get. May be an @c int or a @c long >= 0 and <= 2.
+ * @return An int representation of the unsigned digit @p index of the long.
+ */
+KRK_METHOD(long,_get_digit,{
+	METHOD_TAKES_EXACTLY(1);
+
+	KrkLong * _self = self->value;
+
+	size_t abs_width = _self->width < 0 ? -_self->width : _self->width;
+	size_t index;
+
+	if (IS_INTEGER(argv[1])) {
+		index = AS_INTEGER(argv[1]);
+	} else if (IS_long(argv[1])) {
+		KrkLong * value = AS_long(argv[1])->value;
+		if (value->width < 0 || value->width > 2) {
+			return krk_runtimeError(vm.exceptions->indexError, "digit index is invalid");
+		}
+		index = krk_long_medium(value);
+	} else {
+		return TYPE_ERROR(int,argv[1]);
+	}
+
+	if (index >= abs_width) {
+		return krk_runtimeError(vm.exceptions->indexError, "digit index out of range");
+	}
+
+	return INTEGER_VAL(_self->digits[index]);
+})
+
 #undef CURRENT_CTYPE
 #define CURRENT_CTYPE krk_integer_type
 
@@ -1723,6 +1774,11 @@ void _createAndBind_longClass(void) {
 	BIND_METHOD(long,bit_count);
 	BIND_METHOD(long,bit_length);
 	BIND_METHOD(long,to_bytes);
+
+	/* Internal methods for inspecting longs. Since these are internal,
+	 * we don't bother binding them for ints. */
+	BIND_METHOD(long,_digit_count);
+	BIND_METHOD(long,_get_digit);
 
 	krk_finalizeClass(_long);
 
