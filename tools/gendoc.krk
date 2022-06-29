@@ -27,6 +27,7 @@ let specialMethods = {
     '__init__': lambda cls, args: f'let <i>x</i> = <b>{cls}</b>({args})',
     '__getitem__': lambda cls, args: f'{cls}[{args or "<i>key</i>"}]',
     '__delitem__': lambda cls, args: f'<b>del</b> {cls}[{args or "<i>key</i>"}]',
+    '__setitem__': lambda cls, args: f'{cls}[{args or "<i>key</i>"}] = <i>value</i>',
     '__add__': lambda cls, args: f'{cls} + {args or "<i>other</i>"}',
     '__len__': lambda cls, args: f'<b>len</b>({cls})',
     '__call__': lambda cls, args: f'{cls}({args})',
