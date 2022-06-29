@@ -1726,7 +1726,12 @@ KRK_METHOD(int,to_bytes,{
 })
 
 #undef BIND_METHOD
+/* These class names conflict with C types, so we need to cheat a bit */
 #define BIND_METHOD(klass,method) do { krk_defineNative(& _ ## klass->methods, #method, _ ## klass ## _ ## method); } while (0)
+#define BIND_TRIPLET(klass,name) \
+	BIND_METHOD(klass,__ ## name ## __); \
+	BIND_METHOD(klass,__r ## name ## __); \
+	krk_defineNative(&_ ## klass->methods,"__i" #name "__",_ ## klass ## ___ ## name ## __);
 _noexport
 void _createAndBind_longClass(void) {
 	_long = ADD_BASE_CLASS(vm.baseClasses->longClass, "long", vm.baseClasses->intClass);
@@ -1745,23 +1750,18 @@ void _createAndBind_longClass(void) {
 	BIND_METHOD(long,__float__);
 	krk_defineNative(&_long->methods,"__repr__", FUNC_NAME(long,__str__));
 
-#define BIND_TRIPLET(name) \
-	BIND_METHOD(long,__ ## name ## __); \
-	BIND_METHOD(long,__r ## name ## __); \
-	krk_defineNative(&_long->methods,"__i" #name "__",_long___ ## name ## __);
-	BIND_TRIPLET(add);
-	BIND_TRIPLET(sub);
-	BIND_TRIPLET(mul);
-	BIND_TRIPLET(or);
-	BIND_TRIPLET(xor);
-	BIND_TRIPLET(and);
-	BIND_TRIPLET(lshift);
-	BIND_TRIPLET(rshift);
-	BIND_TRIPLET(mod);
-	BIND_TRIPLET(truediv);
-	BIND_TRIPLET(floordiv);
-	BIND_TRIPLET(pow);
-#undef BIND_TRIPLET
+	BIND_TRIPLET(long,add);
+	BIND_TRIPLET(long,sub);
+	BIND_TRIPLET(long,mul);
+	BIND_TRIPLET(long,or);
+	BIND_TRIPLET(long,xor);
+	BIND_TRIPLET(long,and);
+	BIND_TRIPLET(long,lshift);
+	BIND_TRIPLET(long,rshift);
+	BIND_TRIPLET(long,mod);
+	BIND_TRIPLET(long,truediv);
+	BIND_TRIPLET(long,floordiv);
+	BIND_TRIPLET(long,pow);
 
 	BIND_METHOD(long,__lt__);
 	BIND_METHOD(long,__gt__);

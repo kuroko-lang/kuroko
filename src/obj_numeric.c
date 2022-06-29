@@ -448,7 +448,12 @@ KRK_METHOD(NotImplementedType,__hash__,{
 })
 
 #undef BIND_METHOD
+/* These class names conflict with C types, so we need to cheat a bit */
 #define BIND_METHOD(klass,method) do { krk_defineNative(& _ ## klass->methods, #method, _ ## klass ## _ ## method); } while (0)
+#define BIND_TRIPLET(klass,name) \
+	BIND_METHOD(klass,__ ## name ## __); \
+	BIND_METHOD(klass,__r ## name ## __); \
+	krk_defineNative(&_ ## klass->methods,"__i" #name "__",_ ## klass ## ___ ## name ## __);
 _noexport
 void _createAndBind_numericClasses(void) {
 	KrkClass * _int = ADD_BASE_CLASS(vm.baseClasses->intClass, "int", vm.baseClasses->objectClass);
@@ -461,23 +466,18 @@ void _createAndBind_numericClasses(void) {
 	BIND_METHOD(int,__eq__);
 	BIND_METHOD(int,__hash__);
 
-#define BIND_TRIPLET(name) \
-	BIND_METHOD(int,__ ## name ## __); \
-	BIND_METHOD(int,__r ## name ## __); \
-	krk_defineNative(&_int->methods,"__i" #name "__",_int___ ## name ## __);
-	BIND_TRIPLET(add);
-	BIND_TRIPLET(sub);
-	BIND_TRIPLET(mul);
-	BIND_TRIPLET(or);
-	BIND_TRIPLET(xor);
-	BIND_TRIPLET(and);
-	BIND_TRIPLET(lshift);
-	BIND_TRIPLET(rshift);
-	BIND_TRIPLET(mod);
-	BIND_TRIPLET(truediv);
-	BIND_TRIPLET(floordiv);
-	BIND_TRIPLET(pow);
-#undef BIND_TRIPLET
+	BIND_TRIPLET(int,add);
+	BIND_TRIPLET(int,sub);
+	BIND_TRIPLET(int,mul);
+	BIND_TRIPLET(int,or);
+	BIND_TRIPLET(int,xor);
+	BIND_TRIPLET(int,and);
+	BIND_TRIPLET(int,lshift);
+	BIND_TRIPLET(int,rshift);
+	BIND_TRIPLET(int,mod);
+	BIND_TRIPLET(int,truediv);
+	BIND_TRIPLET(int,floordiv);
+	BIND_TRIPLET(int,pow);
 
 	BIND_METHOD(int,__lt__);
 	BIND_METHOD(int,__gt__);
@@ -500,16 +500,11 @@ void _createAndBind_numericClasses(void) {
 	BIND_METHOD(float,__str__);
 	BIND_METHOD(float,__eq__);
 	BIND_METHOD(float,__hash__);
-#define BIND_TRIPLET(name) \
-	BIND_METHOD(float,__ ## name ## __); \
-	BIND_METHOD(float,__r ## name ## __); \
-	krk_defineNative(&_float->methods,"__i" #name "__",_float___ ## name ## __);
-	BIND_TRIPLET(add);
-	BIND_TRIPLET(sub);
-	BIND_TRIPLET(mul);
-	BIND_TRIPLET(truediv);
-	BIND_TRIPLET(floordiv);
-#undef BIND_TRIPLET
+	BIND_TRIPLET(float,add);
+	BIND_TRIPLET(float,sub);
+	BIND_TRIPLET(float,mul);
+	BIND_TRIPLET(float,truediv);
+	BIND_TRIPLET(float,floordiv);
 	BIND_METHOD(float,__lt__);
 	BIND_METHOD(float,__gt__);
 	BIND_METHOD(float,__le__);
