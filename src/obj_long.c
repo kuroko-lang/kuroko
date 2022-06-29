@@ -1421,8 +1421,12 @@ static void _krk_long_pow(krk_long out, krk_long a, krk_long b) {
 				krk_long_mul(out, out, a);
 			}
 
+			/* This can take a long time, especially for values that are likely to
+			 * run out of memory for storage, so best to bail on signal early. */
 			if (krk_currentThread.flags & KRK_THREAD_SIGNALLED) {
 				krk_long_clear_many(scratch, out, NULL);
+				/* There's no need to set exception here, the VM will do it on its
+				 * own eventually... */
 				return;
 			}
 		}
@@ -1477,6 +1481,13 @@ KRK_METHOD(long,__neg__,{
 	KrkLong tmp;
 	krk_long_init_copy(&tmp, self->value);
 	krk_long_set_sign(&tmp, tmp.width > 0 ? -1 : 1);
+	return make_long_obj(&tmp);
+})
+
+KRK_METHOD(long,__abs__,{
+	KrkLong tmp;
+	krk_long_init_copy(&tmp, self->value);
+	krk_long_set_sign(&tmp, 1);
 	return make_long_obj(&tmp);
 })
 
@@ -1707,6 +1718,7 @@ void _createAndBind_longClass(void) {
 	BIND_METHOD(long,__ge__);
 	BIND_METHOD(long,__invert__);
 	BIND_METHOD(long,__neg__);
+	BIND_METHOD(long,__abs__);
 
 	BIND_METHOD(long,bit_count);
 	BIND_METHOD(long,bit_length);
