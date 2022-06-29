@@ -20,7 +20,7 @@
 #define KRK_VERSION_MINOR  "3"
 #define KRK_VERSION_PATCH  "0"
 
-#define KRK_VERSION_EXTRA_BASE  "-alpha"
+#define KRK_VERSION_EXTRA_BASE  "-beta"
 
 #ifndef STATIC_ONLY
 #define KRK_VERSION_EXTRA KRK_VERSION_EXTRA_BASE
