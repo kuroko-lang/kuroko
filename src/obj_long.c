@@ -1175,8 +1175,12 @@ KRK_METHOD(long,__init__,{
 	} else if (IS_BOOLEAN(argv[1])) {
 		make_long(AS_BOOLEAN(argv[1]),self);
 	} else if (IS_STRING(argv[1])) {
+		/* XXX This should probably work like int(...) does and default to base 10... and take a base at all... */
 		if (krk_long_parse_string(AS_CSTRING(argv[1]),self->value,0,AS_STRING(argv[1])->length)) {
-			return krk_runtimeError(vm.exceptions->valueError, "invalid literal for long() with base 0: '%s'", AS_CSTRING(argv[1]));
+			krk_push(argv[1]);
+			KrkValue repred = krk_callDirect(vm.baseClasses->strClass->_reprer, 1);
+			return krk_runtimeError(vm.exceptions->valueError, "invalid literal for long() with base " PRIkrk_int "%s%s",
+				(krk_integer_type)0, IS_STRING(repred) ? ": " : "", IS_STRING(repred) ? AS_CSTRING(repred) : "");
 		}
 	} else if (IS_long(argv[1])) {
 		krk_long_init_copy(self->value,AS_long(argv[1])->value);

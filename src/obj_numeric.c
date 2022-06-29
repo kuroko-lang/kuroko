@@ -20,7 +20,21 @@ FUNC_SIG(int,__init__) {
 	if (argc < 2) return INTEGER_VAL(0);
 	if (IS_BOOLEAN(argv[1])) return INTEGER_VAL(AS_INTEGER(argv[1]));
 	if (IS_INTEGER(argv[1])) return argv[1];
-	if (IS_STRING(argv[1])) return krk_string_int(argc-1,&argv[1],0);
+	if (IS_STRING(argv[1])) {
+		krk_integer_type _base = 10;
+		if (argc > 2) {
+			CHECK_ARG(2,int,krk_integer_type,base);
+			_base = base;
+		}
+		KrkValue result = krk_parse_int(AS_CSTRING(argv[1]), AS_STRING(argv[1])->length, _base);
+		if (IS_NONE(result)) {
+			krk_push(argv[1]);
+			KrkValue repred = krk_callDirect(vm.baseClasses->strClass->_reprer, 1);
+			return krk_runtimeError(vm.exceptions->valueError, "invalid literal for int() with base " PRIkrk_int "%s%s",
+				_base, IS_STRING(repred) ? ": " : "", IS_STRING(repred) ? AS_CSTRING(repred) : "");
+		}
+		return result;
+	}
 	if (IS_FLOATING(argv[1])) return INTEGER_VAL(AS_FLOATING(argv[1]));
 	if (IS_BOOLEAN(argv[1])) return INTEGER_VAL(AS_BOOLEAN(argv[1]));
 	return krk_runtimeError(vm.exceptions->typeError, "%s() argument must be a string or a number, not '%s'", "int", krk_typeName(argv[1]));
