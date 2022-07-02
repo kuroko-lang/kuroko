@@ -833,9 +833,10 @@ static inline int _callNative(KrkNative* callee, int argCount, int returnDepth) 
 		krk_pop();
 		krk_push(result);
 	} else {
+		size_t stackOffsetAfterCall = (krk_currentThread.stackTop - krk_currentThread.stack) - argCount - returnDepth;
 		KrkValue result = krk_callNativeOnStack(argCount, krk_currentThread.stackTop - argCount, 0, native);
 		if (unlikely(krk_currentThread.stackTop == krk_currentThread.stack)) return 0;
-		krk_currentThread.stackTop -= argCount + returnDepth;
+		krk_currentThread.stackTop = krk_currentThread.stack + stackOffsetAfterCall;
 		krk_push(result);
 	}
 	return 2;
