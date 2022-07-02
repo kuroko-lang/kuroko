@@ -112,6 +112,41 @@ KRK_METHOD(tuple,__eq__,{
 	return BOOLEAN_VAL(1);
 })
 
+KRK_METHOD(tuple,__lt__,{
+	METHOD_TAKES_EXACTLY(1);
+	if (!IS_tuple(argv[1])) return NOTIMPL_VAL();
+	KrkTuple * them = AS_tuple(argv[1]);
+	size_t lesser = self->values.count < them->values.count ? self->values.count : them->values.count;
+	for (size_t i = 0; i < lesser; ++i) {
+		KrkValue a = self->values.values[i];
+		KrkValue b = them->values.values[i];
+		KrkValue ltComp = krk_operator_lt(a,b);
+		if (IS_BOOLEAN(ltComp) && AS_BOOLEAN(ltComp)) continue;
+		KrkValue gtComp = krk_operator_gt(a,b);
+		if (IS_BOOLEAN(gtComp) && AS_BOOLEAN(gtComp)) return BOOLEAN_VAL(0);
+		if (i + 1 == lesser) return BOOLEAN_VAL((self->values.count < them->values.count));
+	}
+	return BOOLEAN_VAL((self->values.count <= them->values.count));
+})
+
+KRK_METHOD(tuple,__gt__,{
+	METHOD_TAKES_EXACTLY(1);
+	if (!IS_tuple(argv[1])) return NOTIMPL_VAL();
+	KrkTuple * them = AS_tuple(argv[1]);
+	size_t lesser = self->values.count < them->values.count ? self->values.count : them->values.count;
+	for (size_t i = 0; i < lesser; ++i) {
+		KrkValue a = self->values.values[i];
+		KrkValue b = them->values.values[i];
+		KrkValue gtComp = krk_operator_gt(a,b);
+		if (IS_BOOLEAN(gtComp) && AS_BOOLEAN(gtComp)) continue;
+		KrkValue ltComp = krk_operator_lt(a,b);
+		if (IS_BOOLEAN(ltComp) && AS_BOOLEAN(ltComp)) return BOOLEAN_VAL(0);
+		/* Must be equal */
+		if (i + 1 == lesser) return BOOLEAN_VAL((self->values.count > them->values.count));
+	}
+	return BOOLEAN_VAL((self->values.count >= them->values.count));
+})
+
 KRK_METHOD(tuple,__repr__,{
 	if (((KrkObj*)self)->flags & KRK_OBJ_FLAGS_IN_REPR) return OBJECT_VAL(S("(...)"));
 	((KrkObj*)self)->flags |= KRK_OBJ_FLAGS_IN_REPR;
@@ -210,6 +245,8 @@ void _createAndBind_tupleClass(void) {
 	BIND_METHOD(tuple,__contains__);
 	BIND_METHOD(tuple,__iter__);
 	BIND_METHOD(tuple,__eq__);
+	BIND_METHOD(tuple,__lt__);
+	BIND_METHOD(tuple,__gt__);
 	BIND_METHOD(tuple,__hash__);
 	krk_defineNative(&tuple->methods, "__init__", _tuple_init);
 	krk_defineNative(&tuple->methods, "__str__", FUNC_NAME(tuple,__repr__));
