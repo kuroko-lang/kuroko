@@ -836,7 +836,7 @@ static inline int _callNative(KrkNative* callee, int argCount, int returnDepth) 
 		size_t stackOffsetAfterCall = (krk_currentThread.stackTop - krk_currentThread.stack) - argCount - returnDepth;
 		KrkValue result = krk_callNativeOnStack(argCount, krk_currentThread.stackTop - argCount, 0, native);
 		if (unlikely(krk_currentThread.stackTop == krk_currentThread.stack)) return 0;
-		krk_currentThread.stackTop = krk_currentThread.stack + stackOffsetAfterCall;
+		krk_currentThread.stackTop = &krk_currentThread.stack[stackOffsetAfterCall];
 		krk_push(result);
 	}
 	return 2;
@@ -1557,6 +1557,10 @@ static int handleException() {
 			if (!(vm.globalFlags & KRK_GLOBAL_CLEAN_OUTPUT)) krk_dumpTraceback();
 			krk_currentThread.frameCount = 0;
 		}
+
+		/* Ensure stack is in the expected place, as if we returned None. */
+		krk_currentThread.stackTop = &krk_currentThread.stack[exitSlot];
+
 		/* If exitSlot was not 0, there was an exception during a call to runNext();
 		 * this is likely to be raised higher up the stack as an exception in the outer
 		 * call, but we don't want to print the traceback here. */
