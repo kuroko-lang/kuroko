@@ -415,6 +415,8 @@ static int _list_sorter(const void * _a, const void * _b) {
 	KrkValue a = *(KrkValue*)_a;
 	KrkValue b = *(KrkValue*)_b;
 
+	/* Avoid actually calling the sort function if there's an active exception */
+	if (unlikely(krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION)) return -1;
 	KrkValue ltComp = krk_operator_lt(a,b);
 	if (IS_NONE(ltComp) || (IS_BOOLEAN(ltComp) && AS_BOOLEAN(ltComp))) return -1;
 	KrkValue gtComp = krk_operator_gt(a,b);
