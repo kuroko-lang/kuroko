@@ -221,6 +221,7 @@ KRK_METHOD(list,__contains__,{
 			pthread_rwlock_unlock(&self->rwlock);
 			return BOOLEAN_VAL(1);
 		}
+		if (unlikely(krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION)) break;
 	}
 	pthread_rwlock_unlock(&self->rwlock);
 	return BOOLEAN_VAL(0);
@@ -330,6 +331,10 @@ KRK_METHOD(list,remove,{
 			pthread_rwlock_unlock(&self->rwlock);
 			return FUNC_NAME(list,pop)(2,(KrkValue[]){argv[0], INTEGER_VAL(i)},0);
 		}
+		if (unlikely(krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION)) {
+			pthread_rwlock_unlock(&self->rwlock);
+			return NONE_VAL();
+		}
 	}
 	pthread_rwlock_unlock(&self->rwlock);
 	return krk_runtimeError(vm.exceptions->valueError, "not found");
@@ -372,6 +377,10 @@ KRK_METHOD(list,index,{
 			pthread_rwlock_unlock(&self->rwlock);
 			return INTEGER_VAL(i);
 		}
+		if (unlikely(krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION)) {
+			pthread_rwlock_unlock(&self->rwlock);
+			return NONE_VAL();
+		}
 	}
 
 	pthread_rwlock_unlock(&self->rwlock);
@@ -385,6 +394,7 @@ KRK_METHOD(list,count,{
 	pthread_rwlock_rdlock(&self->rwlock);
 	for (size_t i = 0; i < self->values.count; ++i) {
 		if (krk_valuesEqual(self->values.values[i], argv[1])) count++;
+		if (unlikely(krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION)) break;
 	}
 	pthread_rwlock_unlock(&self->rwlock);
 
