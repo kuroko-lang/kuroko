@@ -1563,8 +1563,8 @@ static int handleException() {
 			 * this reset, so the repl can throw errors and keep accepting new lines.
 			 */
 			if (!(vm.globalFlags & KRK_GLOBAL_CLEAN_OUTPUT)) krk_dumpTraceback();
-			krk_currentThread.frameCount = 0;
 		}
+		krk_currentThread.frameCount = krk_currentThread.exitOnFrame;
 
 		/* Ensure stack is in the expected place, as if we returned None. */
 		krk_currentThread.stackTop = &krk_currentThread.stack[exitSlot];
