@@ -84,6 +84,18 @@ static KrkValue _exception_str(int argc, const KrkValue argv[], int hasKw) {
 	}
 }
 
+static KrkValue _keyerror_str(int argc, const KrkValue argv[], int hasKw) {
+	if (!IS_INSTANCE(argv[0])) return NONE_VAL(); /* uh oh */
+	KrkInstance * self = AS_INSTANCE(argv[0]);
+	KrkValue arg;
+	if (krk_tableGet(&self->fields, OBJECT_VAL(S("arg")), &arg)) {
+		krk_push(arg);
+		return krk_callDirect(krk_getType(arg)->_reprer, 1);
+	} else {
+		return _exception_str(argc,argv,hasKw);
+	}
+}
+
 /**
  * @brief Generate printable text for a syntax error.
  *
@@ -167,6 +179,8 @@ void _createAndBind_exceptions(void) {
 	ADD_EXCEPTION_CLASS(vm.exceptions->argumentError, "ArgumentError", vm.exceptions->baseException);
 	ADD_EXCEPTION_CLASS(vm.exceptions->indexError, "IndexError", vm.exceptions->baseException);
 	ADD_EXCEPTION_CLASS(vm.exceptions->keyError, "KeyError", vm.exceptions->baseException);
+	krk_defineNative(&vm.exceptions->keyError->methods, "__str__", _keyerror_str);
+	krk_finalizeClass(vm.exceptions->keyError);
 	ADD_EXCEPTION_CLASS(vm.exceptions->attributeError, "AttributeError", vm.exceptions->baseException);
 	ADD_EXCEPTION_CLASS(vm.exceptions->nameError, "NameError", vm.exceptions->baseException);
 	ADD_EXCEPTION_CLASS(vm.exceptions->importError, "ImportError", vm.exceptions->baseException);
