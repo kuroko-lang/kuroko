@@ -231,17 +231,32 @@ static void dumpInnerException(KrkValue exception, int depth) {
 		fprintf(stderr, "%s\n", AS_CSTRING(result));
 		return;
 	}
+
 	/* Clear the exception state while printing the exception. */
+	int hadException = krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION;
 	krk_currentThread.flags &= ~(KRK_THREAD_HAS_EXCEPTION);
+
+	/* Prepare to print exception name with prefixed module, if it's not __builtins__. */
+	KrkClass * type = krk_getType(exception);
+	KrkValue module = NONE_VAL();
+	krk_tableGet(&type->methods, OBJECT_VAL(S("__module__")), &module);
+	if (!(IS_NONE(module) || (IS_STRING(module) && AS_STRING(module) == S("__builtins__")))) {
+		fprintf(stderr, "%s.", AS_CSTRING(module));
+	}
+
+	/* Print type name */
 	fprintf(stderr, "%s", krk_typeName(exception));
+
+	/* Stringify it. */
 	KrkValue result = krk_callDirect(krk_getType(exception)->_tostr, 1);
 	if (!IS_STRING(result)) {
 		fprintf(stderr, "\n");
 	} else {
 		fprintf(stderr, ": %s\n", AS_CSTRING(result));
 	}
+
 	/* Turn the exception flag back on */
-	krk_currentThread.flags |= KRK_THREAD_HAS_EXCEPTION;
+	krk_currentThread.flags |= hadException;
 }
 
 /**
