@@ -537,20 +537,17 @@ static void multipleDefs(const KrkClosure * closure, int destination) {
 	} \
 } while (0)
 int krk_processComplexArguments(int argCount, KrkValueArray * positionals, KrkTable * keywords, const char * name) {
-	size_t kwargsCount = AS_INTEGER(krk_currentThread.stackTop[-1]);
-	krk_pop(); /* Pop the arg counter */
+#define TOP_ARGS 3
+	size_t kwargsCount = AS_INTEGER(krk_currentThread.stackTop[-TOP_ARGS]);
 	argCount--;
-
-	krk_initValueArray(positionals);
-	krk_initTable(keywords);
 
 	/* First, process all the positionals, including any from extractions. */
 	size_t existingPositionalArgs = argCount - kwargsCount * 2;
 	for (size_t i = 0; i < existingPositionalArgs; ++i) {
-		krk_writeValueArray(positionals, krk_currentThread.stackTop[-argCount + i]);
+		krk_writeValueArray(positionals, krk_currentThread.stackTop[-argCount + i - TOP_ARGS]);
 	}
 
-	KrkValue * startOfExtras = &krk_currentThread.stackTop[-kwargsCount * 2];
+	KrkValue * startOfExtras = &krk_currentThread.stackTop[-kwargsCount * 2 - TOP_ARGS];
 	/* Now unpack everything else. */
 	for (size_t i = 0; i < kwargsCount; ++i) {
 		KrkValue key = startOfExtras[i*2];
@@ -605,21 +602,34 @@ static inline int _callManaged(KrkClosure * closure, int argCount, int returnDep
 	size_t totalArguments = closure->function->totalArguments;
 	size_t offsetOfExtraArgs = potentialPositionalArgs;
 	size_t argCountX = argCount;
-	KrkValueArray * positionals;
-	KrkTable * keywords;
 
 	if (argCount && unlikely(IS_KWARGS(krk_currentThread.stackTop[-1]))) {
 
 		KrkValue myList = krk_list_of(0,NULL,0);
-		krk_currentThread.scratchSpace[0] = myList;
-		KrkValue myDict = krk_dict_of(0,NULL,0);
-		krk_currentThread.scratchSpace[1] = myDict;
+		krk_push(myList);
+		KrkValueArray * positionals;
 		positionals = AS_LIST(myList);
+
+		KrkValue myDict = krk_dict_of(0,NULL,0);
+		krk_push(myDict);
+		KrkTable * keywords;
 		keywords = AS_DICT(myDict);
 
 		/* This processes the existing argument list into a ValueArray and a Table with the args and keywords */
-		if (!krk_processComplexArguments(argCount, positionals, keywords, closure->function->name ? closure->function->name->chars : "<unnamed>")) goto _errorDuringPositionals;
-		argCount--; /* It popped the KWARGS value from the top, so we have one less argument */
+		if (!krk_processComplexArguments(argCount, positionals, keywords, closure->function->name ? closure->function->name->chars : "<unnamed>")) return 0;
+
+		/* Store scratch while we adjust; we can not make calls while using these scratch
+		 * registers as they may be clobbered by a nested call to _callManaged. */
+		krk_currentThread.scratchSpace[0] = myList;
+		krk_currentThread.scratchSpace[1] = myList;
+
+		/* Pop three things, including the kwargs count */
+		krk_pop(); /* dict */
+		krk_pop(); /* list */
+		krk_pop(); /* kwargs */
+
+		/* We popped the kwargs sentinel, which counted for one argCount */
+		argCount--;
 
 		/* Do we already know we have too many arguments? Let's bail before doing a bunch of work. */
 		if ((positionals->count > potentialPositionalArgs) && !(closure->function->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_ARGS)) {
@@ -656,7 +666,7 @@ static inline int _callManaged(KrkClosure * closure, int argCount, int returnDep
 			argCount++;
 		}
 
-		krk_freeValueArray(positionals);
+		/* We're done with the positionals */
 		krk_currentThread.scratchSpace[0] = NONE_VAL();
 
 		/* Now place keyword arguments */
@@ -708,7 +718,7 @@ _finishKwarg:
 			krk_tableAddAll(keywords, AS_DICT(krk_peek(0)));
 		}
 
-		krk_freeTable(keywords);
+		/* We're done with the keywords */
 		krk_currentThread.scratchSpace[1] = NONE_VAL();
 
 		for (size_t i = 0; i < (size_t)closure->function->requiredArgs; ++i) {
@@ -762,10 +772,8 @@ _finishKwarg:
 	return 1;
 
 _errorDuringPositionals:
-	krk_freeValueArray(positionals);
 	krk_currentThread.scratchSpace[0] = NONE_VAL();
 _errorAfterPositionals:
-	krk_freeTable(keywords);
 	krk_currentThread.scratchSpace[1] = NONE_VAL();
 _errorAfterKeywords:
 	return 0;
@@ -812,33 +820,33 @@ static void _rotate(size_t argCount) {
 
 static inline int _callNative(KrkNative* callee, int argCount, int returnDepth) {
 	NativeFn native = (NativeFn)callee->function;
+	size_t stackOffsetAfterCall = (krk_currentThread.stackTop - krk_currentThread.stack) - argCount - returnDepth;
+	KrkValue result;
 	if (unlikely(argCount && IS_KWARGS(krk_currentThread.stackTop[-1]))) {
+		/* Prep space for our list + dictionary */
 		KrkValue myList = krk_list_of(0,NULL,0);
-		krk_currentThread.scratchSpace[0] = myList;
-		KrkValue myDict = krk_dict_of(0,NULL,0);
-		krk_currentThread.scratchSpace[1] = myDict;
-		if (unlikely(!krk_processComplexArguments(argCount, AS_LIST(myList), AS_DICT(myDict), callee->name))) {
-			return 0;
-		}
-		argCount--; /* Because that popped the kwargs value */
-		krk_currentThread.stackTop -= argCount + returnDepth; /* We can just put the stack back to normal */
 		krk_push(myList);
+		KrkValue myDict = krk_dict_of(0,NULL,0);
 		krk_push(myDict);
-		krk_currentThread.scratchSpace[0] = NONE_VAL();
-		krk_currentThread.scratchSpace[1] = NONE_VAL();
+
+		/* Parse kwargs stuff into the list+dict; note, this no longer pops anything, and expects
+		 * our list + dict to be at the top: [kwargs] [list] [dict] */
+		if (unlikely(!krk_processComplexArguments(argCount, AS_LIST(myList), AS_DICT(myDict), callee->name))) return 0;
+
+		/* Write the dict into the list */
 		krk_writeValueArray(AS_LIST(myList), myDict);
-		KrkValue result = native(AS_LIST(myList)->count-1, AS_LIST(myList)->values, 1);
-		if (unlikely(krk_currentThread.stackTop == krk_currentThread.stack)) return 0;
-		krk_pop();
-		krk_pop();
-		krk_push(result);
+
+		/* Reduce the stack to just the list */
+		krk_currentThread.stack[stackOffsetAfterCall] = myList;
+		krk_currentThread.stackTop = &krk_currentThread.stack[stackOffsetAfterCall+1];
+
+		/* Call with list as arguments */
+		result = native(AS_LIST(myList)->count-1, AS_LIST(myList)->values, 1);
 	} else {
-		size_t stackOffsetAfterCall = (krk_currentThread.stackTop - krk_currentThread.stack) - argCount - returnDepth;
-		KrkValue result = krk_callNativeOnStack(argCount, krk_currentThread.stackTop - argCount, 0, native);
-		if (unlikely(krk_currentThread.stackTop == krk_currentThread.stack)) return 0;
-		krk_currentThread.stackTop = &krk_currentThread.stack[stackOffsetAfterCall];
-		krk_push(result);
+		result = krk_callNativeOnStack(argCount, krk_currentThread.stackTop - argCount, 0, native);
 	}
+	krk_currentThread.stackTop = &krk_currentThread.stack[stackOffsetAfterCall];
+	krk_push(result);
 	return 2;
 }
 

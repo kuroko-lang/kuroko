@@ -525,6 +525,11 @@ KRK_FUNC(print,{
 			}
 		} else {
 			krk_printValue(stdout, printable);
+			if (unlikely(krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION)) {
+				fprintf(stderr, "Exception in print():\n");
+				krk_debug_dumpStack(stderr, NULL);
+				return NONE_VAL();
+			}
 		}
 		char * thingToPrint = (i == argc - 1) ? end : sep;
 		for (size_t j = 0; j < ((i == argc - 1) ? endLen : sepLen); ++j) {
