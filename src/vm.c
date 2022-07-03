@@ -249,7 +249,7 @@ static void dumpInnerException(KrkValue exception, int depth) {
 
 	/* Stringify it. */
 	KrkValue result = krk_callDirect(krk_getType(exception)->_tostr, 1);
-	if (!IS_STRING(result)) {
+	if (!IS_STRING(result) || AS_STRING(result)->length == 0) {
 		fprintf(stderr, "\n");
 	} else {
 		fprintf(stderr, ": %s\n", AS_CSTRING(result));
