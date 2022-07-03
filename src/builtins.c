@@ -82,6 +82,81 @@ KrkValue krk_dirObject(int argc, const KrkValue argv[], int hasKw) {
 	return krk_pop();
 }
 
+#define IS_object(o) (1)
+#define AS_object(o) (o)
+#define CURRENT_CTYPE KrkValue
+#define CURRENT_NAME  self
+
+KRK_METHOD(object,__dir__,{
+	return krk_dirObject(argc,argv,hasKw);
+})
+
+KRK_METHOD(object,__class__,{
+	return OBJECT_VAL(krk_getType(self));
+})
+
+KRK_METHOD(object,__hash__,{
+	if (!IS_OBJECT(self)) {
+		uint32_t hashed;
+		if (krk_hashValue(self, &hashed)) return NONE_VAL();
+		return INTEGER_VAL(hashed);
+	}
+	KrkObj * obj = AS_OBJECT(self);
+	if (!(obj->flags & KRK_OBJ_FLAGS_VALID_HASH)) {
+		obj->hash = INTEGER_VAL((int)(intptr_t)self);
+		obj->flags |= KRK_OBJ_FLAGS_VALID_HASH;
+	}
+	return INTEGER_VAL(obj->hash);
+})
+
+KRK_METHOD(object,__eq__,{
+	METHOD_TAKES_EXACTLY(1);
+	return BOOLEAN_VAL(argc == 2 && IS_OBJECT(argv[0]) && IS_OBJECT(argv[1]) && AS_OBJECT(argv[0]) == AS_OBJECT(argv[1]));
+})
+
+/**
+ * object.__str__() / object.__repr__()
+ *
+ * Base method for all objects to implement __str__ and __repr__.
+ * Generally converts to <instance of [TYPE]> and for actual object
+ * types (functions, classes, instances, strings...) also adds the pointer
+ * address of the object on the heap.
+ *
+ * Since all types have at least a pseudo-class that should eventually
+ * inheret from object() and this is object.__str__ / object.__repr__,
+ * all types should have a string representation available through
+ * those methods.
+ */
+KRK_METHOD(object,__str__,{
+	KrkClass * type = krk_getType(self);
+
+	KrkValue module = NONE_VAL();
+	krk_tableGet(&type->methods, OBJECT_VAL(S("__module__")), &module);
+	KrkValue qualname = NONE_VAL();
+	krk_tableGet(&type->methods, OBJECT_VAL(S("__qualname__")), &qualname);
+	KrkString * name = IS_STRING(qualname) ? AS_STRING(qualname) : type->name;
+	int includeModule = !(IS_NONE(module) || (IS_STRING(module) && AS_STRING(module) == S("__builtins__")));
+
+	size_t allocSize = sizeof("<. object at 0x1234567812345678>") + name->length;
+	if (includeModule) allocSize += AS_STRING(module)->length + 1;
+	char * tmp = malloc(allocSize);
+	size_t len;
+	if (IS_OBJECT(self)) {
+		len = snprintf(tmp, allocSize, "<%s%s%s object at %p>",
+			includeModule ? AS_CSTRING(module) : "",
+			includeModule ? "." : "",
+			name->chars,
+			(void*)AS_OBJECT(self));
+	} else {
+		len = snprintf(tmp, allocSize, "<%s object>", name->chars);
+	}
+	KrkValue out = OBJECT_VAL(krk_copyString(tmp, len));
+	free(tmp);
+	return out;
+})
+
+#undef CURRENT_CTYPE
+#undef CURRENT_NAME
 
 KRK_FUNC(len,{
 	FUNCTION_TAKES_EXACTLY(1);
@@ -656,9 +731,10 @@ KRK_FUNC(issubclass,{
 	}
 })
 
-static KrkValue _module_repr(int argc, const KrkValue argv[], int hasKw) {
-	KrkInstance * self = AS_INSTANCE(argv[0]);
+#define IS_module(o) (IS_INSTANCE(o))
+#define AS_module(o) (AS_INSTANCE(o))
 
+KRK_METHOD(module,__repr__,{
 	KrkValue name = NONE_VAL();
 	krk_tableGet(&self->fields, vm.specialMethodNames[METHOD_NAME], &name);
 
@@ -681,65 +757,6 @@ static KrkValue _module_repr(int argc, const KrkValue argv[], int hasKw) {
 	KrkValue out = OBJECT_VAL(krk_copyString(tmp, len));
 	free(tmp);
 	return out;
-}
-
-static KrkValue obj_hash(int argc, const KrkValue argv[], int hasKw) {
-	KrkObj * self = AS_OBJECT(argv[0]);
-	if (!(self->flags & KRK_OBJ_FLAGS_VALID_HASH)) {
-		self->hash = INTEGER_VAL((int)(intptr_t)self);
-		self->flags |= KRK_OBJ_FLAGS_VALID_HASH;
-	}
-	return INTEGER_VAL(self->hash);
-}
-
-static KrkValue obj_eq(int argc, const KrkValue argv[], int hasKw) {
-	return BOOLEAN_VAL(argc == 2 && IS_OBJECT(argv[0]) && IS_OBJECT(argv[1]) && AS_OBJECT(argv[0]) == AS_OBJECT(argv[1]));
-}
-
-/**
- * object.__str__() / object.__repr__()
- *
- * Base method for all objects to implement __str__ and __repr__.
- * Generally converts to <instance of [TYPE]> and for actual object
- * types (functions, classes, instances, strings...) also adds the pointer
- * address of the object on the heap.
- *
- * Since all types have at least a pseudo-class that should eventually
- * inheret from object() and this is object.__str__ / object.__repr__,
- * all types should have a string representation available through
- * those methods.
- */
-static KrkValue _strBase(int argc, const KrkValue argv[], int hasKw) {
-	KrkClass * type = krk_getType(argv[0]);
-
-	KrkValue module = NONE_VAL();
-	krk_tableGet(&type->methods, OBJECT_VAL(S("__module__")), &module);
-	KrkValue qualname = NONE_VAL();
-	krk_tableGet(&type->methods, OBJECT_VAL(S("__qualname__")), &qualname);
-	KrkString * name = IS_STRING(qualname) ? AS_STRING(qualname) : type->name;
-	int includeModule = !(IS_NONE(module) || (IS_STRING(module) && AS_STRING(module) == S("__builtins__")));
-
-	size_t allocSize = sizeof("<. object at 0x1234567812345678>") + name->length;
-	if (includeModule) allocSize += AS_STRING(module)->length + 1;
-	char * tmp = malloc(allocSize);
-	size_t len;
-	if (IS_OBJECT(argv[0])) {
-		len = snprintf(tmp, allocSize, "<%s%s%s object at %p>",
-			includeModule ? AS_CSTRING(module) : "",
-			includeModule ? "." : "",
-			name->chars,
-			(void*)AS_OBJECT(argv[0]));
-	} else {
-		len = snprintf(tmp, allocSize, "<%s object>", name->chars);
-	}
-	KrkValue out = OBJECT_VAL(krk_copyString(tmp, len));
-	free(tmp);
-	return out;
-}
-
-KRK_FUNC(type,{
-	FUNCTION_TAKES_EXACTLY(1);
-	return OBJECT_VAL(krk_getType(argv[0]));
 })
 
 KRK_FUNC(getattr,{
@@ -933,45 +950,48 @@ KRK_FUNC(abs,{
 	}
 })
 
-#ifndef STATIC_ONLY
 static void module_sweep(KrkInstance * inst) {
+#ifndef STATIC_ONLY
 	struct KrkModule * module = (struct KrkModule*)inst;
 	if (module->libHandle) {
 		dlClose(module->libHandle);
 	}
-}
 #endif
+}
 
 _noexport
 void _createAndBind_builtins(void) {
 	vm.baseClasses->objectClass = krk_newClass(S("object"), NULL);
 	krk_push(OBJECT_VAL(vm.baseClasses->objectClass));
 
-	krk_defineNative(&vm.baseClasses->objectClass->methods, "__class__", FUNC_NAME(krk,type))->obj.flags = KRK_OBJ_FLAGS_FUNCTION_IS_DYNAMIC_PROPERTY;
-	krk_defineNative(&vm.baseClasses->objectClass->methods, "__dir__", krk_dirObject);
-	krk_defineNative(&vm.baseClasses->objectClass->methods, "__str__", _strBase);
-	krk_defineNative(&vm.baseClasses->objectClass->methods, "__repr__", _strBase); /* Override if necesary */
-	krk_defineNative(&vm.baseClasses->objectClass->methods, "__hash__", obj_hash);
-	krk_defineNative(&vm.baseClasses->objectClass->methods, "__eq__", obj_eq);
-	krk_finalizeClass(vm.baseClasses->objectClass);
-	KRK_DOC(vm.baseClasses->objectClass,
+	KrkClass * object = vm.baseClasses->objectClass;
+	BIND_METHOD(object,__class__)->obj.flags = KRK_OBJ_FLAGS_FUNCTION_IS_DYNAMIC_PROPERTY;
+	BIND_METHOD(object,__dir__);
+	BIND_METHOD(object,__str__);
+	BIND_METHOD(object,__hash__);
+	BIND_METHOD(object,__eq__);
+	krk_defineNative(&object->methods, "__repr__", FUNC_NAME(object,__str__));
+	krk_finalizeClass(object);
+	KRK_DOC(object,
 		"@brief Base class for all types.\n\n"
 		"The @c object base class provides the fallback implementations of methods like "
 		"@ref object___dir__ \"__dir__\". All object and primitive types eventually inherit from @c object."
 	);
 
 	vm.baseClasses->moduleClass = krk_newClass(S("module"), vm.baseClasses->objectClass);
-	vm.baseClasses->moduleClass->allocSize = sizeof(struct KrkModule);
-#ifndef STATIC_ONLY
-	vm.baseClasses->moduleClass->_ongcsweep = module_sweep;
-#endif
-	krk_push(OBJECT_VAL(vm.baseClasses->moduleClass));
-	krk_defineNative(&vm.baseClasses->moduleClass->methods, "__repr__", _module_repr);
-	krk_defineNative(&vm.baseClasses->moduleClass->methods, "__str__", _module_repr);
-	krk_finalizeClass(vm.baseClasses->moduleClass);
-	KRK_DOC(vm.baseClasses->moduleClass, "Type of imported modules and packages.");
 
-	vm.builtins = krk_newInstance(vm.baseClasses->moduleClass);
+	KrkClass * module = vm.baseClasses->moduleClass;
+	module->allocSize = sizeof(struct KrkModule);
+	module->_ongcsweep = module_sweep;
+
+	krk_push(OBJECT_VAL(module));
+
+	BIND_METHOD(module,__repr__);
+	krk_defineNative(&module->methods, "__str__", FUNC_NAME(module,__repr__));
+	krk_finalizeClass(module);
+	KRK_DOC(module, "Type of imported modules and packages.");
+
+	vm.builtins = krk_newInstance(module);
 	krk_attachNamedObject(&vm.modules, "__builtins__", (KrkObj*)vm.builtins);
 	krk_attachNamedObject(&vm.builtins->fields, "object", (KrkObj*)vm.baseClasses->objectClass);
 	krk_pop();
@@ -992,7 +1012,7 @@ void _createAndBind_builtins(void) {
 		"attaching new properties to the @c \\__builtins__ instance."
 	);
 
-	property = krk_makeClass(vm.builtins, &vm.baseClasses->propertyClass, "property", vm.baseClasses->objectClass);
+	property = ADD_BASE_CLASS(vm.baseClasses->propertyClass, "property", object);
 	KRK_DOC(BIND_METHOD(property,__init__),
 		"@brief Create a property object.\n"
 		"@arguments fget,[fset]\n\n"
@@ -1025,7 +1045,7 @@ void _createAndBind_builtins(void) {
 		"different name will create a duplicate alias.");
 	krk_finalizeClass(property);
 
-	krk_makeClass(vm.builtins, &Helper, "Helper", vm.baseClasses->objectClass);
+	ADD_BASE_CLASS(Helper, "Helper", object);
 	KRK_DOC(Helper,
 		"@brief Special object that prints a helpeful message.\n\n"
 		"Object that prints help summary when passed to @ref repr.");
@@ -1038,28 +1058,28 @@ void _createAndBind_builtins(void) {
 	krk_finalizeClass(Helper);
 	krk_attachNamedObject(&vm.builtins->fields, "help", (KrkObj*)krk_newInstance(Helper));
 
-	krk_makeClass(vm.builtins, &LicenseReader, "LicenseReader", vm.baseClasses->objectClass);
+	ADD_BASE_CLASS(LicenseReader, "LicenseReader", object);
 	KRK_DOC(LicenseReader, "Special object that prints Kuroko's copyright information when passed to @ref repr");
 	KRK_DOC(BIND_METHOD(LicenseReader,__call__), "Print the full license statement.");
 	BIND_METHOD(LicenseReader,__repr__);
 	krk_finalizeClass(LicenseReader);
 	krk_attachNamedObject(&vm.builtins->fields, "license", (KrkObj*)krk_newInstance(LicenseReader));
 
-	krk_makeClass(vm.builtins, &map, "map", vm.baseClasses->objectClass);
+	ADD_BASE_CLASS(map, "map", object);
 	KRK_DOC(map, "Return an iterator that applies a function to a series of iterables");
 	BIND_METHOD(map,__init__);
 	BIND_METHOD(map,__iter__);
 	BIND_METHOD(map,__call__);
 	krk_finalizeClass(map);
 
-	krk_makeClass(vm.builtins, &filter, "filter", vm.baseClasses->objectClass);
+	ADD_BASE_CLASS(filter, "filter", object);
 	KRK_DOC(filter, "Return an iterator that returns only the items from an iterable for which the given function returns true.");
 	BIND_METHOD(filter,__init__);
 	BIND_METHOD(filter,__iter__);
 	BIND_METHOD(filter,__call__);
 	krk_finalizeClass(filter);
 
-	krk_makeClass(vm.builtins, &enumerate, "enumerate", vm.baseClasses->objectClass);
+	ADD_BASE_CLASS(enumerate, "enumerate", object);
 	KRK_DOC(enumerate, "Return an iterator that produces a tuple with a count the iterated values of the passed iteratable.");
 	BIND_METHOD(enumerate,__init__);
 	BIND_METHOD(enumerate,__iter__);
