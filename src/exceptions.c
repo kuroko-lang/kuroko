@@ -13,11 +13,21 @@
  *
  * Convenience macro for creating exception types.
  */
-#define ADD_EXCEPTION_CLASS(obj,name,baseClass) do { \
-	obj = krk_newClass(S(name), baseClass); \
-	krk_attachNamedObject(&vm.builtins->fields, name, (KrkObj*)obj); \
+#define ADD_EXCEPTION_CLASS(obj,name,baseClass) KrkClass * name; do { \
+	ADD_BASE_CLASS(obj,#name,baseClass); \
 	krk_finalizeClass(obj); \
+	name = obj; \
+	(void)name; \
 } while (0)
+
+#define IS_Exception(o)    (likely(krk_isInstanceOf(o,vm.exceptions->baseException)))
+#define AS_Exception(o)    (AS_INSTANCE(o))
+#define IS_KeyError(o)     (likely(krk_isInstanceOf(o,vm.exceptions->keyError)))
+#define AS_KeyError(o)     (AS_INSTANCE(o))
+#define IS_SyntaxError(o)  (likely(krk_isInstanceOf(o,vm.exceptions->syntaxError)))
+#define AS_SyntaxError(o)  (AS_INSTANCE(o))
+#define CURRENT_CTYPE KrkInstance*
+#define CURRENT_NAME  self
 
 /**
  * @brief Initialize an exception object.
@@ -26,15 +36,14 @@
  *
  * @param arg Optional string to attach to the exception object.
  */
-static KrkValue krk_initException(int argc, const KrkValue argv[], int hasKw) {
-	KrkInstance * self = AS_INSTANCE(argv[0]);
+KRK_METHOD(Exception,__init__,{
 	if (argc > 1) {
 		krk_attachNamedValue(&self->fields, "arg", argv[1]);
 	}
 	krk_attachNamedValue(&self->fields, "__cause__", NONE_VAL());
 	krk_attachNamedValue(&self->fields, "__context__", NONE_VAL());
 	return argv[0];
-}
+})
 
 /**
  * @brief Create a string representation of an Exception.
@@ -43,8 +52,7 @@ static KrkValue krk_initException(int argc, const KrkValue argv[], int hasKw) {
  *
  * Generates a string representation of the form @c "Exception(arg)" .
  */
-static KrkValue _exception_repr(int argc, const KrkValue argv[], int hasKw) {
-	KrkInstance * self = AS_INSTANCE(argv[0]);
+KRK_METHOD(Exception,__repr__,{
 	KrkValue arg;
 	struct StringBuilder sb = {0};
 
@@ -61,7 +69,7 @@ static KrkValue _exception_repr(int argc, const KrkValue argv[], int hasKw) {
 	pushStringBuilder(&sb, ')');
 
 	return finishStringBuilder(&sb);
-}
+})
 
 /**
  * @brief Obtain a descriptive string from an exception.
@@ -71,30 +79,35 @@ static KrkValue _exception_repr(int argc, const KrkValue argv[], int hasKw) {
  * For most exceptions, this is the 'arg' value attached at initialization
  * and is printed during a traceback after the name of the exception type.
  */
-static KrkValue _exception_str(int argc, const KrkValue argv[], int hasKw) {
-	KrkInstance * self = AS_INSTANCE(argv[0]);
+KRK_METHOD(Exception,__str__,{
 	KrkValue arg;
 	if (!krk_tableGet(&self->fields, OBJECT_VAL(S("arg")), &arg) || IS_NONE(arg)) {
-		return NONE_VAL();
+		return OBJECT_VAL(S(""));
 	} else if (!IS_STRING(arg)) {
-		krk_push(arg);
-		return krk_callDirect(krk_getType(arg)->_tostr, 1);
+		KrkClass * type = krk_getType(arg);
+		if (type->_tostr) {
+			krk_push(arg);
+			return krk_callDirect(krk_getType(arg)->_tostr, 1);
+		}
+		return OBJECT_VAL(S(""));
 	} else {
 		return arg;
 	}
-}
+})
 
-static KrkValue _keyerror_str(int argc, const KrkValue argv[], int hasKw) {
+KRK_METHOD(KeyError,__str__,{
 	if (!IS_INSTANCE(argv[0])) return NONE_VAL(); /* uh oh */
 	KrkInstance * self = AS_INSTANCE(argv[0]);
 	KrkValue arg;
 	if (krk_tableGet(&self->fields, OBJECT_VAL(S("arg")), &arg)) {
-		krk_push(arg);
-		return krk_callDirect(krk_getType(arg)->_reprer, 1);
-	} else {
-		return _exception_str(argc,argv,hasKw);
+		KrkClass * type = krk_getType(arg);
+		if (type->_reprer) {
+			krk_push(arg);
+			return krk_callDirect(krk_getType(arg)->_reprer, 1);
+		}
 	}
-}
+	return FUNC_NAME(Exception,__str__)(argc,argv,hasKw);
+})
 
 /**
  * @brief Generate printable text for a syntax error.
@@ -107,8 +120,7 @@ static KrkValue _keyerror_str(int argc, const KrkValue argv[], int hasKw) {
  * {str(Exception)} for syntax errors and they handle the rest. This is a bit
  * of a kludge, but it works for now.
  */
-static KrkValue _syntaxerror_str(int argc, const KrkValue argv[], int hasKw) {
-	KrkInstance * self = AS_INSTANCE(argv[0]);
+KRK_METHOD(SyntaxError,__str__,{
 	/* .arg */
 	KrkValue file, line, lineno, colno, arg, func, width;
 	if (!krk_tableGet(&self->fields, OBJECT_VAL(S("file")), &file) || !IS_STRING(file)) goto _badSyntaxError;
@@ -157,7 +169,7 @@ static KrkValue _syntaxerror_str(int argc, const KrkValue argv[], int hasKw) {
 
 _badSyntaxError:
 	return OBJECT_VAL(S("SyntaxError: invalid syntax"));
-}
+})
 
 
 /**
@@ -169,29 +181,31 @@ _badSyntaxError:
 _noexport
 void _createAndBind_exceptions(void) {
 	/* Add exception classes */
-	ADD_EXCEPTION_CLASS(vm.exceptions->baseException, "Exception", vm.baseClasses->objectClass);
-	/* base exception class gets an init that takes an optional string */
-	krk_defineNative(&vm.exceptions->baseException->methods, "__init__", krk_initException);
-	krk_defineNative(&vm.exceptions->baseException->methods, "__repr__", _exception_repr);
-	krk_defineNative(&vm.exceptions->baseException->methods, "__str__", _exception_str);
-	krk_finalizeClass(vm.exceptions->baseException);
-	ADD_EXCEPTION_CLASS(vm.exceptions->typeError, "TypeError", vm.exceptions->baseException);
-	ADD_EXCEPTION_CLASS(vm.exceptions->argumentError, "ArgumentError", vm.exceptions->baseException);
-	ADD_EXCEPTION_CLASS(vm.exceptions->indexError, "IndexError", vm.exceptions->baseException);
-	ADD_EXCEPTION_CLASS(vm.exceptions->keyError, "KeyError", vm.exceptions->baseException);
-	krk_defineNative(&vm.exceptions->keyError->methods, "__str__", _keyerror_str);
-	krk_finalizeClass(vm.exceptions->keyError);
-	ADD_EXCEPTION_CLASS(vm.exceptions->attributeError, "AttributeError", vm.exceptions->baseException);
-	ADD_EXCEPTION_CLASS(vm.exceptions->nameError, "NameError", vm.exceptions->baseException);
-	ADD_EXCEPTION_CLASS(vm.exceptions->importError, "ImportError", vm.exceptions->baseException);
-	ADD_EXCEPTION_CLASS(vm.exceptions->ioError, "IOError", vm.exceptions->baseException);
-	ADD_EXCEPTION_CLASS(vm.exceptions->valueError, "ValueError", vm.exceptions->baseException);
-	ADD_EXCEPTION_CLASS(vm.exceptions->keyboardInterrupt, "KeyboardInterrupt", vm.exceptions->baseException);
-	ADD_EXCEPTION_CLASS(vm.exceptions->zeroDivisionError, "ZeroDivisionError", vm.exceptions->baseException);
-	ADD_EXCEPTION_CLASS(vm.exceptions->notImplementedError, "NotImplementedError", vm.exceptions->baseException);
-	ADD_EXCEPTION_CLASS(vm.exceptions->assertionError, "AssertionError", vm.exceptions->baseException);
-	ADD_EXCEPTION_CLASS(vm.exceptions->syntaxError, "SyntaxError", vm.exceptions->baseException);
-	krk_defineNative(&vm.exceptions->syntaxError->methods, "__str__", _syntaxerror_str);
-	krk_finalizeClass(vm.exceptions->syntaxError);
+	ADD_EXCEPTION_CLASS(vm.exceptions->baseException, Exception, vm.baseClasses->objectClass);
+	BIND_METHOD(Exception,__init__);
+	BIND_METHOD(Exception,__repr__);
+	BIND_METHOD(Exception,__str__);
+	krk_finalizeClass(Exception);
+
+	ADD_EXCEPTION_CLASS(vm.exceptions->typeError, TypeError, Exception);
+	ADD_EXCEPTION_CLASS(vm.exceptions->argumentError, ArgumentError, Exception);
+	ADD_EXCEPTION_CLASS(vm.exceptions->indexError, IndexError, Exception);
+	ADD_EXCEPTION_CLASS(vm.exceptions->keyError, KeyError, Exception);
+	BIND_METHOD(KeyError,__str__);
+	krk_finalizeClass(KeyError);
+
+	ADD_EXCEPTION_CLASS(vm.exceptions->attributeError, AttributeError, Exception);
+	ADD_EXCEPTION_CLASS(vm.exceptions->nameError, NameError, Exception);
+	ADD_EXCEPTION_CLASS(vm.exceptions->importError, ImportError, Exception);
+	ADD_EXCEPTION_CLASS(vm.exceptions->ioError, IOError, Exception);
+	ADD_EXCEPTION_CLASS(vm.exceptions->valueError, ValueError, Exception);
+	ADD_EXCEPTION_CLASS(vm.exceptions->keyboardInterrupt, KeyboardInterrupt, Exception);
+	ADD_EXCEPTION_CLASS(vm.exceptions->zeroDivisionError, ZeroDivisionError, Exception);
+	ADD_EXCEPTION_CLASS(vm.exceptions->notImplementedError, NotImplementedError, Exception);
+	ADD_EXCEPTION_CLASS(vm.exceptions->assertionError, AssertionError, vm.exceptions->baseException);
+
+	ADD_EXCEPTION_CLASS(vm.exceptions->syntaxError, SyntaxError, vm.exceptions->baseException);
+	BIND_METHOD(SyntaxError,__str__);
+	krk_finalizeClass(SyntaxError);
 }
 
