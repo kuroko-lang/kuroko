@@ -28,6 +28,8 @@ ifeq (,$(findstring mingw,$(CC)))
   LIBRARY = libkuroko.so
   ifeq (Darwin,$(shell uname -s))
     MODLIBS += -undefined dynamic_lookup -DKRK_MEDIOCRE_TLS
+  else
+    ${TOOLS}: LDFLAGS += -Wl,-rpath,$$ORIGIN
   endif
 else
   CFLAGS  += -Wno-format -static-libgcc -pthread
