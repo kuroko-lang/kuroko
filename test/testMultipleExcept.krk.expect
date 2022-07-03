@@ -16,4 +16,4 @@ Running finally
 Function exit
 with <class 'NameError'>
 Running finally
-NameError was not caught: NameError(None)
+NameError was not caught: NameError()

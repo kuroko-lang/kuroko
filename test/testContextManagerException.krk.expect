@@ -12,4 +12,4 @@ Before
 Entering
 Raising
 Exiting with [<class 'type'>, <class 'ValueError'>, <class 'list'>]
-ValueError(None)
+ValueError()
