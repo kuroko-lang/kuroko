@@ -263,16 +263,28 @@ void krk_dumpTraceback(void) {
 static void attachTraceback(void) {
 	if (IS_INSTANCE(krk_currentThread.currentException)) {
 		KrkInstance * theException = AS_INSTANCE(krk_currentThread.currentException);
-
-		/* If there already is a traceback, don't add a new one; this exception was re-raised. */
-		KrkValue existing;
-		if (krk_tableGet(&theException->fields, OBJECT_VAL(S("traceback")), &existing)) return;
-
-		KrkValue tracebackList = krk_list_of(0,NULL,0);
+		KrkValue tracebackList;
+		if (krk_tableGet(&theException->fields, OBJECT_VAL(S("traceback")), &tracebackList)) {
+			krk_push(tracebackList);
+		} else {
+			krk_push(NONE_VAL());
+		}
+		tracebackList = krk_list_of(0,NULL,0);
 		krk_push(tracebackList);
+
 		/* Build the traceback object */
 		if (krk_currentThread.frameCount) {
-			for (size_t i = 0; i < krk_currentThread.frameCount; i++) {
+
+			/* Go up until we get to the exit frame */
+			size_t frameOffset = 0;
+			if (krk_currentThread.stackTop > krk_currentThread.stack) {
+				size_t stackOffset = krk_currentThread.stackTop - krk_currentThread.stack - 1;
+				while (stackOffset > 0 && !IS_TRY_HANDLER(krk_currentThread.stack[stackOffset])) stackOffset--;
+				frameOffset = krk_currentThread.frameCount - 1;
+				while (frameOffset > 0 && krk_currentThread.frames[frameOffset].slots > stackOffset) frameOffset--;
+			}
+
+			for (size_t i = frameOffset; i < krk_currentThread.frameCount; i++) {
 				KrkCallFrame * frame = &krk_currentThread.frames[i];
 				KrkTuple * tbEntry = krk_newTuple(2);
 				krk_push(OBJECT_VAL(tbEntry));
@@ -282,7 +294,16 @@ static void attachTraceback(void) {
 				krk_pop();
 			}
 		}
+
+		if (IS_list(krk_peek(1))) {
+			KrkValueArray * existingTraceback = AS_LIST(krk_peek(1));
+			for (size_t i = 0; i < existingTraceback->count; ++i) {
+				krk_writeValueArray(AS_LIST(tracebackList), existingTraceback->values[i]);
+			}
+		}
+
 		krk_attachNamedValue(&theException->fields, "traceback", tracebackList);
+		krk_pop();
 		krk_pop();
 	} /* else: probably a legacy 'raise str', just don't bother. */
 }

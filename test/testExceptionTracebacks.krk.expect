@@ -1,7 +1,5 @@
 Caught a TypeError('A type error')
-  File 'test/testExceptionTracebacks.krk', line 14, in <module>
   File 'test/testExceptionTracebacks.krk', line 4, in doTheThing
 Caught a ValueError('A value error')
-  File 'test/testExceptionTracebacks.krk', line 15, in <module>
   File 'test/testExceptionTracebacks.krk', line 4, in doTheThing
 That's a name error!

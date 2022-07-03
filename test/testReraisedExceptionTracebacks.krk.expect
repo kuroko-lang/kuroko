@@ -1,0 +1,11 @@
+Traceback entries
+  File 'test/testReraisedExceptionTracebacks.krk', line 9, in <module>
+  File 'test/testReraisedExceptionTracebacks.krk', line 5, in foo
+  File 'test/testReraisedExceptionTracebacks.krk', line 3, in foo
+Traceback entries
+  File 'test/testReraisedExceptionTracebacks.krk', line 29, in <module>
+  File 'test/testReraisedExceptionTracebacks.krk', line 27, in <module>
+  File 'test/testReraisedExceptionTracebacks.krk', line 22, in bar
+  File 'test/testReraisedExceptionTracebacks.krk', line 22, in bar
+  File 'test/testReraisedExceptionTracebacks.krk', line 22, in bar
+  File 'test/testReraisedExceptionTracebacks.krk', line 20, in bar

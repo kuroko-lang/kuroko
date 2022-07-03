@@ -1,0 +1,39 @@
+def foo():
+    try:
+        raise ValueError("oh no")
+    except Exception as e:
+        raise e
+
+if True:
+    try:
+        foo()
+    except Exception as e:
+        print("Traceback entries")
+        for i in e.traceback:
+            let func, instr = i
+            print(f"  File '{func.__file__}', line {func._ip_to_line(instr)}, in {func.__name__}")
+else:
+    foo()
+
+def bar(n):
+    if n == 3:
+        raise ValueError(n)
+    else:
+        bar(n+1)
+
+if True:
+    try:
+        try:
+            bar(0)
+        except Exception as e:
+            raise e
+    except Exception as e:
+        print("Traceback entries")
+        for i in e.traceback:
+            let func, instr = i
+            print(f"  File '{func.__file__}', line {func._ip_to_line(instr)}, in {func.__name__}")
+else:
+    try:
+        bar(0)
+    except Exception as e:
+        raise e
