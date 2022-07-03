@@ -31,6 +31,8 @@ static KrkValue krk_initException(int argc, const KrkValue argv[], int hasKw) {
 	if (argc > 1) {
 		krk_attachNamedValue(&self->fields, "arg", argv[1]);
 	}
+	krk_attachNamedValue(&self->fields, "__cause__", NONE_VAL());
+	krk_attachNamedValue(&self->fields, "__context__", NONE_VAL());
 	return argv[0];
 }
 

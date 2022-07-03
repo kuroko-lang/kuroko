@@ -144,20 +144,30 @@ void krk_resetStack(void) {
 	krk_currentThread.currentException = NONE_VAL();
 }
 
-/**
- * Display a traceback by scanning up the stack / call frames.
- * The format of the output here is modeled after the output
- * given by CPython, so we display the outermost call first
- * and then move inwards; on each call frame we try to open
- * the source file and print the corresponding line.
- */
-void krk_dumpTraceback(void) {
-	if (!krk_valuesEqual(krk_currentThread.currentException,NONE_VAL())) {
-		krk_push(krk_currentThread.currentException);
+static void dumpInnerException(KrkValue exception, int depth) {
+	if (depth > 10) {
+		fprintf(stderr, "Too many inner exceptions encountered.\n");
+		return;
+	}
+
+	krk_push(exception);
+	if (IS_INSTANCE(exception)) {
+
+		KrkValue inner;
+
+		/* Print cause or context */
+		if (krk_tableGet(&AS_INSTANCE(exception)->fields, OBJECT_VAL(S("__cause__")), &inner) && !IS_NONE(inner)) {
+			dumpInnerException(inner, depth + 1);
+			fprintf(stderr, "\nThe above exception was the direct cause of the following exception:\n\n");
+		} else if (krk_tableGet(&AS_INSTANCE(exception)->fields, OBJECT_VAL(S("__context__")), &inner) && !IS_NONE(inner)) {
+			dumpInnerException(inner, depth + 1);
+			fprintf(stderr, "\nDuring handling of the above exception, another exception occurred:\n\n");
+		}
+
 		KrkValue tracebackEntries;
-		if (IS_INSTANCE(krk_currentThread.currentException)
-			&& krk_tableGet(&AS_INSTANCE(krk_currentThread.currentException)->fields, OBJECT_VAL(S("traceback")), &tracebackEntries)
+		if (krk_tableGet(&AS_INSTANCE(exception)->fields, OBJECT_VAL(S("traceback")), &tracebackEntries)
 			&& IS_list(tracebackEntries) && AS_LIST(tracebackEntries)->count > 0) {
+
 			/* This exception has a traceback we can print. */
 			fprintf(stderr, "Traceback (most recent call last):\n");
 			for (size_t i = 0; i < AS_LIST(tracebackEntries)->count; ++i) {
@@ -184,53 +194,66 @@ void krk_dumpTraceback(void) {
 					(function->name ? function->name->chars : "(unnamed)"));
 
 #ifndef NO_SOURCE_IN_TRACEBACK
-				/* Try to open the file */
-				if (function->chunk.filename) {
-					FILE * f = fopen(function->chunk.filename->chars, "r");
-					if (f) {
-						int line = 1;
-						do {
-							int c = fgetc(f);
-							if (c < -1) break;
-							if (c == '\n') {
-								line++;
-								continue;
-							}
-							if (line == lineNo) {
-								fprintf(stderr,"    ");
-								while (c == ' ') c = fgetc(f);
-								do {
-									fputc(c, stderr);
-									c = fgetc(f);
-								} while (!feof(f) && c > 0 && c != '\n');
-								fprintf(stderr, "\n");
-								break;
-							}
-						} while (!feof(f));
-						fclose(f);
-					}
+			/* Try to open the file */
+			if (function->chunk.filename) {
+				FILE * f = fopen(function->chunk.filename->chars, "r");
+				if (f) {
+					int line = 1;
+					do {
+						int c = fgetc(f);
+						if (c < -1) break;
+						if (c == '\n') {
+							line++;
+							continue;
+						}
+						if (line == lineNo) {
+							fprintf(stderr,"    ");
+							while (c == ' ') c = fgetc(f);
+							do {
+								fputc(c, stderr);
+								c = fgetc(f);
+							} while (!feof(f) && c > 0 && c != '\n');
+							fprintf(stderr, "\n");
+							break;
+						}
+					} while (!feof(f));
+					fclose(f);
 				}
+			}
 #endif
 			}
 		}
+	}
 
-		/* Is this a SyntaxError? Handle those specially. */
-		if (krk_isInstanceOf(krk_currentThread.currentException, vm.exceptions->syntaxError)) {
-			KrkValue result = krk_callDirect(krk_getType(krk_currentThread.currentException)->_tostr, 1);
-			fprintf(stderr, "%s\n", AS_CSTRING(result));
-			return;
-		}
-		/* Clear the exception state while printing the exception. */
-		krk_currentThread.flags &= ~(KRK_THREAD_HAS_EXCEPTION);
-		fprintf(stderr, "%s", krk_typeName(krk_currentThread.currentException));
-		KrkValue result = krk_callDirect(krk_getType(krk_currentThread.currentException)->_tostr, 1);
-		if (!IS_STRING(result)) {
-			fprintf(stderr, "\n");
-		} else {
-			fprintf(stderr, ": %s\n", AS_CSTRING(result));
-		}
-		/* Turn the exception flag back on */
-		krk_currentThread.flags |= KRK_THREAD_HAS_EXCEPTION;
+	/* Is this a SyntaxError? Handle those specially. */
+	if (krk_isInstanceOf(exception, vm.exceptions->syntaxError)) {
+		KrkValue result = krk_callDirect(krk_getType(exception)->_tostr, 1);
+		fprintf(stderr, "%s\n", AS_CSTRING(result));
+		return;
+	}
+	/* Clear the exception state while printing the exception. */
+	krk_currentThread.flags &= ~(KRK_THREAD_HAS_EXCEPTION);
+	fprintf(stderr, "%s", krk_typeName(exception));
+	KrkValue result = krk_callDirect(krk_getType(exception)->_tostr, 1);
+	if (!IS_STRING(result)) {
+		fprintf(stderr, "\n");
+	} else {
+		fprintf(stderr, ": %s\n", AS_CSTRING(result));
+	}
+	/* Turn the exception flag back on */
+	krk_currentThread.flags |= KRK_THREAD_HAS_EXCEPTION;
+}
+
+/**
+ * Display a traceback by scanning up the stack / call frames.
+ * The format of the output here is modeled after the output
+ * given by CPython, so we display the outermost call first
+ * and then move inwards; on each call frame we try to open
+ * the source file and print the corresponding line.
+ */
+void krk_dumpTraceback(void) {
+	if (!krk_valuesEqual(krk_currentThread.currentException,NONE_VAL())) {
+		dumpInnerException(krk_currentThread.currentException, 0);
 	}
 }
 
@@ -264,6 +287,36 @@ static void attachTraceback(void) {
 	} /* else: probably a legacy 'raise str', just don't bother. */
 }
 
+static void attachInnerException(KrkValue innerException) {
+	if (IS_INSTANCE(krk_currentThread.currentException)) {
+		KrkInstance * theException = AS_INSTANCE(krk_currentThread.currentException);
+		if (krk_valuesSame(krk_currentThread.currentException,innerException)) {
+			/* re-raised? */
+			return;
+		} else {
+			krk_attachNamedValue(&theException->fields, "__context__", innerException);
+		}
+	}
+}
+
+static void raiseException(KrkValue base, KrkValue cause) {
+	if (IS_CLASS(base)) {
+		krk_push(base);
+		base = krk_callStack(0);
+	}
+	krk_currentThread.currentException = base;
+	if (IS_CLASS(cause)) {
+		krk_push(cause);
+		cause = krk_callStack(0);
+	}
+	if (IS_INSTANCE(krk_currentThread.currentException) && !IS_NONE(cause)) {
+		krk_attachNamedValue(&AS_INSTANCE(krk_currentThread.currentException)->fields,
+			"__cause__", cause);
+	}
+	attachTraceback();
+	krk_currentThread.flags |= KRK_THREAD_HAS_EXCEPTION;
+}
+
 /**
  * Raise an exception. Creates an exception object of the requested type
  * and formats a message string to attach to it. Exception classes are
@@ -280,12 +333,9 @@ KrkValue krk_runtimeError(KrkClass * type, const char * fmt, ...) {
 	/* Allocate an exception object of the requested type. */
 	KrkInstance * exceptionObject = krk_newInstance(type);
 	krk_push(OBJECT_VAL(exceptionObject));
-	krk_push(OBJECT_VAL(S("arg")));
-	krk_push(OBJECT_VAL(krk_copyString(buf, len)));
-	/* Attach its argument */
-	krk_tableSet(&exceptionObject->fields, krk_peek(1), krk_peek(0));
-	krk_pop();
-	krk_pop();
+	krk_attachNamedValue(&exceptionObject->fields, "arg", OBJECT_VAL(krk_copyString(buf, len)));
+	krk_attachNamedValue(&exceptionObject->fields, "__cause__", NONE_VAL());
+	krk_attachNamedValue(&exceptionObject->fields, "__context__", NONE_VAL());
 	krk_pop();
 
 	/* Set the current exception to be picked up by handleException */
@@ -2484,13 +2534,11 @@ _finishReturn: (void)0;
 			case OP_INPLACE_POW:        INPLACE_BINARY_OP(pow)
 
 			case OP_RAISE: {
-				if (IS_CLASS(krk_peek(0))) {
-					krk_currentThread.currentException = krk_callStack(0);
-				} else {
-					krk_currentThread.currentException = krk_pop();
-				}
-				attachTraceback();
-				krk_currentThread.flags |= KRK_THREAD_HAS_EXCEPTION;
+				raiseException(krk_peek(0), NONE_VAL());
+				goto _finishException;
+			}
+			case OP_RAISE_FROM: {
+				raiseException(krk_peek(1), krk_peek(0));
 				goto _finishException;
 			}
 			case OP_CLOSE_UPVALUE:
@@ -3275,6 +3323,9 @@ _finishReturn: (void)0;
 		if (unlikely(krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION)) {
 _finishException:
 			if (!handleException()) {
+				if (!IS_NONE(krk_currentThread.stackTop[-2])) {
+					attachInnerException(krk_currentThread.stackTop[-2]);
+				}
 				frame = &krk_currentThread.frames[krk_currentThread.frameCount - 1];
 				frame->ip = frame->closure->function->chunk.code + AS_HANDLER_TARGET(krk_peek(0));
 				/* Stick the exception into the exception slot */

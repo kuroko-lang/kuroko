@@ -1,0 +1,33 @@
+try:
+    try:
+        try:
+            raise TypeError('a')
+        except TypeError:
+            raise ValueError('b')
+    except ValueError:
+        raise IndexError('c')
+except IndexError as e:
+    print(repr(e), repr(e.__context__), repr(e.__context__.__context__))
+
+
+try:
+    raise TypeError('a') from ValueError('b')
+except TypeError as e:
+    print(repr(e), repr(e.__cause__), repr(e.__context__))
+
+try:
+    try:
+        try:
+            raise TypeError
+        except TypeError:
+            raise ValueError
+    except ValueError:
+        raise IndexError
+except IndexError as e:
+    print(repr(e), repr(e.__context__), repr(e.__context__.__context__))
+
+
+try:
+    raise TypeError from ValueError
+except TypeError as e:
+    print(repr(e), repr(e.__cause__), repr(e.__context__))

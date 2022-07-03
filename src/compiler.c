@@ -2222,7 +2222,13 @@ _anotherExcept:
 
 static void raiseStatement(void) {
 	parsePrecedence(PREC_ASSIGNMENT);
-	emitByte(OP_RAISE);
+
+	if (match(TOKEN_FROM)) {
+		parsePrecedence(PREC_ASSIGNMENT);
+		emitByte(OP_RAISE_FROM);
+	} else {
+		emitByte(OP_RAISE);
+	}
 }
 
 static size_t importModule(KrkToken * startOfName, int leadingDots) {

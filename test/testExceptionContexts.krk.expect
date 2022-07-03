@@ -1,0 +1,4 @@
+IndexError('c') ValueError('b') TypeError('a')
+TypeError('a') ValueError('b') None
+IndexError() ValueError() TypeError()
+TypeError() ValueError() None
