@@ -170,6 +170,7 @@ void _createAndBind_sliceClass(void) {
 	KrkClass * slice = ADD_BASE_CLASS(vm.baseClasses->sliceClass, "slice", vm.baseClasses->objectClass);
 	slice->allocSize = sizeof(struct KrkSlice);
 	slice->_ongcscan = _slice_gcscan;
+	slice->obj.flags |= KRK_OBJ_FLAGS_NO_INHERIT;
 	BIND_METHOD(slice,__init__);
 	BIND_METHOD(slice,__repr__);
 	BIND_PROP(slice,start);

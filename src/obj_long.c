@@ -1747,6 +1747,7 @@ KRK_METHOD(int,to_bytes,{
 _noexport
 void _createAndBind_longClass(void) {
 	_long = ADD_BASE_CLASS(vm.baseClasses->longClass, "long", vm.baseClasses->intClass);
+	_long->obj.flags |= KRK_OBJ_FLAGS_NO_INHERIT;
 	_long->allocSize = sizeof(struct BigInt);
 	_long->_ongcsweep = _long_gcsweep;
 

@@ -80,6 +80,10 @@ KrkInstance * krk_buildGenerator(KrkClosure * closure, KrkValue * argsIn, size_t
 	return (KrkInstance *)self;
 }
 
+FUNC_SIG(generator,__init__) {
+	return krk_runtimeError(vm.exceptions->typeError, "cannot create '%s' instances", "generator");
+}
+
 KRK_METHOD(generator,__repr__,{
 	METHOD_TAKES_NONE();
 
@@ -226,6 +230,8 @@ void _createAndBind_generatorClass(void) {
 	generator->allocSize = sizeof(struct generator);
 	generator->_ongcscan = _generator_gcscan;
 	generator->_ongcsweep = _generator_gcsweep;
+	generator->obj.flags |= KRK_OBJ_FLAGS_NO_INHERIT;
+	BIND_METHOD(generator,__init__);
 	BIND_METHOD(generator,__iter__);
 	BIND_METHOD(generator,__call__);
 	BIND_METHOD(generator,__repr__);

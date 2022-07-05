@@ -968,11 +968,11 @@ KRK_METHOD(striterator,__call__,{
 	KrkValue _str;
 	KrkValue _counter;
 	const char * errorStr = NULL;
-	if (!krk_tableGet(&self->fields, OBJECT_VAL(S("s")), &_str)) {
+	if (!krk_tableGet(&self->fields, OBJECT_VAL(S("s")), &_str) || !IS_STRING(_str)) {
 		errorStr = "no str pointer";
 		goto _corrupt;
 	}
-	if (!krk_tableGet(&self->fields, OBJECT_VAL(S("i")), &_counter)) {
+	if (!krk_tableGet(&self->fields, OBJECT_VAL(S("i")), &_counter) || !IS_INTEGER(_counter)) {
 		errorStr = "no index";
 		goto _corrupt;
 	}
@@ -1043,6 +1043,7 @@ void _createAndBind_strClass(void) {
 	KRK_DOC(str, "Obtain a string representation of an object.");
 
 	KrkClass * striterator = ADD_BASE_CLASS(vm.baseClasses->striteratorClass, "striterator", vm.baseClasses->objectClass);
+	striterator->obj.flags |= KRK_OBJ_FLAGS_NO_INHERIT;
 	BIND_METHOD(striterator,__init__);
 	BIND_METHOD(striterator,__call__);
 	krk_finalizeClass(striterator);

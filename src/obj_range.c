@@ -117,6 +117,7 @@ _noexport
 void _createAndBind_rangeClass(void) {
 	range = ADD_BASE_CLASS(vm.baseClasses->rangeClass, "range", vm.baseClasses->objectClass);
 	range->allocSize = sizeof(struct Range);
+	range->obj.flags |= KRK_OBJ_FLAGS_NO_INHERIT;
 	KRK_DOC(BIND_METHOD(range,__init__),
 		"@brief Create an iterable that produces sequential numeric values.\n"
 		"@arguments [min,] max, [step]\n\n"
@@ -130,6 +131,7 @@ void _createAndBind_rangeClass(void) {
 
 	rangeiterator = ADD_BASE_CLASS(vm.baseClasses->rangeiteratorClass, "rangeiterator", vm.baseClasses->objectClass);
 	rangeiterator->allocSize = sizeof(struct RangeIterator);
+	rangeiterator->obj.flags |= KRK_OBJ_FLAGS_NO_INHERIT;
 	BIND_METHOD(rangeiterator,__init__);
 	BIND_METHOD(rangeiterator,__call__);
 	krk_finalizeClass(rangeiterator);

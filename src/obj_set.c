@@ -257,6 +257,9 @@ KRK_METHOD(setiterator,__init__,{
 
 KRK_METHOD(setiterator,__call__,{
 	METHOD_TAKES_NONE();
+
+	if (unlikely(!IS_set(self->set))) return argv[0];
+
 	do {
 		if (self->i >= AS_set(self->set)->entries.capacity) return argv[0];
 		if (!IS_KWARGS(AS_set(self->set)->entries.entries[self->i].key)) {
@@ -316,6 +319,7 @@ void _createAndBind_setClass(void) {
 	krk_finalizeClass(set);
 
 	krk_makeClass(vm.builtins, &setiterator, "setiterator", vm.baseClasses->objectClass);
+	setiterator->obj.flags |= KRK_OBJ_FLAGS_NO_INHERIT;
 	setiterator->allocSize = sizeof(struct SetIterator);
 	setiterator->_ongcscan = _setiterator_gcscan;
 	BIND_METHOD(setiterator,__init__);

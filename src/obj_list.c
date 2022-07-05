@@ -628,6 +628,7 @@ void _createAndBind_listClass(void) {
 	KrkClass * listiterator = ADD_BASE_CLASS(vm.baseClasses->listiteratorClass, "listiterator", vm.baseClasses->objectClass);
 	listiterator->allocSize = sizeof(struct ListIterator);
 	listiterator->_ongcscan = _listiterator_gcscan;
+	listiterator->obj.flags |= KRK_OBJ_FLAGS_NO_INHERIT;
 	BIND_METHOD(listiterator,__init__);
 	BIND_METHOD(listiterator,__call__);
 	krk_finalizeClass(listiterator);

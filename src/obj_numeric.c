@@ -288,7 +288,18 @@ KRK_METHOD(int,__bin__,{
 	}
 
 	return finishStringBuilder(&sb);
+})
 
+KRK_METHOD(int,__invert__,{
+	return INTEGER_VAL(~self);
+})
+
+KRK_METHOD(int,__neg__,{
+	return INTEGER_VAL(-self);
+})
+
+KRK_METHOD(int,__abs__,{
+	return self < 0 ? INTEGER_VAL(-self) : INTEGER_VAL(self);
 })
 
 #undef CURRENT_CTYPE
@@ -349,6 +360,14 @@ KRK_METHOD(float,__eq__,{
 
 KRK_METHOD(float,__hash__,{
 	return INTEGER_VAL((uint32_t)self);
+})
+
+KRK_METHOD(float,__neg__,{
+	return FLOATING_VAL(-self);
+})
+
+KRK_METHOD(float,__abs__,{
+	return self < 0.0 ? FLOATING_VAL(-self) : INTEGER_VAL(self);
 })
 
 #define BASIC_BIN_OP(name,operator) \
@@ -442,6 +461,11 @@ KRK_METHOD(bool,__str__,{
 	return OBJECT_VAL((self ? S("True") : S("False")));
 })
 
+FUNC_SIG(NoneType,__init__) {
+	if (argc > 1) return krk_runtimeError(vm.exceptions->argumentError, "%s takes no arguments", "NoneType");
+	return NONE_VAL();
+}
+
 KRK_METHOD(NoneType,__str__,{
 	return OBJECT_VAL(S("None"));
 })
@@ -450,14 +474,32 @@ KRK_METHOD(NoneType,__hash__,{
 	return INTEGER_VAL((uint32_t)AS_INTEGER(argv[0]));
 })
 
+KRK_METHOD(NoneType,__eq__,{
+	METHOD_TAKES_EXACTLY(1);
+	if (IS_NONE(argv[1])) return BOOLEAN_VAL(1);
+	return NOTIMPL_VAL();
+})
+
 #define IS_NotImplementedType(o) IS_NOTIMPL(o)
 #define AS_NotImplementedType(o) (1)
+
+FUNC_SIG(NotImplementedType,__init__) {
+	if (argc > 1) return krk_runtimeError(vm.exceptions->argumentError, "%s takes no arguments", "NotImplementedType");
+	return NOTIMPL_VAL();
+}
+
 KRK_METHOD(NotImplementedType,__str__,{
 	return OBJECT_VAL(S("NotImplemented"));
 })
 
 KRK_METHOD(NotImplementedType,__hash__,{
 	return INTEGER_VAL(0);
+})
+
+KRK_METHOD(NotImplementedType,__eq__,{
+	METHOD_TAKES_EXACTLY(1);
+	if (IS_NOTIMPL(argv[1])) return BOOLEAN_VAL(1);
+	return NOTIMPL_VAL();
 })
 
 #undef BIND_METHOD
@@ -500,6 +542,9 @@ void _createAndBind_numericClasses(void) {
 	BIND_METHOD(int,__hex__);
 	BIND_METHOD(int,__oct__);
 	BIND_METHOD(int,__bin__);
+	BIND_METHOD(int,__invert__);
+	BIND_METHOD(int,__neg__);
+	BIND_METHOD(int,__abs__);
 
 	krk_defineNative(&_int->methods, "__repr__", FUNC_NAME(int,__str__));
 	krk_finalizeClass(_int);
@@ -522,6 +567,8 @@ void _createAndBind_numericClasses(void) {
 	BIND_METHOD(float,__gt__);
 	BIND_METHOD(float,__le__);
 	BIND_METHOD(float,__ge__);
+	BIND_METHOD(float,__neg__);
+	BIND_METHOD(float,__abs__);
 	krk_defineNative(&_float->methods, "__repr__", FUNC_NAME(float,__str__));
 	krk_finalizeClass(_float);
 	KRK_DOC(_float, "Convert a number or string type to a float representation.");
@@ -536,15 +583,19 @@ void _createAndBind_numericClasses(void) {
 
 	KrkClass * _NoneType = ADD_BASE_CLASS(vm.baseClasses->noneTypeClass, "NoneType", vm.baseClasses->objectClass);
 	_NoneType->obj.flags |= KRK_OBJ_FLAGS_NO_INHERIT;
+	BIND_METHOD(NoneType, __init__);
 	BIND_METHOD(NoneType, __str__);
 	BIND_METHOD(NoneType, __hash__);
+	BIND_METHOD(NoneType, __eq__);
 	krk_defineNative(&_NoneType->methods, "__repr__", FUNC_NAME(NoneType,__str__));
 	krk_finalizeClass(_NoneType);
 
 	KrkClass * _NotImplementedType = ADD_BASE_CLASS(vm.baseClasses->notImplClass, "NotImplementedType", vm.baseClasses->objectClass);
 	_NotImplementedType->obj.flags |= KRK_OBJ_FLAGS_NO_INHERIT;
+	BIND_METHOD(NotImplementedType, __init__);
 	BIND_METHOD(NotImplementedType, __str__);
 	BIND_METHOD(NotImplementedType, __hash__);
+	BIND_METHOD(NotImplementedType, __eq__);
 	krk_defineNative(&_NotImplementedType->methods, "__repr__", FUNC_NAME(NotImplementedType,__str__));
 	krk_finalizeClass(_NotImplementedType);
 

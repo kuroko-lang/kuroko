@@ -263,7 +263,7 @@ KRK_METHOD(bytesiterator,__init__,{
 KRK_METHOD(bytesiterator,__call__,{
 	KrkValue _list = self->l;
 	size_t _counter = self->i;
-	if (_counter >= AS_BYTES(_list)->length) {
+	if (!IS_BYTES(_list) || _counter >= AS_BYTES(_list)->length) {
 		return argv[0];
 	} else {
 		self->i = _counter + 1;
@@ -292,6 +292,9 @@ KRK_METHOD(bytearray,__init__,{
 	return argv[0];
 })
 
+#undef IS_bytearray
+#define IS_bytearray(o) (krk_isInstanceOf(o,vm.baseClasses->bytearrayClass) && IS_BYTES(AS_bytearray(o)->actual))
+
 /* bytes objects are not interned; need to do this the old-fashioned way. */
 KRK_METHOD(bytearray,__eq__,{
 	if (!IS_bytearray(argv[1])) return BOOLEAN_VAL(0);
@@ -306,6 +309,11 @@ KRK_METHOD(bytearray,__repr__,{
 
 	krk_push(self->actual);
 	KrkValue repred_bytes = krk_callDirect(vm.baseClasses->bytesClass->_reprer, 1);
+	if (!IS_STRING(repred_bytes)) {
+		/* Invalid repr of bytes? */
+		discardStringBuilder(&sb);
+		return NONE_VAL();
+	}
 	pushStringBuilderStr(&sb, AS_STRING(repred_bytes)->chars, AS_STRING(repred_bytes)->length);
 	pushStringBuilder(&sb,')');
 	return finishStringBuilder(&sb);
@@ -413,6 +421,7 @@ void _createAndBind_bytesClass(void) {
 	krk_finalizeClass(bytes);
 
 	KrkClass * bytesiterator = ADD_BASE_CLASS(vm.baseClasses->bytesiteratorClass, "bytesiterator", vm.baseClasses->objectClass);
+	bytesiterator->obj.flags |= KRK_OBJ_FLAGS_NO_INHERIT;
 	bytesiterator->allocSize = sizeof(struct BytesIterator);
 	bytesiterator->_ongcscan = _bytesiterator_gcscan;
 	BIND_METHOD(bytesiterator,__init__);
