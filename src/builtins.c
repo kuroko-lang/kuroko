@@ -255,35 +255,116 @@ KRK_FUNC(bin,{
 	return TYPE_ERROR(int,argv[0]);
 })
 
-#define unpackArray(counter, indexer) do { \
-	for (size_t i = 0; i < counter; ++i) { \
-		if (!krk_isFalsey(indexer)) { \
-			if (unpackingIterable) { krk_pop(); krk_pop(); } \
-			return BOOLEAN_VAL(1); \
-		} \
-	} \
-} while (0)
+#define KRK_STRING_FAST(string,offset)  (uint32_t)\
+	((string->obj.flags & KRK_OBJ_FLAGS_STRING_MASK) <= (KRK_OBJ_FLAGS_STRING_UCS1) ? ((uint8_t*)string->codes)[offset] : \
+	((string->obj.flags & KRK_OBJ_FLAGS_STRING_MASK) == (KRK_OBJ_FLAGS_STRING_UCS2) ? ((uint16_t*)string->codes)[offset] : \
+	((uint32_t*)string->codes)[offset]))
+
+int krk_unpackIterable(KrkValue iterable, void * context, int callback(void *, const KrkValue *, size_t)) {
+	if (IS_TUPLE(iterable)) {
+		if (callback(context, AS_TUPLE(iterable)->values.values, AS_TUPLE(iterable)->values.count)) return 1;
+	} else if (IS_list(iterable)) {
+		if (callback(context, AS_LIST(iterable)->values, AS_LIST(iterable)->count)) return 1;
+	} else if (IS_dict(iterable)) {
+		for (size_t i = 0; i < AS_DICT(iterable)->capacity; ++i) {
+			if (!IS_KWARGS(AS_DICT(iterable)->entries[i].key)) {
+				if (callback(context, &AS_DICT(iterable)->entries[i].key, 1)) return 1;
+			}
+		}
+	} else if (IS_STRING(iterable)) {
+		krk_unicodeString(AS_STRING(iterable));
+		for (size_t i = 0; i < AS_STRING(iterable)->codesLength; ++i) {
+			KrkValue s = krk_string_get(2, (KrkValue[]){iterable,INTEGER_VAL(i)}, i);
+			if (unlikely(krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION)) return 1;
+			krk_push(s);
+			if (callback(context, &s, 1)) {
+				krk_pop();
+				return 1;
+			}
+			krk_pop();
+		}
+	} else {
+		KrkClass * type = krk_getType(iterable);
+		if (unlikely(!type->_iter)) {
+			krk_runtimeError(vm.exceptions->typeError, "'%s' object is not iterable", krk_typeName(iterable));
+			return 1;
+		}
+
+		/* Build the iterable */
+		krk_push(iterable);
+		KrkValue iterator = krk_callDirect(type->_iter, 1);
+
+		if (unlikely(krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION)) return 1;
+
+		krk_push(iterator);
+
+		do {
+			/* Call the iterator */
+			krk_push(iterator);
+			KrkValue item = krk_callStack(0);
+
+			if (unlikely(krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION)) {
+				krk_pop(); /* __iter__() result */
+				return 1;
+			}
+
+			if (krk_valuesSame(iterator, item)) {
+				break;
+			}
+
+			krk_push(item);
+			if (callback(context, &item, 1)) {
+				krk_pop(); /* item */
+				krk_pop(); /* __iter__ */
+				return 1;
+			}
+			krk_pop(); /* item */
+		} while (1);
+
+		krk_pop(); /* __iter__() result */
+	}
+	return 0;
+}
+
+struct SimpleContext {
+	KrkValue base;
+};
+
+static int _any_callback(void * context, const KrkValue * values, size_t count) {
+	struct SimpleContext * _context = context;
+	for (size_t i = 0; i < count; ++i) {
+		if (!krk_isFalsey(values[i])) {
+			_context->base = BOOLEAN_VAL(1);
+			return 1;
+		}
+	}
+	return 0;
+}
+
 KRK_FUNC(any,{
 	FUNCTION_TAKES_EXACTLY(1);
-	unpackIterableFast(argv[0]);
-	return BOOLEAN_VAL(0);
+	struct SimpleContext context = { BOOLEAN_VAL(0) };
+	krk_unpackIterable(argv[0], &context, _any_callback);
+	return context.base;
 })
-#undef unpackArray
 
-#define unpackArray(counter, indexer) do { \
-	for (size_t i = 0; i < counter; ++i) { \
-		if (krk_isFalsey(indexer)) { \
-			if (unpackingIterable) { krk_pop(); krk_pop(); } \
-			return BOOLEAN_VAL(0); \
-		} \
-	} \
-} while (0)
+static int _all_callback(void * context, const KrkValue * values, size_t count) {
+	struct SimpleContext * _context = context;
+	for (size_t i = 0; i < count; ++i) {
+		if (krk_isFalsey(values[i])) {
+			_context->base = BOOLEAN_VAL(0);
+			return 1;
+		}
+	}
+	return 0;
+}
+
 KRK_FUNC(all,{
 	FUNCTION_TAKES_EXACTLY(1);
-	unpackIterableFast(argv[0]);
-	return BOOLEAN_VAL(1);
+	struct SimpleContext context = { BOOLEAN_VAL(1) };
+	krk_unpackIterable(argv[0], &context, _all_callback);
+	return context.base;
 })
-#undef unpackArray
 
 #define CURRENT_CTYPE KrkInstance *
 #define CURRENT_NAME  self
@@ -545,69 +626,75 @@ KRK_METHOD(enumerate,__call__,{
 	return out;
 })
 
-#define unpackArray(counter, indexer) do { \
-	for (size_t i = 0; i < counter; ++i) { \
-		base = krk_operator_add(base, indexer); \
-	} \
-} while (0)
+static int _sum_callback(void * context, const KrkValue * values, size_t count) {
+	struct SimpleContext * _context = context;
+	for (size_t i = 0; i < count; ++i) {
+		_context->base = krk_operator_add(_context->base, values[i]);
+		if (unlikely(krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION)) return 1;
+	}
+	return 0;
+}
+
 KRK_FUNC(sum,{
 	FUNCTION_TAKES_AT_LEAST(1);
 	KrkValue base = INTEGER_VAL(0);
 	if (hasKw) {
 		krk_tableGet(AS_DICT(argv[argc]), OBJECT_VAL(S("start")), &base);
 	}
-	unpackIterableFast(argv[0]);
-	return base;
+	struct SimpleContext context = { base };
+	if (krk_unpackIterable(argv[0], &context, _sum_callback)) return NONE_VAL();
+	return context.base;
 })
-#undef unpackArray
 
-extern KrkValue krk_operator_lt(KrkValue a, KrkValue b);
-#define unpackArray(counter, indexer) do { \
-	for (size_t i = 0; i < counter; ++i) { \
-		if (IS_KWARGS(base)) base = indexer; \
-		else { \
-			KrkValue check = krk_operator_lt(indexer, base); \
-			if (!IS_BOOLEAN(check)) return NONE_VAL(); \
-			else if (AS_BOOLEAN(check) == 1) base = indexer; \
-		} \
-	} \
-} while (0)
+static int _min_callback(void * context, const KrkValue * values, size_t count) {
+	struct SimpleContext * _context = context;
+	for (size_t i = 0; i < count; ++i) {
+		if (IS_KWARGS(_context->base)) _context->base = values[i];
+		else {
+			KrkValue check = krk_operator_lt(values[i], _context->base);
+			if (!IS_BOOLEAN(check)) return 1;
+			else if (AS_BOOLEAN(check) == 1) _context->base = values[i];
+		}
+	}
+	return 0;
+}
+
 KRK_FUNC(min,{
 	FUNCTION_TAKES_AT_LEAST(1);
-	KrkValue base = KWARGS_VAL(0);
+	struct SimpleContext context = { KWARGS_VAL(0) };
 	if (argc > 1) {
-		unpackArray((size_t)argc,argv[i]);
+		if (_min_callback(&context, argv, argc)) return NONE_VAL();
 	} else {
-		unpackIterableFast(argv[0]);
+		if (krk_unpackIterable(argv[0], &context, _min_callback)) return NONE_VAL();
 	}
-	if (IS_KWARGS(base)) return krk_runtimeError(vm.exceptions->valueError, "empty argument to %s()", "min");
-	return base;
+	if (IS_KWARGS(context.base)) return krk_runtimeError(vm.exceptions->valueError, "empty argument to %s()", "min");
+	return context.base;
 })
-#undef unpackArray
 
-extern KrkValue krk_operator_gt(KrkValue a, KrkValue b);
-#define unpackArray(counter, indexer) do { \
-	for (size_t i = 0; i < counter; ++i) { \
-		if (IS_KWARGS(base)) base = indexer; \
-		else { \
-			KrkValue check = krk_operator_gt(indexer, base); \
-			if (!IS_BOOLEAN(check)) return NONE_VAL(); \
-			else if (AS_BOOLEAN(check) == 1) base = indexer; \
-		} \
-	} \
-} while (0)
+static int _max_callback(void * context, const KrkValue * values, size_t count) {
+	struct SimpleContext * _context = context;
+	for (size_t i = 0; i < count; ++i) {
+		if (IS_KWARGS(_context->base)) _context->base = values[i];
+		else {
+			KrkValue check = krk_operator_gt(values[i], _context->base);
+			if (!IS_BOOLEAN(check)) return 1;
+			else if (AS_BOOLEAN(check) == 1) _context->base = values[i];
+		}
+	}
+	return 0;
+}
+
 KRK_FUNC(max,{
 	FUNCTION_TAKES_AT_LEAST(1);
-	KrkValue base = KWARGS_VAL(0);
+	struct SimpleContext context = { KWARGS_VAL(0) };
 	if (argc > 1) {
-		unpackArray((size_t)argc,argv[i]);
+		if (_max_callback(&context, argv, argc)) return NONE_VAL();
 	} else {
-		unpackIterableFast(argv[0]);
+		if (krk_unpackIterable(argv[0], &context, _max_callback)) return NONE_VAL();
 	}
-	if (IS_KWARGS(base)) return krk_runtimeError(vm.exceptions->valueError, "empty argument to %s()", "max");
-	return base;
+	if (IS_KWARGS(context.base)) return krk_runtimeError(vm.exceptions->valueError, "empty argument to %s()", "max");
+	return context.base;
 })
-#undef unpackArray
 
 KRK_FUNC(print,{
 	KrkValue sepVal;

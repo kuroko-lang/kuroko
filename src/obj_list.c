@@ -156,18 +156,22 @@ KRK_METHOD(list,__repr__,{
 	return finishStringBuilder(&sb);
 })
 
-#define unpackArray(counter, indexer) do { \
-			if (positionals->count + counter > positionals->capacity) { \
-				size_t old = positionals->capacity; \
-				positionals->capacity = (counter == 1) ? GROW_CAPACITY(old) : positionals->count + counter; \
-				positionals->values = GROW_ARRAY(KrkValue,positionals->values,old,positionals->capacity); \
-			} \
-			for (size_t i = 0; i < counter; ++i) { \
-				positionals->values[positionals->count] = indexer; \
-				positionals->count++; \
-				if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) goto _break_loop; \
-			} \
-		} while (0)
+
+static int _list_extend_callback(void * context, const KrkValue * values, size_t count) {
+	KrkValueArray * positionals = context;
+	if (positionals->count + count > positionals->capacity) {
+		size_t old = positionals->capacity;
+		positionals->capacity = (count == 1) ? GROW_CAPACITY(old) : (positionals->count + count);
+		positionals->values = GROW_ARRAY(KrkValue, positionals->values, old, positionals->capacity);
+	}
+
+	for (size_t i = 0; i < count; ++i) {
+		positionals->values[positionals->count++] = values[i];
+	}
+
+	return 0;
+}
+
 KRK_METHOD(list,extend,{
 	METHOD_TAKES_EXACTLY(1);
 	pthread_rwlock_wrlock(&self->rwlock);
@@ -176,8 +180,9 @@ KRK_METHOD(list,extend,{
 	if (krk_valuesSame(argv[0],other)) {
 		other = krk_list_of(self->values.count, self->values.values, 0);
 	}
-	unpackIterableFast(other);
-_break_loop:
+
+	krk_unpackIterable(other, positionals, _list_extend_callback);
+
 	pthread_rwlock_unlock(&self->rwlock);
 })
 #undef unpackArray

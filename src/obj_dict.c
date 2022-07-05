@@ -46,37 +46,58 @@ static void _dict_gcsweep(KrkInstance * self) {
 			if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) return 1; \
 		} \
 	} while (0)
-static int unpackKeyValuePair(KrkDict * self, KrkValue pair) {
+
+struct _keyvalue_pair_context {
+	KrkDict * self;
 	KrkValue key;
-	int keyOrValue = 0;
-	unpackIterableFast(pair);
-	if (keyOrValue != 2) {
-		_unpackError:
+	int counter;
+};
+
+static int _keyvalue_pair_callback(void * context, const KrkValue * entries, size_t count) {
+	struct _keyvalue_pair_context * _context = context;
+
+	if (count > 2) {
+		_context->counter = count;
+		return 1;
+	}
+
+	for (size_t i = 0; i < count; ++i) {
+		if (_context->counter == 0) {
+			_context->counter = 1;
+			_context->key = entries[i];
+		} else if (_context->counter == 1) {
+			_context->counter = 2;
+			krk_tableSet(&_context->self->entries, _context->key, entries[i]);
+		} else {
+			_context->counter = -1;
+			return 1;
+		}
+	}
+
+	if (unlikely(krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION)) return 1;
+	return 0;
+}
+
+static int unpackKeyValuePair(void * self, const KrkValue * pairs, size_t count) {
+	struct _keyvalue_pair_context context = { (KrkDict*)self, NONE_VAL(), 0 };
+
+	for (size_t i = 0; i < count; ++i) {
+		if (krk_unpackIterable(pairs[i], &context, _keyvalue_pair_callback)) return 1;
+	}
+
+	if (context.counter != 2) {
 		krk_runtimeError(vm.exceptions->valueError, "dictionary update sequence element has invalid length");
 		return 1;
 	}
 	return 0;
 }
-#undef unpackArray
-
-#define unpackArray(counter, indexer) do { \
-		for (size_t i = 0; i < counter; ++i) { \
-			if (unpackKeyValuePair(self, indexer) || (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION)) \
-				return 1; \
-		} \
-	} while (0)
-static int unpackKeyValueSequence(KrkDict * self, KrkValue array) {
-	unpackIterableFast(array);
-	return 0;
-}
-#undef unpackArray
 
 KRK_METHOD(dict,__init__,{
 	METHOD_TAKES_AT_MOST(1);
 	krk_initTable(&self->entries);
 
 	if (argc > 1) {
-		if (unpackKeyValueSequence(self, argv[1])) return NONE_VAL();
+		if (krk_unpackIterable(argv[1], self, unpackKeyValuePair)) return NONE_VAL();
 	}
 
 	if (hasKw) {

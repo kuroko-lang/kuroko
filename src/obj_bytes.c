@@ -170,33 +170,47 @@ KRK_METHOD(bytes,decode,{
 	return OBJECT_VAL(krk_copyString((char*)AS_BYTES(argv[0])->bytes, AS_BYTES(argv[0])->length));
 })
 
-#define unpackArray(counter, indexer) do { \
-	for (size_t i = 0; i < counter; ++i) { \
-		if (!IS_BYTES(indexer)) { errorStr = krk_typeName(indexer); goto _expectedBytes; } \
-		krk_push(indexer); \
-		if (i > 0) pushStringBuilderStr(&sb, (char*)self->bytes, self->length); \
-		pushStringBuilderStr(&sb, (char*)AS_BYTES(indexer)->bytes, AS_BYTES(indexer)->length); \
-		krk_pop(); \
-	} \
-} while (0)
+struct _bytes_join_context {
+	struct StringBuilder * sb;
+	KrkBytes * self;
+	int isFirst;
+};
+
+static int _bytes_join_callback(void * context, const KrkValue * values, size_t count) {
+	struct _bytes_join_context * _context = context;
+
+	for (size_t i = 0; i < count; ++i) {
+		if (!IS_BYTES(values[i])) {
+			krk_runtimeError(vm.exceptions->typeError, "%s() expects %s, not '%s'",
+				"join", "bytes", krk_typeName(values[i]));
+			return 1;
+		}
+
+		if (_context->isFirst) {
+			_context->isFirst = 0;
+		} else {
+			pushStringBuilderStr(_context->sb, (char*)_context->self->bytes, _context->self->length);
+		}
+		pushStringBuilderStr(_context->sb, (char*)AS_BYTES(values[i])->bytes, AS_BYTES(values[i])->length);
+	}
+
+	return 0;
+}
 
 KRK_METHOD(bytes,join,{
 	METHOD_TAKES_EXACTLY(1);
 
-	const char * errorStr = NULL;
 	struct StringBuilder sb = {0};
 
-	unpackIterableFast(argv[1]);
+	struct _bytes_join_context context = {&sb, self, 1};
+
+	if (krk_unpackIterable(argv[1], &context, _bytes_join_callback)) {
+		discardStringBuilder(&sb);
+		return NONE_VAL();
+	}
 
 	return finishStringBuilderBytes(&sb);
-
-_expectedBytes:
-	krk_runtimeError(vm.exceptions->typeError, "%s() expects %s, not '%s'",
-		"join", "bytes", errorStr);
-	discardStringBuilder(&sb);
 })
-
-#undef unpackArray
 
 KRK_METHOD(bytes,__add__,{
 	METHOD_TAKES_EXACTLY(1);

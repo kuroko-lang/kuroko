@@ -609,19 +609,21 @@ static void multipleDefs(const KrkClosure * closure, int destination) {
 				"<unnamed>")));
 }
 
-#undef unpackError
-#define unpackError(fromInput) return krk_runtimeError(vm.exceptions->typeError, "Can not unpack *expression: '%s' object is not iterable", krk_typeName(fromInput)), 0;
-#define unpackArray(counter, indexer) do { \
-	if (positionals->count + counter > positionals->capacity) { \
-		size_t old = positionals->capacity; \
-		positionals->capacity = positionals->count + counter; \
-		positionals->values = GROW_ARRAY(KrkValue,positionals->values,old,positionals->capacity); \
-	} \
-	for (size_t i = 0; i < counter; ++i) { \
-		positionals->values[positionals->count] = indexer; \
-		positionals->count++; \
-	} \
-} while (0)
+static int _unpack_args(void * context, const KrkValue * values, size_t count) {
+	KrkValueArray * positionals = context;
+	if (positionals->count + count > positionals->capacity) {
+		size_t old = positionals->capacity;
+		positionals->capacity = (count == 1) ? GROW_CAPACITY(old) : (positionals->count + count);
+		positionals->values = GROW_ARRAY(KrkValue, positionals->values, old, positionals->capacity);
+	}
+
+	for (size_t i = 0; i < count; ++i) {
+		positionals->values[positionals->count++] = values[i];
+	}
+
+	return 0;
+}
+
 int krk_processComplexArguments(int argCount, KrkValueArray * positionals, KrkTable * keywords, const char * name) {
 #define TOP_ARGS 3
 	size_t kwargsCount = AS_INTEGER(krk_currentThread.stackTop[-TOP_ARGS]);
@@ -640,7 +642,7 @@ int krk_processComplexArguments(int argCount, KrkValueArray * positionals, KrkTa
 		KrkValue value = startOfExtras[i*2 + 1];
 		if (IS_KWARGS(key)) {
 			if (AS_INTEGER(key) == KWARGS_LIST) { /* unpack list */
-				unpackIterableFast(value);
+				if (krk_unpackIterable(value,positionals,_unpack_args)) return 0;
 			} else if (AS_INTEGER(key) == KWARGS_DICT) { /* unpack dict */
 				if (!IS_dict(value)) {
 					krk_runtimeError(vm.exceptions->typeError, "%s(): **expression value is not a dict.", name);

@@ -47,15 +47,20 @@ static void _setiterator_gcscan(KrkInstance * self) {
 #define CURRENT_CTYPE struct Set *
 #define CURRENT_NAME  self
 
-#define unpackArray(counter, indexer) for (size_t i = 0; i < counter; ++i) { \
-		krk_tableSet(&self->entries, indexer, BOOLEAN_VAL(1)); \
+static int _set_init_callback(void * context, const KrkValue * values, size_t count) {
+	struct Set * self = context;
+	for (size_t i = 0; i < count; ++i) {
+		krk_tableSet(&self->entries, values[i], BOOLEAN_VAL(1));
+		if (unlikely(krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION)) return 1;
+	}
+	return 0;
 }
 
 KRK_METHOD(set,__init__,{
 	METHOD_TAKES_AT_MOST(1);
 	krk_initTable(&self->entries);
 	if (argc == 2) {
-		unpackIterableFast(argv[1]);
+		if (krk_unpackIterable(argv[1], self, _set_init_callback)) return NONE_VAL();
 	}
 	return argv[0];
 })

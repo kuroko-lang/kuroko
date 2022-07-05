@@ -338,32 +338,46 @@ KRK_METHOD(str,__rmul__,{
 	return NOTIMPL_VAL();
 })
 
-#define unpackArray(counter, indexer) do { \
-	for (size_t i = 0; i < counter; ++i) { \
-		if (!IS_STRING(indexer)) { errorStr = krk_typeName(indexer); goto _expectedString; } \
-		krk_push(indexer); \
-		if (rIndex > 0) pushStringBuilderStr(&sb, self->chars, self->length); \
-		pushStringBuilderStr(&sb, AS_CSTRING(indexer), AS_STRING(indexer)->length); \
-		krk_pop(); \
-		rIndex++; \
-	} \
-} while (0)
+struct _str_join_context {
+	struct StringBuilder * sb;
+	KrkString * self;
+	int isFirst;
+};
+
+static int _str_join_callback(void * context, const KrkValue * values, size_t count) {
+	struct _str_join_context * _context = context;
+
+	for (size_t i = 0; i < count; ++i) {
+		if (!IS_STRING(values[i])) {
+			krk_runtimeError(vm.exceptions->typeError, "%s() expects %s, not '%s'",
+				"join", "str", krk_typeName(values[i]));
+			return 1;
+		}
+
+		if (_context->isFirst) {
+			_context->isFirst = 0;
+		} else {
+			pushStringBuilderStr(_context->sb, (char*)_context->self->chars, _context->self->length);
+		}
+		pushStringBuilderStr(_context->sb, (char*)AS_STRING(values[i])->chars, AS_STRING(values[i])->length);
+	}
+
+	return 0;
+}
 
 /* str.join(list) */
 KRK_METHOD(str,join,{
 	METHOD_TAKES_EXACTLY(1);
-
-	const char * errorStr = NULL;
 	struct StringBuilder sb = {0};
 
-	size_t rIndex = 0;
-	unpackIterableFast(argv[1]);
+	struct _str_join_context context = {&sb, self, 1};
+
+	if (krk_unpackIterable(argv[1], &context, _str_join_callback)) {
+		discardStringBuilder(&sb);
+		return NONE_VAL();
+	}
 
 	return finishStringBuilder(&sb);
-
-_expectedString:
-	krk_runtimeError(vm.exceptions->typeError, "%s() expects %s, not '%s'", "join", "str", errorStr);
-	discardStringBuilder(&sb);
 })
 
 static int isWhitespace(char c) {
