@@ -100,18 +100,18 @@ let encode_big5web = {}
 let encode_big5hkscs = {}
 let encode_big5hkscs_extras = {}
 let encode_gbk = {}
-let dbrange_eucjp = tupleOf(0x8E, *range(0xA1, 0xFE + 1))
-let dbrange_shiftjis = tupleOf(*range(0x81, 0x9F + 1), *range(0xE0, 0xFC + 1))
-let dbrange_uhc = tupleOf(*range(0x81, 0xFE + 1))
-let dbrange_big5 = tupleOf(*range(0x81, 0xFE + 1))
+let dbrange_eucjp = (0x8E,) + tuple(range(0xA1, 0xFE + 1))
+let dbrange_shiftjis = tuple(range(0x81, 0x9F + 1)) + tuple(range(0xE0, 0xFC + 1))
+let dbrange_uhc = tuple(range(0x81, 0xFE + 1))
+let dbrange_big5 = tuple(range(0x81, 0xFE + 1))
 let tbrange_eucjp = (0x8F,)
 let tbrange_shiftjis = ()
 let tbrange_uhc = ()
 let tbrange_big5 = ()
-let trailrange_eucjp = tupleOf(*range(0xA1, 0xFE + 1))
-let trailrange_shiftjis = tupleOf(*range(0x40, 0x7E + 1), *range(0x80, 0xFC + 1))
-let trailrange_uhc = tupleOf(*range(0x41, 0xFE + 1)) # As WHATWG define it (a superset of the actual range)
-let trailrange_big5 = tupleOf(*range(0x40, 0x7E + 1), *range(0xA1, 0xFE + 1))
+let trailrange_eucjp = tuple(range(0xA1, 0xFE + 1))
+let trailrange_shiftjis = tuple(range(0x40, 0x7E + 1)) + tuple(range(0x80, 0xFC + 1))
+let trailrange_uhc = tuple(range(0x41, 0xFE + 1)) # As WHATWG define it (a superset of the actual range)
+let trailrange_big5 = tuple(range(0x40, 0x7E + 1)) + tuple(range(0xA1, 0xFE + 1))
 
 for pointer, ucs in enumerate(indices['jis0208']):
     if ucs == None: continue

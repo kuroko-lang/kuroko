@@ -112,7 +112,7 @@ class XMacChineseTradIncrementalDecoder(AsciiIncrementalDecoder):
             0xFE: 0x2122,
             0xFF: 0x2026,
         })
-    dbrange = tupleOf(*range(0xA1, 0xFC + 1))
+    dbrange = tuple(range(0xA1, 0xFC + 1))
     trailrange = Big5HkscsIncrementalDecoder.trailrange
 
 register_kuroko_codec(["x-mac-chinesetrad", "x-mac-trad-chinese"],
@@ -169,8 +169,8 @@ class XMacChineseSimpIncrementalDecoder(AsciiIncrementalDecoder):
             0xFE: 0x2122,
             0xFF: 0x2026,
         })
-    dbrange = tupleOf(*range(0xA1, 0xFC + 1))
-    trailrange = tupleOf(*range(0xA1, 0xFE + 1))
+    dbrange = tuple(range(0xA1, 0xFC + 1))
+    trailrange = tuple(range(0xA1, 0xFE + 1))
 
 register_kuroko_codec(["x-mac-chinesesimp", "x-mac-simp-chinese", "euc-cn", "euccn", "eucgb2312-cn"],
     XMacChineseSimpIncrementalEncoder, XMacChineseSimpIncrementalDecoder)
@@ -453,9 +453,9 @@ class EucJis2004IncrementalDecoder(AsciiIncrementalDecoder):
     @lazy_property
     def decoding_map():
         return data_8bit.decode_euc04
-    dbrange = tupleOf(0x8E, *range(0xA1, 0xFE + 1))
+    dbrange = (0x8E,) + tuple(range(0xA1, 0xFE + 1))
     tbrange = (0x8F,)
-    trailrange = tupleOf(*range(0xA1, 0xFE + 1))
+    trailrange = tuple(range(0xA1, 0xFE + 1))
 
 register_kuroko_codec(["euc-jis-2004", "jisx0213", "eucjis2004", "euc_jis2004", 
         "euc_jisx0213", "eucjisx0213"],
@@ -487,7 +487,7 @@ class ShiftJis2004IncrementalDecoder(AsciiIncrementalDecoder):
                146, 147, 148, 149, 150, 151, 152, 153, 154, 155, 156, 157, 158, 159, 224, 225, 226, 
                227, 228, 229, 230, 231, 232, 233, 234, 235, 236, 237, 238, 239, 240, 241, 242, 243, 
                244, 245, 246, 247, 248, 249, 250, 251, 252)
-    trailrange = tupleOf(*range(64, 126 + 1), *range(128, 252 + 1))
+    trailrange = tuple(range(64, 126 + 1)) + tuple(range(128, 252 + 1))
 
 register_kuroko_codec(["shift_jis-2004", "shiftjis2004", "sjis_2004", "s_jis_2004", 
         "shift_jisx0213", "shiftjisx0213", "sjisx0213", "s_jisx0213"],
@@ -513,9 +513,9 @@ class AsciiJohabIncrementalDecoder(AsciiIncrementalDecoder):
     @lazy_property
     def decoding_map():
         return data_8bit.decode_johab_ascii
-    dbrange = tupleOf(*range(0x84, 0xF9 + 1))
+    dbrange = tuple(range(0x84, 0xF9 + 1))
     # Trail ranges for hangul and nonhangul are different, but this is their union.
-    trailrange = tupleOf(*range(0x31, 0x7E + 1), *range(0x81, 0xFE + 1))
+    trailrange = tuple(range(0x31, 0x7E + 1)) + tuple(range(0x81, 0xFE + 1))
 
 register_kuroko_codec(["cp1361", "ms1361", "johab", "x-johab", "johab-ascii"],
     AsciiJohabIncrementalEncoder, AsciiJohabIncrementalDecoder)

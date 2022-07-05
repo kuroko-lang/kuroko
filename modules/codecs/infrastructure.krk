@@ -455,15 +455,15 @@ class AsciiIncrementalEncoder(IncrementalEncoder):
                 for seq in seqs:
                     # TODO: where one mapped multi-codepoint sequence starts with another mapped
                     #   multi-codepoint sequence is still pathological.
-                    if tupleOf(*string_bit[:len(seq)]) == seq:
+                    if tuple(string_bit[:len(seq)]) == seq:
                         out.add(bytes(self.encoding_map[seq]))
                         offset += len(seq)
                         if offset >= len(string):
                             return out.getvalue()
                         i = string[offset]
                         break
-                    else if (not final) and (tupleOf(*string_bit) == 
-                                             tupleOf(*list(seq)[:testable_length])):
+                    else if (not final) and (tuple(string_bit) == 
+                                             tuple(list(seq)[:testable_length])):
                         self.pending_lead = "".join([chr(i) for i in string_bit])
                         return out.getvalue()
             if ord(i) < 0x80 and ord(i) not in self.ascii_exceptions:
