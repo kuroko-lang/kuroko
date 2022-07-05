@@ -60,7 +60,7 @@ FUNC_SIG(function,__init__) {
 	return krk_runtimeError(vm.exceptions->typeError, "function object is not instantiable");
 }
 
-KRK_METHOD(function,__doc__,{
+KRK_Method(function,__doc__) {
 	ATTRIBUTE_NOT_ASSIGNABLE();
 
 	if (IS_NATIVE(self) && AS_NATIVE(self)->doc) {
@@ -68,9 +68,11 @@ KRK_METHOD(function,__doc__,{
 	} else if (IS_CLOSURE(self) && AS_CLOSURE(self)->function->docstring) {
 		return OBJECT_VAL(AS_CLOSURE(self)->function->docstring);
 	}
-})
 
-KRK_METHOD(function,__name__,{
+	return NONE_VAL();
+}
+
+KRK_Method(function,__name__) {
 	ATTRIBUTE_NOT_ASSIGNABLE();
 
 	if (IS_NATIVE(self)) {
@@ -80,17 +82,19 @@ KRK_METHOD(function,__name__,{
 	}
 
 	return OBJECT_VAL(S(""));
-})
+}
 
-KRK_METHOD(function,__qualname__,{
+KRK_Method(function,__qualname__) {
 	ATTRIBUTE_NOT_ASSIGNABLE();
 
 	if (IS_CLOSURE(self) && AS_CLOSURE(self)->function->qualname) {
 		return OBJECT_VAL(AS_CLOSURE(self)->function->qualname);
 	}
-})
 
-KRK_METHOD(function,_ip_to_line,{
+	return NONE_VAL();
+}
+
+KRK_Method(function,_ip_to_line) {
 	METHOD_TAKES_EXACTLY(1);
 	CHECK_ARG(1,int,krk_integer_type,ip);
 
@@ -99,9 +103,9 @@ KRK_METHOD(function,_ip_to_line,{
 	size_t line = krk_lineNumber(&AS_CLOSURE(self)->function->chunk, ip);
 
 	return INTEGER_VAL(line);
-})
+}
 
-KRK_METHOD(function,__str__,{
+KRK_Method(function,__str__) {
 	METHOD_TAKES_NONE();
 
 	struct StringBuilder sb = {0};
@@ -126,9 +130,9 @@ KRK_METHOD(function,__str__,{
 	pushStringBuilder(&sb,'>');
 
 	return finishStringBuilder(&sb);
-})
+}
 
-KRK_METHOD(function,__file__,{
+KRK_Method(function,__file__) {
 	ATTRIBUTE_NOT_ASSIGNABLE();
 
 	if (IS_NATIVE(self)) return OBJECT_VAL(S("<builtin>"));
@@ -136,26 +140,26 @@ KRK_METHOD(function,__file__,{
 	return AS_CLOSURE(self)->function->chunk.filename ?
 		OBJECT_VAL(AS_CLOSURE(self)->function->chunk.filename) :
 			OBJECT_VAL(S(""));
-})
+}
 
-KRK_METHOD(function,__args__,{
+KRK_Method(function,__args__) {
 	ATTRIBUTE_NOT_ASSIGNABLE();
 	if (!IS_CLOSURE(self)) return OBJECT_VAL(krk_newTuple(0));
 	KrkTuple * tuple = functionArgs(AS_CLOSURE(self)->function);
 	return OBJECT_VAL(tuple);
-})
+}
 
-KRK_METHOD(function,__annotations__,{
+KRK_Method(function,__annotations__) {
 	ATTRIBUTE_NOT_ASSIGNABLE();
 	if (!IS_CLOSURE(self)) return NONE_VAL();
 	return AS_CLOSURE(self)->annotations;
-})
+}
 
-KRK_METHOD(function,__code__,{
+KRK_Method(function,__code__) {
 	ATTRIBUTE_NOT_ASSIGNABLE();
 	if (!IS_CLOSURE(self)) return NONE_VAL();
 	return OBJECT_VAL(AS_CLOSURE(self)->function);
-})
+}
 
 #undef CURRENT_CTYPE
 #define CURRENT_CTYPE KrkCodeObject*
@@ -164,12 +168,12 @@ FUNC_SIG(codeobject,__init__) {
 	return krk_runtimeError(vm.exceptions->typeError, "codeobject object is not instantiable");
 }
 
-KRK_METHOD(codeobject,__name__,{
+KRK_Method(codeobject,__name__) {
 	ATTRIBUTE_NOT_ASSIGNABLE();
 	return self->name ? OBJECT_VAL(self->name) : OBJECT_VAL(S(""));
-})
+}
 
-KRK_METHOD(codeobject,__str__,{
+KRK_Method(codeobject,__str__) {
 	METHOD_TAKES_NONE();
 	KrkValue s = FUNC_NAME(codeobject,__name__)(1,argv,0);
 	if (!IS_STRING(s)) return NONE_VAL();
@@ -183,16 +187,16 @@ KRK_METHOD(codeobject,__str__,{
 
 	krk_pop();
 	return s;
-})
+}
 
-KRK_METHOD(codeobject,_ip_to_line,{
+KRK_Method(codeobject,_ip_to_line) {
 	METHOD_TAKES_EXACTLY(1);
 	CHECK_ARG(1,int,krk_integer_type,ip);
 	size_t line = krk_lineNumber(&self->chunk, ip);
 	return INTEGER_VAL(line);
-})
+}
 
-KRK_METHOD(codeobject,__constants__,{
+KRK_Method(codeobject,__constants__) {
 	ATTRIBUTE_NOT_ASSIGNABLE();
 	krk_push(OBJECT_VAL(krk_newTuple(self->chunk.constants.count)));
 	memcpy(AS_TUPLE(krk_peek(0))->values.values,
@@ -200,17 +204,17 @@ KRK_METHOD(codeobject,__constants__,{
 		sizeof(KrkValue) * self->chunk.constants.count);
 	AS_TUPLE(krk_peek(0))->values.count = self->chunk.constants.count;
 	return krk_pop();
-})
+}
 
-KRK_METHOD(codeobject,co_code,{
+KRK_Method(codeobject,co_code) {
 	return OBJECT_VAL(krk_newBytes(self->chunk.count, self->chunk.code));
-})
+}
 
-KRK_METHOD(codeobject,co_argcount,{
+KRK_Method(codeobject,co_argcount) {
 	return INTEGER_VAL(self->potentialPositionals);
-})
+}
 
-KRK_METHOD(codeobject,__locals__,{
+KRK_Method(codeobject,__locals__) {
 	krk_push(OBJECT_VAL(krk_newTuple(self->localNameCount)));
 	for (size_t i = 0; i < self->localNameCount; ++i) {
 		krk_push(OBJECT_VAL(krk_newTuple(4)));
@@ -222,10 +226,10 @@ KRK_METHOD(codeobject,__locals__,{
 		krk_pop();
 	}
 	return krk_pop();
-})
+}
 
 /* Python-compatibility */
-KRK_METHOD(codeobject,co_flags,{
+KRK_Method(codeobject,co_flags) {
 	ATTRIBUTE_NOT_ASSIGNABLE();
 
 	int out = 0;
@@ -239,13 +243,13 @@ KRK_METHOD(codeobject,co_flags,{
 	if (self->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_IS_COROUTINE)  out |= 0x80;
 
 	return INTEGER_VAL(out);
-})
+}
 
-KRK_METHOD(codeobject,__args__,{
+KRK_Method(codeobject,__args__) {
 	ATTRIBUTE_NOT_ASSIGNABLE();
 	KrkTuple * tuple = functionArgs(self);
 	return OBJECT_VAL(tuple);
-})
+}
 
 
 #undef CURRENT_CTYPE
@@ -260,22 +264,22 @@ FUNC_SIG(method,__init__) {
 	return OBJECT_VAL(krk_newBoundMethod(argv[2],AS_OBJECT(argv[1])));
 }
 
-KRK_METHOD(method,__name__,{
+KRK_Method(method,__name__) {
 	ATTRIBUTE_NOT_ASSIGNABLE();
 	return IS_function(OBJECT_VAL(self->method)) ? FUNC_NAME(function,__name__)(1,(KrkValue[]){OBJECT_VAL(self->method)},0) : OBJECT_VAL(S("?"));
-})
+}
 
-KRK_METHOD(method,__qualname__,{
+KRK_Method(method,__qualname__) {
 	ATTRIBUTE_NOT_ASSIGNABLE();
 	return IS_function(OBJECT_VAL(self->method)) ? FUNC_NAME(function,__qualname__)(1,(KrkValue[]){OBJECT_VAL(self->method)},0) : OBJECT_VAL(S("?"));
-})
+}
 
-KRK_METHOD(method,_ip_to_line,{
+KRK_Method(method,_ip_to_line) {
 	METHOD_TAKES_EXACTLY(1);
 	return IS_function(OBJECT_VAL(self->method)) ? FUNC_NAME(function,_ip_to_line)(2,(KrkValue[]){OBJECT_VAL(self->method),argv[1]},0) : OBJECT_VAL(S("?"));
-})
+}
 
-KRK_METHOD(method,__str__,{
+KRK_Method(method,__str__) {
 	METHOD_TAKES_NONE();
 	KrkValue s = FUNC_NAME(method,__qualname__)(1,argv,0);
 	if (!IS_STRING(s)) s = FUNC_NAME(method,__name__)(1,argv,0);
@@ -293,58 +297,58 @@ KRK_METHOD(method,__str__,{
 	free(tmp);
 	krk_pop();
 	return s;
-})
+}
 
-KRK_METHOD(method,__file__,{
+KRK_Method(method,__file__) {
 	ATTRIBUTE_NOT_ASSIGNABLE();
 	return IS_function(OBJECT_VAL(self->method)) ? FUNC_NAME(function,__file__)(1,(KrkValue[]){OBJECT_VAL(self->method)},0) : OBJECT_VAL(S("?"));
-})
+}
 
-KRK_METHOD(method,__args__,{
+KRK_Method(method,__args__) {
 	ATTRIBUTE_NOT_ASSIGNABLE();
 	return IS_function(OBJECT_VAL(self->method)) ? FUNC_NAME(function,__args__)(1,(KrkValue[]){OBJECT_VAL(self->method)},0) : OBJECT_VAL(S("?"));
-})
+}
 
-KRK_METHOD(method,__doc__,{
+KRK_Method(method,__doc__) {
 	ATTRIBUTE_NOT_ASSIGNABLE();
 	return IS_function(OBJECT_VAL(self->method)) ? FUNC_NAME(function,__doc__)(1,(KrkValue[]){OBJECT_VAL(self->method)},0) : OBJECT_VAL(S("?"));
-})
+}
 
-KRK_METHOD(method,__annotations__,{
+KRK_Method(method,__annotations__) {
 	ATTRIBUTE_NOT_ASSIGNABLE();
 	return IS_function(OBJECT_VAL(self->method)) ? FUNC_NAME(function,__annotations__)(1,(KrkValue[]){OBJECT_VAL(self->method)},0) : OBJECT_VAL(S("?"));
-})
+}
 
-KRK_METHOD(method,__code__,{
+KRK_Method(method,__code__) {
 	ATTRIBUTE_NOT_ASSIGNABLE();
 	return IS_function(OBJECT_VAL(self->method)) ? FUNC_NAME(function,__code__)(1,(KrkValue[]){OBJECT_VAL(self->method)},0) : OBJECT_VAL(S("?"));
-})
+}
 
-KRK_METHOD(method,__func__,{
+KRK_Method(method,__func__) {
 	ATTRIBUTE_NOT_ASSIGNABLE();
 	return OBJECT_VAL(self->method);
-})
+}
 
-KRK_METHOD(method,__self__,{
+KRK_Method(method,__self__) {
 	ATTRIBUTE_NOT_ASSIGNABLE();
 	return OBJECT_VAL(self->receiver);
-})
+}
 
-KRK_FUNC(staticmethod,{
+KRK_Function(staticmethod) {
 	FUNCTION_TAKES_EXACTLY(1);
 	CHECK_ARG(0,CLOSURE,KrkClosure*,method);
 	method->obj.flags &= ~(KRK_OBJ_FLAGS_FUNCTION_MASK);
 	method->obj.flags |= KRK_OBJ_FLAGS_FUNCTION_IS_STATIC_METHOD;
 	return argv[0];
-})
+}
 
-KRK_FUNC(classmethod,{
+KRK_Function(classmethod) {
 	FUNCTION_TAKES_EXACTLY(1);
 	CHECK_ARG(0,CLOSURE,KrkClosure*,method);
 	method->obj.flags &= ~(KRK_OBJ_FLAGS_FUNCTION_MASK);
 	method->obj.flags |= KRK_OBJ_FLAGS_FUNCTION_IS_CLASS_METHOD;
 	return argv[0];
-})
+}
 
 _noexport
 void _createAndBind_functionClass(void) {

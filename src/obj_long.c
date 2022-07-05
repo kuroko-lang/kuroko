@@ -1174,7 +1174,7 @@ static void _long_gcsweep(KrkInstance * self) {
 	krk_long_clear(((struct BigInt*)self)->value);
 }
 
-KRK_METHOD(long,__init__,{
+KRK_Method(long,__init__) {
 	METHOD_TAKES_AT_MOST(1);
 	if (argc < 2) {
 		make_long(0,self);
@@ -1197,7 +1197,7 @@ KRK_METHOD(long,__init__,{
 	}
 	/* our value should be set */
 	return argv[0];
-})
+}
 
 /**
  * Float conversions.
@@ -1218,9 +1218,9 @@ static double krk_long_get_double(const KrkLong * value) {
 	return out;
 }
 
-KRK_METHOD(long,__float__,{
+KRK_Method(long,__float__) {
 	return FLOATING_VAL(krk_long_get_double(self->value));
-})
+}
 
 static KrkValue _krk_long_truediv(KrkLong * top, KrkLong * bottom) {
 	if (bottom->width == 0) return krk_runtimeError(vm.exceptions->valueError, "float division by zero");
@@ -1244,39 +1244,39 @@ static KrkValue checked_float_div(double top, double bottom) {
 	return FLOATING_VAL(top/bottom);
 }
 
-KRK_METHOD(long,__truediv__,{
+KRK_Method(long,__truediv__) {
 	krk_long tmp;
 	if (IS_long(argv[1])) krk_long_init_copy(tmp, AS_long(argv[1])->value);
 	else if (IS_INTEGER(argv[1])) krk_long_init_si(tmp, AS_INTEGER(argv[1]));
 	else if (IS_FLOATING(argv[1])) return checked_float_div(krk_long_get_double(self->value), AS_FLOATING(argv[1]));
 	else return NOTIMPL_VAL();
 	return _krk_long_truediv(self->value,tmp);
-})
+}
 
-KRK_METHOD(long,__rtruediv__,{
+KRK_Method(long,__rtruediv__) {
 	krk_long tmp;
 	if (IS_long(argv[1])) krk_long_init_copy(tmp, AS_long(argv[1])->value);
 	else if (IS_INTEGER(argv[1])) krk_long_init_si(tmp, AS_INTEGER(argv[1]));
 	else if (IS_FLOATING(argv[1])) return checked_float_div(AS_FLOATING(argv[1]), krk_long_get_double(self->value));
 	else return NOTIMPL_VAL();
 	return _krk_long_truediv(tmp,self->value);
-})
+}
 
 #define PRINTER(name,base,prefix) \
-	KRK_METHOD(long,__ ## name ## __,{ \
+	KRK_Method(long,__ ## name ## __) { \
 		size_t size; \
 		char * rev = krk_long_to_str(self->value, base, prefix, &size); \
 		return OBJECT_VAL(krk_takeString(rev,size)); \
-	})
+	}
 
 PRINTER(str,10,"")
 PRINTER(hex,16,"x0")
 PRINTER(oct,8,"o0")
 PRINTER(bin,2,"b0")
 
-KRK_METHOD(long,__hash__,{
+KRK_Method(long,__hash__) {
 	return INTEGER_VAL((uint32_t)(krk_long_medium(self->value)));
-})
+}
 
 static KrkValue make_long_obj(KrkLong * val) {
 	krk_integer_type maybe = 0;
@@ -1309,12 +1309,12 @@ KrkValue krk_parse_int(const char * start, size_t width, unsigned int base) {
 	return make_long_obj(&_value);
 }
 
-KRK_METHOD(long,__int__,{
+KRK_Method(long,__int__) {
 	return INTEGER_VAL(krk_long_medium(self->value));
-})
+}
 
 #define BASIC_BIN_OP_FLOATS(name, long_func, MAYBE_FLOAT, MAYBE_FLOAT_INV) \
-	KRK_METHOD(long,__ ## name ## __,{ \
+	KRK_Method(long,__ ## name ## __) { \
 		krk_long tmp; \
 		if (IS_long(argv[1])) krk_long_init_copy(tmp, AS_long(argv[1])->value); \
 		else if (IS_INTEGER(argv[1])) krk_long_init_si(tmp, AS_INTEGER(argv[1])); \
@@ -1322,8 +1322,8 @@ KRK_METHOD(long,__int__,{
 		else return NOTIMPL_VAL(); \
 		long_func(tmp,self->value,tmp); \
 		return make_long_obj(tmp); \
-	}) \
-	KRK_METHOD(long,__r ## name ## __,{ \
+	} \
+	KRK_Method(long,__r ## name ## __) { \
 		krk_long tmp; \
 		if (IS_long(argv[1])) krk_long_init_copy(tmp, AS_long(argv[1])->value); \
 		else if (IS_INTEGER(argv[1])) krk_long_init_si(tmp, AS_INTEGER(argv[1])); \
@@ -1331,7 +1331,7 @@ KRK_METHOD(long,__int__,{
 		else return NOTIMPL_VAL(); \
 		long_func(tmp,tmp,self->value); \
 		return make_long_obj(tmp); \
-	}) \
+	} \
 	_noexport \
 	KrkValue krk_long_coerced_ ## name (krk_integer_type a, krk_integer_type b) { \
 		krk_long tmp_res, tmp_a, tmp_b; \
@@ -1455,7 +1455,7 @@ BASIC_BIN_OP(floordiv,_krk_long_div)
 BASIC_BIN_OP(pow,_krk_long_pow)
 
 #define COMPARE_OP(name, comp) \
-	KRK_METHOD(long,__ ## name ## __,{ \
+	KRK_Method(long,__ ## name ## __) { \
 		krk_long tmp; \
 		if (IS_long(argv[1])) krk_long_init_copy(tmp, AS_long(argv[1])->value); \
 		else if (IS_INTEGER(argv[1])) krk_long_init_si(tmp, AS_INTEGER(argv[1])); \
@@ -1464,7 +1464,7 @@ BASIC_BIN_OP(pow,_krk_long_pow)
 		int cmp = krk_long_compare(self->value,tmp); \
 		krk_long_clear(tmp); \
 		return BOOLEAN_VAL(cmp comp 0); \
-	})
+	}
 
 COMPARE_OP(lt, <)
 COMPARE_OP(gt, >)
@@ -1475,11 +1475,11 @@ COMPARE_OP(eq, ==)
 #undef BASIC_BIN_OP
 #undef COMPARE_OP
 
-KRK_METHOD(long,__len__,{
+KRK_Method(long,__len__) {
 	return INTEGER_VAL(krk_long_sign(self->value));
-})
+}
 
-KRK_METHOD(long,__invert__,{
+KRK_Method(long,__invert__) {
 	KrkLong tmp, one;
 	krk_long_init_copy(&tmp, self->value);
 	krk_long_init_si(&one, 1);
@@ -1487,21 +1487,21 @@ KRK_METHOD(long,__invert__,{
 	krk_long_set_sign(&tmp, tmp.width > 0 ? -1 : 1);
 	krk_long_clear(&one);
 	return make_long_obj(&tmp);
-})
+}
 
-KRK_METHOD(long,__neg__,{
+KRK_Method(long,__neg__) {
 	KrkLong tmp;
 	krk_long_init_copy(&tmp, self->value);
 	krk_long_set_sign(&tmp, tmp.width > 0 ? -1 : 1);
 	return make_long_obj(&tmp);
-})
+}
 
-KRK_METHOD(long,__abs__,{
+KRK_Method(long,__abs__) {
 	KrkLong tmp;
 	krk_long_init_copy(&tmp, self->value);
 	krk_long_set_sign(&tmp, 1);
 	return make_long_obj(&tmp);
-})
+}
 
 static KrkValue long_bit_count(KrkLong * val) {
 	size_t count = 0;
@@ -1516,9 +1516,9 @@ static KrkValue long_bit_count(KrkLong * val) {
 	return make_long_obj(&tmp);
 }
 
-KRK_METHOD(long,bit_count,{
+KRK_Method(long,bit_count) {
 	return long_bit_count(self->value);
-})
+}
 
 static KrkValue long_bit_length(KrkLong * val) {
 	size_t bits = _bits_in(val);
@@ -1527,9 +1527,9 @@ static KrkValue long_bit_length(KrkLong * val) {
 	return make_long_obj(&tmp);
 }
 
-KRK_METHOD(long,bit_length,{
+KRK_Method(long,bit_length) {
 	return long_bit_length(self->value);
-})
+}
 
 static KrkValue long_to_bytes(KrkLong * val, size_t argc, const KrkValue argv[], int hasKw) {
 	static const char _method_name[] = "to_bytes";
@@ -1648,10 +1648,10 @@ static KrkValue long_to_bytes(KrkLong * val, size_t argc, const KrkValue argv[],
 	return krk_pop();
 }
 
-KRK_METHOD(long,to_bytes,{
+KRK_Method(long,to_bytes) {
 	METHOD_TAKES_AT_LEAST(2);
 	return long_to_bytes(self->value, argc, argv, hasKw);
-})
+}
 
 /**
  * @fn long._digit_count()
@@ -1661,11 +1661,11 @@ KRK_METHOD(long,to_bytes,{
  * @return The number of digits in the internal representation of the long.
  *         The result will be negative if the long is negative.
  */
-KRK_METHOD(long,_digit_count,{
+KRK_Method(long,_digit_count) {
 	krk_long result; /* since it's a ssize_t */
 	krk_long_init_si(result, self->value[0].width);
 	return make_long_obj(result);
-})
+}
 
 /**
  * @fn long._get_digit(index)
@@ -1677,7 +1677,7 @@ KRK_METHOD(long,_digit_count,{
  * @param index Digit to get. May be an @c int or a @c long >= 0 and <= 2.
  * @return An int representation of the unsigned digit @p index of the long.
  */
-KRK_METHOD(long,_get_digit,{
+KRK_Method(long,_get_digit) {
 	METHOD_TAKES_EXACTLY(1);
 
 	KrkLong * _self = self->value;
@@ -1702,7 +1702,7 @@ KRK_METHOD(long,_get_digit,{
 	}
 
 	return INTEGER_VAL(_self->digits[index]);
-})
+}
 
 #undef CURRENT_CTYPE
 #define CURRENT_CTYPE krk_integer_type
@@ -1713,29 +1713,29 @@ KRK_METHOD(long,_get_digit,{
  * Convert to a @c long and just use those versions...
  */
 
-KRK_METHOD(int,bit_count,{
+KRK_Method(int,bit_count) {
 	krk_long value;
 	krk_long_init_si(value, self);
 	KrkValue out = long_bit_count(value);
 	krk_long_clear(value);
 	return out;
-})
+}
 
-KRK_METHOD(int,bit_length,{
+KRK_Method(int,bit_length) {
 	krk_long value;
 	krk_long_init_si(value, self);
 	KrkValue out = long_bit_length(value);
 	krk_long_clear(value);
 	return out;
-})
+}
 
-KRK_METHOD(int,to_bytes,{
+KRK_Method(int,to_bytes) {
 	krk_long value;
 	krk_long_init_si(value, self);
 	KrkValue out = long_to_bytes(value, argc, argv, hasKw);
 	krk_long_clear(value);
 	return out;
-})
+}
 
 #undef BIND_METHOD
 /* These class names conflict with C types, so we need to cheat a bit */

@@ -9,10 +9,10 @@
 #define IS_type(o) (1)
 #define AS_type(o) (o)
 #define CURRENT_CTYPE KrkValue
-KRK_METHOD(type,__init__,{
+KRK_Method(type,__init__) {
 	METHOD_TAKES_EXACTLY(1);
 	return OBJECT_VAL(krk_getType(argv[1]));
-})
+}
 #undef IS_type
 #undef AS_type
 #undef CURRENT_CTYPE
@@ -22,23 +22,23 @@ KRK_METHOD(type,__init__,{
 
 #define CURRENT_CTYPE KrkClass *
 
-KRK_METHOD(type,__base__,{
+KRK_Method(type,__base__) {
 	return self->base ? OBJECT_VAL(self->base) : NONE_VAL();
-})
+}
 
-KRK_METHOD(type,__name__,{
+KRK_Method(type,__name__) {
 	return self->name ? OBJECT_VAL(self->name) : NONE_VAL();
-})
+}
 
-KRK_METHOD(type,__file__,{
+KRK_Method(type,__file__) {
 	return self->filename ? OBJECT_VAL(self->filename) : NONE_VAL();
-})
+}
 
-KRK_METHOD(type,__doc__,{
+KRK_Method(type,__doc__) {
 	return self->docstring ? OBJECT_VAL(self->docstring) : NONE_VAL();
-})
+}
 
-KRK_METHOD(type,__str__,{
+KRK_Method(type,__str__) {
 	/* Determine if this class has a module */
 	KrkValue module = NONE_VAL();
 	krk_tableGet(&self->methods, OBJECT_VAL(S("__module__")), &module);
@@ -59,9 +59,9 @@ KRK_METHOD(type,__str__,{
 	KrkString * out = krk_copyString(tmp,l);
 	free(tmp);
 	return OBJECT_VAL(out);
-})
+}
 
-KRK_METHOD(type,__subclasses__,{
+KRK_Method(type,__subclasses__) {
 	KrkValue myList = krk_list_of(0,NULL,0);
 	krk_push(myList);
 
@@ -72,7 +72,7 @@ KRK_METHOD(type,__subclasses__,{
 	}
 
 	return krk_pop();
-})
+}
 
 _noexport
 void _createAndBind_type(void) {

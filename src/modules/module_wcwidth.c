@@ -11,11 +11,11 @@ static
 #include "../wcwidth._h"
 #endif
 
-KRK_FUNC(wcwidth,{
+KRK_Function(wcwidth) {
 	FUNCTION_TAKES_EXACTLY(1);
 	CHECK_ARG(0,int,krk_integer_type,codepoint);
 	return INTEGER_VAL(wcwidth(codepoint));
-})
+}
 
 KrkValue krk_module_onload_wcwidth(void) {
 	KrkInstance * module = krk_newInstance(vm.baseClasses->moduleClass);

@@ -1244,7 +1244,7 @@ int krk_isFalsey(KrkValue value) {
 }
 
 #ifndef KRK_DISABLE_DEBUG
-KRK_FUNC(set_tracing,{
+KRK_Function(set_tracing) {
 	if (hasKw) {
 		KrkValue test;
 		if (krk_tableGet(AS_DICT(argv[argc]), OBJECT_VAL(S("tracing")), &test) && IS_INTEGER(test)) {
@@ -1258,14 +1258,14 @@ KRK_FUNC(set_tracing,{
 			if (AS_INTEGER(test) == 1) vm.globalFlags |= KRK_GLOBAL_ENABLE_STRESS_GC; else krk_currentThread.flags &= ~KRK_GLOBAL_ENABLE_STRESS_GC; }
 	}
 	return BOOLEAN_VAL(1);
-})
+}
 #else
-KRK_FUNC(set_tracing,{
+KRK_Function(set_tracing) {
 	return krk_runtimeError(vm.exceptions->typeError,"Debugging is not enabled in this build.");
-})
+}
 #endif
 
-KRK_FUNC(getsizeof,{
+KRK_Function(getsizeof) {
 	if (argc < 1 || !IS_OBJECT(argv[0])) return INTEGER_VAL(0);
 	size_t mySize = 0;
 	switch (AS_OBJECT(argv[0])->type) {
@@ -1348,25 +1348,25 @@ KRK_FUNC(getsizeof,{
 		default: break;
 	}
 	return INTEGER_VAL(mySize);
-})
+}
 
-KRK_FUNC(set_clean_output,{
+KRK_Function(set_clean_output) {
 	if (!argc || (IS_BOOLEAN(argv[0]) && AS_BOOLEAN(argv[0]))) {
 		vm.globalFlags |= KRK_GLOBAL_CLEAN_OUTPUT;
 	} else {
 		vm.globalFlags &= ~KRK_GLOBAL_CLEAN_OUTPUT;
 	}
 	return NONE_VAL();
-})
+}
 
-KRK_FUNC(importmodule,{
+KRK_Function(importmodule) {
 	FUNCTION_TAKES_EXACTLY(1);
 	if (!IS_STRING(argv[0])) return TYPE_ERROR(str,argv[0]);
 	if (!krk_doRecursiveModuleLoad(AS_STRING(argv[0]))) return NONE_VAL(); /* ImportError already raised */
 	return krk_pop();
-})
+}
 
-KRK_FUNC(modules,{
+KRK_Function(modules) {
 	FUNCTION_TAKES_NONE();
 	KrkValue moduleList = krk_list_of(0,NULL,0);
 	krk_push(moduleList);
@@ -1376,20 +1376,21 @@ KRK_FUNC(modules,{
 		krk_writeValueArray(AS_LIST(moduleList), entry->key);
 	}
 	return krk_pop();
-})
+}
 
-KRK_FUNC(unload,{
+KRK_Function(unload) {
 	FUNCTION_TAKES_EXACTLY(1);
 	if (!IS_STRING(argv[0])) return TYPE_ERROR(str,argv[0]);
 	if (!krk_tableDelete(&vm.modules, argv[0])) {
 		return krk_runtimeError(vm.exceptions->keyError, "Module is not loaded.");
 	}
-})
+	return NONE_VAL();
+}
 
-KRK_FUNC(inspect_value,{
+KRK_Function(inspect_value) {
 	FUNCTION_TAKES_EXACTLY(1);
 	return OBJECT_VAL(krk_newBytes(sizeof(KrkValue),(uint8_t*)&argv[0]));
-})
+}
 
 void krk_setMaximumRecursionDepth(size_t maxDepth) {
 	vm.maximumCallDepth = maxDepth;

@@ -87,15 +87,15 @@ KrkValue krk_dirObject(int argc, const KrkValue argv[], int hasKw) {
 #define CURRENT_CTYPE KrkValue
 #define CURRENT_NAME  self
 
-KRK_METHOD(object,__dir__,{
+KRK_Method(object,__dir__) {
 	return krk_dirObject(argc,argv,hasKw);
-})
+}
 
-KRK_METHOD(object,__class__,{
+KRK_Method(object,__class__) {
 	return OBJECT_VAL(krk_getType(self));
-})
+}
 
-KRK_METHOD(object,__hash__,{
+KRK_Method(object,__hash__) {
 	if (!IS_OBJECT(self)) {
 		uint32_t hashed;
 		if (krk_hashValue(self, &hashed)) return NONE_VAL();
@@ -107,12 +107,12 @@ KRK_METHOD(object,__hash__,{
 		obj->flags |= KRK_OBJ_FLAGS_VALID_HASH;
 	}
 	return INTEGER_VAL(obj->hash);
-})
+}
 
-KRK_METHOD(object,__eq__,{
+KRK_Method(object,__eq__) {
 	METHOD_TAKES_EXACTLY(1);
 	return BOOLEAN_VAL(argc == 2 && IS_OBJECT(argv[0]) && IS_OBJECT(argv[1]) && AS_OBJECT(argv[0]) == AS_OBJECT(argv[1]));
-})
+}
 
 /**
  * object.__str__() / object.__repr__()
@@ -127,7 +127,7 @@ KRK_METHOD(object,__eq__,{
  * all types should have a string representation available through
  * those methods.
  */
-KRK_METHOD(object,__str__,{
+KRK_Method(object,__str__) {
 	KrkClass * type = krk_getType(self);
 
 	KrkValue module = NONE_VAL();
@@ -153,12 +153,12 @@ KRK_METHOD(object,__str__,{
 	KrkValue out = OBJECT_VAL(krk_copyString(tmp, len));
 	free(tmp);
 	return out;
-})
+}
 
 #undef CURRENT_CTYPE
 #undef CURRENT_NAME
 
-KRK_FUNC(len,{
+KRK_Function(len) {
 	FUNCTION_TAKES_EXACTLY(1);
 	/* Shortcuts */
 	if (IS_STRING(argv[0])) return INTEGER_VAL(AS_STRING(argv[0])->codesLength);
@@ -169,9 +169,9 @@ KRK_FUNC(len,{
 	krk_push(argv[0]);
 
 	return krk_callDirect(type->_len, 1);
-})
+}
 
-KRK_FUNC(dir,{
+KRK_Function(dir) {
 	FUNCTION_TAKES_AT_MOST(1);
 	if (argc) {
 		KrkClass * type = krk_getType(argv[0]);
@@ -202,15 +202,15 @@ KRK_FUNC(dir,{
 		FUNC_NAME(list,sort)(1,(KrkValue[]){krk_peek(0)},0);
 		return krk_pop(); /* Return the list */
 	}
-})
+}
 
-KRK_FUNC(repr,{
+KRK_Function(repr) {
 	FUNCTION_TAKES_EXACTLY(1);
 	/* Everything should have a __repr__ */
 	KrkClass * type = krk_getType(argv[0]);
 	krk_push(argv[0]);
 	return krk_callDirect(type->_reprer, 1);
-})
+}
 
 #define trySlowMethod(name) do { \
 	KrkClass * type = krk_getType(argv[0]); \
@@ -225,35 +225,35 @@ KRK_FUNC(repr,{
 	} \
 } while (0)
 
-KRK_FUNC(ord,{
+KRK_Function(ord) {
 	FUNCTION_TAKES_EXACTLY(1);
 	trySlowMethod(vm.specialMethodNames[METHOD_ORD]);
 	return TYPE_ERROR(string of length 1,argv[0]);
-})
+}
 
-KRK_FUNC(chr,{
+KRK_Function(chr) {
 	FUNCTION_TAKES_EXACTLY(1);
 	trySlowMethod(vm.specialMethodNames[METHOD_CHR]);
 	return TYPE_ERROR(int,argv[0]);
-})
+}
 
-KRK_FUNC(hex,{
+KRK_Function(hex) {
 	FUNCTION_TAKES_EXACTLY(1);
 	trySlowMethod(OBJECT_VAL(S("__hex__")));
 	return TYPE_ERROR(int,argv[0]);
-})
+}
 
-KRK_FUNC(oct,{
+KRK_Function(oct) {
 	FUNCTION_TAKES_EXACTLY(1);
 	trySlowMethod(OBJECT_VAL(S("__oct__")));
 	return TYPE_ERROR(int,argv[0]);
-})
+}
 
-KRK_FUNC(bin,{
+KRK_Function(bin) {
 	FUNCTION_TAKES_EXACTLY(1);
 	trySlowMethod(OBJECT_VAL(S("__bin__")));
 	return TYPE_ERROR(int,argv[0]);
-})
+}
 
 #define KRK_STRING_FAST(string,offset)  (uint32_t)\
 	((string->obj.flags & KRK_OBJ_FLAGS_STRING_MASK) <= (KRK_OBJ_FLAGS_STRING_UCS1) ? ((uint8_t*)string->codes)[offset] : \
@@ -341,12 +341,12 @@ static int _any_callback(void * context, const KrkValue * values, size_t count) 
 	return 0;
 }
 
-KRK_FUNC(any,{
+KRK_Function(any) {
 	FUNCTION_TAKES_EXACTLY(1);
 	struct SimpleContext context = { BOOLEAN_VAL(0) };
 	krk_unpackIterable(argv[0], &context, _any_callback);
 	return context.base;
-})
+}
 
 static int _all_callback(void * context, const KrkValue * values, size_t count) {
 	struct SimpleContext * _context = context;
@@ -359,12 +359,12 @@ static int _all_callback(void * context, const KrkValue * values, size_t count) 
 	return 0;
 }
 
-KRK_FUNC(all,{
+KRK_Function(all) {
 	FUNCTION_TAKES_EXACTLY(1);
 	struct SimpleContext context = { BOOLEAN_VAL(1) };
 	krk_unpackIterable(argv[0], &context, _all_callback);
 	return context.base;
-})
+}
 
 #define CURRENT_CTYPE KrkInstance *
 #define CURRENT_NAME  self
@@ -372,7 +372,7 @@ KRK_FUNC(all,{
 #define IS_map(o) (krk_isInstanceOf(o,map))
 #define AS_map(o) (AS_INSTANCE(o))
 static KrkClass * map;
-KRK_METHOD(map,__init__,{
+KRK_Method(map,__init__) {
 	METHOD_TAKES_AT_LEAST(2);
 
 	/* Attach the function to it */
@@ -399,14 +399,14 @@ KRK_METHOD(map,__init__,{
 	}
 
 	return argv[0];
-})
+}
 
-KRK_METHOD(map,__iter__,{
+KRK_Method(map,__iter__) {
 	METHOD_TAKES_NONE();
 	return OBJECT_VAL(self);
-})
+}
 
-KRK_METHOD(map,__call__,{
+KRK_Method(map,__call__) {
 	METHOD_TAKES_NONE();
 
 	size_t stackOffset = krk_currentThread.stackTop - krk_currentThread.stack;
@@ -438,12 +438,12 @@ KRK_METHOD(map,__call__,{
 	KrkValue val = krk_callStack(AS_TUPLE(iterators)->values.count);
 	krk_currentThread.stackTop = krk_currentThread.stack + stackOffset;
 	return val;
-})
+}
 
 #define IS_zip(o) (krk_isInstanceOf(o,zip))
 #define AS_zip(o) (AS_INSTANCE(o))
 static KrkClass * zip;
-KRK_METHOD(zip,__init__,{
+KRK_Method(zip,__init__) {
 	if (hasKw) return krk_runtimeError(vm.exceptions->typeError, "%s() takes no keyword arguments", "zip");
 
 	KrkTuple * iters = krk_newTuple(argc - 1);
@@ -464,14 +464,14 @@ KRK_METHOD(zip,__init__,{
 	}
 
 	return argv[0];
-})
+}
 
-KRK_METHOD(zip,__iter__,{
+KRK_Method(zip,__iter__) {
 	METHOD_TAKES_NONE();
 	return OBJECT_VAL(self);
-})
+}
 
-KRK_METHOD(zip,__call__,{
+KRK_Method(zip,__call__) {
 	METHOD_TAKES_NONE();
 
 	/* Get members */
@@ -495,12 +495,12 @@ KRK_METHOD(zip,__call__,{
 
 	/* Return tuple */
 	return krk_pop();
-})
+}
 
 #define IS_filter(o) (krk_isInstanceOf(o,filter))
 #define AS_filter(o) (AS_INSTANCE(o))
 static KrkClass * filter;
-KRK_METHOD(filter,__init__,{
+KRK_Method(filter,__init__) {
 	METHOD_TAKES_EXACTLY(2);
 	krk_attachNamedValue(&self->fields, "_function", argv[1]);
 	KrkClass * type = krk_getType(argv[2]);
@@ -512,14 +512,14 @@ KRK_METHOD(filter,__init__,{
 	if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) return NONE_VAL();
 	krk_attachNamedValue(&self->fields, "_iterator", asIter);
 	return argv[0];
-})
+}
 
-KRK_METHOD(filter,__iter__,{
+KRK_Method(filter,__iter__) {
 	METHOD_TAKES_NONE();
 	return OBJECT_VAL(self);
-})
+}
 
-KRK_METHOD(filter,__call__,{
+KRK_Method(filter,__call__) {
 	METHOD_TAKES_NONE();
 	size_t stackOffset = krk_currentThread.stackTop - krk_currentThread.stack;
 	KrkValue function = NONE_VAL();
@@ -557,12 +557,12 @@ KRK_METHOD(filter,__call__,{
 		krk_currentThread.stackTop = krk_currentThread.stack + stackOffset;
 		return out;
 	}
-})
+}
 
 #define IS_enumerate(o) (krk_isInstanceOf(o,enumerate))
 #define AS_enumerate(o) (AS_INSTANCE(o))
 static KrkClass * enumerate;
-KRK_METHOD(enumerate,__init__,{
+KRK_Method(enumerate,__init__) {
 	METHOD_TAKES_EXACTLY(1);
 	KrkValue start = INTEGER_VAL(0);
 	if (hasKw) krk_tableGet(AS_DICT(argv[argc]), OBJECT_VAL(S("start")), &start);
@@ -580,15 +580,15 @@ KRK_METHOD(enumerate,__init__,{
 	krk_attachNamedValue(&self->fields, "_iterator", asIter);
 
 	return argv[0];
-})
+}
 
-KRK_METHOD(enumerate,__iter__,{
+KRK_Method(enumerate,__iter__) {
 	METHOD_TAKES_NONE();
 	return OBJECT_VAL(self);
-})
+}
 
 extern KrkValue krk_operator_add (KrkValue a, KrkValue b);
-KRK_METHOD(enumerate,__call__,{
+KRK_Method(enumerate,__call__) {
 	METHOD_TAKES_NONE();
 	size_t stackOffset = krk_currentThread.stackTop - krk_currentThread.stack;
 	KrkValue counter = NONE_VAL();
@@ -624,7 +624,7 @@ KRK_METHOD(enumerate,__call__,{
 	KrkValue out = krk_pop();
 	krk_currentThread.stackTop = krk_currentThread.stack + stackOffset;
 	return out;
-})
+}
 
 static int _sum_callback(void * context, const KrkValue * values, size_t count) {
 	struct SimpleContext * _context = context;
@@ -635,7 +635,7 @@ static int _sum_callback(void * context, const KrkValue * values, size_t count) 
 	return 0;
 }
 
-KRK_FUNC(sum,{
+KRK_Function(sum) {
 	FUNCTION_TAKES_AT_LEAST(1);
 	KrkValue base = INTEGER_VAL(0);
 	if (hasKw) {
@@ -644,7 +644,7 @@ KRK_FUNC(sum,{
 	struct SimpleContext context = { base };
 	if (krk_unpackIterable(argv[0], &context, _sum_callback)) return NONE_VAL();
 	return context.base;
-})
+}
 
 static int _min_callback(void * context, const KrkValue * values, size_t count) {
 	struct SimpleContext * _context = context;
@@ -659,7 +659,7 @@ static int _min_callback(void * context, const KrkValue * values, size_t count) 
 	return 0;
 }
 
-KRK_FUNC(min,{
+KRK_Function(min) {
 	FUNCTION_TAKES_AT_LEAST(1);
 	struct SimpleContext context = { KWARGS_VAL(0) };
 	if (argc > 1) {
@@ -669,7 +669,7 @@ KRK_FUNC(min,{
 	}
 	if (IS_KWARGS(context.base)) return krk_runtimeError(vm.exceptions->valueError, "empty argument to %s()", "min");
 	return context.base;
-})
+}
 
 static int _max_callback(void * context, const KrkValue * values, size_t count) {
 	struct SimpleContext * _context = context;
@@ -684,7 +684,7 @@ static int _max_callback(void * context, const KrkValue * values, size_t count) 
 	return 0;
 }
 
-KRK_FUNC(max,{
+KRK_Function(max) {
 	FUNCTION_TAKES_AT_LEAST(1);
 	struct SimpleContext context = { KWARGS_VAL(0) };
 	if (argc > 1) {
@@ -694,9 +694,9 @@ KRK_FUNC(max,{
 	}
 	if (IS_KWARGS(context.base)) return krk_runtimeError(vm.exceptions->valueError, "empty argument to %s()", "max");
 	return context.base;
-})
+}
 
-KRK_FUNC(print,{
+KRK_Function(print) {
 	KrkValue sepVal;
 	KrkValue endVal;
 	char * sep = " "; size_t sepLen = 1;
@@ -734,14 +734,16 @@ KRK_FUNC(print,{
 			fputc(thingToPrint[j], stdout);
 		}
 	}
-})
+
+	return NONE_VAL();
+}
 
 /**
  * globals()
  *
  * Returns a dict of names -> values for all the globals.
  */
-KRK_FUNC(globals,{
+KRK_Function(globals) {
 	FUNCTION_TAKES_NONE();
 	/* Make a new empty dict */
 	KrkValue dict = krk_dict_of(0, NULL, 0);
@@ -751,14 +753,14 @@ KRK_FUNC(globals,{
 	krk_pop();
 
 	return dict;
-})
+}
 
 /**
  * locals()
  *
  * This is a bit trickier. Local names are... complicated. But we can do this!
  */
-KRK_FUNC(locals,{
+KRK_Function(locals) {
 	FUNCTION_TAKES_AT_MOST(1);
 	KrkValue dict = krk_dict_of(0, NULL, 0);
 	krk_push(dict);
@@ -815,9 +817,9 @@ KRK_FUNC(locals,{
 	}
 
 	return krk_pop();
-})
+}
 
-KRK_FUNC(isinstance,{
+KRK_Function(isinstance) {
 	FUNCTION_TAKES_EXACTLY(2);
 	if (IS_CLASS(argv[1])) {
 		return BOOLEAN_VAL(krk_isInstanceOf(argv[0], AS_CLASS(argv[1])));
@@ -831,7 +833,7 @@ KRK_FUNC(isinstance,{
 	} else {
 		return TYPE_ERROR(class or tuple,argv[1]);
 	}
-})
+}
 
 static int _isSubClass(KrkClass * cls, KrkClass * base) {
 	while (cls) {
@@ -841,7 +843,7 @@ static int _isSubClass(KrkClass * cls, KrkClass * base) {
 	return 0;
 }
 
-KRK_FUNC(issubclass,{
+KRK_Function(issubclass) {
 	FUNCTION_TAKES_EXACTLY(2);
 	CHECK_ARG(0,class,KrkClass*,cls);
 	if (IS_CLASS(argv[1])) {
@@ -856,12 +858,12 @@ KRK_FUNC(issubclass,{
 	} else {
 		return TYPE_ERROR(class or tuple,argv[1]);
 	}
-})
+}
 
 #define IS_module(o) (IS_INSTANCE(o))
 #define AS_module(o) (AS_INSTANCE(o))
 
-KRK_METHOD(module,__repr__,{
+KRK_Method(module,__repr__) {
 	KrkValue name = NONE_VAL();
 	krk_tableGet(&self->fields, vm.specialMethodNames[METHOD_NAME], &name);
 
@@ -884,9 +886,9 @@ KRK_METHOD(module,__repr__,{
 	KrkValue out = OBJECT_VAL(krk_copyString(tmp, len));
 	free(tmp);
 	return out;
-})
+}
 
-KRK_FUNC(getattr,{
+KRK_Function(getattr) {
 	FUNCTION_TAKES_AT_LEAST(2);
 	KrkValue object = argv[0];
 	CHECK_ARG(1,str,KrkString*,property);
@@ -895,31 +897,31 @@ KRK_FUNC(getattr,{
 	} else {
 		return krk_valueGetAttribute(object, property->chars);
 	}
-})
+}
 
-KRK_FUNC(setattr,{
+KRK_Function(setattr) {
 	FUNCTION_TAKES_EXACTLY(3);
 	KrkValue object = argv[0];
 	CHECK_ARG(1,str,KrkString*,property);
 	KrkValue value = argv[2];
 	return krk_valueSetAttribute(object, property->chars, value);
-})
+}
 
-KRK_FUNC(hasattr,{
+KRK_Function(hasattr) {
 	FUNCTION_TAKES_AT_LEAST(2);
 	KrkValue object = argv[0];
 	CHECK_ARG(1,str,KrkString*,property);
 
 	return BOOLEAN_VAL(!IS_KWARGS(krk_valueGetAttribute_default(object, property->chars, KWARGS_VAL(0))));
-})
+}
 
-KRK_FUNC(delattr,{
+KRK_Function(delattr) {
 	FUNCTION_TAKES_AT_LEAST(2);
 	KrkValue object = argv[0];
 	CHECK_ARG(1,str,KrkString*,property);
 
 	return krk_valueDelAttribute(object, property->chars);
-})
+}
 
 
 #define IS_Helper(o)  (krk_isInstanceOf(o, Helper))
@@ -927,11 +929,11 @@ KRK_FUNC(delattr,{
 #define IS_LicenseReader(o) (krk_isInstanceOf(o, LicenseReader))
 #define AS_LicenseReader(o) (AS_INSTANCE(o))
 
-KRK_METHOD(Helper,__repr__,{
+KRK_Method(Helper,__repr__) {
 	return OBJECT_VAL(S("Type help() for more help, or help(obj) to describe an object."));
-})
+}
 
-KRK_METHOD(Helper,__call__,{
+KRK_Method(Helper,__call__) {
 	METHOD_TAKES_AT_MOST(1);
 	if (!krk_doRecursiveModuleLoad(S("help"))) return NONE_VAL();
 	KrkValue helpModule = krk_pop();
@@ -950,13 +952,13 @@ KRK_METHOD(Helper,__call__,{
 	}
 
 	return krk_runtimeError(vm.exceptions->typeError, "unexpected error");
-})
+}
 
-KRK_METHOD(LicenseReader,__repr__,{
+KRK_Method(LicenseReader,__repr__) {
 	return OBJECT_VAL(S("Copyright 2020-2022 K. Lange <klange@toaruos.org>. Type `license()` for more information."));
-})
+}
 
-KRK_METHOD(LicenseReader,__call__,{
+KRK_Method(LicenseReader,__call__) {
 	METHOD_TAKES_NONE();
 	if (!krk_doRecursiveModuleLoad(S("help"))) return NONE_VAL();
 	KrkValue helpModule = krk_pop();
@@ -970,11 +972,11 @@ KRK_METHOD(LicenseReader,__call__,{
 	}
 
 	return krk_runtimeError(vm.exceptions->typeError, "unexpected error");
-})
+}
 
 #define IS_property(o) (krk_isInstanceOf(o,property))
 #define AS_property(o) (AS_INSTANCE(o))
-KRK_METHOD(property,__init__,{
+KRK_Method(property,__init__) {
 	METHOD_TAKES_AT_LEAST(1);
 	METHOD_TAKES_AT_MOST(2); /* TODO fdel */
 	krk_attachNamedValue(&self->fields, "fget", argv[1]);
@@ -1001,15 +1003,15 @@ KRK_METHOD(property,__init__,{
 		krk_attachNamedValue(&self->fields, "fset", argv[2]);
 
 	return argv[0];
-})
+}
 
-KRK_METHOD(property,setter,{
+KRK_Method(property,setter) {
 	METHOD_TAKES_EXACTLY(1);
 	krk_attachNamedValue(&self->fields, "fset", argv[1]);
 	return argv[0]; /* Return the original property */
-})
+}
 
-KRK_METHOD(property,__get__,{
+KRK_Method(property,__get__) {
 	METHOD_TAKES_EXACTLY(1); /* the owner */
 
 	KrkValue fget;
@@ -1019,9 +1021,9 @@ KRK_METHOD(property,__get__,{
 	krk_push(fget);
 	krk_push(argv[1]);
 	return krk_callStack(1);
-})
+}
 
-KRK_METHOD(property,__set__,{
+KRK_Method(property,__set__) {
 	METHOD_TAKES_EXACTLY(2); /* the owner and the value */
 
 	KrkValue fset;
@@ -1041,28 +1043,28 @@ KRK_METHOD(property,__set__,{
 	}
 
 	return krk_runtimeError(vm.exceptions->attributeError, "attribute can not be set");
-})
+}
 
-KRK_FUNC(id,{
+KRK_Function(id) {
 	FUNCTION_TAKES_EXACTLY(1);
 	if (!IS_OBJECT(argv[0])) return krk_runtimeError(vm.exceptions->typeError, "'%s' has no identity", krk_typeName(argv[0]));
 	return INTEGER_VAL((size_t)AS_OBJECT(argv[0]));
-})
+}
 
-KRK_FUNC(hash,{
+KRK_Function(hash) {
 	FUNCTION_TAKES_EXACTLY(1);
 	uint32_t hashed;
 	if (krk_hashValue(argv[0], &hashed)) return NONE_VAL();
 	return INTEGER_VAL(hashed);
-})
+}
 
-KRK_FUNC(next,{
+KRK_Function(next) {
 	FUNCTION_TAKES_EXACTLY(1);
 	krk_push(argv[0]);
 	return krk_callStack(0);
-})
+}
 
-KRK_FUNC(abs,{
+KRK_Function(abs) {
 	FUNCTION_TAKES_EXACTLY(1);
 	if (IS_INTEGER(argv[0])) {
 		krk_integer_type i = AS_INTEGER(argv[0]);
@@ -1075,7 +1077,7 @@ KRK_FUNC(abs,{
 		return krk_runtimeError(vm.exceptions->typeError, "bad operand type for 'abs()': '%s'",
 			krk_typeName(argv[0]));
 	}
-})
+}
 
 static void module_sweep(KrkInstance * inst) {
 #ifndef STATIC_ONLY

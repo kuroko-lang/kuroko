@@ -341,11 +341,12 @@ int krk_debug_enableBreakpoint(int breakIndex) {
 	breakpoints[breakIndex].inFunction->chunk.code[breakpoints[breakIndex].offset] = OP_BREAKPOINT;
 	return 0;
 }
-KRK_FUNC(enablebreakpoint,{
+KRK_Function(enablebreakpoint) {
 	CHECK_ARG(0,int,krk_integer_type,breakIndex);
 	if (krk_debug_enableBreakpoint(breakIndex))
 		return krk_runtimeError(vm.exceptions->indexError, "invalid breakpoint id");
-})
+	return NONE_VAL();
+}
 
 int krk_debug_disableBreakpoint(int breakIndex) {
 	if (breakIndex < 0 || breakIndex >= breakpointsCount || breakpoints[breakIndex].inFunction == NULL)
@@ -357,11 +358,12 @@ int krk_debug_disableBreakpoint(int breakIndex) {
 	}
 	return 0;
 }
-KRK_FUNC(disablebreakpoint,{
+KRK_Function(disablebreakpoint) {
 	CHECK_ARG(0,int,krk_integer_type,breakIndex);
 	if (krk_debug_disableBreakpoint(breakIndex))
 		return krk_runtimeError(vm.exceptions->indexError, "invalid breakpoint id");
-})
+	return NONE_VAL();
+}
 
 int krk_debug_removeBreakpoint(int breakIndex) {
 	if (breakIndex < 0 || breakIndex >= breakpointsCount || breakpoints[breakIndex].inFunction == NULL)
@@ -373,13 +375,14 @@ int krk_debug_removeBreakpoint(int breakIndex) {
 	}
 	return 0;
 }
-KRK_FUNC(delbreakpoint,{
+KRK_Function(delbreakpoint) {
 	CHECK_ARG(0,int,krk_integer_type,breakIndex);
 	if (krk_debug_removeBreakpoint(breakIndex))
 		return krk_runtimeError(vm.exceptions->indexError, "invalid breakpoint id");
-})
+	return NONE_VAL();
+}
 
-KRK_FUNC(addbreakpoint,{
+KRK_Function(addbreakpoint) {
 	FUNCTION_TAKES_EXACTLY(2);
 	CHECK_ARG(1,int,krk_integer_type,lineNo);
 
@@ -425,7 +428,7 @@ KRK_FUNC(addbreakpoint,{
 		return krk_runtimeError(vm.exceptions->baseException, "Could not add breakpoint.");
 
 	return INTEGER_VAL(result);
-})
+}
 
 /*
  * Begin debugger utility functions.
@@ -566,7 +569,7 @@ int krk_debugBreakpointHandler(void) {
 /**
  * dis.dis(object)
  */
-KRK_FUNC(dis,{
+KRK_Function(dis) {
 	FUNCTION_TAKES_EXACTLY(1);
 
 	if (IS_CLOSURE(argv[0])) {
@@ -599,9 +602,9 @@ KRK_FUNC(dis,{
 	}
 
 	return NONE_VAL();
-})
+}
 
-KRK_FUNC(build,{
+KRK_Function(build) {
 	FUNCTION_TAKES_AT_LEAST(1);
 	FUNCTION_TAKES_AT_MOST(2);
 	CHECK_ARG(0,str,KrkString*,code);
@@ -620,7 +623,7 @@ KRK_FUNC(build,{
 	krk_pop();
 	if (c) return OBJECT_VAL(c);
 	else return NONE_VAL();
-})
+}
 
 #define SIMPLE(opc) case opc: size = 1; break;
 #define CONSTANT(opc,more) case opc: { constant = chunk->code[offset + 1]; size = 2; more; break; } \
@@ -700,11 +703,11 @@ static KrkValue _examineInternal(KrkCodeObject* func) {
 
 	return krk_pop();
 }
-KRK_FUNC(examine,{
+KRK_Function(examine) {
 	FUNCTION_TAKES_EXACTLY(1);
 	CHECK_ARG(0,codeobject,KrkCodeObject*,func);
 	return _examineInternal(func);
-})
+}
 
 #undef SIMPLE
 #undef OPERANDB

@@ -32,15 +32,15 @@ void _srand(unsigned int seed) {
 	w = 88675123;
 }
 
-KRK_FUNC(random,{
+KRK_Function(random) {
 	FUNCTION_TAKES_NONE();
 
 	double r = (double)_rand() / (double)(RAND_MAX);
 
 	return FLOATING_VAL(r);
-})
+}
 
-KRK_FUNC(seed,{
+KRK_Function(seed) {
 	FUNCTION_TAKES_AT_MOST(1);
 	int seed;
 
@@ -55,7 +55,8 @@ KRK_FUNC(seed,{
 	}
 
 	_srand(seed);
-})
+	return NONE_VAL();
+}
 
 KrkValue krk_module_onload_random(void) {
 	KrkInstance * module = krk_newInstance(vm.baseClasses->moduleClass);

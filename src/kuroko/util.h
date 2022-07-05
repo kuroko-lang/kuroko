@@ -64,6 +64,8 @@
 
 #define FUNC_NAME(klass, name) _ ## klass ## _ ## name
 #define FUNC_SIG(klass, name) _noexport KrkValue FUNC_NAME(klass,name) (int argc, const KrkValue argv[], int hasKw)
+
+/* These forms are deprecated. */
 #define KRK_METHOD(klass, name, ...) FUNC_SIG(klass, name) { \
 	static __attribute__ ((unused)) const char* _method_name = # name; \
 	CHECK_ARG(0,klass,CURRENT_CTYPE,CURRENT_NAME); \
@@ -80,6 +82,33 @@
 #define BIND_METHOD(klass,method) krk_defineNative(&klass->methods, #method, _ ## klass ## _ ## method)
 #define BIND_PROP(klass,method) krk_defineNativeProperty(&klass->methods, #method, _ ## klass ## _ ## method)
 #define BIND_FUNC(module,func) krk_defineNative(&module->fields, #func, _krk_ ## func)
+
+#define KRK_Method_internal_name(klass, name) \
+	_krk_method_ ## klass ## _ ## name
+#define KRK_Method_internal_sig(klass, name) \
+	static inline KrkValue KRK_Method_internal_name(klass,name) (const char * _method_name, CURRENT_CTYPE CURRENT_NAME, int argc, const KrkValue argv[], int hasKw)
+
+#define KRK_Method(klass, name) \
+	KRK_Method_internal_sig(klass, name); \
+	FUNC_SIG(klass, name) { \
+		static const char * _method_name = # name; \
+		CHECK_ARG(0,klass,CURRENT_CTYPE,CURRENT_NAME); \
+		return KRK_Method_internal_name(klass,name)(_method_name, CURRENT_NAME, argc, argv, hasKw); \
+	} \
+	KRK_Method_internal_sig(klass,name)
+
+#define KRK_Function_internal_name(name) \
+	_krk_function_ ## name
+#define KRK_Function_internal_sig(name) \
+	static inline KrkValue KRK_Function_internal_name(name) (const char * _method_name, int argc, const KrkValue argv[], int hasKw)
+
+#define KRK_Function(name) \
+	KRK_Function_internal_sig(name); \
+	static KrkValue _krk_ ## name (int argc, const KrkValue argv[], int hasKw) { \
+		static const char* _method_name = # name; \
+		return KRK_Function_internal_name(name)(_method_name,argc,argv,hasKw); \
+	} \
+	KRK_Function_internal_sig(name)
 
 /**
  * @brief Inline flexible string array.

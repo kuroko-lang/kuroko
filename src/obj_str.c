@@ -25,14 +25,14 @@ static KrkValue FUNC_NAME(striterator,__init__)(int,const KrkValue[],int);
 
 #define CODEPOINT_BYTES(cp) (cp < 0x80 ? 1 : (cp < 0x800 ? 2 : (cp < 0x10000 ? 3 : 4)))
 
-KRK_METHOD(str,__ord__,{
+KRK_Method(str,__ord__) {
 	METHOD_TAKES_NONE();
 	if (self->codesLength != 1)
 		return krk_runtimeError(vm.exceptions->typeError, "ord() expected a character, but string of length %d found", (int)self->codesLength);
 	return INTEGER_VAL(krk_unicodeCodepoint(self,0));
-})
+}
 
-KRK_METHOD(str,__init__,{
+KRK_Method(str,__init__) {
 	/* Ignore argument which would have been an instance */
 	if (argc < 2) {
 		return OBJECT_VAL(S(""));
@@ -43,9 +43,9 @@ KRK_METHOD(str,__init__,{
 	krk_push(argv[1]);
 	if (!krk_getType(argv[1])->_tostr) return krk_runtimeError(vm.exceptions->typeError, "Can not convert %s to str", krk_typeName(argv[1]));
 	return krk_callDirect(krk_getType(argv[1])->_tostr, 1);
-})
+}
 
-KRK_METHOD(str,__add__,{
+KRK_Method(str,__add__) {
 	METHOD_TAKES_EXACTLY(1);
 	CHECK_ARG(1,str,KrkString*,them);
 	const char * a;
@@ -82,34 +82,34 @@ KRK_METHOD(str,__add__,{
 	KrkString * result = krk_takeStringVetted(chars, length, cpLength, type, hash);
 	if (needsPop) krk_pop();
 	return OBJECT_VAL(result);
-})
+}
 
-KRK_METHOD(str,__hash__,{
+KRK_Method(str,__hash__) {
 	return INTEGER_VAL(self->obj.hash);
-})
+}
 
-KRK_METHOD(str,__len__,{
+KRK_Method(str,__len__) {
 	return INTEGER_VAL(self->codesLength);
-})
+}
 
-KRK_METHOD(str,__setitem__,{
+KRK_Method(str,__setitem__) {
 	return krk_runtimeError(vm.exceptions->typeError, "Strings are not mutable.");
-})
+}
 
 /* str.__int__(base=10) */
-KRK_METHOD(str,__int__,{
+KRK_Method(str,__int__) {
 	METHOD_TAKES_AT_MOST(1);
 	int base = (argc < 2 || !IS_INTEGER(argv[1])) ? 0 : (int)AS_INTEGER(argv[1]);
 	return krk_parse_int(AS_CSTRING(argv[0]), AS_STRING(argv[0])->length, base);
-})
+}
 
 /* str.__float__() */
-KRK_METHOD(str,__float__,{
+KRK_Method(str,__float__) {
 	METHOD_TAKES_NONE();
 	return FLOATING_VAL(strtod(AS_CSTRING(argv[0]),NULL));
-})
+}
 
-KRK_METHOD(str,__getitem__,{
+KRK_Method(str,__getitem__) {
 	METHOD_TAKES_EXACTLY(1);
 	if (IS_INTEGER(argv[1])) {
 		CHECK_ARG(1,int,krk_integer_type,asInt);
@@ -167,10 +167,10 @@ KRK_METHOD(str,__getitem__,{
 	} else {
 		return TYPE_ERROR(int or slice, argv[1]);
 	}
-})
+}
 
 /* str.format(**kwargs) */
-KRK_METHOD(str,format,{
+KRK_Method(str,format) {
 	KrkValue kwargs = NONE_VAL();
 	if (hasKw) {
 		kwargs = argv[argc];
@@ -310,9 +310,9 @@ _freeAndDone:
 	FREE_ARRAY(char,stringBytes,stringCapacity);
 	free(workSpace);
 	return NONE_VAL();
-})
+}
 
-KRK_METHOD(str,__mul__,{
+KRK_Method(str,__mul__) {
 	METHOD_TAKES_EXACTLY(1);
 	if (!IS_INTEGER(argv[1])) return NOTIMPL_VAL();
 	CHECK_ARG(1,int,krk_integer_type,howMany);
@@ -330,13 +330,13 @@ KRK_METHOD(str,__mul__,{
 
 	*c = '\0';
 	return OBJECT_VAL(krk_takeString(out, totalLength));
-})
+}
 
-KRK_METHOD(str,__rmul__,{
+KRK_Method(str,__rmul__) {
 	METHOD_TAKES_EXACTLY(1);
 	if (IS_INTEGER(argv[1])) return FUNC_NAME(str,__mul__)(argc,argv,hasKw);
 	return NOTIMPL_VAL();
-})
+}
 
 struct _str_join_context {
 	struct StringBuilder * sb;
@@ -366,7 +366,7 @@ static int _str_join_callback(void * context, const KrkValue * values, size_t co
 }
 
 /* str.join(list) */
-KRK_METHOD(str,join,{
+KRK_Method(str,join) {
 	METHOD_TAKES_EXACTLY(1);
 	struct StringBuilder sb = {0};
 
@@ -378,7 +378,7 @@ KRK_METHOD(str,join,{
 	}
 
 	return finishStringBuilder(&sb);
-})
+}
 
 static int isWhitespace(char c) {
 	return (c == ' ' || c == '\t' || c == '\n' || c == '\r');
@@ -393,7 +393,7 @@ static int substringMatch(const char * haystack, size_t haystackLen, const char 
 }
 
 /* str.__contains__ */
-KRK_METHOD(str,__contains__,{
+KRK_Method(str,__contains__) {
 	METHOD_TAKES_EXACTLY(1);
 	if (IS_NONE(argv[1])) return BOOLEAN_VAL(0);
 	CHECK_ARG(1,str,KrkString*,needle);
@@ -403,7 +403,7 @@ KRK_METHOD(str,__contains__,{
 		}
 	}
 	return BOOLEAN_VAL(0);
-})
+}
 
 static int charIn(char c, const char * str) {
 	for (const char * s = str; *s; s++) {
@@ -439,21 +439,21 @@ static KrkValue _string_strip_shared(int argc, const KrkValue argv[], int which)
 	return OBJECT_VAL(krk_copyString(&AS_CSTRING(argv[0])[start], end-start));
 }
 
-KRK_METHOD(str,strip,{
+KRK_Method(str,strip) {
 	METHOD_TAKES_AT_MOST(1); /* TODO */
 	return _string_strip_shared(argc,argv,0);
-})
-KRK_METHOD(str,lstrip,{
+}
+KRK_Method(str,lstrip) {
 	METHOD_TAKES_AT_MOST(1); /* TODO */
 	return _string_strip_shared(argc,argv,1);
-})
-KRK_METHOD(str,rstrip,{
+}
+KRK_Method(str,rstrip) {
 	METHOD_TAKES_AT_MOST(1); /* TODO */
 	return _string_strip_shared(argc,argv,2);
-})
+}
 
 #define strCompare(name,lop,iop,rop) \
-	KRK_METHOD(str,name,{ \
+	KRK_Method(str,name) { \
 		METHOD_TAKES_EXACTLY(1); \
 		if (!IS_STRING(argv[1])) { \
 			return NOTIMPL_VAL(); \
@@ -467,14 +467,14 @@ KRK_METHOD(str,rstrip,{
 			if (a[i] iop b[i]) return BOOLEAN_VAL(0); \
 		} \
 		return BOOLEAN_VAL((aLen rop bLen)); \
-	})
+	}
 
 strCompare(__gt__,>,<,>)
 strCompare(__lt__,<,>,<)
 strCompare(__ge__,>,<,>=)
 strCompare(__le__,<,>,<=)
 
-KRK_METHOD(str,__mod__,{
+KRK_Method(str,__mod__) {
 	METHOD_TAKES_EXACTLY(1);
 
 	KrkTuple * myTuple;
@@ -578,10 +578,10 @@ _notEnough:
 _exception:
 	discardStringBuilder(&sb);
 	return NONE_VAL();
-})
+}
 
 /* str.split() */
-KRK_METHOD(str,split,{
+KRK_Method(str,split) {
 	METHOD_TAKES_AT_MOST(2);
 	if (argc > 1) {
 		if (!IS_STRING(argv[1])) {
@@ -668,9 +668,9 @@ KRK_METHOD(str,split,{
 
 	krk_pop();
 	return myList;
-})
+}
 
-KRK_METHOD(str,replace,{
+KRK_Method(str,replace) {
 	METHOD_TAKES_AT_LEAST(2);
 	METHOD_TAKES_AT_MOST(3);
 	CHECK_ARG(1,str,KrkString*,oldStr);
@@ -705,14 +705,14 @@ KRK_METHOD(str,replace,{
 	KrkValue tmp = OBJECT_VAL(krk_copyString(stringBytes, stringLength));
 	if (stringBytes) FREE_ARRAY(char,stringBytes,stringCapacity);
 	return tmp;
-})
+}
 
 #define WRAP_INDEX(index) \
 	if (index < 0) index += self->codesLength; \
 	if (index < 0) index = 0; \
 	if (index >= (krk_integer_type)self->codesLength) index = self->codesLength
 
-KRK_METHOD(str,find,{
+KRK_Method(str,find) {
 	METHOD_TAKES_AT_LEAST(1);
 	METHOD_TAKES_AT_MOST(3);
 	CHECK_ARG(1,str,KrkString*,substr);
@@ -752,29 +752,29 @@ KRK_METHOD(str,find,{
 	}
 
 	return INTEGER_VAL(-1);
-})
+}
 
-KRK_METHOD(str,index,{
+KRK_Method(str,index) {
 	KrkValue result = FUNC_NAME(str,find)(argc,argv,hasKw);
 	if (IS_INTEGER(result) && AS_INTEGER(result) == -1) {
 		return krk_runtimeError(vm.exceptions->valueError, "substring not found");
 	}
 	return result;
-})
+}
 
-KRK_METHOD(str,startswith,{
+KRK_Method(str,startswith) {
 	METHOD_TAKES_EXACTLY(1); /* I know the Python versions of these take optional start, end... */
 	CHECK_ARG(1,str,KrkString*,prefix);
 	return BOOLEAN_VAL(substringMatch(self->chars,self->length,prefix->chars,prefix->length));
-})
+}
 
-KRK_METHOD(str,endswith,{
+KRK_Method(str,endswith) {
 	METHOD_TAKES_EXACTLY(1); /* I know the Python versions of these take optional start, end... */
 	CHECK_ARG(1,str,KrkString*,suffix);
 	if (suffix->length > self->length) return BOOLEAN_VAL(0);
 	return BOOLEAN_VAL(substringMatch(self->chars + (self->length - suffix->length),
 		suffix->length, suffix->chars, suffix->length));
-})
+}
 
 /**
  * str.__repr__()
@@ -782,7 +782,7 @@ KRK_METHOD(str,endswith,{
  * Strings are special because __str__ should do nothing but __repr__
  * should escape characters like quotes.
  */
-KRK_METHOD(str,__repr__,{
+KRK_Method(str,__repr__) {
 	METHOD_TAKES_NONE();
 	size_t stringCapacity = 0;
 	size_t stringLength   = 0;
@@ -836,17 +836,17 @@ KRK_METHOD(str,__repr__,{
 	KrkValue tmp = OBJECT_VAL(krk_copyString(stringBytes, stringLength));
 	if (stringBytes) FREE_ARRAY(char,stringBytes,stringCapacity);
 	return tmp;
-})
+}
 
-KRK_METHOD(str,encode,{
+KRK_Method(str,encode) {
 	METHOD_TAKES_NONE();
 	return OBJECT_VAL(krk_newBytes(AS_STRING(argv[0])->length, (uint8_t*)AS_CSTRING(argv[0])));
-})
+}
 
-KRK_METHOD(str,__str__,{
+KRK_Method(str,__str__) {
 	METHOD_TAKES_NONE();
 	return argv[0];
-})
+}
 
 void krk_addObjects(void) {
 	KrkValue tmp = FUNC_NAME(str,__add__)(2, (KrkValue[]){krk_peek(1), krk_peek(0)},0);
@@ -854,7 +854,7 @@ void krk_addObjects(void) {
 	krk_push(tmp);
 }
 
-KRK_METHOD(str,__iter__,{
+KRK_Method(str,__iter__) {
 	METHOD_TAKES_NONE();
 	KrkInstance * output = krk_newInstance(vm.baseClasses->striteratorClass);
 
@@ -863,7 +863,7 @@ KRK_METHOD(str,__iter__,{
 	krk_pop();
 
 	return OBJECT_VAL(output);
-})
+}
 
 #define CHECK_ALL(test) do { \
 	krk_unicodeString(self); \
@@ -872,35 +872,35 @@ KRK_METHOD(str,__iter__,{
 		if (!(test)) { return BOOLEAN_VAL(0); } \
 	} return BOOLEAN_VAL(1); } while (0)
 
-KRK_METHOD(str,isalnum,{
+KRK_Method(str,isalnum) {
 	CHECK_ALL( (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') );
-})
+}
 
-KRK_METHOD(str,isalpha,{
+KRK_Method(str,isalpha) {
 	CHECK_ALL( (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') );
-})
+}
 
-KRK_METHOD(str,isdigit,{
+KRK_Method(str,isdigit) {
 	CHECK_ALL( (c >= '0' && c <= '9') );
-})
+}
 
-KRK_METHOD(str,isxdigit,{
+KRK_Method(str,isxdigit) {
 	CHECK_ALL( (c >= 'A' && c <= 'F') || (c >= 'a' && c <= 'f') || (c >= '0' && c <= '9') );
-})
+}
 
-KRK_METHOD(str,isspace, {
+KRK_Method(str,isspace) {
 	CHECK_ALL( (c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\v') );
-})
+}
 
-KRK_METHOD(str,islower, {
+KRK_Method(str,islower) {
 	CHECK_ALL( (c >= 'a' && c <= 'z') );
-})
+}
 
-KRK_METHOD(str,isupper, {
+KRK_Method(str,isupper)  {
 	CHECK_ALL( (c >= 'A' && c <= 'Z') );
-})
+}
 
-KRK_METHOD(str,lower, {
+KRK_Method(str,lower) {
 	METHOD_TAKES_NONE();
 	struct StringBuilder sb = {0};
 
@@ -913,9 +913,9 @@ KRK_METHOD(str,lower, {
 	}
 
 	return finishStringBuilder(&sb);
-})
+}
 
-KRK_METHOD(str,upper, {
+KRK_Method(str,upper) {
 	METHOD_TAKES_NONE();
 	struct StringBuilder sb = {0};
 
@@ -928,9 +928,9 @@ KRK_METHOD(str,upper, {
 	}
 
 	return finishStringBuilder(&sb);
-})
+}
 
-KRK_METHOD(str,title, {
+KRK_Method(str,title) {
 	METHOD_TAKES_NONE();
 	struct StringBuilder sb = {0};
 
@@ -950,20 +950,20 @@ KRK_METHOD(str,title, {
 	}
 
 	return finishStringBuilder(&sb);
-})
+}
 
 #undef CURRENT_CTYPE
 #define CURRENT_CTYPE KrkInstance *
-KRK_METHOD(striterator,__init__,{
+KRK_Method(striterator,__init__) {
 	METHOD_TAKES_EXACTLY(1);
 	CHECK_ARG(1,str,KrkString*,base);
 	krk_push(OBJECT_VAL(self));
 	krk_attachNamedObject(&self->fields, "s", (KrkObj*)base);
 	krk_attachNamedValue(&self->fields, "i", INTEGER_VAL(0));
 	return krk_pop();
-})
+}
 
-KRK_METHOD(striterator,__call__,{
+KRK_Method(striterator,__call__) {
 	METHOD_TAKES_NONE();
 	KrkValue _str;
 	KrkValue _counter;
@@ -985,7 +985,7 @@ KRK_METHOD(striterator,__call__,{
 	}
 _corrupt:
 	return krk_runtimeError(vm.exceptions->typeError, "Corrupt str iterator: %s", errorStr);
-})
+}
 
 _noexport
 void _createAndBind_strClass(void) {

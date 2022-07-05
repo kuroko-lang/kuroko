@@ -47,7 +47,7 @@ static KrkValue typeToString(KrkValue val) {
 	}
 }
 
-KRK_FUNC(__class_getitem__,{
+KRK_Function(__class_getitem__) {
 	FUNCTION_TAKES_EXACTLY(2);
 	if (!IS_CLASS(argv[0])) return TYPE_ERROR(class,argv[0]);
 
@@ -62,6 +62,6 @@ KRK_FUNC(__class_getitem__,{
 	krk_pop();
 	pushStringBuilder(&sb,']');
 	return finishStringBuilder(&sb);
-})
+}
 
 NativeFn KrkGenericAlias = FUNC_NAME(krk,__class_getitem__);

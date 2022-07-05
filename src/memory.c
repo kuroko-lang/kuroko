@@ -558,21 +558,23 @@ size_t krk_collectGarbage(void) {
 	return out;
 }
 
-KRK_FUNC(collect,{
+KRK_Function(collect) {
 	FUNCTION_TAKES_NONE();
 	if (&krk_currentThread != vm.threads) return krk_runtimeError(vm.exceptions->valueError, "only the main thread can do that");
 	return INTEGER_VAL(krk_collectGarbage());
-})
+}
 
-KRK_FUNC(pause,{
+KRK_Function(pause) {
 	FUNCTION_TAKES_NONE();
 	vm.globalFlags |= (KRK_GLOBAL_GC_PAUSED);
-})
+	return NONE_VAL();
+}
 
-KRK_FUNC(resume,{
+KRK_Function(resume) {
 	FUNCTION_TAKES_NONE();
 	vm.globalFlags &= ~(KRK_GLOBAL_GC_PAUSED);
-})
+	return NONE_VAL();
+}
 
 _noexport
 void _createAndBind_gcMod(void) {

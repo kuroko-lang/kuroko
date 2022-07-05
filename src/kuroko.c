@@ -39,12 +39,13 @@ static int enableRline = 1;
 static int exitRepl = 0;
 static int pasteEnabled = 0;
 
-KRK_FUNC(exit,{
+KRK_Function(exit) {
 	FUNCTION_TAKES_NONE();
 	exitRepl = 1;
-})
+	return NONE_VAL();
+}
 
-KRK_FUNC(paste,{
+KRK_Function(paste) {
 	FUNCTION_TAKES_AT_MOST(1);
 	if (argc) {
 		CHECK_ARG(0,bool,int,enabled);
@@ -53,7 +54,8 @@ KRK_FUNC(paste,{
 		pasteEnabled = !pasteEnabled;
 	}
 	fprintf(stderr, "Pasting is %s.\n", pasteEnabled ? "enabled" : "disabled");
-})
+	return NONE_VAL();
+}
 
 static int doRead(char * buf, size_t bufSize) {
 #ifndef NO_RLINE
@@ -115,7 +117,7 @@ _exit:
  * In an interactive session, presents the configured prompt without
  * a trailing linefeed.
  */
-KRK_FUNC(input,{
+KRK_Function(input) {
 	FUNCTION_TAKES_AT_MOST(1);
 
 	char * prompt = "";
@@ -143,7 +145,7 @@ KRK_FUNC(input,{
 	}
 
 	return readLine(prompt, promptLength, syntaxHighlighter);
-})
+}
 
 #ifndef NO_RLINE
 /**

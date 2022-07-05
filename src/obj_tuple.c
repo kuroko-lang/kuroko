@@ -59,20 +59,20 @@ KrkValue krk_tuple_of(int argc, const KrkValue argv[], int hasKw) {
 #define CURRENT_CTYPE KrkTuple *
 #define CURRENT_NAME  self
 
-KRK_METHOD(tuple,__contains__,{
+KRK_Method(tuple,__contains__) {
 	METHOD_TAKES_EXACTLY(1);
 	for (size_t i = 0; i < self->values.count; ++i) {
 		if (krk_valuesEqual(self->values.values[i], argv[1])) return BOOLEAN_VAL(1);
 	}
 	return BOOLEAN_VAL(0);
-})
+}
 
-KRK_METHOD(tuple,__len__,{
+KRK_Method(tuple,__len__) {
 	METHOD_TAKES_NONE();
 	return INTEGER_VAL(self->values.count);
-})
+}
 
-KRK_METHOD(tuple,__getitem__,{
+KRK_Method(tuple,__getitem__) {
 	METHOD_TAKES_EXACTLY(1);
 	if (IS_INTEGER(argv[1])) {
 		CHECK_ARG(1,int,krk_integer_type,index);
@@ -111,9 +111,9 @@ KRK_METHOD(tuple,__getitem__,{
 	} else {
 		return TYPE_ERROR(int or slice, argv[1]);
 	}
-})
+}
 
-KRK_METHOD(tuple,__eq__,{
+KRK_Method(tuple,__eq__) {
 	METHOD_TAKES_EXACTLY(1);
 	if (!IS_tuple(argv[1])) return NOTIMPL_VAL();
 	KrkTuple * them = AS_tuple(argv[1]);
@@ -122,9 +122,9 @@ KRK_METHOD(tuple,__eq__,{
 		if (!krk_valuesEqual(self->values.values[i], them->values.values[i])) return BOOLEAN_VAL(0);
 	}
 	return BOOLEAN_VAL(1);
-})
+}
 
-KRK_METHOD(tuple,__lt__,{
+KRK_Method(tuple,__lt__) {
 	METHOD_TAKES_EXACTLY(1);
 	if (!IS_tuple(argv[1])) return NOTIMPL_VAL();
 	KrkTuple * them = AS_tuple(argv[1]);
@@ -139,9 +139,9 @@ KRK_METHOD(tuple,__lt__,{
 		/* continue on == */
 	}
 	return BOOLEAN_VAL((self->values.count < them->values.count));
-})
+}
 
-KRK_METHOD(tuple,__gt__,{
+KRK_Method(tuple,__gt__) {
 	METHOD_TAKES_EXACTLY(1);
 	if (!IS_tuple(argv[1])) return NOTIMPL_VAL();
 	KrkTuple * them = AS_tuple(argv[1]);
@@ -155,9 +155,9 @@ KRK_METHOD(tuple,__gt__,{
 		if (IS_BOOLEAN(ltComp) && AS_BOOLEAN(ltComp)) return BOOLEAN_VAL(0);
 	}
 	return BOOLEAN_VAL((self->values.count > them->values.count));
-})
+}
 
-KRK_METHOD(tuple,__le__,{
+KRK_Method(tuple,__le__) {
 	METHOD_TAKES_EXACTLY(1);
 	if (!IS_tuple(argv[1])) return NOTIMPL_VAL();
 	KrkTuple * them = AS_tuple(argv[1]);
@@ -172,9 +172,9 @@ KRK_METHOD(tuple,__le__,{
 		/* continue on == */
 	}
 	return BOOLEAN_VAL((self->values.count <= them->values.count));
-})
+}
 
-KRK_METHOD(tuple,__ge__,{
+KRK_Method(tuple,__ge__) {
 	METHOD_TAKES_EXACTLY(1);
 	if (!IS_tuple(argv[1])) return NOTIMPL_VAL();
 	KrkTuple * them = AS_tuple(argv[1]);
@@ -188,9 +188,9 @@ KRK_METHOD(tuple,__ge__,{
 		if (IS_BOOLEAN(ltComp) && AS_BOOLEAN(ltComp)) return BOOLEAN_VAL(0);
 	}
 	return BOOLEAN_VAL((self->values.count >= them->values.count));
-})
+}
 
-KRK_METHOD(tuple,__repr__,{
+KRK_Method(tuple,__repr__) {
 	if (((KrkObj*)self)->flags & KRK_OBJ_FLAGS_IN_REPR) return OBJECT_VAL(S("(...)"));
 	((KrkObj*)self)->flags |= KRK_OBJ_FLAGS_IN_REPR;
 	/* String building time. */
@@ -216,9 +216,9 @@ KRK_METHOD(tuple,__repr__,{
 	pushStringBuilder(&sb, ')');
 	((KrkObj*)self)->flags &= ~(KRK_OBJ_FLAGS_IN_REPR);
 	return finishStringBuilder(&sb);
-})
+}
 
-KRK_METHOD(tuple,__add__,{
+KRK_Method(tuple,__add__) {
 	METHOD_TAKES_EXACTLY(1);
 	if (!IS_tuple(argv[1]))
 		return krk_runtimeError(vm.exceptions->typeError,
@@ -235,7 +235,7 @@ KRK_METHOD(tuple,__add__,{
 		out->values.values[out->values.count++] = other->values.values[i];
 	}
 	return krk_pop();
-})
+}
 
 /**
  * @brief Iterator over the values in a tuple.
@@ -270,15 +270,15 @@ static KrkValue _tuple_iter_call(int argc, const KrkValue argv[], int hasKw) {
 	}
 }
 
-KRK_METHOD(tuple,__iter__,{
+KRK_Method(tuple,__iter__) {
 	KrkInstance * output = krk_newInstance(vm.baseClasses->tupleiteratorClass);
 	krk_push(OBJECT_VAL(output));
 	_tuple_iter_init(2, (KrkValue[]){krk_peek(0), argv[0]}, 0);
 	krk_pop();
 	return OBJECT_VAL(output);
-})
+}
 
-KRK_METHOD(tuple,__hash__,{
+KRK_Method(tuple,__hash__) {
 	if (self->obj.flags & KRK_OBJ_FLAGS_VALID_HASH) {
 		return INTEGER_VAL(self->obj.hash);
 	}
@@ -295,7 +295,7 @@ KRK_METHOD(tuple,__hash__,{
 	return INTEGER_VAL(self->obj.hash);
 _unhashable:
 	return NONE_VAL();
-})
+}
 
 _noexport
 void _createAndBind_tupleClass(void) {

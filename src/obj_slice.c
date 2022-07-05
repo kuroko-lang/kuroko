@@ -95,7 +95,7 @@ int krk_extractSlicer(const char * _method_name, KrkValue slicerVal, krk_integer
 #define CURRENT_CTYPE struct KrkSlice *
 #define CURRENT_NAME  self
 
-KRK_METHOD(slice,__init__,{
+KRK_Method(slice,__init__) {
 	METHOD_TAKES_AT_LEAST(1);
 	METHOD_TAKES_AT_MOST(3);
 
@@ -113,9 +113,9 @@ KRK_METHOD(slice,__init__,{
 		}
 	}
 	return argv[0];
-})
+}
 
-KRK_METHOD(slice,__repr__,{
+KRK_Method(slice,__repr__) {
 	METHOD_TAKES_NONE();
 	if (((KrkObj*)self)->flags & KRK_OBJ_FLAGS_IN_REPR) return OBJECT_VAL("slice(...)");
 	((KrkObj*)self)->flags |= KRK_OBJ_FLAGS_IN_REPR;
@@ -148,22 +148,22 @@ KRK_METHOD(slice,__repr__,{
 	pushStringBuilder(&sb,')');
 	((KrkObj*)self)->flags &= ~(KRK_OBJ_FLAGS_IN_REPR);
 	return finishStringBuilder(&sb);
-})
+}
 
-KRK_METHOD(slice,start,{
+KRK_Method(slice,start) {
 	ATTRIBUTE_NOT_ASSIGNABLE();
 	return self->start;
-})
+}
 
-KRK_METHOD(slice,end,{
+KRK_Method(slice,end) {
 	ATTRIBUTE_NOT_ASSIGNABLE();
 	return self->end;
-})
+}
 
-KRK_METHOD(slice,step,{
+KRK_Method(slice,step) {
 	ATTRIBUTE_NOT_ASSIGNABLE();
 	return self->step;
-})
+}
 
 _noexport
 void _createAndBind_sliceClass(void) {

@@ -36,14 +36,14 @@
  *
  * @param arg Optional string to attach to the exception object.
  */
-KRK_METHOD(Exception,__init__,{
+KRK_Method(Exception,__init__) {
 	if (argc > 1) {
 		krk_attachNamedValue(&self->fields, "arg", argv[1]);
 	}
 	krk_attachNamedValue(&self->fields, "__cause__", NONE_VAL());
 	krk_attachNamedValue(&self->fields, "__context__", NONE_VAL());
 	return argv[0];
-})
+}
 
 /**
  * @brief Create a string representation of an Exception.
@@ -52,7 +52,7 @@ KRK_METHOD(Exception,__init__,{
  *
  * Generates a string representation of the form @c "Exception(arg)" .
  */
-KRK_METHOD(Exception,__repr__,{
+KRK_Method(Exception,__repr__) {
 	KrkValue arg;
 	struct StringBuilder sb = {0};
 
@@ -69,7 +69,7 @@ KRK_METHOD(Exception,__repr__,{
 	pushStringBuilder(&sb, ')');
 
 	return finishStringBuilder(&sb);
-})
+}
 
 /**
  * @brief Obtain a descriptive string from an exception.
@@ -79,7 +79,7 @@ KRK_METHOD(Exception,__repr__,{
  * For most exceptions, this is the 'arg' value attached at initialization
  * and is printed during a traceback after the name of the exception type.
  */
-KRK_METHOD(Exception,__str__,{
+KRK_Method(Exception,__str__) {
 	KrkValue arg;
 	if (!krk_tableGet(&self->fields, OBJECT_VAL(S("arg")), &arg) || IS_NONE(arg)) {
 		return OBJECT_VAL(S(""));
@@ -93,11 +93,10 @@ KRK_METHOD(Exception,__str__,{
 	} else {
 		return arg;
 	}
-})
+}
 
-KRK_METHOD(KeyError,__str__,{
+KRK_Method(KeyError,__str__) {
 	if (!IS_INSTANCE(argv[0])) return NONE_VAL(); /* uh oh */
-	KrkInstance * self = AS_INSTANCE(argv[0]);
 	KrkValue arg;
 	if (krk_tableGet(&self->fields, OBJECT_VAL(S("arg")), &arg)) {
 		KrkClass * type = krk_getType(arg);
@@ -107,7 +106,7 @@ KRK_METHOD(KeyError,__str__,{
 		}
 	}
 	return FUNC_NAME(Exception,__str__)(argc,argv,hasKw);
-})
+}
 
 /**
  * @brief Generate printable text for a syntax error.
@@ -120,7 +119,7 @@ KRK_METHOD(KeyError,__str__,{
  * {str(Exception)} for syntax errors and they handle the rest. This is a bit
  * of a kludge, but it works for now.
  */
-KRK_METHOD(SyntaxError,__str__,{
+KRK_Method(SyntaxError,__str__) {
 	/* .arg */
 	KrkValue file, line, lineno, colno, arg, func, width;
 	if (!krk_tableGet(&self->fields, OBJECT_VAL(S("file")), &file) || !IS_STRING(file)) goto _badSyntaxError;
@@ -169,7 +168,7 @@ KRK_METHOD(SyntaxError,__str__,{
 
 _badSyntaxError:
 	return OBJECT_VAL(S("SyntaxError: invalid syntax"));
-})
+}
 
 
 /**

@@ -46,7 +46,7 @@ KrkValue krk_list_of(int argc, const KrkValue argv[], int hasKw) {
 #define CURRENT_CTYPE KrkList *
 #define CURRENT_NAME  self
 
-KRK_METHOD(list,__getitem__,{
+KRK_Method(list,__getitem__) {
 	METHOD_TAKES_EXACTLY(1);
 	if (IS_INTEGER(argv[1])) {
 		CHECK_ARG(1,int,krk_integer_type,index);
@@ -93,9 +93,9 @@ KRK_METHOD(list,__getitem__,{
 	} else {
 		return TYPE_ERROR(int or slice,argv[1]);
 	}
-})
+}
 
-KRK_METHOD(list,__eq__,{
+KRK_Method(list,__eq__) {
 	METHOD_TAKES_EXACTLY(1);
 	if (!IS_list(argv[1])) return NOTIMPL_VAL();
 	KrkList * them = AS_list(argv[1]);
@@ -104,16 +104,17 @@ KRK_METHOD(list,__eq__,{
 		if (!krk_valuesEqual(self->values.values[i], them->values.values[i])) return BOOLEAN_VAL(0);
 	}
 	return BOOLEAN_VAL(1);
-})
+}
 
-KRK_METHOD(list,append,{
+KRK_Method(list,append) {
 	METHOD_TAKES_EXACTLY(1);
 	pthread_rwlock_wrlock(&self->rwlock);
 	krk_writeValueArray(&self->values, argv[1]);
 	pthread_rwlock_unlock(&self->rwlock);
-})
+	return NONE_VAL();
+}
 
-KRK_METHOD(list,insert,{
+KRK_Method(list,insert) {
 	METHOD_TAKES_EXACTLY(2);
 	CHECK_ARG(1,int,krk_integer_type,index);
 	pthread_rwlock_wrlock(&self->rwlock);
@@ -126,9 +127,10 @@ KRK_METHOD(list,insert,{
 	);
 	self->values.values[index] = argv[2];
 	pthread_rwlock_unlock(&self->rwlock);
-})
+	return NONE_VAL();
+}
 
-KRK_METHOD(list,__repr__,{
+KRK_Method(list,__repr__) {
 	METHOD_TAKES_NONE();
 	if (((KrkObj*)self)->flags & KRK_OBJ_FLAGS_IN_REPR) return OBJECT_VAL(S("[...]"));
 	((KrkObj*)self)->flags |= KRK_OBJ_FLAGS_IN_REPR;
@@ -154,8 +156,7 @@ KRK_METHOD(list,__repr__,{
 	pushStringBuilder(&sb,']');
 	((KrkObj*)self)->flags &= ~(KRK_OBJ_FLAGS_IN_REPR);
 	return finishStringBuilder(&sb);
-})
-
+}
 
 static int _list_extend_callback(void * context, const KrkValue * values, size_t count) {
 	KrkValueArray * positionals = context;
@@ -172,7 +173,7 @@ static int _list_extend_callback(void * context, const KrkValue * values, size_t
 	return 0;
 }
 
-KRK_METHOD(list,extend,{
+KRK_Method(list,extend) {
 	METHOD_TAKES_EXACTLY(1);
 	pthread_rwlock_wrlock(&self->rwlock);
 	KrkValueArray *  positionals = AS_LIST(argv[0]);
@@ -184,10 +185,10 @@ KRK_METHOD(list,extend,{
 	krk_unpackIterable(other, positionals, _list_extend_callback);
 
 	pthread_rwlock_unlock(&self->rwlock);
-})
-#undef unpackArray
+	return NONE_VAL();
+}
 
-KRK_METHOD(list,__init__,{
+KRK_Method(list,__init__) {
 	METHOD_TAKES_AT_MOST(1);
 	krk_initValueArray(AS_LIST(argv[0]));
 	pthread_rwlock_init(&self->rwlock, NULL);
@@ -195,9 +196,9 @@ KRK_METHOD(list,__init__,{
 		_list_extend(2,(KrkValue[]){argv[0],argv[1]},0);
 	}
 	return argv[0];
-})
+}
 
-KRK_METHOD(list,__mul__,{
+KRK_Method(list,__mul__) {
 	METHOD_TAKES_EXACTLY(1);
 	CHECK_ARG(1,int,krk_integer_type,howMany);
 
@@ -210,14 +211,14 @@ KRK_METHOD(list,__mul__,{
 	}
 
 	return krk_pop();
-})
+}
 
-KRK_METHOD(list,__len__,{
+KRK_Method(list,__len__) {
 	METHOD_TAKES_NONE();
 	return INTEGER_VAL(self->values.count);
-})
+}
 
-KRK_METHOD(list,__contains__,{
+KRK_Method(list,__contains__) {
 	METHOD_TAKES_EXACTLY(1);
 	pthread_rwlock_rdlock(&self->rwlock);
 	for (size_t i = 0; i < self->values.count; ++i) {
@@ -229,9 +230,9 @@ KRK_METHOD(list,__contains__,{
 	}
 	pthread_rwlock_unlock(&self->rwlock);
 	return BOOLEAN_VAL(0);
-})
+}
 
-KRK_METHOD(list,pop,{
+KRK_Method(list,pop) {
 	METHOD_TAKES_AT_MOST(1);
 	pthread_rwlock_wrlock(&self->rwlock);
 	krk_integer_type index = self->values.count - 1;
@@ -254,9 +255,9 @@ KRK_METHOD(list,pop,{
 		pthread_rwlock_unlock(&self->rwlock);
 		return outItem;
 	}
-})
+}
 
-KRK_METHOD(list,__setitem__,{
+KRK_Method(list,__setitem__) {
 	METHOD_TAKES_EXACTLY(2);
 	if (IS_INTEGER(argv[1])) {
 		CHECK_ARG(1,int,krk_integer_type,index);
@@ -299,10 +300,9 @@ KRK_METHOD(list,__setitem__,{
 	} else {
 		return TYPE_ERROR(int or slice, argv[1]);
 	}
-})
+}
 
-
-KRK_METHOD(list,__delitem__,{
+KRK_Method(list,__delitem__) {
 	METHOD_TAKES_EXACTLY(1);
 
 	if (IS_INTEGER(argv[1])) {
@@ -325,9 +325,11 @@ KRK_METHOD(list,__delitem__,{
 	} else {
 		return TYPE_ERROR(int or slice, argv[1]);
 	}
-})
 
-KRK_METHOD(list,remove,{
+	return NONE_VAL();
+}
+
+KRK_Method(list,remove) {
 	METHOD_TAKES_EXACTLY(1);
 	pthread_rwlock_wrlock(&self->rwlock);
 	for (size_t i = 0; i < self->values.count; ++i) {
@@ -342,16 +344,17 @@ KRK_METHOD(list,remove,{
 	}
 	pthread_rwlock_unlock(&self->rwlock);
 	return krk_runtimeError(vm.exceptions->valueError, "not found");
-})
+}
 
-KRK_METHOD(list,clear,{
+KRK_Method(list,clear) {
 	METHOD_TAKES_NONE();
 	pthread_rwlock_wrlock(&self->rwlock);
 	krk_freeValueArray(&self->values);
 	pthread_rwlock_unlock(&self->rwlock);
-})
+	return NONE_VAL();
+}
 
-KRK_METHOD(list,index,{
+KRK_Method(list,index) {
 	METHOD_TAKES_AT_LEAST(1);
 	METHOD_TAKES_AT_MOST(3);
 
@@ -389,9 +392,9 @@ KRK_METHOD(list,index,{
 
 	pthread_rwlock_unlock(&self->rwlock);
 	return krk_runtimeError(vm.exceptions->valueError, "not found");
-})
+}
 
-KRK_METHOD(list,count,{
+KRK_Method(list,count) {
 	METHOD_TAKES_EXACTLY(1);
 	krk_integer_type count = 0;
 
@@ -403,17 +406,17 @@ KRK_METHOD(list,count,{
 	pthread_rwlock_unlock(&self->rwlock);
 
 	return INTEGER_VAL(count);
-})
+}
 
-KRK_METHOD(list,copy,{
+KRK_Method(list,copy) {
 	METHOD_TAKES_NONE();
 	pthread_rwlock_rdlock(&self->rwlock);
 	KrkValue result = krk_list_of(self->values.count, self->values.values, 0);
 	pthread_rwlock_unlock(&self->rwlock);
 	return result;
-})
+}
 
-KRK_METHOD(list,reverse,{
+KRK_Method(list,reverse) {
 	METHOD_TAKES_NONE();
 	pthread_rwlock_wrlock(&self->rwlock);
 	for (size_t i = 0; i < (self->values.count) / 2; i++) {
@@ -423,7 +426,7 @@ KRK_METHOD(list,reverse,{
 	}
 	pthread_rwlock_unlock(&self->rwlock);
 	return NONE_VAL();
-})
+}
 
 static int _list_sorter(const void * _a, const void * _b) {
 	KrkValue a = *(KrkValue*)_a;
@@ -438,15 +441,17 @@ static int _list_sorter(const void * _a, const void * _b) {
 	return 0;
 }
 
-KRK_METHOD(list,sort,{
+KRK_Method(list,sort) {
 	METHOD_TAKES_NONE();
 
 	pthread_rwlock_wrlock(&self->rwlock);
 	qsort(self->values.values, self->values.count, sizeof(KrkValue), _list_sorter);
 	pthread_rwlock_unlock(&self->rwlock);
-})
 
-KRK_METHOD(list,__add__,{
+	return NONE_VAL();
+}
+
+KRK_Method(list,__add__) {
 	METHOD_TAKES_EXACTLY(1);
 	if (!IS_list(argv[1])) return TYPE_ERROR(list,argv[1]);
 
@@ -455,11 +460,11 @@ KRK_METHOD(list,__add__,{
 	pthread_rwlock_unlock(&self->rwlock);
 	FUNC_NAME(list,extend)(2,(KrkValue[]){outList,argv[1]},0); /* extend */
 	return outList;
-})
+}
 
 FUNC_SIG(listiterator,__init__);
 
-KRK_METHOD(list,__iter__,{
+KRK_Method(list,__iter__) {
 	METHOD_TAKES_NONE();
 	KrkInstance * output = krk_newInstance(vm.baseClasses->listiteratorClass);
 
@@ -468,7 +473,7 @@ KRK_METHOD(list,__iter__,{
 	krk_pop();
 
 	return OBJECT_VAL(output);
-})
+}
 
 #undef CURRENT_CTYPE
 
@@ -486,13 +491,13 @@ static void _listiterator_gcscan(KrkInstance * self) {
 	krk_markValue(((struct ListIterator*)self)->l);
 }
 
-KRK_METHOD(listiterator,__init__,{
+KRK_Method(listiterator,__init__) {
 	METHOD_TAKES_EXACTLY(1);
 	CHECK_ARG(1,list,KrkList*,list);
 	self->l = argv[1];
 	self->i = 0;
 	return argv[0];
-})
+}
 
 FUNC_SIG(listiterator,__call__) {
 	static __attribute__ ((unused)) const char* _method_name = "__call__";

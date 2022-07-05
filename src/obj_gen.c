@@ -84,7 +84,7 @@ FUNC_SIG(generator,__init__) {
 	return krk_runtimeError(vm.exceptions->typeError, "cannot create '%s' instances", "generator");
 }
 
-KRK_METHOD(generator,__repr__,{
+KRK_Method(generator,__repr__) {
 	METHOD_TAKES_NONE();
 
 	char * typeStr = "generator";
@@ -103,14 +103,14 @@ KRK_METHOD(generator,__repr__,{
 		(void*)self);
 
 	return OBJECT_VAL(krk_takeString(tmp,lenActual));
-})
+}
 
-KRK_METHOD(generator,__iter__,{
+KRK_Method(generator,__iter__) {
 	METHOD_TAKES_NONE();
 	return OBJECT_VAL(self);
-})
+}
 
-KRK_METHOD(generator,__call__,{
+KRK_Method(generator,__call__) {
 	METHOD_TAKES_AT_MOST(1);
 	if (!self->ip) return OBJECT_VAL(self);
 	/* Prepare frame */
@@ -175,28 +175,28 @@ KRK_METHOD(generator,__call__,{
 	krk_currentThread.stackTop = krk_currentThread.stack + frame->slots;
 
 	return result;
-})
+}
 
-KRK_METHOD(generator,send,{
+KRK_Method(generator,send) {
 	METHOD_TAKES_EXACTLY(1);
 	if (!self->started && !IS_NONE(argv[1])) {
 		return krk_runtimeError(vm.exceptions->typeError, "Can not send non-None value to just-started generator");
 	}
 	return FUNC_NAME(generator,__call__)(argc,argv,0);
-})
+}
 
-KRK_METHOD(generator,__finish__,{
+KRK_Method(generator,__finish__) {
 	METHOD_TAKES_NONE();
 	return self->result;
-})
+}
 
 /*
  * For compatibility with Python...
  */
-KRK_METHOD(generator,gi_running,{
+KRK_Method(generator,gi_running) {
 	METHOD_TAKES_NONE();
 	return BOOLEAN_VAL(self->running);
-})
+}
 
 int krk_getAwaitable(void) {
 	if (IS_generator(krk_peek(0)) && AS_generator(krk_peek(0))->type == KRK_OBJ_FLAGS_CODEOBJECT_IS_COROUTINE) {

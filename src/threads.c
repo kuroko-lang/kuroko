@@ -54,10 +54,10 @@ struct Lock {
 	pthread_mutex_t mutex;
 };
 
-KRK_FUNC(current_thread,{
+KRK_Function(current_thread) {
 	if (&krk_currentThread == vm.threads) return NONE_VAL();
 	return krk_currentThread.stack[0];
-})
+}
 
 #define IS_Thread(o)  (krk_isInstanceOf(o, Thread))
 #define AS_Thread(o)  ((struct Thread *)AS_OBJECT(o))
@@ -115,21 +115,22 @@ static void * _startthread(void * _threadObj) {
 	return NULL;
 }
 
-KRK_METHOD(Thread,tid,{
+KRK_Method(Thread,tid) {
 	METHOD_TAKES_NONE(); /* Property, but can not be assigned. */
 	return INTEGER_VAL(self->tid);
-})
+}
 
-KRK_METHOD(Thread,join,{
+KRK_Method(Thread,join) {
 	if (self->threadState == &krk_currentThread)
 		return krk_runtimeError(ThreadError, "Thread can not join itself.");
 	if (!self->started)
 		return krk_runtimeError(ThreadError, "Thread has not been started.");
 
 	pthread_join(self->nativeRef, NULL);
-})
+	return NONE_VAL();
+}
 
-KRK_METHOD(Thread,start,{
+KRK_Method(Thread,start) {
 	METHOD_TAKES_NONE();
 
 	if (self->started)
@@ -140,12 +141,12 @@ KRK_METHOD(Thread,start,{
 	pthread_create(&self->nativeRef, NULL, _startthread, (void*)self);
 
 	return argv[0];
-})
+}
 
-KRK_METHOD(Thread,is_alive,{
+KRK_Method(Thread,is_alive) {
 	METHOD_TAKES_NONE();
 	return BOOLEAN_VAL(self->alive);
-})
+}
 
 #undef CURRENT_CTYPE
 
@@ -153,11 +154,11 @@ KRK_METHOD(Thread,is_alive,{
 #define AS_Lock(o)  ((struct Lock *)AS_OBJECT(o))
 #define CURRENT_CTYPE struct Lock *
 
-KRK_METHOD(Lock,__init__,{
+KRK_Method(Lock,__init__) {
 	METHOD_TAKES_NONE(); /* TODO lock options, like recursive or error-checked? */
 	pthread_mutex_init(&self->mutex, NULL);
 	return argv[0];
-})
+}
 
 static inline void _pushLockStatus(struct Lock * self, struct StringBuilder * sb) {
 #ifdef __GLIBC__
@@ -174,7 +175,7 @@ static inline void _pushLockStatus(struct Lock * self, struct StringBuilder * sb
 #endif
 }
 
-KRK_METHOD(Lock,__repr__,{
+KRK_Method(Lock,__repr__) {
 	METHOD_TAKES_NONE();
 	struct StringBuilder sb = {0};
 	pushStringBuilderStr(&sb, "<Lock ", 6);
@@ -190,16 +191,18 @@ KRK_METHOD(Lock,__repr__,{
 
 	pushStringBuilder(&sb,'>');
 	return finishStringBuilder(&sb);
-})
+}
 
-KRK_METHOD(Lock,__enter__,{
+KRK_Method(Lock,__enter__) {
 	METHOD_TAKES_NONE();
 	pthread_mutex_lock(&self->mutex);
-})
+	return NONE_VAL();
+}
 
-KRK_METHOD(Lock,__exit__,{
+KRK_Method(Lock,__exit__) {
 	pthread_mutex_unlock(&self->mutex);
-})
+	return NONE_VAL();
+}
 
 _noexport
 void _createAndBind_threadsMod(void) {

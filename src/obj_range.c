@@ -35,7 +35,7 @@ FUNC_SIG(rangeiterator,__init__);
 #define CURRENT_NAME  self
 #define CURRENT_CTYPE struct Range *
 
-KRK_METHOD(range,__init__,{
+KRK_Method(range,__init__) {
 	METHOD_TAKES_AT_LEAST(1);
 	METHOD_TAKES_AT_MOST(3);
 	self->min = 0;
@@ -57,9 +57,9 @@ KRK_METHOD(range,__init__,{
 		}
 	}
 	return argv[0];
-})
+}
 
-KRK_METHOD(range,__repr__,{
+KRK_Method(range,__repr__) {
 	METHOD_TAKES_NONE();
 	krk_integer_type min = self->min;
 	krk_integer_type max = self->max;
@@ -73,9 +73,9 @@ KRK_METHOD(range,__repr__,{
 		len = snprintf(tmp,1024,"range(" PRIkrk_int "," PRIkrk_int "," PRIkrk_int ")", min, max, step);
 	}
 	return OBJECT_VAL(krk_copyString(tmp,len));
-})
+}
 
-KRK_METHOD(range,__iter__,{
+KRK_Method(range,__iter__) {
 	KrkInstance * output = krk_newInstance(rangeiterator);
 	krk_integer_type min = self->min;
 	krk_integer_type max = self->max;
@@ -86,12 +86,12 @@ KRK_METHOD(range,__iter__,{
 	krk_pop();
 
 	return OBJECT_VAL(output);
-})
+}
 
 #undef CURRENT_CTYPE
 #define CURRENT_CTYPE struct RangeIterator *
 
-KRK_METHOD(rangeiterator,__init__,{
+KRK_Method(rangeiterator,__init__) {
 	METHOD_TAKES_EXACTLY(3);
 	CHECK_ARG(1,int,krk_integer_type,i);
 	CHECK_ARG(2,int,krk_integer_type,max);
@@ -100,9 +100,9 @@ KRK_METHOD(rangeiterator,__init__,{
 	self->max = max;
 	self->step = step;
 	return argv[0];
-})
+}
 
-KRK_METHOD(rangeiterator,__call__,{
+KRK_Method(rangeiterator,__call__) {
 	METHOD_TAKES_NONE();
 	krk_integer_type i = self->i;
 	if (self->step > 0 ? (i >= self->max) : (i <= self->max)) {
@@ -111,7 +111,7 @@ KRK_METHOD(rangeiterator,__call__,{
 		self->i = i + self->step;
 		return INTEGER_VAL(i);
 	}
-})
+}
 
 _noexport
 void _createAndBind_rangeClass(void) {

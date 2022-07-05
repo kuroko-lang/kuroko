@@ -50,7 +50,7 @@ struct socket {
 		} \
 	}
 
-KRK_METHOD(socket,__init__,{
+KRK_Method(socket,__init__) {
 	METHOD_TAKES_AT_MOST(3);
 
 	/* Complex argument processing time... */
@@ -70,7 +70,7 @@ KRK_METHOD(socket,__init__,{
 	self->proto  = proto;
 
 	return argv[0];
-})
+}
 
 static char * _af_name(int afval) {
 	static char tmp[30];
@@ -102,12 +102,12 @@ static char * _sock_type(int type) {
 	}
 }
 
-KRK_METHOD(socket,__repr__,{
+KRK_Method(socket,__repr__) {
 	char tmp[4096];
 	size_t len = snprintf(tmp, 4096, "<socket.socket fd=%d, family=%s, type=%s, proto=%d>",
 		self->sockfd, _af_name(self->family), _sock_type(self->type), self->proto);
 	return OBJECT_VAL(krk_copyString(tmp,len));
-})
+}
 
 static int socket_parse_address(struct socket * self, KrkValue address, struct sockaddr_storage *sock_addr, socklen_t *sock_size) {
 	if (self->family == AF_INET) {
@@ -179,7 +179,7 @@ static int socket_parse_address(struct socket * self, KrkValue address, struct s
 	return 1;
 }
 
-KRK_METHOD(socket,connect,{
+KRK_Method(socket,connect) {
 	METHOD_TAKES_EXACTLY(1);
 
 	struct sockaddr_storage sock_addr;
@@ -198,9 +198,11 @@ KRK_METHOD(socket,connect,{
 	if (result < 0) {
 		return krk_runtimeError(SocketError, "Socket error: %s", strerror(errno));
 	}
-})
 
-KRK_METHOD(socket,bind,{
+	return NONE_VAL();
+}
+
+KRK_Method(socket,bind) {
 	METHOD_TAKES_EXACTLY(1);
 
 	struct sockaddr_storage sock_addr;
@@ -219,9 +221,11 @@ KRK_METHOD(socket,bind,{
 	if (result < 0) {
 		return krk_runtimeError(SocketError, "Socket error: %s", strerror(errno));
 	}
-})
 
-KRK_METHOD(socket,listen,{
+	return NONE_VAL();
+}
+
+KRK_Method(socket,listen) {
 	METHOD_TAKES_AT_MOST(1);
 	int backlog = 0;
 	if (argc > 1) {
@@ -233,9 +237,11 @@ KRK_METHOD(socket,listen,{
 	if (result < 0) {
 		return krk_runtimeError(SocketError, "Socket error: %s", strerror(errno));
 	}
-})
 
-KRK_METHOD(socket,accept,{
+	return NONE_VAL();
+}
+
+KRK_Method(socket,accept) {
 	struct sockaddr_storage addr;
 	socklen_t addrlen;
 
@@ -280,9 +286,9 @@ KRK_METHOD(socket,accept,{
 	krk_pop();
 
 	return krk_pop();
-})
+}
 
-KRK_METHOD(socket,shutdown,{
+KRK_Method(socket,shutdown) {
 	METHOD_TAKES_EXACTLY(1);
 	CHECK_ARG(1,int,krk_integer_type,how);
 
@@ -291,9 +297,11 @@ KRK_METHOD(socket,shutdown,{
 	if (result < 0) {
 		return krk_runtimeError(SocketError, "Socket error: %s", strerror(errno));
 	}
-})
 
-KRK_METHOD(socket,recv,{
+	return NONE_VAL();
+}
+
+KRK_Method(socket,recv) {
 	METHOD_TAKES_AT_LEAST(1);
 	METHOD_TAKES_AT_MOST(2);
 	CHECK_ARG(1,int,krk_integer_type,bufsize);
@@ -313,9 +321,9 @@ KRK_METHOD(socket,recv,{
 	KrkBytes * out = krk_newBytes(result,buf);
 	free(buf);
 	return OBJECT_VAL(out);
-})
+}
 
-KRK_METHOD(socket,send,{
+KRK_Method(socket,send) {
 	METHOD_TAKES_AT_LEAST(1);
 	METHOD_TAKES_AT_MOST(2);
 	CHECK_ARG(1,bytes,KrkBytes*,buf);
@@ -331,9 +339,9 @@ KRK_METHOD(socket,send,{
 	}
 
 	return INTEGER_VAL(result);
-})
+}
 
-KRK_METHOD(socket,sendto,{
+KRK_Method(socket,sendto) {
 	METHOD_TAKES_AT_LEAST(1);
 	METHOD_TAKES_AT_MOST(3);
 	CHECK_ARG(1,bytes,KrkBytes*,buf);
@@ -360,14 +368,14 @@ KRK_METHOD(socket,sendto,{
 	}
 
 	return INTEGER_VAL(result);
-})
+}
 
 
-KRK_METHOD(socket,fileno,{
+KRK_Method(socket,fileno) {
 	return INTEGER_VAL(self->sockfd);
-})
+}
 
-KRK_METHOD(socket,setsockopt,{
+KRK_Method(socket,setsockopt) {
 	METHOD_TAKES_EXACTLY(3);
 	CHECK_ARG(1,int,krk_integer_type,level);
 	CHECK_ARG(2,int,krk_integer_type,optname);
@@ -387,13 +395,14 @@ KRK_METHOD(socket,setsockopt,{
 		return krk_runtimeError(SocketError, "Socket error: %s", strerror(errno));
 	}
 
-})
+	return NONE_VAL();
+}
 
-KRK_FUNC(htons,{
+KRK_Function(htons) {
 	FUNCTION_TAKES_EXACTLY(1);
 	CHECK_ARG(0,int,krk_integer_type,value);
 	return INTEGER_VAL(htons(value));
-})
+}
 
 KrkValue krk_module_onload_socket(void) {
 	KrkInstance * module = krk_newInstance(vm.baseClasses->moduleClass);

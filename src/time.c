@@ -11,7 +11,7 @@
 #include <kuroko/object.h>
 #include <kuroko/util.h>
 
-KRK_FUNC(sleep,{
+KRK_Function(sleep) {
 	FUNCTION_TAKES_EXACTLY(1);
 
 	if (!IS_INTEGER(argv[0]) && !IS_FLOATING(argv[0])) {
@@ -25,9 +25,9 @@ KRK_FUNC(sleep,{
 	usleep(usecs);
 
 	return BOOLEAN_VAL(1);
-})
+}
 
-KRK_FUNC(time,{
+KRK_Function(time) {
 	FUNCTION_TAKES_NONE();
 
 	struct timeval tv;
@@ -36,7 +36,7 @@ KRK_FUNC(time,{
 	double out = (double)tv.tv_sec + (double)tv.tv_usec / 1000000.0;
 
 	return FLOATING_VAL(out);
-})
+}
 
 _noexport
 void _createAndBind_timeMod(void) {

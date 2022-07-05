@@ -56,22 +56,22 @@ static int _set_init_callback(void * context, const KrkValue * values, size_t co
 	return 0;
 }
 
-KRK_METHOD(set,__init__,{
+KRK_Method(set,__init__) {
 	METHOD_TAKES_AT_MOST(1);
 	krk_initTable(&self->entries);
 	if (argc == 2) {
 		if (krk_unpackIterable(argv[1], self, _set_init_callback)) return NONE_VAL();
 	}
 	return argv[0];
-})
+}
 
-KRK_METHOD(set,__contains__,{
+KRK_Method(set,__contains__) {
 	METHOD_TAKES_EXACTLY(1);
 	KrkValue _unused;
 	return BOOLEAN_VAL(krk_tableGet(&self->entries, argv[1], &_unused));
-})
+}
 
-KRK_METHOD(set,__repr__,{
+KRK_Method(set,__repr__) {
 	METHOD_TAKES_NONE();
 	if (((KrkObj*)self)->flags & KRK_OBJ_FLAGS_IN_REPR) return OBJECT_VAL("{...}");
 	if (!self->entries.capacity) return OBJECT_VAL(S("set()"));
@@ -100,9 +100,9 @@ KRK_METHOD(set,__repr__,{
 	pushStringBuilder(&sb,'}');
 	((KrkObj*)self)->flags &= ~(KRK_OBJ_FLAGS_IN_REPR);
 	return finishStringBuilder(&sb);
-})
+}
 
-KRK_METHOD(set,__and__,{
+KRK_Method(set,__and__) {
 	METHOD_TAKES_EXACTLY(1);
 	CHECK_ARG(1,set,struct Set*,them);
 
@@ -128,9 +128,9 @@ KRK_METHOD(set,__and__,{
 	}
 
 	return krk_pop();
-})
+}
 
-KRK_METHOD(set,__xor__,{
+KRK_Method(set,__xor__) {
 	METHOD_TAKES_EXACTLY(1);
 	CHECK_ARG(1,set,struct Set*,them);
 
@@ -172,10 +172,10 @@ KRK_METHOD(set,__xor__,{
 	}
 
 	return krk_pop();
-})
+}
 
 
-KRK_METHOD(set,__or__,{
+KRK_Method(set,__or__) {
 	METHOD_TAKES_EXACTLY(1);
 	CHECK_ARG(1,set,struct Set*,them);
 
@@ -187,14 +187,14 @@ KRK_METHOD(set,__or__,{
 	krk_tableAddAll(&them->entries, &AS_set(outSet)->entries);
 
 	return krk_pop();
-})
+}
 
-KRK_METHOD(set,__len__,{
+KRK_Method(set,__len__) {
 	METHOD_TAKES_NONE();
 	return INTEGER_VAL(self->entries.count);
-})
+}
 
-KRK_METHOD(set,__eq__,{
+KRK_Method(set,__eq__) {
 	METHOD_TAKES_EXACTLY(1);
 	if (!IS_set(argv[1]))
 		return NOTIMPL_VAL();
@@ -210,52 +210,56 @@ KRK_METHOD(set,__eq__,{
 	}
 
 	return BOOLEAN_VAL(1);
-})
+}
 
-KRK_METHOD(set,add,{
+KRK_Method(set,add) {
 	METHOD_TAKES_EXACTLY(1);
 	krk_tableSet(&self->entries, argv[1], BOOLEAN_VAL(1));
-})
+	return NONE_VAL();
+}
 
-KRK_METHOD(set,remove,{
+KRK_Method(set,remove) {
 	METHOD_TAKES_EXACTLY(1);
 	if (!krk_tableDelete(&self->entries, argv[1]))
 		return krk_runtimeError(vm.exceptions->keyError, "key error");
-})
+	return NONE_VAL();
+}
 
-KRK_METHOD(set,discard,{
+KRK_Method(set,discard) {
 	METHOD_TAKES_EXACTLY(1);
 	krk_tableDelete(&self->entries, argv[1]);
-})
+	return NONE_VAL();
+}
 
-KRK_METHOD(set,clear,{
+KRK_Method(set,clear) {
 	METHOD_TAKES_NONE();
 	krk_freeTable(&self->entries);
 	krk_initTable(&self->entries);
-})
+	return NONE_VAL();
+}
 
 FUNC_SIG(setiterator,__init__);
 
-KRK_METHOD(set,__iter__,{
+KRK_Method(set,__iter__) {
 	METHOD_TAKES_NONE();
 	KrkInstance * output = krk_newInstance(setiterator);
 	krk_push(OBJECT_VAL(output));
 	FUNC_NAME(setiterator,__init__)(2,(KrkValue[]){krk_peek(0), argv[0]}, 0);
 	return krk_pop();
-})
+}
 
 #undef CURRENT_CTYPE
 #define CURRENT_CTYPE struct SetIterator *
 
-KRK_METHOD(setiterator,__init__,{
+KRK_Method(setiterator,__init__) {
 	METHOD_TAKES_EXACTLY(1);
 	CHECK_ARG(1,set,void*,source);
 	self->set = argv[1];
 	self->i = 0;
 	return argv[0];
-})
+}
 
-KRK_METHOD(setiterator,__call__,{
+KRK_Method(setiterator,__call__) {
 	METHOD_TAKES_NONE();
 
 	if (unlikely(!IS_set(self->set))) return argv[0];
@@ -269,7 +273,7 @@ KRK_METHOD(setiterator,__call__,{
 		}
 		self->i++;
 	} while (1);
-})
+}
 
 KrkValue krk_set_of(int argc, const KrkValue argv[], int hasKw) {
 	KrkValue outSet = OBJECT_VAL(krk_newInstance(set));

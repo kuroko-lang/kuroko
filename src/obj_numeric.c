@@ -40,31 +40,31 @@ FUNC_SIG(int,__init__) {
 	return krk_runtimeError(vm.exceptions->typeError, "%s() argument must be a string or a number, not '%s'", "int", krk_typeName(argv[1]));
 }
 
-KRK_METHOD(int,__str__,{
+KRK_Method(int,__str__) {
 	char tmp[100];
 	size_t l = snprintf(tmp, 100, PRIkrk_int, self);
 	return OBJECT_VAL(krk_copyString(tmp, l));
-})
+}
 
-KRK_METHOD(int,__int__,{ return argv[0]; })
-KRK_METHOD(int,__float__,{ return FLOATING_VAL(self); })
+KRK_Method(int,__int__) { return argv[0]; }
+KRK_Method(int,__float__) { return FLOATING_VAL(self); }
 
-KRK_METHOD(int,__chr__,{
+KRK_Method(int,__chr__) {
 	unsigned char bytes[5] = {0};
 	size_t len = krk_codepointToBytes(self, bytes);
 	return OBJECT_VAL(krk_copyString((char*)bytes, len));
-})
+}
 
-KRK_METHOD(int,__eq__,{
+KRK_Method(int,__eq__) {
 	METHOD_TAKES_EXACTLY(1);
 	if (likely(IS_INTEGER(argv[1]))) return self == AS_INTEGER(argv[1]);
 	else if (IS_FLOATING(argv[1])) return self == AS_FLOATING(argv[1]);
 	return NOTIMPL_VAL();
-})
+}
 
-KRK_METHOD(int,__hash__,{
+KRK_Method(int,__hash__) {
 	return INTEGER_VAL((uint32_t)AS_INTEGER(argv[0]));
-})
+}
 
 /**
  * We _could_ use the __builtin_XXX_overflow(_p) functions gcc+clang provide,
@@ -93,33 +93,33 @@ OVERFLOW_CHECKED_INT_OPERATION(sub,-)
 OVERFLOW_CHECKED_INT_OPERATION(mul,*)
 
 #define BASIC_BIN_OP(name,operator) \
-	KRK_METHOD(int,__ ## name ## __,{ \
+	KRK_Method(int,__ ## name ## __) { \
 		if (likely(IS_INTEGER(argv[1]))) return krk_int_op_ ## name(self, AS_INTEGER(argv[1])); \
 		else if (likely(IS_FLOATING(argv[1]))) return FLOATING_VAL((double)self operator AS_FLOATING(argv[1])); \
 		return NOTIMPL_VAL(); \
-	}) \
-	KRK_METHOD(int,__r ## name ## __,{ \
+	} \
+	KRK_Method(int,__r ## name ## __) { \
 		if (likely(IS_INTEGER(argv[1]))) return krk_int_op_ ## name(AS_INTEGER(argv[1]), self); \
 		else if (likely(IS_FLOATING(argv[1]))) return FLOATING_VAL(AS_FLOATING(argv[1]) operator (double)self); \
 		return NOTIMPL_VAL(); \
-	})
+	}
 
 #define INT_ONLY_BIN_OP(name,operator) \
-	KRK_METHOD(int,__ ## name ## __,{ \
+	KRK_Method(int,__ ## name ## __) { \
 		if (likely(IS_INTEGER(argv[1]))) return INTEGER_VAL(self operator AS_INTEGER(argv[1])); \
 		return NOTIMPL_VAL(); \
-	}) \
-	KRK_METHOD(int,__r ## name ## __,{ \
+	} \
+	KRK_Method(int,__r ## name ## __) { \
 		if (likely(IS_INTEGER(argv[1]))) return INTEGER_VAL(AS_INTEGER(argv[1]) operator self); \
 		return NOTIMPL_VAL(); \
-	})
+	}
 
 #define COMPARE_OP(name,operator) \
-	KRK_METHOD(int,__ ## name ## __,{ \
+	KRK_Method(int,__ ## name ## __) { \
 		if (likely(IS_INTEGER(argv[1]))) return BOOLEAN_VAL(self operator AS_INTEGER(argv[1])); \
 		else if (likely(IS_FLOATING(argv[1]))) return BOOLEAN_VAL((double)self operator AS_FLOATING(argv[1])); \
 		return NOTIMPL_VAL(); \
-	})
+	}
 
 BASIC_BIN_OP(add,+)
 BASIC_BIN_OP(sub,-)
@@ -130,14 +130,14 @@ INT_ONLY_BIN_OP(and,&)
 
 #define DEFER_TO_LONG(name) \
 	extern KrkValue krk_long_coerced_ ## name (krk_integer_type a, krk_integer_type b); \
-	KRK_METHOD(int,__ ## name ## __,{ \
+	KRK_Method(int,__ ## name ## __) { \
 		if (likely(IS_INTEGER(argv[1]))) return krk_long_coerced_ ## name (self, AS_INTEGER(argv[1])); \
 		return NOTIMPL_VAL(); \
-	}) \
-	KRK_METHOD(int,__r ## name ## __,{ \
+	} \
+	KRK_Method(int,__r ## name ## __) { \
 		if (likely(IS_INTEGER(argv[1]))) return krk_long_coerced_ ## name (AS_INTEGER(argv[1]), self); \
 		return NOTIMPL_VAL(); \
-	})
+	}
 
 DEFER_TO_LONG(lshift)
 DEFER_TO_LONG(rshift)
@@ -152,7 +152,7 @@ COMPARE_OP(ge, >=)
 #undef INT_ONLY_BIN_OP
 #undef COMPARE_OP
 
-KRK_METHOD(int,__truediv__,{
+KRK_Method(int,__truediv__) {
 	METHOD_TAKES_EXACTLY(1);
 	if (likely(IS_INTEGER(argv[1]))) {
 		krk_integer_type b = AS_INTEGER(argv[1]);
@@ -164,15 +164,15 @@ KRK_METHOD(int,__truediv__,{
 		return FLOATING_VAL((double)self / b);
 	}
 	return NOTIMPL_VAL();
-})
+}
 
-KRK_METHOD(int,__rtruediv__,{
+KRK_Method(int,__rtruediv__) {
 	METHOD_TAKES_EXACTLY(1);
 	if (unlikely(self == 0)) return krk_runtimeError(vm.exceptions->zeroDivisionError, "integer division by zero");
 	else if (likely(IS_INTEGER(argv[1]))) return FLOATING_VAL((double)AS_INTEGER(argv[1]) / (double)self);
 	else if (likely(IS_FLOATING(argv[1]))) return FLOATING_VAL(AS_FLOATING(argv[1]) / (double)self);
 	return NOTIMPL_VAL();
-})
+}
 
 #ifdef __TINYC__
 #include <math.h>
@@ -214,20 +214,20 @@ static KrkValue _krk_int_mod(krk_integer_type a, krk_integer_type b) {
 
 }
 
-KRK_METHOD(int,__mod__,{
+KRK_Method(int,__mod__) {
 	METHOD_TAKES_EXACTLY(1);
 	if (likely(IS_INTEGER(argv[1]))) return _krk_int_mod(self, AS_INTEGER(argv[1]));
 	return NOTIMPL_VAL();
-})
+}
 
-KRK_METHOD(int,__rmod__,{
+KRK_Method(int,__rmod__) {
 	METHOD_TAKES_EXACTLY(1);
 	if (likely(IS_INTEGER(argv[1]))) return _krk_int_mod(AS_INTEGER(argv[1]), self);
 	return NOTIMPL_VAL();
-})
+}
 
 
-KRK_METHOD(int,__floordiv__,{
+KRK_Method(int,__floordiv__) {
 	METHOD_TAKES_EXACTLY(1);
 	if (likely(IS_INTEGER(argv[1]))) {
 		return _krk_int_div(self,AS_INTEGER(argv[1]));
@@ -237,33 +237,33 @@ KRK_METHOD(int,__floordiv__,{
 		return FLOATING_VAL(__builtin_floor((double)self / b));
 	}
 	return NOTIMPL_VAL();
-})
+}
 
-KRK_METHOD(int,__rfloordiv__,{
+KRK_Method(int,__rfloordiv__) {
 	METHOD_TAKES_EXACTLY(1);
 	if (unlikely(self == 0)) return krk_runtimeError(vm.exceptions->zeroDivisionError, "integer division by zero");
 	else if (likely(IS_INTEGER(argv[1]))) return _krk_int_div(AS_INTEGER(argv[1]), self);
 	else if (likely(IS_FLOATING(argv[1]))) return FLOATING_VAL(__builtin_floor(AS_FLOATING(argv[1]) / (double)self));
 	return NOTIMPL_VAL();
-})
+}
 
-KRK_METHOD(int,__hex__,{
+KRK_Method(int,__hex__) {
 	METHOD_TAKES_NONE();
 	char tmp[20];
 	unsigned long long val = self < 0 ? -self : self;
 	size_t len = snprintf(tmp, 20, "%s0x%llx", self < 0 ? "-" : "", val);
 	return OBJECT_VAL(krk_copyString(tmp,len));
-})
+}
 
-KRK_METHOD(int,__oct__,{
+KRK_Method(int,__oct__) {
 	METHOD_TAKES_NONE();
 	char tmp[20];
 	unsigned long long val = self < 0 ? -self : self;
 	size_t len = snprintf(tmp, 20, "%s0o%llo", self < 0 ? "-" : "", val);
 	return OBJECT_VAL(krk_copyString(tmp,len));
-})
+}
 
-KRK_METHOD(int,__bin__,{
+KRK_Method(int,__bin__) {
 	METHOD_TAKES_NONE();
 	unsigned long long val = self;
 	if (self < 0) val = -val;
@@ -288,19 +288,19 @@ KRK_METHOD(int,__bin__,{
 	}
 
 	return finishStringBuilder(&sb);
-})
+}
 
-KRK_METHOD(int,__invert__,{
+KRK_Method(int,__invert__) {
 	return INTEGER_VAL(~self);
-})
+}
 
-KRK_METHOD(int,__neg__,{
+KRK_Method(int,__neg__) {
 	return INTEGER_VAL(-self);
-})
+}
 
-KRK_METHOD(int,__abs__,{
+KRK_Method(int,__abs__) {
 	return self < 0 ? INTEGER_VAL(-self) : INTEGER_VAL(self);
-})
+}
 
 #undef CURRENT_CTYPE
 #define CURRENT_CTYPE double
@@ -331,8 +331,8 @@ FUNC_SIG(float,__init__) {
 	return krk_runtimeError(vm.exceptions->typeError, "%s() argument must be a string or a number, not '%s'", "float", krk_typeName(argv[1]));
 }
 
-KRK_METHOD(float,__int__,{ return INTEGER_VAL(self); })
-KRK_METHOD(float,__float__,{ return argv[0]; })
+KRK_Method(float,__int__) { return INTEGER_VAL(self); }
+KRK_Method(float,__float__) { return argv[0]; }
 
 static int isDigits(const char * c) {
 	while (*c) {
@@ -342,55 +342,55 @@ static int isDigits(const char * c) {
 	return 1;
 }
 
-KRK_METHOD(float,__str__,{
+KRK_Method(float,__str__) {
 	char tmp[100];
 	size_t l = snprintf(tmp, 97, "%.16g", self);
 	if (!strstr(tmp,".") && isDigits(tmp)) {
 		l = snprintf(tmp,100,"%.16g.0",self);
 	}
 	return OBJECT_VAL(krk_copyString(tmp, l));
-})
+}
 
-KRK_METHOD(float,__eq__,{
+KRK_Method(float,__eq__) {
 	METHOD_TAKES_EXACTLY(1);
 	if (IS_INTEGER(argv[1])) return self == (double)AS_INTEGER(argv[1]);
 	else if (IS_FLOATING(argv[1])) return self == AS_FLOATING(argv[1]);
 	return NOTIMPL_VAL();
-})
+}
 
-KRK_METHOD(float,__hash__,{
+KRK_Method(float,__hash__) {
 	return INTEGER_VAL((uint32_t)self);
-})
+}
 
-KRK_METHOD(float,__neg__,{
+KRK_Method(float,__neg__) {
 	return FLOATING_VAL(-self);
-})
+}
 
-KRK_METHOD(float,__abs__,{
+KRK_Method(float,__abs__) {
 	return self < 0.0 ? FLOATING_VAL(-self) : INTEGER_VAL(self);
-})
+}
 
 #define BASIC_BIN_OP(name,operator) \
-	KRK_METHOD(float,__ ## name ## __,{ \
+	KRK_Method(float,__ ## name ## __) { \
 		METHOD_TAKES_EXACTLY(1); \
 		if (likely(IS_FLOATING(argv[1]))) return FLOATING_VAL(self operator AS_FLOATING(argv[1])); \
 		else if (likely(IS_INTEGER(argv[1]))) return FLOATING_VAL(self operator (double)AS_INTEGER(argv[1])); \
 		return NOTIMPL_VAL(); \
-	}) \
-	KRK_METHOD(float,__r ## name ## __,{ \
+	} \
+	KRK_Method(float,__r ## name ## __) { \
 		METHOD_TAKES_EXACTLY(1); \
 		if (likely(IS_FLOATING(argv[1]))) return FLOATING_VAL(AS_FLOATING(argv[1]) operator self); \
 		else if (likely(IS_INTEGER(argv[1]))) return FLOATING_VAL((double)AS_INTEGER(argv[1]) operator self); \
 		return NOTIMPL_VAL(); \
-	})
+	}
 
 #define COMPARE_OP(name,operator) \
-	KRK_METHOD(float,__ ## name ## __,{ \
+	KRK_Method(float,__ ## name ## __) { \
 		METHOD_TAKES_EXACTLY(1); \
 		if (likely(IS_FLOATING(argv[1]))) return BOOLEAN_VAL(self operator AS_FLOATING(argv[1])); \
 		else if (likely(IS_INTEGER(argv[1]))) return BOOLEAN_VAL(self operator (double)AS_INTEGER(argv[1])); \
 		return NOTIMPL_VAL(); \
-	})
+	}
 
 BASIC_BIN_OP(add,+)
 BASIC_BIN_OP(sub,-)
@@ -403,7 +403,7 @@ COMPARE_OP(ge, >=)
 #undef BASIC_BIN_OP
 #undef COMPARE_OP
 
-KRK_METHOD(float,__truediv__,{
+KRK_Method(float,__truediv__) {
 	METHOD_TAKES_EXACTLY(1);
 	if (likely(IS_FLOATING(argv[1]))) {
 		double b = AS_FLOATING(argv[1]);
@@ -415,17 +415,17 @@ KRK_METHOD(float,__truediv__,{
 		return FLOATING_VAL(self / (double)b);
 	}
 	return NOTIMPL_VAL();
-})
+}
 
-KRK_METHOD(float,__rtruediv__,{
+KRK_Method(float,__rtruediv__) {
 	METHOD_TAKES_EXACTLY(1);
 	if (unlikely(self == 0.0)) return krk_runtimeError(vm.exceptions->zeroDivisionError, "float division by zero");
 	else if (likely(IS_FLOATING(argv[1]))) return FLOATING_VAL(AS_FLOATING(argv[1]) / self);
 	else if (likely(IS_INTEGER(argv[1]))) return FLOATING_VAL((double)AS_INTEGER(argv[1]) / self);
 	return NOTIMPL_VAL();
-})
+}
 
-KRK_METHOD(float,__floordiv__,{
+KRK_Method(float,__floordiv__) {
 	METHOD_TAKES_EXACTLY(1);
 	if (likely(IS_INTEGER(argv[1]))) {
 		krk_integer_type b = AS_INTEGER(argv[1]);
@@ -437,15 +437,15 @@ KRK_METHOD(float,__floordiv__,{
 		return FLOATING_VAL(__builtin_floor(self / b));
 	}
 	return NOTIMPL_VAL();
-})
+}
 
-KRK_METHOD(float,__rfloordiv__,{
+KRK_Method(float,__rfloordiv__) {
 	METHOD_TAKES_EXACTLY(1);
 	if (unlikely(self == 0.0)) return krk_runtimeError(vm.exceptions->zeroDivisionError, "float division by zero");
 	else if (likely(IS_INTEGER(argv[1]))) return FLOATING_VAL((double)AS_INTEGER(argv[1]) / self);
 	else if (IS_FLOATING(argv[1])) return FLOATING_VAL(__builtin_floor(AS_FLOATING(argv[1]) / self));
 	return NOTIMPL_VAL();
-})
+}
 
 #undef CURRENT_CTYPE
 #define CURRENT_CTYPE krk_integer_type
@@ -457,28 +457,28 @@ FUNC_SIG(bool,__init__) {
 	return BOOLEAN_VAL(!krk_isFalsey(argv[1]));
 }
 
-KRK_METHOD(bool,__str__,{
+KRK_Method(bool,__str__) {
 	return OBJECT_VAL((self ? S("True") : S("False")));
-})
+}
 
 FUNC_SIG(NoneType,__init__) {
 	if (argc > 1) return krk_runtimeError(vm.exceptions->argumentError, "%s takes no arguments", "NoneType");
 	return NONE_VAL();
 }
 
-KRK_METHOD(NoneType,__str__,{
+KRK_Method(NoneType,__str__) {
 	return OBJECT_VAL(S("None"));
-})
+}
 
-KRK_METHOD(NoneType,__hash__,{
+KRK_Method(NoneType,__hash__) {
 	return INTEGER_VAL((uint32_t)AS_INTEGER(argv[0]));
-})
+}
 
-KRK_METHOD(NoneType,__eq__,{
+KRK_Method(NoneType,__eq__) {
 	METHOD_TAKES_EXACTLY(1);
 	if (IS_NONE(argv[1])) return BOOLEAN_VAL(1);
 	return NOTIMPL_VAL();
-})
+}
 
 #define IS_NotImplementedType(o) IS_NOTIMPL(o)
 #define AS_NotImplementedType(o) (1)
@@ -488,19 +488,19 @@ FUNC_SIG(NotImplementedType,__init__) {
 	return NOTIMPL_VAL();
 }
 
-KRK_METHOD(NotImplementedType,__str__,{
+KRK_Method(NotImplementedType,__str__) {
 	return OBJECT_VAL(S("NotImplemented"));
-})
+}
 
-KRK_METHOD(NotImplementedType,__hash__,{
+KRK_Method(NotImplementedType,__hash__) {
 	return INTEGER_VAL(0);
-})
+}
 
-KRK_METHOD(NotImplementedType,__eq__,{
+KRK_Method(NotImplementedType,__eq__) {
 	METHOD_TAKES_EXACTLY(1);
 	if (IS_NOTIMPL(argv[1])) return BOOLEAN_VAL(1);
 	return NOTIMPL_VAL();
-})
+}
 
 #undef BIND_METHOD
 /* These class names conflict with C types, so we need to cheat a bit */

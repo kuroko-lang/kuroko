@@ -11,7 +11,7 @@
 #include <kuroko/object.h>
 #include <kuroko/util.h>
 
-KRK_FUNC(timeit,{
+KRK_Function(timeit) {
 	KrkValue number;
 	int times = 1000000;
 	if (hasKw && krk_tableGet_fast(AS_DICT(argv[argc]), S("number"), &number)) {
@@ -32,7 +32,7 @@ KRK_FUNC(timeit,{
 	double after = (double)tv_after.tv_sec + (double)tv_after.tv_usec / 1000000.0;
 
 	return FLOATING_VAL(after-before);
-})
+}
 
 KrkValue krk_module_onload_timeit(void) {
 	KrkInstance * module = krk_newInstance(vm.baseClasses->moduleClass);
