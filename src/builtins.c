@@ -359,21 +359,61 @@ KRK_METHOD(map,__call__,{
 	return val;
 })
 
-KRK_FUNC(zip,{
-	if (!argc) return NONE_VAL(); /* uh, new empty tuple maybe? */
-	KrkValue map = NONE_VAL();
-	KrkValue tupleOfFunc = NONE_VAL();
+#define IS_zip(o) (krk_isInstanceOf(o,zip))
+#define AS_zip(o) (AS_INSTANCE(o))
+static KrkClass * zip;
+KRK_METHOD(zip,__init__,{
+	if (hasKw) return krk_runtimeError(vm.exceptions->typeError, "%s() takes no keyword arguments", "zip");
 
-	krk_tableGet(&vm.builtins->fields, OBJECT_VAL(S("map")), &map);
-	krk_tableGet(&vm.builtins->fields, OBJECT_VAL(S("tupleOf")), &tupleOfFunc);
+	KrkTuple * iters = krk_newTuple(argc - 1);
+	krk_push(OBJECT_VAL(iters));
+	krk_attachNamedValue(&self->fields, "_iterables", krk_peek(0));
+	krk_pop();
 
-	krk_push(map);
-	krk_push(tupleOfFunc);
-	for (int i = 0; i < argc; ++i) {
+	for (int i = 1; i < argc; ++i) {
+		KrkClass * type = krk_getType(argv[i]);
+		if (!type->_iter) {
+			return krk_runtimeError(vm.exceptions->typeError, "'%s' object is not iterable", krk_typeName(argv[i]));
+		}
 		krk_push(argv[i]);
+		KrkValue asIter = krk_callDirect(type->_iter, 1);
+		if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) return NONE_VAL();
+		/* Attach it to the tuple */
+		iters->values.values[iters->values.count++] = asIter;
 	}
 
-	return krk_callStack(argc+1);
+	return argv[0];
+})
+
+KRK_METHOD(zip,__iter__,{
+	METHOD_TAKES_NONE();
+	return OBJECT_VAL(self);
+})
+
+KRK_METHOD(zip,__call__,{
+	METHOD_TAKES_NONE();
+
+	/* Get members */
+	KrkValue iterators = NONE_VAL();
+	if (!krk_tableGet(&self->fields, OBJECT_VAL(S("_iterables")), &iterators) || !IS_TUPLE(iterators)) return krk_runtimeError(vm.exceptions->valueError, "corrupt zip object");
+
+	/* Set up a tuple */
+	KrkTuple * out = krk_newTuple(AS_TUPLE(iterators)->values.count);
+	krk_push(OBJECT_VAL(out));
+
+	/* Go through each iterator */
+	for (size_t i = 0; i < AS_TUPLE(iterators)->values.count; ++i) {
+		krk_push(AS_TUPLE(iterators)->values.values[i]);
+		krk_push(krk_callStack(0));
+		if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) return NONE_VAL();
+		if (krk_valuesEqual(krk_peek(0), AS_TUPLE(iterators)->values.values[i])) {
+			return OBJECT_VAL(self);
+		}
+		out->values.values[out->values.count++] = krk_pop();
+	}
+
+	/* Return tuple */
+	return krk_pop();
 })
 
 #define IS_filter(o) (krk_isInstanceOf(o,filter))
@@ -1072,6 +1112,17 @@ void _createAndBind_builtins(void) {
 	BIND_METHOD(map,__call__);
 	krk_finalizeClass(map);
 
+	ADD_BASE_CLASS(zip, "zip", object);
+	KRK_DOC(zip,
+		"@brief Returns an iterator that produces tuples of the nth element of each passed iterable.\n"
+		"@arguments *iterables\n\n"
+		"Creates an iterator that returns a tuple of elements from each of @p iterables, until one "
+		"of @p iterables is exhuasted.");
+	BIND_METHOD(zip,__init__);
+	BIND_METHOD(zip,__iter__);
+	BIND_METHOD(zip,__call__);
+	krk_finalizeClass(zip);
+
 	ADD_BASE_CLASS(filter, "filter", object);
 	KRK_DOC(filter, "Return an iterator that returns only the items from an iterable for which the given function returns true.");
 	BIND_METHOD(filter,__init__);
@@ -1203,11 +1254,6 @@ void _createAndBind_builtins(void) {
 		"@brief Convert an integer value to a binary string.\n"
 		"@arguments i\n\n"
 		"Produces a string representation of @p i in binary, with a leading @p 0b.");
-	BUILTIN_FUNCTION("zip", FUNC_NAME(krk,zip),
-		"@brief Returns an iterator that produces tuples of the nth element of each passed iterable.\n"
-		"@arguments *iterables\n\n"
-		"Creates an iterator that returns a tuple of elements from each of @p iterables, until one "
-		"of @p iterables is exhuasted.");
 	BUILTIN_FUNCTION("next", FUNC_NAME(krk,next),
 		"@brief Compatibility function. Calls an iterable.\n"
 		"@arguments iterable");
