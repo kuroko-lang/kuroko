@@ -206,6 +206,25 @@ KRK_METHOD(tuple,__repr__,{
 	return finishStringBuilder(&sb);
 })
 
+KRK_METHOD(tuple,__add__,{
+	METHOD_TAKES_EXACTLY(1);
+	if (!IS_tuple(argv[1]))
+		return krk_runtimeError(vm.exceptions->typeError,
+			"can only concatenate tuple (not \"%s\") to tuple",
+			krk_typeName(argv[1]));
+
+	KrkTuple * other = AS_tuple(argv[1]);
+	KrkTuple * out = krk_newTuple(self->values.count + other->values.count);
+	krk_push(OBJECT_VAL(out));
+	for (size_t i = 0; i < self->values.count; ++i) {
+		out->values.values[out->values.count++] = self->values.values[i];
+	}
+	for (size_t i = 0; i < other->values.count; ++i) {
+		out->values.values[out->values.count++] = other->values.values[i];
+	}
+	return krk_pop();
+})
+
 /**
  * @brief Iterator over the values in a tuple.
  * @extends KrkInstance
@@ -281,6 +300,7 @@ void _createAndBind_tupleClass(void) {
 	BIND_METHOD(tuple,__le__);
 	BIND_METHOD(tuple,__ge__);
 	BIND_METHOD(tuple,__hash__);
+	BIND_METHOD(tuple,__add__);
 	krk_defineNative(&tuple->methods, "__init__", _tuple_init);
 	krk_defineNative(&tuple->methods, "__str__", FUNC_NAME(tuple,__repr__));
 	krk_finalizeClass(tuple);
