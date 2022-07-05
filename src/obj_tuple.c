@@ -9,18 +9,28 @@
 	if (index < 0) index += self->values.count; \
 	if (index < 0 || index >= (krk_integer_type)self->values.count) return krk_runtimeError(vm.exceptions->indexError, "tuple index out of range: " PRIkrk_int, index)
 
+#define unpackArray(counter, indexer) do { \
+			if (positionals->count + counter > positionals->capacity) { \
+				size_t old = positionals->capacity; \
+				positionals->capacity = (counter == 1) ? GROW_CAPACITY(old) : positionals->count + counter; \
+				positionals->values = GROW_ARRAY(KrkValue,positionals->values,old,positionals->capacity); \
+			} \
+			for (size_t i = 0; i < counter; ++i) { \
+				positionals->values[positionals->count] = indexer; \
+				positionals->count++; \
+				if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) goto _break_loop; \
+			} \
+		} while (0)
 static KrkValue _tuple_init(int argc, const KrkValue argv[], int hasKw) {
 	if (argc == 1) {
 		return OBJECT_VAL(krk_newTuple(0));
 	} else if (argc == 2) {
-		/* Convert this to a call to tupleOf(*arg) */
-		KrkValue tupleOf;
-		krk_tableGet(&vm.builtins->fields, OBJECT_VAL(S("tupleOf")), &tupleOf);
-		krk_push(tupleOf);
-		krk_push(KWARGS_VAL(KWARGS_LIST));
-		krk_push(argv[1]);
-		krk_push(KWARGS_VAL(1));
-		krk_push(krk_callStack(3));
+		/* Expand argument as an iterable. */
+		krk_push(OBJECT_VAL(krk_newTuple(0)));
+		KrkValueArray * positionals = &AS_TUPLE(krk_peek(0))->values;
+		KrkValue other = argv[1];
+		unpackIterableFast(other);
+_break_loop:
 		return krk_pop();
 	} else {
 		return krk_runtimeError(vm.exceptions->argumentError,
