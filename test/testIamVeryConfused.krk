@@ -11,5 +11,8 @@ print(l)
 let l = list(map(list,['test','test','test']))
 print(l)
 
+def tupleOf(*args):
+    return tuple(args)
+
 let l = list(map(tupleOf,['foo','bar'],['baz','bix'],['three','args'],['four','args']))
 print(l)
