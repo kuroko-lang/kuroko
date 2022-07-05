@@ -828,16 +828,6 @@ size_t krk_long_digits_in_base(KrkLong * num, int base) {
 }
 
 /**
- * @brief Get a small value as a uint32_t.
- *
- * Mostly just used for the string conversion...
- */
-static uint32_t krk_long_short(KrkLong * num) {
-	if (num->width == 0) return 0;
-	return num->digits[0];
-}
-
-/**
  * @brief Convert a long with up to 2 digits to a 64-bit value.
  */
 static int64_t krk_long_medium(KrkLong * num) {
@@ -972,16 +962,33 @@ static int krk_long_and(KrkLong * res, const KrkLong * a, const KrkLong * b) {
 }
 
 /**
+ * Small divisor in-place division specifically for printers.
+ */
+static uint32_t _div_inplace(KrkLong * a, uint32_t base) {
+	if (a->width == 0) {
+		return 0;
+	}
+	size_t awidth = a->width;
+	uint64_t remainder = 0;
+	for (size_t i = 0; i < awidth; ++i) {
+		size_t _i = awidth - i - 1;
+		remainder = (remainder << DIGIT_SHIFT) | a->digits[_i];
+		a->digits[_i] = (uint32_t)(remainder / base) & DIGIT_MAX;
+		remainder -= (uint64_t)(a->digits[_i]) * base;
+	}
+
+	krk_long_trim(a);
+	return remainder;
+}
+
+/**
  * @brief Convert a long to a string in a given base.
  */
 static char * krk_long_to_str(const KrkLong * n, int _base, const char * prefix, size_t *size) {
 	static const char vals[] = "0123456789abcdef";
-	KrkLong abs, mod, base;
+	KrkLong abs;
 
 	krk_long_init_si(&abs, 0);
-	krk_long_init_si(&mod, 0);
-	krk_long_init_si(&base, _base);
-
 	krk_long_abs(&abs, n);
 
 	int sign = krk_long_sign(n);   /* -? +? 0? */
@@ -994,8 +1001,8 @@ static char * krk_long_to_str(const KrkLong * n, int _base, const char * prefix,
 		*writer++ = '0';
 	} else {
 		while (krk_long_sign(&abs) > 0) {
-			krk_long_div_rem(&abs,&mod,&abs,&base);
-			*writer++ = vals[krk_long_short(&mod)];
+			uint32_t rem = _div_inplace(&abs,_base);
+			*writer++ = vals[rem];
 		}
 	}
 
@@ -1012,7 +1019,7 @@ static char * krk_long_to_str(const KrkLong * n, int _base, const char * prefix,
 
 	free(tmp);
 
-	krk_long_clear_many(&abs,&mod,&base,NULL);
+	krk_long_clear(&abs);
 	*size = strlen(rev);
 
 	return rev;
