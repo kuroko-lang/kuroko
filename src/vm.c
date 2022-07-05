@@ -2402,6 +2402,19 @@ extern FUNC_SIG(list,append);
 extern FUNC_SIG(dict,__setitem__);
 extern FUNC_SIG(set,add);
 
+static inline void makeCollection(NativeFn func, size_t count) {
+	KrkValue collection = krk_callNativeOnStack(count, &krk_currentThread.stackTop[-count], 0, func);
+	if (count) {
+		krk_currentThread.stackTop[-count] = collection;
+		while (count > 1) {
+			krk_pop();
+			count--;
+		}
+	} else {
+		krk_push(collection);
+	}
+}
+
 /**
  * VM main loop.
  */
@@ -3222,51 +3235,39 @@ _finishReturn: (void)0;
 				}
 				break;
 			}
-#define doMake(func) { \
-	size_t count = OPERAND; \
-	KrkValue collection = krk_callNativeOnStack(count, &krk_currentThread.stackTop[-count], 0, func); \
-	if (count) { \
-		krk_currentThread.stackTop[-count] = collection; \
-		while (count > 1) { \
-			krk_pop(); count--; \
-		} \
-	} else { \
-		krk_push(collection); \
-	} \
-}
 			case OP_TUPLE_LONG:
 				THREE_BYTE_OPERAND;
 			case OP_TUPLE: {
 				ONE_BYTE_OPERAND;
-				doMake(krk_tuple_of);
+				makeCollection(krk_tuple_of, OPERAND);
 				break;
 			}
 			case OP_MAKE_LIST_LONG:
 				THREE_BYTE_OPERAND;
 			case OP_MAKE_LIST: {
 				ONE_BYTE_OPERAND;
-				doMake(krk_list_of);
+				makeCollection(krk_list_of, OPERAND);
 				break;
 			}
 			case OP_MAKE_DICT_LONG:
 				THREE_BYTE_OPERAND;
 			case OP_MAKE_DICT: {
 				ONE_BYTE_OPERAND;
-				doMake(krk_dict_of);
+				makeCollection(krk_dict_of, OPERAND);
 				break;
 			}
 			case OP_MAKE_SET_LONG:
 				THREE_BYTE_OPERAND;
 			case OP_MAKE_SET: {
 				ONE_BYTE_OPERAND;
-				doMake(krk_set_of);
+				makeCollection(krk_set_of, OPERAND);
 				break;
 			}
 			case OP_SLICE_LONG:
 				THREE_BYTE_OPERAND;
 			case OP_SLICE: {
 				ONE_BYTE_OPERAND;
-				doMake(krk_slice_of);
+				makeCollection(krk_slice_of, OPERAND);
 				break;
 			}
 			case OP_LIST_APPEND_LONG:
