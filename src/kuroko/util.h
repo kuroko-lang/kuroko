@@ -219,13 +219,9 @@ static inline KrkValue discardStringBuilder(struct StringBuilder * sb) {
 
 extern KrkValue krk_dict_nth_key_fast(size_t capacity, KrkTableEntry * entries, size_t index);
 extern KrkValue FUNC_NAME(str,__getitem__)(int,const KrkValue*,int);
-extern KrkValue FUNC_NAME(str,__int__)(int,const KrkValue*,int);
-extern KrkValue FUNC_NAME(str,__float__)(int,const KrkValue*,int);
 extern KrkValue FUNC_NAME(str,split)(int,const KrkValue*,int);
 extern KrkValue FUNC_NAME(str,format)(int,const KrkValue*,int);
 #define krk_string_get FUNC_NAME(str,__getitem__)
-#define krk_string_int FUNC_NAME(str,__int__)
-#define krk_string_float FUNC_NAME(str,__float__)
 #define krk_string_split FUNC_NAME(str,split)
 #define krk_string_format FUNC_NAME(str,format)
 

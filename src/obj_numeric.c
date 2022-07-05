@@ -311,7 +311,6 @@ FUNC_SIG(float,__init__) {
 	static __attribute__ ((unused)) const char* _method_name = "__init__";
 	METHOD_TAKES_AT_MOST(1);
 	if (argc < 2) return FLOATING_VAL(0.0);
-	if (IS_STRING(argv[1])) return krk_string_float(1,&argv[1],0);
 	if (IS_FLOATING(argv[1])) return argv[1];
 	if (IS_INTEGER(argv[1])) return FLOATING_VAL(AS_INTEGER(argv[1]));
 	if (IS_BOOLEAN(argv[1])) return FLOATING_VAL(AS_BOOLEAN(argv[1]));
