@@ -609,6 +609,19 @@ static void multipleDefs(const KrkClosure * closure, int destination) {
 				"<unnamed>")));
 }
 
+static int _unpack_op(void * context, const KrkValue * values, size_t count) {
+	KrkTuple * output = context;
+	if (unlikely(output->values.count + count > output->values.capacity)) {
+		krk_runtimeError(vm.exceptions->valueError, "too many values to unpack (expected %zu)",
+			output->values.capacity);
+		return 1;
+	}
+	for (size_t i = 0; i < count; ++i) {
+		output->values.values[output->values.count++] = values[i];
+	}
+	return 0;
+}
+
 static int _unpack_args(void * context, const KrkValue * values, size_t count) {
 	KrkValueArray * positionals = context;
 	if (positionals->count + count > positionals->capacity) {
@@ -3295,66 +3308,27 @@ _finishReturn: (void)0;
 				ONE_BYTE_OPERAND;
 				size_t count = OPERAND;
 				KrkValue sequence = krk_peek(0);
-				/* First figure out what it is and if we can unpack it. */
-#define unpackArray(counter, indexer) do { \
-					if (counter != count) { \
-						krk_runtimeError(vm.exceptions->valueError, "Wrong number of values to unpack (wanted %d, got %d)", (int)count, (int)counter); \
-						break; \
-					} \
-					for (size_t i = 1; i < counter; ++i) { \
-						krk_push(indexer); \
-					} \
-					size_t i = 0; \
-					krk_currentThread.stackTop[-count] = indexer; \
-				} while (0)
-				if (IS_TUPLE(sequence)) {
-					unpackArray(AS_TUPLE(sequence)->values.count, AS_TUPLE(sequence)->values.values[i]);
-				} else if (IS_INSTANCE(sequence) && AS_INSTANCE(sequence)->_class == vm.baseClasses->listClass) {
-					unpackArray(AS_LIST(sequence)->count, AS_LIST(sequence)->values[i]);
-				} else if (IS_INSTANCE(sequence) && AS_INSTANCE(sequence)->_class == vm.baseClasses->dictClass) {
-					unpackArray(AS_DICT(sequence)->count, krk_dict_nth_key_fast(AS_DICT(sequence)->capacity, AS_DICT(sequence)->entries, i));
-				} else if (IS_STRING(sequence)) {
-					unpackArray(AS_STRING(sequence)->codesLength, krk_string_get(2,(KrkValue[]){sequence,INTEGER_VAL(i)},0));
-				} else {
-					KrkClass * type = krk_getType(sequence);
-					if (!type->_iter) {
-						krk_runtimeError(vm.exceptions->typeError, "'%s' object is not iterable", krk_typeName(sequence));
-						goto _finishException;
-					} else {
-						size_t stackStart = krk_currentThread.stackTop - krk_currentThread.stack - 1;
-						size_t counter = 0;
-						for (size_t i = 0; i < count-1; i++) {
-							krk_push(NONE_VAL());
-						}
-						/* Create the iterator */
-						krk_push(krk_currentThread.stack[stackStart]);
-						krk_push(krk_callDirect(type->_iter, 1));
-
-						do {
-							/* Call it until it gives us itself */
-							krk_push(krk_currentThread.stackTop[-1]);
-							krk_push(krk_callStack(0));
-							if (krk_valuesSame(krk_currentThread.stackTop[-2], krk_currentThread.stackTop[-1])) {
-								/* We're done. */
-								krk_pop(); /* The result of iteration */
-								krk_pop(); /* The iterator */
-								if (counter != count) {
-									krk_runtimeError(vm.exceptions->valueError, "Wrong number of values to unpack (wanted %d, got %d)", (int)count, (int)counter);
-									goto _finishException;
-								}
-								break;
-							}
-							if (counter == count) {
-								krk_runtimeError(vm.exceptions->valueError, "Wrong number of values to unpack (wanted %d, got %d)", (int)count, (int)counter);
-								goto _finishException;
-							}
-							/* Rotate */
-							krk_currentThread.stack[stackStart+counter] = krk_pop();
-							counter++;
-						} while (1);
-					}
+				KrkTuple * values = krk_newTuple(count);
+				krk_push(OBJECT_VAL(values));
+				if (unlikely(krk_unpackIterable(sequence, values, _unpack_op))) {
+					goto _finishException;
 				}
-#undef unpackArray
+				if (unlikely(values->values.count != count)) {
+					krk_runtimeError(vm.exceptions->valueError, "not enough values to unpack (expected %zu, got %zu)", count, values->values.count);
+					goto _finishException;
+				}
+				if (unlikely(count == 0)) {
+					krk_pop();
+					krk_pop();
+					break;
+				}
+				/* We no longer need the sequence */
+				krk_swap(1);
+				krk_pop();
+				for (size_t i = 1; i < values->values.count; ++i) {
+					krk_push(values->values.values[i]);
+				}
+				krk_currentThread.stackTop[-count] = values->values.values[0];
 				break;
 			}
 		}
