@@ -555,32 +555,24 @@ extern int krk_callValue(KrkValue callee, int argCount, int callableOnStack);
 /**
  * @brief Create a list object.
  * @memberof KrkList
- *
- * This is the native function bound to @c listOf
  */
 extern KrkValue krk_list_of(int argc, const KrkValue argv[], int hasKw);
 
 /**
  * @brief Create a dict object.
  * @memberof KrkDict
- *
- * This is the native function bound to @c dictOf
  */
 extern KrkValue krk_dict_of(int argc, const KrkValue argv[], int hasKw);
 
 /**
  * @brief Create a tuple object.
  * @memberof KrkTuple
- *
- * This is the native function bound to @c tupleOf
  */
 extern KrkValue krk_tuple_of(int argc, const KrkValue argv[], int hasKw);
 
 /**
  * @brief Create a set object.
  * @memberof Set
- *
- * This is the native function bound to @c setOf
  */
 extern KrkValue krk_set_of(int argc, const KrkValue argv[], int hasKw);
 

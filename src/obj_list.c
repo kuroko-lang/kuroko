@@ -25,8 +25,7 @@ static void _list_gcsweep(KrkInstance * self) {
 }
 
 /**
- * Exposed method called to produce lists from [expr,...] sequences in managed code.
- * Presented in the global namespace as listOf(...)
+ * Convenience constructor for the C API.
  */
 KrkValue krk_list_of(int argc, const KrkValue argv[], int hasKw) {
 	KrkValue outList = OBJECT_VAL(krk_newInstance(vm.baseClasses->listClass));
@@ -612,10 +611,6 @@ void _createAndBind_listClass(void) {
 	krk_finalizeClass(list);
 	KRK_DOC(list, "Mutable sequence of arbitrary values.");
 
-	BUILTIN_FUNCTION("listOf", krk_list_of,
-		"@brief Convert argument sequence to list object.\n"
-		"@arguments *args\n\n"
-		"Creates a list from the provided @p args.");
 	BUILTIN_FUNCTION("sorted", _sorted,
 		"@brief Return a sorted representation of an iterable.\n"
 		"@arguments iterable\n\n"

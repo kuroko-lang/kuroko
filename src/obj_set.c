@@ -310,8 +310,6 @@ void _createAndBind_setClass(void) {
 	krk_attachNamedValue(&set->methods, "__hash__", NONE_VAL());
 	krk_finalizeClass(set);
 
-	BUILTIN_FUNCTION("setOf", krk_set_of, "Convert argument sequence to set object.");
-
 	krk_makeClass(vm.builtins, &setiterator, "setiterator", vm.baseClasses->objectClass);
 	setiterator->allocSize = sizeof(struct SetIterator);
 	setiterator->_ongcscan = _setiterator_gcscan;
