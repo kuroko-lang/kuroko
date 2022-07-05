@@ -1595,8 +1595,18 @@ const char * krk_typeName(KrkValue value) {
 	return krk_getType(value)->name->chars;
 }
 
+#if !defined(__has_attribute)
+# define __has_attribute(attr) 0
+#endif
+
+#if __has_attribute(protected)
+# define _protected __attribute__((protected))
+#else
+# define _protected
+#endif
+
 #define MAKE_COMPARE_OP(name,operator,inv) \
-	KrkValue krk_operator_ ## name (KrkValue a, KrkValue b) { \
+	_protected KrkValue krk_operator_ ## name (KrkValue a, KrkValue b) { \
 		KrkClass * atype = krk_getType(a); \
 		if (likely(atype->_ ## name != NULL)) { \
 			krk_push(a); krk_push(b); \
@@ -1617,7 +1627,7 @@ const char * krk_typeName(KrkValue value) {
 	}
 #define MAKE_BIN_OP(name,operator,inv) \
 	MAKE_COMPARE_OP(name,operator,inv) \
-	KrkValue krk_operator_i ## name (KrkValue a, KrkValue b) { \
+	_protected KrkValue krk_operator_i ## name (KrkValue a, KrkValue b) { \
 		KrkClass * atype = krk_getType(a); \
 		if (likely(atype->_i ## name != NULL)) { \
 			krk_push(a); krk_push(b); \
@@ -1645,6 +1655,38 @@ MAKE_COMPARE_OP(lt, "<", gt)
 MAKE_COMPARE_OP(gt, ">", lt)
 MAKE_COMPARE_OP(le, "<=", ge)
 MAKE_COMPARE_OP(ge, ">=", le)
+
+_protected
+KrkValue krk_operator_eq(KrkValue a, KrkValue b) {
+	return BOOLEAN_VAL(krk_valuesEqual(a,b));
+}
+
+_protected
+KrkValue krk_operator_is(KrkValue a, KrkValue b) {
+	return BOOLEAN_VAL(krk_valuesSame(a,b));
+}
+
+_protected
+KrkValue krk_operator_invert(KrkValue value) {
+	KrkClass * type = krk_getType(value);
+	if (likely(type->_invert != NULL)) {
+		krk_push(value);
+		return krk_callDirect(type->_invert, 1);
+	}
+	if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) return NONE_VAL();
+	return krk_runtimeError(vm.exceptions->typeError, "bad operand type for unary %c: '%s'", '~', krk_typeName(value));
+}
+
+_protected
+KrkValue krk_operator_neg(KrkValue value) {
+	KrkClass * type = krk_getType(value);
+	if (likely(type->_negate != NULL)) {
+		krk_push(value);
+		return krk_callDirect(type->_negate, 1);
+	}
+	if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) return NONE_VAL();
+	return krk_runtimeError(vm.exceptions->typeError, "bad operand type for unary %c: '%s'", '-', krk_typeName(value));
+}
 
 /**
  * At the end of each instruction cycle, we check the exception flag to see
@@ -2394,6 +2436,11 @@ extern KrkValue krk_int_op_sub(krk_integer_type a, krk_integer_type b);
 	else a = krk_operator_ ## op (a,b); \
 	krk_currentThread.stackTop[-2] = a; krk_pop(); break; }
 
+#define LIKELY_INT_UNARY_OP(op,operator) { KrkValue a = krk_peek(0); \
+	if (likely(IS_INTEGER(a))) a = INTEGER_VAL(operator AS_INTEGER(a)); \
+	else a = krk_operator_ ## op (a); \
+	krk_currentThread.stackTop[-1] = a; break; }
+
 #define READ_BYTE() (*frame->ip++)
 #define READ_CONSTANT(s) (frame->closure->function->chunk.constants.values[OPERAND])
 #define READ_STRING(s) AS_STRING(READ_CONSTANT(s))
@@ -2528,18 +2575,6 @@ _finishReturn: (void)0;
 				frame = &krk_currentThread.frames[krk_currentThread.frameCount - 1];
 				break;
 			}
-			case OP_EQUAL: {
-				KrkValue b = krk_pop();
-				KrkValue a = krk_pop();
-				krk_push(BOOLEAN_VAL(krk_valuesEqual(a,b)));
-				break;
-			}
-			case OP_IS: {
-				KrkValue b = krk_pop();
-				KrkValue a = krk_pop();
-				krk_push(BOOLEAN_VAL(krk_valuesSame(a,b)));
-				break;
-			}
 			case OP_LESS:          LIKELY_INT_COMPARE_OP(lt,<)
 			case OP_GREATER:       LIKELY_INT_COMPARE_OP(gt,>)
 			case OP_LESS_EQUAL:    LIKELY_INT_COMPARE_OP(le,<=)
@@ -2556,43 +2591,15 @@ _finishReturn: (void)0;
 			case OP_SHIFTLEFT:     BINARY_OP(lshift)
 			case OP_SHIFTRIGHT:    BINARY_OP(rshift)
 			case OP_POW:           BINARY_OP(pow)
-			case OP_BITNEGATE: {
-				KrkValue value = krk_peek(0);
-				if (IS_INTEGER(value)) {
-					krk_currentThread.stackTop[-1] = INTEGER_VAL(~AS_INTEGER(value));
-				} else {
-					KrkClass * type = krk_getType(krk_peek(0));
-					if (likely(type->_invert != NULL)) {
-						krk_push(krk_callDirect(type->_invert, 1));
-					} else {
-						krk_runtimeError(vm.exceptions->typeError, "Incompatible operand type for %s negation.", "bit");
-						goto _finishException;
-					}
-				}
-				break;
-			}
-			case OP_NEGATE: {
-				KrkValue value = krk_peek(0);
-				if (IS_INTEGER(value)) {
-					krk_currentThread.stackTop[-1] = INTEGER_VAL(-AS_INTEGER(value));
-				} else if (IS_FLOATING(value)) {
-					krk_currentThread.stackTop[-1] = FLOATING_VAL(-AS_FLOATING(value));
-				} else {
-					KrkClass * type = krk_getType(krk_peek(0));
-					if (likely(type->_negate != NULL)) {
-						krk_push(krk_callDirect(type->_negate, 1));
-					} else {
-						krk_runtimeError(vm.exceptions->typeError, "Incompatible operand type for %s negation.", "prefix");
-						goto _finishException;
-					}
-				}
-				break;
-			}
+			case OP_EQUAL:         BINARY_OP(eq);
+			case OP_IS:            BINARY_OP(is);
+			case OP_BITNEGATE:     LIKELY_INT_UNARY_OP(invert,~)
+			case OP_NEGATE:        LIKELY_INT_UNARY_OP(neg,-)
 			case OP_NONE:  krk_push(NONE_VAL()); break;
 			case OP_TRUE:  krk_push(BOOLEAN_VAL(1)); break;
 			case OP_FALSE: krk_push(BOOLEAN_VAL(0)); break;
 			case OP_UNSET: krk_push(KWARGS_VAL(0)); break;
-			case OP_NOT:   krk_push(BOOLEAN_VAL(krk_isFalsey(krk_pop()))); break;
+			case OP_NOT:   krk_currentThread.stackTop[-1] = BOOLEAN_VAL(krk_isFalsey(krk_peek(0))); break;
 			case OP_POP:   krk_pop(); break;
 
 			case OP_INPLACE_ADD:        INPLACE_BINARY_OP(add)
