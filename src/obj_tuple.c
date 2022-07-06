@@ -134,9 +134,8 @@ KRK_Method(tuple,__eq__) {
 			KrkValue a = self->values.values[i]; \
 			KrkValue b = them->values.values[i]; \
 			if (krk_valuesSameOrEqual(a,b)) continue; \
-			KrkValue cmComp = krk_operator_ ## name(a,b); \
-			if (IS_BOOLEAN(cmComp) && AS_BOOLEAN(cmComp)) return BOOLEAN_VAL(1); \
-			return BOOLEAN_VAL(0); \
+			if (unlikely(krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION)) return NONE_VAL(); \
+			return krk_operator_ ## name(a,b); \
 		} \
 		return BOOLEAN_VAL((self->values.count op them->values.count)); \
 	}
