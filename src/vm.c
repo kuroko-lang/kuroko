@@ -544,6 +544,50 @@ void krk_finalizeClass(KrkClass * _class) {
 }
 
 /**
+ * This should really be the default behavior of type.__new__?
+ */
+static void _callSetName(KrkClass * _class) {
+	KrkValue setnames = krk_list_of(0,NULL,0);
+	krk_push(setnames);
+	extern FUNC_SIG(list,append);
+
+	/* The semantics of this require that we first collect all of the relevant items... */
+	for (size_t i = 0; i < _class->methods.capacity; ++i) {
+		KrkTableEntry * entry = &_class->methods.entries[i];
+		if (!IS_KWARGS(entry->key)) {
+			KrkClass * type = krk_getType(entry->value);
+			if (type->_set_name) {
+				FUNC_NAME(list,append)(2,(KrkValue[]){setnames,entry->key},0);
+				FUNC_NAME(list,append)(2,(KrkValue[]){setnames,entry->value},0);
+			}
+		}
+	}
+
+	/* Then call __set_name__ on them */
+	for (size_t i = 0; i < AS_LIST(setnames)->count; i += 2) {
+		KrkValue name = AS_LIST(setnames)->values[i];
+		KrkValue value = AS_LIST(setnames)->values[i+1];
+		KrkClass * type = krk_getType(value);
+		if (type->_set_name) {
+			krk_push(value);
+			krk_push(OBJECT_VAL(_class));
+			krk_push(name);
+			krk_callDirect(type->_set_name, 3);
+
+			/* If any of these raises an exception, bail; CPython raises
+			 * an outer exception, setting the cause, but I'm being lazy
+			 * at the moment... */
+			if (unlikely(krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION)) {
+				break;
+			}
+		}
+	}
+
+	/* List used to store name+value pairs */
+	krk_pop();
+}
+
+/**
  * Maps values to their base classes.
  * Internal version of type().
  */
@@ -2692,6 +2736,8 @@ _finishReturn: (void)0;
 				KrkClass * _class = AS_CLASS(krk_peek(0));
 				/* Store special methods for quick access */
 				krk_finalizeClass(_class);
+				/* Call __set_name__? */
+				_callSetName(_class);
 				break;
 			}
 			case OP_INHERIT: {
