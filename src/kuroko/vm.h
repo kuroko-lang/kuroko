@@ -792,6 +792,20 @@ extern KrkValue krk_operator_lt(KrkValue,KrkValue);
 extern KrkValue krk_operator_gt(KrkValue,KrkValue);
 
 /**
+ * @brief Compare two values, returning @ref True if the left is less than or equal to the right.
+ *
+ * This is equivalent to the opcode instruction OP_LESS_EQUAL.
+ */
+extern KrkValue krk_operator_le(KrkValue,KrkValue);
+
+/**
+ * @brief Compare to values, returning @ref True if the left is greater than or equal to the right.
+ *
+ * This is equivalent to the opcode instruction OP_GREATER_EQUAL.
+ */
+extern KrkValue krk_operator_ge(KrkValue,KrkValue);
+
+/**
  * @brief Set the maximum recursion call depth.
  */
 extern void krk_setMaximumRecursionDepth(size_t maxDepth);

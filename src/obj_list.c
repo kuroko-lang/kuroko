@@ -475,6 +475,28 @@ KRK_Method(list,__iter__) {
 	return OBJECT_VAL(output);
 }
 
+#define MAKE_LIST_COMPARE(name,op) \
+	KRK_Method(list,__ ## name ## __) { \
+		METHOD_TAKES_EXACTLY(1); \
+		if (!IS_list(argv[1])) return NOTIMPL_VAL(); \
+		KrkList * them = AS_list(argv[1]); \
+		size_t lesser = self->values.count < them->values.count ? self->values.count : them->values.count; \
+		for (size_t i = 0; i < lesser; ++i) { \
+			KrkValue a = self->values.values[i]; \
+			KrkValue b = them->values.values[i]; \
+			if (krk_valuesSameOrEqual(a,b)) continue; \
+			KrkValue cmComp = krk_operator_ ## name(a,b); \
+			if (IS_BOOLEAN(cmComp) && AS_BOOLEAN(cmComp)) return BOOLEAN_VAL(1); \
+			return BOOLEAN_VAL(0); \
+		} \
+		return BOOLEAN_VAL((self->values.count op them->values.count)); \
+	}
+
+MAKE_LIST_COMPARE(gt,>)
+MAKE_LIST_COMPARE(lt,<)
+MAKE_LIST_COMPARE(ge,>=)
+MAKE_LIST_COMPARE(le,<=)
+
 #undef CURRENT_CTYPE
 
 struct ListIterator {
@@ -564,6 +586,10 @@ void _createAndBind_listClass(void) {
 	BIND_METHOD(list,__iter__);
 	BIND_METHOD(list,__mul__);
 	BIND_METHOD(list,__add__);
+	BIND_METHOD(list,__lt__);
+	BIND_METHOD(list,__gt__);
+	BIND_METHOD(list,__le__);
+	BIND_METHOD(list,__ge__);
 	KRK_DOC(BIND_METHOD(list,append),
 		"@brief Add an item to the end of the list.\n"
 		"@arguments item\n\n"

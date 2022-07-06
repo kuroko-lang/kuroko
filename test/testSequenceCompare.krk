@@ -1,0 +1,36 @@
+class Foo():
+    def __init__(self, v):
+        self.v = v
+    def __lt__(self, o):
+        print(self.v,'<',o.v)
+        return self.v < o.v
+    def __le__(self, o):
+        print(self.v,'<=',o.v)
+        return self.v <= o.v
+    def __gt__(self, o):
+        print(self.v,'>',o.v)
+        return self.v > o.v
+    def __ge__(self, o):
+        print(self.v,'>=',o.v)
+        return self.v >= o.v
+    def __eq__(self, o):
+        print(self.v,'==',o.v)
+        return self.v == o.v
+
+import math
+def foo(a=Foo(math.nan)):
+    print(a is a)
+    print(a.v is a.v)
+    print(a.v == a.v)
+
+    print((a,Foo(2),Foo(3)) < (a,Foo(5),Foo(6)))
+    print((a,Foo(2),Foo(3)) > (a,Foo(2),Foo(3.0)))
+    print((a,Foo(2),Foo(3)) <= (a,Foo(5),Foo(6)))
+    print((a,Foo(2),Foo(3)) >= (a,Foo(2),Foo(3.0)))
+
+    print([a,Foo(2),Foo(3)] < [a,Foo(5),Foo(6)])
+    print([a,Foo(2),Foo(3)] > [a,Foo(2),Foo(3.0)])
+    print([a,Foo(2),Foo(3)] <= [a,Foo(5),Foo(6)])
+    print([a,Foo(2),Foo(3)] >= [a,Foo(2),Foo(3.0)])
+
+foo()

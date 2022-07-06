@@ -124,71 +124,27 @@ KRK_Method(tuple,__eq__) {
 	return BOOLEAN_VAL(1);
 }
 
-KRK_Method(tuple,__lt__) {
-	METHOD_TAKES_EXACTLY(1);
-	if (!IS_tuple(argv[1])) return NOTIMPL_VAL();
-	KrkTuple * them = AS_tuple(argv[1]);
-	size_t lesser = self->values.count < them->values.count ? self->values.count : them->values.count;
-	for (size_t i = 0; i < lesser; ++i) {
-		KrkValue a = self->values.values[i];
-		KrkValue b = them->values.values[i];
-		KrkValue ltComp = krk_operator_lt(a,b);
-		if (IS_BOOLEAN(ltComp) && AS_BOOLEAN(ltComp)) return BOOLEAN_VAL(1);
-		KrkValue gtComp = krk_operator_gt(a,b);
-		if (IS_BOOLEAN(gtComp) && AS_BOOLEAN(gtComp)) return BOOLEAN_VAL(0);
-		/* continue on == */
+#define MAKE_TUPLE_COMPARE(name,op) \
+	KRK_Method(tuple,__ ## name ## __) { \
+		METHOD_TAKES_EXACTLY(1); \
+		if (!IS_tuple(argv[1])) return NOTIMPL_VAL(); \
+		KrkTuple * them = AS_tuple(argv[1]); \
+		size_t lesser = self->values.count < them->values.count ? self->values.count : them->values.count; \
+		for (size_t i = 0; i < lesser; ++i) { \
+			KrkValue a = self->values.values[i]; \
+			KrkValue b = them->values.values[i]; \
+			if (krk_valuesSameOrEqual(a,b)) continue; \
+			KrkValue cmComp = krk_operator_ ## name(a,b); \
+			if (IS_BOOLEAN(cmComp) && AS_BOOLEAN(cmComp)) return BOOLEAN_VAL(1); \
+			return BOOLEAN_VAL(0); \
+		} \
+		return BOOLEAN_VAL((self->values.count op them->values.count)); \
 	}
-	return BOOLEAN_VAL((self->values.count < them->values.count));
-}
 
-KRK_Method(tuple,__gt__) {
-	METHOD_TAKES_EXACTLY(1);
-	if (!IS_tuple(argv[1])) return NOTIMPL_VAL();
-	KrkTuple * them = AS_tuple(argv[1]);
-	size_t lesser = self->values.count < them->values.count ? self->values.count : them->values.count;
-	for (size_t i = 0; i < lesser; ++i) {
-		KrkValue a = self->values.values[i];
-		KrkValue b = them->values.values[i];
-		KrkValue gtComp = krk_operator_gt(a,b);
-		if (IS_BOOLEAN(gtComp) && AS_BOOLEAN(gtComp)) return BOOLEAN_VAL(1);
-		KrkValue ltComp = krk_operator_lt(a,b);
-		if (IS_BOOLEAN(ltComp) && AS_BOOLEAN(ltComp)) return BOOLEAN_VAL(0);
-	}
-	return BOOLEAN_VAL((self->values.count > them->values.count));
-}
-
-KRK_Method(tuple,__le__) {
-	METHOD_TAKES_EXACTLY(1);
-	if (!IS_tuple(argv[1])) return NOTIMPL_VAL();
-	KrkTuple * them = AS_tuple(argv[1]);
-	size_t lesser = self->values.count < them->values.count ? self->values.count : them->values.count;
-	for (size_t i = 0; i < lesser; ++i) {
-		KrkValue a = self->values.values[i];
-		KrkValue b = them->values.values[i];
-		KrkValue ltComp = krk_operator_lt(a,b);
-		if (IS_BOOLEAN(ltComp) && AS_BOOLEAN(ltComp)) return BOOLEAN_VAL(1);
-		KrkValue gtComp = krk_operator_gt(a,b);
-		if (IS_BOOLEAN(gtComp) && AS_BOOLEAN(gtComp)) return BOOLEAN_VAL(0);
-		/* continue on == */
-	}
-	return BOOLEAN_VAL((self->values.count <= them->values.count));
-}
-
-KRK_Method(tuple,__ge__) {
-	METHOD_TAKES_EXACTLY(1);
-	if (!IS_tuple(argv[1])) return NOTIMPL_VAL();
-	KrkTuple * them = AS_tuple(argv[1]);
-	size_t lesser = self->values.count < them->values.count ? self->values.count : them->values.count;
-	for (size_t i = 0; i < lesser; ++i) {
-		KrkValue a = self->values.values[i];
-		KrkValue b = them->values.values[i];
-		KrkValue gtComp = krk_operator_gt(a,b);
-		if (IS_BOOLEAN(gtComp) && AS_BOOLEAN(gtComp)) return BOOLEAN_VAL(1);
-		KrkValue ltComp = krk_operator_lt(a,b);
-		if (IS_BOOLEAN(ltComp) && AS_BOOLEAN(ltComp)) return BOOLEAN_VAL(0);
-	}
-	return BOOLEAN_VAL((self->values.count >= them->values.count));
-}
+MAKE_TUPLE_COMPARE(gt,>)
+MAKE_TUPLE_COMPARE(lt,<)
+MAKE_TUPLE_COMPARE(ge,>=)
+MAKE_TUPLE_COMPARE(le,<=)
 
 KRK_Method(tuple,__repr__) {
 	if (((KrkObj*)self)->flags & KRK_OBJ_FLAGS_IN_REPR) return OBJECT_VAL(S("(...)"));
