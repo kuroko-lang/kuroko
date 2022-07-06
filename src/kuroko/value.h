@@ -180,6 +180,16 @@ extern int krk_valuesEqual(KrkValue a, KrkValue b);
  */
 extern int krk_valuesSame(KrkValue a, KrkValue b);
 
+/**
+ * @brief Compare two values by identity, then by equality.
+ * @memberof KrkValue
+ *
+ * More efficient than just @c krk_valuesSame followed by @c krk_valuesEqual
+ *
+ * @return 1 if values represent the same object or value, 0 otherwise.
+ */
+extern int krk_valuesSameOrEqual(KrkValue a, KrkValue b);
+
 extern KrkValue krk_parse_int(const char * start, size_t width, unsigned int base);
 
 typedef union {

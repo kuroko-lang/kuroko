@@ -148,6 +148,18 @@ int krk_valuesSame(KrkValue a, KrkValue b) {
 	return krk_valuesEqual(a,b) || (!krk_valuesEqual(a,a) && !krk_valuesEqual(b,b));
 }
 
+int krk_valuesSameOrEqual(KrkValue a, KrkValue b) {
+	/* We want to do this more efficiently than just calling one then the other. */
+	if (KRK_VAL_TYPE(a) == KRK_VAL_TYPE(b)) {
+		if (IS_OBJECT(a)) {
+			if (a == b) return 1;
+			return krk_valuesEqual(a,b);
+		}
+		return krk_valuesEqual(a,b) || (!krk_valuesEqual(a,a) && !krk_valuesEqual(b,b));
+	}
+	return krk_valuesEqual(a,b);
+}
+
 __attribute__((hot))
 inline
 int krk_valuesEqual(KrkValue a, KrkValue b) {

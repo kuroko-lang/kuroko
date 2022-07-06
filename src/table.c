@@ -75,7 +75,7 @@ KrkTableEntry * krk_findEntry(KrkTableEntry * entries, size_t capacity, KrkValue
 				if (tombstone == entry) return tombstone;
 				if (tombstone == NULL) tombstone = entry;
 			}
-		} else if (krk_valuesEqual(entry->key, key)) {
+		} else if (krk_valuesSameOrEqual(entry->key, key)) {
 			return entry;
 		}
 		index = (index + 1) & (capacity-1);
