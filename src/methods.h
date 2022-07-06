@@ -35,6 +35,7 @@ BINOPTRIO(lshift)
 BINOPTRIO(rshift)
 BINOPTRIO(floordiv)
 BINOPTRIO(truediv)
+BINOPTRIO(matmul)
 
 CACHED_METHOD(LT, "__lt__", _lt)
 CACHED_METHOD(GT, "__gt__", _gt)

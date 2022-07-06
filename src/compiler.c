@@ -808,6 +808,7 @@ static void binary(int exprType, RewindState *rewind) {
 		case TOKEN_DOUBLE_SOLIDUS: emitByte(OP_FLOORDIV); break;
 		case TOKEN_MODULO:   emitByte(OP_MODULO); break;
 		case TOKEN_IN:       emitByte(OP_EQUAL); break;
+		case TOKEN_AT:       emitByte(OP_MATMUL); break;
 		default: return;
 	}
 }
@@ -868,6 +869,7 @@ static void assignmentValue(void) {
 		case TOKEN_SOLIDUS_EQUAL:   emitByte(OP_INPLACE_DIVIDE); break;
 		case TOKEN_DSOLIDUS_EQUAL:  emitByte(OP_INPLACE_FLOORDIV); break;
 		case TOKEN_MODULO_EQUAL:    emitByte(OP_INPLACE_MODULO); break;
+		case TOKEN_AT_EQUAL:        emitByte(OP_INPLACE_MATMUL); break;
 
 		default:
 			error("Unexpected operand in assignment");
@@ -3646,7 +3648,6 @@ ParseRule krk_parseRules[] = {
 	RULE(TOKEN_SEMICOLON,     NULL,     NULL,     PREC_NONE),
 	RULE(TOKEN_EQUAL,         NULL,     NULL,     PREC_NONE),
 	RULE(TOKEN_WALRUS,        NULL,     NULL,     PREC_NONE),
-	RULE(TOKEN_AT,            NULL,     NULL,     PREC_NONE),
 	RULE(TOKEN_PLUS_EQUAL,    NULL,     NULL,     PREC_NONE),
 	RULE(TOKEN_MINUS_EQUAL,   NULL,     NULL,     PREC_NONE),
 	RULE(TOKEN_PLUS_PLUS,     NULL,     NULL,     PREC_NONE),
@@ -3660,6 +3661,7 @@ ParseRule krk_parseRules[] = {
 	RULE(TOKEN_DSOLIDUS_EQUAL,NULL,     NULL,     PREC_NONE),
 	RULE(TOKEN_ASTERISK_EQUAL,NULL,     NULL,     PREC_NONE),
 	RULE(TOKEN_MODULO_EQUAL,  NULL,     NULL,     PREC_NONE),
+	RULE(TOKEN_AT_EQUAL,      NULL,     NULL,     PREC_NONE),
 	RULE(TOKEN_ARROW,         NULL,     NULL,     PREC_NONE),
 	RULE(TOKEN_MINUS,         unary,    binary,   PREC_SUM),
 	RULE(TOKEN_PLUS,          unary,    binary,   PREC_SUM),
@@ -3669,6 +3671,7 @@ ParseRule krk_parseRules[] = {
 	RULE(TOKEN_DOUBLE_SOLIDUS,NULL,     binary,   PREC_TERM),
 	RULE(TOKEN_ASTERISK,      NULL,     binary,   PREC_TERM),
 	RULE(TOKEN_MODULO,        NULL,     binary,   PREC_TERM),
+	RULE(TOKEN_AT,            NULL,     binary,   PREC_TERM),
 	RULE(TOKEN_POW,           NULL,     binary,   PREC_EXPONENT),
 	RULE(TOKEN_PIPE,          NULL,     binary,   PREC_BITOR),
 	RULE(TOKEN_CARET,         NULL,     binary,   PREC_BITXOR),

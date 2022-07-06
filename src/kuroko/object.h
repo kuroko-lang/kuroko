@@ -235,6 +235,7 @@ typedef struct KrkClass {
 	KrkObj * _lt, * _gt, * _le, * _ge;
 	KrkObj * _invert, * _negate;
 	KrkObj * _set_name;
+	KrkObj * _matmul, * _rmatmul, * _imatmul;
 } KrkClass;
 
 /**

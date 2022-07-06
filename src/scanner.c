@@ -349,7 +349,6 @@ KrkToken krk_scanToken() {
 		case ',': return makeToken(TOKEN_COMMA);
 		case '.': return makeToken(TOKEN_DOT);
 		case ';': return makeToken(TOKEN_SEMICOLON);
-		case '@': return makeToken(TOKEN_AT);
 		case '~': return makeToken(TOKEN_TILDE);
 
 		case ':': return makeToken(match('=') ? TOKEN_WALRUS        : TOKEN_COLON);
@@ -365,6 +364,7 @@ KrkToken krk_scanToken() {
 		case '/': return makeToken(match('=') ? TOKEN_SOLIDUS_EQUAL : (match('/') ? (match('=') ? TOKEN_DSOLIDUS_EQUAL : TOKEN_DOUBLE_SOLIDUS) : TOKEN_SOLIDUS));
 		case '*': return makeToken(match('=') ? TOKEN_ASTERISK_EQUAL: (match('*') ? (match('=') ? TOKEN_POW_EQUAL : TOKEN_POW) : TOKEN_ASTERISK));
 		case '%': return makeToken(match('=') ? TOKEN_MODULO_EQUAL  : TOKEN_MODULO);
+		case '@': return makeToken(match('=') ? TOKEN_AT_EQUAL      : TOKEN_AT);
 
 		case '"': return string('"');
 		case '\'': return string('\'');

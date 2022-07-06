@@ -1695,6 +1695,7 @@ MAKE_BIN_OP(rshift,">>",rrshift)
 MAKE_BIN_OP(mod,"%",rmod)
 MAKE_BIN_OP(truediv,"/",rtruediv)
 MAKE_BIN_OP(floordiv,"//",rfloordiv)
+MAKE_BIN_OP(matmul,"@",rmatmul)
 
 MAKE_COMPARE_OP(lt, "<", gt)
 MAKE_COMPARE_OP(gt, ">", lt)
@@ -2636,6 +2637,7 @@ _finishReturn: (void)0;
 			case OP_SHIFTLEFT:     BINARY_OP(lshift)
 			case OP_SHIFTRIGHT:    BINARY_OP(rshift)
 			case OP_POW:           BINARY_OP(pow)
+			case OP_MATMUL:        BINARY_OP(matmul)
 			case OP_EQUAL:         BINARY_OP(eq);
 			case OP_IS:            BINARY_OP(is);
 			case OP_BITNEGATE:     LIKELY_INT_UNARY_OP(invert,~)
@@ -2659,6 +2661,7 @@ _finishReturn: (void)0;
 			case OP_INPLACE_SHIFTLEFT:  INPLACE_BINARY_OP(lshift)
 			case OP_INPLACE_SHIFTRIGHT: INPLACE_BINARY_OP(rshift)
 			case OP_INPLACE_POW:        INPLACE_BINARY_OP(pow)
+			case OP_INPLACE_MATMUL:     INPLACE_BINARY_OP(matmul)
 
 			case OP_RAISE: {
 				raiseException(krk_peek(0), NONE_VAL());

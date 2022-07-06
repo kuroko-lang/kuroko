@@ -71,6 +71,7 @@ typedef enum {
 	OP_FLOORDIV,
 	OP_UNSET,
 	OP_RAISE_FROM,
+	OP_MATMUL,
 
 	OP_INPLACE_ADD,
 	OP_INPLACE_BITAND,
@@ -84,6 +85,7 @@ typedef enum {
 	OP_INPLACE_FLOORDIV,
 	OP_INPLACE_MODULO,
 	OP_INPLACE_MULTIPLY,
+	OP_INPLACE_MATMUL,
 
 	/* One-opcode instructions */
 	OP_CALL,
