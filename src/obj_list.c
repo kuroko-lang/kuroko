@@ -101,7 +101,7 @@ KRK_Method(list,__eq__) {
 	KrkList * them = AS_list(argv[1]);
 	if (self->values.count != them->values.count) return BOOLEAN_VAL(0);
 	for (size_t i = 0; i < self->values.count; ++i) {
-		if (!krk_valuesEqual(self->values.values[i], them->values.values[i])) return BOOLEAN_VAL(0);
+		if (!krk_valuesSameOrEqual(self->values.values[i], them->values.values[i])) return BOOLEAN_VAL(0);
 	}
 	return BOOLEAN_VAL(1);
 }
@@ -222,7 +222,7 @@ KRK_Method(list,__contains__) {
 	METHOD_TAKES_EXACTLY(1);
 	pthread_rwlock_rdlock(&self->rwlock);
 	for (size_t i = 0; i < self->values.count; ++i) {
-		if (krk_valuesEqual(argv[1], self->values.values[i])) {
+		if (krk_valuesSameOrEqual(argv[1], self->values.values[i])) {
 			pthread_rwlock_unlock(&self->rwlock);
 			return BOOLEAN_VAL(1);
 		}
@@ -333,7 +333,7 @@ KRK_Method(list,remove) {
 	METHOD_TAKES_EXACTLY(1);
 	pthread_rwlock_wrlock(&self->rwlock);
 	for (size_t i = 0; i < self->values.count; ++i) {
-		if (krk_valuesEqual(self->values.values[i], argv[1])) {
+		if (krk_valuesSameOrEqual(self->values.values[i], argv[1])) {
 			pthread_rwlock_unlock(&self->rwlock);
 			return FUNC_NAME(list,pop)(2,(KrkValue[]){argv[0], INTEGER_VAL(i)},0);
 		}
@@ -380,7 +380,7 @@ KRK_Method(list,index) {
 	LIST_WRAP_SOFT(max);
 
 	for (krk_integer_type i = min; i < max; ++i) {
-		if (krk_valuesEqual(self->values.values[i], argv[1])) {
+		if (krk_valuesSameOrEqual(self->values.values[i], argv[1])) {
 			pthread_rwlock_unlock(&self->rwlock);
 			return INTEGER_VAL(i);
 		}
@@ -400,7 +400,7 @@ KRK_Method(list,count) {
 
 	pthread_rwlock_rdlock(&self->rwlock);
 	for (size_t i = 0; i < self->values.count; ++i) {
-		if (krk_valuesEqual(self->values.values[i], argv[1])) count++;
+		if (krk_valuesSameOrEqual(self->values.values[i], argv[1])) count++;
 		if (unlikely(krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION)) break;
 	}
 	pthread_rwlock_unlock(&self->rwlock);

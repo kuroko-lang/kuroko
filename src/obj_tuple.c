@@ -62,7 +62,7 @@ KrkValue krk_tuple_of(int argc, const KrkValue argv[], int hasKw) {
 KRK_Method(tuple,__contains__) {
 	METHOD_TAKES_EXACTLY(1);
 	for (size_t i = 0; i < self->values.count; ++i) {
-		if (krk_valuesEqual(self->values.values[i], argv[1])) return BOOLEAN_VAL(1);
+		if (krk_valuesSameOrEqual(self->values.values[i], argv[1])) return BOOLEAN_VAL(1);
 	}
 	return BOOLEAN_VAL(0);
 }
@@ -119,7 +119,7 @@ KRK_Method(tuple,__eq__) {
 	KrkTuple * them = AS_tuple(argv[1]);
 	if (self->values.count != them->values.count) return BOOLEAN_VAL(0);
 	for (size_t i = 0; i < self->values.count; ++i) {
-		if (!krk_valuesEqual(self->values.values[i], them->values.values[i])) return BOOLEAN_VAL(0);
+		if (!krk_valuesSameOrEqual(self->values.values[i], them->values.values[i])) return BOOLEAN_VAL(0);
 	}
 	return BOOLEAN_VAL(1);
 }
