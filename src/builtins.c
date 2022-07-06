@@ -111,7 +111,8 @@ KRK_Method(object,__hash__) {
 
 KRK_Method(object,__eq__) {
 	METHOD_TAKES_EXACTLY(1);
-	return BOOLEAN_VAL(argc == 2 && IS_OBJECT(argv[0]) && IS_OBJECT(argv[1]) && AS_OBJECT(argv[0]) == AS_OBJECT(argv[1]));
+	if (argv[0] == argv[1]) return BOOLEAN_VAL(1);
+	return NOTIMPL_VAL();
 }
 
 /**

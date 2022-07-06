@@ -139,48 +139,14 @@ void krk_printValueSafe(FILE * f, KrkValue printable) {
 	}
 }
 
+/**
+ * Identity really should be the simple...
+ */
 int krk_valuesSame(KrkValue a, KrkValue b) {
-	/* This is accidentally correctly identifying 0.0 is not -0.0, and also short circuits some non-equal floats early. */
-	if (KRK_VAL_TYPE(a) != KRK_VAL_TYPE(b)) return 0;
-	if (IS_OBJECT(a)) return a == b;
-
-	/* This tricky little bit of boolean logic establishes nan is nan */
-	return krk_valuesEqual(a,b) || (!krk_valuesEqual(a,a) && !krk_valuesEqual(b,b));
+	return a == b;
 }
 
-int krk_valuesSameOrEqual(KrkValue a, KrkValue b) {
-	/* We want to do this more efficiently than just calling one then the other. */
-	if (KRK_VAL_TYPE(a) == KRK_VAL_TYPE(b)) {
-		if (IS_OBJECT(a)) {
-			if (a == b) return 1;
-			return krk_valuesEqual(a,b);
-		}
-		return krk_valuesEqual(a,b) || (!krk_valuesEqual(a,a) && !krk_valuesEqual(b,b));
-	}
-	return krk_valuesEqual(a,b);
-}
-
-__attribute__((hot))
-inline
-int krk_valuesEqual(KrkValue a, KrkValue b) {
-	if (KRK_VAL_TYPE(a) == KRK_VAL_TYPE(b)) {
-		switch (KRK_VAL_TYPE(a)) {
-			case KRK_VAL_BOOLEAN:  return a == b;
-			case KRK_VAL_NONE:     return 1; /* None always equals None */
-			case KRK_VAL_NOTIMPL:  return 1;
-			case KRK_VAL_KWARGS:   /* Equal if same number of args; may be useful for comparing sentinels (0) to arg lists. */
-			case KRK_VAL_INTEGER:  return a == b;
-			case KRK_VAL_HANDLER:  krk_runtimeError(vm.exceptions->valueError,"Invalid value"); return 0;
-			case KRK_VAL_OBJECT: {
-				if (AS_OBJECT(a) == AS_OBJECT(b)) return 1;
-			} break;
-			default: break;
-		}
-	}
-	if (IS_FLOATING(a) && IS_FLOATING(b)) return AS_FLOATING(a) == AS_FLOATING(b);
-	if (IS_KWARGS(a) || IS_KWARGS(b)) return 0;
-	if (IS_STRING(a) && IS_STRING(b)) return 0;
-
+static inline int _krk_method_equivalence(KrkValue a, KrkValue b) {
 	KrkClass * type = krk_getType(a);
 	if (likely(type && type->_eq)) {
 		krk_push(a);
@@ -188,20 +154,76 @@ int krk_valuesEqual(KrkValue a, KrkValue b) {
 		KrkValue result = krk_callDirect(type->_eq,2);
 		if (unlikely(krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION)) return 0;
 		if (IS_BOOLEAN(result)) return AS_BOOLEAN(result);
-		if (IS_NOTIMPL(result)) goto _next;
-		return !krk_isFalsey(result);
+		if (!IS_NOTIMPL(result)) return !krk_isFalsey(result);
 	}
 
-_next:
 	type = krk_getType(b);
 	if (type && type->_eq) {
 		krk_push(b);
 		krk_push(a);
 		KrkValue result = krk_callDirect(type->_eq,2);
-		if (IS_BOOLEAN(result)) return AS_BOOLEAN(result);
 		if (unlikely(krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION)) return 0;
-		return !krk_isFalsey(result);
+		if (IS_BOOLEAN(result)) return AS_BOOLEAN(result);
+		if (!IS_NOTIMPL(result)) return !krk_isFalsey(result);
 	}
 
 	return 0;
+}
+
+static inline int _krk_same_type_equivalence(uint16_t valtype, KrkValue a, KrkValue b) {
+	switch (valtype) {
+		case KRK_VAL_BOOLEAN:
+		case KRK_VAL_INTEGER:
+		case KRK_VAL_NONE:
+		case KRK_VAL_NOTIMPL:
+		case KRK_VAL_KWARGS:
+		case KRK_VAL_HANDLER:
+			return a == b;
+		case KRK_VAL_OBJECT:
+		default:
+			return _krk_method_equivalence(a,b);
+	}
+}
+
+static inline int _krk_same_type_equivalence_b(uint16_t valtype, KrkValue a, KrkValue b) {
+	switch (valtype) {
+		case KRK_VAL_BOOLEAN:
+		case KRK_VAL_INTEGER:
+		case KRK_VAL_NONE:
+		case KRK_VAL_NOTIMPL:
+		case KRK_VAL_KWARGS:
+		case KRK_VAL_HANDLER:
+			return 0;
+		case KRK_VAL_OBJECT:
+		default:
+			return _krk_method_equivalence(a,b);
+	}
+}
+
+static inline int _krk_diff_type_equivalence(uint16_t val_a, uint16_t val_b, KrkValue a, KrkValue b) {
+	/* We do not want to let KWARGS leak to anything needs to, eg., examine types. */
+	if (val_b == KRK_VAL_KWARGS || val_a == KRK_VAL_KWARGS) return 0;
+
+	/* Fall back to methods */
+	return _krk_method_equivalence(a,b);
+}
+
+__attribute__((hot))
+int krk_valuesSameOrEqual(KrkValue a, KrkValue b) {
+	if (a == b) return 1;
+	uint16_t val_a = KRK_VAL_TYPE(a);
+	uint16_t val_b = KRK_VAL_TYPE(b);
+	return (val_a == val_b)
+		? _krk_same_type_equivalence_b(val_a, a, b)
+		: _krk_diff_type_equivalence(val_a, val_b, a, b);
+}
+
+__attribute__((hot))
+inline
+int krk_valuesEqual(KrkValue a, KrkValue b) {
+	uint16_t val_a = KRK_VAL_TYPE(a);
+	uint16_t val_b = KRK_VAL_TYPE(b);
+	return (val_a == val_b)
+		? _krk_same_type_equivalence(val_a,a,b)
+		: _krk_diff_type_equivalence(val_a,val_b,a,b);
 }
