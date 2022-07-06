@@ -212,6 +212,66 @@ KRK_Method(set,__eq__) {
 	return BOOLEAN_VAL(1);
 }
 
+/* Strict subset */
+KRK_Method(set,__lt__) {
+	METHOD_TAKES_EXACTLY(1);
+	if (!IS_set(argv[1]))
+		return NOTIMPL_VAL();
+	struct Set * them = AS_set(argv[1]);
+	if (self->entries.count == them->entries.count)
+		return BOOLEAN_VAL(0);
+	KrkValue _unused;
+	for (unsigned int i = 0; i < self->entries.capacity; ++i) {
+		if (IS_KWARGS(self->entries.entries[i].key)) continue;
+		if (!krk_tableGet(&them->entries, self->entries.entries[i].key, &_unused)) return BOOLEAN_VAL(0);
+	}
+	return BOOLEAN_VAL(1);
+}
+
+/* Subset or equal to */
+KRK_Method(set,__le__) {
+	METHOD_TAKES_EXACTLY(1);
+	if (!IS_set(argv[1]))
+		return NOTIMPL_VAL();
+	struct Set * them = AS_set(argv[1]);
+	KrkValue _unused;
+	for (unsigned int i = 0; i < self->entries.capacity; ++i) {
+		if (IS_KWARGS(self->entries.entries[i].key)) continue;
+		if (!krk_tableGet(&them->entries, self->entries.entries[i].key, &_unused)) return BOOLEAN_VAL(0);
+	}
+	return BOOLEAN_VAL(1);
+}
+
+/* Strict superset */
+KRK_Method(set,__gt__) {
+	METHOD_TAKES_EXACTLY(1);
+	if (!IS_set(argv[1]))
+		return NOTIMPL_VAL();
+	struct Set * them = AS_set(argv[1]);
+	if (self->entries.count == them->entries.count)
+		return BOOLEAN_VAL(0);
+	KrkValue _unused;
+	for (unsigned int i = 0; i < them->entries.capacity; ++i) {
+		if (IS_KWARGS(them->entries.entries[i].key)) continue;
+		if (!krk_tableGet(&self->entries, them->entries.entries[i].key, &_unused)) return BOOLEAN_VAL(0);
+	}
+	return BOOLEAN_VAL(1);
+}
+
+KRK_Method(set,__ge__) {
+	METHOD_TAKES_EXACTLY(1);
+	if (!IS_set(argv[1]))
+		return NOTIMPL_VAL();
+	struct Set * them = AS_set(argv[1]);
+	KrkValue _unused;
+	for (unsigned int i = 0; i < them->entries.capacity; ++i) {
+		if (IS_KWARGS(them->entries.entries[i].key)) continue;
+		if (!krk_tableGet(&self->entries, them->entries.entries[i].key, &_unused)) return BOOLEAN_VAL(0);
+	}
+	return BOOLEAN_VAL(1);
+}
+
+
 KRK_Method(set,add) {
 	METHOD_TAKES_EXACTLY(1);
 	krk_tableSet(&self->entries, argv[1], BOOLEAN_VAL(1));
@@ -298,6 +358,10 @@ void _createAndBind_setClass(void) {
 	BIND_METHOD(set,__repr__);
 	BIND_METHOD(set,__len__);
 	BIND_METHOD(set,__eq__);
+	BIND_METHOD(set,__lt__);
+	BIND_METHOD(set,__gt__);
+	BIND_METHOD(set,__le__);
+	BIND_METHOD(set,__ge__);
 	BIND_METHOD(set,__and__);
 	BIND_METHOD(set,__or__);
 	BIND_METHOD(set,__xor__);
