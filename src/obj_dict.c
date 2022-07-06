@@ -106,6 +106,26 @@ KRK_Method(dict,__init__) {
 	return argv[0];
 }
 
+KRK_Method(dict,__eq__) {
+	METHOD_TAKES_EXACTLY(1);
+	if (!IS_dict(argv[1]))
+		return NOTIMPL_VAL();
+	CHECK_ARG(1,dict,KrkDict*,them);
+	if (self->entries.count != them->entries.count)
+		return BOOLEAN_VAL(0);
+
+
+	for (unsigned int i = 0; i < self->entries.capacity; ++i) {
+		if (IS_KWARGS(self->entries.entries[i].key)) continue;
+		KrkValue val;
+		if (!krk_tableGet(&them->entries, self->entries.entries[i].key, &val)) return BOOLEAN_VAL(0);
+		if (!krk_valuesSameOrEqual(self->entries.entries[i].value, val)) return BOOLEAN_VAL(0);
+	}
+
+	return BOOLEAN_VAL(1);
+}
+
+
 KRK_Method(dict,__getitem__) {
 	METHOD_TAKES_EXACTLY(1);
 	KrkValue out;
@@ -531,6 +551,7 @@ void _createAndBind_dictClass(void) {
 	BIND_METHOD(dict,__len__);
 	BIND_METHOD(dict,__contains__);
 	BIND_METHOD(dict,__ior__);
+	BIND_METHOD(dict,__eq__);
 	BIND_METHOD(dict,keys);
 	BIND_METHOD(dict,items);
 	BIND_METHOD(dict,values);
