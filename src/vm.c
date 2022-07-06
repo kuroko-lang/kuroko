@@ -1712,27 +1712,20 @@ KrkValue krk_operator_is(KrkValue a, KrkValue b) {
 	return BOOLEAN_VAL(krk_valuesSame(a,b));
 }
 
-_protected
-KrkValue krk_operator_invert(KrkValue value) {
-	KrkClass * type = krk_getType(value);
-	if (likely(type->_invert != NULL)) {
-		krk_push(value);
-		return krk_callDirect(type->_invert, 1);
+#define MAKE_UNARY_OP(sname,operator,op) \
+	_protected KrkValue krk_operator_ ## operator (KrkValue value) { \
+		KrkClass * type = krk_getType(value); \
+		if (likely(type-> sname != NULL)) { \
+			krk_push(value); \
+			return krk_callDirect(type-> sname, 1); \
+		} \
+		if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) return NONE_VAL(); \
+		return krk_runtimeError(vm.exceptions->typeError, "bad operand type for unary %s: '%s'", #op, krk_typeName(value)); \
 	}
-	if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) return NONE_VAL();
-	return krk_runtimeError(vm.exceptions->typeError, "bad operand type for unary %c: '%s'", '~', krk_typeName(value));
-}
 
-_protected
-KrkValue krk_operator_neg(KrkValue value) {
-	KrkClass * type = krk_getType(value);
-	if (likely(type->_negate != NULL)) {
-		krk_push(value);
-		return krk_callDirect(type->_negate, 1);
-	}
-	if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) return NONE_VAL();
-	return krk_runtimeError(vm.exceptions->typeError, "bad operand type for unary %c: '%s'", '-', krk_typeName(value));
-}
+MAKE_UNARY_OP(_invert,invert,~)
+MAKE_UNARY_OP(_negate,neg,-)
+MAKE_UNARY_OP(_pos,pos,+)
 
 /**
  * At the end of each instruction cycle, we check the exception flag to see
@@ -2642,6 +2635,7 @@ _finishReturn: (void)0;
 			case OP_IS:            BINARY_OP(is);
 			case OP_BITNEGATE:     LIKELY_INT_UNARY_OP(invert,~)
 			case OP_NEGATE:        LIKELY_INT_UNARY_OP(neg,-)
+			case OP_POS:           LIKELY_INT_UNARY_OP(pos,+)
 			case OP_NONE:  krk_push(NONE_VAL()); break;
 			case OP_TRUE:  krk_push(BOOLEAN_VAL(1)); break;
 			case OP_FALSE: krk_push(BOOLEAN_VAL(0)); break;

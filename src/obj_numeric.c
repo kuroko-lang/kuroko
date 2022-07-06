@@ -302,6 +302,10 @@ KRK_Method(int,__abs__) {
 	return self < 0 ? INTEGER_VAL(-self) : INTEGER_VAL(self);
 }
 
+KRK_Method(int,__pos__) {
+	return argv[0];
+}
+
 #undef CURRENT_CTYPE
 #define CURRENT_CTYPE double
 
@@ -447,6 +451,10 @@ KRK_Method(float,__rfloordiv__) {
 	return NOTIMPL_VAL();
 }
 
+KRK_Method(float,__pos__) {
+	return argv[0];
+}
+
 #undef CURRENT_CTYPE
 #define CURRENT_CTYPE krk_integer_type
 
@@ -545,6 +553,7 @@ void _createAndBind_numericClasses(void) {
 	BIND_METHOD(int,__invert__);
 	BIND_METHOD(int,__neg__);
 	BIND_METHOD(int,__abs__);
+	BIND_METHOD(int,__pos__);
 
 	krk_defineNative(&_int->methods, "__repr__", FUNC_NAME(int,__str__));
 	krk_finalizeClass(_int);
@@ -569,6 +578,7 @@ void _createAndBind_numericClasses(void) {
 	BIND_METHOD(float,__ge__);
 	BIND_METHOD(float,__neg__);
 	BIND_METHOD(float,__abs__);
+	BIND_METHOD(float,__pos__);
 	krk_defineNative(&_float->methods, "__repr__", FUNC_NAME(float,__str__));
 	krk_finalizeClass(_float);
 	KRK_DOC(_float, "Convert a number or string type to a float representation.");

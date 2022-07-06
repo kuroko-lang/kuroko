@@ -1510,6 +1510,10 @@ KRK_Method(long,__abs__) {
 	return make_long_obj(&tmp);
 }
 
+KRK_Method(long,__pos__) {
+	return argv[0];
+}
+
 static KrkValue long_bit_count(KrkLong * val) {
 	size_t count = 0;
 	size_t bits = _bits_in(val);
@@ -1768,6 +1772,7 @@ void _createAndBind_longClass(void) {
 	BIND_METHOD(long,__int__);
 	BIND_METHOD(long,__len__);
 	BIND_METHOD(long,__float__);
+	BIND_METHOD(long,__pos__);
 	krk_defineNative(&_long->methods,"__repr__", FUNC_NAME(long,__str__));
 
 	BIND_TRIPLET(long,add);

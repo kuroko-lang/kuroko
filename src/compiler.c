@@ -2525,7 +2525,7 @@ static void unary(int exprType) {
 	parsePrecedence(PREC_FACTOR);
 	invalidTarget(exprType, "operator");
 	switch (operatorType) {
-		case TOKEN_PLUS: break; /* no op, but explicitly listed here for clarity */
+		case TOKEN_PLUS:  emitByte(OP_POS); break;
 		case TOKEN_MINUS: emitByte(OP_NEGATE); break;
 		case TOKEN_TILDE: emitByte(OP_BITNEGATE); break;
 		case TOKEN_BANG:  emitByte(OP_NOT); break;
