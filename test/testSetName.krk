@@ -1,0 +1,13 @@
+class Foo():
+    def __init__(self,v):
+        self.v = v
+    def __set_name__(self, owner, name):
+        print(f'{owner.__name__} setting "{name}" to Foo({self.v})')
+
+class Bar():
+    a = Foo('1')
+    b = Foo('2')
+    c = Foo('3')
+
+class Baz(Bar):
+    d = Foo('4')
