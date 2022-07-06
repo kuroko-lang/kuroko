@@ -219,7 +219,6 @@ int krk_valuesSameOrEqual(KrkValue a, KrkValue b) {
 }
 
 __attribute__((hot))
-inline
 int krk_valuesEqual(KrkValue a, KrkValue b) {
 	uint16_t val_a = KRK_VAL_TYPE(a);
 	uint16_t val_b = KRK_VAL_TYPE(b);
