@@ -133,6 +133,16 @@ int krk_tableSet(KrkTable * table, KrkValue key, KrkValue value) {
 	return isNewKey;
 }
 
+int krk_tableSetIfExists(KrkTable * table, KrkValue key, KrkValue value) {
+	if (table->count == 0) return 0;
+	KrkTableEntry * entry = krk_findEntry(table->entries, table->capacity, key);
+	if (!entry) return 0;
+	if (IS_KWARGS(entry->key)) return 0; /* Not found */
+	entry->key = key;
+	entry->value = value;
+	return 1;
+}
+
 void krk_tableAddAll(KrkTable * from, KrkTable * to) {
 	for (size_t i = 0; i < from->capacity; ++i) {
 		KrkTableEntry * entry = &from->entries[i];

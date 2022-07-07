@@ -525,7 +525,7 @@ void krk_finalizeClass(KrkClass * _class) {
 			if (krk_tableGet(&_base->methods, vm.specialMethodNames[entry->index], &tmp)) break;
 			_base = _base->base;
 		}
-		if (_base && (IS_CLOSURE(tmp) || IS_NATIVE(tmp))) {
+		if (_base && (IS_CLOSURE(tmp) || IS_NATIVE(tmp)) && !(AS_OBJECT(tmp)->flags & KRK_OBJ_FLAGS_FUNCTION_IS_STATIC_METHOD)) {
 			*entry->method = AS_OBJECT(tmp);
 		}
 	}
@@ -2409,10 +2409,46 @@ static int trySetDescriptor(KrkValue owner, KrkString * name, KrkValue value) {
 	return 0;
 }
 
+extern int krk_tableSetIfExists(KrkTable * table, KrkValue key, KrkValue value);
+
+_noexport
+KrkValue krk_instanceSetAttribute_wrapper(KrkValue owner, KrkString * name, KrkValue to) {
+	if (!krk_tableSetIfExists(&AS_INSTANCE(owner)->fields, OBJECT_VAL(name), to)) {
+		/* That might have raised an exception. */
+		if (unlikely(krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION)) return NONE_VAL();
+		/* Entry did not exist, check for properties */
+		KrkClass * _class = krk_getType(owner);
+		KrkValue property;
+		do {
+			if (krk_tableGet_fast(&_class->methods, name, &property)) break;
+			_class = _class->base;
+		} while (_class);
+		if (_class) {
+			KrkClass * type = krk_getType(property);
+			if (type->_descset) {
+				krk_push(property);
+				krk_push(owner);
+				krk_push(to);
+				return krk_callDirect(type->_descset, 3);
+			}
+		}
+		/* No descriptor, go ahead and set. */
+		krk_tableSet(&AS_INSTANCE(owner)->fields, OBJECT_VAL(name), to);
+	}
+	return to;
+}
+
 static int valueSetProperty(KrkString * name) {
 	KrkValue owner = krk_peek(1);
 	KrkValue value = krk_peek(0);
 	if (IS_INSTANCE(owner)) {
+		KrkClass * type = AS_INSTANCE(owner)->_class;
+		if (unlikely(type->_setattr != NULL)) {
+			krk_push(OBJECT_VAL(name));
+			krk_swap(1);
+			krk_push(krk_callDirect(type->_setattr, 3));
+			return 1;
+		}
 		if (krk_tableSet(&AS_INSTANCE(owner)->fields, OBJECT_VAL(name), value)) {
 			if (trySetDescriptor(owner, name, value)) {
 				krk_tableDelete(&AS_INSTANCE(owner)->fields, OBJECT_VAL(name));

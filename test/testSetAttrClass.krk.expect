@@ -1,0 +1,8 @@
+Called as __get__:
+42
+set bar to hi
+Called as a setter: ['hi']
+set myBar to hi
+hi
+Called as __get__:
+hi

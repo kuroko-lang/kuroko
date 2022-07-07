@@ -7,10 +7,10 @@ False
 [1, 3, 4, 5]
 [1, 3, 4]
 list index out of range: 3
-['__class__', '__dir__', '__eq__', '__hash__', '__repr__', '__str__', 'baz', 'qux']
+['__class__', '__dir__', '__eq__', '__hash__', '__repr__', '__setattr__', '__str__', 'baz', 'qux']
 42
-['__class__', '__dir__', '__eq__', '__hash__', '__repr__', '__str__', 'qux']
+['__class__', '__dir__', '__eq__', '__hash__', '__repr__', '__setattr__', '__str__', 'qux']
 hi
 'object' object has no attribute 'baz'
-['__class__', '__dir__', '__eq__', '__hash__', '__repr__', '__str__']
+['__class__', '__dir__', '__eq__', '__hash__', '__repr__', '__setattr__', '__str__']
 'object' object has no attribute 'bar'

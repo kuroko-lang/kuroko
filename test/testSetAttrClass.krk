@@ -1,0 +1,22 @@
+class Foo(object):
+    myBar = 42
+    @staticmethod
+    def foo():
+        print("No args!")
+    @property
+    def bar(*setter):
+        if setter:
+            print("Called as a setter:", setter)
+            self.myBar = setter[0]
+        else:
+            print("Called as __get__:")
+        return self.myBar
+    def __setattr__(self, string, value):
+        print("set",string,"to",value)
+        return object.__setattr__(self,string,value)
+
+let f = Foo()
+
+print(f.bar)
+print(f.bar = 'hi')
+print(f.bar)

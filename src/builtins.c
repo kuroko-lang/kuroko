@@ -115,6 +115,24 @@ KRK_Method(object,__eq__) {
 	return NOTIMPL_VAL();
 }
 
+extern KrkValue krk_instanceSetAttribute_wrapper(KrkValue owner, KrkString * name, KrkValue to);
+
+/**
+ * This must be marked as static so it doesn't get bound, or every object will
+ * have a functioning __setattr__ and the VM will get a lot slower... I think...
+ */
+KRK_Method(object,__setattr__) {
+	METHOD_TAKES_EXACTLY(2);
+	if (!IS_STRING(argv[1])) return krk_runtimeError(vm.exceptions->typeError, "expected str");
+
+	if (!IS_INSTANCE(argv[0])) {
+		return krk_valueSetAttribute(argv[0], AS_CSTRING(argv[1]), argv[2]);
+	}
+
+	/* It's an instance, that presumably does not have a `__setattr__`? */
+	return krk_instanceSetAttribute_wrapper(argv[0], AS_STRING(argv[1]), argv[2]);
+}
+
 /**
  * object.__str__() / object.__repr__()
  *
@@ -1100,6 +1118,7 @@ void _createAndBind_builtins(void) {
 	BIND_METHOD(object,__str__);
 	BIND_METHOD(object,__hash__);
 	BIND_METHOD(object,__eq__);
+	BIND_METHOD(object,__setattr__)->obj.flags = KRK_OBJ_FLAGS_FUNCTION_IS_STATIC_METHOD;
 	krk_defineNative(&object->methods, "__repr__", FUNC_NAME(object,__str__));
 	krk_finalizeClass(object);
 	KRK_DOC(object,
