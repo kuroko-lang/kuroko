@@ -9,11 +9,11 @@ Whether you're embedding Kuroko in an application or writing an extension module
 #include <kuroko/vm.h>
 #include <kuroko/util.h>
 
-KRK_FUNC(myfunction,{
+KRK_Function(myfunction) {
     FUNCTION_TAKES_EXACTLY(1);
     CHECK_ARG(0,int,krk_integer_type,myarg);
     return INTEGER_VAL(myarg*myarg);
-})
+}
 
 int main(int argc, char *argv[]) {
     krk_initVM(0);
@@ -27,7 +27,7 @@ int main(int argc, char *argv[]) {
 
 This demo uses the utility macros provided in `<kuroko/util.h>` to easily create a function with argument checking and bind it to the builtin namespace.
 
-`KRK_FUNC()` takes care of the function signature, function naming, and default return value of `None`.
+`KRK_Function()` takes care of the function signature and function naming for exception messages.
 
 `FUNCTION_TAKES_EXACTLY()` provides simple argument count validation. `FUNCTION_TAKES_AT_LEAST()` and `FUNCTION_TAKES_AT_MOST()` are also available.
 
