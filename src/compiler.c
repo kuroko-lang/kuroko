@@ -1882,9 +1882,9 @@ static void ifStatement(void) {
 				endScope();
 			}
 		} else if (!check(TOKEN_EOF) && !check(TOKEN_EOL)) {
-			krk_ungetToken(parser.current);
-			parser.current = parser.previous;
 			if (blockWidth) {
+				krk_ungetToken(parser.current);
+				parser.current = parser.previous;
 				parser.previous = previous;
 			}
 		} else {
