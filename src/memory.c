@@ -447,7 +447,7 @@ static void tableRemoveWhite(KrkTable * table) {
 	for (size_t i = 0; i < table->capacity; ++i) {
 		KrkTableEntry * entry = &table->entries[i];
 		if (IS_OBJECT(entry->key) && !((AS_OBJECT(entry->key))->flags & KRK_OBJ_FLAGS_IS_MARKED)) {
-			krk_tableDelete(table, entry->key);
+			krk_tableDeleteExact(table, entry->key);
 		}
 	}
 }
