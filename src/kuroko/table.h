@@ -141,6 +141,19 @@ extern int krk_tableGet_fast(KrkTable * table, KrkString * str, KrkValue * value
 extern int krk_tableDelete(KrkTable * table, KrkValue key);
 
 /**
+ * @brief Remove a key from a hash table, with identity lookup.
+ * @memberof KrkTable
+ *
+ * Scans the table 'table' for the key 'key' and, if found, removes
+ * the entry, replacing it with a tombstone value.
+ *
+ * @param table Table to delete from.
+ * @param key   Key to delete.
+ * @return 1 if the value was found and deleted, 0 if it was not present.
+ */
+extern int krk_tableDeleteExact(KrkTable * table, KrkValue key);
+
+/**
  * @brief Internal table scan function.
  * @memberof KrkTable
  *

@@ -82,6 +82,29 @@ KrkTableEntry * krk_findEntry(KrkTableEntry * entries, size_t capacity, KrkValue
 	}
 }
 
+KrkTableEntry * krk_findEntryExact(KrkTableEntry * entries, size_t capacity, KrkValue key) {
+	uint32_t index;
+	if (krk_hashValue(key, &index)) {
+		return NULL;
+	}
+	index &= (capacity-1);
+	KrkTableEntry * tombstone = NULL;
+	for (;;) {
+		KrkTableEntry * entry = &entries[index];
+		if (IS_KWARGS(entry->key)) {
+			if (IS_NONE(entry->value)) {
+				return tombstone != NULL ? tombstone : entry;
+			} else {
+				if (tombstone == entry) return tombstone;
+				if (tombstone == NULL) tombstone = entry;
+			}
+		} else if (krk_valuesSame(entry->key, key)) {
+			return entry;
+		}
+		index = (index + 1) & (capacity-1);
+	}
+}
+
 #ifdef __TINYC__
 int __builtin_clz(unsigned int x) {
 	int i = 31;
@@ -180,6 +203,18 @@ int krk_tableGet_fast(KrkTable * table, KrkString * str, KrkValue * value) {
 int krk_tableDelete(KrkTable * table, KrkValue key) {
 	if (table->count == 0) return 0;
 	KrkTableEntry * entry = krk_findEntry(table->entries, table->capacity, key);
+	if (!entry || IS_KWARGS(entry->key)) {
+		return 0;
+	}
+	table->count--;
+	entry->key = KWARGS_VAL(0);
+	entry->value = KWARGS_VAL(0);
+	return 1;
+}
+
+int krk_tableDeleteExact(KrkTable * table, KrkValue key) {
+	if (table->count == 0) return 0;
+	KrkTableEntry * entry = krk_findEntryExact(table->entries, table->capacity, key);
 	if (!entry || IS_KWARGS(entry->key)) {
 		return 0;
 	}

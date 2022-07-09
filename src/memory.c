@@ -237,7 +237,7 @@ static void freeObject(KrkObj * object) {
 			krk_freeTable(&_class->methods);
 			krk_freeTable(&_class->subclasses);
 			if (_class->base) {
-				krk_tableDelete(&_class->base->subclasses, OBJECT_VAL(object));
+				krk_tableDeleteExact(&_class->base->subclasses, OBJECT_VAL(object));
 			}
 			FREE(KrkClass, object);
 			break;
