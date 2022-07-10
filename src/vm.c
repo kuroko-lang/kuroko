@@ -3043,8 +3043,7 @@ _finishReturn: (void)0;
 			case OP_SET_GLOBAL: {
 				ONE_BYTE_OPERAND;
 				KrkString * name = READ_STRING(OPERAND);
-				if (krk_tableSet(frame->globals, OBJECT_VAL(name), krk_peek(0))) {
-					krk_tableDelete(frame->globals, OBJECT_VAL(name));
+				if (!krk_tableSetIfExists(frame->globals, OBJECT_VAL(name), krk_peek(0))) {
 					krk_runtimeError(vm.exceptions->nameError, "Undefined variable '%s'.", name->chars);
 					goto _finishException;
 				}
