@@ -2728,6 +2728,7 @@ static void string(int exprType) {
 					c++;
 					while (*c == ' ') c++;
 					emitConstant(OBJECT_VAL(krk_copyString(start,c-start)));
+					formatElements++;
 					formatType |= FORMAT_OP_EQ;
 				}
 

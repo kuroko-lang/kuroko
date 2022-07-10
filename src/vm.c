@@ -2594,13 +2594,6 @@ static inline int doFormatString(int options) {
 		return 1;
 	}
 
-	if (options & FORMAT_OP_EQ) {
-		krk_push(krk_operator_add(krk_peek(1), krk_peek(0)));
-		krk_swap(2);
-		krk_pop();
-		krk_pop();
-	}
-
 	return 0;
 }
 
