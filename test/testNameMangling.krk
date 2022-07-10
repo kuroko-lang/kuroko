@@ -1,0 +1,39 @@
+class Foo():
+    def __test(self):
+        pass
+
+    def __test__(self):
+        pass
+
+    def ___(self):
+        pass
+
+let f = Foo()
+
+let dirResults = dir(f)
+
+# Straightforard name-mangling and non-mangling casses
+assert '_Foo__test' in dirResults
+assert '__test__' in dirResults
+assert '_Foo__test__' not in dirResults
+assert '___' in dirResults
+assert '_Foo____' not in dirResults
+
+class Baz():
+    def __init__(self):
+        class __Inner():
+            def __test(self):
+                pass
+        self.__inner = __Inner
+
+let b = Baz()
+
+assert '_Baz__inner' in dir(b)
+
+# Inner class name should not be mangled on its own
+assert b._Baz__inner.__name__ == '__Inner'
+
+# Mangled identifiers should reduce leading underscores from class name to one
+assert '_Inner__test' in dir(b._Baz__inner)
+
+print("okay")

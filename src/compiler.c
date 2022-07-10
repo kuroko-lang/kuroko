@@ -598,7 +598,31 @@ static size_t emitConstant(KrkValue value) {
 	return krk_writeConstant(currentChunk(), value, parser.previous.line);
 }
 
+static int isMangleable(const char * name, size_t len) {
+	return (len > 2 && name[0] == '_' && name[1] == '_' && name[len-1] != '_' && (len < 4 || name[len-2] != '_'));
+}
+
 static ssize_t identifierConstant(KrkToken * name) {
+	if (currentClass && isMangleable(name->start, name->length)) {
+		/* Mangle it */
+		const char * className = currentClass->name.start;
+		size_t classLength = currentClass->name.length;
+		while (classLength && *className == '_') {
+			classLength--;
+			className++;
+		}
+
+		size_t total = name->length + 2 + classLength;
+		char * mangled = malloc(total);
+		snprintf(mangled, total, "_%.*s%.*s",
+			(int)classLength, className,
+			(int)name->length, name->start);
+		return krk_addConstant(currentChunk(), OBJECT_VAL(krk_takeString(mangled, total-1)));
+	}
+	return krk_addConstant(currentChunk(), OBJECT_VAL(krk_copyString(name->start, name->length)));
+}
+
+static ssize_t nonidentifierTokenConstant(KrkToken * name) {
 	return krk_addConstant(currentChunk(), OBJECT_VAL(krk_copyString(name->start, name->length)));
 }
 
@@ -1545,7 +1569,7 @@ static void classBody(size_t blockWidth) {
 
 #define ATTACH_PROPERTY(propName,how,propValue) do { \
 	KrkToken val_tok = syntheticToken(propValue); \
-	size_t val_ind = identifierConstant(&val_tok); \
+	size_t val_ind = nonidentifierTokenConstant(&val_tok); \
 	EMIT_OPERAND_OP(how, val_ind); \
 	KrkToken name_tok = syntheticToken(propName); \
 	size_t name_ind = identifierConstant(&name_tok); \
@@ -1563,9 +1587,13 @@ static KrkToken classDeclaration(void) {
 
 	beginScope();
 
-	size_t constInd = identifierConstant(&parser.previous);
+	/* We want to expose the mangled name within the class definition, which then
+	 * becomes available as a nonlocal, but we want to hand the non-mangled name
+	 * to the CLASS instruction so that __name__ is right. */
+	size_t nameInd = nonidentifierTokenConstant(&parser.previous);
+	identifierConstant(&parser.previous);
 	declareVariable();
-	EMIT_OPERAND_OP(OP_CLASS, constInd);
+	EMIT_OPERAND_OP(OP_CLASS, nameInd);
 	markInitialized();
 
 	ClassCompiler classCompiler;
