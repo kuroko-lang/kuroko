@@ -2724,43 +2724,46 @@ static void string(int exprType) {
 				krk_rewindScanner(beforeExpression); /* To get us back to where we were with a string token */
 				parser = parserBefore;
 				c = inner.start;
-				KrkToken which = syntheticToken("str");
-				int hasEq = 0;
+
+				int formatType = 0;
+
 				while (*c == ' ') c++;
 				if (*c == '=') {
 					c++;
 					while (*c == ' ') c++;
 					emitConstant(OBJECT_VAL(krk_copyString(start,c-start)));
-					emitByte(OP_SWAP);
-					hasEq = 1;
+					formatType |= FORMAT_OP_EQ;
 				}
+
 				if (*c == '!') {
 					c++;
 					/* Conversion specifiers, must only be one */
 					if (*c == 'r') {
-						which = syntheticToken("repr");
+						formatType |= FORMAT_OP_REPR;
 					} else if (*c == 's') {
-						which = syntheticToken("str");
+						formatType |= FORMAT_OP_STR;
 					} else {
 						error("Unsupported conversion flag '%c' for f-string expression.", *c);
 						goto _cleanupError;
 					}
 					c++;
 				}
-				size_t ind = identifierConstant(&which);
-				EMIT_OPERAND_OP(OP_GET_GLOBAL, ind);
-				emitByte(OP_SWAP);
-				emitBytes(OP_CALL, 1);
+
 				if (*c == ':') {
 					/* TODO format specs */
-					error("Format spec not supported in f-string (GH-10)");
-					goto _cleanupError;
+					const char * formatStart = c+1;
+					c++;
+					while (c < end && *c != '}') c++;
+					emitConstant(OBJECT_VAL(krk_copyString(formatStart,c-formatStart)));
+					formatType |= FORMAT_OP_FORMAT;
 				}
+
+				EMIT_OPERAND_OP(OP_FORMAT_VALUE, formatType);
+
 				if (*c != '}') {
 					error("Expected closing '}' after expression in f-string");
 					goto _cleanupError;
 				}
-				if (hasEq) emitByte(OP_ADD);
 				if (atLeastOne) emitByte(OP_ADD);
 				atLeastOne = 1;
 				c++;

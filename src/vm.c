@@ -2537,6 +2537,74 @@ static inline void makeCollection(NativeFn func, size_t count) {
 	}
 }
 
+static inline int doFormatString(int options) {
+	if (options & FORMAT_OP_FORMAT) {
+		krk_swap(1);
+		if (options & FORMAT_OP_EQ) {
+			krk_swap(2);
+		}
+	} else if (options & FORMAT_OP_EQ) {
+		krk_swap(1);
+	}
+
+	/* Was this a repr or str call? (it can't be both) */
+	if (options & FORMAT_OP_STR) {
+		KrkClass * type = krk_getType(krk_peek(0));
+		if (likely(type->_tostr != NULL)) {
+			krk_push(krk_callDirect(type->_tostr, 1));
+			if (unlikely(krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION)) return 1;
+		} else {
+			krk_runtimeError(vm.exceptions->typeError,
+				"Can not convert %s to str", krk_typeName(krk_peek(0)));
+			return 1;
+		}
+	} else if (options & FORMAT_OP_REPR) {
+		KrkClass * type = krk_getType(krk_peek(0));
+		if (likely(type->_reprer != NULL)) {
+			krk_push(krk_callDirect(type->_reprer, 1));
+			if (unlikely(krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION)) return 1;
+		} else {
+			krk_runtimeError(vm.exceptions->typeError,
+				"Can not repr %s", krk_typeName(krk_peek(0)));
+			return 1;
+		}
+	}
+
+	if (!(options & FORMAT_OP_FORMAT)) {
+		/* Push empty string */
+		krk_push(OBJECT_VAL(S("")));
+	} else {
+		/* Swap args so value is first */
+		krk_swap(1);
+	}
+
+	/* Get the type of the value */
+	KrkClass * type = krk_getType(krk_peek(1));
+
+	if (likely(type->_format != NULL)) {
+		krk_push(krk_callDirect(type->_format, 2));
+		if (unlikely(krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION)) return 1;
+	} else {
+		krk_runtimeError(vm.exceptions->attributeError, "'%s' object has no attribute '%s'", krk_typeName(krk_peek(1)), "__format__");
+		return 1;
+	}
+
+	if (!IS_STRING(krk_peek(0))) {
+		krk_runtimeError(vm.exceptions->typeError, "format result is not str");
+		return 1;
+	}
+
+	if (options & FORMAT_OP_EQ) {
+		krk_push(krk_operator_add(krk_peek(1), krk_peek(0)));
+		krk_swap(2);
+		krk_pop();
+		krk_pop();
+	}
+
+	return 0;
+}
+
+
 /**
  * VM main loop.
  */
@@ -3427,6 +3495,14 @@ _finishReturn: (void)0;
 					krk_push(values->values.values[i]);
 				}
 				krk_currentThread.stackTop[-count] = values->values.values[0];
+				break;
+			}
+
+			case OP_FORMAT_VALUE_LONG:
+				THREE_BYTE_OPERAND;
+			case OP_FORMAT_VALUE: {
+				ONE_BYTE_OPERAND;
+				if (doFormatString(OPERAND)) goto _finishException;
 				break;
 			}
 		}

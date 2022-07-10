@@ -51,3 +51,10 @@ typedef enum {
 	METHOD__MAX,
 } KrkSpecialMethods;
 
+
+#define FORMAT_OP_EQ     (1 << 0)
+#define FORMAT_OP_REPR   (1 << 1)
+#define FORMAT_OP_STR    (1 << 2)
+#define FORMAT_OP_FORMAT (1 << 3)
+
+

@@ -126,6 +126,7 @@ typedef enum {
 	OP_CALL_METHOD,
 	OP_CLOSE_MANY,
 	OP_POP_MANY,
+	OP_FORMAT_VALUE,
 
 	/* Two opcode instructions */
 	OP_JUMP_IF_FALSE_OR_POP,
@@ -177,6 +178,7 @@ typedef enum {
 	OP_CALL_METHOD_LONG,
 	OP_CLOSE_MANY_LONG,
 	OP_POP_MANY_LONG,
+	OP_FORMAT_VALUE_LONG, /* should be unused */
 } KrkOpCode;
 
 /**
