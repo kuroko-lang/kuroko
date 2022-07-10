@@ -2754,6 +2754,11 @@ static void string(int exprType) {
 					formatType |= FORMAT_OP_FORMAT;
 				}
 
+				/* Default to !r if '=' was present but neither was specified. */
+				if (!(formatType & (FORMAT_OP_FORMAT | FORMAT_OP_STR)) && (formatType & FORMAT_OP_EQ)) {
+					formatType |= FORMAT_OP_REPR;
+				}
+
 				EMIT_OPERAND_OP(OP_FORMAT_VALUE, formatType);
 
 				if (*c != '}') {
