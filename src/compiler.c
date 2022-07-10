@@ -2802,7 +2802,7 @@ _nextStr:
 		emitConstant(OBJECT_VAL(bytes));
 		return;
 	}
-	if (stringLength) {
+	if (stringLength || !formatElements) {
 		emitConstant(OBJECT_VAL(krk_copyString(stringBytes,stringLength)));
 		formatElements++;
 	}
