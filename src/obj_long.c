@@ -1514,6 +1514,31 @@ KRK_Method(long,__pos__) {
 	return argv[0];
 }
 
+extern KrkValue krk_doFormatString(const char * typeName, KrkString * format_spec, int positive, void* abs, int (*callback)(void *,int,int*));
+
+static int formatLongCallback(void * a, int base, int *more) {
+	uint32_t result = _div_inplace((KrkLong*)a, base);
+	*more = krk_long_sign(a);
+	return result;
+}
+
+KRK_Method(long,__format__) {
+	METHOD_TAKES_EXACTLY(1);
+	CHECK_ARG(1,str,KrkString*,format_spec);
+
+	KrkLong tmp;
+	krk_long_init_copy(&tmp, self->value);
+	krk_long_set_sign(&tmp, 1);
+
+	KrkValue result = krk_doFormatString("long",format_spec,
+		krk_long_sign(self->value) >= 0,
+		&tmp,
+		formatLongCallback);
+
+	krk_long_clear(&tmp);
+	return result;
+}
+
 static KrkValue long_bit_count(KrkLong * val) {
 	size_t count = 0;
 	size_t bits = _bits_in(val);
@@ -1795,6 +1820,7 @@ void _createAndBind_longClass(void) {
 	BIND_METHOD(long,__invert__);
 	BIND_METHOD(long,__neg__);
 	BIND_METHOD(long,__abs__);
+	BIND_METHOD(long,__format__);
 
 	BIND_METHOD(long,bit_count);
 	BIND_METHOD(long,bit_length);

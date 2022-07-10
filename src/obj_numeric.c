@@ -66,6 +66,212 @@ KRK_Method(int,__hash__) {
 	return INTEGER_VAL((uint32_t)AS_INTEGER(argv[0]));
 }
 
+static inline int matches(char c, const char * options) {
+	for (const char * o = options; *o; ++o) {
+		if (*o == c) return 1;
+	}
+	return 0;
+}
+
+KrkValue krk_doFormatString(const char * typeName, KrkString * format_spec, int positive, void * abs, int (*callback)(void *,int,int*)) {
+	char fill  = ' '; /* fill with spaces */
+	char align = 0;   /* right */
+	char sign  = 0;   /* only negatives */
+	int  width = 0;   /* size to fit */
+	int  alt   = 0;   /* no */
+	char sep   = 0;   /* none */
+	int  prec  = 0;   /* precision */
+
+	/* Step one: Does it have a valid alignment? */
+	const char * spec = format_spec->chars;
+
+	if (format_spec->length > 1 && matches(spec[1],"<>=^")) {
+		fill = *spec;
+		spec++;
+	}
+
+	if (matches(*spec,"<>=^")) {
+		align = *spec;
+		spec++;
+	}
+
+	if (matches(*spec,"+- ")) {
+		sign = *spec;
+		spec++;
+	}
+
+	if (*spec == '#') {
+		alt = 1;
+		spec++;
+	}
+
+	if (!align && *spec == '0') {
+		align = '=';
+		spec++;
+	} else {
+		align = '>';
+	}
+
+	while (matches(*spec,"0123456789")) {
+		width *= 10;
+		width += (*spec - '0');
+		spec++;
+	}
+
+	if (matches(*spec, "_,")) {
+		sep = *spec;
+		spec++;
+	}
+
+	if (*spec == '.') {
+		spec++;
+		if (!matches(*spec,"0123456789")) return krk_runtimeError(vm.exceptions->valueError, "Format specifier missing precision");
+		while (matches(*spec,"0123456789")) {
+			prec *= 10;
+			prec += (*spec - '0');
+			spec++;
+		}
+	}
+
+	if (*spec && spec[1] != 0) {
+		return krk_runtimeError(vm.exceptions->valueError, "Invalid format specifier");
+	}
+
+	const char * altPrefix = "";
+	const char * conversions = "0123456789abcdef";
+	int base = 0;
+
+	switch (*spec) {
+		case 0:   /* unspecified */
+		case 'd': /* decimal integer */
+			base = 10;
+			break;
+		case 'b': /* binary */
+			base = 2;
+			altPrefix = "0b";
+			break;
+		case 'o': /* octal */
+			base = 8;
+			altPrefix = "0o";
+			break;
+		case 'x': /* hex */
+			base = 16;
+			altPrefix = "0x";
+			break;
+		case 'X': /* HEX */
+			base = 16;
+			conversions = "0123456789ABCDEF";
+			altPrefix = "0X";
+			break;
+
+		case 'c': /* unicode codepoint */
+			return krk_runtimeError(vm.exceptions->notImplementedError,
+				"TODO: 'c' format specifier");
+
+		case 'n': /* use local-specific separators (TODO) */
+			return krk_runtimeError(vm.exceptions->notImplementedError,
+				"TODO: 'n' format specifier");
+
+		default:
+			return krk_runtimeError(vm.exceptions->valueError,
+				"Unknown format code '%c' for object of type '%s'",
+				*spec,
+				typeName);
+	}
+
+	if (!sign) sign = '-';
+	struct StringBuilder sb = {0};
+
+	int l = 0;
+
+	if (alt && altPrefix && width > 2) width -= 2;
+	if ((!positive || sign == '+') && width > 1) width--;
+
+	int digits = 0;
+	int sepcount = sep == ',' ? 3 : 4;
+	int more = 0;
+
+	do {
+		int digit = callback(abs, base, &more);
+
+		if (unlikely(krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION)) {
+			discardStringBuilder(&sb);
+			return NONE_VAL();
+		}
+
+		pushStringBuilder(&sb, conversions[digit]);
+		l++;
+		digits++;
+
+		if (sep && !(digits % sepcount) && (more || (align == '=' && l < width))) {
+			pushStringBuilder(&sb, sep);
+			l++;
+			if (align == '=' && l == width) {
+				pushStringBuilder(&sb, '0');
+			}
+		}
+	} while (more || (align == '=' && l < width));
+
+	if (alt && altPrefix) {
+		pushStringBuilder(&sb, altPrefix[1]);
+		pushStringBuilder(&sb, altPrefix[0]);
+	}
+
+	if (!positive || sign == '+') {
+		pushStringBuilder(&sb, positive ? '+' : '-');
+	}
+
+	if (align == '>') {
+		while (l < width) {
+			pushStringBuilder(&sb, fill);
+			l++;
+		}
+	} else if (align == '^') {
+		int remaining = (width - l) / 2;
+		for (int i = 0; i < remaining; ++i) {
+			pushStringBuilder(&sb, fill);
+			l++;
+		}
+	}
+
+	for (size_t i = 0; i < sb.length / 2; ++i) {
+		char t = sb.bytes[i];
+		sb.bytes[i] = sb.bytes[sb.length - i - 1];
+		sb.bytes[sb.length - i - 1] = t;
+	}
+
+	if (align == '<') {
+		while (l < width) {
+			pushStringBuilder(&sb, fill);
+			l++;
+		}
+	}
+
+	return finishStringBuilder(&sb);
+}
+
+static int formatIntCallback(void * a, int base, int *more) {
+	krk_integer_type v = *(krk_integer_type*)a;
+	int digit = v % base;
+	v /= base;
+	*(krk_integer_type*)a = v;
+	*more = v > 0;
+	return digit;
+}
+
+
+KRK_Method(int,__format__) {
+	METHOD_TAKES_EXACTLY(1);
+	CHECK_ARG(1,str,KrkString*,format_spec);
+
+	krk_integer_type abs = self < 0 ? -self : self;
+
+	return krk_doFormatString(krk_typeName(argv[0]), format_spec,
+		self >= 0,
+		&abs,
+		formatIntCallback);
+}
+
 /**
  * We _could_ use the __builtin_XXX_overflow(_p) functions gcc+clang provide,
  * but let's just do this ourselves, I guess?
@@ -528,6 +734,7 @@ void _createAndBind_numericClasses(void) {
 	BIND_METHOD(int,__float__);
 	BIND_METHOD(int,__eq__);
 	BIND_METHOD(int,__hash__);
+	BIND_METHOD(int,__format__);
 
 	BIND_TRIPLET(int,add);
 	BIND_TRIPLET(int,sub);
