@@ -57,4 +57,14 @@ typedef enum {
 #define FORMAT_OP_STR    (1 << 2)
 #define FORMAT_OP_FORMAT (1 << 3)
 
-
+struct ParsedFormatSpec {
+	char fill;
+	char align;
+	char sign;
+	int  width;
+	int  alt;
+	char sep;
+	int  prec;
+	int hasWidth;
+	int hasPrecision;
+};

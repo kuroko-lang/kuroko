@@ -73,71 +73,78 @@ static inline int matches(char c, const char * options) {
 	return 0;
 }
 
-KrkValue krk_doFormatString(const char * typeName, KrkString * format_spec, int positive, void * abs, int (*callback)(void *,int,int*)) {
-	char fill  = ' '; /* fill with spaces */
-	char align = 0;   /* right */
-	char sign  = 0;   /* only negatives */
-	int  width = 0;   /* size to fit */
-	int  alt   = 0;   /* no */
-	char sep   = 0;   /* none */
-	int  prec  = 0;   /* precision */
+const char * krk_parseCommonFormatSpec(struct ParsedFormatSpec *result, const char * spec, size_t length) {
+	result->fill = ' ';
 
-	/* Step one: Does it have a valid alignment? */
-	const char * spec = format_spec->chars;
-
-	if (format_spec->length > 1 && matches(spec[1],"<>=^")) {
-		fill = *spec;
+	if (length > 1 && matches(spec[1],"<>=^")) {
+		result->fill = *spec;
 		spec++;
 	}
 
 	if (matches(*spec,"<>=^")) {
-		align = *spec;
+		result->align = *spec;
 		spec++;
 	}
 
 	if (matches(*spec,"+- ")) {
-		sign = *spec;
+		result->sign = *spec;
 		spec++;
 	}
 
 	if (*spec == '#') {
-		alt = 1;
+		result->alt = 1;
 		spec++;
 	}
 
-	if (!align && *spec == '0') {
-		align = '=';
+	if (!result->align && *spec == '0') {
+		result->align = '=';
+		result->fill = '0';
 		spec++;
-	} else {
-		align = '>';
 	}
 
-	while (matches(*spec,"0123456789")) {
-		width *= 10;
-		width += (*spec - '0');
-		spec++;
+	if (matches(*spec,"0123456789")) {
+		result->hasWidth = 1;
+		do {
+			result->width *= 10;
+			result->width += (*spec - '0');
+			spec++;
+		} while (matches(*spec,"0123456789"));
 	}
 
 	if (matches(*spec, "_,")) {
-		sep = *spec;
+		result->sep = *spec;
 		spec++;
 	}
 
 	if (*spec == '.') {
 		spec++;
-		if (!matches(*spec,"0123456789")) return krk_runtimeError(vm.exceptions->valueError, "Format specifier missing precision");
+		if (!matches(*spec,"0123456789")) {
+			krk_runtimeError(vm.exceptions->valueError, "Format specifier missing precision");
+			return NULL;
+		}
+		result->hasPrecision = 1;
 		while (matches(*spec,"0123456789")) {
-			prec *= 10;
-			prec += (*spec - '0');
+			result->prec *= 10;
+			result->prec += (*spec - '0');
 			spec++;
 		}
 	}
 
 	if (*spec && spec[1] != 0) {
-		return krk_runtimeError(vm.exceptions->valueError, "Invalid format specifier");
+		krk_runtimeError(vm.exceptions->valueError, "Invalid format specifier");
+		return NULL;
 	}
 
-	const char * altPrefix = "";
+	return spec;
+}
+
+KrkValue krk_doFormatString(const char * typeName, KrkString * format_spec, int positive, void * abs, int (*callback)(void *,int,int*)) {
+
+	struct ParsedFormatSpec opts = {0};
+	const char * spec = krk_parseCommonFormatSpec(&opts, format_spec->chars, format_spec->length);
+	if (!spec) return NONE_VAL();
+
+	const char * altPrefix = NULL;
 	const char * conversions = "0123456789abcdef";
 	int base = 0;
 
@@ -179,16 +186,19 @@ KrkValue krk_doFormatString(const char * typeName, KrkString * format_spec, int 
 				typeName);
 	}
 
-	if (!sign) sign = '-';
+	if (!opts.sign)  opts.sign = '-';
+	if (!opts.align) opts.align = '>';
+
 	struct StringBuilder sb = {0};
 
+	int width = opts.width;
 	int l = 0;
 
-	if (alt && altPrefix && width > 2) width -= 2;
-	if ((!positive || sign == '+') && width > 1) width--;
+	if (opts.alt && altPrefix && width > 2) width -= 2;
+	if ((!positive || opts.sign == '+') && width > 1) width--;
 
 	int digits = 0;
-	int sepcount = sep == ',' ? 3 : 4;
+	int sepcount = opts.sep == ',' ? 3 : 4;
 	int more = 0;
 
 	do {
@@ -199,37 +209,41 @@ KrkValue krk_doFormatString(const char * typeName, KrkString * format_spec, int 
 			return NONE_VAL();
 		}
 
-		pushStringBuilder(&sb, conversions[digit]);
+		if (digits && !more && digit == 0) {
+			pushStringBuilder(&sb, opts.fill);
+		} else {
+			pushStringBuilder(&sb, conversions[digit]);
+		}
 		l++;
 		digits++;
 
-		if (sep && !(digits % sepcount) && (more || (align == '=' && l < width))) {
-			pushStringBuilder(&sb, sep);
+		if (opts.sep && !(digits % sepcount) && (more || (opts.align == '=' && l < width))) {
+			pushStringBuilder(&sb, opts.sep);
 			l++;
-			if (align == '=' && l == width) {
-				pushStringBuilder(&sb, '0');
+			if (opts.align == '=' && l == width) {
+				pushStringBuilder(&sb, opts.fill);
 			}
 		}
-	} while (more || (align == '=' && l < width));
+	} while (more || (opts.align == '=' && l < width));
 
-	if (alt && altPrefix) {
+	if (opts.alt && altPrefix) {
 		pushStringBuilder(&sb, altPrefix[1]);
 		pushStringBuilder(&sb, altPrefix[0]);
 	}
 
-	if (!positive || sign == '+') {
+	if (!positive || opts.sign == '+') {
 		pushStringBuilder(&sb, positive ? '+' : '-');
 	}
 
-	if (align == '>') {
+	if (opts.align == '>') {
 		while (l < width) {
-			pushStringBuilder(&sb, fill);
+			pushStringBuilder(&sb, opts.fill);
 			l++;
 		}
-	} else if (align == '^') {
+	} else if (opts.align == '^') {
 		int remaining = (width - l) / 2;
 		for (int i = 0; i < remaining; ++i) {
-			pushStringBuilder(&sb, fill);
+			pushStringBuilder(&sb, opts.fill);
 			l++;
 		}
 	}
@@ -240,9 +254,9 @@ KrkValue krk_doFormatString(const char * typeName, KrkString * format_spec, int 
 		sb.bytes[sb.length - i - 1] = t;
 	}
 
-	if (align == '<') {
+	if (opts.align == '<' || opts.align == '^') {
 		while (l < width) {
-			pushStringBuilder(&sb, fill);
+			pushStringBuilder(&sb, opts.fill);
 			l++;
 		}
 	}
