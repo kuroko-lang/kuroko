@@ -3505,6 +3505,31 @@ _finishReturn: (void)0;
 				if (doFormatString(OPERAND)) goto _finishException;
 				break;
 			}
+
+			case OP_MAKE_STRING_LONG:
+				THREE_BYTE_OPERAND;
+			case OP_MAKE_STRING: {
+				ONE_BYTE_OPERAND;
+
+				struct StringBuilder sb = {0};
+
+				for (ssize_t i = 0; i < OPERAND; ++i) {
+					KrkValue s = krk_currentThread.stackTop[-OPERAND+i];
+					if (unlikely(!IS_STRING(s))) {
+						discardStringBuilder(&sb);
+						krk_runtimeError(vm.exceptions->valueError, "'%s' is not a string", krk_typeName(s));
+						goto _finishException;
+					}
+					pushStringBuilderStr(&sb, (char*)AS_STRING(s)->chars, AS_STRING(s)->length);
+				}
+
+				for (ssize_t i = 0; i < OPERAND; ++i) {
+					krk_pop();
+				}
+
+				krk_push(finishStringBuilder(&sb));
+				break;
+			}
 		}
 		if (unlikely(krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION)) {
 _finishException:

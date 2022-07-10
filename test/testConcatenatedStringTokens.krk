@@ -1,0 +1,3 @@
+let foo = 42
+
+print(f'{foo}' '{bar}' r'{\baz}')

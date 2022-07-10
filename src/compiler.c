@@ -2580,14 +2580,14 @@ static void string(int exprType) {
 	for (size_t i = 0; i < n; ++i) { \
 		if (c + i + 2 == end || !isHex(c[i+2])) { \
 			error("truncated \\%c escape", type); \
-			FREE_ARRAY(char,stringBytes,stringCapacity); \
-			return; \
+			goto _cleanupError; \
 		} \
 		tmpbuf[i] = c[i+2]; \
 	} \
 	unsigned long value = strtoul(tmpbuf, NULL, 16); \
 	if (value >= 0x110000) { \
 		error("invalid codepoint in \\%c escape", type); \
+		goto _cleanupError; \
 	} \
 	if (isBytes) { \
 		PUSH_CHAR(value); \
@@ -2602,7 +2602,6 @@ static void string(int exprType) {
 	int isFormat = (parser.previous.type == TOKEN_PREFIX_F);
 	int isRaw = (parser.previous.type == TOKEN_PREFIX_R);
 
-	int atLeastOne = 0;
 	const char * lineBefore = krk_tellScanner().linePtr;
 	size_t lineNo = krk_tellScanner().line;
 
@@ -2611,15 +2610,16 @@ static void string(int exprType) {
 		return;
 	}
 
-	if (isRaw) {
-		emitConstant(OBJECT_VAL(krk_copyString(
-			parser.previous.start + (parser.previous.type == TOKEN_BIG_STRING ? 3 : 1),
-			parser.previous.length - (parser.previous.type == TOKEN_BIG_STRING ? 6 : 2))));
-		return;
-	}
+	int formatElements = 0;
 
 	/* This should capture everything but the quotes. */
 	do {
+		if (isRaw) {
+			for (size_t i = 0; i < parser.previous.length - (parser.previous.type == TOKEN_BIG_STRING ? 6 : 2); ++i) {
+				PUSH_CHAR(parser.previous.start[(parser.previous.type == TOKEN_BIG_STRING ? 3 : 1) + i]);
+			}
+			goto _nextStr;
+		}
 		int type = parser.previous.type == TOKEN_BIG_STRING ? 3 : 1;
 		const char * c = parser.previous.start + type;
 		const char * end = parser.previous.start + parser.previous.length - type;
@@ -2691,8 +2691,7 @@ static void string(int exprType) {
 			} else if (isFormat && *c == '}') {
 				if (c[1] != '}') {
 					error("single '}' not allowed in f-string");
-					FREE_ARRAY(char,stringBytes,stringCapacity);
-					return;
+					goto _cleanupError;
 				}
 				PUSH_CHAR('}');
 				c += 2;
@@ -2703,10 +2702,10 @@ static void string(int exprType) {
 					c += 2;
 					continue;
 				}
-				if (!atLeastOne || stringLength) { /* Make sure there's a string for coersion reasons */
+				if (stringLength) { /* Make sure there's a string for coersion reasons */
 					emitConstant(OBJECT_VAL(krk_copyString(stringBytes,stringLength)));
-					if (atLeastOne) emitByte(OP_ADD);
-					atLeastOne = 1;
+					formatElements++;
+					stringLength = 0;
 				}
 				const char * start = c+1;
 				stringLength = 0;
@@ -2716,10 +2715,7 @@ static void string(int exprType) {
 				krk_rewindScanner(inner);
 				advance();
 				parsePrecedence(PREC_COMMA); /* allow unparen'd tuples, but not assignments, as expressions in f-strings */
-				if (parser.hadError) {
-					FREE_ARRAY(char,stringBytes,stringCapacity);
-					return;
-				}
+				if (parser.hadError) goto _cleanupError;
 				inner = krk_tellScanner(); /* To figure out how far to advance c */
 				krk_rewindScanner(beforeExpression); /* To get us back to where we were with a string token */
 				parser = parserBefore;
@@ -2764,8 +2760,8 @@ static void string(int exprType) {
 					error("Expected closing '}' after expression in f-string");
 					goto _cleanupError;
 				}
-				if (atLeastOne) emitByte(OP_ADD);
-				atLeastOne = 1;
+
+				formatElements++;
 				c++;
 			} else {
 				if (*(unsigned char*)c > 127 && isBytes) {
@@ -2774,6 +2770,18 @@ static void string(int exprType) {
 				}
 				PUSH_CHAR(*c);
 				c++;
+			}
+		}
+
+_nextStr:
+		(void)0;
+		isRaw = 0;
+		isFormat = 0;
+		if (!isBytes) {
+			if (match(TOKEN_PREFIX_F)) {
+				isFormat = 1;
+			} else if (match(TOKEN_PREFIX_R)) {
+				isRaw = 1;
 			}
 		}
 	} while ((!isBytes || match(TOKEN_PREFIX_B)) && (match(TOKEN_STRING) || match(TOKEN_BIG_STRING)));
@@ -2789,15 +2797,16 @@ static void string(int exprType) {
 		emitConstant(OBJECT_VAL(bytes));
 		return;
 	}
-	if (!isFormat || stringLength || !atLeastOne) {
+	if (stringLength) {
 		emitConstant(OBJECT_VAL(krk_copyString(stringBytes,stringLength)));
-		if (atLeastOne) emitByte(OP_ADD);
+		formatElements++;
 	}
-	FREE_ARRAY(char,stringBytes,stringCapacity);
-#undef PUSH_CHAR
-	return;
+	if (formatElements != 1) {
+		EMIT_OPERAND_OP(OP_MAKE_STRING, formatElements);
+	}
 _cleanupError:
 	FREE_ARRAY(char,stringBytes,stringCapacity);
+#undef PUSH_CHAR
 }
 
 static size_t addUpvalue(Compiler * compiler, ssize_t index, int isLocal) {
