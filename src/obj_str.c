@@ -169,6 +169,80 @@ KRK_Method(str,__getitem__) {
 	}
 }
 
+const char * krk_parseCommonFormatSpec(struct ParsedFormatSpec *result, const char * spec, size_t length);
+
+KRK_Method(str,__format__) {
+	METHOD_TAKES_EXACTLY(1);
+	CHECK_ARG(1,str,KrkString*,format_spec);
+
+	struct ParsedFormatSpec opts = {0};
+	const char * spec = krk_parseCommonFormatSpec(&opts, format_spec->chars, format_spec->length);
+	if (!spec) return NONE_VAL();
+
+	switch (*spec) {
+		case 0:   /* unspecified */
+		case 's':
+			break;
+		default:
+			return krk_runtimeError(vm.exceptions->valueError,
+				"Unknown format code '%c' for object of type '%s'",
+				*spec,
+				"str");
+	}
+
+	/* Note we're going to deal in codepoints exclusive here, so hold on to your hat. */
+	krk_unicodeString(self);
+
+	size_t actualLength = self->codesLength;
+
+	/* Restrict to the precision specified */
+	if (opts.hasPrecision && (size_t)opts.prec < actualLength) {
+		actualLength = opts.prec;
+	}
+
+	/* How much padding do we need? */
+	size_t padLeft = 0;
+	size_t padRight = 0;
+	if (opts.hasWidth && actualLength < (size_t)opts.width) {
+		if (!opts.align || opts.align == '<') {
+			padRight = opts.width - actualLength;
+		} else if (opts.align == '>' || opts.align == '=') {
+			padLeft = opts.width - actualLength;
+		} else if (opts.align == '^') {
+			padLeft = (opts.width - actualLength) / 2;
+			padRight = (opts.width - actualLength) - padLeft;
+		}
+	}
+
+	/* If there's no work to do, return self */
+	if (padLeft == 0 && padRight == 0 && actualLength == self->codesLength) {
+		return argv[0];
+	}
+
+	struct StringBuilder sb = {0};
+
+	/* Push left padding */
+	for (size_t i = 0; i < padLeft; ++i) {
+		pushStringBuilder(&sb, opts.fill);
+	}
+
+	/* Push codes from us */
+	size_t offset = 0;
+	for (size_t i = 0; i < actualLength; ++i) {
+		uint32_t cp = KRK_STRING_FAST(self,i);
+		size_t   bytes =  CODEPOINT_BYTES(cp);
+		pushStringBuilderStr(&sb, &self->chars[offset], bytes);
+		offset += bytes;
+	}
+
+	/* Push right padding */
+	for (size_t i = 0; i < padRight; ++i) {
+		pushStringBuilder(&sb, opts.fill);
+	}
+
+	return finishStringBuilder(&sb);
+}
+
 /* str.format(**kwargs) */
 KRK_Method(str,format) {
 	KrkValue kwargs = NONE_VAL();
@@ -1011,6 +1085,7 @@ void _createAndBind_strClass(void) {
 	BIND_METHOD(str,__repr__);
 	BIND_METHOD(str,__str__);
 	BIND_METHOD(str,__hash__);
+	BIND_METHOD(str,__format__);
 	BIND_METHOD(str,encode);
 	BIND_METHOD(str,split);
 	BIND_METHOD(str,strip);
