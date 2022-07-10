@@ -174,6 +174,16 @@ KRK_Method(object,__str__) {
 	return out;
 }
 
+KRK_Method(object,__format__) {
+	METHOD_TAKES_EXACTLY(1);
+	if (!IS_STRING(argv[1])) return TYPE_ERROR(str,argv[1]);
+	if (AS_STRING(argv[1])->length != 0) return krk_runtimeError(vm.exceptions->typeError, "Unsupported format string");
+	KrkClass * type = krk_getType(argv[0]);
+	if (!type->_tostr) return krk_runtimeError(vm.exceptions->typeError, "'%s' can not be converted to str", krk_typeName(argv[0]));
+	krk_push(argv[0]);
+	return krk_callDirect(type->_tostr, 1);
+}
+
 #undef CURRENT_CTYPE
 #undef CURRENT_NAME
 
@@ -1098,6 +1108,27 @@ KRK_Function(abs) {
 	}
 }
 
+KRK_Function(format) {
+	FUNCTION_TAKES_AT_LEAST(1);
+	FUNCTION_TAKES_AT_MOST(2);
+
+	KrkClass * type = krk_getType(argv[0]);
+
+	if (!type->_format) {
+		return krk_runtimeError(vm.exceptions->typeError, "'%s' has no __format__ method", krk_typeName(argv[0]));
+	}
+
+	krk_push(argv[0]);
+	if (argc < 2) krk_push(OBJECT_VAL(S("")));
+	else krk_push(argv[1]);
+
+	KrkValue result = krk_callDirect(type->_format, 2);
+	if (!IS_STRING(result)) {
+		return krk_runtimeError(vm.exceptions->typeError, "__format__ result was not a string");
+	}
+	return result;
+}
+
 static void module_sweep(KrkInstance * inst) {
 #ifndef STATIC_ONLY
 	struct KrkModule * module = (struct KrkModule*)inst;
@@ -1118,6 +1149,7 @@ void _createAndBind_builtins(void) {
 	BIND_METHOD(object,__str__);
 	BIND_METHOD(object,__hash__);
 	BIND_METHOD(object,__eq__);
+	BIND_METHOD(object,__format__);
 	BIND_METHOD(object,__setattr__)->obj.flags = KRK_OBJ_FLAGS_FUNCTION_IS_STATIC_METHOD;
 	krk_defineNative(&object->methods, "__repr__", FUNC_NAME(object,__str__));
 	krk_finalizeClass(object);
@@ -1369,5 +1401,8 @@ void _createAndBind_builtins(void) {
 	BUILTIN_FUNCTION("abs", FUNC_NAME(krk,abs),
 		"@brief Obtain the absolute value of a numeric.\n"
 		"@arguments iterable");
+	BUILTIN_FUNCTION("format", FUNC_NAME(krk,format),
+		"@brief Format a value for string printing.\n"
+		"@arguments value[,format_spec]");
 }
 
