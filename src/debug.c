@@ -6,6 +6,8 @@
 #include <kuroko/util.h>
 #include <kuroko/compiler.h>
 
+#include "private.h"
+
 #ifndef KRK_DISABLE_DEBUG
 
 /**
@@ -114,6 +116,7 @@ static int isJumpTarget(KrkCodeObject * func, size_t startPoint) {
 	}
 #define EXPAND_ARGS_MORE
 #define LOCAL_MORE
+#define FORMAT_VALUE_MORE
 
 	while (offset < chunk->count) {
 		uint8_t opcode = chunk->code[offset];
@@ -132,6 +135,7 @@ static int isJumpTarget(KrkCodeObject * func, size_t startPoint) {
 #undef CLOSURE_MORE
 #undef LOCAL_MORE
 #undef EXPAND_ARGS_MORE
+#undef FORMAT_VALUE_MORE
 }
 
 #define SIMPLE(opc) case opc: fprintf(f, "%-16s      ", opcodeClean(#opc)); size = 1; break;
@@ -180,6 +184,17 @@ static int isJumpTarget(KrkCodeObject * func, size_t startPoint) {
 
 #define EXPAND_ARGS_MORE \
 	fprintf(f, " (%s)", operand == 0 ? "singleton" : (operand == 1 ? "list" : "dict"));
+
+#define FORMAT_VALUE_MORE \
+	if (operand != 0) {\
+		int hasThing = 0; \
+		fprintf(f, " ("); \
+		if (operand & FORMAT_OP_EQ)     { fprintf(f, "eq"); hasThing = 1; } \
+		if (operand & FORMAT_OP_STR)    { fprintf(f, "%sstr", hasThing ? ", " : ""); hasThing = 1; } \
+		if (operand & FORMAT_OP_REPR)   { fprintf(f, "%srepr", hasThing ? ", " : ""); hasThing = 1; } \
+		if (operand & FORMAT_OP_FORMAT) { fprintf(f, "%swith format", hasThing ? ", " : ""); } \
+		fprintf(f, ")"); \
+	}
 
 #define LOCAL_MORE \
 	if ((short int)operand < (func->requiredArgs)) { \
@@ -244,6 +259,7 @@ size_t krk_disassembleInstruction(FILE * f, KrkCodeObject * func, size_t offset)
 #undef CLOSURE_MORE
 #undef LOCAL_MORE
 #undef EXPAND_ARGS_MORE
+#undef FORMAT_VALUE_MORE
 
 struct BreakpointEntry {
 	KrkCodeObject * inFunction;
@@ -646,6 +662,7 @@ KRK_Function(build) {
 	} \
 	size += baseOffset - offset;
 #define EXPAND_ARGS_MORE
+#define FORMAT_VALUE_MORE
 #define LOCAL_MORE local = operand;
 static KrkValue _examineInternal(KrkCodeObject* func) {
 	KrkValue output = krk_list_of(0,NULL,0);
@@ -717,6 +734,7 @@ KRK_Function(examine) {
 #undef CLOSURE_MORE
 #undef LOCAL_MORE
 #undef EXPAND_ARGS_MORE
+#undef FORMAT_VALUE_MORE
 
 _noexport
 void _createAndBind_disMod(void) {
@@ -792,6 +810,7 @@ void _createAndBind_disMod(void) {
 #define JUMP(opc,sign) OPCODE(opc)
 #define CLOSURE_MORE
 #define EXPAND_ARGS_MORE
+#define FORMAT_VALUE_MORE
 #define LOCAL_MORE
 #include "opcodes.h"
 #undef SIMPLE
@@ -802,6 +821,7 @@ void _createAndBind_disMod(void) {
 #undef CLOSURE_MORE
 #undef LOCAL_MORE
 #undef EXPAND_ARGS_MORE
+#undef FORMAT_VALUE_MORE
 }
 
 #endif
