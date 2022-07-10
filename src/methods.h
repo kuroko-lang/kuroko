@@ -46,6 +46,7 @@ CACHED_METHOD(NEGATE, "__neg__", _negate)
 CACHED_METHOD(SETNAME, "__set_name__", _set_name)
 CACHED_METHOD(POS, "__pos__", _pos)
 CACHED_METHOD(SETATTR, "__setattr__", _setattr)
+CACHED_METHOD(FORMAT, "__format__", _format)
 
 /* These are not methods */
 SPECIAL_ATTRS(CLASS,     "__class__")
