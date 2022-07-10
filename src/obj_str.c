@@ -479,9 +479,9 @@ KRK_Method(str,__contains__) {
 	return BOOLEAN_VAL(0);
 }
 
-static int charIn(char c, const char * str) {
-	for (const char * s = str; *s; s++) {
-		if (c == *s) return 1;
+static int charIn(uint32_t c, KrkString * str) {
+	for (size_t i = 0; i < str->codesLength; ++i) {
+		if (c == KRK_STRING_FAST(str,i)) return 1;
 	}
 	return 0;
 }
@@ -491,26 +491,30 @@ static int charIn(char c, const char * str) {
  * Set which = 0, 1, 2 respectively
  */
 static KrkValue _string_strip_shared(int argc, const KrkValue argv[], int which) {
-	if (argc > 1 && IS_STRING(argv[1]) && (AS_STRING(argv[1])->obj.flags & KRK_OBJ_FLAGS_STRING_MASK) != KRK_OBJ_FLAGS_STRING_ASCII) {
-		return krk_runtimeError(vm.exceptions->notImplementedError, "str.strip() not implemented for Unicode strip lists");
-	}
-	size_t start = 0;
-	size_t end   = AS_STRING(argv[0])->length;
-	const char * subset = " \t\n\r";
+	KrkString * subset = AS_STRING(vm.specialMethodNames[METHOD_STRSTRIP]);
 	if (argc > 1) {
 		if (IS_STRING(argv[1])) {
-			subset = AS_CSTRING(argv[1]);
+			subset = AS_STRING(argv[1]);
 		} else {
 			return krk_runtimeError(vm.exceptions->typeError, "argument to %sstrip() should be a string",
 				(which == 0 ? "" : (which == 1 ? "l" : "r")));
 		}
-	} else if (argc > 2) {
-		return krk_runtimeError(vm.exceptions->typeError, "%sstrip() takes at most one argument",
-			(which == 0 ? "" : (which == 1 ? "l" : "r")));
 	}
-	if (which < 2) while (start < end && charIn(AS_CSTRING(argv[0])[start], subset)) start++;
-	if (which != 1) while (end > start && charIn(AS_CSTRING(argv[0])[end-1], subset)) end--;
-	return OBJECT_VAL(krk_copyString(&AS_CSTRING(argv[0])[start], end-start));
+
+	KrkString * self = AS_STRING(argv[0]);
+	krk_unicodeString(self);
+	krk_unicodeString(subset);
+
+	uint32_t c;
+	size_t start = 0;
+	size_t end   = self->length;
+	int j = 0;
+	int k = self->codesLength - 1;
+
+	if (which < 2) while (start < end && charIn((c = KRK_STRING_FAST(self, j)), subset)) { j++; start += CODEPOINT_BYTES(c); }
+	if (which != 1) while (end > start && charIn((c = KRK_STRING_FAST(self, k)), subset)) { k--; end -= CODEPOINT_BYTES(c); }
+
+	return OBJECT_VAL(krk_copyString(&self->chars[start], end-start));
 }
 
 KRK_Method(str,strip) {

@@ -59,4 +59,5 @@ SPECIAL_ATTRS(INT,       "__int__")
 SPECIAL_ATTRS(CHR,       "__chr__")
 SPECIAL_ATTRS(ORD,       "__ord__")
 SPECIAL_ATTRS(FLOAT,     "__float__")
+SPECIAL_ATTRS(STRSTRIP,  " \t\n\r")
 
