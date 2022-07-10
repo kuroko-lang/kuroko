@@ -16,9 +16,11 @@
 
 #include "private.h"
 
-#define KRK_VERSION_MAJOR  "1"
-#define KRK_VERSION_MINOR  "3"
-#define KRK_VERSION_PATCH  "0"
+#define KRK_VERSION_MAJOR  1
+#define KRK_VERSION_MINOR  3
+#define KRK_VERSION_PATCH  0
+#define KRK_VERSION_LEVEL  0xB
+#define KRK_VERSION_SERIAL 0x0
 
 #define KRK_VERSION_EXTRA_BASE  "-beta"
 
@@ -1531,10 +1533,15 @@ void krk_initVM(int flags) {
 	krk_attachNamedObject(&vm.system->fields, "__name__", (KrkObj*)S("kuroko"));
 	krk_attachNamedValue(&vm.system->fields, "__file__", NONE_VAL()); /* (built-in) */
 	KRK_DOC(vm.system, "@brief System module.");
+#define STR_(x) #x
+#define STR(x) STR_(x)
 	krk_attachNamedObject(&vm.system->fields, "version",
-		(KrkObj*)S(KRK_VERSION_MAJOR "." KRK_VERSION_MINOR "." KRK_VERSION_PATCH KRK_VERSION_EXTRA));
+		(KrkObj*)S(STR(KRK_VERSION_MAJOR) "." STR(KRK_VERSION_MINOR) "." STR(KRK_VERSION_PATCH) KRK_VERSION_EXTRA));
 	krk_attachNamedObject(&vm.system->fields, "buildenv", (KrkObj*)S(KRK_BUILD_COMPILER));
 	krk_attachNamedObject(&vm.system->fields, "builddate", (KrkObj*)S(KRK_BUILD_DATE));
+	krk_attachNamedValue(&vm.system->fields, "hexversion",
+		INTEGER_VAL((KRK_VERSION_MAJOR << 24) | (KRK_VERSION_MINOR << 16) | (KRK_VERSION_PATCH << 8) | (KRK_VERSION_LEVEL << 4) | (KRK_VERSION_SERIAL)));
+
 	KRK_DOC(BIND_FUNC(vm.system,getsizeof),
 		"@brief Calculate the approximate size of an object in bytes.\n"
 		"@arguments value\n\n"
