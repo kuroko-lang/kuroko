@@ -223,7 +223,7 @@ KRK_Method(str,__format__) {
 
 	/* Push left padding */
 	for (size_t i = 0; i < padLeft; ++i) {
-		pushStringBuilder(&sb, opts.fill);
+		pushStringBuilderStr(&sb, opts.fill, opts.fillSize);
 	}
 
 	/* Push codes from us */
@@ -237,7 +237,7 @@ KRK_Method(str,__format__) {
 
 	/* Push right padding */
 	for (size_t i = 0; i < padRight; ++i) {
-		pushStringBuilder(&sb, opts.fill);
+		pushStringBuilderStr(&sb, opts.fill, opts.fillSize);
 	}
 
 	return finishStringBuilder(&sb);

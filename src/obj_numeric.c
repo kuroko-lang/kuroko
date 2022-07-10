@@ -74,11 +74,21 @@ static inline int matches(char c, const char * options) {
 }
 
 const char * krk_parseCommonFormatSpec(struct ParsedFormatSpec *result, const char * spec, size_t length) {
-	result->fill = ' ';
+	result->fill = " ";
+	result->fillSize = 1;
 
-	if (length > 1 && matches(spec[1],"<>=^")) {
-		result->fill = *spec;
-		spec++;
+	if (length > 1) {
+		/* How wide is the first character? */
+		int i = 1;
+		if ((spec[0] & 0xC0) == 0xC0) { /* wider than one byte */
+			while ((spec[i] & 0xc0) == 0x80) i++; /* count continuation bytes */
+		}
+		/* Is the character after it an alignment? */
+		if (matches(spec[i],"<>=^")) {
+			result->fill = spec;
+			result->fillSize = i;
+			spec += i;
+		}
 	}
 
 	if (matches(*spec,"<>=^")) {
@@ -98,7 +108,8 @@ const char * krk_parseCommonFormatSpec(struct ParsedFormatSpec *result, const ch
 
 	if (!result->align && *spec == '0') {
 		result->align = '=';
-		result->fill = '0';
+		result->fill = "0";
+		result->fillSize = 1;
 		spec++;
 	}
 
@@ -210,7 +221,10 @@ KrkValue krk_doFormatString(const char * typeName, KrkString * format_spec, int 
 		}
 
 		if (digits && !more && digit == 0) {
-			pushStringBuilder(&sb, opts.fill);
+			/* Add backwards */
+			for (int i = 0; i < opts.fillSize; ++i) {
+				pushStringBuilder(&sb, opts.fill[opts.fillSize-1-i]);
+			}
 		} else {
 			pushStringBuilder(&sb, conversions[digit]);
 		}
@@ -221,7 +235,10 @@ KrkValue krk_doFormatString(const char * typeName, KrkString * format_spec, int 
 			pushStringBuilder(&sb, opts.sep);
 			l++;
 			if (opts.align == '=' && l == width) {
-				pushStringBuilder(&sb, opts.fill);
+				/* Add backwards */
+				for (int i = 0; i < opts.fillSize; ++i) {
+					pushStringBuilder(&sb, opts.fill[opts.fillSize-1-i]);
+				}
 			}
 		}
 	} while (more || (opts.align == '=' && l < width));
@@ -237,13 +254,17 @@ KrkValue krk_doFormatString(const char * typeName, KrkString * format_spec, int 
 
 	if (opts.align == '>') {
 		while (l < width) {
-			pushStringBuilder(&sb, opts.fill);
+			for (int i = 0; i < opts.fillSize; ++i) {
+				pushStringBuilder(&sb, opts.fill[opts.fillSize-1-i]);
+			}
 			l++;
 		}
 	} else if (opts.align == '^') {
 		int remaining = (width - l) / 2;
 		for (int i = 0; i < remaining; ++i) {
-			pushStringBuilder(&sb, opts.fill);
+			for (int i = 0; i < opts.fillSize; ++i) {
+				pushStringBuilder(&sb, opts.fill[opts.fillSize-1-i]);
+			}
 			l++;
 		}
 	}
@@ -256,7 +277,7 @@ KrkValue krk_doFormatString(const char * typeName, KrkString * format_spec, int 
 
 	if (opts.align == '<' || opts.align == '^') {
 		while (l < width) {
-			pushStringBuilder(&sb, opts.fill);
+			pushStringBuilderStr(&sb, opts.fill, opts.fillSize);
 			l++;
 		}
 	}
