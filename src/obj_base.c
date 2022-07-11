@@ -74,6 +74,15 @@ KRK_Method(type,__subclasses__) {
 	return krk_pop();
 }
 
+KRK_Method(type,__getitem__) {
+	if (self->_classgetitem && argc == 2) {
+		krk_push(argv[0]);
+		krk_push(argv[1]);
+		return krk_callDirect(self->_classgetitem, 2);
+	}
+	return krk_runtimeError(vm.exceptions->attributeError, "'%s' object is not subscriptable", "type");
+}
+
 _noexport
 void _createAndBind_type(void) {
 	KrkClass * type = ADD_BASE_CLASS(vm.baseClasses->typeClass, "type", vm.baseClasses->objectClass);
@@ -87,6 +96,7 @@ void _createAndBind_type(void) {
 	BIND_METHOD(type,__init__);
 	BIND_METHOD(type,__str__);
 	BIND_METHOD(type,__subclasses__);
+	BIND_METHOD(type,__getitem__);
 	krk_defineNative(&type->methods,"__repr__",FUNC_NAME(type,__str__));
 
 	krk_finalizeClass(type);

@@ -2603,6 +2603,16 @@ static inline int doFormatString(int options) {
 	return 0;
 }
 
+static inline void commonMethodInvoke(size_t methodOffset, int args, const char * msgFormat) {
+	KrkClass * type = krk_getType(krk_peek(args-1));
+	KrkObj * method = *(KrkObj**)((char*)type + methodOffset);
+	if (likely(method != NULL)) {
+		krk_push(krk_callDirect(method, args));
+	} else {
+		krk_runtimeError(vm.exceptions->attributeError, msgFormat, krk_typeName(krk_peek(args-1)));
+	}
+}
+
 
 /**
  * VM main loop.
@@ -2773,59 +2783,25 @@ _finishReturn: (void)0;
 				krk_pop();
 				break;
 			case OP_INVOKE_GETTER: {
-				KrkClass * type = krk_getType(krk_peek(1));
-				if (likely(type->_getter != NULL)) {
-					krk_push(krk_callDirect(type->_getter, 2));
-				} else if (IS_CLASS(krk_peek(1)) && AS_CLASS(krk_peek(1))->_classgetitem) {
-					krk_push(krk_callDirect(AS_CLASS(krk_peek(1))->_classgetitem, 2));
-				} else {
-					krk_runtimeError(vm.exceptions->attributeError, "'%s' object is not subscriptable", krk_typeName(krk_peek(1)));
-				}
+				commonMethodInvoke(offsetof(KrkClass,_getter), 2, "'%s' object is not subscriptable");
 				break;
 			}
 			case OP_INVOKE_SETTER: {
-				KrkClass * type = krk_getType(krk_peek(2));
-				if (likely(type->_setter != NULL)) {
-					krk_push(krk_callDirect(type->_setter, 3));
-				} else {
-					if (type->_getter) {
-						krk_runtimeError(vm.exceptions->attributeError, "'%s' object is not mutable", krk_typeName(krk_peek(2)));
-					} else {
-						krk_runtimeError(vm.exceptions->attributeError, "'%s' object is not subscriptable", krk_typeName(krk_peek(2)));
-					}
-				}
+				commonMethodInvoke(offsetof(KrkClass,_setter), 3, "'%s' object doesn't support item assignment");
 				break;
 			}
 			case OP_INVOKE_DELETE: {
-				KrkClass * type = krk_getType(krk_peek(1));
-				if (likely(type->_delitem != NULL)) {
-					krk_callDirect(type->_delitem, 2);
-				} else {
-					if (type->_getter) {
-						krk_runtimeError(vm.exceptions->attributeError, "'%s' object is not mutable", krk_typeName(krk_peek(1)));
-					} else {
-						krk_runtimeError(vm.exceptions->attributeError, "'%s' object is not subscriptable", krk_typeName(krk_peek(1)));
-					}
-				}
+				commonMethodInvoke(offsetof(KrkClass,_delitem), 2, "'%s' object doesn't support item deletion");
+				krk_pop(); /* unused result */
 				break;
 			}
 			case OP_INVOKE_ITER: {
-				KrkClass * type = krk_getType(krk_peek(0));
-				if (likely(type->_iter != NULL)) {
-					krk_push(krk_callDirect(type->_iter, 1));
-				} else {
-					krk_runtimeError(vm.exceptions->attributeError, "'%s' object is not iterable", krk_typeName(krk_peek(0)));
-				}
+				commonMethodInvoke(offsetof(KrkClass,_iter), 1, "'%s' object is not iterable");
 				break;
 			}
 			case OP_INVOKE_CONTAINS: {
-				KrkClass * type = krk_getType(krk_peek(0));
-				if (likely(type->_contains != NULL)) {
-					krk_swap(1);
-					krk_push(krk_callDirect(type->_contains, 2));
-				} else {
-					krk_runtimeError(vm.exceptions->attributeError, "'%s' object can not be tested for membership", krk_typeName(krk_peek(0)));
-				}
+				krk_swap(1); /* operands are backwards */
+				commonMethodInvoke(offsetof(KrkClass,_contains), 2, "'%s' object can not be tested for membership");
 				break;
 			}
 			case OP_INVOKE_AWAIT: {
