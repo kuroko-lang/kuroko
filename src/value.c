@@ -6,6 +6,8 @@
 #include <kuroko/vm.h>
 #include <kuroko/util.h>
 
+#include "opcode_enum.h"
+
 void krk_initValueArray(KrkValueArray * array) {
 	array->values = NULL;
 	array->capacity = 0;

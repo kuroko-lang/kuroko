@@ -7,6 +7,7 @@
 #include <kuroko/compiler.h>
 
 #include "private.h"
+#include "opcode_enum.h"
 
 #ifndef KRK_DISABLE_DEBUG
 

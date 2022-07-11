@@ -43,6 +43,7 @@
 #include <kuroko/util.h>
 
 #include "private.h"
+#include "opcode_enum.h"
 
 /**
  * @brief Token parser state.

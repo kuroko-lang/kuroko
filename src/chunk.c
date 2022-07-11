@@ -2,6 +2,8 @@
 #include <kuroko/memory.h>
 #include <kuroko/vm.h>
 
+#include "opcode_enum.h"
+
 void krk_initChunk(KrkChunk * chunk) {
 	chunk->count = 0;
 	chunk->capacity = 0;

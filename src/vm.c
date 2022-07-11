@@ -15,6 +15,7 @@
 #include <kuroko/util.h>
 
 #include "private.h"
+#include "opcode_enum.h"
 
 #define KRK_VERSION_MAJOR  1
 #define KRK_VERSION_MINOR  3
@@ -307,7 +308,7 @@ static void attachTraceback(void) {
 			size_t frameOffset = 0;
 			if (krk_currentThread.stackTop > krk_currentThread.stack) {
 				size_t stackOffset = krk_currentThread.stackTop - krk_currentThread.stack - 1;
-				while (stackOffset > 0 && !IS_TRY_HANDLER(krk_currentThread.stack[stackOffset])) stackOffset--;
+				while (stackOffset > 0 && !IS_HANDLER_TYPE(krk_currentThread.stack[stackOffset], OP_PUSH_TRY)) stackOffset--;
 				frameOffset = krk_currentThread.frameCount - 1;
 				while (frameOffset > 0 && krk_currentThread.frames[frameOffset].slots > stackOffset) frameOffset--;
 			}
@@ -1749,9 +1750,9 @@ static int handleException() {
 	int exitSlot = (krk_currentThread.exitOnFrame >= 0) ? krk_currentThread.frames[krk_currentThread.exitOnFrame].outSlots : 0;
 	for (stackOffset = (int)(krk_currentThread.stackTop - krk_currentThread.stack - 1);
 		stackOffset >= exitSlot &&
-		!IS_TRY_HANDLER(krk_currentThread.stack[stackOffset]) &&
-		!IS_WITH_HANDLER(krk_currentThread.stack[stackOffset]) &&
-		!IS_EXCEPT_HANDLER(krk_currentThread.stack[stackOffset])
+		!IS_HANDLER_TYPE(krk_currentThread.stack[stackOffset], OP_PUSH_TRY) &&
+		!IS_HANDLER_TYPE(krk_currentThread.stack[stackOffset], OP_PUSH_WITH) &&
+		!IS_HANDLER_TYPE(krk_currentThread.stack[stackOffset], OP_FILTER_EXCEPT)
 		; stackOffset--);
 	if (stackOffset < exitSlot) {
 		if (exitSlot == 0) {
@@ -2698,9 +2699,9 @@ _finishReturn: (void)0;
 				int stackOffset;
 				for (stackOffset = (int)(krk_currentThread.stackTop - krk_currentThread.stack - 1);
 					stackOffset >= (int)frame->slots && 
-					!IS_WITH_HANDLER(krk_currentThread.stack[stackOffset]) &&
-					!IS_TRY_HANDLER(krk_currentThread.stack[stackOffset]) &&
-					!IS_EXCEPT_HANDLER(krk_currentThread.stack[stackOffset])
+					!IS_HANDLER_TYPE(krk_currentThread.stack[stackOffset],OP_PUSH_TRY) &&
+					!IS_HANDLER_TYPE(krk_currentThread.stack[stackOffset],OP_PUSH_WITH) &&
+					!IS_HANDLER_TYPE(krk_currentThread.stack[stackOffset],OP_FILTER_EXCEPT)
 					; stackOffset--);
 				if (stackOffset >= (int)frame->slots) {
 					krk_currentThread.stackTop = &krk_currentThread.stack[stackOffset + 1];
@@ -3511,6 +3512,9 @@ _finishReturn: (void)0;
 				krk_push(finishStringBuilder(&sb));
 				break;
 			}
+
+			default:
+				__builtin_unreachable();
 		}
 		if (unlikely(krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION)) {
 _finishException:

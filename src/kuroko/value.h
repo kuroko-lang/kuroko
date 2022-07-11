@@ -235,10 +235,7 @@ typedef union {
 
 #define AS_HANDLER_TYPE(value)    (AS_HANDLER(value) >> 16)
 #define AS_HANDLER_TARGET(value)  (AS_HANDLER(value) & 0xFFFF)
-#define IS_TRY_HANDLER(value)     (IS_HANDLER(value) && AS_HANDLER_TYPE(value) == OP_PUSH_TRY)
-#define IS_WITH_HANDLER(value)    (IS_HANDLER(value) && AS_HANDLER_TYPE(value) == OP_PUSH_WITH)
-#define IS_RAISE_HANDLER(value)   (IS_HANDLER(value) && AS_HANDLER_TYPE(value) == OP_RAISE)
-#define IS_EXCEPT_HANDLER(value)  (IS_HANDLER(value) && AS_HANDLER_TYPE(value) == OP_FILTER_EXCEPT)
+#define IS_HANDLER_TYPE(value,type) (IS_HANDLER(value) && AS_HANDLER_TYPE(value) == type)
 
 #define KWARGS_SINGLE (INT32_MAX)
 #define KWARGS_LIST   (INT32_MAX-1)
