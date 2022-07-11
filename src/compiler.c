@@ -3251,7 +3251,7 @@ static void dict(int exprType) {
 		if (check(TOKEN_COMMA) || check(TOKEN_RIGHT_BRACE)) {
 			/* One expression, must be a set literal. */
 			size_t argCount = 1;
-			while (match(TOKEN_COMMA)) {
+			while (match(TOKEN_COMMA) && !check(TOKEN_RIGHT_BRACE)) {
 				expression();
 				argCount++;
 			}
