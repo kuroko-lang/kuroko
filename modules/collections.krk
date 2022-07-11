@@ -247,27 +247,41 @@ class xraydict:
             if i in exclude:
                 del modified[i]
     '''
-    def __init__(base, overlay, exclude=[]):
+    def __init__(base, overlay, exclude=[], filter_function=None):
         self.base = base
         self.overlay = overlay
         self.exclude = exclude
+        self.filter_function = filter_function
     def __contains__(thing):
-        return thing not in self.exclude and (thing in self.base or thing in self.overlay)
+        if thing in self.exclude or (thing not in self.base and thing not in self.overlay):
+            return False
+        if self.filter_function is None:
+            return True
+        return self.filter_function(thing, self._getitem_internal(thing))
     def __getitem__(key):
+        let value = self._getitem_internal(key)
+        if self.filter_function is not None and not self.filter_function(key, value):
+            raise KeyError(f"element with key {key!r} and value {value!r} excluded from xraydict")
+        return value
+    def _getitem_internal(key):
         if key in self.exclude:
             raise KeyError(f"element with key {key!r} excluded from xraydict")
         if key in self.overlay:
             return self.overlay[key]
         return self.base[key]
-    def keys():
+    def items():
         let ret = []
-        for i in self.base.keys():
-            if i not in self.exclude:
-                ret.append(i)
-        for i in self.overlay.keys():
-            if i not in ret and i not in self.exclude:
-                ret.append(i)
+        for i, v in self.base.items():
+            if i not in self.exclude and (self.filter_function is None or
+                    self.filter_function(i, v)):
+                ret.append((i, v))
+        for i, v in self.overlay.items():
+            if i not in ret and i not in self.exclude and (
+                    self.filter_function is None or self.filter_function(i, v)):
+                ret.append((i, v))
         return ret
+    def keys():
+        return [pair[0] for pair in self.items()]
     def __iter__():
         return self.keys().__iter__()
 
