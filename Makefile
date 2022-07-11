@@ -108,6 +108,14 @@ libkuroko.dll: ${SOOBJS} ${HEADERS}
 libkuroko.a: ${OBJS}
 	${AR} ${ARFLAGS} $@ ${OBJS}
 
+
+src/chunk.o: src/opcodes.h
+src/compiler.o: src/opcodes.h
+src/debug.o: src/opcodes.h
+src/value.o: src/opcodes.h
+src/vm.o: src/opcodes.h
+
+
 %.o: %.c ${HEADERS}
 	${CC} ${CFLAGS} -c -o $@ $<
 
