@@ -1,10 +1,14 @@
 /**
  * @brief Instruction opcode values
  *
- * The instruction opcode table is divided in four parts. The high two bits of each
- * opcode encodes the number of operands to pull from the codeobject and thus the
- * size (generally) of the instruction (note that OP_CLOSURE(_LONG) has additional
- * arguments depending on the function it points to).
+ * @warning The opcode table is not stable.
+ *
+ * There is no special meaning to the ordering of opcodes, and they can change
+ * even within a given patch number. Opcode values are not exposed in public
+ * C headers and should not be relied upon.
+ *
+ * Opcode numbers *are* exposed through the 'dis' module, but are only valid
+ * within the same build.
  *
  * 0-operand opcodes are "simple" instructions that generally only deal with stack
  * values and require no additional arguments.
