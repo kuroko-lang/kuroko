@@ -1,0 +1,9 @@
+def foo(a,b=42,*args,**kwargs):
+    print(a,b,args,kwargs)
+
+foo(1)
+foo(1,2)
+foo(1,2,3)
+foo(1,2,3,4,5,6)
+foo(1,2,f=7)
+foo(b=2,a=7,k=96)

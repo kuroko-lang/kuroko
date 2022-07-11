@@ -890,13 +890,12 @@ _finishKwarg:
 
 		argCountX = argCount - (!!(closure->function->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_ARGS) + !!(closure->function->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_KWS));
 	} else if ((size_t)argCount > potentialPositionalArgs && (closure->function->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_ARGS)) {
-		krk_push(NONE_VAL()); krk_push(NONE_VAL()); krk_pop(); krk_pop();
 		KrkValue * startOfPositionals = &krk_currentThread.stackTop[-argCount];
-		KrkValue tmp = krk_list_of(argCount - potentialPositionalArgs,
-			&startOfPositionals[potentialPositionalArgs], 0);
+		KrkValue tmp = krk_callNativeOnStack(argCount - potentialPositionalArgs,
+			&startOfPositionals[potentialPositionalArgs], 0, krk_list_of);
 		startOfPositionals = &krk_currentThread.stackTop[-argCount];
 		startOfPositionals[offsetOfExtraArgs] = tmp;
-		argCount = closure->function->requiredArgs + 1;
+		argCount = potentialPositionalArgs + 1;
 		argCountX = argCount - 1;
 		while (krk_currentThread.stackTop > startOfPositionals + argCount) krk_pop();
 	}
