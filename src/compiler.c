@@ -1335,14 +1335,12 @@ static void argumentDefinition(void) {
 		 */
 		size_t myLocal = current->localCount - 1;
 		EMIT_OPERAND_OP(OP_GET_LOCAL, myLocal);
-		emitBytes(OP_UNSET, OP_IS);
-		int jumpIndex = emitJump(OP_JUMP_IF_FALSE_OR_POP);
+		int jumpIndex = emitJump(OP_TEST_ARG);
 		beginScope();
 		expression(); /* Read expression */
-		EMIT_OPERAND_OP(OP_SET_LOCAL, myLocal);
+		EMIT_OPERAND_OP(OP_SET_LOCAL_POP, myLocal);
 		endScope();
 		patchJump(jumpIndex);
-		emitByte(OP_POP); /* comparison result or expression value */
 		current->codeobject->keywordArgs++;
 	} else {
 		if (current->codeobject->keywordArgs) {
@@ -1424,17 +1422,15 @@ static int argumentList(FunctionType type) {
 			size_t myLocal = current->localCount - 1;
 			EMIT_OPERAND_OP(OP_GET_LOCAL, myLocal);
 			/* Check if it's equal to the unset-kwarg-sentinel value */
-			emitBytes(OP_UNSET, OP_IS);
-			int jumpIndex = emitJump(OP_JUMP_IF_FALSE_OR_POP);
+			int jumpIndex = emitJump(OP_TEST_ARG);
 			/* And if it is, set it to the appropriate type */
 			beginScope();
 			if (hasCollectors == 1) EMIT_OPERAND_OP(OP_MAKE_LIST,0);
 			else EMIT_OPERAND_OP(OP_MAKE_DICT,0);
-			EMIT_OPERAND_OP(OP_SET_LOCAL, myLocal);
+			EMIT_OPERAND_OP(OP_SET_LOCAL_POP, myLocal);
 			endScope();
 			/* Otherwise pop the comparison. */
 			patchJump(jumpIndex);
-			emitByte(OP_POP); /* comparison value or expression */
 			continue;
 		}
 		if (hasCollectors) {

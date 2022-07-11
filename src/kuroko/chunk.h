@@ -140,6 +140,7 @@ typedef enum {
 	OP_CALL_ITER,
 	OP_LOOP_ITER,
 	OP_POP_JUMP_IF_FALSE,
+	OP_TEST_ARG,
 
 	/* Three opcode instructions */
 	OP_CALL_LONG,

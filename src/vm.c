@@ -3071,6 +3071,12 @@ _finishReturn: (void)0;
 				if (iter != krk_peek(0)) frame->ip -= offset;
 				break;
 			}
+			case OP_TEST_ARG: {
+				TWO_BYTE_OPERAND;
+				uint16_t offset = OPERAND;
+				if (krk_pop() != KWARGS_VAL(0)) frame->ip += offset;
+				break;
+			}
 
 			case OP_CONSTANT_LONG:
 				THREE_BYTE_OPERAND;
