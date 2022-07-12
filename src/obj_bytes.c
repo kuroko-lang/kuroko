@@ -161,7 +161,25 @@ KRK_Method(bytes,__len__) {
 
 KRK_Method(bytes,__contains__) {
 	METHOD_TAKES_EXACTLY(1);
-	return krk_runtimeError(vm.exceptions->notImplementedError, "not implemented");
+
+	if (IS_BYTES(argv[1])) {
+		return krk_runtimeError(vm.exceptions->notImplementedError, "not implemented: bytes.__contains__(bytes)");
+	}
+
+	if (!IS_INTEGER(argv[1])) {
+		return TYPE_ERROR(int,argv[1]);
+	}
+
+	krk_integer_type val = AS_INTEGER(argv[1]);
+	if (val < 0 || val > 255) {
+		return krk_runtimeError(vm.exceptions->valueError, "byte must be in range(0, 256)");
+	}
+
+	for (size_t i = 0; i < self->length; ++i) {
+		if (self->bytes[i] == val) return BOOLEAN_VAL(1);
+	}
+
+	return BOOLEAN_VAL(0);
 }
 
 KRK_Method(bytes,decode) {
