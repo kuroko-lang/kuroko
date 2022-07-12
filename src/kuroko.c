@@ -167,6 +167,7 @@ static KrkValue findFromProperty(KrkValue current, KrkToken next) {
 static void tab_complete_func(rline_context_t * c) {
 	/* Figure out where the cursor is and if we should be completing anything. */
 	if (c->offset) {
+		size_t stackIn = krk_currentThread.stackTop - krk_currentThread.stack;
 		/* Copy up to the cursor... */
 		char * tmp = malloc(c->offset + 1);
 		memcpy(tmp, c->buffer, c->offset);
@@ -231,6 +232,17 @@ static void tab_complete_func(rline_context_t * c) {
 				n -= 2; /* To skip every other dot. */
 			}
 
+			if (isGlobal && n < count && (space[count-n-1].type == TOKEN_IMPORT || space[count-n-1].type == TOKEN_FROM)) {
+				KrkInstance * modules = krk_newInstance(vm.baseClasses->objectClass);
+				root = OBJECT_VAL(modules);
+				krk_push(root);
+				for (size_t i = 0; i < vm.modules.capacity; ++i) {
+					KrkTableEntry * entry = &vm.modules.entries[i];
+					if (IS_KWARGS(entry->key)) continue;
+					krk_attachNamedValue(&modules->fields, AS_CSTRING(entry->key), NONE_VAL());
+				}
+			}
+
 			/* Now figure out what we're completing - did we already have a partial symbol name? */
 			int length = (space[count-base].type == TOKEN_DOT) ? 0 : (space[count-base].length);
 			isGlobal = isGlobal && (length != 0);
@@ -263,6 +275,8 @@ static void tab_complete_func(rline_context_t * c) {
 						s = krk_takeString(tmp, len);
 						krk_pop();
 						krk_push(OBJECT_VAL(s));
+					} else {
+						krk_pop();
 					}
 
 					/* If this symbol is shorter than the current submatch, skip it. */
@@ -360,7 +374,7 @@ _toomany:
 _cleanup:
 		free(tmp);
 		free(space);
-		krk_resetStack();
+		krk_currentThread.stackTop = &krk_currentThread.stack[stackIn];
 		return;
 	}
 }
