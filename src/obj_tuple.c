@@ -252,6 +252,24 @@ _unhashable:
 	return NONE_VAL();
 }
 
+KRK_Method(tuple,__mul__) {
+	METHOD_TAKES_EXACTLY(1);
+
+	if (!IS_INTEGER(argv[1])) return NOTIMPL_VAL();
+
+	ssize_t count = AS_INTEGER(argv[1]);
+	if (count < 0) count = 0;
+	KrkTuple * out = krk_newTuple(count * self->values.count);
+	krk_push(OBJECT_VAL(out));
+	for (ssize_t i = 0; i < count; ++i) {
+		for (size_t j = 0; j < self->values.count; ++j) {
+			out->values.values[out->values.count++] = self->values.values[j];
+		}
+	}
+
+	return krk_pop();
+}
+
 _noexport
 void _createAndBind_tupleClass(void) {
 	KrkClass * tuple = ADD_BASE_CLASS(vm.baseClasses->tupleClass, "tuple", vm.baseClasses->objectClass);
@@ -268,6 +286,7 @@ void _createAndBind_tupleClass(void) {
 	BIND_METHOD(tuple,__ge__);
 	BIND_METHOD(tuple,__hash__);
 	BIND_METHOD(tuple,__add__);
+	BIND_METHOD(tuple,__mul__);
 	krk_defineNative(&tuple->methods, "__init__", _tuple_init);
 	krk_defineNative(&tuple->methods, "__str__", FUNC_NAME(tuple,__repr__));
 	krk_finalizeClass(tuple);
