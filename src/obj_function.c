@@ -57,7 +57,40 @@ static KrkTuple * functionArgs(KrkCodeObject * _self) {
 #define CURRENT_CTYPE KrkValue
 
 FUNC_SIG(function,__init__) {
-	return krk_runtimeError(vm.exceptions->typeError, "function object is not instantiable");
+	static __attribute__ ((unused)) const char* _method_name = "__init__";
+	METHOD_TAKES_EXACTLY(3);
+	CHECK_ARG(1,codeobject,KrkCodeObject*,code);
+
+	if (!IS_INSTANCE(argv[3]))
+		return TYPE_ERROR(dict or instance object,argv[3]);
+
+	if (IS_CLOSURE(argv[2]) && AS_CLOSURE(argv[2])->upvalueCount == code->upvalueCount) {
+		/* Option 1: A function with the same upvalue count. Copy the upvalues exactly.
+		 *           As an example, this can be a lambda with a bunch of unused upvalue
+		 *           references - like "lambda: a, b, c". These variables will be captured
+		 *           using the relevant scope - and we don't have to care about whether
+		 *           they were properly marked, because the compiler took care of it
+		 *           when the lambda was compiled.
+		 */
+		krk_push(OBJECT_VAL(krk_newClosure(code, argv[3])));
+		memcpy(AS_CLOSURE(krk_peek(0))->upvalues, AS_CLOSURE(argv[2])->upvalues,
+			sizeof(KrkUpvalue*) * code->upvalueCount);
+		return krk_pop();
+	} else if (IS_TUPLE(argv[2]) && AS_TUPLE(argv[2])->values.count == code->upvalueCount) {
+		/* Option 2: A tuple of values. New upvalue containers are built for each value,
+		 *           but they are immediately closed with the value in the tuple. They
+		 *           exist independently for this closure instance, and are not shared with
+		 *           any other closures.
+		 */
+		krk_push(OBJECT_VAL(krk_newClosure(code, argv[3])));
+		for (size_t i = 0; i < code->upvalueCount; ++i) {
+			AS_CLOSURE(krk_peek(0))->upvalues[i] = krk_newUpvalue(-1);
+			AS_CLOSURE(krk_peek(0))->upvalues[i]->closed = AS_TUPLE(argv[2])->values.values[i];
+		}
+		return krk_pop();
+	}
+
+	return TYPE_ERROR(managed function with equal upvalue count or tuple,argv[2]);
 }
 
 KRK_Method(function,__doc__) {
@@ -89,6 +122,16 @@ KRK_Method(function,__qualname__) {
 
 	if (IS_CLOSURE(self) && AS_CLOSURE(self)->function->qualname) {
 		return OBJECT_VAL(AS_CLOSURE(self)->function->qualname);
+	}
+
+	return NONE_VAL();
+}
+
+KRK_Method(function,__globals__) {
+	ATTRIBUTE_NOT_ASSIGNABLE();
+
+	if (IS_CLOSURE(self)) {
+		return AS_CLOSURE(self)->globalsOwner;
 	}
 
 	return NONE_VAL();
@@ -379,6 +422,7 @@ void _createAndBind_functionClass(void) {
 	BIND_PROP(function,__args__);
 	BIND_PROP(function,__annotations__);
 	BIND_PROP(function,__code__);
+	BIND_PROP(function,__globals__);
 	krk_defineNative(&function->methods, "__repr__", FUNC_NAME(function,__str__));
 	krk_defineNative(&function->methods, "__class_getitem__", KrkGenericAlias)->obj.flags |= KRK_OBJ_FLAGS_FUNCTION_IS_CLASS_METHOD;
 	krk_finalizeClass(function);
