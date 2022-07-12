@@ -119,7 +119,7 @@ KRK_Method(generator,__call__) {
 	frame->ip      = self->ip;
 	frame->slots   = krk_currentThread.stackTop - krk_currentThread.stack;
 	frame->outSlots = frame->slots;
-	frame->globals = &self->closure->function->globalsContext->fields;
+	frame->globals = self->closure->globalsTable;
 
 	/* Stick our stack on their stack */
 	for (size_t i = 0; i < self->argCount; ++i) {

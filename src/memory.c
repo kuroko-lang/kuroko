@@ -347,6 +347,7 @@ static void blackenObject(KrkObj * object) {
 			}
 			krk_markValue(closure->annotations);
 			krk_markTable(&closure->fields);
+			krk_markValue(closure->globalsOwner);
 			break;
 		}
 		case KRK_OBJ_CODEOBJECT: {
@@ -355,7 +356,6 @@ static void blackenObject(KrkObj * object) {
 			krk_markObject((KrkObj*)function->qualname);
 			krk_markObject((KrkObj*)function->docstring);
 			krk_markObject((KrkObj*)function->chunk.filename);
-			krk_markObject((KrkObj*)function->globalsContext);
 			markArray(&function->requiredArgNames);
 			markArray(&function->keywordArgNames);
 			markArray(&function->chunk.constants);

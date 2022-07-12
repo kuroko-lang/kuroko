@@ -334,7 +334,6 @@ static void initCompiler(Compiler * compiler, FunctionType type) {
 	compiler->scopeDepth = 0;
 	compiler->enclosed = NULL;
 	compiler->codeobject = krk_newCodeObject();
-	compiler->codeobject->globalsContext = (KrkInstance*)krk_currentThread.module;
 	compiler->localCount = 0;
 	compiler->localsSpace = 8;
 	compiler->locals = GROW_ARRAY(Local,NULL,0,8);

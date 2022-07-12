@@ -49,6 +49,7 @@ typedef struct {
 	size_t slots;         /**< Offset into the stack at which this function call's arguments begin */
 	size_t outSlots;      /**< Offset into the stack at which stackTop will be reset upon return */
 	KrkTable * globals;   /**< Pointer to the attribute table containing valud global vairables for this call */
+	KrkValue   globalsOwner; /**< Owner of the current globals context, to give to new closures. */
 	struct timespec in_time;
 } KrkCallFrame;
 

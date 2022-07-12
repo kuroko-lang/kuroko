@@ -265,7 +265,6 @@ KrkCodeObject * krk_newCodeObject(void) {
 	codeobject->docstring = NULL;
 	codeobject->localNameCount = 0;
 	codeobject->localNames = NULL;
-	codeobject->globalsContext = NULL;
 	krk_initValueArray(&codeobject->requiredArgNames);
 	krk_initValueArray(&codeobject->keywordArgNames);
 	krk_initChunk(&codeobject->chunk);
@@ -281,7 +280,7 @@ KrkNative * krk_newNative(NativeFn function, const char * name, int type) {
 	return native;
 }
 
-KrkClosure * krk_newClosure(KrkCodeObject * function) {
+KrkClosure * krk_newClosure(KrkCodeObject * function, KrkValue globals) {
 	KrkUpvalue ** upvalues = ALLOCATE(KrkUpvalue*, function->upvalueCount);
 	for (size_t i = 0; i < function->upvalueCount; ++i) {
 		upvalues[i] = NULL;
@@ -291,6 +290,17 @@ KrkClosure * krk_newClosure(KrkCodeObject * function) {
 	closure->upvalues = upvalues;
 	closure->upvalueCount = function->upvalueCount;
 	closure->annotations = krk_dict_of(0,NULL,0);
+	closure->globalsOwner = globals;
+	if (IS_INSTANCE(globals)) {
+		if (AS_INSTANCE(globals)->_class == vm.baseClasses->dictClass) {
+			closure->globalsTable = AS_DICT(globals);
+		} else {
+			closure->globalsTable = &AS_INSTANCE(globals)->fields;
+		}
+	} else {
+		fprintf(stderr, "Invalid globals context: %s\n", krk_typeName(globals));
+		abort();
+	}
 	krk_initTable(&closure->fields);
 	return closure;
 }

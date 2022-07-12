@@ -925,7 +925,8 @@ _finishKwarg:
 	frame->ip = closure->function->chunk.code;
 	frame->slots = (krk_currentThread.stackTop - argCount) - krk_currentThread.stack;
 	frame->outSlots = frame->slots - returnDepth;
-	frame->globals = &closure->function->globalsContext->fields;
+	frame->globalsOwner = closure->globalsOwner;
+	frame->globals = closure->globalsTable;
 	FRAME_IN(frame);
 	return 1;
 
@@ -3173,7 +3174,7 @@ _finishReturn: (void)0;
 			case OP_CLOSURE: {
 				ONE_BYTE_OPERAND;
 				KrkCodeObject * function = AS_codeobject(READ_CONSTANT(OPERAND));
-				KrkClosure * closure = krk_newClosure(function);
+				KrkClosure * closure = krk_newClosure(function, frame->globalsOwner);
 				krk_push(OBJECT_VAL(closure));
 				for (size_t i = 0; i < closure->upvalueCount; ++i) {
 					int isLocal = READ_BYTE();
@@ -3577,7 +3578,7 @@ KrkValue krk_interpret(const char * src, char * fromFile) {
 	krk_push(OBJECT_VAL(function));
 	krk_attachNamedObject(&krk_currentThread.module->fields, "__file__", (KrkObj*)function->chunk.filename);
 
-	KrkClosure * closure = krk_newClosure(function);
+	KrkClosure * closure = krk_newClosure(function, OBJECT_VAL(krk_currentThread.module));
 	krk_pop();
 
 	krk_push(OBJECT_VAL(closure));

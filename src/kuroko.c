@@ -458,7 +458,7 @@ static int debuggerHook(KrkCallFrame * frame) {
 					krk_debug_disableSingleStep();
 					/* Turn our compiled expression into a callable. */
 					krk_push(OBJECT_VAL(expression));
-					krk_push(OBJECT_VAL(krk_newClosure(expression)));
+					krk_push(OBJECT_VAL(krk_newClosure(expression, OBJECT_VAL(krk_currentThread.module))));
 					krk_swap(1);
 					krk_pop();
 					/* Stack silliness, don't ask. */

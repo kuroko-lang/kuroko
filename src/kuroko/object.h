@@ -158,7 +158,6 @@ typedef struct {
 	size_t localNameCapacity;              /**< @brief Capacity of @ref localNames */
 	size_t localNameCount;                 /**< @brief Number of entries in @ref localNames */
 	KrkLocalEntry * localNames;            /**< @brief Stores the names of local variables used in the function, for debugging */
-	struct KrkInstance * globalsContext;   /**< @brief The globals namespace the function should reference when called */
 	KrkString * qualname;                  /**< @brief The dotted name of the function */
 } KrkCodeObject;
 
@@ -176,6 +175,8 @@ typedef struct {
 	size_t upvalueCount;       /**< @brief Number of entries in @ref upvalues */
 	KrkValue annotations;      /**< @brief Dictionary of type hints */
 	KrkTable fields;           /**< @brief Object attributes table */
+	KrkValue globalsOwner;     /**< @brief Owner of the globals table for this function */
+	KrkTable * globalsTable;   /**< @brief Pointer to globals table with owner object */
 } KrkClosure;
 
 typedef void (*KrkCleanupCallback)(struct KrkInstance *);
@@ -527,7 +528,7 @@ extern KrkNative *      krk_newNative(NativeFn function, const char * name, int 
  *
  * @param function Code object to assign to the new function object.
  */
-extern KrkClosure *     krk_newClosure(KrkCodeObject * function);
+extern KrkClosure *     krk_newClosure(KrkCodeObject * function, KrkValue globals);
 
 /**
  * @brief Create an upvalue slot.

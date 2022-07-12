@@ -543,7 +543,6 @@ static int readFile(char * fileName) {
 		self->requiredArgs = function.reqArgs;
 		self->keywordArgs  = function.kwArgs;
 		self->obj.flags    = function.flags;
-		self->globalsContext = krk_currentThread.module;
 		self->upvalueCount = function.upvalues;
 
 		self->potentialPositionals = self->requiredArgs + self->keywordArgs;
@@ -594,7 +593,7 @@ static int readFile(char * fileName) {
 	krk_pop();
 	krk_push(AS_LIST(SeenFunctions)->values[0]);
 
-	KrkClosure * closure = krk_newClosure(AS_codeobject(krk_peek(0)));
+	KrkClosure * closure = krk_newClosure(AS_codeobject(krk_peek(0)), OBJECT_VAL(krk_currentThread.module));
 	krk_pop();
 	krk_push(OBJECT_VAL(closure));
 
