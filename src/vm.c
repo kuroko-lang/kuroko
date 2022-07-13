@@ -3577,16 +3577,10 @@ KrkValue krk_interpret(const char * src, char * fromFile) {
 
 	krk_push(OBJECT_VAL(function));
 	krk_attachNamedObject(&krk_currentThread.module->fields, "__file__", (KrkObj*)function->chunk.filename);
-
 	KrkClosure * closure = krk_newClosure(function, OBJECT_VAL(krk_currentThread.module));
 	krk_pop();
 
 	krk_push(OBJECT_VAL(closure));
-
-	/* Quick little kludge so that empty statements return None from REPLs */
-	krk_push(NONE_VAL());
-	krk_pop();
-
 	krk_callValue(OBJECT_VAL(closure), 0, 1);
 
 	return run();
