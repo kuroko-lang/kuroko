@@ -3598,6 +3598,7 @@ static int maybeSingleExpression() {
 			/* Regardless, restore the scanner/parser so we can actually parse the string. */
 			krk_rewindScanner(rewind.oldScanner);
 			parser = rewind.oldParser;
+			advance();
 			/* Parse the string. */
 			string(EXPR_NORMAL);
 			/* If we did see end of input, it's a simple string expression. */
