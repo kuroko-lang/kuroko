@@ -392,6 +392,7 @@ static int invalidTarget(int exprType, const char * description);
 static void call(int exprType, RewindState *rewind);
 
 static void finishError(KrkToken * token) {
+	if (!token->linePtr) token->linePtr = token->start;
 	size_t i = 0;
 	while (token->linePtr[i] && token->linePtr[i] != '\n') i++;
 
