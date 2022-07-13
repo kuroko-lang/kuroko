@@ -1,0 +1,16 @@
+'''
+@brief Called when 'dis' is run as the main module (-m dis)
+'''
+# Get the real dis
+import dis
+
+if __name__ == '__main__':
+    import kuroko
+    if (len(kuroko.argv) < 2):
+        print("Usage: kuroko -m dis FILE")
+        return 1
+    import fileio
+    for file in kuroko.argv[1:]:
+        with fileio.open(file,'r') as f:
+            let result = dis.build(f.read(), file)
+            dis.dis(result)
