@@ -101,5 +101,9 @@ let scrutiny = b'\[$BF|K\\T"L1$O!"\[(B\[$B@5aD$KA*Z)$5$l$?\[(BNo: \[(B; Yes: \[(
 print(codecs.decode(scrutiny, "iso-2022-jp", errors="replace"))
 print(codecs.decode(scrutiny, "jis_encoding", errors="replace"))
 
+let valid_utf8 = b'co\xc3\xb6rdination'
+let invalid_utf8 = b'co\x9ardination'
+print(codecs.decode(valid_utf8, "utf-8"))
+print(codecs.decode(invalid_utf8, "utf-8", errors="replace"))
 
 
