@@ -176,6 +176,43 @@ register_kuroko_codec(["x-mac-chinesesimp", "x-mac-simp-chinese", "euc-cn", "euc
     XMacChineseSimpIncrementalEncoder, XMacChineseSimpIncrementalDecoder)
 
 
+class XMacKoreanIncrementalEncoder(AsciiIncrementalEncoder):
+    """
+    IncrementalEncoder implementation for the HangulTalk (MacKorean) encoding.
+    
+    HangulTalk is notorious for frequently not corresponding one-to-one to Unicode. In places,
+    multiple Unicode representations will be accepted for a given HangulTalk representation.
+    """
+    name = "x-mac-korean"
+    html5name = None
+    @lazy_property
+    def encoding_map():
+        return data_8bit.encode_hangultalk
+
+class XMacKoreanIncrementalDecoder(AsciiIncrementalDecoder):
+    """
+    IncrementalDecoder implementation for the HangulTalk (MacKorean) encoding.
+    
+    HangulTalk is notorious for frequently not corresponding one-to-one to Unicode; the mappings
+    used here are somewhat updated and improved compared to all versions of Apple's mappings and
+    especially the Adobe CID mappings. However, bear in mind that content will not necessarily be
+    decoded to the same Unicode sequences as by other implementations. In particular, decoding to
+    the Apple's Corporate Private Use Area has been avoided for the most part, even where this
+    results in poorly matched and/or convergent decoded forms, since preserving legibility has been
+    afforded greater priority than round tripping.
+    """
+    name = "x-mac-korean"
+    html5name = None
+    @lazy_property
+    def decoding_map():
+        return data_8bit.decode_hangultalk
+    dbrange = tuple(range(0xA1, 0xFE + 1))
+    trailrange = tuple(range(0x41, 0x7D + 1)) + tuple(range(0xA1, 0xFE + 1))
+
+register_kuroko_codec(["x-mac-korean"],
+    XMacKoreanIncrementalEncoder, XMacKoreanIncrementalDecoder)
+
+
 class Cesu8IncrementalEncoder(IncrementalEncoder):
     """
     IncrementalEncoder implementation for CESU-8, a deprecated UTF-8-like encoding still used by

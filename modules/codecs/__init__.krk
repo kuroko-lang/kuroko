@@ -121,6 +121,7 @@ The list of codecs (not an exhaustive list of labels, nor close to one) is as fo
 |`shift-jisx0213`, `shift-jis-2004`|Japanese Shift JIS (JIS X 0213 version)|
 |`x-mac-chinesesimp`|Simplified Chinese GB2312, Macintosh version|
 |`x-mac-chinesetrad`|Traditional Chinese Big5, Macintosh version|
+|`x-mac-korean`|Korean HangulTalk (Macintosh encoding, another superset of EUC-KR)|
 
 ### 7-bit stateful codecs:
 
