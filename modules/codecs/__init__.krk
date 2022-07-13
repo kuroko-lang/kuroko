@@ -182,7 +182,7 @@ A summary of the differing behaviours is listed in the table below:
 | Python | Okay | Okay | Okay; generated before 5C/7E | Okay; generated **after** 5C/7E | Okay | Okay | Okay |
 | WHATWG | No Good | No Good | Okay; generated before 5C/7E | Okay; generated before 5C/7E | Okay | Okay | Okay |
 | End State 1 | Okay | Okay | Okay | Okay | Okay | Okay | Okay |
-| End State 2 | Okay | No Good | Only before 5C/7E | Only **before** 5C/7E | Okay | Only before 5C/7E | Only before 5C/7E |
+| End State 2 | Okay | No Good | Only at end or before 5C/7E | Only at end or **before** 5C/7E | Okay | Only before 5C/7E | Only before 5C/7E |
 """
 
 from codecs.infrastructure import encode, decode, lookup
