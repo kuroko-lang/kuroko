@@ -4,6 +4,18 @@
 # Get the real dis
 import dis
 
+def disrec(code, seen):
+    let next = [code]
+    while next:
+        let co = next[0]
+        next = next[1:]
+        dis.dis(co)
+        for inst,size,operand in dis.examine(co):
+            if isinstance(operand,codeobject) and operand not in seen and operand not in next:
+                next.append(operand)
+        if next:
+            print()
+
 if __name__ == '__main__':
     import kuroko
     if (len(kuroko.argv) < 2):
@@ -13,4 +25,4 @@ if __name__ == '__main__':
     for file in kuroko.argv[1:]:
         with fileio.open(file,'r') as f:
             let result = dis.build(f.read(), file)
-            dis.dis(result)
+            disrec(result,set())
