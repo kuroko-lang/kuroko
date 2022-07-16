@@ -191,8 +191,8 @@ int krk_tableGet_fast(KrkTable * table, KrkString * str, KrkValue * value) {
 	uint32_t index = str->obj.hash & (table->capacity-1);
 	for (;;) {
 		KrkTableEntry * entry = &table->entries[index];
-		if (IS_KWARGS(entry->key)) return 0;
-		if (IS_OBJECT(entry->key) && AS_OBJECT(entry->key) == (KrkObj*)str) {
+		if (entry->key == KWARGS_VAL(0)) return 0;
+		if (entry->key == OBJECT_VAL(str)) {
 			*value = entry->value;
 			return 1;
 		}
