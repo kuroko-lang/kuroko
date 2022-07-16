@@ -2646,7 +2646,7 @@ _resumeHook: (void)0;
 
 		/* Each instruction begins with one opcode byte */
 		KrkOpCode opcode = READ_BYTE();
-		int OPERAND = 0;
+		unsigned int OPERAND = 0;
 
 /* Only GCC lets us put these on empty statements; just hope clang doesn't start complaining */
 #ifndef __clang__
@@ -2657,7 +2657,7 @@ _resumeHook: (void)0;
 
 #define TWO_BYTE_OPERAND { OPERAND = (frame->ip[0] << 8) | frame->ip[1]; frame->ip += 2; }
 #define THREE_BYTE_OPERAND { OPERAND = (frame->ip[0] << 16) | (frame->ip[1] << 8); frame->ip += 2; } FALLTHROUGH
-#define ONE_BYTE_OPERAND { OPERAND |= READ_BYTE(); }
+#define ONE_BYTE_OPERAND { OPERAND = (OPERAND & ~0xFF) | READ_BYTE(); }
 
 		switch (opcode) {
 			case OP_CLEANUP_WITH: {
@@ -2938,22 +2938,19 @@ _finishReturn: (void)0;
 			 */
 			case OP_JUMP_IF_FALSE_OR_POP: {
 				TWO_BYTE_OPERAND;
-				uint16_t offset = OPERAND;
-				if (krk_peek(0) == BOOLEAN_VAL(0) || krk_isFalsey(krk_peek(0))) frame->ip += offset;
+				if (krk_peek(0) == BOOLEAN_VAL(0) || krk_isFalsey(krk_peek(0))) frame->ip += OPERAND;
 				else krk_pop();
 				break;
 			}
 			case OP_POP_JUMP_IF_FALSE: {
 				TWO_BYTE_OPERAND;
-				uint16_t offset = OPERAND;
-				if (krk_peek(0) == BOOLEAN_VAL(0) || krk_isFalsey(krk_peek(0))) frame->ip += offset;
+				if (krk_peek(0) == BOOLEAN_VAL(0) || krk_isFalsey(krk_peek(0))) frame->ip += OPERAND;
 				krk_pop();
 				break;
 			}
 			case OP_JUMP_IF_TRUE_OR_POP: {
 				TWO_BYTE_OPERAND;
-				uint16_t offset = OPERAND;
-				if (!krk_isFalsey(krk_peek(0))) frame->ip += offset;
+				if (!krk_isFalsey(krk_peek(0))) frame->ip += OPERAND;
 				else krk_pop();
 				break;
 			}
@@ -2964,8 +2961,7 @@ _finishReturn: (void)0;
 			}
 			case OP_LOOP: {
 				TWO_BYTE_OPERAND;
-				uint16_t offset = OPERAND;
-				frame->ip -= offset;
+				frame->ip -= OPERAND;
 				break;
 			}
 			case OP_PUSH_TRY: {
@@ -3032,27 +3028,24 @@ _finishReturn: (void)0;
 			}
 			case OP_CALL_ITER: {
 				TWO_BYTE_OPERAND;
-				uint16_t offset = OPERAND;
 				KrkValue iter = krk_peek(0);
 				krk_push(iter);
 				krk_push(krk_callStack(0));
 				/* krk_valuesSame() */
-				if (iter == krk_peek(0)) frame->ip += offset;
+				if (iter == krk_peek(0)) frame->ip += OPERAND;
 				break;
 			}
 			case OP_LOOP_ITER: {
 				TWO_BYTE_OPERAND;
-				uint16_t offset = OPERAND;
 				KrkValue iter = krk_peek(0);
 				krk_push(iter);
 				krk_push(krk_callStack(0));
-				if (iter != krk_peek(0)) frame->ip -= offset;
+				if (iter != krk_peek(0)) frame->ip -= OPERAND;
 				break;
 			}
 			case OP_TEST_ARG: {
 				TWO_BYTE_OPERAND;
-				uint16_t offset = OPERAND;
-				if (krk_pop() != KWARGS_VAL(0)) frame->ip += offset;
+				if (krk_pop() != KWARGS_VAL(0)) frame->ip += OPERAND;
 				break;
 			}
 
@@ -3060,8 +3053,7 @@ _finishReturn: (void)0;
 				THREE_BYTE_OPERAND;
 			case OP_CONSTANT: {
 				ONE_BYTE_OPERAND;
-				size_t index = OPERAND;
-				KrkValue constant = frame->closure->function->chunk.constants.values[index];
+				KrkValue constant = frame->closure->function->chunk.constants.values[OPERAND];
 				krk_push(constant);
 				break;
 			}
@@ -3358,7 +3350,7 @@ _finishReturn: (void)0;
 			case OP_CLOSE_MANY: {
 				ONE_BYTE_OPERAND;
 				closeUpvalues((krk_currentThread.stackTop - krk_currentThread.stack) - OPERAND);
-				for (int i = 0; i < OPERAND; ++i) {
+				for (unsigned int i = 0; i < OPERAND; ++i) {
 					krk_pop();
 				}
 				break;
@@ -3367,7 +3359,7 @@ _finishReturn: (void)0;
 				THREE_BYTE_OPERAND;
 			case OP_POP_MANY: {
 				ONE_BYTE_OPERAND;
-				for (int i = 0; i < OPERAND; ++i) {
+				for (unsigned int i = 0; i < OPERAND; ++i) {
 					krk_pop();
 				}
 				break;
@@ -3411,8 +3403,7 @@ _finishReturn: (void)0;
 				THREE_BYTE_OPERAND;
 			case OP_LIST_APPEND: {
 				ONE_BYTE_OPERAND;
-				uint32_t slot = OPERAND;
-				KrkValue list = krk_currentThread.stack[frame->slots + slot];
+				KrkValue list = krk_currentThread.stack[frame->slots + OPERAND];
 				FUNC_NAME(list,append)(2,(KrkValue[]){list,krk_peek(0)},0);
 				krk_pop();
 				break;
@@ -3421,8 +3412,7 @@ _finishReturn: (void)0;
 				THREE_BYTE_OPERAND;
 			case OP_DICT_SET: {
 				ONE_BYTE_OPERAND;
-				uint32_t slot = OPERAND;
-				KrkValue dict = krk_currentThread.stack[frame->slots + slot];
+				KrkValue dict = krk_currentThread.stack[frame->slots + OPERAND];
 				FUNC_NAME(dict,__setitem__)(3,(KrkValue[]){dict,krk_peek(1),krk_peek(0)},0);
 				krk_pop();
 				krk_pop();
@@ -3432,8 +3422,7 @@ _finishReturn: (void)0;
 				THREE_BYTE_OPERAND;
 			case OP_SET_ADD: {
 				ONE_BYTE_OPERAND;
-				uint32_t slot = OPERAND;
-				KrkValue set = krk_currentThread.stack[frame->slots + slot];
+				KrkValue set = krk_currentThread.stack[frame->slots + OPERAND];
 				FUNC_NAME(set,add)(2,(KrkValue[]){set,krk_peek(0)},0);
 				krk_pop();
 				break;
@@ -3443,7 +3432,7 @@ _finishReturn: (void)0;
 			case OP_REVERSE: {
 				ONE_BYTE_OPERAND;
 				krk_push(NONE_VAL()); /* Storage space */
-				for (int i = 0; i < OPERAND / 2; ++i) {
+				for (ssize_t i = 0; i < OPERAND / 2; ++i) {
 					krk_currentThread.stackTop[-1] = krk_currentThread.stackTop[-i-2];
 					krk_currentThread.stackTop[-i-2] = krk_currentThread.stackTop[-(OPERAND-i)-1];
 					krk_currentThread.stackTop[-(OPERAND-i)-1] = krk_currentThread.stackTop[-1];
@@ -3455,18 +3444,17 @@ _finishReturn: (void)0;
 				THREE_BYTE_OPERAND;
 			case OP_UNPACK: {
 				ONE_BYTE_OPERAND;
-				size_t count = OPERAND;
 				KrkValue sequence = krk_peek(0);
-				KrkTuple * values = krk_newTuple(count);
+				KrkTuple * values = krk_newTuple(OPERAND);
 				krk_push(OBJECT_VAL(values));
 				if (unlikely(krk_unpackIterable(sequence, values, _unpack_op))) {
 					goto _finishException;
 				}
-				if (unlikely(values->values.count != count)) {
-					krk_runtimeError(vm.exceptions->valueError, "not enough values to unpack (expected %zu, got %zu)", count, values->values.count);
+				if (unlikely(values->values.count != OPERAND)) {
+					krk_runtimeError(vm.exceptions->valueError, "not enough values to unpack (expected %u, got %zu)", OPERAND, values->values.count);
 					goto _finishException;
 				}
-				if (unlikely(count == 0)) {
+				if (unlikely(OPERAND == 0)) {
 					krk_pop();
 					krk_pop();
 					break;
@@ -3477,7 +3465,7 @@ _finishReturn: (void)0;
 				for (size_t i = 1; i < values->values.count; ++i) {
 					krk_push(values->values.values[i]);
 				}
-				krk_currentThread.stackTop[-count] = values->values.values[0];
+				krk_currentThread.stackTop[-(ssize_t)OPERAND] = values->values.values[0];
 				break;
 			}
 
@@ -3497,7 +3485,7 @@ _finishReturn: (void)0;
 				struct StringBuilder sb = {0};
 
 				for (ssize_t i = 0; i < OPERAND; ++i) {
-					KrkValue s = krk_currentThread.stackTop[-OPERAND+i];
+					KrkValue s = krk_currentThread.stackTop[-(ssize_t)OPERAND+i];
 					if (unlikely(!IS_STRING(s))) {
 						discardStringBuilder(&sb);
 						krk_runtimeError(vm.exceptions->valueError, "'%s' is not a string", krk_typeName(s));
