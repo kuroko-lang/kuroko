@@ -1088,6 +1088,16 @@ static void literal(int exprType) {
 	}
 }
 
+static void typeHintLocal(void) {
+	current->enclosing->enclosed = current;
+	current = current->enclosing;
+	current->enclosed->annotationCount++;
+	emitConstant(INTEGER_VAL(current->enclosed->codeobject->localNameCount-1));
+	parsePrecedence(PREC_TERNARY);
+	current = current->enclosed;
+	current->enclosing->enclosed = NULL;
+}
+
 static void letDeclaration(void) {
 	size_t argCount = 0;
 	size_t argSpace = 1;
@@ -1104,16 +1114,15 @@ static void letDeclaration(void) {
 		if (current->scopeDepth > 0) {
 			/* Need locals space */
 			args[argCount++] = current->localCount - 1;
-			if (match(TOKEN_COLON)) {
-				error("Annotation on scoped variable declaration is meaningless.");
-				goto _letDone;
-			}
 		} else {
 			args[argCount++] = ind;
-			if (check(TOKEN_COLON)) {
-				KrkToken name = parser.previous;
-				match(TOKEN_COLON);
-				/* Get __annotations__ from globals */
+		}
+		if (check(TOKEN_COLON)) {
+			KrkToken name = parser.previous;
+			match(TOKEN_COLON);
+			if (current->enclosing) {
+				typeHintLocal();
+			} else {
 				KrkToken annotations = syntheticToken("__annotations__");
 				size_t ind = identifierConstant(&annotations);
 				EMIT_OPERAND_OP(OP_GET_GLOBAL, ind);
