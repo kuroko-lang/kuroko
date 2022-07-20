@@ -812,7 +812,7 @@ static void compare(int exprType, RewindState *rewind) {
 static void binary(int exprType, RewindState *rewind) {
 	KrkTokenType operatorType = parser.previous.type;
 	ParseRule * rule = getRule(operatorType);
-	parsePrecedence((Precedence)(rule->precedence + 1));
+	parsePrecedence((Precedence)(rule->precedence + (rule->precedence != PREC_EXPONENT)));
 	invalidTarget(exprType, "operator");
 
 	switch (operatorType) {
