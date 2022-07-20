@@ -392,6 +392,7 @@ static int invalidTarget(int exprType, const char * description);
 static void call(int exprType, RewindState *rewind);
 
 static void finishError(KrkToken * token) {
+	if (!token->linePtr) token->linePtr = token->start;
 	size_t i = 0;
 	while (token->linePtr[i] && token->linePtr[i] != '\n') i++;
 
@@ -511,9 +512,6 @@ static void emitBytes(uint8_t byte1, uint8_t byte2) {
 
 static void emitReturn(void) {
 	if (current->type == TYPE_INIT) {
-		emitBytes(OP_GET_LOCAL, 0);
-	} else if (current->type == TYPE_MODULE) {
-		/* Un-pop the last stack value */
 		emitBytes(OP_GET_LOCAL, 0);
 	} else if (current->type != TYPE_LAMBDA && current->type != TYPE_CLASS) {
 		emitByte(OP_NONE);
@@ -814,7 +812,7 @@ static void compare(int exprType, RewindState *rewind) {
 static void binary(int exprType, RewindState *rewind) {
 	KrkTokenType operatorType = parser.previous.type;
 	ParseRule * rule = getRule(operatorType);
-	parsePrecedence((Precedence)(rule->precedence + 1));
+	parsePrecedence((Precedence)(rule->precedence + (rule->precedence != PREC_EXPONENT)));
 	invalidTarget(exprType, "operator");
 
 	switch (operatorType) {
@@ -1090,6 +1088,16 @@ static void literal(int exprType) {
 	}
 }
 
+static void typeHintLocal(void) {
+	current->enclosing->enclosed = current;
+	current = current->enclosing;
+	current->enclosed->annotationCount++;
+	emitConstant(INTEGER_VAL(current->enclosed->codeobject->localNameCount-1));
+	parsePrecedence(PREC_TERNARY);
+	current = current->enclosed;
+	current->enclosing->enclosed = NULL;
+}
+
 static void letDeclaration(void) {
 	size_t argCount = 0;
 	size_t argSpace = 1;
@@ -1106,16 +1114,15 @@ static void letDeclaration(void) {
 		if (current->scopeDepth > 0) {
 			/* Need locals space */
 			args[argCount++] = current->localCount - 1;
-			if (match(TOKEN_COLON)) {
-				error("Annotation on scoped variable declaration is meaningless.");
-				goto _letDone;
-			}
 		} else {
 			args[argCount++] = ind;
-			if (check(TOKEN_COLON)) {
-				KrkToken name = parser.previous;
-				match(TOKEN_COLON);
-				/* Get __annotations__ from globals */
+		}
+		if (check(TOKEN_COLON)) {
+			KrkToken name = parser.previous;
+			match(TOKEN_COLON);
+			if (current->enclosing) {
+				typeHintLocal();
+			} else {
 				KrkToken annotations = syntheticToken("__annotations__");
 				size_t ind = identifierConstant(&annotations);
 				EMIT_OPERAND_OP(OP_GET_GLOBAL, ind);
@@ -2429,6 +2436,56 @@ static void assertStatement(void) {
 	emitByte(OP_POP);
 }
 
+static void errorAfterStatement(void) {
+	switch (parser.current.type) {
+		case TOKEN_RIGHT_BRACE:
+		case TOKEN_RIGHT_PAREN:
+		case TOKEN_RIGHT_SQUARE:
+			errorAtCurrent("Unmatched '%.*s'",
+				(int)parser.current.length, parser.current.start);
+			break;
+		case TOKEN_IDENTIFIER:
+			errorAtCurrent("Unexpected %.*s after statement.",10,"identifier");
+			break;
+		case TOKEN_STRING:
+		case TOKEN_BIG_STRING:
+			errorAtCurrent("Unexpected %.*s after statement.",6,"string");
+			break;
+		default:
+			errorAtCurrent("Unexpected %.*s after statement.",
+				(int)parser.current.length, parser.current.start);
+	}
+}
+
+static void simpleStatement(void) {
+_anotherSimpleStatement:
+	if (match(TOKEN_RAISE)) {
+		raiseStatement();
+	} else if (match(TOKEN_RETURN)) {
+		returnStatement();
+	} else if (match(TOKEN_IMPORT)) {
+		importStatement();
+	} else if (match(TOKEN_FROM)) {
+		fromImportStatement();
+	} else if (match(TOKEN_BREAK)) {
+		breakStatement();
+	} else if (match(TOKEN_CONTINUE)) {
+		continueStatement();
+	} else if (match(TOKEN_DEL)) {
+		delStatement();
+	} else if (match(TOKEN_ASSERT)) {
+		assertStatement();
+	} else if (match(TOKEN_PASS)) {
+		/* Do nothing. */
+	} else {
+		expressionStatement();
+	}
+	if (match(TOKEN_SEMICOLON)) goto _anotherSimpleStatement;
+	if (!match(TOKEN_EOL) && !match(TOKEN_EOF)) {
+		errorAfterStatement();
+	}
+}
+
 static void statement(void) {
 	if (match(TOKEN_EOL) || match(TOKEN_EOF)) {
 		return; /* Meaningless blank line */
@@ -2448,49 +2505,7 @@ static void statement(void) {
 		withStatement();
 	} else {
 		/* These statements don't eat line feeds, so we need expect to see another one. */
-_anotherSimpleStatement:
-		if (match(TOKEN_RAISE)) {
-			raiseStatement();
-		} else if (match(TOKEN_RETURN)) {
-			returnStatement();
-		} else if (match(TOKEN_IMPORT)) {
-			importStatement();
-		} else if (match(TOKEN_FROM)) {
-			fromImportStatement();
-		} else if (match(TOKEN_BREAK)) {
-			breakStatement();
-		} else if (match(TOKEN_CONTINUE)) {
-			continueStatement();
-		} else if (match(TOKEN_DEL)) {
-			delStatement();
-		} else if (match(TOKEN_ASSERT)) {
-			assertStatement();
-		} else if (match(TOKEN_PASS)) {
-			/* Do nothing. */
-		} else {
-			expressionStatement();
-		}
-		if (match(TOKEN_SEMICOLON)) goto _anotherSimpleStatement;
-		if (!match(TOKEN_EOL) && !match(TOKEN_EOF)) {
-			switch (parser.current.type) {
-				case TOKEN_RIGHT_BRACE:
-				case TOKEN_RIGHT_PAREN:
-				case TOKEN_RIGHT_SQUARE:
-					errorAtCurrent("Unmatched '%.*s'",
-						(int)parser.current.length, parser.current.start);
-					break;
-				case TOKEN_IDENTIFIER:
-					errorAtCurrent("Unexpected %.*s after statement.",10,"identifier");
-					break;
-				case TOKEN_STRING:
-				case TOKEN_BIG_STRING:
-					errorAtCurrent("Unexpected %.*s after statement.",6,"string");
-					break;
-				default:
-					errorAtCurrent("Unexpected %.*s after statement.",
-						(int)parser.current.length, parser.current.start);
-			}
-		}
+		simpleStatement();
 	}
 }
 
@@ -3571,6 +3586,80 @@ static void parsePrecedence(Precedence precedence) {
 static volatile int _compilerLock = 0;
 #endif
 
+static int maybeSingleExpression() {
+	/* We're only going to use this to reset if we found a string, and it turns out
+	 * not to be a docstring. */
+	RewindState rewind = {recordChunk(currentChunk()), krk_tellScanner(), parser};
+
+	/**
+	 * Docstring:
+	 * If the first expression is just a single string token,
+	 * and that single string token is followed by a line feed
+	 * and that line feed is not the end of the input... then
+	 * emit code to attach docstring.
+	 */
+	if (check(TOKEN_STRING) || check(TOKEN_BIG_STRING)) {
+		advance();
+		if (match(TOKEN_EOL)) {
+			/* We found just a string on the first line, but is it the only line?
+			 * We should treat that as a regular string expression, eg. in a repl. */
+			int isEof = check(TOKEN_EOF);
+			/* Regardless, restore the scanner/parser so we can actually parse the string. */
+			krk_rewindScanner(rewind.oldScanner);
+			parser = rewind.oldParser;
+			advance();
+			/* Parse the string. */
+			string(EXPR_NORMAL);
+			/* If we did see end of input, it's a simple string expression. */
+			if (isEof) return 1;
+			/* Otherwise, it's a docstring, and there's more code following it.
+			 * Emit the instructions to assign the docstring to the current globals. */
+			KrkToken doc = syntheticToken("__doc__");
+			size_t ind = identifierConstant(&doc);
+			EMIT_OPERAND_OP(OP_DEFINE_GLOBAL, ind);
+			return 0;
+		} else {
+			/* There was something other than a line feed after the string token,
+			 * rewind so we can parse as an expression next. */
+			krk_rewindScanner(rewind.oldScanner);
+			parser = rewind.oldParser;
+		}
+	}
+
+	/* Try to parse one single expression */
+	ParseRule * rule = getRule(parser.current.type);
+	if (rule->prefix) {
+		parsePrecedence(PREC_ASSIGNMENT);
+
+		/* Semicolon after expression statement, finish this one and continue
+		 * parsing only more simple statements, as we would normally. */
+		if (match(TOKEN_SEMICOLON)) {
+			emitByte(OP_POP);
+			simpleStatement();
+			return 0;
+		}
+
+		/* Expression statement that isn't the end of the input, finish it
+		 * and let the declaration loop handle the rest. */
+		if (match(TOKEN_EOL) && !check(TOKEN_EOF)) {
+			emitByte(OP_POP);
+			return 0;
+		}
+
+		/* End of input after expression, must be just the single expression;
+		 * using check rather than match makes the return emit on the same
+		 * line, which produces cleaner disassembly when -d tracing is enabled. */
+		if (check(TOKEN_EOF))
+			return 1;
+
+		/* Must be an error. */
+		errorAfterStatement();
+		return 0;
+	}
+
+	return 0;
+}
+
 /**
  * @brief Compile a source string to bytecode.
  *
@@ -3603,33 +3692,18 @@ KrkCodeObject * krk_compile(const char * src, char * fileName) {
 	/* Start reading tokens from the scanner... */
 	advance();
 
-	/*
-	 * If we haven't already assigned a docstring to the current module,
-	 * check if the first token of the file is a string and use that as
-	 * the docstring.
-	 */
-	if (krk_currentThread.module) {
-		KrkValue doc;
-		if (!krk_tableGet(&krk_currentThread.module->fields, OBJECT_VAL(krk_copyString("__doc__", 7)), &doc)) {
-			if (match(TOKEN_STRING) || match(TOKEN_BIG_STRING)) {
-				string(EXPR_NORMAL);
-				krk_attachNamedObject(&krk_currentThread.module->fields, "__doc__",
-					(KrkObj*)AS_STRING(currentChunk()->constants.values[currentChunk()->constants.count-1]));
-				emitByte(OP_POP); /* string() actually put an instruction for that, pop its result */
-				consume(TOKEN_EOL,"Garbage after docstring");
-			} else {
-				krk_attachNamedValue(&krk_currentThread.module->fields, "__doc__", NONE_VAL());
+	/* The first line of an input may be a doc string. */
+	if (maybeSingleExpression()) {
+		current->type = TYPE_LAMBDA;
+	} else {
+		/* Parse top-level declarations... */
+		while (!match(TOKEN_EOF)) {
+			declaration();
+
+			/* Skip over redundant whitespace */
+			if (check(TOKEN_EOL) || check(TOKEN_INDENTATION) || check(TOKEN_EOF)) {
+				advance();
 			}
-		}
-	}
-
-	/* Parse top-level declarations... */
-	while (!match(TOKEN_EOF)) {
-		declaration();
-
-		/* Skip over redundant whitespace */
-		if (check(TOKEN_EOL) || check(TOKEN_INDENTATION) || check(TOKEN_EOF)) {
-			advance();
 		}
 	}
 

@@ -164,6 +164,15 @@ static KrkValue findFromProperty(KrkValue current, KrkToken next) {
 	return value;
 }
 
+static char * syn_krk_keywords[] = {
+	"and","class","def","else","for","if","in","import","del",
+	"let","not","or","return","while","try","except","raise",
+	"continue","break","as","from","elif","lambda","with","is",
+	"pass","assert","yield","finally","async","await",
+	"True","False","None",
+	NULL
+};
+
 static void tab_complete_func(rline_context_t * c) {
 	/* Figure out where the cursor is and if we should be completing anything. */
 	if (c->offset) {
@@ -307,7 +316,6 @@ static void tab_complete_func(rline_context_t * c) {
 					root = OBJECT_VAL(vm.builtins);
 					continue;
 				} else if (isGlobal && AS_OBJECT(root) == (KrkObj*)vm.builtins) {
-					extern char * syn_krk_keywords[];
 					KrkInstance * fakeKeywordsObject = krk_newInstance(vm.baseClasses->objectClass);
 					root = OBJECT_VAL(fakeKeywordsObject);
 					krk_push(root);
