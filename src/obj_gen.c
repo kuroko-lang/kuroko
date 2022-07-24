@@ -28,6 +28,8 @@ struct generator {
 	int started;
 	KrkValue result;
 	int type;
+	KrkThreadState fakethread;
+	KrkUpvalue * capturedUpvalues;
 };
 
 #define AS_generator(o) ((struct generator *)AS_OBJECT(o))
@@ -36,21 +38,35 @@ struct generator {
 #define CURRENT_CTYPE struct generator *
 #define CURRENT_NAME  self
 
+static void _generator_close_upvalues(struct generator * self) {
+	while (self->capturedUpvalues) {
+		KrkUpvalue * upvalue = self->capturedUpvalues;
+		upvalue->closed = self->args[upvalue->location];
+		upvalue->location = -1;
+		self->capturedUpvalues = upvalue->next;
+	}
+}
+
 static void _generator_gcscan(KrkInstance * _self) {
 	struct generator * self = (struct generator*)_self;
 	krk_markObject((KrkObj*)self->closure);
 	for (size_t i = 0; i < self->argCount; ++i) {
 		krk_markValue(self->args[i]);
 	}
+	for (KrkUpvalue * upvalue = self->capturedUpvalues; upvalue; upvalue = upvalue->next) {
+		krk_markObject((KrkObj*)upvalue);
+	}
 	krk_markValue(self->result);
 }
 
 static void _generator_gcsweep(KrkInstance * self) {
+	_generator_close_upvalues((struct generator*)self);
 	free(((struct generator*)self)->args);
 }
 
 static void _set_generator_done(struct generator * self) {
 	self->ip = NULL;
+	_generator_close_upvalues(self);
 }
 
 /**
@@ -120,10 +136,21 @@ KRK_Method(generator,__call__) {
 	frame->slots   = krk_currentThread.stackTop - krk_currentThread.stack;
 	frame->outSlots = frame->slots;
 	frame->globals = self->closure->globalsTable;
+	frame->globalsOwner = self->closure->globalsOwner;
 
 	/* Stick our stack on their stack */
 	for (size_t i = 0; i < self->argCount; ++i) {
 		krk_push(self->args[i]);
+	}
+
+	/* Point any of our captured upvalues back to their actual stack locations */
+	while (self->capturedUpvalues) {
+		KrkUpvalue * upvalue = self->capturedUpvalues;
+		upvalue->owner = &krk_currentThread;
+		upvalue->location = upvalue->location + frame->slots;
+		self->capturedUpvalues = upvalue->next;
+		upvalue->next = krk_currentThread.openUpvalues;
+		krk_currentThread.openUpvalues = upvalue;
 	}
 
 	if (self->started) {
@@ -157,6 +184,16 @@ KRK_Method(generator,__call__) {
 		return NONE_VAL();
 	}
 
+	/* Redirect any remaining upvalues captured from us, and release them from the VM */
+	while (krk_currentThread.openUpvalues != NULL && krk_currentThread.openUpvalues->location >= (int)frame->slots) {
+		KrkUpvalue * upvalue = krk_currentThread.openUpvalues;
+		upvalue->location = upvalue->location - frame->slots;
+		upvalue->owner = &self->fakethread;
+		krk_currentThread.openUpvalues = upvalue->next;
+		upvalue->next = self->capturedUpvalues;
+		self->capturedUpvalues = upvalue;
+	}
+
 	/* Determine the stack state */
 	if (stackAfter > stackBefore) {
 		size_t newArgs = stackAfter - stackBefore;
@@ -171,6 +208,7 @@ KRK_Method(generator,__call__) {
 	/* Save stack entries */
 	memcpy(self->args, krk_currentThread.stackTop - self->argCount, sizeof(KrkValue) * self->argCount);
 	self->ip      = frame->ip;
+	self->fakethread.stack = self->args;
 
 	krk_currentThread.stackTop = krk_currentThread.stack + frame->slots;
 

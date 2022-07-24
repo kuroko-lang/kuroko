@@ -1,0 +1,43 @@
+let t = []
+
+def foo():
+    let a, b, c = 1,2,3
+    t.append(lambda: (a,b,c))
+    yield
+    a = 'a'
+    t.append(lambda: (b,c,a))
+    yield
+    b = 'b'
+    t.append(lambda: (c,b,a))
+    yield
+    c = 'c'
+
+let g = foo()
+print('one')
+g()
+print(t[0]())
+if True:
+    print('two')
+    g()
+print(t[0]())
+print(t[1]())
+print('three')
+g()
+print(t[0]())
+print(t[1]())
+print(t[2]())
+print("exhaust")
+g()
+
+del g
+
+import gc
+gc.collect()
+gc.collect()
+gc.collect()
+gc.collect()
+
+
+print(t[0]())
+print(t[1]())
+print(t[2]())
