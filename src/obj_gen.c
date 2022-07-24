@@ -129,6 +129,9 @@ KRK_Method(generator,__iter__) {
 KRK_Method(generator,__call__) {
 	METHOD_TAKES_AT_MOST(1);
 	if (!self->ip) return OBJECT_VAL(self);
+	if (self->running) {
+		return krk_runtimeError(vm.exceptions->valueError, "generator already executing");
+	}
 	/* Prepare frame */
 	KrkCallFrame * frame = &krk_currentThread.frames[krk_currentThread.frameCount++];
 	frame->closure = self->closure;
