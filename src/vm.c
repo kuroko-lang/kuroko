@@ -1768,6 +1768,7 @@ static int handleException() {
 		krk_currentThread.frameCount = krk_currentThread.exitOnFrame;
 
 		/* Ensure stack is in the expected place, as if we returned None. */
+		closeUpvalues(exitSlot);
 		krk_currentThread.stackTop = &krk_currentThread.stack[exitSlot];
 
 		/* If exitSlot was not 0, there was an exception during a call to runNext();
