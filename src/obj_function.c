@@ -424,7 +424,7 @@ void _createAndBind_functionClass(void) {
 	BIND_PROP(function,__code__);
 	BIND_PROP(function,__globals__);
 	krk_defineNative(&function->methods, "__repr__", FUNC_NAME(function,__str__));
-	krk_defineNative(&function->methods, "__class_getitem__", KrkGenericAlias)->obj.flags |= KRK_OBJ_FLAGS_FUNCTION_IS_CLASS_METHOD;
+	krk_defineNative(&function->methods, "__class_getitem__", krk_GenericAlias)->obj.flags |= KRK_OBJ_FLAGS_FUNCTION_IS_CLASS_METHOD;
 	krk_finalizeClass(function);
 
 	KrkClass * method = ADD_BASE_CLASS(vm.baseClasses->methodClass, "method", vm.baseClasses->objectClass);

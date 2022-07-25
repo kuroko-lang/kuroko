@@ -64,4 +64,4 @@ KRK_Function(__class_getitem__) {
 	return finishStringBuilder(&sb);
 }
 
-NativeFn KrkGenericAlias = FUNC_NAME(krk,__class_getitem__);
+NativeFn krk_GenericAlias = FUNC_NAME(krk,__class_getitem__);

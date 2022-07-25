@@ -495,7 +495,7 @@ extern int krk_getAwaitable(void);
  * Returns a generic alias object. Bind this to a class's \__class_getitem__
  * to allow for generic collection types to be used in type hints.
  */
-extern NativeFn KrkGenericAlias;
+extern NativeFn krk_GenericAlias;
 
 /**
  * @brief Create a new, uninitialized code object.
