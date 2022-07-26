@@ -1472,7 +1472,7 @@ void krk_initVM(int flags) {
 	/* Global objects */
 	vm.exceptions = calloc(1,sizeof(struct Exceptions));
 	vm.baseClasses = calloc(1,sizeof(struct BaseClasses));
-	vm.specialMethodNames = calloc(METHOD__MAX,sizeof(KrkValue*));
+	vm.specialMethodNames = calloc(METHOD__MAX,sizeof(KrkValue));
 	krk_initTable(&vm.strings);
 	krk_initTable(&vm.modules);
 
