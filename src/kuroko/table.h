@@ -80,7 +80,7 @@ extern void krk_tableAddAll(KrkTable * from, KrkTable * to);
  * @param hash    Precalculated hash value for the string.
  * @return If the string was found, the string object representation, else NULL.
  */
-extern KrkString * krk_tableFindString(KrkTable * table, const char * chars, size_t length, uint32_t hash);
+extern struct KrkString * krk_tableFindString(KrkTable * table, const char * chars, size_t length, uint32_t hash);
 
 /**
  * @brief Assign a value to a key in a table.
@@ -125,7 +125,7 @@ extern int krk_tableGet(KrkTable * table, KrkValue key, KrkValue * value);
  * @param value Output pointer to place resulting value in.
  * @return 0 if the key was not found, 1 if it was.
  */
-extern int krk_tableGet_fast(KrkTable * table, KrkString * str, KrkValue * value);
+extern int krk_tableGet_fast(KrkTable * table, struct KrkString * str, KrkValue * value);
 
 /**
  * @brief Remove a key from a hash table.

@@ -87,7 +87,6 @@ typedef enum {
 	KRK_STRING_UCS4    = KRK_OBJ_FLAGS_STRING_UCS4,   /**< Codepoints are four bytes. */
 } KrkStringType;
 
-#undef KrkString
 /**
  * @brief Immutable sequence of Unicode codepoints.
  * @extends KrkObj

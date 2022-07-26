@@ -8,15 +8,6 @@
 #include "kuroko.h"
 
 /**
- * @brief Base structure of all heap objects.
- *
- * KrkObj is the base type of all objects stored on the heap and
- * managed by the garbage collector.
- */
-typedef struct KrkObj KrkObj;
-typedef struct KrkString KrkString;
-
-/**
  * @brief Tag enum for basic value types.
  *
  * These are the values stored in the upper NaN bits of

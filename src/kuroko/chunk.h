@@ -42,7 +42,7 @@ typedef struct {
 	size_t linesCapacity;
 	KrkLineMap * lines;
 
-	KrkString * filename;
+	struct KrkString * filename;
 	KrkValueArray constants;
 } KrkChunk;
 
