@@ -270,43 +270,41 @@ struct BreakpointEntry {
 };
 
 #define MAX_BREAKPOINTS 32
-static struct BreakpointEntry breakpoints[MAX_BREAKPOINTS] = {{0}};
-static int breakpointsCount = 0;
+struct DebuggerState {
+	int breakpointsCount;
+	KrkDebugCallback debuggerHook;
 
-static KrkDebugCallback _debugger_hook = NULL;
+	/* XXX This was previously thread-local; it probably should still be
+	 *     specific to an individual thread... but we don't really do
+	 *     much thread debugging, so... */
+	int repeatStack_top;
+	int repeatStack_bottom;
+	int thisWasForced;
 
-/* Internal state tracks re-enabling repeat breakpoints */
-#ifdef __toaru__
-__attribute__((tls_model("initial-exec"))) threadLocal int _repeatStack_top    = -1;
-__attribute__((tls_model("initial-exec"))) threadLocal int _repeatStack_bottom = -1;
-__attribute__((tls_model("initial-exec"))) threadLocal int _thisWasForced = 0;
-#else
-static threadLocal int _repeatStack_top    = -1;
-static threadLocal int _repeatStack_bottom = -1;
-static threadLocal int _thisWasForced = 0;
-#endif
+	struct BreakpointEntry breakpoints[MAX_BREAKPOINTS];
+};
 
 int krk_debug_addBreakpointCodeOffset(KrkCodeObject * target, size_t offset, int flags) {
-	int index = breakpointsCount;
-	if (breakpointsCount == MAX_BREAKPOINTS) {
+	int index = vm.dbgState->breakpointsCount;
+	if (vm.dbgState->breakpointsCount == MAX_BREAKPOINTS) {
 		/* See if any are available */
 		for (int i = 0; i < MAX_BREAKPOINTS; ++i) {
-			if (breakpoints[i].inFunction == NULL) {
+			if (vm.dbgState->breakpoints[i].inFunction == NULL) {
 				index = i;
 				break;
 			}
 		}
-		if (index == breakpointsCount) {
+		if (index == vm.dbgState->breakpointsCount) {
 			return -1;
 		}
 	} else {
-		index = breakpointsCount++;
+		index = vm.dbgState->breakpointsCount++;
 	}
 
-	breakpoints[index].inFunction = target;
-	breakpoints[index].offset = offset;
-	breakpoints[index].originalOpcode = target->chunk.code[offset];
-	breakpoints[index].flags = flags;
+	vm.dbgState->breakpoints[index].inFunction = target;
+	vm.dbgState->breakpoints[index].offset = offset;
+	vm.dbgState->breakpoints[index].originalOpcode = target->chunk.code[offset];
+	vm.dbgState->breakpoints[index].flags = flags;
 	target->chunk.code[offset] = OP_BREAKPOINT;
 
 	return index;
@@ -353,9 +351,9 @@ int krk_debug_addBreakpointFileLine(KrkString * filename, size_t line, int flags
 }
 
 int krk_debug_enableBreakpoint(int breakIndex) {
-	if (breakIndex < 0 || breakIndex >= breakpointsCount || breakpoints[breakIndex].inFunction == NULL)
+	if (breakIndex < 0 || breakIndex >= vm.dbgState->breakpointsCount || vm.dbgState->breakpoints[breakIndex].inFunction == NULL)
 		return 1;
-	breakpoints[breakIndex].inFunction->chunk.code[breakpoints[breakIndex].offset] = OP_BREAKPOINT;
+	vm.dbgState->breakpoints[breakIndex].inFunction->chunk.code[vm.dbgState->breakpoints[breakIndex].offset] = OP_BREAKPOINT;
 	return 0;
 }
 KRK_Function(enablebreakpoint) {
@@ -366,12 +364,12 @@ KRK_Function(enablebreakpoint) {
 }
 
 int krk_debug_disableBreakpoint(int breakIndex) {
-	if (breakIndex < 0 || breakIndex >= breakpointsCount || breakpoints[breakIndex].inFunction == NULL)
+	if (breakIndex < 0 || breakIndex >= vm.dbgState->breakpointsCount || vm.dbgState->breakpoints[breakIndex].inFunction == NULL)
 		return 1;
-	breakpoints[breakIndex].inFunction->chunk.code[breakpoints[breakIndex].offset] =
-		breakpoints[breakIndex].originalOpcode;
-	if (breakIndex == _repeatStack_top) {
-		_repeatStack_top = -1;
+	vm.dbgState->breakpoints[breakIndex].inFunction->chunk.code[vm.dbgState->breakpoints[breakIndex].offset] =
+		vm.dbgState->breakpoints[breakIndex].originalOpcode;
+	if (breakIndex == vm.dbgState->repeatStack_top) {
+		vm.dbgState->repeatStack_top = -1;
 	}
 	return 0;
 }
@@ -383,12 +381,12 @@ KRK_Function(disablebreakpoint) {
 }
 
 int krk_debug_removeBreakpoint(int breakIndex) {
-	if (breakIndex < 0 || breakIndex >= breakpointsCount || breakpoints[breakIndex].inFunction == NULL)
+	if (breakIndex < 0 || breakIndex >= vm.dbgState->breakpointsCount || vm.dbgState->breakpoints[breakIndex].inFunction == NULL)
 		return 1;
 	krk_debug_disableBreakpoint(breakIndex);
-	breakpoints[breakIndex].inFunction = NULL;
-	while (breakpointsCount && breakpoints[breakpointsCount-1].inFunction == NULL) {
-		breakpointsCount--;
+	vm.dbgState->breakpoints[breakIndex].inFunction = NULL;
+	while (vm.dbgState->breakpointsCount && vm.dbgState->breakpoints[vm.dbgState->breakpointsCount-1].inFunction == NULL) {
+		vm.dbgState->breakpointsCount--;
 	}
 	return 0;
 }
@@ -482,19 +480,19 @@ void krk_debug_disableSingleStep(void) {
 }
 
 int krk_debuggerHook(KrkCallFrame * frame) {
-	if (!_debugger_hook)
+	if (!vm.dbgState->debuggerHook)
 		abort();
 
-	if (_repeatStack_top != -1) {
+	if (vm.dbgState->repeatStack_top != -1) {
 		/* Re-enable stored repeat breakpoint */
-		krk_debug_enableBreakpoint(_repeatStack_top);
+		krk_debug_enableBreakpoint(vm.dbgState->repeatStack_top);
 	}
 
-	_repeatStack_top = _repeatStack_bottom;
-	_repeatStack_bottom = -1;
+	vm.dbgState->repeatStack_top = vm.dbgState->repeatStack_bottom;
+	vm.dbgState->repeatStack_bottom = -1;
 
-	if (!_thisWasForced) {
-		int result = _debugger_hook(frame);
+	if (!vm.dbgState->thisWasForced) {
+		int result = vm.dbgState->debuggerHook(frame);
 		switch (result) {
 			case KRK_DEBUGGER_CONTINUE:
 				krk_debug_disableSingleStep();
@@ -515,12 +513,12 @@ int krk_debuggerHook(KrkCallFrame * frame) {
 	} else {
 		/* If we weren't asked to step to the next breakpoint, we need to disable single stepping. */
 		krk_debug_disableSingleStep();
-		_thisWasForced = 0;
+		vm.dbgState->thisWasForced = 0;
 	}
 
 	/* If the top of the repeat stack is an index, we need to ensure we re-enable that breakpoint */
-	if (_repeatStack_top != -1 && !(krk_currentThread.flags & KRK_THREAD_SINGLE_STEP)) {
-		_thisWasForced = 1;
+	if (vm.dbgState->repeatStack_top != -1 && !(krk_currentThread.flags & KRK_THREAD_SINGLE_STEP)) {
+		vm.dbgState->thisWasForced = 1;
 		krk_debug_enableSingleStep();
 	}
 
@@ -528,21 +526,21 @@ int krk_debuggerHook(KrkCallFrame * frame) {
 }
 
 int krk_debug_registerCallback(KrkDebugCallback hook) {
-	if (_debugger_hook) return 1;
-	_debugger_hook = hook;
+	if (vm.dbgState->debuggerHook) return 1;
+	vm.dbgState->debuggerHook = hook;
 	return 0;
 }
 
 int krk_debug_examineBreakpoint(int breakIndex, KrkCodeObject ** funcOut, size_t * offsetOut, int * flagsOut, int * enabled) {
-	if (breakIndex < 0 || breakIndex >= breakpointsCount)
+	if (breakIndex < 0 || breakIndex >= vm.dbgState->breakpointsCount)
 		return -1;
-	if (breakpoints[breakIndex].inFunction == NULL)
+	if (vm.dbgState->breakpoints[breakIndex].inFunction == NULL)
 		return -2;
 
-	if (funcOut) *funcOut = breakpoints[breakIndex].inFunction;
-	if (offsetOut) *offsetOut = breakpoints[breakIndex].offset;
-	if (flagsOut) *flagsOut = breakpoints[breakIndex].flags;
-	if (enabled) *enabled = (breakpoints[breakIndex].inFunction->chunk.code[breakpoints[breakIndex].offset] == OP_BREAKPOINT) || breakIndex == _repeatStack_top;
+	if (funcOut) *funcOut = vm.dbgState->breakpoints[breakIndex].inFunction;
+	if (offsetOut) *offsetOut = vm.dbgState->breakpoints[breakIndex].offset;
+	if (flagsOut) *flagsOut = vm.dbgState->breakpoints[breakIndex].flags;
+	if (enabled) *enabled = (vm.dbgState->breakpoints[breakIndex].inFunction->chunk.code[vm.dbgState->breakpoints[breakIndex].offset] == OP_BREAKPOINT) || breakIndex == vm.dbgState->repeatStack_top;
 
 	return 0;
 }
@@ -554,8 +552,8 @@ int krk_debugBreakpointHandler(void) {
 	KrkCodeObject * callee = frame->closure->function;
 	size_t offset        = (frame->ip - 1) - callee->chunk.code;
 
-	for (int i = 0; i < breakpointsCount; ++i) {
-		if (breakpoints[i].inFunction == callee && breakpoints[i].offset == offset) {
+	for (int i = 0; i < vm.dbgState->breakpointsCount; ++i) {
+		if (vm.dbgState->breakpoints[i].inFunction == callee && vm.dbgState->breakpoints[i].offset == offset) {
 			index = i;
 		}
 	}
@@ -568,13 +566,13 @@ int krk_debugBreakpointHandler(void) {
 
 	/* Restore the instruction to its original state. If the debugger
 	 * wants to break here again it can set the breakpoint again */
-	callee->chunk.code[offset] = breakpoints[index].originalOpcode;
+	callee->chunk.code[offset] = vm.dbgState->breakpoints[index].originalOpcode;
 
 	/* If this was a single-shot, we can remove it. */
-	if (breakpoints[index].flags == KRK_BREAKPOINT_ONCE) {
+	if (vm.dbgState->breakpoints[index].flags == KRK_BREAKPOINT_ONCE) {
 		krk_debug_removeBreakpoint(index);
-	} else if (breakpoints[index].flags == KRK_BREAKPOINT_REPEAT) {
-		_repeatStack_bottom = index;
+	} else if (vm.dbgState->breakpoints[index].flags == KRK_BREAKPOINT_REPEAT) {
+		vm.dbgState->repeatStack_bottom = index;
 	}
 
 	/* Rewind to rerun this instruction. */
@@ -743,6 +741,11 @@ void _createAndBind_disMod(void) {
 	krk_attachNamedObject(&vm.modules, "dis", (KrkObj*)module);
 	krk_attachNamedObject(&module->fields, "__name__", (KrkObj*)S("dis"));
 	krk_attachNamedValue(&module->fields, "__file__", NONE_VAL());
+
+	vm.dbgState = calloc(1, sizeof(struct DebuggerState));
+	vm.dbgState->repeatStack_top = -1;
+	vm.dbgState->repeatStack_bottom = -1;
+
 	KRK_DOC(module,
 		"@brief Provides tools for disassembling bytecode.\n\n"
 		"### Code Disassembly in Kuroko\n\n"

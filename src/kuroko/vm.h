@@ -201,6 +201,7 @@ typedef struct KrkVM {
 	KrkThreadState * threads;         /**< Invasive linked list of all VM threads. */
 	FILE * callgrindFile;             /**< File to write unprocessed callgrind data to. */
 	size_t maximumCallDepth;          /**< Maximum recursive call depth. */
+	struct DebuggerState * dbgState;  /**< Opaque debugger state pointer. */
 } KrkVM;
 
 /* Thread-specific flags */

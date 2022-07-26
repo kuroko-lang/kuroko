@@ -1619,6 +1619,7 @@ void krk_freeVM() {
 	krk_freeObjects();
 
 	if (vm.binpath) free(vm.binpath);
+	if (vm.dbgState) free(vm.dbgState);
 
 	while (krk_currentThread.next) {
 		KrkThreadState * thread = krk_currentThread.next;
