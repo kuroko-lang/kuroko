@@ -50,7 +50,9 @@ typedef struct {
 	size_t outSlots;      /**< Offset into the stack at which stackTop will be reset upon return */
 	KrkTable * globals;   /**< Pointer to the attribute table containing valud global vairables for this call */
 	KrkValue   globalsOwner; /**< Owner of the current globals context, to give to new closures. */
+#ifndef KRK_NO_CALLGRIND
 	struct timespec in_time;
+#endif
 } KrkCallFrame;
 
 /**
@@ -221,7 +223,7 @@ typedef struct KrkVM {
 #define KRK_GLOBAL_REPORT_GC_COLLECTS  (1 << 12)
 #define KRK_GLOBAL_THREADS             (1 << 13)
 
-#ifdef ENABLE_THREADING
+#ifndef KRK_DISABLE_THREADS
 #  define threadLocal __thread
 #else
 #  define threadLocal
@@ -232,7 +234,7 @@ typedef struct KrkVM {
  *
  * See @c KrkThreadState for more information.
  */
-#if defined(ENABLE_THREADING) && ((defined(__APPLE__)) && defined(__aarch64__))
+#if !defined(KRK_DISABLE_THREADS) && ((defined(__APPLE__)) && defined(__aarch64__))
 extern void krk_forceThreadData(void);
 #define krk_currentThread (*_macos_currentThread())
 #pragma clang diagnostic ignored "-Wlanguage-extension-token"
@@ -241,7 +243,7 @@ inline KrkThreadState * _macos_currentThread(void) {
 	const uintptr_t * threadptr; asm ("mrs %0, TPIDRRO_EL0" : "=r"(threadptr));
 	return (KrkThreadState*)(threadptr[tls_desc[1]] + tls_desc[2]);
 }
-#elif defined(ENABLE_THREADING) && ((defined(_WIN32) && !defined(KRKINLIB)) || defined(KRK_MEDIOCRE_TLS))
+#elif !defined(KRK_DISABLE_THREADS) && ((defined(_WIN32) && !defined(KRKINLIB)) || defined(KRK_MEDIOCRE_TLS))
 #define krk_currentThread (*krk_getCurrentThread())
 #else
 extern threadLocal KrkThreadState krk_currentThread;

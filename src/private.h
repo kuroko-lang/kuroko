@@ -26,7 +26,7 @@ extern void _createAndBind_gcMod(void);
 extern void _createAndBind_timeMod(void);
 extern void _createAndBind_osMod(void);
 extern void _createAndBind_fileioMod(void);
-#ifdef ENABLE_THREADING
+#ifndef KRK_DISABLE_THREADS
 extern void _createAndBind_threadsMod(void);
 #endif
 

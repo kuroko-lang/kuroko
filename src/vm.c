@@ -47,7 +47,7 @@
 /* This is macro'd to krk_vm for namespacing reasons. */
 KrkVM vm = {0};
 
-#ifdef ENABLE_THREADING
+#ifndef KRK_DISABLE_THREADS
 /*
  * Marking our little VM thread state as 'initial-exec' is
  * the fastest way to allocate TLS data and yields virtually
@@ -65,7 +65,7 @@ __thread KrkThreadState krk_currentThread;
 KrkThreadState krk_currentThread;
 #endif
 
-#if defined(ENABLE_THREADING) && defined(__APPLE__) && defined(__aarch64__)
+#if !defined(KRK_DISABLE_THREADS) && defined(__APPLE__) && defined(__aarch64__)
 /**
  * I have not checked how this works on x86-64, so we only do this
  * on M1 Macs at the moment, but TLS is disastrously poorly implemented
@@ -91,7 +91,7 @@ void krk_forceThreadData(void) {
 #define krk_currentThread (*_macos_currentThread())
 #endif
 
-#if !defined(KRK_NO_TRACING) && !defined(__EMSCRIPTEN__)
+#if !defined(KRK_NO_TRACING) && !defined(__EMSCRIPTEN__) && !defined(KRK_NO_CALLGRIND)
 static void _frame_in(KrkCallFrame * frame) {
 	 clock_gettime(CLOCK_MONOTONIC, &frame->in_time);
 }
@@ -1446,7 +1446,7 @@ void krk_setMaximumRecursionDepth(size_t maxDepth) {
 }
 
 void krk_initVM(int flags) {
-#if defined(ENABLE_THREADING) && defined(__APPLE__) && defined(__aarch64__)
+#if !defined(KRK_DISABLE_THREADS) && defined(__APPLE__) && defined(__aarch64__)
 	krk_forceThreadData();
 #endif
 
@@ -1507,14 +1507,16 @@ void krk_initVM(int flags) {
 	_createAndBind_exceptions();
 	_createAndBind_generatorClass();
 	_createAndBind_longClass();
+#ifndef KRK_NO_SYSTEM_MODULES
 	_createAndBind_gcMod();
 	_createAndBind_timeMod();
 	_createAndBind_osMod();
 	_createAndBind_fileioMod();
+#endif
 #ifndef KRK_DISABLE_DEBUG
 	_createAndBind_disMod();
 #endif
-#ifdef ENABLE_THREADING
+#ifndef KRK_DISABLE_THREADS
 	_createAndBind_threadsMod();
 #endif
 
@@ -1571,7 +1573,7 @@ void krk_initVM(int flags) {
 	KrkValue module_paths = krk_list_of(0,NULL,0);
 	krk_attachNamedValue(&vm.system->fields, "module_paths", module_paths);
 	krk_writeValueArray(AS_LIST(module_paths), OBJECT_VAL(S("./")));
-#ifndef NO_FILESYSTEM
+#ifndef KRK_NO_FILESYSTEM
 	if (vm.binpath) {
 		krk_attachNamedObject(&vm.system->fields, "executable_path", (KrkObj*)krk_copyString(vm.binpath, strlen(vm.binpath)));
 		char * dir = strdup(vm.binpath);
@@ -1800,15 +1802,14 @@ static int handleException() {
  * object module, the later search path will still win.
  */
 int krk_loadModule(KrkString * path, KrkValue * moduleOut, KrkString * runAs, KrkValue parent) {
-	KrkValue modulePaths;
-
 	/* See if the module is already loaded */
 	if (krk_tableGet_fast(&vm.modules, runAs, moduleOut)) {
 		krk_push(*moduleOut);
 		return 1;
 	}
 
-#ifndef NO_FILESYSTEM
+#ifndef KRK_NO_FILESYSTEM
+	KrkValue modulePaths;
 
 	/* Obtain __builtins__.module_paths */
 	if (!krk_tableGet_fast(&vm.system->fields, S("module_paths"), &modulePaths) || !IS_INSTANCE(modulePaths)) {
@@ -2621,17 +2622,20 @@ static KrkValue run() {
 	KrkCallFrame* frame = &krk_currentThread.frames[krk_currentThread.frameCount - 1];
 
 	while (1) {
-#ifndef KRK_NO_TRACING
 		if (unlikely(krk_currentThread.flags & (KRK_THREAD_ENABLE_TRACING | KRK_THREAD_SINGLE_STEP | KRK_THREAD_SIGNALLED))) {
+#ifndef KRK_NO_TRACING
 			if (krk_currentThread.flags & KRK_THREAD_ENABLE_TRACING) {
 				krk_debug_dumpStack(stderr, frame);
 				krk_disassembleInstruction(stderr, frame->closure->function,
 					(size_t)(frame->ip - frame->closure->function->chunk.code));
 			}
+#endif
 
+#ifndef KRK_DISABLE_DEBUG
 			if (krk_currentThread.flags & KRK_THREAD_SINGLE_STEP) {
 				krk_debuggerHook(frame);
 			}
+#endif
 
 			if (krk_currentThread.flags & KRK_THREAD_SIGNALLED) {
 				krk_currentThread.flags &= ~(KRK_THREAD_SIGNALLED); /* Clear signal flag */
@@ -2639,6 +2643,7 @@ static KrkValue run() {
 				goto _finishException;
 			}
 		}
+#ifndef KRK_DISABLE_DEBUG
 _resumeHook: (void)0;
 #endif
 
@@ -3572,7 +3577,7 @@ KrkValue krk_interpret(const char * src, char * fromFile) {
 	return run();
 }
 
-#ifndef NO_FILESYSTEM
+#ifndef KRK_NO_FILESYSTEM
 KrkValue krk_runfile(const char * fileName, char * fromFile) {
 	FILE * f = fopen(fileName,"r");
 	if (!f) {

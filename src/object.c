@@ -11,7 +11,7 @@
 #define ALLOCATE_OBJECT(type, objectType) \
 	(type*)allocateObject(sizeof(type), objectType)
 
-#ifdef ENABLE_THREADING
+#ifndef KRK_DISABLE_THREADS
 static volatile int _stringLock = 0;
 static volatile int _objectLock = 0;
 #endif

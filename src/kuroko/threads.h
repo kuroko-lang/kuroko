@@ -4,7 +4,7 @@
  * @brief Convience header for providing atomic operations to threads.
  */
 
-#ifdef ENABLE_THREADING
+#ifndef KRK_DISABLE_THREADS
 #include <pthread.h>
 #include <sched.h>
 
@@ -32,10 +32,10 @@ static inline void _krk_internal_spin_unlock(int volatile * lock) {
 #define _obtain_lock(v)
 #define _release_lock(v)
 
-#define pthread_rwlock_init(a,b)
-#define pthread_rwlock_wrlock(a)
-#define pthread_rwlock_rdlock(a)
-#define pthread_rwlock_unlock(a)
+#define pthread_rwlock_init(a,b) ((void)0)
+#define pthread_rwlock_wrlock(a) ((void)0)
+#define pthread_rwlock_rdlock(a) ((void)0)
+#define pthread_rwlock_unlock(a) ((void)0)
 
 #endif
 

@@ -10,12 +10,6 @@
 
 typedef int64_t krk_integer_type;
 
-#define ENABLE_THREADING
-
-#if defined(KRK_DISABLE_THREADS) || defined(__EMSCRIPTEN__) || defined(EFI_PLATFORM)
-# undef ENABLE_THREADING
-#endif
-
 #ifndef _WIN32
 # define PATH_SEP "/"
 # ifndef STATIC_ONLY

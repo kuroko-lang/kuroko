@@ -9,7 +9,7 @@
 #include "chunk.h"
 #include "table.h"
 
-#ifdef ENABLE_THREADING
+#ifndef KRK_DISABLE_THREADS
 #include <pthread.h>
 #endif
 
@@ -306,7 +306,7 @@ typedef struct {
 typedef struct {
 	KrkInstance inst;     /**< @protected @brief Base */
 	KrkValueArray values; /**< @brief Stores the length, capacity, and actual values of the list */
-#ifdef ENABLE_THREADING
+#ifndef KRK_DISABLE_THREADS
 	pthread_rwlock_t rwlock;
 #endif
 } KrkList;

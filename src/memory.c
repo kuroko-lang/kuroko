@@ -485,6 +485,7 @@ static void markRoots() {
 	}
 }
 
+#ifndef KRK_NO_GC_TRACING
 static int smartSize(char _out[100], size_t s) {
 #if UINTPTR_MAX == 0xFFFFFFFF
 	size_t count = 3;
@@ -502,8 +503,10 @@ static int smartSize(char _out[100], size_t s) {
 	}
 	return snprintf(_out, 100, "%d B", (int)s);
 }
+#endif
 
 size_t krk_collectGarbage(void) {
+#ifndef KRK_NO_GC_TRACING
 	struct timespec outTime, inTime;
 
 	if (vm.globalFlags & KRK_GLOBAL_REPORT_GC_COLLECTS) {
@@ -511,6 +514,7 @@ size_t krk_collectGarbage(void) {
 	}
 
 	size_t bytesBefore = vm.bytesAllocated;
+#endif
 
 	markRoots();
 	traceReferences();
@@ -533,6 +537,7 @@ size_t krk_collectGarbage(void) {
 		vm.nextGC = vm.bytesAllocated + 0x4000000;
 	}
 
+#ifndef KRK_NO_GC_TRACING
 	if (vm.globalFlags & KRK_GLOBAL_REPORT_GC_COLLECTS) {
 		clock_gettime(CLOCK_MONOTONIC, &outTime);
 		struct timespec diff;
@@ -553,9 +558,11 @@ size_t krk_collectGarbage(void) {
 			(long long)diff.tv_sec, diff.tv_nsec,
 			smartBefore,smartAfter,smartFreed,(unsigned long long)out, smartNext);
 	}
+#endif
 	return out;
 }
 
+#ifndef KRK_NO_SYSTEM_MODULES
 KRK_Function(collect) {
 	FUNCTION_TAKES_NONE();
 	if (&krk_currentThread != vm.threads) return krk_runtimeError(vm.exceptions->valueError, "only the main thread can do that");
@@ -594,3 +601,4 @@ void _createAndBind_gcMod(void) {
 	KRK_DOC(BIND_FUNC(gcModule,resume),
 		"@brief Re-enable automatic garbage collection after it was stopped by @ref pause ");
 }
+#endif
