@@ -13,7 +13,6 @@
 #include <kuroko/util.h>
 #include <kuroko/debug.h>
 
-static KrkClass * generator;
 /**
  * @brief Generator object implementation.
  * @extends KrkInstance
@@ -33,7 +32,7 @@ struct generator {
 };
 
 #define AS_generator(o) ((struct generator *)AS_OBJECT(o))
-#define IS_generator(o) (krk_isInstanceOf(o, generator))
+#define IS_generator(o) (krk_isInstanceOf(o, KRK_BASE_CLASS(generator)))
 
 #define CURRENT_CTYPE struct generator *
 #define CURRENT_NAME  self
@@ -86,7 +85,7 @@ KrkInstance * krk_buildGenerator(KrkClosure * closure, KrkValue * argsIn, size_t
 	memcpy(args, argsIn, sizeof(KrkValue) * argCount);
 
 	/* Create a generator object */
-	struct generator * self = (struct generator *)krk_newInstance(generator);
+	struct generator * self = (struct generator *)krk_newInstance(KRK_BASE_CLASS(generator));
 	self->args = args;
 	self->argCount = argCount;
 	self->closure = closure;
@@ -267,7 +266,7 @@ int krk_getAwaitable(void) {
 
 _noexport
 void _createAndBind_generatorClass(void) {
-	generator = ADD_BASE_CLASS(vm.baseClasses->generatorClass, "generator", vm.baseClasses->objectClass);
+	KrkClass * generator = ADD_BASE_CLASS(vm.baseClasses->generatorClass, "generator", vm.baseClasses->objectClass);
 	generator->allocSize = sizeof(struct generator);
 	generator->_ongcscan = _generator_gcscan;
 	generator->_ongcsweep = _generator_gcsweep;

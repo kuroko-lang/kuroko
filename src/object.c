@@ -58,7 +58,7 @@ size_t krk_codepointToBytes(krk_integer_type value, unsigned char * out) {
 #define UTF8_REJECT 1
 
 static inline uint32_t decode(uint32_t* state, uint32_t* codep, uint32_t byte) {
-	static int state_table[32] = {
+	static const int state_table[32] = {
 		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, /* 0xxxxxxx */
 		1,1,1,1,1,1,1,1,                 /* 10xxxxxx */
 		2,2,2,2,                         /* 110xxxxx */
@@ -67,7 +67,7 @@ static inline uint32_t decode(uint32_t* state, uint32_t* codep, uint32_t byte) {
 		1                                /* 11111xxx */
 	};
 
-	static int mask_bytes[32] = {
+	static const int mask_bytes[32] = {
 		0x7F,0x7F,0x7F,0x7F,0x7F,0x7F,0x7F,0x7F,
 		0x7F,0x7F,0x7F,0x7F,0x7F,0x7F,0x7F,0x7F,
 		0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
@@ -77,7 +77,7 @@ static inline uint32_t decode(uint32_t* state, uint32_t* codep, uint32_t byte) {
 		0x00
 	};
 
-	static int next[5] = {
+	static const int next[5] = {
 		0,
 		1,
 		0,

@@ -4,8 +4,6 @@
 #include <kuroko/memory.h>
 #include <kuroko/util.h>
 
-static KrkClass * set;
-
 /**
  * @brief Mutable unordered set of values.
  * @extends KrkInstance
@@ -15,7 +13,7 @@ struct Set {
 	KrkTable entries;
 };
 
-#define IS_set(o) krk_isInstanceOf(o,set)
+#define IS_set(o) krk_isInstanceOf(o,KRK_BASE_CLASS(set))
 #define AS_set(o) ((struct Set*)AS_OBJECT(o))
 
 static void _set_gcscan(KrkInstance * self) {
@@ -26,8 +24,6 @@ static void _set_gcsweep(KrkInstance * self) {
 	krk_freeTable(&((struct Set*)self)->entries);
 }
 
-static KrkClass * setiterator;
-
 /**
  * @brief Iterator over the values in a set.
  * @extends KrkInstance
@@ -37,7 +33,7 @@ struct SetIterator {
 	KrkValue set;
 	size_t i;
 };
-#define IS_setiterator(o) krk_isInstanceOf(o,setiterator)
+#define IS_setiterator(o) krk_isInstanceOf(o,KRK_BASE_CLASS(setiterator))
 #define AS_setiterator(o) ((struct SetIterator*)AS_OBJECT(o))
 
 static void _setiterator_gcscan(KrkInstance * self) {
@@ -106,7 +102,7 @@ KRK_Method(set,__and__) {
 	METHOD_TAKES_EXACTLY(1);
 	CHECK_ARG(1,set,struct Set*,them);
 
-	KrkValue outSet = OBJECT_VAL(krk_newInstance(set));
+	KrkValue outSet = OBJECT_VAL(krk_newInstance(KRK_BASE_CLASS(set)));
 	krk_push(outSet);
 	FUNC_NAME(set,__init__)(1,&outSet,0);
 
@@ -134,7 +130,7 @@ KRK_Method(set,__xor__) {
 	METHOD_TAKES_EXACTLY(1);
 	CHECK_ARG(1,set,struct Set*,them);
 
-	KrkValue outSet = OBJECT_VAL(krk_newInstance(set));
+	KrkValue outSet = OBJECT_VAL(krk_newInstance(KRK_BASE_CLASS(set)));
 	krk_push(outSet);
 	FUNC_NAME(set,__init__)(1,&outSet,0);
 
@@ -179,7 +175,7 @@ KRK_Method(set,__or__) {
 	METHOD_TAKES_EXACTLY(1);
 	CHECK_ARG(1,set,struct Set*,them);
 
-	KrkValue outSet = OBJECT_VAL(krk_newInstance(set));
+	KrkValue outSet = OBJECT_VAL(krk_newInstance(KRK_BASE_CLASS(set)));
 	krk_push(outSet);
 	FUNC_NAME(set,__init__)(1,&outSet,0);
 
@@ -302,7 +298,7 @@ FUNC_SIG(setiterator,__init__);
 
 KRK_Method(set,__iter__) {
 	METHOD_TAKES_NONE();
-	KrkInstance * output = krk_newInstance(setiterator);
+	KrkInstance * output = krk_newInstance(KRK_BASE_CLASS(setiterator));
 	krk_push(OBJECT_VAL(output));
 	FUNC_NAME(setiterator,__init__)(2,(KrkValue[]){krk_peek(0), argv[0]}, 0);
 	return krk_pop();
@@ -336,7 +332,7 @@ KRK_Method(setiterator,__call__) {
 }
 
 KrkValue krk_set_of(int argc, const KrkValue argv[], int hasKw) {
-	KrkValue outSet = OBJECT_VAL(krk_newInstance(set));
+	KrkValue outSet = OBJECT_VAL(krk_newInstance(KRK_BASE_CLASS(set)));
 	krk_push(outSet);
 	krk_initTable(&AS_set(outSet)->entries);
 
@@ -350,7 +346,7 @@ KrkValue krk_set_of(int argc, const KrkValue argv[], int hasKw) {
 
 _noexport
 void _createAndBind_setClass(void) {
-	krk_makeClass(vm.builtins, &set, "set", vm.baseClasses->objectClass);
+	KrkClass * set = krk_makeClass(vm.builtins, &KRK_BASE_CLASS(set), "set", vm.baseClasses->objectClass);
 	set->allocSize = sizeof(struct Set);
 	set->_ongcscan = _set_gcscan;
 	set->_ongcsweep = _set_gcsweep;
@@ -386,7 +382,7 @@ void _createAndBind_setClass(void) {
 	krk_attachNamedValue(&set->methods, "__hash__", NONE_VAL());
 	krk_finalizeClass(set);
 
-	krk_makeClass(vm.builtins, &setiterator, "setiterator", vm.baseClasses->objectClass);
+	KrkClass * setiterator = krk_makeClass(vm.builtins, &KRK_BASE_CLASS(setiterator), "setiterator", vm.baseClasses->objectClass);
 	setiterator->obj.flags |= KRK_OBJ_FLAGS_NO_INHERIT;
 	setiterator->allocSize = sizeof(struct SetIterator);
 	setiterator->_ongcscan = _setiterator_gcscan;

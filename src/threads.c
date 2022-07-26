@@ -19,9 +19,6 @@
 # define gettid() -1
 #endif
 
-static KrkClass * ThreadError;
-static KrkClass * Thread;
-
 /**
  * @brief Object representation of a system thread.
  * @extends KrkInstance
@@ -41,8 +38,6 @@ struct Thread {
 	unsigned int    alive:1;
 };
 
-static KrkClass * Lock;
-
 /**
  * @brief Simple atomic structure for waiting.
  * @extends KrkInstance
@@ -59,7 +54,7 @@ KRK_Function(current_thread) {
 	return krk_currentThread.stack[0];
 }
 
-#define IS_Thread(o)  (krk_isInstanceOf(o, Thread))
+#define IS_Thread(o)  (krk_isInstanceOf(o, KRK_BASE_CLASS(Thread)))
 #define AS_Thread(o)  ((struct Thread *)AS_OBJECT(o))
 #define CURRENT_CTYPE struct Thread *
 #define CURRENT_NAME  self
@@ -87,7 +82,7 @@ static void * _startthread(void * _threadObj) {
 	KrkValue runMethod = NONE_VAL();
 	KrkClass * ourType = self->inst._class;
 	if (!krk_tableGet(&ourType->methods, OBJECT_VAL(S("run")), &runMethod)) {
-		krk_runtimeError(ThreadError, "Thread object has no run() method");
+		krk_runtimeError(KRK_EXC(ThreadError), "Thread object has no run() method");
 	} else {
 		krk_push(runMethod);
 		krk_push(OBJECT_VAL(self));
@@ -122,9 +117,9 @@ KRK_Method(Thread,tid) {
 
 KRK_Method(Thread,join) {
 	if (self->threadState == &krk_currentThread)
-		return krk_runtimeError(ThreadError, "Thread can not join itself.");
+		return krk_runtimeError(KRK_EXC(ThreadError), "Thread can not join itself.");
 	if (!self->started)
-		return krk_runtimeError(ThreadError, "Thread has not been started.");
+		return krk_runtimeError(KRK_EXC(ThreadError), "Thread has not been started.");
 
 	pthread_join(self->nativeRef, NULL);
 	return NONE_VAL();
@@ -134,7 +129,7 @@ KRK_Method(Thread,start) {
 	METHOD_TAKES_NONE();
 
 	if (self->started)
-		return krk_runtimeError(ThreadError, "Thread has already been started.");
+		return krk_runtimeError(KRK_EXC(ThreadError), "Thread has already been started.");
 
 	self->started = 1;
 	self->alive   = 1;
@@ -150,7 +145,7 @@ KRK_Method(Thread,is_alive) {
 
 #undef CURRENT_CTYPE
 
-#define IS_Lock(o)  (krk_isInstanceOf(o, Lock))
+#define IS_Lock(o)  (krk_isInstanceOf(o, KRK_BASE_CLASS(Lock)))
 #define AS_Lock(o)  ((struct Lock *)AS_OBJECT(o))
 #define CURRENT_CTYPE struct Lock *
 
@@ -224,13 +219,13 @@ void _createAndBind_threadsMod(void) {
 		"@arguments \n\n"
 		"Returns the @ref Thread object associated with the calling thread, if one exists.");
 
-	krk_makeClass(threadsModule, &ThreadError, "ThreadError", vm.exceptions->baseException);
+	KrkClass * ThreadError = krk_makeClass(threadsModule, &KRK_EXC(ThreadError), "ThreadError", vm.exceptions->baseException);
 	KRK_DOC(ThreadError,
 		"Raised in various situations when an action on a thread is invalid."
 	);
 	krk_finalizeClass(ThreadError);
 
-	krk_makeClass(threadsModule, &Thread, "Thread", vm.baseClasses->objectClass);
+	KrkClass * Thread = krk_makeClass(threadsModule, &KRK_BASE_CLASS(Thread), "Thread", vm.baseClasses->objectClass);
 	KRK_DOC(Thread,
 		"Base class for building threaded execution contexts.\n\n"
 		"The @ref Thread class should be subclassed and the subclass should implement a @c run method."
@@ -242,7 +237,7 @@ void _createAndBind_threadsMod(void) {
 	KRK_DOC(BIND_PROP(Thread,tid), "The platform-specific thread identifier, if available. Usually an integer.");
 	krk_finalizeClass(Thread);
 
-	krk_makeClass(threadsModule, &Lock, "Lock", vm.baseClasses->objectClass);
+	KrkClass * Lock = krk_makeClass(threadsModule, &KRK_BASE_CLASS(Lock), "Lock", vm.baseClasses->objectClass);
 	KRK_DOC(Lock,
 		"Represents an atomic mutex.\n\n"
 		"@ref Lock objects allow for exclusive access to a resource and can be used in a @c with block."

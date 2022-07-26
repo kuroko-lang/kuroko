@@ -7,10 +7,6 @@
 
 #include "private.h"
 
-static KrkClass * Helper;
-static KrkClass * LicenseReader;
-static KrkClass * property;
-
 FUNC_SIG(list,__init__);
 FUNC_SIG(list,sort);
 
@@ -398,9 +394,8 @@ KRK_Function(all) {
 #define CURRENT_CTYPE KrkInstance *
 #define CURRENT_NAME  self
 
-#define IS_map(o) (krk_isInstanceOf(o,map))
+#define IS_map(o) (krk_isInstanceOf(o,KRK_BASE_CLASS(map)))
 #define AS_map(o) (AS_INSTANCE(o))
-static KrkClass * map;
 KRK_Method(map,__init__) {
 	METHOD_TAKES_AT_LEAST(2);
 
@@ -469,9 +464,8 @@ KRK_Method(map,__call__) {
 	return val;
 }
 
-#define IS_zip(o) (krk_isInstanceOf(o,zip))
+#define IS_zip(o) (krk_isInstanceOf(o,KRK_BASE_CLASS(zip)))
 #define AS_zip(o) (AS_INSTANCE(o))
-static KrkClass * zip;
 KRK_Method(zip,__init__) {
 	if (hasKw) return krk_runtimeError(vm.exceptions->typeError, "%s() takes no keyword arguments", "zip");
 
@@ -526,9 +520,8 @@ KRK_Method(zip,__call__) {
 	return krk_pop();
 }
 
-#define IS_filter(o) (krk_isInstanceOf(o,filter))
+#define IS_filter(o) (krk_isInstanceOf(o,KRK_BASE_CLASS(filter)))
 #define AS_filter(o) (AS_INSTANCE(o))
-static KrkClass * filter;
 KRK_Method(filter,__init__) {
 	METHOD_TAKES_EXACTLY(2);
 	krk_attachNamedValue(&self->fields, "_function", argv[1]);
@@ -588,9 +581,8 @@ KRK_Method(filter,__call__) {
 	}
 }
 
-#define IS_enumerate(o) (krk_isInstanceOf(o,enumerate))
+#define IS_enumerate(o) (krk_isInstanceOf(o,KRK_BASE_CLASS(enumerate)))
 #define AS_enumerate(o) (AS_INSTANCE(o))
-static KrkClass * enumerate;
 KRK_Method(enumerate,__init__) {
 	METHOD_TAKES_EXACTLY(1);
 	KrkValue start = INTEGER_VAL(0);
@@ -953,9 +945,9 @@ KRK_Function(delattr) {
 }
 
 
-#define IS_Helper(o)  (krk_isInstanceOf(o, Helper))
+#define IS_Helper(o)  (krk_isInstanceOf(o, KRK_BASE_CLASS(Helper)))
 #define AS_Helper(o)  (AS_INSTANCE(o))
-#define IS_LicenseReader(o) (krk_isInstanceOf(o, LicenseReader))
+#define IS_LicenseReader(o) (krk_isInstanceOf(o, KRK_BASE_CLASS(LicenseReader)))
 #define AS_LicenseReader(o) (AS_INSTANCE(o))
 
 KRK_Method(Helper,__repr__) {
@@ -1003,7 +995,7 @@ KRK_Method(LicenseReader,__call__) {
 	return krk_runtimeError(vm.exceptions->typeError, "unexpected error");
 }
 
-#define IS_property(o) (krk_isInstanceOf(o,property))
+#define IS_property(o) (krk_isInstanceOf(o,KRK_BASE_CLASS(property)))
 #define AS_property(o) (AS_INSTANCE(o))
 KRK_Method(property,__init__) {
 	METHOD_TAKES_AT_LEAST(1);
@@ -1193,7 +1185,7 @@ void _createAndBind_builtins(void) {
 		"attaching new properties to the @c \\__builtins__ instance."
 	);
 
-	property = ADD_BASE_CLASS(vm.baseClasses->propertyClass, "property", object);
+	KrkClass * property = ADD_BASE_CLASS(KRK_BASE_CLASS(property), "property", object);
 	KRK_DOC(BIND_METHOD(property,__init__),
 		"@brief Create a property object.\n"
 		"@arguments fget,[fset]\n\n"
@@ -1226,7 +1218,7 @@ void _createAndBind_builtins(void) {
 		"different name will create a duplicate alias.");
 	krk_finalizeClass(property);
 
-	ADD_BASE_CLASS(Helper, "Helper", object);
+	KrkClass * Helper = ADD_BASE_CLASS(KRK_BASE_CLASS(Helper), "Helper", object);
 	KRK_DOC(Helper,
 		"@brief Special object that prints a helpeful message.\n\n"
 		"Object that prints help summary when passed to @ref repr.");
@@ -1239,21 +1231,21 @@ void _createAndBind_builtins(void) {
 	krk_finalizeClass(Helper);
 	krk_attachNamedObject(&vm.builtins->fields, "help", (KrkObj*)krk_newInstance(Helper));
 
-	ADD_BASE_CLASS(LicenseReader, "LicenseReader", object);
+	KrkClass * LicenseReader = ADD_BASE_CLASS(KRK_BASE_CLASS(LicenseReader), "LicenseReader", object);
 	KRK_DOC(LicenseReader, "Special object that prints Kuroko's copyright information when passed to @ref repr");
 	KRK_DOC(BIND_METHOD(LicenseReader,__call__), "Print the full license statement.");
 	BIND_METHOD(LicenseReader,__repr__);
 	krk_finalizeClass(LicenseReader);
 	krk_attachNamedObject(&vm.builtins->fields, "license", (KrkObj*)krk_newInstance(LicenseReader));
 
-	ADD_BASE_CLASS(map, "map", object);
+	KrkClass * map = ADD_BASE_CLASS(KRK_BASE_CLASS(map), "map", object);
 	KRK_DOC(map, "Return an iterator that applies a function to a series of iterables");
 	BIND_METHOD(map,__init__);
 	BIND_METHOD(map,__iter__);
 	BIND_METHOD(map,__call__);
 	krk_finalizeClass(map);
 
-	ADD_BASE_CLASS(zip, "zip", object);
+	KrkClass * zip = ADD_BASE_CLASS(KRK_BASE_CLASS(zip), "zip", object);
 	KRK_DOC(zip,
 		"@brief Returns an iterator that produces tuples of the nth element of each passed iterable.\n"
 		"@arguments *iterables\n\n"
@@ -1264,14 +1256,14 @@ void _createAndBind_builtins(void) {
 	BIND_METHOD(zip,__call__);
 	krk_finalizeClass(zip);
 
-	ADD_BASE_CLASS(filter, "filter", object);
+	KrkClass * filter = ADD_BASE_CLASS(KRK_BASE_CLASS(filter), "filter", object);
 	KRK_DOC(filter, "Return an iterator that returns only the items from an iterable for which the given function returns true.");
 	BIND_METHOD(filter,__init__);
 	BIND_METHOD(filter,__iter__);
 	BIND_METHOD(filter,__call__);
 	krk_finalizeClass(filter);
 
-	ADD_BASE_CLASS(enumerate, "enumerate", object);
+	KrkClass * enumerate = ADD_BASE_CLASS(KRK_BASE_CLASS(enumerate), "enumerate", object);
 	KRK_DOC(enumerate, "Return an iterator that produces a tuple with a count the iterated values of the passed iteratable.");
 	BIND_METHOD(enumerate,__init__);
 	BIND_METHOD(enumerate,__iter__);

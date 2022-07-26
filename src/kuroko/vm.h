@@ -79,6 +79,8 @@ struct Exceptions {
 	KrkClass * notImplementedError; /**< @exception NotImplementedError The method is not implemented, either for the given arguments or in general. */
 	KrkClass * syntaxError;         /**< @exception SyntaxError The compiler encountered an unrecognized or invalid source code input. */
 	KrkClass * assertionError;      /**< @exception AssertionError An @c assert statement failed. */
+	KrkClass * OSError;             /**< @exception os.OSError */
+	KrkClass * ThreadError;         /**< @exception threading.ThreadError */
 };
 
 /**
@@ -124,6 +126,21 @@ struct BaseClasses {
 	KrkClass * dictvaluesClass;      /**< Iterator over values of a dict */
 	KrkClass * sliceClass;           /**< Slice object */
 	KrkClass * longClass;            /**< Arbitrary precision integer */
+	KrkClass * mapClass;
+	KrkClass * zipClass;
+	KrkClass * filterClass;
+	KrkClass * enumerateClass;
+	KrkClass * HelperClass;
+	KrkClass * LicenseReaderClass;
+	KrkClass * FileClass;
+	KrkClass * BinaryFileClass;
+	KrkClass * DirectoryClass;
+	KrkClass * stat_resultClass;
+	KrkClass * EnvironClass;
+	KrkClass * setClass;
+	KrkClass * setiteratorClass;
+	KrkClass * ThreadClass;
+	KrkClass * LockClass;
 };
 
 /**

@@ -1158,8 +1158,6 @@ static int krk_long_parse_string(const char * str, KrkLong * num, unsigned int b
 	return 0;
 }
 
-static KrkClass * _long;
-
 typedef KrkLong krk_long[1];
 
 struct BigInt {
@@ -1168,7 +1166,7 @@ struct BigInt {
 };
 
 #define AS_long(o) ((struct BigInt *)AS_OBJECT(o))
-#define IS_long(o) (krk_isInstanceOf(o, _long))
+#define IS_long(o) (krk_isInstanceOf(o, KRK_BASE_CLASS(long)))
 
 #define CURRENT_CTYPE struct BigInt *
 #define CURRENT_NAME  self
@@ -1298,7 +1296,7 @@ static KrkValue make_long_obj(KrkLong * val) {
 	} else if (val->width == -2 && (val->digits[1] & 0xFFFF0000) == 0) {
 		maybe = -(((uint64_t)val->digits[1] << 31) | val->digits[0]);
 	} else {
-		krk_push(OBJECT_VAL(krk_newInstance(_long)));
+		krk_push(OBJECT_VAL(krk_newInstance(KRK_BASE_CLASS(long))));
 		*AS_long(krk_peek(0))->value = *val;
 		return krk_pop();
 	}
@@ -1782,7 +1780,7 @@ KRK_Method(int,to_bytes) {
 	krk_defineNative(&_ ## klass->methods,"__i" #name "__",_ ## klass ## ___ ## name ## __);
 _noexport
 void _createAndBind_longClass(void) {
-	_long = ADD_BASE_CLASS(vm.baseClasses->longClass, "long", vm.baseClasses->intClass);
+	KrkClass * _long = ADD_BASE_CLASS(vm.baseClasses->longClass, "long", vm.baseClasses->intClass);
 	_long->obj.flags |= KRK_OBJ_FLAGS_NO_INHERIT;
 	_long->allocSize = sizeof(struct BigInt);
 	_long->_ongcsweep = _long_gcsweep;

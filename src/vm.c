@@ -140,10 +140,6 @@ KrkThreadState * krk_getCurrentThread(void) {
 	return &krk_currentThread;
 }
 
-static struct Exceptions _exceptions = {0};
-static struct BaseClasses _baseClasses = {0};
-static KrkValue _specialMethodNames[METHOD__MAX];
-
 /**
  * Reset the stack pointers, frame, upvalue list,
  * clear the exception flag and current exception;
@@ -1474,9 +1470,9 @@ void krk_initVM(int flags) {
 	vm.grayStack = NULL;
 
 	/* Global objects */
-	vm.exceptions = &_exceptions;
-	vm.baseClasses = &_baseClasses;
-	vm.specialMethodNames = _specialMethodNames;
+	vm.exceptions = calloc(1,sizeof(struct Exceptions));
+	vm.baseClasses = calloc(1,sizeof(struct BaseClasses));
+	vm.specialMethodNames = calloc(METHOD__MAX,sizeof(KrkValue*));
 	krk_initTable(&vm.strings);
 	krk_initTable(&vm.modules);
 
@@ -1617,9 +1613,9 @@ void krk_initVM(int flags) {
 void krk_freeVM() {
 	krk_freeTable(&vm.strings);
 	krk_freeTable(&vm.modules);
-	memset(_specialMethodNames,0,sizeof(_specialMethodNames));
-	memset(&_exceptions,0,sizeof(_exceptions));
-	memset(&_baseClasses,0,sizeof(_baseClasses));
+	if (vm.specialMethodNames) free(vm.specialMethodNames);
+	if (vm.exceptions) free(vm.exceptions);
+	if (vm.baseClasses) free(vm.baseClasses);
 	krk_freeObjects();
 
 	if (vm.binpath) free(vm.binpath);

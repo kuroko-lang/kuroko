@@ -310,3 +310,6 @@ extern int krk_extractSlicer(const char * _method_name, KrkValue slicerVal, krk_
  */
 extern int krk_unpackIterable(KrkValue iterable, void * context, int callback(void *, const KrkValue *, size_t));
 
+
+#define KRK_BASE_CLASS(cls) (vm.baseClasses->cls ## Class)
+#define KRK_EXC(exc) (vm.exceptions->exc)

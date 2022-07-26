@@ -16,8 +16,7 @@ struct Range {
 	krk_integer_type max;
 	krk_integer_type step;
 };
-static KrkClass * range = NULL;
-#define IS_range(o)   (krk_isInstanceOf(o,range))
+#define IS_range(o)   (krk_isInstanceOf(o,KRK_BASE_CLASS(range)))
 #define AS_range(o)   ((struct Range*)AS_OBJECT(o))
 
 struct RangeIterator {
@@ -26,8 +25,7 @@ struct RangeIterator {
 	krk_integer_type max;
 	krk_integer_type step;
 };
-static KrkClass * rangeiterator = NULL;
-#define IS_rangeiterator(o) (krk_isInstanceOf(o,rangeiterator))
+#define IS_rangeiterator(o) (krk_isInstanceOf(o,KRK_BASE_CLASS(rangeiterator)))
 #define AS_rangeiterator(o) ((struct RangeIterator*)AS_OBJECT(o))
 
 FUNC_SIG(rangeiterator,__init__);
@@ -76,7 +74,7 @@ KRK_Method(range,__repr__) {
 }
 
 KRK_Method(range,__iter__) {
-	KrkInstance * output = krk_newInstance(rangeiterator);
+	KrkInstance * output = krk_newInstance(KRK_BASE_CLASS(rangeiterator));
 	krk_integer_type min = self->min;
 	krk_integer_type max = self->max;
 	krk_integer_type step = self->step;
@@ -115,7 +113,7 @@ KRK_Method(rangeiterator,__call__) {
 
 _noexport
 void _createAndBind_rangeClass(void) {
-	range = ADD_BASE_CLASS(vm.baseClasses->rangeClass, "range", vm.baseClasses->objectClass);
+	KrkClass * range = ADD_BASE_CLASS(vm.baseClasses->rangeClass, "range", vm.baseClasses->objectClass);
 	range->allocSize = sizeof(struct Range);
 	range->obj.flags |= KRK_OBJ_FLAGS_NO_INHERIT;
 	KRK_DOC(BIND_METHOD(range,__init__),
@@ -129,7 +127,7 @@ void _createAndBind_rangeClass(void) {
 	KRK_DOC(range, "@brief Iterable object that produces sequential numeric values.");
 	krk_finalizeClass(range);
 
-	rangeiterator = ADD_BASE_CLASS(vm.baseClasses->rangeiteratorClass, "rangeiterator", vm.baseClasses->objectClass);
+	KrkClass * rangeiterator = ADD_BASE_CLASS(vm.baseClasses->rangeiteratorClass, "rangeiterator", vm.baseClasses->objectClass);
 	rangeiterator->allocSize = sizeof(struct RangeIterator);
 	rangeiterator->obj.flags |= KRK_OBJ_FLAGS_NO_INHERIT;
 	BIND_METHOD(rangeiterator,__init__);
