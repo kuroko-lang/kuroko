@@ -103,6 +103,8 @@ typedef enum {
 } ExpressionType;
 
 struct RewindState;
+struct GlobalState;
+
 /**
  * @brief Subexpression parser function.
  *
@@ -110,8 +112,8 @@ struct RewindState;
  * parser functions. The argument passed is the @ref ExpressionType
  * to compile the expression as.
  */
-typedef void (*ParsePrefixFn)(int);
-typedef void (*ParseInfixFn)(int, struct RewindState *);
+typedef void (*ParsePrefixFn)(struct GlobalState *, int);
+typedef void (*ParseInfixFn)(struct GlobalState *, int, struct RewindState *);
 
 /**
  * @brief Parse rule table entry.
@@ -270,11 +272,29 @@ typedef struct RewindState {
 	Parser        oldParser;  /**< Previous/current tokens. */
 } RewindState;
 
-static Parser parser;
-static Compiler * current = NULL;
-static ClassCompiler * currentClass = NULL;
+typedef struct GlobalState {
+	KrkInstance inst;
+	Parser parser;
+	KrkScanner scanner;
+	Compiler * current;
+	ClassCompiler * currentClass;
+} GlobalState;
 
-#define currentChunk() (&current->codeobject->chunk)
+static void _GlobalState_gcscan(KrkInstance * _self) {
+	struct GlobalState * self = (void*)_self;
+	Compiler * compiler = self->current;
+	while (compiler != NULL) {
+		if (compiler->enclosed && compiler->enclosed->codeobject) krk_markObject((KrkObj*)compiler->enclosed->codeobject);
+		krk_markObject((KrkObj*)compiler->codeobject);
+		compiler = compiler->enclosing;
+	}
+}
+
+static void _GlobalState_gcsweep(KrkInstance * _self) {
+	/* nothing to do? */
+}
+
+#define currentChunk() (&state->current->codeobject->chunk)
 
 #define EMIT_OPERAND_OP(opc, arg) do { if (arg < 256) { emitBytes(opc, arg); } \
 	else { emitBytes(opc ## _LONG, arg >> 16); emitBytes(arg >> 8, arg); } } while (0)
@@ -287,7 +307,7 @@ static int isCoroutine(int type) {
 	return type == TYPE_COROUTINE || type == TYPE_COROUTINE_METHOD;
 }
 
-static char * calculateQualName(void) {
+static char * calculateQualName(struct GlobalState * state) {
 	static char space[1024]; /* We'll just truncate if we need to */
 	space[1023] = '\0';
 	char * writer = &space[1023];
@@ -299,9 +319,9 @@ static char * calculateQualName(void) {
 	memcpy(writer, s, len); \
 } while (0)
 
-	WRITE(current->codeobject->name->chars);
+	WRITE(state->current->codeobject->name->chars);
 	/* Go up by _compiler_, ignore class compilers as we don't need them. */
-	Compiler * ptr = current->enclosing;
+	Compiler * ptr = state->current->enclosing;
 	while (ptr->enclosing) { /* Ignores the top level module */
 		if (ptr->type != TYPE_CLASS) {
 			/* We must be the locals of a function. */
@@ -326,9 +346,9 @@ static void rewindChunk(KrkChunk * out, ChunkRecorder from) {
 	out->constants.count = from.constants;
 }
 
-static void initCompiler(Compiler * compiler, FunctionType type) {
-	compiler->enclosing = current;
-	current = compiler;
+static void initCompiler(struct GlobalState * state, Compiler * compiler, FunctionType type) {
+	compiler->enclosing = state->current;
+	state->current = compiler;
 	compiler->codeobject = NULL;
 	compiler->type = type;
 	compiler->scopeDepth = 0;
@@ -353,13 +373,13 @@ static void initCompiler(Compiler * compiler, FunctionType type) {
 	compiler->optionsFlags = compiler->enclosing ? compiler->enclosing->optionsFlags : 0;
 
 	if (type != TYPE_MODULE) {
-		current->codeobject->name = krk_copyString(parser.previous.start, parser.previous.length);
-		char * qualname = calculateQualName();
-		current->codeobject->qualname = krk_copyString(qualname, strlen(qualname));
+		state->current->codeobject->name = krk_copyString(state->parser.previous.start, state->parser.previous.length);
+		char * qualname = calculateQualName(state);
+		state->current->codeobject->qualname = krk_copyString(qualname, strlen(qualname));
 	}
 
 	if (isMethod(type)) {
-		Local * local = &current->locals[current->localCount++];
+		Local * local = &state->current->locals[state->current->localCount++];
 		local->depth = 0;
 		local->isCaptured = 0;
 		local->name.start = "self";
@@ -367,31 +387,31 @@ static void initCompiler(Compiler * compiler, FunctionType type) {
 	}
 }
 
-static void rememberClassProperty(size_t ind) {
+static void rememberClassProperty(struct GlobalState * state, size_t ind) {
 	struct IndexWithNext * me = malloc(sizeof(struct IndexWithNext));
 	me->ind = ind;
-	me->next = current->properties;
-	current->properties = me;
+	me->next = state->current->properties;
+	state->current->properties = me;
 }
 
-static void parsePrecedence(Precedence precedence);
+static void parsePrecedence(struct GlobalState * state, Precedence precedence);
 static ParseRule * getRule(KrkTokenType type);
 
 /* These need to be forward declared or the ordering just gets really confusing... */
-static void defDeclaration(void);
-static void asyncDeclaration(int);
-static void statement(void);
-static void declaration(void);
-static KrkToken classDeclaration(void);
-static void declareVariable(void);
-static void string(int exprType);
-static KrkToken decorator(size_t level, FunctionType type);
-static void complexAssignment(ChunkRecorder before, KrkScanner oldScanner, Parser oldParser, size_t targetCount, int parenthesized);
-static void complexAssignmentTargets(KrkScanner oldScanner, Parser oldParser, size_t targetCount, int parenthesized);
-static int invalidTarget(int exprType, const char * description);
-static void call(int exprType, RewindState *rewind);
+static void defDeclaration(struct GlobalState * state);
+static void asyncDeclaration(struct GlobalState * state, int);
+static void statement(struct GlobalState * state);
+static void declaration(struct GlobalState * state);
+static KrkToken classDeclaration(struct GlobalState * state);
+static void declareVariable(struct GlobalState * state);
+static void string(struct GlobalState * state, int exprType);
+static KrkToken decorator(struct GlobalState * state, size_t level, FunctionType type);
+static void complexAssignment(struct GlobalState * state, ChunkRecorder before, KrkScanner oldScanner, Parser oldParser, size_t targetCount, int parenthesized);
+static void complexAssignmentTargets(struct GlobalState * state, KrkScanner oldScanner, Parser oldParser, size_t targetCount, int parenthesized);
+static int invalidTarget(struct GlobalState * state, int exprType, const char * description);
+static void call(struct GlobalState * state, int exprType, RewindState *rewind);
 
-static void finishError(KrkToken * token) {
+static void finishError(struct GlobalState * state, KrkToken * token) {
 	if (!token->linePtr) token->linePtr = token->start;
 	size_t i = 0;
 	while (token->linePtr[i] && token->linePtr[i] != '\n') i++;
@@ -402,180 +422,200 @@ static void finishError(KrkToken * token) {
 	krk_attachNamedValue (&AS_INSTANCE(krk_currentThread.currentException)->fields, "colno",  INTEGER_VAL(token->col));
 	krk_attachNamedValue (&AS_INSTANCE(krk_currentThread.currentException)->fields, "width",  INTEGER_VAL(token->literalWidth));
 
-	if (current->codeobject->name) {
-		krk_attachNamedObject(&AS_INSTANCE(krk_currentThread.currentException)->fields, "func", (KrkObj*)current->codeobject->name);
+	if (state->current->codeobject->name) {
+		krk_attachNamedObject(&AS_INSTANCE(krk_currentThread.currentException)->fields, "func", (KrkObj*)state->current->codeobject->name);
 	} else {
 		KrkValue name = NONE_VAL();
 		krk_tableGet(&krk_currentThread.module->fields, vm.specialMethodNames[METHOD_NAME], &name);
 		krk_attachNamedValue(&AS_INSTANCE(krk_currentThread.currentException)->fields, "func", name);
 	}
 
-	parser.hadError = 1;
+	state->parser.hadError = 1;
 }
 
 #ifdef KRK_NO_DOCUMENTATION
-# define raiseSyntaxError(token, ...) do { if (parser.hadError) break; krk_runtimeError(vm.exceptions->syntaxError, "syntax error"); finishError(token); } while (0)
+# define raiseSyntaxError(token, ...) do { if (state->parser.hadError) break; krk_runtimeError(vm.exceptions->syntaxError, "syntax error"); finishError(state,token); } while (0)
 #else
-# define raiseSyntaxError(token, ...) do { if (parser.hadError) break; krk_runtimeError(vm.exceptions->syntaxError, __VA_ARGS__); finishError(token); } while (0)
+# define raiseSyntaxError(token, ...) do { if (state->parser.hadError) break; krk_runtimeError(vm.exceptions->syntaxError, __VA_ARGS__); finishError(state,token); } while (0)
 #endif
 
-#define error(...) raiseSyntaxError(&parser.previous, __VA_ARGS__)
-#define errorAtCurrent(...) raiseSyntaxError(&parser.current, __VA_ARGS__)
+#define error(...) raiseSyntaxError(&state->parser.previous, __VA_ARGS__)
+#define errorAtCurrent(...) raiseSyntaxError(&state->parser.current, __VA_ARGS__)
 
-static void advance(void) {
-	parser.previous = parser.current;
+static void _advance(struct GlobalState * state) {
+	state->parser.previous = state->parser.current;
 
 	for (;;) {
-		parser.current = krk_scanToken();
+		state->parser.current = krk_scanToken(&state->scanner);
 
-		if (parser.eatingWhitespace &&
-			(parser.current.type == TOKEN_INDENTATION || parser.current.type == TOKEN_EOL)) continue;
+		if (state->parser.eatingWhitespace &&
+			(state->parser.current.type == TOKEN_INDENTATION || state->parser.current.type == TOKEN_EOL)) continue;
 
 #ifndef KRK_NO_SCAN_TRACING
 		if (krk_currentThread.flags & KRK_THREAD_ENABLE_SCAN_TRACING) {
 			fprintf(stderr, "  [%s<%d> %d:%d '%.*s']\n",
-				getRule(parser.current.type)->name,
-				(int)parser.current.type,
-				(int)parser.current.line,
-				(int)parser.current.col,
-				(int)parser.current.length,
-				parser.current.start);
+				getRule(state->parser.current.type)->name,
+				(int)state->parser.current.type,
+				(int)state->parser.current.line,
+				(int)state->parser.current.col,
+				(int)state->parser.current.length,
+				state->parser.current.start);
 		}
 #endif
 
-		if (parser.current.type == TOKEN_RETRY) continue;
-		if (parser.current.type != TOKEN_ERROR) break;
+		if (state->parser.current.type == TOKEN_RETRY) continue;
+		if (state->parser.current.type != TOKEN_ERROR) break;
 
-		errorAtCurrent("%s", parser.current.start);
+		errorAtCurrent("%s", state->parser.current.start);
 		break;
 	}
 }
 
-static void skipToEnd(void) {
-	while (parser.current.type != TOKEN_EOF) advance();
+#define advance() _advance(state)
+
+static void _skipToEnd(struct GlobalState * state) {
+	while (state->parser.current.type != TOKEN_EOF) advance();
 }
 
-static void startEatingWhitespace(void) {
-	parser.eatingWhitespace++;
-	if (parser.current.type == TOKEN_INDENTATION || parser.current.type == TOKEN_EOL) advance();
+#define skipToEnd() _skipToEnd(state)
+
+static void _startEatingWhitespace(struct GlobalState * state) {
+	state->parser.eatingWhitespace++;
+	if (state->parser.current.type == TOKEN_INDENTATION || state->parser.current.type == TOKEN_EOL) advance();
 }
 
-static void stopEatingWhitespace(void) {
-	if (parser.eatingWhitespace == 0) {
+#define startEatingWhitespace() _startEatingWhitespace(state)
+
+static void _stopEatingWhitespace(struct GlobalState * state) {
+	if (state->parser.eatingWhitespace == 0) {
 		error("Internal scanner error: Invalid nesting of `startEatingWhitespace`/`stopEatingWhitespace` calls.");
 	}
-	parser.eatingWhitespace--;
+	state->parser.eatingWhitespace--;
 }
 
-static void consume(KrkTokenType type, const char * message) {
-	if (parser.current.type == type) {
+#define stopEatingWhitespace() _stopEatingWhitespace(state)
+
+static void _consume(struct GlobalState * state, KrkTokenType type, const char * message) {
+	if (state->parser.current.type == type) {
 		advance();
 		return;
 	}
 
-	if (parser.current.type == TOKEN_EOL || parser.current.type == TOKEN_EOF) {
-		parser.current = parser.previous;
+	if (state->parser.current.type == TOKEN_EOL || state->parser.current.type == TOKEN_EOF) {
+		state->parser.current = state->parser.previous;
 	}
 	errorAtCurrent("%s", message);
 }
 
-static int check(KrkTokenType type) {
-	return parser.current.type == type;
+#define consume(...) _consume(state,__VA_ARGS__)
+
+static int _check(struct GlobalState * state, KrkTokenType type) {
+	return state->parser.current.type == type;
 }
 
-static int match(KrkTokenType type) {
+#define check(t) _check(state,t)
+
+static int _match(struct GlobalState * state, KrkTokenType type) {
 	if (!check(type)) return 0;
 	advance();
 	return 1;
 }
 
+#define match(t) _match(state,t)
+
 static int identifiersEqual(KrkToken * a, KrkToken * b) {
 	return (a->length == b->length && memcmp(a->start, b->start, a->length) == 0);
 }
 
-static KrkToken syntheticToken(const char * text) {
+static KrkToken _syntheticToken(struct GlobalState * state, const char * text) {
 	KrkToken token;
 	token.start = text;
 	token.length = (int)strlen(text);
-	token.line = parser.previous.line;
+	token.line = state->parser.previous.line;
 	return token;
 }
 
-static void emitByte(uint8_t byte) {
-	krk_writeChunk(currentChunk(), byte, parser.previous.line);
+#define syntheticToken(t) _syntheticToken(state,t)
+
+static void _emitByte(struct GlobalState * state, uint8_t byte) {
+	krk_writeChunk(currentChunk(), byte, state->parser.previous.line);
 }
 
-static void emitBytes(uint8_t byte1, uint8_t byte2) {
+#define emitByte(b) _emitByte(state,b)
+
+static void _emitBytes(struct GlobalState * state, uint8_t byte1, uint8_t byte2) {
 	emitByte(byte1);
 	emitByte(byte2);
 }
 
-static void emitReturn(void) {
-	if (current->type == TYPE_INIT) {
+#define emitBytes(a,b) _emitBytes(state,a,b)
+
+static void emitReturn(struct GlobalState * state) {
+	if (state->current->type == TYPE_INIT) {
 		emitBytes(OP_GET_LOCAL, 0);
-	} else if (current->type != TYPE_LAMBDA && current->type != TYPE_CLASS) {
+	} else if (state->current->type != TYPE_LAMBDA && state->current->type != TYPE_CLASS) {
 		emitByte(OP_NONE);
 	}
 	emitByte(OP_RETURN);
 }
 
-static KrkCodeObject * endCompiler(void) {
-	KrkCodeObject * function = current->codeobject;
+static KrkCodeObject * endCompiler(struct GlobalState * state) {
+	KrkCodeObject * function = state->current->codeobject;
 
-	for (size_t i = 0; i < current->codeobject->localNameCount; i++) {
-		if (current->codeobject->localNames[i].deathday == 0) {
-			current->codeobject->localNames[i].deathday = currentChunk()->count;
+	for (size_t i = 0; i < state->current->codeobject->localNameCount; i++) {
+		if (state->current->codeobject->localNames[i].deathday == 0) {
+			state->current->codeobject->localNames[i].deathday = currentChunk()->count;
 		}
 	}
-	current->codeobject->localNames = GROW_ARRAY(KrkLocalEntry, current->codeobject->localNames, \
-		current->localNameCapacity, current->codeobject->localNameCount); /* Shorten this down for runtime */
+	state->current->codeobject->localNames = GROW_ARRAY(KrkLocalEntry, state->current->codeobject->localNames, \
+		state->current->localNameCapacity, state->current->codeobject->localNameCount); /* Shorten this down for runtime */
 
-	if (current->continueCount) { parser.previous = current->continues[0].token; error("continue without loop"); }
-	if (current->breakCount) { parser.previous = current->breaks[0].token; error("break without loop"); }
-	emitReturn();
+	if (state->current->continueCount) { state->parser.previous = state->current->continues[0].token; error("continue without loop"); }
+	if (state->current->breakCount) { state->parser.previous = state->current->breaks[0].token; error("break without loop"); }
+	emitReturn(state);
 
 	/* Attach contants for arguments */
 	for (int i = 0; i < function->requiredArgs; ++i) {
-		KrkValue value = OBJECT_VAL(krk_copyString(current->locals[i].name.start, current->locals[i].name.length));
+		KrkValue value = OBJECT_VAL(krk_copyString(state->current->locals[i].name.start, state->current->locals[i].name.length));
 		krk_push(value);
 		krk_writeValueArray(&function->requiredArgNames, value);
 		krk_pop();
 	}
 	for (int i = 0; i < function->keywordArgs; ++i) {
-		KrkValue value = OBJECT_VAL(krk_copyString(current->locals[i+function->requiredArgs].name.start,
-			current->locals[i+function->requiredArgs].name.length));
+		KrkValue value = OBJECT_VAL(krk_copyString(state->current->locals[i+function->requiredArgs].name.start,
+			state->current->locals[i+function->requiredArgs].name.length));
 		krk_push(value);
 		krk_writeValueArray(&function->keywordArgNames, value);
 		krk_pop();
 	}
-	size_t args = current->codeobject->requiredArgs + current->codeobject->keywordArgs;
-	if (current->codeobject->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_ARGS) {
-		KrkValue value = OBJECT_VAL(krk_copyString(current->locals[args].name.start,
-			current->locals[args].name.length));
+	size_t args = state->current->codeobject->requiredArgs + state->current->codeobject->keywordArgs;
+	if (state->current->codeobject->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_ARGS) {
+		KrkValue value = OBJECT_VAL(krk_copyString(state->current->locals[args].name.start,
+			state->current->locals[args].name.length));
 		krk_push(value);
 		krk_writeValueArray(&function->requiredArgNames, value);
 		krk_pop();
 		args++;
 	}
-	if (current->codeobject->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_KWS) {
-		KrkValue value = OBJECT_VAL(krk_copyString(current->locals[args].name.start,
-			current->locals[args].name.length));
+	if (state->current->codeobject->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_KWS) {
+		KrkValue value = OBJECT_VAL(krk_copyString(state->current->locals[args].name.start,
+			state->current->locals[args].name.length));
 		krk_push(value);
 		krk_writeValueArray(&function->keywordArgNames, value);
 		krk_pop();
 		args++;
 	}
 
-	current->codeobject->potentialPositionals = current->codeobject->requiredArgs + current->codeobject->keywordArgs;
-	current->codeobject->totalArguments = current->codeobject->potentialPositionals + !!(current->codeobject->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_ARGS) + !!(current->codeobject->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_KWS);
+	state->current->codeobject->potentialPositionals = state->current->codeobject->requiredArgs + state->current->codeobject->keywordArgs;
+	state->current->codeobject->totalArguments = state->current->codeobject->potentialPositionals + !!(state->current->codeobject->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_ARGS) + !!(state->current->codeobject->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_KWS);
 
 #ifndef KRK_NO_DISASSEMBLY
-	if ((krk_currentThread.flags & KRK_THREAD_ENABLE_DISASSEMBLY) && !parser.hadError) {
+	if ((krk_currentThread.flags & KRK_THREAD_ENABLE_DISASSEMBLY) && !state->parser.hadError) {
 		krk_disassembleCodeObject(stderr, function, function->name ? function->name->chars : "(module)");
 	}
 #endif
 
-	current = current->enclosing;
+	state->current = state->current->enclosing;
 	return function;
 }
 
@@ -592,19 +632,21 @@ static void freeCompiler(Compiler * compiler) {
 	}
 }
 
-static size_t emitConstant(KrkValue value) {
-	return krk_writeConstant(currentChunk(), value, parser.previous.line);
+static size_t _emitConstant(struct GlobalState * state, KrkValue value) {
+	return krk_writeConstant(currentChunk(), value, state->parser.previous.line);
 }
+
+#define emitConstant(v) _emitConstant(state,v)
 
 static int isMangleable(const char * name, size_t len) {
 	return (len > 2 && name[0] == '_' && name[1] == '_' && name[len-1] != '_' && (len < 4 || name[len-2] != '_'));
 }
 
-static ssize_t identifierConstant(KrkToken * name) {
-	if (currentClass && isMangleable(name->start, name->length)) {
+static ssize_t identifierConstant(struct GlobalState * state, KrkToken * name) {
+	if (state->currentClass && isMangleable(name->start, name->length)) {
 		/* Mangle it */
-		const char * className = currentClass->name.start;
-		size_t classLength = currentClass->name.length;
+		const char * className = state->currentClass->name.start;
+		size_t classLength = state->currentClass->name.length;
 		while (classLength && *className == '_') {
 			classLength--;
 			className++;
@@ -620,11 +662,11 @@ static ssize_t identifierConstant(KrkToken * name) {
 	return krk_addConstant(currentChunk(), OBJECT_VAL(krk_copyString(name->start, name->length)));
 }
 
-static ssize_t nonidentifierTokenConstant(KrkToken * name) {
+static ssize_t nonidentifierTokenConstant(struct GlobalState * state, KrkToken * name) {
 	return krk_addConstant(currentChunk(), OBJECT_VAL(krk_copyString(name->start, name->length)));
 }
 
-static ssize_t resolveLocal(Compiler * compiler, KrkToken * name) {
+static ssize_t resolveLocal(struct GlobalState * state, Compiler * compiler, KrkToken * name) {
 	for (ssize_t i = compiler->localCount - 1; i >= 0; i--) {
 		Local * local = &compiler->locals[i];
 		if (identifiersEqual(name, &local->name)) {
@@ -640,96 +682,96 @@ static ssize_t resolveLocal(Compiler * compiler, KrkToken * name) {
 	return -1;
 }
 
-static size_t renameLocal(size_t ind, KrkToken name) {
-	if (current->codeobject->localNameCount + 1 > current->localNameCapacity) {
-		size_t old = current->localNameCapacity;
-		current->localNameCapacity = GROW_CAPACITY(old);
-		current->codeobject->localNames = GROW_ARRAY(KrkLocalEntry, current->codeobject->localNames, old, current->localNameCapacity);
+static size_t renameLocal(struct GlobalState * state, size_t ind, KrkToken name) {
+	if (state->current->codeobject->localNameCount + 1 > state->current->localNameCapacity) {
+		size_t old = state->current->localNameCapacity;
+		state->current->localNameCapacity = GROW_CAPACITY(old);
+		state->current->codeobject->localNames = GROW_ARRAY(KrkLocalEntry, state->current->codeobject->localNames, old, state->current->localNameCapacity);
 	}
-	current->codeobject->localNames[current->codeobject->localNameCount].id = ind;
-	current->codeobject->localNames[current->codeobject->localNameCount].birthday = currentChunk()->count;
-	current->codeobject->localNames[current->codeobject->localNameCount].deathday = 0;
-	current->codeobject->localNames[current->codeobject->localNameCount].name = krk_copyString(name.start, name.length);
-	return current->codeobject->localNameCount++;
+	state->current->codeobject->localNames[state->current->codeobject->localNameCount].id = ind;
+	state->current->codeobject->localNames[state->current->codeobject->localNameCount].birthday = currentChunk()->count;
+	state->current->codeobject->localNames[state->current->codeobject->localNameCount].deathday = 0;
+	state->current->codeobject->localNames[state->current->codeobject->localNameCount].name = krk_copyString(name.start, name.length);
+	return state->current->codeobject->localNameCount++;
 }
 
-static size_t addLocal(KrkToken name) {
-	if (current->localCount + 1 > current->localsSpace) {
-		size_t old = current->localsSpace;
-		current->localsSpace = GROW_CAPACITY(old);
-		current->locals = GROW_ARRAY(Local,current->locals,old,current->localsSpace);
+static size_t addLocal(struct GlobalState * state, KrkToken name) {
+	if (state->current->localCount + 1 > state->current->localsSpace) {
+		size_t old = state->current->localsSpace;
+		state->current->localsSpace = GROW_CAPACITY(old);
+		state->current->locals = GROW_ARRAY(Local,state->current->locals,old,state->current->localsSpace);
 	}
-	size_t out = current->localCount;
-	Local * local = &current->locals[current->localCount++];
+	size_t out = state->current->localCount;
+	Local * local = &state->current->locals[state->current->localCount++];
 	local->name = name;
 	local->depth = -1;
 	local->isCaptured = 0;
 
 	if (name.length) {
-		renameLocal(out, name);
+		renameLocal(state, out, name);
 	}
 
 	return out;
 }
 
-static void declareVariable(void) {
-	if (current->scopeDepth == 0) return;
-	KrkToken * name = &parser.previous;
+static void declareVariable(struct GlobalState * state) {
+	if (state->current->scopeDepth == 0) return;
+	KrkToken * name = &state->parser.previous;
 	/* Detect duplicate definition */
-	for (ssize_t i = current->localCount - 1; i >= 0; i--) {
-		Local * local = &current->locals[i];
-		if (local->depth != -1 && local->depth < (ssize_t)current->scopeDepth) break;
+	for (ssize_t i = state->current->localCount - 1; i >= 0; i--) {
+		Local * local = &state->current->locals[i];
+		if (local->depth != -1 && local->depth < (ssize_t)state->current->scopeDepth) break;
 		if (identifiersEqual(name, &local->name)) {
 			error("Duplicate definition for local '%.*s' in this scope.", (int)name->literalWidth, name->start);
 		}
 	}
-	addLocal(*name);
+	addLocal(state, *name);
 }
 
-static ssize_t parseVariable(const char * errorMessage) {
+static ssize_t parseVariable(struct GlobalState * state, const char * errorMessage) {
 	consume(TOKEN_IDENTIFIER, errorMessage);
 
-	declareVariable();
-	if (current->scopeDepth > 0) return 0;
+	declareVariable(state);
+	if (state->current->scopeDepth > 0) return 0;
 
-	if ((current->optionsFlags & OPTIONS_FLAG_COMPILE_TIME_BUILTINS) && *parser.previous.start != '_') {
+	if ((state->current->optionsFlags & OPTIONS_FLAG_COMPILE_TIME_BUILTINS) && *state->parser.previous.start != '_') {
 		KrkValue value;
-		if (krk_tableGet_fast(&vm.builtins->fields, krk_copyString(parser.previous.start, parser.previous.length), &value)) {
+		if (krk_tableGet_fast(&vm.builtins->fields, krk_copyString(state->parser.previous.start, state->parser.previous.length), &value)) {
 			error("Conflicting declaration of global '%.*s' is invalid when 'compile_time_builtins' is enabled.",
-				(int)parser.previous.length, parser.previous.start);
+				(int)state->parser.previous.length, state->parser.previous.start);
 			return 0;
 		}
 	}
 
-	return identifierConstant(&parser.previous);
+	return identifierConstant(state, &state->parser.previous);
 }
 
-static void markInitialized(void) {
-	if (current->scopeDepth == 0) return;
-	current->locals[current->localCount - 1].depth = current->scopeDepth;
+static void markInitialized(struct GlobalState * state) {
+	if (state->current->scopeDepth == 0) return;
+	state->current->locals[state->current->localCount - 1].depth = state->current->scopeDepth;
 }
 
-static size_t anonymousLocal(void) {
-	size_t val = addLocal(syntheticToken(""));
-	markInitialized();
+static size_t anonymousLocal(struct GlobalState * state) {
+	size_t val = addLocal(state, syntheticToken(""));
+	markInitialized(state);
 	return val;
 }
 
-static void defineVariable(size_t global) {
-	if (current->scopeDepth > 0) {
-		markInitialized();
+static void defineVariable(struct GlobalState * state, size_t global) {
+	if (state->current->scopeDepth > 0) {
+		markInitialized(state);
 		return;
 	}
 
 	EMIT_OPERAND_OP(OP_DEFINE_GLOBAL, global);
 }
 
-static void number(int exprType) {
-	const char * start = parser.previous.start;
-	invalidTarget(exprType, "literal");
+static void number(struct GlobalState * state, int exprType) {
+	const char * start = state->parser.previous.start;
+	invalidTarget(state, exprType, "literal");
 
-	for (size_t j = 0; j < parser.previous.length; ++j) {
-		if (parser.previous.start[j] == '.') {
+	for (size_t j = 0; j < state->parser.previous.length; ++j) {
+		if (state->parser.previous.start[j] == '.') {
 			double value = strtod(start, NULL);
 			emitConstant(FLOATING_VAL(value));
 			return;
@@ -737,7 +779,7 @@ static void number(int exprType) {
 	}
 
 	/* If we got here, it's an integer of some sort. */
-	KrkValue result = krk_parse_int(start, parser.previous.literalWidth, 0);
+	KrkValue result = krk_parse_int(start, state->parser.previous.literalWidth, 0);
 	if (IS_NONE(result)) {
 		error("invalid numeric literal");
 		return;
@@ -745,13 +787,14 @@ static void number(int exprType) {
 	emitConstant(result);
 }
 
-static int emitJump(uint8_t opcode) {
+static int _emitJump(struct GlobalState * state, uint8_t opcode) {
 	emitByte(opcode);
 	emitBytes(0xFF, 0xFF);
 	return currentChunk()->count - 2;
 }
+#define emitJump(o) _emitJump(state,o)
 
-static void patchJump(int offset) {
+static void _patchJump(struct GlobalState * state, int offset) {
 	int jump = currentChunk()->count - offset - 2;
 	if (jump > 0xFFFF) error("Jump offset is too large for opcode.");
 
@@ -759,15 +802,17 @@ static void patchJump(int offset) {
 	currentChunk()->code[offset + 1] =  (jump) & 0xFF;
 }
 
-static void compareChained(int inner) {
-	KrkTokenType operatorType = parser.previous.type;
+#define patchJump(o) _patchJump(state,o)
+
+static void compareChained(struct GlobalState * state, int inner) {
+	KrkTokenType operatorType = state->parser.previous.type;
 	if (operatorType == TOKEN_NOT) consume(TOKEN_IN, "'in' must follow infix 'not'");
 	int invert = (operatorType == TOKEN_IS && match(TOKEN_NOT));
 
 	ParseRule * rule = getRule(operatorType);
-	parsePrecedence((Precedence)(rule->precedence + 1));
+	parsePrecedence(state, (Precedence)(rule->precedence + 1));
 
-	if (getRule(parser.current.type)->precedence == PREC_COMPARISON) {
+	if (getRule(state->parser.current.type)->precedence == PREC_COMPARISON) {
 		emitByte(OP_SWAP);
 		emitBytes(OP_DUP, 1);
 	}
@@ -788,12 +833,12 @@ static void compareChained(int inner) {
 		default: error("Invalid binary comparison operator?"); break;
 	}
 
-	if (getRule(parser.current.type)->precedence == PREC_COMPARISON) {
+	if (getRule(state->parser.current.type)->precedence == PREC_COMPARISON) {
 		size_t exitJump = emitJump(OP_JUMP_IF_FALSE_OR_POP);
 		advance();
-		compareChained(1);
+		compareChained(state, 1);
 		patchJump(exitJump);
-		if (getRule(parser.current.type)->precedence != PREC_COMPARISON) {
+		if (getRule(state->parser.current.type)->precedence != PREC_COMPARISON) {
 			if (!inner) {
 				emitBytes(OP_SWAP,OP_POP);
 			}
@@ -804,16 +849,16 @@ static void compareChained(int inner) {
 	}
 }
 
-static void compare(int exprType, RewindState *rewind) {
-	compareChained(0);
-	invalidTarget(exprType, "operator");
+static void compare(struct GlobalState * state, int exprType, RewindState *rewind) {
+	compareChained(state, 0);
+	invalidTarget(state, exprType, "operator");
 }
 
-static void binary(int exprType, RewindState *rewind) {
-	KrkTokenType operatorType = parser.previous.type;
+static void binary(struct GlobalState * state, int exprType, RewindState *rewind) {
+	KrkTokenType operatorType = state->parser.previous.type;
 	ParseRule * rule = getRule(operatorType);
-	parsePrecedence((Precedence)(rule->precedence + (rule->precedence != PREC_EXPONENT)));
-	invalidTarget(exprType, "operator");
+	parsePrecedence(state, (Precedence)(rule->precedence + (rule->precedence != PREC_EXPONENT)));
+	invalidTarget(state, exprType, "operator");
 
 	switch (operatorType) {
 		case TOKEN_PIPE:        emitByte(OP_BITOR); break;
@@ -835,31 +880,31 @@ static void binary(int exprType, RewindState *rewind) {
 	}
 }
 
-static int matchAssignment(void) {
-	return (parser.current.type >= TOKEN_EQUAL && parser.current.type <= TOKEN_MODULO_EQUAL) ? (advance(), 1) : 0;
+static int matchAssignment(struct GlobalState * state) {
+	return (state->parser.current.type >= TOKEN_EQUAL && state->parser.current.type <= TOKEN_MODULO_EQUAL) ? (advance(), 1) : 0;
 }
 
-static int checkEndOfDel(void) {
+static int checkEndOfDel(struct GlobalState * state) {
 	if (check(TOKEN_COMMA) || check(TOKEN_EOL) || check(TOKEN_EOF) || check(TOKEN_SEMICOLON)) {
-		current->delSatisfied = 1;
+		state->current->delSatisfied = 1;
 		return 1;
 	}
 	return 0;
 }
 
-static int matchComplexEnd(void) {
+static int matchComplexEnd(struct GlobalState * state) {
 	return match(TOKEN_COMMA) ||
 			match(TOKEN_EQUAL) ||
 			match(TOKEN_RIGHT_PAREN);
 }
 
-static int invalidTarget(int exprType, const char * description) {
-	if (exprType == EXPR_CAN_ASSIGN && matchAssignment()) {
+static int invalidTarget(struct GlobalState * state, int exprType, const char * description) {
+	if (exprType == EXPR_CAN_ASSIGN && matchAssignment(state)) {
 		error("Can not assign to %s", description);
 		return 0;
 	}
 
-	if (exprType == EXPR_DEL_TARGET && checkEndOfDel()) {
+	if (exprType == EXPR_DEL_TARGET && checkEndOfDel(state)) {
 		error("Can not delete %s", description);
 		return 0;
 	}
@@ -867,12 +912,12 @@ static int invalidTarget(int exprType, const char * description) {
 	return 1;
 }
 
-static void assignmentValue(void) {
-	KrkTokenType type = parser.previous.type;
+static void assignmentValue(struct GlobalState * state) {
+	KrkTokenType type = state->parser.previous.type;
 	if (type == TOKEN_PLUS_PLUS || type == TOKEN_MINUS_MINUS) {
 		emitConstant(INTEGER_VAL(1));
 	} else {
-		parsePrecedence(PREC_COMMA); /* But adding a tuple is maybe not defined */
+		parsePrecedence(state, PREC_COMMA); /* But adding a tuple is maybe not defined */
 	}
 
 	switch (type) {
@@ -899,17 +944,17 @@ static void assignmentValue(void) {
 	}
 }
 
-static void expression(void) {
-	parsePrecedence(PREC_CAN_ASSIGN);
+static void expression(struct GlobalState * state) {
+	parsePrecedence(state, PREC_CAN_ASSIGN);
 }
 
-static void sliceExpression(void) {
+static void sliceExpression(struct GlobalState * state) {
 	int isSlice = 0;
 	if (match(TOKEN_COLON)) {
 		emitByte(OP_NONE);
 		isSlice = 1;
 	} else {
-		parsePrecedence(PREC_CAN_ASSIGN);
+		parsePrecedence(state, PREC_CAN_ASSIGN);
 	}
 	if (isSlice || match(TOKEN_COLON)) {
 		/* We have the start value, which is either something or None */
@@ -923,11 +968,11 @@ static void sliceExpression(void) {
 				emitByte(OP_NONE);
 			} else {
 				/* foo[x:e... */
-				parsePrecedence(PREC_CAN_ASSIGN);
+				parsePrecedence(state, PREC_CAN_ASSIGN);
 			}
 			if (match(TOKEN_COLON) && !check(TOKEN_RIGHT_SQUARE) && !check(TOKEN_COMMA)) {
 				/* foo[x:e:s] */
-				parsePrecedence(PREC_CAN_ASSIGN);
+				parsePrecedence(state, PREC_CAN_ASSIGN);
 				EMIT_OPERAND_OP(OP_SLICE, 3);
 			} else {
 				/* foo[x:e] */
@@ -937,15 +982,15 @@ static void sliceExpression(void) {
 	}
 }
 
-static void getitem(int exprType, RewindState *rewind) {
+static void getitem(struct GlobalState * state, int exprType, RewindState *rewind) {
 
-	sliceExpression();
+	sliceExpression(state);
 
 	if (match(TOKEN_COMMA)) {
 		size_t argCount = 1;
 		if (!check(TOKEN_RIGHT_SQUARE)) {
 			do {
-				sliceExpression();
+				sliceExpression(state);
 				argCount++;
 			} while (match(TOKEN_COMMA) && !check(TOKEN_RIGHT_SQUARE));
 		}
@@ -954,7 +999,7 @@ static void getitem(int exprType, RewindState *rewind) {
 
 	consume(TOKEN_RIGHT_SQUARE, "Expected ']' after index.");
 	if (exprType == EXPR_ASSIGN_TARGET) {
-		if (matchComplexEnd()) {
+		if (matchComplexEnd(state)) {
 			EMIT_OPERAND_OP(OP_DUP, 2);
 			emitByte(OP_INVOKE_SETTER);
 			emitByte(OP_POP);
@@ -963,22 +1008,22 @@ static void getitem(int exprType, RewindState *rewind) {
 		exprType = EXPR_NORMAL;
 	}
 	if (exprType == EXPR_CAN_ASSIGN && match(TOKEN_EQUAL)) {
-		parsePrecedence(PREC_ASSIGNMENT);
+		parsePrecedence(state, PREC_ASSIGNMENT);
 		emitByte(OP_INVOKE_SETTER);
-	} else if (exprType == EXPR_CAN_ASSIGN && matchAssignment()) {
+	} else if (exprType == EXPR_CAN_ASSIGN && matchAssignment(state)) {
 		emitBytes(OP_DUP, 1); /* o e o */
 		emitBytes(OP_DUP, 1); /* o e o e */
 		emitByte(OP_INVOKE_GETTER); /* o e v */
-		assignmentValue(); /* o e v a */
+		assignmentValue(state); /* o e v a */
 		emitByte(OP_INVOKE_SETTER); /* r */
-	} else if (exprType == EXPR_DEL_TARGET && checkEndOfDel()) {
+	} else if (exprType == EXPR_DEL_TARGET && checkEndOfDel(state)) {
 		emitByte(OP_INVOKE_DELETE);
 	} else {
 		emitByte(OP_INVOKE_GETTER);
 	}
 }
 
-static void attributeUnpack(int exprType) {
+static void attributeUnpack(struct GlobalState * state, int exprType) {
 	startEatingWhitespace();
 	size_t argCount = 0;
 	size_t argSpace = 1;
@@ -991,7 +1036,7 @@ static void attributeUnpack(int exprType) {
 			args = GROW_ARRAY(ssize_t,args,old,argSpace);
 		}
 		consume(TOKEN_IDENTIFIER, "Expected attribute name");
-		size_t ind = identifierConstant(&parser.previous);
+		size_t ind = identifierConstant(state, &state->parser.previous);
 		args[argCount++] = ind;
 	} while (match(TOKEN_COMMA));
 
@@ -1007,7 +1052,7 @@ static void attributeUnpack(int exprType) {
 		size_t expressionCount = 0;
 		do {
 			expressionCount++;
-			expression();
+			expression(state);
 		} while (match(TOKEN_COMMA));
 
 		if (expressionCount == 1 && argCount > 1) {
@@ -1044,15 +1089,15 @@ _dotDone:
 	return;
 }
 
-static void dot(int exprType, RewindState *rewind) {
+static void dot(struct GlobalState * state, int exprType, RewindState *rewind) {
 	if (match(TOKEN_LEFT_PAREN)) {
-		attributeUnpack(exprType);
+		attributeUnpack(state, exprType);
 		return;
 	}
 	consume(TOKEN_IDENTIFIER, "Expected property name");
-	size_t ind = identifierConstant(&parser.previous);
+	size_t ind = identifierConstant(state, &state->parser.previous);
 	if (exprType == EXPR_ASSIGN_TARGET) {
-		if (matchComplexEnd()) {
+		if (matchComplexEnd(state)) {
 			EMIT_OPERAND_OP(OP_DUP, 1);
 			EMIT_OPERAND_OP(OP_SET_PROPERTY, ind);
 			emitByte(OP_POP);
@@ -1061,26 +1106,26 @@ static void dot(int exprType, RewindState *rewind) {
 		exprType = EXPR_NORMAL;
 	}
 	if (exprType == EXPR_CAN_ASSIGN && match(TOKEN_EQUAL)) {
-		parsePrecedence(PREC_ASSIGNMENT);
+		parsePrecedence(state, PREC_ASSIGNMENT);
 		EMIT_OPERAND_OP(OP_SET_PROPERTY, ind);
-	} else if (exprType == EXPR_CAN_ASSIGN && matchAssignment()) {
+	} else if (exprType == EXPR_CAN_ASSIGN && matchAssignment(state)) {
 		emitBytes(OP_DUP, 0); /* Duplicate the object */
 		EMIT_OPERAND_OP(OP_GET_PROPERTY, ind);
-		assignmentValue();
+		assignmentValue(state);
 		EMIT_OPERAND_OP(OP_SET_PROPERTY, ind);
-	} else if (exprType == EXPR_DEL_TARGET && checkEndOfDel()) {
+	} else if (exprType == EXPR_DEL_TARGET && checkEndOfDel(state)) {
 		EMIT_OPERAND_OP(OP_DEL_PROPERTY, ind);
 	} else if (match(TOKEN_LEFT_PAREN)) {
 		EMIT_OPERAND_OP(OP_GET_METHOD, ind);
-		call(EXPR_METHOD_CALL,NULL);
+		call(state, EXPR_METHOD_CALL,NULL);
 	} else {
 		EMIT_OPERAND_OP(OP_GET_PROPERTY, ind);
 	}
 }
 
-static void literal(int exprType) {
-	invalidTarget(exprType, "literal");
-	switch (parser.previous.type) {
+static void literal(struct GlobalState * state, int exprType) {
+	invalidTarget(state, exprType, "literal");
+	switch (state->parser.previous.type) {
 		case TOKEN_FALSE: emitByte(OP_FALSE); break;
 		case TOKEN_NONE:  emitByte(OP_NONE); break;
 		case TOKEN_TRUE:  emitByte(OP_TRUE); break;
@@ -1088,17 +1133,17 @@ static void literal(int exprType) {
 	}
 }
 
-static void typeHintLocal(void) {
-	current->enclosing->enclosed = current;
-	current = current->enclosing;
-	current->enclosed->annotationCount++;
-	emitConstant(INTEGER_VAL(current->enclosed->codeobject->localNameCount-1));
-	parsePrecedence(PREC_TERNARY);
-	current = current->enclosed;
-	current->enclosing->enclosed = NULL;
+static void typeHintLocal(struct GlobalState * state) {
+	state->current->enclosing->enclosed = state->current;
+	state->current = state->current->enclosing;
+	state->current->enclosed->annotationCount++;
+	emitConstant(INTEGER_VAL(state->current->enclosed->codeobject->localNameCount-1));
+	parsePrecedence(state, PREC_TERNARY);
+	state->current = state->current->enclosed;
+	state->current->enclosing->enclosed = NULL;
 }
 
-static void letDeclaration(void) {
+static void letDeclaration(struct GlobalState * state) {
 	size_t argCount = 0;
 	size_t argSpace = 1;
 	ssize_t * args  = GROW_ARRAY(ssize_t,NULL,0,1);
@@ -1109,25 +1154,25 @@ static void letDeclaration(void) {
 			argSpace = GROW_CAPACITY(old);
 			args = GROW_ARRAY(ssize_t,args,old,argSpace);
 		}
-		ssize_t ind = parseVariable("Expected variable name.");
-		if (parser.hadError) goto _letDone;
-		if (current->scopeDepth > 0) {
+		ssize_t ind = parseVariable(state, "Expected variable name.");
+		if (state->parser.hadError) goto _letDone;
+		if (state->current->scopeDepth > 0) {
 			/* Need locals space */
-			args[argCount++] = current->localCount - 1;
+			args[argCount++] = state->current->localCount - 1;
 		} else {
 			args[argCount++] = ind;
 		}
 		if (check(TOKEN_COLON)) {
-			KrkToken name = parser.previous;
+			KrkToken name = state->parser.previous;
 			match(TOKEN_COLON);
-			if (current->enclosing) {
-				typeHintLocal();
+			if (state->current->enclosing) {
+				typeHintLocal(state);
 			} else {
 				KrkToken annotations = syntheticToken("__annotations__");
-				size_t ind = identifierConstant(&annotations);
+				size_t ind = identifierConstant(state, &annotations);
 				EMIT_OPERAND_OP(OP_GET_GLOBAL, ind);
 				emitConstant(OBJECT_VAL(krk_copyString(name.start, name.length)));
-				parsePrecedence(PREC_TERNARY);
+				parsePrecedence(state, PREC_TERNARY);
 				emitBytes(OP_INVOKE_SETTER, OP_POP);
 			}
 		}
@@ -1137,7 +1182,7 @@ static void letDeclaration(void) {
 		size_t expressionCount = 0;
 		do {
 			expressionCount++;
-			expression();
+			expression(state);
 		} while (match(TOKEN_COMMA));
 		if (expressionCount == 1 && argCount > 1) {
 			EMIT_OPERAND_OP(OP_UNPACK, argCount);
@@ -1156,13 +1201,13 @@ static void letDeclaration(void) {
 		}
 	}
 
-	if (current->scopeDepth == 0) {
+	if (state->current->scopeDepth == 0) {
 		for (size_t i = argCount; i > 0; i--) {
-			defineVariable(args[i-1]);
+			defineVariable(state, args[i-1]);
 		}
 	} else {
 		for (size_t i = 0; i < argCount; i++) {
-			current->locals[current->localCount - 1 - i].depth = current->scopeDepth;
+			state->current->locals[state->current->localCount - 1 - i].depth = state->current->scopeDepth;
 		}
 	}
 
@@ -1175,50 +1220,50 @@ _letDone:
 	return;
 }
 
-static void declaration(void) {
+static void declaration(struct GlobalState * state) {
 	if (check(TOKEN_DEF)) {
-		defDeclaration();
+		defDeclaration(state);
 	} else if (match(TOKEN_LET)) {
-		letDeclaration();
+		letDeclaration(state);
 	} else if (check(TOKEN_CLASS)) {
-		KrkToken className = classDeclaration();
-		size_t classConst = identifierConstant(&className);
-		parser.previous = className;
-		declareVariable();
-		defineVariable(classConst);
+		KrkToken className = classDeclaration(state);
+		size_t classConst = identifierConstant(state, &className);
+		state->parser.previous = className;
+		declareVariable(state);
+		defineVariable(state, classConst);
 	} else if (check(TOKEN_AT)) {
-		decorator(0, TYPE_FUNCTION);
+		decorator(state, 0, TYPE_FUNCTION);
 	} else if (check(TOKEN_ASYNC)) {
-		asyncDeclaration(1);
+		asyncDeclaration(state, 1);
 	} else if (match(TOKEN_EOL) || match(TOKEN_EOF)) {
 		return;
 	} else if (check(TOKEN_INDENTATION)) {
 		return;
 	} else {
-		statement();
+		statement(state);
 	}
 
-	if (parser.hadError) skipToEnd();
+	if (state->parser.hadError) skipToEnd();
 }
 
-static void expressionStatement(void) {
-	parsePrecedence(PREC_ASSIGNMENT);
+static void expressionStatement(struct GlobalState * state) {
+	parsePrecedence(state, PREC_ASSIGNMENT);
 	emitByte(OP_POP);
 }
 
-static void beginScope(void) {
-	current->scopeDepth++;
+static void beginScope(struct GlobalState * state) {
+	state->current->scopeDepth++;
 }
 
-static void endScope(void) {
-	current->scopeDepth--;
+static void endScope(struct GlobalState * state) {
+	state->current->scopeDepth--;
 
 	int closeCount = 0;
 	int popCount = 0;
 
-	while (current->localCount > 0 &&
-	       current->locals[current->localCount - 1].depth > (ssize_t)current->scopeDepth) {
-		if (current->locals[current->localCount - 1].isCaptured) {
+	while (state->current->localCount > 0 &&
+	       state->current->locals[state->current->localCount - 1].depth > (ssize_t)state->current->scopeDepth) {
+		if (state->current->locals[state->current->localCount - 1].isCaptured) {
 			if (popCount) {
 				if (popCount == 1) emitByte(OP_POP);
 				else { EMIT_OPERAND_OP(OP_POP_MANY, popCount); }
@@ -1234,13 +1279,13 @@ static void endScope(void) {
 			popCount++;
 		}
 
-		for (size_t i = 0; i < current->codeobject->localNameCount; i++) {
-			if (current->codeobject->localNames[i].id == current->localCount - 1 &&
-				current->codeobject->localNames[i].deathday == 0) {
-				current->codeobject->localNames[i].deathday = (size_t)currentChunk()->count;
+		for (size_t i = 0; i < state->current->codeobject->localNameCount; i++) {
+			if (state->current->codeobject->localNames[i].id == state->current->localCount - 1 &&
+				state->current->codeobject->localNames[i].deathday == 0) {
+				state->current->codeobject->localNames[i].deathday = (size_t)currentChunk()->count;
 			}
 		}
-		current->localCount--;
+		state->current->localCount--;
 	}
 
 	if (popCount) {
@@ -1253,52 +1298,52 @@ static void endScope(void) {
 	}
 }
 
-static void block(size_t indentation, const char * blockName) {
+static void block(struct GlobalState * state, size_t indentation, const char * blockName) {
 	if (match(TOKEN_EOL)) {
 		if (check(TOKEN_INDENTATION)) {
-			size_t currentIndentation = parser.current.length;
+			size_t currentIndentation = state->parser.current.length;
 			if (currentIndentation <= indentation) return;
 			advance();
 			if (!strcmp(blockName,"def") && (match(TOKEN_STRING) || match(TOKEN_BIG_STRING))) {
 				size_t before = currentChunk()->count;
-				string(EXPR_NORMAL);
+				string(state, EXPR_NORMAL);
 				/* That wrote to the chunk, rewind it; this should only ever go back two bytes
 				 * because this should only happen as the first thing in a function definition,
 				 * and thus this _should_ be the first constant and thus opcode + one-byte operand
 				 * to OP_CONSTANT, but just to be safe we'll actually use the previous offset... */
 				currentChunk()->count = before;
 				/* Retreive the docstring from the constant table */
-				current->codeobject->docstring = AS_STRING(currentChunk()->constants.values[currentChunk()->constants.count-1]);
+				state->current->codeobject->docstring = AS_STRING(currentChunk()->constants.values[currentChunk()->constants.count-1]);
 				consume(TOKEN_EOL,"Garbage after docstring defintion");
-				if (!check(TOKEN_INDENTATION) || parser.current.length != currentIndentation) {
+				if (!check(TOKEN_INDENTATION) || state->parser.current.length != currentIndentation) {
 					error("Expected at least one statement in function with docstring.");
 				}
 				advance();
 			}
-			declaration();
+			declaration(state);
 			while (check(TOKEN_INDENTATION)) {
-				if (parser.current.length < currentIndentation) break;
+				if (state->parser.current.length < currentIndentation) break;
 				advance();
-				declaration();
+				declaration(state);
 				if (check(TOKEN_EOL)) {
 					advance();
 				}
-				if (parser.hadError) skipToEnd();
+				if (state->parser.hadError) skipToEnd();
 			};
 #ifndef KRK_NO_SCAN_TRACING
 			if (krk_currentThread.flags & KRK_THREAD_ENABLE_SCAN_TRACING) {
 				fprintf(stderr, "\n\nfinished with block %s (ind=%d) on line %d, sitting on a %s (len=%d)\n\n",
-					blockName, (int)indentation, (int)parser.current.line,
-					getRule(parser.current.type)->name, (int)parser.current.length);
+					blockName, (int)indentation, (int)state->parser.current.line,
+					getRule(state->parser.current.type)->name, (int)state->parser.current.length);
 			}
 #endif
 		}
 	} else {
-		statement();
+		statement(state);
 	}
 }
 
-static void doUpvalues(Compiler * compiler, KrkCodeObject * function) {
+static void doUpvalues(struct GlobalState * state, Compiler * compiler, KrkCodeObject * function) {
 	assert(!!function->upvalueCount == !!compiler->upvalues);
 	for (size_t i = 0; i < function->upvalueCount; ++i) {
 		size_t index = compiler->upvalues[i].index;
@@ -1311,25 +1356,25 @@ static void doUpvalues(Compiler * compiler, KrkCodeObject * function) {
 	}
 }
 
-static void typeHint(KrkToken name) {
-	current->enclosing->enclosed = current;
-	current = current->enclosing;
+static void typeHint(struct GlobalState * state, KrkToken name) {
+	state->current->enclosing->enclosed = state->current;
+	state->current = state->current->enclosing;
 
-	current->enclosed->annotationCount++;
+	state->current->enclosed->annotationCount++;
 
 	/* Emit name */
 	emitConstant(OBJECT_VAL(krk_copyString(name.start, name.length)));
-	parsePrecedence(PREC_TERNARY);
+	parsePrecedence(state, PREC_TERNARY);
 
-	current = current->enclosed;
-	current->enclosing->enclosed = NULL;
+	state->current = state->current->enclosed;
+	state->current->enclosing->enclosed = NULL;
 }
 
-static void hideLocal(void) {
-	current->locals[current->localCount - 1].depth = -2;
+static void hideLocal(struct GlobalState * state) {
+	state->current->locals[state->current->localCount - 1].depth = -2;
 }
 
-static void argumentDefinition(void) {
+static void argumentDefinition(struct GlobalState * state) {
 	if (match(TOKEN_EQUAL)) {
 		/*
 		 * We inline default arguments by checking if they are equal
@@ -1340,54 +1385,54 @@ static void argumentDefinition(void) {
 		 * if param == KWARGS_SENTINEL:
 		 *     param = EXPRESSION
 		 */
-		size_t myLocal = current->localCount - 1;
+		size_t myLocal = state->current->localCount - 1;
 		EMIT_OPERAND_OP(OP_GET_LOCAL, myLocal);
 		int jumpIndex = emitJump(OP_TEST_ARG);
-		beginScope();
-		expression(); /* Read expression */
+		beginScope(state);
+		expression(state); /* Read expression */
 		EMIT_OPERAND_OP(OP_SET_LOCAL_POP, myLocal);
-		endScope();
+		endScope(state);
 		patchJump(jumpIndex);
-		current->codeobject->keywordArgs++;
+		state->current->codeobject->keywordArgs++;
 	} else {
-		if (current->codeobject->keywordArgs) {
+		if (state->current->codeobject->keywordArgs) {
 			error("non-keyword argument follows keyword argument");
 			return;
 		}
-		current->codeobject->requiredArgs++;
+		state->current->codeobject->requiredArgs++;
 	}
 }
 
-static void functionPrologue(Compiler * compiler) {
-	KrkCodeObject * func = endCompiler();
+static void functionPrologue(struct GlobalState * state, Compiler * compiler) {
+	KrkCodeObject * func = endCompiler(state);
 	if (compiler->annotationCount) {
 		EMIT_OPERAND_OP(OP_MAKE_DICT, compiler->annotationCount * 2);
 	}
 	size_t ind = krk_addConstant(currentChunk(), OBJECT_VAL(func));
 	EMIT_OPERAND_OP(OP_CLOSURE, ind);
-	doUpvalues(compiler, func);
+	doUpvalues(state, compiler, func);
 	if (compiler->annotationCount) {
 		emitByte(OP_ANNOTATE);
 	}
 	freeCompiler(compiler);
 }
 
-static int argumentList(FunctionType type) {
+static int argumentList(struct GlobalState * state, FunctionType type) {
 	int hasCollectors = 0;
 	KrkToken self = syntheticToken("self");
 
 	do {
 		if (isMethod(type) && check(TOKEN_IDENTIFIER) &&
-				identifiersEqual(&parser.current, &self)) {
-			if (hasCollectors || current->codeobject->requiredArgs != 1) {
+				identifiersEqual(&state->parser.current, &self)) {
+			if (hasCollectors || state->current->codeobject->requiredArgs != 1) {
 				errorAtCurrent("Argument name 'self' in a method signature is reserved for the implicit first argument.");
 				return 1;
 			}
 			advance();
 			if (type != TYPE_LAMBDA && check(TOKEN_COLON)) {
-				KrkToken name = parser.previous;
+				KrkToken name = state->parser.previous;
 				match(TOKEN_COLON);
-				typeHint(name);
+				typeHint(state, name);
 			}
 			if (check(TOKEN_EQUAL)) {
 				errorAtCurrent("'self' can not be a keyword argument.");
@@ -1402,40 +1447,40 @@ static int argumentList(FunctionType type) {
 					return 1;
 				}
 				hasCollectors = 2;
-				current->codeobject->obj.flags |= KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_KWS;
+				state->current->codeobject->obj.flags |= KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_KWS;
 			} else {
 				if (hasCollectors) {
 					error("Syntax error.");
 					return 1;
 				}
 				hasCollectors = 1;
-				current->codeobject->obj.flags |= KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_ARGS;
+				state->current->codeobject->obj.flags |= KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_ARGS;
 			}
 			/* Collect a name, specifically "args" or "kwargs" are commont */
-			ssize_t paramConstant = parseVariable(
+			ssize_t paramConstant = parseVariable(state,
 				(hasCollectors == 1) ? "Expected parameter name after '*'." : "Expected parameter name after '**'.");
-			if (parser.hadError) return 1;
-			defineVariable(paramConstant);
-			KrkToken name = parser.previous;
+			if (state->parser.hadError) return 1;
+			defineVariable(state, paramConstant);
+			KrkToken name = state->parser.previous;
 			if (isMethod(type) && identifiersEqual(&name,&self)) {
 				errorAtCurrent("Argument name 'self' in a method signature is reserved for the implicit first argument.");
 				return 1;
 			}
 			if (type != TYPE_LAMBDA && check(TOKEN_COLON)) {
 				match(TOKEN_COLON);
-				typeHint(name);
+				typeHint(state, name);
 			}
 			/* Make that a valid local for this function */
-			size_t myLocal = current->localCount - 1;
+			size_t myLocal = state->current->localCount - 1;
 			EMIT_OPERAND_OP(OP_GET_LOCAL, myLocal);
 			/* Check if it's equal to the unset-kwarg-sentinel value */
 			int jumpIndex = emitJump(OP_TEST_ARG);
 			/* And if it is, set it to the appropriate type */
-			beginScope();
+			beginScope(state);
 			if (hasCollectors == 1) EMIT_OPERAND_OP(OP_MAKE_LIST,0);
 			else EMIT_OPERAND_OP(OP_MAKE_DICT,0);
 			EMIT_OPERAND_OP(OP_SET_LOCAL_POP, myLocal);
-			endScope();
+			endScope(state);
 			/* Otherwise pop the comparison. */
 			patchJump(jumpIndex);
 			continue;
@@ -1444,78 +1489,78 @@ static int argumentList(FunctionType type) {
 			error("arguments follow catch-all collector");
 			break;
 		}
-		ssize_t paramConstant = parseVariable("Expected parameter name.");
-		if (parser.hadError) return 1;
-		hideLocal();
+		ssize_t paramConstant = parseVariable(state, "Expected parameter name.");
+		if (state->parser.hadError) return 1;
+		hideLocal(state);
 		if (type != TYPE_LAMBDA && check(TOKEN_COLON)) {
-			KrkToken name = parser.previous;
+			KrkToken name = state->parser.previous;
 			match(TOKEN_COLON);
-			typeHint(name);
+			typeHint(state, name);
 		}
-		argumentDefinition();
-		defineVariable(paramConstant);
+		argumentDefinition(state);
+		defineVariable(state, paramConstant);
 	} while (match(TOKEN_COMMA));
 
 	return 0;
 }
 
-static void function(FunctionType type, size_t blockWidth) {
+static void function(struct GlobalState * state, FunctionType type, size_t blockWidth) {
 	Compiler compiler;
-	initCompiler(&compiler, type);
+	initCompiler(state, &compiler, type);
 	compiler.codeobject->chunk.filename = compiler.enclosing->codeobject->chunk.filename;
 
-	beginScope();
+	beginScope(state);
 
-	if (isMethod(type)) current->codeobject->requiredArgs = 1;
-	if (isCoroutine(type)) current->codeobject->obj.flags |= KRK_OBJ_FLAGS_CODEOBJECT_IS_COROUTINE;
+	if (isMethod(type)) state->current->codeobject->requiredArgs = 1;
+	if (isCoroutine(type)) state->current->codeobject->obj.flags |= KRK_OBJ_FLAGS_CODEOBJECT_IS_COROUTINE;
 
 	consume(TOKEN_LEFT_PAREN, "Expected start of parameter list after function name.");
 	startEatingWhitespace();
 	if (!check(TOKEN_RIGHT_PAREN)) {
-		if (argumentList(type)) goto _bail;
+		if (argumentList(state, type)) goto _bail;
 	}
 	stopEatingWhitespace();
 	consume(TOKEN_RIGHT_PAREN, "Expected end of parameter list.");
 
 	if (match(TOKEN_ARROW)) {
-		typeHint(syntheticToken("return"));
+		typeHint(state, syntheticToken("return"));
 	}
 
 	consume(TOKEN_COLON, "Expected colon after function signature.");
-	block(blockWidth,"def");
+	block(state, blockWidth,"def");
 _bail: (void)0;
-	functionPrologue(&compiler);
+	functionPrologue(state, &compiler);
 }
 
-static void classBody(size_t blockWidth) {
+static void classBody(struct GlobalState * state, size_t blockWidth) {
 	if (match(TOKEN_EOL)) {
 		return;
 	}
 
 	if (check(TOKEN_AT)) {
 		/* '@decorator' which should be attached to a method. */
-		decorator(0, TYPE_METHOD);
+		decorator(state, 0, TYPE_METHOD);
 	} else if (match(TOKEN_IDENTIFIER)) {
 		/* Class field */
-		size_t ind = identifierConstant(&parser.previous);
+		size_t ind = identifierConstant(state, &state->parser.previous);
 
 		if (check(TOKEN_COLON)) {
 			/* Type annotation for field */
-			KrkToken name = parser.previous;
+			KrkToken name = state->parser.previous;
 			match(TOKEN_COLON);
 			/* Get __annotations__ from class */
 			emitBytes(OP_DUP, 0);
 			KrkToken annotations = syntheticToken("__annotations__");
-			size_t ind = identifierConstant(&annotations);
-			if (!currentClass->hasAnnotations) {
+			size_t ind = identifierConstant(state, &annotations);
+			if (!state->currentClass->hasAnnotations) {
 				EMIT_OPERAND_OP(OP_MAKE_DICT, 0);
 				EMIT_OPERAND_OP(OP_SET_PROPERTY, ind);
-				currentClass->hasAnnotations = 1;
+				state->currentClass->hasAnnotations = 1;
 			} else {
 				EMIT_OPERAND_OP(OP_GET_PROPERTY, ind);
 			}
 			emitConstant(OBJECT_VAL(krk_copyString(name.start, name.length)));
-			parsePrecedence(PREC_TERNARY);
+			parsePrecedence(state, PREC_TERNARY);
 			emitBytes(OP_INVOKE_SETTER, OP_POP);
 
 			/* A class field with a type hint can be valueless */
@@ -1525,9 +1570,9 @@ static void classBody(size_t blockWidth) {
 		consume(TOKEN_EQUAL, "Class field must have value.");
 
 		/* Value */
-		parsePrecedence(PREC_COMMA);
+		parsePrecedence(state, PREC_COMMA);
 
-		rememberClassProperty(ind);
+		rememberClassProperty(state, ind);
 		EMIT_OPERAND_OP(OP_CLASS_PROPERTY, ind);
 
 		if (!match(TOKEN_EOL) && !match(TOKEN_EOF)) {
@@ -1546,15 +1591,15 @@ static void classBody(size_t blockWidth) {
 			error("Expected method, decorator, or class variable.");
 		}
 		consume(TOKEN_IDENTIFIER, "Expected method name after 'def'");
-		size_t ind = identifierConstant(&parser.previous);
+		size_t ind = identifierConstant(state, &state->parser.previous);
 
-		if (parser.previous.length == 8 && memcmp(parser.previous.start, "__init__", 8) == 0) {
+		if (state->parser.previous.length == 8 && memcmp(state->parser.previous.start, "__init__", 8) == 0) {
 			if (type == TYPE_COROUTINE_METHOD) {
 				error("'%s' can not be a coroutine","__init__");
 				return;
 			}
 			type = TYPE_INIT;
-		} else if (parser.previous.length == 17 && memcmp(parser.previous.start, "__class_getitem__", 17) == 0) {
+		} else if (state->parser.previous.length == 17 && memcmp(state->parser.previous.start, "__class_getitem__", 17) == 0) {
 			if (type == TYPE_COROUTINE_METHOD) {
 				error("'%s' can not be a coroutine","__class_getitem__");
 				return;
@@ -1564,141 +1609,141 @@ static void classBody(size_t blockWidth) {
 			type = TYPE_CLASSMETHOD;
 		}
 
-		function(type, blockWidth);
-		rememberClassProperty(ind);
+		function(state, type, blockWidth);
+		rememberClassProperty(state, ind);
 		EMIT_OPERAND_OP(OP_CLASS_PROPERTY, ind);
 	}
 }
 
 #define ATTACH_PROPERTY(propName,how,propValue) do { \
 	KrkToken val_tok = syntheticToken(propValue); \
-	size_t val_ind = nonidentifierTokenConstant(&val_tok); \
+	size_t val_ind = nonidentifierTokenConstant(state, &val_tok); \
 	EMIT_OPERAND_OP(how, val_ind); \
 	KrkToken name_tok = syntheticToken(propName); \
-	size_t name_ind = identifierConstant(&name_tok); \
+	size_t name_ind = identifierConstant(state, &name_tok); \
 	EMIT_OPERAND_OP(OP_CLASS_PROPERTY, name_ind); \
 } while (0)
 
-static KrkToken classDeclaration(void) {
-	size_t blockWidth = (parser.previous.type == TOKEN_INDENTATION) ? parser.previous.length : 0;
+static KrkToken classDeclaration(struct GlobalState * state) {
+	size_t blockWidth = (state->parser.previous.type == TOKEN_INDENTATION) ? state->parser.previous.length : 0;
 	advance(); /* Collect the `class` */
 
 	consume(TOKEN_IDENTIFIER, "Expected class name after 'class'.");
 	Compiler subcompiler;
-	initCompiler(&subcompiler, TYPE_CLASS);
+	initCompiler(state, &subcompiler, TYPE_CLASS);
 	subcompiler.codeobject->chunk.filename = subcompiler.enclosing->codeobject->chunk.filename;
 
-	beginScope();
+	beginScope(state);
 
 	/* We want to expose the mangled name within the class definition, which then
 	 * becomes available as a nonlocal, but we want to hand the non-mangled name
 	 * to the CLASS instruction so that __name__ is right. */
-	size_t nameInd = nonidentifierTokenConstant(&parser.previous);
-	identifierConstant(&parser.previous);
-	declareVariable();
+	size_t nameInd = nonidentifierTokenConstant(state, &state->parser.previous);
+	identifierConstant(state, &state->parser.previous);
+	declareVariable(state);
 	EMIT_OPERAND_OP(OP_CLASS, nameInd);
-	markInitialized();
+	markInitialized(state);
 
 	ClassCompiler classCompiler;
-	classCompiler.name = parser.previous;
-	classCompiler.enclosing = currentClass;
-	currentClass = &classCompiler;
+	classCompiler.name = state->parser.previous;
+	classCompiler.enclosing = state->currentClass;
+	state->currentClass = &classCompiler;
 	classCompiler.hasAnnotations = 0;
 
 	if (match(TOKEN_LEFT_PAREN)) {
 		startEatingWhitespace();
 		if (!check(TOKEN_RIGHT_PAREN)) {
-			expression();
+			expression(state);
 			emitByte(OP_INHERIT);
 		}
 		stopEatingWhitespace();
 		consume(TOKEN_RIGHT_PAREN, "Expected ')' after superclass.");
 	}
 
-	beginScope();
+	beginScope(state);
 
 	consume(TOKEN_COLON, "Expected ':' after class.");
 
 	/* Set Class.__module__ to the value of __name__, which is the string
 	 * name of the current module. */
 	ATTACH_PROPERTY("__module__", OP_GET_GLOBAL, "__name__");
-	ATTACH_PROPERTY("__qualname__", OP_CONSTANT, calculateQualName());
+	ATTACH_PROPERTY("__qualname__", OP_CONSTANT, calculateQualName(state));
 
 	if (match(TOKEN_EOL)) {
 		if (check(TOKEN_INDENTATION)) {
-			size_t currentIndentation = parser.current.length;
+			size_t currentIndentation = state->parser.current.length;
 			if (currentIndentation <= blockWidth) {
 				errorAtCurrent("Unexpected indentation level for class");
 			}
 			advance();
 			if (match(TOKEN_STRING) || match(TOKEN_BIG_STRING)) {
-				string(EXPR_NORMAL);
+				string(state, EXPR_NORMAL);
 				emitByte(OP_DOCSTRING);
 				consume(TOKEN_EOL,"Garbage after docstring defintion");
-				if (!check(TOKEN_INDENTATION) || parser.current.length != currentIndentation) {
+				if (!check(TOKEN_INDENTATION) || state->parser.current.length != currentIndentation) {
 					goto _pop_class;
 				}
 				advance();
 			}
-			classBody(currentIndentation);
+			classBody(state, currentIndentation);
 			while (check(TOKEN_INDENTATION)) {
-				if (parser.current.length < currentIndentation) break;
+				if (state->parser.current.length < currentIndentation) break;
 				advance(); /* Pass the indentation */
-				classBody(currentIndentation);
+				classBody(state, currentIndentation);
 			}
 #ifndef KRK_NO_SCAN_TRACING
-			if (krk_currentThread.flags & KRK_THREAD_ENABLE_SCAN_TRACING) fprintf(stderr, "Exiting from class definition on %s\n", getRule(parser.current.type)->name);
+			if (krk_currentThread.flags & KRK_THREAD_ENABLE_SCAN_TRACING) fprintf(stderr, "Exiting from class definition on %s\n", getRule(state->parser.current.type)->name);
 #endif
 			/* Exit from block */
 		}
 	} /* else empty class (and at end of file?) we'll allow it for now... */
 _pop_class:
 	emitByte(OP_FINALIZE);
-	currentClass = currentClass->enclosing;
-	KrkCodeObject * makeclass = endCompiler();
+	state->currentClass = state->currentClass->enclosing;
+	KrkCodeObject * makeclass = endCompiler(state);
 	size_t indFunc = krk_addConstant(currentChunk(), OBJECT_VAL(makeclass));
 	EMIT_OPERAND_OP(OP_CLOSURE, indFunc);
-	doUpvalues(&subcompiler, makeclass);
+	doUpvalues(state, &subcompiler, makeclass);
 	freeCompiler(&subcompiler);
 	emitBytes(OP_CALL, 0);
 
 	return classCompiler.name;
 }
 
-static void lambda(int exprType) {
+static void lambda(struct GlobalState * state, int exprType) {
 	Compiler lambdaCompiler;
-	parser.previous = syntheticToken("<lambda>");
-	initCompiler(&lambdaCompiler, TYPE_LAMBDA);
+	state->parser.previous = syntheticToken("<lambda>");
+	initCompiler(state, &lambdaCompiler, TYPE_LAMBDA);
 	lambdaCompiler.codeobject->chunk.filename = lambdaCompiler.enclosing->codeobject->chunk.filename;
-	beginScope();
+	beginScope(state);
 
 	if (!check(TOKEN_COLON)) {
-		if (argumentList(TYPE_LAMBDA)) goto _bail;
+		if (argumentList(state, TYPE_LAMBDA)) goto _bail;
 	}
 
 	consume(TOKEN_COLON, "Expected ':' after lambda arguments");
-	expression();
+	expression(state);
 
 _bail:
-	functionPrologue(&lambdaCompiler);
+	functionPrologue(state, &lambdaCompiler);
 
-	invalidTarget(exprType, "lambda");
+	invalidTarget(state, exprType, "lambda");
 }
 
-static void defDeclaration(void) {
-	size_t blockWidth = (parser.previous.type == TOKEN_INDENTATION) ? parser.previous.length : 0;
+static void defDeclaration(struct GlobalState * state) {
+	size_t blockWidth = (state->parser.previous.type == TOKEN_INDENTATION) ? state->parser.previous.length : 0;
 	advance(); /* Collect the `def` */
 
-	ssize_t global = parseVariable("Expected function name after 'def'.");
-	if (parser.hadError) return;
-	markInitialized();
-	function(TYPE_FUNCTION, blockWidth);
-	if (parser.hadError) return;
-	defineVariable(global);
+	ssize_t global = parseVariable(state, "Expected function name after 'def'.");
+	if (state->parser.hadError) return;
+	markInitialized(state);
+	function(state, TYPE_FUNCTION, blockWidth);
+	if (state->parser.hadError) return;
+	defineVariable(state, global);
 }
 
-static void asyncDeclaration(int declarationLevel) {
-	size_t blockWidth = (parser.previous.type == TOKEN_INDENTATION) ? parser.previous.length : 0;
+static void asyncDeclaration(struct GlobalState * state, int declarationLevel) {
+	size_t blockWidth = (state->parser.previous.type == TOKEN_INDENTATION) ? state->parser.previous.length : 0;
 	advance(); /* 'async' */
 
 	if (match(TOKEN_DEF)) {
@@ -1706,21 +1751,21 @@ static void asyncDeclaration(int declarationLevel) {
 			error("'async def' not valid here");
 			return;
 		}
-		ssize_t global = parseVariable("Expected coroutine name after 'async def'");
-		if (parser.hadError) return;
-		markInitialized();
-		function(TYPE_COROUTINE, blockWidth);
-		if (parser.hadError) return;
-		defineVariable(global);
+		ssize_t global = parseVariable(state, "Expected coroutine name after 'async def'");
+		if (state->parser.hadError) return;
+		markInitialized(state);
+		function(state, TYPE_COROUTINE, blockWidth);
+		if (state->parser.hadError) return;
+		defineVariable(state, global);
 	} else if (match(TOKEN_FOR)) {
-		if (!isCoroutine(current->type)) {
+		if (!isCoroutine(state->current->type)) {
 			error("'async for' outside of async function");
 			return;
 		}
 		error("'async for' unsupported (GH-12)");
 		return;
 	} else if (match(TOKEN_WITH)) {
-		if (!isCoroutine(current->type)) {
+		if (!isCoroutine(state->current->type)) {
 			error("'async with' outside of async function");
 			return;
 		}
@@ -1732,9 +1777,9 @@ static void asyncDeclaration(int declarationLevel) {
 	}
 }
 
-static KrkToken decorator(size_t level, FunctionType type) {
+static KrkToken decorator(struct GlobalState * state, size_t level, FunctionType type) {
 	int inType = type;
-	size_t blockWidth = (parser.previous.type == TOKEN_INDENTATION) ? parser.previous.length : 0;
+	size_t blockWidth = (state->parser.previous.type == TOKEN_INDENTATION) ? state->parser.previous.length : 0;
 	advance(); /* Collect the `@` */
 
 	KrkToken funcName = {0};
@@ -1743,43 +1788,43 @@ static KrkToken decorator(size_t level, FunctionType type) {
 	KrkToken at_classmethod  = syntheticToken("classmethod");
 
 	if (type == TYPE_METHOD) {
-		if (identifiersEqual(&at_staticmethod, &parser.current)) type = TYPE_STATIC;
-		if (identifiersEqual(&at_classmethod, &parser.current)) type = TYPE_CLASSMETHOD;
+		if (identifiersEqual(&at_staticmethod, &state->parser.current)) type = TYPE_STATIC;
+		if (identifiersEqual(&at_classmethod, &state->parser.current)) type = TYPE_CLASSMETHOD;
 	}
 
-	expression();
+	expression(state);
 
 	consume(TOKEN_EOL, "Expected end of line after decorator.");
 	if (blockWidth) {
 		consume(TOKEN_INDENTATION, "Expected next line after decorator to have same indentation.");
-		if (parser.previous.length != blockWidth) error("Expected next line after decorator to have same indentation.");
+		if (state->parser.previous.length != blockWidth) error("Expected next line after decorator to have same indentation.");
 	}
 
 	if (check(TOKEN_DEF)) {
 		/* We already checked for block level */
 		advance();
 		consume(TOKEN_IDENTIFIER, "Expected function name after 'def'");
-		funcName = parser.previous;
+		funcName = state->parser.previous;
 		if (type == TYPE_METHOD && funcName.length == 8 && !memcmp(funcName.start,"__init__",8)) {
 			type = TYPE_INIT;
 		}
-		function(type, blockWidth);
+		function(state, type, blockWidth);
 	} else if (match(TOKEN_ASYNC)) {
 		if (!match(TOKEN_DEF)) {
 			errorAtCurrent("Expected 'def' after 'async' with decorator, not '%*.s'",
-				(int)parser.current.length, parser.current.start);
+				(int)state->parser.current.length, state->parser.current.start);
 		}
 		consume(TOKEN_IDENTIFIER, "Expected coroutine name after 'def'.");
-		funcName = parser.previous;
-		function(type == TYPE_METHOD ? TYPE_COROUTINE_METHOD : TYPE_COROUTINE, blockWidth);
+		funcName = state->parser.previous;
+		function(state, type == TYPE_METHOD ? TYPE_COROUTINE_METHOD : TYPE_COROUTINE, blockWidth);
 	} else if (check(TOKEN_AT)) {
-		funcName = decorator(level+1, type);
+		funcName = decorator(state, level+1, type);
 	} else if (check(TOKEN_CLASS)) {
 		if (type != TYPE_FUNCTION) {
 			error("Invalid decorator applied to class");
 			return funcName;
 		}
-		funcName = classDeclaration();
+		funcName = classDeclaration(state);
 	} else {
 		error("Expected a function declaration or another decorator.");
 		return funcName;
@@ -1789,13 +1834,13 @@ static KrkToken decorator(size_t level, FunctionType type) {
 
 	if (level == 0) {
 		if (inType == TYPE_FUNCTION) {
-			parser.previous = funcName;
-			declareVariable();
-			size_t ind = (current->scopeDepth > 0) ? 0 : identifierConstant(&funcName);
-			defineVariable(ind);
+			state->parser.previous = funcName;
+			declareVariable(state);
+			size_t ind = (state->current->scopeDepth > 0) ? 0 : identifierConstant(state, &funcName);
+			defineVariable(state, ind);
 		} else {
-			size_t ind = identifierConstant(&funcName);
-			rememberClassProperty(ind);
+			size_t ind = identifierConstant(state, &funcName);
+			rememberClassProperty(state, ind);
 			EMIT_OPERAND_OP(OP_CLASS_PROPERTY, ind);
 		}
 	}
@@ -1803,12 +1848,12 @@ static KrkToken decorator(size_t level, FunctionType type) {
 	return funcName;
 }
 
-static void emitLoop(int loopStart, uint8_t loopType) {
+static void emitLoop(struct GlobalState * state, int loopStart, uint8_t loopType) {
 
 	/* Patch continue statements to point to here, before the loop operation (yes that's silly) */
-	while (current->continueCount > 0 && current->continues[current->continueCount-1].offset > loopStart) {
-		patchJump(current->continues[current->continueCount-1].offset);
-		current->continueCount--;
+	while (state->current->continueCount > 0 && state->current->continues[state->current->continueCount-1].offset > loopStart) {
+		patchJump(state->current->continues[state->current->continueCount-1].offset);
+		state->current->continueCount--;
 	}
 
 	emitByte(loopType);
@@ -1820,103 +1865,103 @@ static void emitLoop(int loopStart, uint8_t loopType) {
 	/* Patch break statements */
 }
 
-static void withStatement(void) {
+static void withStatement(struct GlobalState * state) {
 	/* We only need this for block() */
-	size_t blockWidth = (parser.previous.type == TOKEN_INDENTATION) ? parser.previous.length : 0;
-	KrkToken myPrevious = parser.previous;
+	size_t blockWidth = (state->parser.previous.type == TOKEN_INDENTATION) ? state->parser.previous.length : 0;
+	KrkToken myPrevious = state->parser.previous;
 
 	/* Collect the with token that started this statement */
 	advance();
 
-	beginScope();
-	expression();
+	beginScope(state);
+	expression(state);
 
 	if (match(TOKEN_AS)) {
 		consume(TOKEN_IDENTIFIER, "Expected variable name after 'as'");
-		size_t ind = identifierConstant(&parser.previous);
-		declareVariable();
-		defineVariable(ind);
+		size_t ind = identifierConstant(state, &state->parser.previous);
+		declareVariable(state);
+		defineVariable(state, ind);
 	} else {
 		/* Otherwise we want an unnamed local */
-		anonymousLocal();
+		anonymousLocal(state);
 	}
 
 	/* Storage for return / exception */
-	anonymousLocal();
+	anonymousLocal(state);
 
 	/* Handler object */
-	anonymousLocal();
+	anonymousLocal(state);
 	int withJump = emitJump(OP_PUSH_WITH);
 
 	if (check(TOKEN_COMMA)) {
-		parser.previous = myPrevious;
-		withStatement(); /* Keep nesting */
+		state->parser.previous = myPrevious;
+		withStatement(state); /* Keep nesting */
 	} else {
 		consume(TOKEN_COLON, "Expected ',' or ':' after 'with' statement");
 
-		beginScope();
-		block(blockWidth,"with");
-		endScope();
+		beginScope(state);
+		block(state,blockWidth,"with");
+		endScope(state);
 	}
 
 	patchJump(withJump);
 	emitByte(OP_CLEANUP_WITH);
 
 	/* Scope exit pops context manager */
-	endScope();
+	endScope(state);
 }
 
-static void ifStatement(void) {
+static void ifStatement(struct GlobalState * state) {
 	/* Figure out what block level contains us so we can match our partner else */
-	size_t blockWidth = (parser.previous.type == TOKEN_INDENTATION) ? parser.previous.length : 0;
-	KrkToken myPrevious = parser.previous;
+	size_t blockWidth = (state->parser.previous.type == TOKEN_INDENTATION) ? state->parser.previous.length : 0;
+	KrkToken myPrevious = state->parser.previous;
 
 	/* Collect the if token that started this statement */
 	advance();
 
 	/* Collect condition expression */
-	expression();
+	expression(state);
 
 	/* if EXPR: */
 	consume(TOKEN_COLON, "Expected ':' after 'if' condition.");
 
-	if (parser.hadError) return;
+	if (state->parser.hadError) return;
 
 	int thenJump = emitJump(OP_POP_JUMP_IF_FALSE);
 
 	/* Start a new scope and enter a block */
-	beginScope();
-	block(blockWidth,"if");
-	endScope();
+	beginScope(state);
+	block(state,blockWidth,"if");
+	endScope(state);
 
-	if (parser.hadError) return;
+	if (state->parser.hadError) return;
 
 	int elseJump = emitJump(OP_JUMP);
 	patchJump(thenJump);
 
 	/* See if we have a matching else block */
-	if (blockWidth == 0 || (check(TOKEN_INDENTATION) && (parser.current.length == blockWidth))) {
+	if (blockWidth == 0 || (check(TOKEN_INDENTATION) && (state->parser.current.length == blockWidth))) {
 		/* This is complicated */
 		KrkToken previous;
 		if (blockWidth) {
-			previous = parser.previous;
+			previous = state->parser.previous;
 			advance();
 		}
 		if (match(TOKEN_ELSE) || check(TOKEN_ELIF)) {
-			if (parser.current.type == TOKEN_ELIF || check(TOKEN_IF)) {
-				parser.previous = myPrevious;
-				ifStatement(); /* Keep nesting */
+			if (state->parser.current.type == TOKEN_ELIF || check(TOKEN_IF)) {
+				state->parser.previous = myPrevious;
+				ifStatement(state); /* Keep nesting */
 			} else {
 				consume(TOKEN_COLON, "Expected ':' after 'else'.");
-				beginScope();
-				block(blockWidth,"else");
-				endScope();
+				beginScope(state);
+				block(state,blockWidth,"else");
+				endScope(state);
 			}
 		} else if (!check(TOKEN_EOF) && !check(TOKEN_EOL)) {
 			if (blockWidth) {
-				krk_ungetToken(parser.current);
-				parser.current = parser.previous;
-				parser.previous = previous;
+				krk_ungetToken(&state->scanner, state->parser.current);
+				state->parser.current = state->parser.previous;
+				state->parser.previous = previous;
 			}
 		} else {
 			advance(); /* Ignore this blank indentation line */
@@ -1926,87 +1971,87 @@ static void ifStatement(void) {
 	patchJump(elseJump);
 }
 
-static void patchBreaks(int loopStart) {
+static void patchBreaks(struct GlobalState * state, int loopStart) {
 	/* Patch break statements to go here, after the loop operation and operand. */
-	while (current->breakCount > 0 && current->breaks[current->breakCount-1].offset > loopStart) {
-		patchJump(current->breaks[current->breakCount-1].offset);
-		current->breakCount--;
+	while (state->current->breakCount > 0 && state->current->breaks[state->current->breakCount-1].offset > loopStart) {
+		patchJump(state->current->breaks[state->current->breakCount-1].offset);
+		state->current->breakCount--;
 	}
 }
 
-static void breakStatement(void) {
-	if (current->breakSpace < current->breakCount + 1) {
-		size_t old = current->breakSpace;
-		current->breakSpace = GROW_CAPACITY(old);
-		current->breaks = GROW_ARRAY(struct LoopExit,current->breaks,old,current->breakSpace);
+static void breakStatement(struct GlobalState * state) {
+	if (state->current->breakSpace < state->current->breakCount + 1) {
+		size_t old = state->current->breakSpace;
+		state->current->breakSpace = GROW_CAPACITY(old);
+		state->current->breaks = GROW_ARRAY(struct LoopExit,state->current->breaks,old,state->current->breakSpace);
 	}
 
-	for (size_t i = current->loopLocalCount; i < current->localCount; ++i) {
+	for (size_t i = state->current->loopLocalCount; i < state->current->localCount; ++i) {
 		emitByte(OP_POP);
 	}
-	current->breaks[current->breakCount++] = (struct LoopExit){emitJump(OP_JUMP),parser.previous};
+	state->current->breaks[state->current->breakCount++] = (struct LoopExit){emitJump(OP_JUMP),state->parser.previous};
 }
 
-static void continueStatement(void) {
-	if (current->continueSpace < current->continueCount + 1) {
-		size_t old = current->continueSpace;
-		current->continueSpace = GROW_CAPACITY(old);
-		current->continues = GROW_ARRAY(struct LoopExit,current->continues,old,current->continueSpace);
+static void continueStatement(struct GlobalState * state) {
+	if (state->current->continueSpace < state->current->continueCount + 1) {
+		size_t old = state->current->continueSpace;
+		state->current->continueSpace = GROW_CAPACITY(old);
+		state->current->continues = GROW_ARRAY(struct LoopExit,state->current->continues,old,state->current->continueSpace);
 	}
 
-	for (size_t i = current->loopLocalCount; i < current->localCount; ++i) {
+	for (size_t i = state->current->loopLocalCount; i < state->current->localCount; ++i) {
 		emitByte(OP_POP);
 	}
-	current->continues[current->continueCount++] = (struct LoopExit){emitJump(OP_JUMP),parser.previous};
+	state->current->continues[state->current->continueCount++] = (struct LoopExit){emitJump(OP_JUMP),state->parser.previous};
 }
 
-static void optionalElse(size_t blockWidth) {
-	KrkScanner scannerBefore = krk_tellScanner();
-	Parser  parserBefore = parser;
-	if (blockWidth == 0 || (check(TOKEN_INDENTATION) && (parser.current.length == blockWidth))) {
+static void optionalElse(struct GlobalState * state, size_t blockWidth) {
+	KrkScanner scannerBefore = krk_tellScanner(&state->scanner);
+	Parser  parserBefore = state->parser;
+	if (blockWidth == 0 || (check(TOKEN_INDENTATION) && (state->parser.current.length == blockWidth))) {
 		if (blockWidth) advance();
 		if (match(TOKEN_ELSE)) {
 			consume(TOKEN_COLON, "Expected ':' after 'else'.");
-			beginScope();
-			block(blockWidth,"else");
-			endScope();
+			beginScope(state);
+			block(state,blockWidth,"else");
+			endScope(state);
 		} else {
-			krk_rewindScanner(scannerBefore);
-			parser = parserBefore;
+			krk_rewindScanner(&state->scanner, scannerBefore);
+			state->parser = parserBefore;
 		}
 	}
 }
 
-static void whileStatement(void) {
-	size_t blockWidth = (parser.previous.type == TOKEN_INDENTATION) ? parser.previous.length : 0;
+static void whileStatement(struct GlobalState * state) {
+	size_t blockWidth = (state->parser.previous.type == TOKEN_INDENTATION) ? state->parser.previous.length : 0;
 	advance();
 
 	int loopStart = currentChunk()->count;
 	int exitJump = 0;
 
 	/* Identify two common infinite loops and optimize them (True and 1) */
-	RewindState rewind = {recordChunk(currentChunk()), krk_tellScanner(), parser};
+	RewindState rewind = {recordChunk(currentChunk()), krk_tellScanner(&state->scanner), state->parser};
 	if (!(match(TOKEN_TRUE) && match(TOKEN_COLON)) &&
-	    !(match(TOKEN_NUMBER) && (parser.previous.length == 1 && *parser.previous.start == '1') && match(TOKEN_COLON))) {
+	    !(match(TOKEN_NUMBER) && (state->parser.previous.length == 1 && *state->parser.previous.start == '1') && match(TOKEN_COLON))) {
 		/* We did not match a common infinite loop, roll back... */
-		krk_rewindScanner(rewind.oldScanner);
-		parser = rewind.oldParser;
+		krk_rewindScanner(&state->scanner, rewind.oldScanner);
+		state->parser = rewind.oldParser;
 
 		/* Otherwise, compile a real loop condition. */
-		expression();
+		expression(state);
 		consume(TOKEN_COLON, "Expected ':' after 'while' condition.");
 
 		exitJump = emitJump(OP_JUMP_IF_FALSE_OR_POP);
 	}
 
-	int oldLocalCount = current->loopLocalCount;
-	current->loopLocalCount = current->localCount;
-	beginScope();
-	block(blockWidth,"while");
-	endScope();
+	int oldLocalCount = state->current->loopLocalCount;
+	state->current->loopLocalCount = state->current->localCount;
+	beginScope(state);
+	block(state,blockWidth,"while");
+	endScope(state);
 
-	current->loopLocalCount = oldLocalCount;
-	emitLoop(loopStart, OP_LOOP);
+	state->current->loopLocalCount = oldLocalCount;
+	emitLoop(state, loopStart, OP_LOOP);
 
 	if (exitJump) {
 		patchJump(exitJump);
@@ -2015,20 +2060,20 @@ static void whileStatement(void) {
 
 	/* else: block must still be compiled even if we optimized
 	 * out the loop condition check... */
-	optionalElse(blockWidth);
+	optionalElse(state, blockWidth);
 
-	patchBreaks(loopStart);
+	patchBreaks(state, loopStart);
 }
 
-static void forStatement(void) {
+static void forStatement(struct GlobalState * state) {
 	/* I'm not sure if I want this to be more like Python or C/Lox/etc. */
-	size_t blockWidth = (parser.previous.type == TOKEN_INDENTATION) ? parser.previous.length : 0;
+	size_t blockWidth = (state->parser.previous.type == TOKEN_INDENTATION) ? state->parser.previous.length : 0;
 	advance();
 
 	/* For now this is going to be kinda broken */
-	beginScope();
+	beginScope(state);
 
-	ssize_t loopInd = current->localCount;
+	ssize_t loopInd = state->current->localCount;
 	int sawComma = 0;
 	ssize_t varCount = 0;
 	int matchedEquals = 0;
@@ -2040,15 +2085,15 @@ static void forStatement(void) {
 
 	do {
 		if (!check(TOKEN_IDENTIFIER)) break;
-		ssize_t ind = parseVariable("Expected name for loop iterator.");
-		if (parser.hadError) return;
+		ssize_t ind = parseVariable(state, "Expected name for loop iterator.");
+		if (state->parser.hadError) return;
 		if (match(TOKEN_EQUAL)) {
 			matchedEquals = 1;
-			expression();
+			expression(state);
 		} else {
 			emitByte(OP_NONE);
 		}
-		defineVariable(ind);
+		defineVariable(state, ind);
 		varCount++;
 		if (check(TOKEN_COMMA)) sawComma = 1;
 	} while (match(TOKEN_COMMA));
@@ -2059,11 +2104,11 @@ static void forStatement(void) {
 
 	if (!matchedEquals && match(TOKEN_IN)) {
 
-		beginScope();
-		expression();
-		endScope();
+		beginScope(state);
+		expression(state);
+		endScope(state);
 
-		anonymousLocal();
+		anonymousLocal(state);
 		emitByte(OP_INVOKE_ITER);
 		loopStart = currentChunk()->count;
 		exitJump = emitJump(OP_CALL_ITER);
@@ -2083,22 +2128,22 @@ static void forStatement(void) {
 		consume(TOKEN_SEMICOLON,"Expected ';' after C-style loop initializer.");
 		loopStart = currentChunk()->count;
 
-		beginScope();
-		expression(); /* condition */
-		endScope();
+		beginScope(state);
+		expression(state); /* condition */
+		endScope(state);
 		exitJump = emitJump(OP_JUMP_IF_FALSE_OR_POP);
 
 		if (check(TOKEN_SEMICOLON)) {
 			advance();
 			int bodyJump = emitJump(OP_JUMP);
 			int incrementStart = currentChunk()->count;
-			beginScope();
+			beginScope(state);
 			do {
-				expressionStatement();
+				expressionStatement(state);
 			} while (match(TOKEN_COMMA));
-			endScope();
+			endScope(state);
 
-			emitLoop(loopStart, OP_LOOP);
+			emitLoop(state, loopStart, OP_LOOP);
 			loopStart = incrementStart;
 			patchJump(bodyJump);
 		}
@@ -2106,50 +2151,50 @@ static void forStatement(void) {
 
 	consume(TOKEN_COLON,"Expected ':' after loop conditions.");
 
-	int oldLocalCount = current->loopLocalCount;
-	current->loopLocalCount = current->localCount;
-	beginScope();
-	block(blockWidth,"for");
-	endScope();
+	int oldLocalCount = state->current->loopLocalCount;
+	state->current->loopLocalCount = state->current->localCount;
+	beginScope(state);
+	block(state,blockWidth,"for");
+	endScope(state);
 
-	current->loopLocalCount = oldLocalCount;
-	emitLoop(loopStart, isIter ? OP_LOOP_ITER : OP_LOOP);
+	state->current->loopLocalCount = oldLocalCount;
+	emitLoop(state, loopStart, isIter ? OP_LOOP_ITER : OP_LOOP);
 	patchJump(exitJump);
 	emitByte(OP_POP);
-	optionalElse(blockWidth);
-	patchBreaks(loopStart);
-	endScope();
+	optionalElse(state, blockWidth);
+	patchBreaks(state, loopStart);
+	endScope(state);
 }
 
-static void returnStatement(void) {
+static void returnStatement(struct GlobalState * state) {
 	if (check(TOKEN_EOL) || check(TOKEN_EOF)) {
-		emitReturn();
+		emitReturn(state);
 	} else {
-		if (current->type == TYPE_INIT) {
+		if (state->current->type == TYPE_INIT) {
 			error("__init__ may not return a value.");
 		}
-		parsePrecedence(PREC_ASSIGNMENT);
+		parsePrecedence(state, PREC_ASSIGNMENT);
 		emitByte(OP_RETURN);
 	}
 }
 
-static void tryStatement(void) {
-	size_t blockWidth = (parser.previous.type == TOKEN_INDENTATION) ? parser.previous.length : 0;
+static void tryStatement(struct GlobalState * state) {
+	size_t blockWidth = (state->parser.previous.type == TOKEN_INDENTATION) ? state->parser.previous.length : 0;
 	advance();
 	consume(TOKEN_COLON, "Expected ':' after 'try'.");
 
 	/* Make sure we are in a local scope so this ends up on the stack */
-	beginScope();
+	beginScope(state);
 	int tryJump = emitJump(OP_PUSH_TRY);
 
-	size_t exceptionObject = anonymousLocal();
-	anonymousLocal(); /* Try */
+	size_t exceptionObject = anonymousLocal(state);
+	anonymousLocal(state); /* Try */
 
-	beginScope();
-	block(blockWidth,"try");
-	endScope();
+	beginScope(state);
+	block(state,blockWidth,"try");
+	endScope(state);
 
-	if (parser.hadError) return;
+	if (state->parser.hadError) return;
 
 #define EXIT_JUMP_MAX 32
 	int exitJumps = 1;
@@ -2161,11 +2206,11 @@ static void tryStatement(void) {
 	int nextJump = -1;
 
 _anotherExcept:
-	if (parser.hadError) return;
-	if (blockWidth == 0 || (check(TOKEN_INDENTATION) && (parser.current.length == blockWidth))) {
+	if (state->parser.hadError) return;
+	if (blockWidth == 0 || (check(TOKEN_INDENTATION) && (state->parser.current.length == blockWidth))) {
 		KrkToken previous;
 		if (blockWidth) {
-			previous = parser.previous;
+			previous = state->parser.previous;
 			advance();
 		}
 		if (match(TOKEN_EXCEPT)) {
@@ -2175,7 +2220,7 @@ _anotherExcept:
 			}
 			/* Match filter expression (should be class or tuple) */
 			if (!check(TOKEN_COLON) && !check(TOKEN_AS)) {
-				expression();
+				expression(state);
 			} else {
 				emitByte(OP_NONE);
 			}
@@ -2185,20 +2230,20 @@ _anotherExcept:
 			/* Match 'as' to rename exception */
 			if (match(TOKEN_AS)) {
 				consume(TOKEN_IDENTIFIER, "Expected identifier after 'as'.");
-				current->locals[exceptionObject].name = parser.previous;
+				state->current->locals[exceptionObject].name = state->parser.previous;
 			} else {
 				/* XXX Should we remove this now? */
-				current->locals[exceptionObject].name = syntheticToken("exception");
+				state->current->locals[exceptionObject].name = syntheticToken("exception");
 			}
 
-			size_t nameInd = renameLocal(exceptionObject, current->locals[exceptionObject].name);
+			size_t nameInd = renameLocal(state, exceptionObject, state->current->locals[exceptionObject].name);
 
 			consume(TOKEN_COLON, "Expected ':' after 'except'.");
-			beginScope();
-			block(blockWidth,"except");
-			endScope();
+			beginScope(state);
+			block(state,blockWidth,"except");
+			endScope(state);
 
-			current->codeobject->localNames[nameInd].deathday = (size_t)currentChunk()->count;
+			state->current->codeobject->localNames[nameInd].deathday = (size_t)currentChunk()->count;
 
 			if (exitJumps < EXIT_JUMP_MAX) {
 				exitJumpOffsets[exitJumps++] = emitJump(OP_JUMP);
@@ -2213,7 +2258,7 @@ _anotherExcept:
 			for (int i = 0; i < exitJumps; ++i) {
 				patchJump(exitJumpOffsets[i]);
 			}
-			size_t nameInd = renameLocal(exceptionObject, syntheticToken("__tmp"));
+			size_t nameInd = renameLocal(state, exceptionObject, syntheticToken("__tmp"));
 			emitByte(OP_BEGIN_FINALLY);
 			exitJumps = 0;
 			if (nextJump != -1) {
@@ -2221,17 +2266,17 @@ _anotherExcept:
 				patchJump(nextJump);
 				emitByte(OP_POP);
 			}
-			beginScope();
-			block(blockWidth,"finally");
-			endScope();
+			beginScope(state);
+			block(state,blockWidth,"finally");
+			endScope(state);
 			nextJump = -2;
-			current->codeobject->localNames[nameInd].deathday = (size_t)currentChunk()->count;
+			state->current->codeobject->localNames[nameInd].deathday = (size_t)currentChunk()->count;
 			emitByte(OP_END_FINALLY);
 		} else if (!check(TOKEN_EOL) && !check(TOKEN_EOF)) {
-			krk_ungetToken(parser.current);
-			parser.current = parser.previous;
+			krk_ungetToken(&state->scanner, state->parser.current);
+			state->parser.current = state->parser.previous;
 			if (blockWidth) {
-				parser.previous = previous;
+				state->parser.previous = previous;
 			}
 		} else {
 			advance(); /* Ignore this blank indentation line */
@@ -2250,21 +2295,21 @@ _anotherExcept:
 		emitByte(OP_END_FINALLY);
 	}
 
-	endScope(); /* will pop the exception handler */
+	endScope(state); /* will pop the exception handler */
 }
 
-static void raiseStatement(void) {
-	parsePrecedence(PREC_ASSIGNMENT);
+static void raiseStatement(struct GlobalState * state) {
+	parsePrecedence(state, PREC_ASSIGNMENT);
 
 	if (match(TOKEN_FROM)) {
-		parsePrecedence(PREC_ASSIGNMENT);
+		parsePrecedence(state, PREC_ASSIGNMENT);
 		emitByte(OP_RAISE_FROM);
 	} else {
 		emitByte(OP_RAISE);
 	}
 }
 
-static size_t importModule(KrkToken * startOfName, int leadingDots) {
+static size_t importModule(struct GlobalState * state, KrkToken * startOfName, int leadingDots) {
 	size_t ind = 0;
 	struct StringBuilder sb = {0};
 
@@ -2274,21 +2319,21 @@ static size_t importModule(KrkToken * startOfName, int leadingDots) {
 
 	if (!(leadingDots && check(TOKEN_IMPORT))) {
 		consume(TOKEN_IDENTIFIER, "Expected module name after 'import'.");
-		if (parser.hadError) goto _freeImportName;
-		pushStringBuilderStr(&sb, parser.previous.start, parser.previous.length);
+		if (state->parser.hadError) goto _freeImportName;
+		pushStringBuilderStr(&sb, state->parser.previous.start, state->parser.previous.length);
 
 		while (match(TOKEN_DOT)) {
-			pushStringBuilderStr(&sb, parser.previous.start, parser.previous.length);
+			pushStringBuilderStr(&sb, state->parser.previous.start, state->parser.previous.length);
 			consume(TOKEN_IDENTIFIER, "Expected module path element after '.'");
-			if (parser.hadError) goto _freeImportName;
-			pushStringBuilderStr(&sb, parser.previous.start, parser.previous.length);
+			if (state->parser.hadError) goto _freeImportName;
+			pushStringBuilderStr(&sb, state->parser.previous.start, state->parser.previous.length);
 		}
 	}
 
 	startOfName->start  = sb.bytes;
 	startOfName->length = sb.length;
 
-	ind = identifierConstant(startOfName);
+	ind = identifierConstant(state, startOfName);
 	EMIT_OPERAND_OP(OP_IMPORT, ind);
 
 _freeImportName:
@@ -2296,14 +2341,14 @@ _freeImportName:
 	return ind;
 }
 
-static void importStatement(void) {
+static void importStatement(struct GlobalState * state) {
 	do {
-		KrkToken firstName = parser.current;
+		KrkToken firstName = state->parser.current;
 		KrkToken startOfName = {0};
-		size_t ind = importModule(&startOfName, 0);
+		size_t ind = importModule(state, &startOfName, 0);
 		if (match(TOKEN_AS)) {
 			consume(TOKEN_IDENTIFIER, "Expected identifier after 'as'.");
-			ind = identifierConstant(&parser.previous);
+			ind = identifierConstant(state, &state->parser.previous);
 		} else if (startOfName.length != firstName.length) {
 			/**
 			 * We imported foo.bar.baz and 'baz' is now on the stack with no name.
@@ -2313,16 +2358,16 @@ static void importStatement(void) {
 			 * 'foo' directly, and put 'foo' into the appropriate namespace.
 			 */
 			emitByte(OP_POP);
-			parser.previous = firstName;
-			ind = identifierConstant(&firstName);
+			state->parser.previous = firstName;
+			ind = identifierConstant(state, &firstName);
 			EMIT_OPERAND_OP(OP_IMPORT, ind);
 		}
-		declareVariable();
-		defineVariable(ind);
+		declareVariable(state);
+		defineVariable(state, ind);
 	} while (match(TOKEN_COMMA));
 }
 
-static void optionsImport(void) {
+static void optionsImport(struct GlobalState * state) {
 	int expectCloseParen = 0;
 
 	KrkToken compile_time_builtins = syntheticToken("compile_time_builtins");
@@ -2339,11 +2384,11 @@ static void optionsImport(void) {
 		consume(TOKEN_IDENTIFIER, "Expected member name");
 
 		/* Okay, what is it? */
-		if (identifiersEqual(&parser.previous, &compile_time_builtins)) {
-			current->optionsFlags |= OPTIONS_FLAG_COMPILE_TIME_BUILTINS;
+		if (identifiersEqual(&state->parser.previous, &compile_time_builtins)) {
+			state->current->optionsFlags |= OPTIONS_FLAG_COMPILE_TIME_BUILTINS;
 		} else {
 			error("'%.*s' is not a recognized __options__ import",
-				(int)parser.previous.length, parser.previous.start);
+				(int)state->parser.previous.length, state->parser.previous.start);
 			break;
 		}
 
@@ -2360,15 +2405,15 @@ static void optionsImport(void) {
 	}
 }
 
-static void fromImportStatement(void) {
+static void fromImportStatement(struct GlobalState * state) {
 	int expectCloseParen = 0;
 	KrkToken startOfName = {0};
 	int leadingDots = 0;
 
 	KrkToken options = syntheticToken("__options__");
-	if (check(TOKEN_IDENTIFIER) && identifiersEqual(&parser.current, &options)) {
+	if (check(TOKEN_IDENTIFIER) && identifiersEqual(&state->parser.current, &options)) {
 		/* from __options__ import ... */
-		optionsImport();
+		optionsImport(state);
 		return;
 	}
 
@@ -2376,7 +2421,7 @@ static void fromImportStatement(void) {
 		leadingDots++;
 	}
 
-	importModule(&startOfName, leadingDots);
+	importModule(state, &startOfName, leadingDots);
 	consume(TOKEN_IMPORT, "Expected 'import' after module name");
 	if (match(TOKEN_LEFT_PAREN)) {
 		expectCloseParen = 1;
@@ -2384,19 +2429,19 @@ static void fromImportStatement(void) {
 	}
 	do {
 		consume(TOKEN_IDENTIFIER, "Expected member name");
-		size_t member = identifierConstant(&parser.previous);
+		size_t member = identifierConstant(state, &state->parser.previous);
 		emitBytes(OP_DUP, 0); /* Duplicate the package object so we can GET_PROPERTY on it? */
 		EMIT_OPERAND_OP(OP_IMPORT_FROM, member);
 		if (match(TOKEN_AS)) {
 			consume(TOKEN_IDENTIFIER, "Expected identifier after 'as'");
-			member = identifierConstant(&parser.previous);
+			member = identifierConstant(state, &state->parser.previous);
 		}
-		if (current->scopeDepth) {
+		if (state->current->scopeDepth) {
 			/* Swaps the original module and the new possible local so it can be in the right place */
 			emitByte(OP_SWAP);
 		}
-		declareVariable();
-		defineVariable(member);
+		declareVariable(state);
+		defineVariable(state, member);
 	} while (match(TOKEN_COMMA) && !check(TOKEN_RIGHT_PAREN));
 	if (expectCloseParen) {
 		stopEatingWhitespace();
@@ -2405,27 +2450,27 @@ static void fromImportStatement(void) {
 	emitByte(OP_POP); /* Pop the remaining copy of the module. */
 }
 
-static void delStatement(void) {
+static void delStatement(struct GlobalState * state) {
 	do {
-		current->delSatisfied = 0;
-		parsePrecedence(PREC_DEL_TARGET);
-		if (!current->delSatisfied) {
+		state->current->delSatisfied = 0;
+		parsePrecedence(state, PREC_DEL_TARGET);
+		if (!state->current->delSatisfied) {
 			errorAtCurrent("Invalid del target");
 		}
 	} while (match(TOKEN_COMMA));
 }
 
-static void assertStatement(void) {
-	expression();
+static void assertStatement(struct GlobalState * state) {
+	expression(state);
 	int elseJump = emitJump(OP_JUMP_IF_TRUE_OR_POP);
 
 	KrkToken assertionError = syntheticToken("AssertionError");
-	size_t ind = identifierConstant(&assertionError);
+	size_t ind = identifierConstant(state, &assertionError);
 	EMIT_OPERAND_OP(OP_GET_GLOBAL, ind);
 	int args = 0;
 
 	if (match(TOKEN_COMMA)) {
-		expression();
+		expression(state);
 		args = 1;
 	}
 
@@ -2436,13 +2481,13 @@ static void assertStatement(void) {
 	emitByte(OP_POP);
 }
 
-static void errorAfterStatement(void) {
-	switch (parser.current.type) {
+static void errorAfterStatement(struct GlobalState * state) {
+	switch (state->parser.current.type) {
 		case TOKEN_RIGHT_BRACE:
 		case TOKEN_RIGHT_PAREN:
 		case TOKEN_RIGHT_SQUARE:
 			errorAtCurrent("Unmatched '%.*s'",
-				(int)parser.current.length, parser.current.start);
+				(int)state->parser.current.length, state->parser.current.start);
 			break;
 		case TOKEN_IDENTIFIER:
 			errorAtCurrent("Unexpected %.*s after statement.",10,"identifier");
@@ -2453,116 +2498,116 @@ static void errorAfterStatement(void) {
 			break;
 		default:
 			errorAtCurrent("Unexpected %.*s after statement.",
-				(int)parser.current.length, parser.current.start);
+				(int)state->parser.current.length, state->parser.current.start);
 	}
 }
 
-static void simpleStatement(void) {
+static void simpleStatement(struct GlobalState * state) {
 _anotherSimpleStatement:
 	if (match(TOKEN_RAISE)) {
-		raiseStatement();
+		raiseStatement(state);
 	} else if (match(TOKEN_RETURN)) {
-		returnStatement();
+		returnStatement(state);
 	} else if (match(TOKEN_IMPORT)) {
-		importStatement();
+		importStatement(state);
 	} else if (match(TOKEN_FROM)) {
-		fromImportStatement();
+		fromImportStatement(state);
 	} else if (match(TOKEN_BREAK)) {
-		breakStatement();
+		breakStatement(state);
 	} else if (match(TOKEN_CONTINUE)) {
-		continueStatement();
+		continueStatement(state);
 	} else if (match(TOKEN_DEL)) {
-		delStatement();
+		delStatement(state);
 	} else if (match(TOKEN_ASSERT)) {
-		assertStatement();
+		assertStatement(state);
 	} else if (match(TOKEN_PASS)) {
 		/* Do nothing. */
 	} else {
-		expressionStatement();
+		expressionStatement(state);
 	}
 	if (match(TOKEN_SEMICOLON)) goto _anotherSimpleStatement;
 	if (!match(TOKEN_EOL) && !match(TOKEN_EOF)) {
-		errorAfterStatement();
+		errorAfterStatement(state);
 	}
 }
 
-static void statement(void) {
+static void statement(struct GlobalState * state) {
 	if (match(TOKEN_EOL) || match(TOKEN_EOF)) {
 		return; /* Meaningless blank line */
 	}
 
 	if (check(TOKEN_IF)) {
-		ifStatement();
+		ifStatement(state);
 	} else if (check(TOKEN_WHILE)) {
-		whileStatement();
+		whileStatement(state);
 	} else if (check(TOKEN_FOR)) {
-		forStatement();
+		forStatement(state);
 	} else if (check(TOKEN_ASYNC)) {
-		asyncDeclaration(0);
+		asyncDeclaration(state, 0);
 	} else if (check(TOKEN_TRY)) {
-		tryStatement();
+		tryStatement(state);
 	} else if (check(TOKEN_WITH)) {
-		withStatement();
+		withStatement(state);
 	} else {
 		/* These statements don't eat line feeds, so we need expect to see another one. */
-		simpleStatement();
+		simpleStatement(state);
 	}
 }
 
-static void yield(int exprType) {
-	if (current->type == TYPE_MODULE ||
-		current->type == TYPE_INIT ||
-		current->type == TYPE_CLASS) {
+static void yield(struct GlobalState * state, int exprType) {
+	if (state->current->type == TYPE_MODULE ||
+		state->current->type == TYPE_INIT ||
+		state->current->type == TYPE_CLASS) {
 		error("'yield' outside function");
 		return;
 	}
-	current->codeobject->obj.flags |= KRK_OBJ_FLAGS_CODEOBJECT_IS_GENERATOR;
+	state->current->codeobject->obj.flags |= KRK_OBJ_FLAGS_CODEOBJECT_IS_GENERATOR;
 	if (match(TOKEN_FROM)) {
-		parsePrecedence(PREC_ASSIGNMENT);
+		parsePrecedence(state, PREC_ASSIGNMENT);
 		emitByte(OP_INVOKE_ITER);
 		emitByte(OP_NONE);
 		size_t loopContinue = currentChunk()->count;
 		size_t exitJump = emitJump(OP_YIELD_FROM);
 		emitByte(OP_YIELD);
-		emitLoop(loopContinue, OP_LOOP);
+		emitLoop(state, loopContinue, OP_LOOP);
 		patchJump(exitJump);
 	} else if (check(TOKEN_EOL) || check(TOKEN_EOF) || check(TOKEN_RIGHT_PAREN) || check(TOKEN_RIGHT_BRACE)) {
 		emitByte(OP_NONE);
 		emitByte(OP_YIELD);
 	} else {
-		parsePrecedence(PREC_ASSIGNMENT);
+		parsePrecedence(state, PREC_ASSIGNMENT);
 		emitByte(OP_YIELD);
 	}
-	invalidTarget(exprType, "yield");
+	invalidTarget(state, exprType, "yield");
 }
 
-static void await(int exprType) {
-	if (!isCoroutine(current->type)) {
+static void await(struct GlobalState * state, int exprType) {
+	if (!isCoroutine(state->current->type)) {
 		error("'await' outside async function");
 		return;
 	}
 
-	parsePrecedence(PREC_ASSIGNMENT);
+	parsePrecedence(state, PREC_ASSIGNMENT);
 	emitByte(OP_INVOKE_AWAIT);
 	emitByte(OP_NONE);
 	size_t loopContinue = currentChunk()->count;
 	size_t exitJump = emitJump(OP_YIELD_FROM);
 	emitByte(OP_YIELD);
-	emitLoop(loopContinue, OP_LOOP);
+	emitLoop(state, loopContinue, OP_LOOP);
 	patchJump(exitJump);
-	invalidTarget(exprType, "await");
+	invalidTarget(state, exprType, "await");
 }
 
-static void unot_(int exprType) {
-	parsePrecedence(PREC_NOT);
+static void unot_(struct GlobalState * state, int exprType) {
+	parsePrecedence(state, PREC_NOT);
 	emitByte(OP_NOT);
-	invalidTarget(exprType, "operator");
+	invalidTarget(state, exprType, "operator");
 }
 
-static void unary(int exprType) {
-	KrkTokenType operatorType = parser.previous.type;
-	parsePrecedence(PREC_FACTOR);
-	invalidTarget(exprType, "operator");
+static void unary(struct GlobalState * state, int exprType) {
+	KrkTokenType operatorType = state->parser.previous.type;
+	parsePrecedence(state, PREC_FACTOR);
+	invalidTarget(state, exprType, "operator");
 	switch (operatorType) {
 		case TOKEN_PLUS:  emitByte(OP_POS); break;
 		case TOKEN_MINUS: emitByte(OP_NEGATE); break;
@@ -2576,7 +2621,7 @@ static int isHex(int c) {
 	return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
 }
 
-static void string(int exprType) {
+static void string(struct GlobalState * state, int exprType) {
 	/* We'll just build with a flexible array like everything else. */
 	size_t stringCapacity = 0;
 	size_t stringLength   = 0;
@@ -2609,12 +2654,12 @@ static void string(int exprType) {
 	for (size_t i = 0; i < len; i++) PUSH_CHAR(bytes[i]); \
 } while (0)
 
-	int isBytes = (parser.previous.type == TOKEN_PREFIX_B);
-	int isFormat = (parser.previous.type == TOKEN_PREFIX_F);
-	int isRaw = (parser.previous.type == TOKEN_PREFIX_R);
+	int isBytes = (state->parser.previous.type == TOKEN_PREFIX_B);
+	int isFormat = (state->parser.previous.type == TOKEN_PREFIX_F);
+	int isRaw = (state->parser.previous.type == TOKEN_PREFIX_R);
 
-	const char * lineBefore = krk_tellScanner().linePtr;
-	size_t lineNo = krk_tellScanner().line;
+	const char * lineBefore = krk_tellScanner(&state->scanner).linePtr;
+	size_t lineNo = krk_tellScanner(&state->scanner).line;
 
 	if ((isBytes || isFormat || isRaw) && !(match(TOKEN_STRING) || match(TOKEN_BIG_STRING))) {
 		error("Expected string after prefix? (Internal error - scanner should not have produced this.)");
@@ -2626,14 +2671,14 @@ static void string(int exprType) {
 	/* This should capture everything but the quotes. */
 	do {
 		if (isRaw) {
-			for (size_t i = 0; i < parser.previous.length - (parser.previous.type == TOKEN_BIG_STRING ? 6 : 2); ++i) {
-				PUSH_CHAR(parser.previous.start[(parser.previous.type == TOKEN_BIG_STRING ? 3 : 1) + i]);
+			for (size_t i = 0; i < state->parser.previous.length - (state->parser.previous.type == TOKEN_BIG_STRING ? 6 : 2); ++i) {
+				PUSH_CHAR(state->parser.previous.start[(state->parser.previous.type == TOKEN_BIG_STRING ? 3 : 1) + i]);
 			}
 			goto _nextStr;
 		}
-		int type = parser.previous.type == TOKEN_BIG_STRING ? 3 : 1;
-		const char * c = parser.previous.start + type;
-		const char * end = parser.previous.start + parser.previous.length - type;
+		int type = state->parser.previous.type == TOKEN_BIG_STRING ? 3 : 1;
+		const char * c = state->parser.previous.start + type;
+		const char * end = state->parser.previous.start + state->parser.previous.length - type;
 		while (c < end) {
 			if (*c == '\\') {
 				switch (c[1]) {
@@ -2720,16 +2765,16 @@ static void string(int exprType) {
 				}
 				const char * start = c+1;
 				stringLength = 0;
-				KrkScanner beforeExpression = krk_tellScanner();
-				Parser  parserBefore = parser;
+				KrkScanner beforeExpression = krk_tellScanner(&state->scanner);
+				Parser  parserBefore = state->parser;
 				KrkScanner inner = (KrkScanner){.start=c+1, .cur=c+1, .linePtr=lineBefore, .line=lineNo, .startOfLine = 0, .hasUnget = 0};
-				krk_rewindScanner(inner);
+				krk_rewindScanner(&state->scanner, inner);
 				advance();
-				parsePrecedence(PREC_COMMA); /* allow unparen'd tuples, but not assignments, as expressions in f-strings */
-				if (parser.hadError) goto _cleanupError;
-				inner = krk_tellScanner(); /* To figure out how far to advance c */
-				krk_rewindScanner(beforeExpression); /* To get us back to where we were with a string token */
-				parser = parserBefore;
+				parsePrecedence(state, PREC_COMMA); /* allow unparen'd tuples, but not assignments, as expressions in f-strings */
+				if (state->parser.hadError) goto _cleanupError;
+				inner = krk_tellScanner(&state->scanner); /* To figure out how far to advance c */
+				krk_rewindScanner(&state->scanner, beforeExpression); /* To get us back to where we were with a string token */
+				state->parser = parserBefore;
 				c = inner.start;
 
 				int formatType = 0;
@@ -2826,7 +2871,7 @@ _cleanupError:
 #undef PUSH_CHAR
 }
 
-static size_t addUpvalue(Compiler * compiler, ssize_t index, int isLocal) {
+static size_t addUpvalue(struct GlobalState * state, Compiler * compiler, ssize_t index, int isLocal) {
 	size_t upvalueCount = compiler->codeobject->upvalueCount;
 	for (size_t i = 0; i < upvalueCount; ++i) {
 		Upvalue * upvalue = &compiler->upvalues[i];
@@ -2844,16 +2889,16 @@ static size_t addUpvalue(Compiler * compiler, ssize_t index, int isLocal) {
 	return compiler->codeobject->upvalueCount++;
 }
 
-static ssize_t resolveUpvalue(Compiler * compiler, KrkToken * name) {
+static ssize_t resolveUpvalue(struct GlobalState * state, Compiler * compiler, KrkToken * name) {
 	if (compiler->enclosing == NULL) return -1;
-	ssize_t local = resolveLocal(compiler->enclosing, name);
+	ssize_t local = resolveLocal(state, compiler->enclosing, name);
 	if (local != -1) {
 		compiler->enclosing->locals[local].isCaptured = 1;
-		return addUpvalue(compiler, local, 1);
+		return addUpvalue(state, compiler, local, 1);
 	}
-	ssize_t upvalue = resolveUpvalue(compiler->enclosing, name);
+	ssize_t upvalue = resolveUpvalue(state, compiler->enclosing, name);
 	if (upvalue != -1) {
-		return addUpvalue(compiler, upvalue, 0);
+		return addUpvalue(state, compiler, upvalue, 0);
 	}
 	return -1;
 }
@@ -2861,30 +2906,30 @@ static ssize_t resolveUpvalue(Compiler * compiler, KrkToken * name) {
 #define OP_NONE_LONG -1
 #define DO_VARIABLE(opset,opget,opdel) do { \
 	if (exprType == EXPR_ASSIGN_TARGET) { \
-		if (matchComplexEnd()) { \
+		if (matchComplexEnd(state)) { \
 			EMIT_OPERAND_OP(opset, arg); \
 			break; \
 		} \
 		exprType = EXPR_NORMAL; \
 	} \
 	if (exprType == EXPR_CAN_ASSIGN && match(TOKEN_EQUAL)) { \
-		parsePrecedence(PREC_ASSIGNMENT); \
+		parsePrecedence(state, PREC_ASSIGNMENT); \
 		EMIT_OPERAND_OP(opset, arg); \
-	} else if (exprType == EXPR_CAN_ASSIGN && matchAssignment()) { \
+	} else if (exprType == EXPR_CAN_ASSIGN && matchAssignment(state)) { \
 		EMIT_OPERAND_OP(opget, arg); \
-		assignmentValue(); \
+		assignmentValue(state); \
 		EMIT_OPERAND_OP(opset, arg); \
-	} else if (exprType == EXPR_DEL_TARGET && checkEndOfDel()) {\
+	} else if (exprType == EXPR_DEL_TARGET && checkEndOfDel(state)) {\
 		if (opdel == OP_NONE) { emitByte(OP_NONE); EMIT_OPERAND_OP(opset, arg); } \
 		else { EMIT_OPERAND_OP(opdel, arg); } \
 	} else { \
 		EMIT_OPERAND_OP(opget, arg); \
 	} } while (0)
 
-static void namedVariable(KrkToken name, int exprType) {
-	if (current->type == TYPE_CLASS) {
+static void namedVariable(struct GlobalState * state, KrkToken name, int exprType) {
+	if (state->current->type == TYPE_CLASS) {
 		/* Only at the class body level, see if this is a class property. */
-		struct IndexWithNext * properties = current->properties;
+		struct IndexWithNext * properties = state->current->properties;
 		while (properties) {
 			KrkString * constant = AS_STRING(currentChunk()->constants.values[properties->ind]);
 			if (constant->length == name.length && !memcmp(constant->chars, name.start, name.length)) {
@@ -2896,21 +2941,21 @@ static void namedVariable(KrkToken name, int exprType) {
 			properties = properties->next;
 		}
 	}
-	ssize_t arg = resolveLocal(current, &name);
+	ssize_t arg = resolveLocal(state, state->current, &name);
 	if (arg != -1) {
 		DO_VARIABLE(OP_SET_LOCAL, OP_GET_LOCAL, OP_NONE);
-	} else if ((arg = resolveUpvalue(current, &name)) != -1) {
+	} else if ((arg = resolveUpvalue(state, state->current, &name)) != -1) {
 		DO_VARIABLE(OP_SET_UPVALUE, OP_GET_UPVALUE, OP_NONE);
 	} else {
-		if ((current->optionsFlags & OPTIONS_FLAG_COMPILE_TIME_BUILTINS) && *name.start != '_') {
+		if ((state->current->optionsFlags & OPTIONS_FLAG_COMPILE_TIME_BUILTINS) && *name.start != '_') {
 			KrkValue value;
 			if (krk_tableGet_fast(&vm.builtins->fields, krk_copyString(name.start, name.length), &value)) {
-				if ((exprType == EXPR_ASSIGN_TARGET && matchComplexEnd()) ||
+				if ((exprType == EXPR_ASSIGN_TARGET && matchComplexEnd(state)) ||
 					(exprType == EXPR_CAN_ASSIGN && match(TOKEN_EQUAL)) ||
-					(exprType == EXPR_CAN_ASSIGN && matchAssignment())) {
+					(exprType == EXPR_CAN_ASSIGN && matchAssignment(state))) {
 					error("Can not assign to '%.*s' when 'compile_time_builtins' is enabled.",
 						(int)name.length, name.start);
-				} else if (exprType == EXPR_DEL_TARGET && checkEndOfDel()) {
+				} else if (exprType == EXPR_DEL_TARGET && checkEndOfDel(state)) {
 					error("Can not delete '%.*s' when 'compile_time_builtins' is enabled.",
 						(int)name.length, name.start);
 				} else {
@@ -2919,31 +2964,31 @@ static void namedVariable(KrkToken name, int exprType) {
 				return;
 			}
 		}
-		arg = identifierConstant(&name);
+		arg = identifierConstant(state, &name);
 		DO_VARIABLE(OP_SET_GLOBAL, OP_GET_GLOBAL, OP_DEL_GLOBAL);
 	}
 }
 #undef DO_VARIABLE
 
-static void variable(int exprType) {
-	namedVariable(parser.previous, exprType);
+static void variable(struct GlobalState * state, int exprType) {
+	namedVariable(state, state->parser.previous, exprType);
 }
 
-static void super_(int exprType) {
+static void super_(struct GlobalState * state, int exprType) {
 	consume(TOKEN_LEFT_PAREN, "Expected 'super' to be called.");
 
 	/* Argument time */
 	if (match(TOKEN_RIGHT_PAREN)) {
-		if (!isMethod(current->type)) {
+		if (!isMethod(state->current->type)) {
 			error("super() outside of a method body requires arguments");
 			return;
 		}
-		namedVariable(currentClass->name, 0);
+		namedVariable(state, state->currentClass->name, 0);
 		EMIT_OPERAND_OP(OP_GET_LOCAL, 0);
 	} else {
-		expression();
+		expression(state);
 		if (match(TOKEN_COMMA)) {
-			expression();
+			expression(state);
 		} else {
 			emitByte(OP_UNSET);
 		}
@@ -2951,12 +2996,12 @@ static void super_(int exprType) {
 	}
 	consume(TOKEN_DOT, "Expected a field of 'super()' to be referenced.");
 	consume(TOKEN_IDENTIFIER, "Expected a field name.");
-	size_t ind = identifierConstant(&parser.previous);
+	size_t ind = identifierConstant(state, &state->parser.previous);
 	EMIT_OPERAND_OP(OP_GET_SUPER, ind);
 }
 
-static void comprehensionInner(KrkScanner scannerBefore, Parser parserBefore, void (*body)(size_t), size_t arg) {
-	ssize_t loopInd = current->localCount;
+static void comprehensionInner(struct GlobalState * state, KrkScanner scannerBefore, Parser parserBefore, void (*body)(struct GlobalState*,size_t), size_t arg) {
+	ssize_t loopInd = state->current->localCount;
 	ssize_t varCount = 0;
 	int sawComma = 0;
 	if (!check(TOKEN_IDENTIFIER)) {
@@ -2965,21 +3010,21 @@ static void comprehensionInner(KrkScanner scannerBefore, Parser parserBefore, vo
 	}
 	do {
 		if (!check(TOKEN_IDENTIFIER)) break;
-		defineVariable(parseVariable("Expected name for iteration variable."));
-		if (parser.hadError) return;
+		defineVariable(state, parseVariable(state, "Expected name for iteration variable."));
+		if (state->parser.hadError) return;
 		emitByte(OP_NONE);
-		defineVariable(loopInd);
+		defineVariable(state, loopInd);
 		varCount++;
 		if (check(TOKEN_COMMA)) sawComma = 1;
 	} while (match(TOKEN_COMMA));
 
 	consume(TOKEN_IN, "Only iterator loops (for ... in ...) are allowed in generator expressions.");
 
-	beginScope();
-	parsePrecedence(PREC_OR); /* Otherwise we can get trapped on a ternary */
-	endScope();
+	beginScope(state);
+	parsePrecedence(state, PREC_OR); /* Otherwise we can get trapped on a ternary */
+	endScope(state);
 
-	anonymousLocal();
+	anonymousLocal(state);
 	emitByte(OP_INVOKE_ITER);
 	int loopStart = currentChunk()->count;
 	int exitJump = emitJump(OP_CALL_ITER);
@@ -2994,37 +3039,37 @@ static void comprehensionInner(KrkScanner scannerBefore, Parser parserBefore, vo
 	}
 
 	if (match(TOKEN_IF)) {
-		parsePrecedence(PREC_OR);
+		parsePrecedence(state, PREC_OR);
 		int acceptJump = emitJump(OP_JUMP_IF_TRUE_OR_POP);
-		emitLoop(loopStart, OP_LOOP);
+		emitLoop(state, loopStart, OP_LOOP);
 		patchJump(acceptJump);
 		emitByte(OP_POP); /* Pop condition */
 	}
 
-	beginScope();
+	beginScope(state);
 	if (match(TOKEN_FOR)) {
-		comprehensionInner(scannerBefore, parserBefore, body, arg);
+		comprehensionInner(state, scannerBefore, parserBefore, body, arg);
 	} else {
-		KrkScanner scannerAfter = krk_tellScanner();
-		Parser  parserAfter = parser;
-		krk_rewindScanner(scannerBefore);
-		parser = parserBefore;
+		KrkScanner scannerAfter = krk_tellScanner(&state->scanner);
+		Parser  parserAfter = state->parser;
+		krk_rewindScanner(&state->scanner, scannerBefore);
+		state->parser = parserBefore;
 
-		body(arg);
+		body(state, arg);
 
-		krk_rewindScanner(scannerAfter);
-		parser = parserAfter;
+		krk_rewindScanner(&state->scanner, scannerAfter);
+		state->parser = parserAfter;
 	}
-	endScope();
+	endScope(state);
 
-	emitLoop(loopStart, OP_LOOP_ITER);
+	emitLoop(state, loopStart, OP_LOOP_ITER);
 	patchJump(exitJump);
 	emitByte(OP_POP);
 }
 
-static void yieldInner(size_t arg) {
+static void yieldInner(struct GlobalState * state, size_t arg) {
 	(void)arg;
-	expression();
+	expression(state);
 	emitBytes(OP_YIELD, OP_POP);
 }
 
@@ -3037,21 +3082,21 @@ static void yieldInner(size_t arg) {
  * @param parserBefore  Parser rewind state before the inner expression.
  * @param body Expression body parser function.
  */
-static void generatorExpression(KrkScanner scannerBefore, Parser parserBefore, void (*body)(size_t)) {
-	parser.previous = syntheticToken("<genexpr>");
+static void generatorExpression(struct GlobalState * state, KrkScanner scannerBefore, Parser parserBefore, void (*body)(struct GlobalState*,size_t)) {
+	state->parser.previous = syntheticToken("<genexpr>");
 	Compiler subcompiler;
-	initCompiler(&subcompiler, TYPE_FUNCTION);
+	initCompiler(state, &subcompiler, TYPE_FUNCTION);
 	subcompiler.codeobject->chunk.filename = subcompiler.enclosing->codeobject->chunk.filename;
 	subcompiler.codeobject->obj.flags |= KRK_OBJ_FLAGS_CODEOBJECT_IS_GENERATOR;
 
-	beginScope();
-	comprehensionInner(scannerBefore, parserBefore, body, 0);
-	endScope();
+	beginScope(state);
+	comprehensionInner(state, scannerBefore, parserBefore, body, 0);
+	endScope(state);
 
-	KrkCodeObject *subfunction = endCompiler();
+	KrkCodeObject *subfunction = endCompiler(state);
 	size_t indFunc = krk_addConstant(currentChunk(), OBJECT_VAL(subfunction));
 	EMIT_OPERAND_OP(OP_CLOSURE, indFunc);
-	doUpvalues(&subcompiler, subfunction);
+	doUpvalues(state, &subcompiler, subfunction);
 	freeCompiler(&subcompiler);
 	emitBytes(OP_CALL, 0);
 }
@@ -3066,27 +3111,27 @@ static void generatorExpression(KrkScanner scannerBefore, Parser parserBefore, v
  * @param body Expression body parser function.
  * @param type Opcode to create the initial collection object.
  */
-static void comprehensionExpression(KrkScanner scannerBefore, Parser parserBefore, void (*body)(size_t), int type) {
+static void comprehensionExpression(struct GlobalState * state, KrkScanner scannerBefore, Parser parserBefore, void (*body)(struct GlobalState *,size_t), int type) {
 	Compiler subcompiler;
-	initCompiler(&subcompiler, TYPE_FUNCTION);
+	initCompiler(state, &subcompiler, TYPE_FUNCTION);
 	subcompiler.codeobject->chunk.filename = subcompiler.enclosing->codeobject->chunk.filename;
 
-	beginScope();
+	beginScope(state);
 
 	/* Build an empty collection to fill up. */
 	emitBytes(type,0);
-	size_t ind = anonymousLocal();
+	size_t ind = anonymousLocal(state);
 
-	beginScope();
-	comprehensionInner(scannerBefore, parserBefore, body, ind);
-	endScope();
+	beginScope(state);
+	comprehensionInner(state, scannerBefore, parserBefore, body, ind);
+	endScope(state);
 
 	emitByte(OP_RETURN);
 
-	KrkCodeObject *subfunction = endCompiler();
+	KrkCodeObject *subfunction = endCompiler(state);
 	size_t indFunc = krk_addConstant(currentChunk(), OBJECT_VAL(subfunction));
 	EMIT_OPERAND_OP(OP_CLOSURE, indFunc);
-	doUpvalues(&subcompiler, subfunction);
+	doUpvalues(state, &subcompiler, subfunction);
 	freeCompiler(&subcompiler);
 	emitBytes(OP_CALL, 0);
 }
@@ -3098,11 +3143,11 @@ static void comprehensionExpression(KrkScanner scannerBefore, Parser parserBefor
  *
  * @param exprType Assignment target type.
  */
-static void parens(int exprType) {
+static void parens(struct GlobalState * state, int exprType) {
 	/* Record parser state before processing contents. */
 	ChunkRecorder before = recordChunk(currentChunk());
-	KrkScanner scannerBefore = krk_tellScanner();
-	Parser  parserBefore = parser;
+	KrkScanner scannerBefore = krk_tellScanner(&state->scanner);
+	Parser  parserBefore = state->parser;
 
 	/*
 	 * Generator expressions are not valid assignment targets, nor are
@@ -3120,7 +3165,7 @@ static void parens(int exprType) {
 		/* Empty paren pair () is an empty tuple. */
 		emitBytes(OP_TUPLE,0);
 	} else {
-		parsePrecedence(PREC_CAN_ASSIGN);
+		parsePrecedence(state, PREC_CAN_ASSIGN);
 		maybeValidAssignment = 1;
 		argCount = 1;
 
@@ -3128,13 +3173,13 @@ static void parens(int exprType) {
 			/* Parse generator expression. */
 			maybeValidAssignment = 0;
 			rewindChunk(currentChunk(), before);
-			generatorExpression(scannerBefore, parserBefore, yieldInner);
+			generatorExpression(state, scannerBefore, parserBefore, yieldInner);
 		} else if (match(TOKEN_COMMA)) {
 			/* Parse as tuple literal. */
 			if (!check(TOKEN_RIGHT_PAREN)) {
 				/* (expr,) is a valid single-element tuple, so we need to check for that. */
 				do {
-					expression();
+					expression(state);
 					argCount++;
 				} while (match(TOKEN_COMMA) && !check(TOKEN_RIGHT_PAREN));
 			}
@@ -3145,7 +3190,7 @@ static void parens(int exprType) {
 	stopEatingWhitespace();
 
 	if (!match(TOKEN_RIGHT_PAREN)) {
-		switch (parser.current.type) {
+		switch (state->parser.current.type) {
 			case TOKEN_EQUAL: error("Assignment value expression must be enclosed in parentheses."); break;
 			default: error("Expected ')' at end of parenthesized expression."); break;
 		}
@@ -3157,7 +3202,7 @@ static void parens(int exprType) {
 		} else if (!maybeValidAssignment) {
 			error("Can not assign to generator expression.");
 		} else {
-			complexAssignment(before, scannerBefore, parserBefore, argCount, 1);
+			complexAssignment(state, before, scannerBefore, parserBefore, argCount, 1);
 		}
 	} else if (exprType == EXPR_ASSIGN_TARGET && (check(TOKEN_EQUAL) || check(TOKEN_COMMA) || check(TOKEN_RIGHT_PAREN))) {
 		if (!argCount) {
@@ -3166,8 +3211,8 @@ static void parens(int exprType) {
 			error("Can not assign to generator expression.");
 		} else {
 			rewindChunk(currentChunk(), before);
-			complexAssignmentTargets(scannerBefore, parserBefore, argCount, 2);
-			if (!matchComplexEnd()) {
+			complexAssignmentTargets(state, scannerBefore, parserBefore, argCount, 2);
+			if (!matchComplexEnd(state)) {
 				errorAtCurrent("Unexpected end of nested target list");
 			}
 		}
@@ -3179,8 +3224,8 @@ static void parens(int exprType) {
  *
  * @param arg Index of the stack local to assign to.
  */
-static void listInner(size_t arg) {
-	expression();
+static void listInner(struct GlobalState * state, size_t arg) {
+	expression(state);
 	EMIT_OPERAND_OP(OP_LIST_APPEND, arg);
 }
 
@@ -3189,26 +3234,26 @@ static void listInner(size_t arg) {
  *
  * Square brackets in this context are either a list literal or a list comprehension.
  */
-static void list(int exprType) {
+static void list(struct GlobalState * state, int exprType) {
 	ChunkRecorder before = recordChunk(currentChunk());
 
 	startEatingWhitespace();
 
 	if (!check(TOKEN_RIGHT_SQUARE)) {
-		KrkScanner scannerBefore = krk_tellScanner();
-		Parser  parserBefore = parser;
-		expression();
+		KrkScanner scannerBefore = krk_tellScanner(&state->scanner);
+		Parser  parserBefore = state->parser;
+		expression(state);
 
 		if (match(TOKEN_FOR)) {
 			/* Roll back the earlier compiler */
 			rewindChunk(currentChunk(), before);
 			/* Nested fun times */
-			parser.previous = syntheticToken("<listcomp>");
-			comprehensionExpression(scannerBefore, parserBefore, listInner, OP_MAKE_LIST);
+			state->parser.previous = syntheticToken("<listcomp>");
+			comprehensionExpression(state, scannerBefore, parserBefore, listInner, OP_MAKE_LIST);
 		} else {
 			size_t argCount = 1;
 			while (match(TOKEN_COMMA) && !check(TOKEN_RIGHT_SQUARE)) {
-				expression();
+				expression(state);
 				argCount++;
 			}
 			EMIT_OPERAND_OP(OP_MAKE_LIST, argCount);
@@ -3226,18 +3271,18 @@ static void list(int exprType) {
 /**
  * @brief Parse the expression part of a dictionary comprehension.
  */
-static void dictInner(size_t arg) {
-	expression(); /* Key */
+static void dictInner(struct GlobalState * state, size_t arg) {
+	expression(state); /* Key */
 	consume(TOKEN_COLON, "Expected ':' after dict key.");
-	expression(); /* Value */
+	expression(state); /* Value */
 	EMIT_OPERAND_OP(OP_DICT_SET, arg);
 }
 
 /**
  * @brief Parse the expression part of a set comprehension.
  */
-static void setInner(size_t arg) {
-	expression();
+static void setInner(struct GlobalState * state, size_t arg) {
+	expression(state);
 	EMIT_OPERAND_OP(OP_SET_ADD, arg);
 }
 
@@ -3252,39 +3297,39 @@ static void setInner(size_t arg) {
  * whether we set a colon after parsing the first inner
  * expression.
  */
-static void dict(int exprType) {
+static void dict(struct GlobalState * state, int exprType) {
 	ChunkRecorder before = recordChunk(currentChunk());
 
 	startEatingWhitespace();
 
 	if (!check(TOKEN_RIGHT_BRACE)) {
-		KrkScanner scannerBefore = krk_tellScanner();
-		Parser  parserBefore = parser;
+		KrkScanner scannerBefore = krk_tellScanner(&state->scanner);
+		Parser  parserBefore = state->parser;
 
-		expression();
+		expression(state);
 		if (check(TOKEN_COMMA) || check(TOKEN_RIGHT_BRACE)) {
 			/* One expression, must be a set literal. */
 			size_t argCount = 1;
 			while (match(TOKEN_COMMA) && !check(TOKEN_RIGHT_BRACE)) {
-				expression();
+				expression(state);
 				argCount++;
 			}
 			EMIT_OPERAND_OP(OP_MAKE_SET, argCount);
 		} else if (match(TOKEN_FOR)) {
 			/* One expression followed by 'for': set comprehension. */
 			rewindChunk(currentChunk(), before);
-			parser.previous = syntheticToken("<setcomp>");
-			comprehensionExpression(scannerBefore, parserBefore, setInner, OP_MAKE_SET);
+			state->parser.previous = syntheticToken("<setcomp>");
+			comprehensionExpression(state, scannerBefore, parserBefore, setInner, OP_MAKE_SET);
 		} else {
 			/* Anything else must be a colon indicating a dictionary. */
 			consume(TOKEN_COLON, "Expected ':' after dict key.");
-			expression();
+			expression(state);
 
 			if (match(TOKEN_FOR)) {
 				/* Dictionary comprehension */
 				rewindChunk(currentChunk(), before);
-				parser.previous = syntheticToken("<dictcomp>");
-				comprehensionExpression(scannerBefore, parserBefore, dictInner, OP_MAKE_DICT);
+				state->parser.previous = syntheticToken("<dictcomp>");
+				comprehensionExpression(state, scannerBefore, parserBefore, dictInner, OP_MAKE_DICT);
 			} else {
 				/*
 				 * The operand to MAKE_DICT is double the number of entries,
@@ -3293,9 +3338,9 @@ static void dict(int exprType) {
 				 */
 				size_t argCount = 2;
 				while (match(TOKEN_COMMA) && !check(TOKEN_RIGHT_BRACE)) {
-					expression();
+					expression(state);
 					consume(TOKEN_COLON, "Expected ':' after dict key.");
-					expression();
+					expression(state);
 					argCount += 2;
 				}
 				EMIT_OPERAND_OP(OP_MAKE_DICT, argCount);
@@ -3311,33 +3356,33 @@ static void dict(int exprType) {
 	consume(TOKEN_RIGHT_BRACE,"Expected '}' at end of dict expression.");
 }
 
-static void ternary(int exprType, RewindState *rewind) {
+static void ternary(struct GlobalState * state, int exprType, RewindState *rewind) {
 	rewindChunk(currentChunk(), rewind->before);
 
-	parsePrecedence(PREC_OR);
+	parsePrecedence(state, PREC_OR);
 
 	int thenJump = emitJump(OP_JUMP_IF_TRUE_OR_POP);
 	consume(TOKEN_ELSE, "Expected 'else' after ternary condition");
 
-	parsePrecedence(PREC_TERNARY);
+	parsePrecedence(state, PREC_TERNARY);
 
-	KrkScanner outScanner = krk_tellScanner();
-	Parser outParser = parser;
+	KrkScanner outScanner = krk_tellScanner(&state->scanner);
+	Parser outParser = state->parser;
 
 	int elseJump = emitJump(OP_JUMP);
 	patchJump(thenJump);
 	emitByte(OP_POP);
 
-	krk_rewindScanner(rewind->oldScanner);
-	parser = rewind->oldParser;
-	parsePrecedence(PREC_OR);
+	krk_rewindScanner(&state->scanner, rewind->oldScanner);
+	state->parser = rewind->oldParser;
+	parsePrecedence(state, PREC_OR);
 	patchJump(elseJump);
 
-	krk_rewindScanner(outScanner);
-	parser = outParser;
+	krk_rewindScanner(&state->scanner, outScanner);
+	state->parser = outParser;
 }
 
-static void complexAssignmentTargets(KrkScanner oldScanner, Parser oldParser, size_t targetCount, int parenthesized) {
+static void complexAssignmentTargets(struct GlobalState * state, KrkScanner oldScanner, Parser oldParser, size_t targetCount, int parenthesized) {
 	emitBytes(OP_DUP, 0);
 
 	if (targetCount > 0) {
@@ -3346,24 +3391,24 @@ static void complexAssignmentTargets(KrkScanner oldScanner, Parser oldParser, si
 	}
 
 	/* Rewind */
-	krk_rewindScanner(oldScanner);
-	parser = oldParser;
+	krk_rewindScanner(&state->scanner, oldScanner);
+	state->parser = oldParser;
 
 	/* Parse assignment targets */
 	size_t checkTargetCount = 0;
 	do {
 		checkTargetCount++;
-		parsePrecedence(PREC_MUST_ASSIGN);
+		parsePrecedence(state, PREC_MUST_ASSIGN);
 		emitByte(OP_POP);
 
-		if (checkTargetCount == targetCount && parser.previous.type == TOKEN_COMMA) {
+		if (checkTargetCount == targetCount && state->parser.previous.type == TOKEN_COMMA) {
 			if (!match(parenthesized ? TOKEN_RIGHT_PAREN : TOKEN_EQUAL)) {
 				goto _errorAtCurrent;
 			}
 		}
 
 		if (checkTargetCount == targetCount && parenthesized) {
-			if (parser.previous.type != TOKEN_RIGHT_PAREN) {
+			if (state->parser.previous.type != TOKEN_RIGHT_PAREN) {
 				goto _errorAtCurrent;
 			}
 		}
@@ -3380,50 +3425,50 @@ static void complexAssignmentTargets(KrkScanner oldScanner, Parser oldParser, si
 			goto _errorAtCurrent;
 		}
 
-	} while (parser.previous.type != TOKEN_EQUAL && !parser.hadError);
+	} while (state->parser.previous.type != TOKEN_EQUAL && !state->parser.hadError);
 
 _errorAtCurrent:
 	errorAtCurrent("Invalid complex assignment target");
 }
 
-static void complexAssignment(ChunkRecorder before, KrkScanner oldScanner, Parser oldParser, size_t targetCount, int parenthesized) {
+static void complexAssignment(struct GlobalState * state, ChunkRecorder before, KrkScanner oldScanner, Parser oldParser, size_t targetCount, int parenthesized) {
 
 	rewindChunk(currentChunk(), before);
-	parsePrecedence(PREC_ASSIGNMENT);
+	parsePrecedence(state, PREC_ASSIGNMENT);
 
 	/* Store end state */
-	KrkScanner outScanner = krk_tellScanner();
-	Parser outParser = parser;
+	KrkScanner outScanner = krk_tellScanner(&state->scanner);
+	Parser outParser = state->parser;
 
-	complexAssignmentTargets(oldScanner,oldParser,targetCount,parenthesized);
+	complexAssignmentTargets(state, oldScanner,oldParser,targetCount,parenthesized);
 
 	/* Restore end state */
-	krk_rewindScanner(outScanner);
-	parser = outParser;
+	krk_rewindScanner(&state->scanner, outScanner);
+	state->parser = outParser;
 }
 
-static void comma(int exprType, RewindState *rewind) {
+static void comma(struct GlobalState * state, int exprType, RewindState *rewind) {
 	size_t expressionCount = 1;
 	do {
-		if (!getRule(parser.current.type)->prefix) break;
+		if (!getRule(state->parser.current.type)->prefix) break;
 		expressionCount++;
-		parsePrecedence(PREC_TERNARY);
+		parsePrecedence(state, PREC_TERNARY);
 	} while (match(TOKEN_COMMA));
 
 	EMIT_OPERAND_OP(OP_TUPLE,expressionCount);
 
 	if (exprType == EXPR_CAN_ASSIGN && match(TOKEN_EQUAL)) {
-		complexAssignment(rewind->before, rewind->oldScanner, rewind->oldParser, expressionCount, 0);
+		complexAssignment(state, rewind->before, rewind->oldScanner, rewind->oldParser, expressionCount, 0);
 	}
 }
 
-static void call(int exprType, RewindState *rewind) {
+static void call(struct GlobalState * state, int exprType, RewindState *rewind) {
 	startEatingWhitespace();
 	size_t argCount = 0, specialArgs = 0, keywordArgs = 0, seenKeywordUnpacking = 0;
 	if (!check(TOKEN_RIGHT_PAREN)) {
 		size_t chunkBefore = currentChunk()->count;
-		KrkScanner scannerBefore = krk_tellScanner();
-		Parser  parserBefore = parser;
+		KrkScanner scannerBefore = krk_tellScanner(&state->scanner);
+		Parser  parserBefore = state->parser;
 		do {
 			if (check(TOKEN_RIGHT_PAREN)) break;
 			if (match(TOKEN_ASTERISK) || check(TOKEN_POW)) {
@@ -3431,7 +3476,7 @@ static void call(int exprType, RewindState *rewind) {
 				if (match(TOKEN_POW)) {
 					seenKeywordUnpacking = 1;
 					emitBytes(OP_EXPAND_ARGS, 2); /* creates a KWARGS_DICT */
-					expression(); /* Expect dict */
+					expression(state); /* Expect dict */
 					continue;
 				} else {
 					if (seenKeywordUnpacking) {
@@ -3439,19 +3484,19 @@ static void call(int exprType, RewindState *rewind) {
 						return;
 					}
 					emitBytes(OP_EXPAND_ARGS, 1); /* creates a KWARGS_LIST */
-					expression();
+					expression(state);
 					continue;
 				}
 			}
 			if (match(TOKEN_IDENTIFIER)) {
-				KrkToken argName = parser.previous;
+				KrkToken argName = state->parser.previous;
 				if (check(TOKEN_EQUAL)) {
 					/* This is a keyword argument. */
 					advance();
 					/* Output the name */
-					size_t ind = identifierConstant(&argName);
+					size_t ind = identifierConstant(state, &argName);
 					EMIT_OPERAND_OP(OP_CONSTANT, ind);
-					expression();
+					expression(state);
 					keywordArgs++;
 					specialArgs++;
 					continue;
@@ -3460,8 +3505,8 @@ static void call(int exprType, RewindState *rewind) {
 					 * This is a regular argument that happened to start with an identifier,
 					 * roll it back so we can process it that way.
 					 */
-					krk_ungetToken(parser.current);
-					parser.current = argName;
+					krk_ungetToken(&state->scanner, state->parser.current);
+					state->parser.current = argName;
 				}
 			} else if (seenKeywordUnpacking) {
 				error("Positional argument follows keyword argument unpacking");
@@ -3472,14 +3517,14 @@ static void call(int exprType, RewindState *rewind) {
 			}
 			if (specialArgs) {
 				emitBytes(OP_EXPAND_ARGS, 0); /* creates a KWARGS_SINGLE */
-				expression();
+				expression(state);
 				specialArgs++;
 				continue;
 			}
-			expression();
+			expression(state);
 			if (argCount == 0 && match(TOKEN_FOR)) {
 				currentChunk()->count = chunkBefore;
-				generatorExpression(scannerBefore, parserBefore, yieldInner);
+				generatorExpression(state, scannerBefore, parserBefore, yieldInner);
 				argCount = 1;
 				if (match(TOKEN_COMMA)) {
 					error("Generator expression must be parenthesized");
@@ -3515,35 +3560,35 @@ static void call(int exprType, RewindState *rewind) {
 		EMIT_OPERAND_OP(OP_CALL, argCount);
 	}
 
-	invalidTarget(exprType, "function call");
+	invalidTarget(state, exprType, "function call");
 }
 
-static void and_(int exprType, RewindState *rewind) {
+static void and_(struct GlobalState * state, int exprType, RewindState *rewind) {
 	int endJump = emitJump(OP_JUMP_IF_FALSE_OR_POP);
-	parsePrecedence(PREC_AND);
+	parsePrecedence(state, PREC_AND);
 	patchJump(endJump);
-	invalidTarget(exprType, "operator");
+	invalidTarget(state, exprType, "operator");
 }
 
-static void or_(int exprType, RewindState *rewind) {
+static void or_(struct GlobalState * state, int exprType, RewindState *rewind) {
 	int endJump = emitJump(OP_JUMP_IF_TRUE_OR_POP);
-	parsePrecedence(PREC_OR);
+	parsePrecedence(state, PREC_OR);
 	patchJump(endJump);
-	invalidTarget(exprType, "operator");
+	invalidTarget(state, exprType, "operator");
 }
 
-static void parsePrecedence(Precedence precedence) {
-	RewindState rewind = {recordChunk(currentChunk()), krk_tellScanner(), parser};
+static void parsePrecedence(struct GlobalState * state, Precedence precedence) {
+	RewindState rewind = {recordChunk(currentChunk()), krk_tellScanner(&state->scanner), state->parser};
 
 	advance();
-	ParsePrefixFn prefixRule = getRule(parser.previous.type)->prefix;
+	ParsePrefixFn prefixRule = getRule(state->parser.previous.type)->prefix;
 	if (prefixRule == NULL) {
-		switch (parser.previous.type) {
+		switch (state->parser.previous.type) {
 			case TOKEN_RIGHT_BRACE:
 			case TOKEN_RIGHT_PAREN:
 			case TOKEN_RIGHT_SQUARE:
 				error("Unmatched '%.*s'",
-					(int)parser.previous.length, parser.previous.start);
+					(int)state->parser.previous.length, state->parser.previous.start);
 				break;
 			case TOKEN_EOL:
 				/* TODO: This should definitely be tripping the REPL to ask for more input. */
@@ -3554,7 +3599,7 @@ static void parsePrecedence(Precedence precedence) {
 				break;
 			default:
 				error("'%.*s' does not start an expression",
-					(int)parser.previous.length, parser.previous.start);
+					(int)state->parser.previous.length, state->parser.previous.start);
 		}
 		return;
 	}
@@ -3562,34 +3607,30 @@ static void parsePrecedence(Precedence precedence) {
 	if (precedence <= PREC_ASSIGNMENT || precedence == PREC_CAN_ASSIGN) exprType = EXPR_CAN_ASSIGN;
 	if (precedence == PREC_MUST_ASSIGN) exprType = EXPR_ASSIGN_TARGET;
 	if (precedence == PREC_DEL_TARGET) exprType = EXPR_DEL_TARGET;
-	prefixRule(exprType);
-	while (precedence <= getRule(parser.current.type)->precedence) {
-		if (parser.hadError) {
+	prefixRule(state, exprType);
+	while (precedence <= getRule(state->parser.current.type)->precedence) {
+		if (state->parser.hadError) {
 			skipToEnd();
 			return;
 		}
 
-		if (exprType == EXPR_ASSIGN_TARGET && (parser.previous.type == TOKEN_COMMA ||
-			parser.previous.type == TOKEN_EQUAL)) break;
+		if (exprType == EXPR_ASSIGN_TARGET && (state->parser.previous.type == TOKEN_COMMA ||
+			state->parser.previous.type == TOKEN_EQUAL)) break;
 		advance();
-		ParseInfixFn infixRule = getRule(parser.previous.type)->infix;
-		infixRule(exprType, &rewind);
+		ParseInfixFn infixRule = getRule(state->parser.previous.type)->infix;
+		infixRule(state, exprType, &rewind);
 	}
 
-	if (exprType == EXPR_CAN_ASSIGN && matchAssignment()) {
+	if (exprType == EXPR_CAN_ASSIGN && matchAssignment(state)) {
 		error("Invalid assignment target");
 	}
 }
 
 
-#ifdef ENABLE_THREADING
-static volatile int _compilerLock = 0;
-#endif
-
-static int maybeSingleExpression() {
+static int maybeSingleExpression(struct GlobalState * state) {
 	/* We're only going to use this to reset if we found a string, and it turns out
 	 * not to be a docstring. */
-	RewindState rewind = {recordChunk(currentChunk()), krk_tellScanner(), parser};
+	RewindState rewind = {recordChunk(currentChunk()), krk_tellScanner(&state->scanner), state->parser};
 
 	/**
 	 * Docstring:
@@ -3605,37 +3646,37 @@ static int maybeSingleExpression() {
 			 * We should treat that as a regular string expression, eg. in a repl. */
 			int isEof = check(TOKEN_EOF);
 			/* Regardless, restore the scanner/parser so we can actually parse the string. */
-			krk_rewindScanner(rewind.oldScanner);
-			parser = rewind.oldParser;
+			krk_rewindScanner(&state->scanner, rewind.oldScanner);
+			state->parser = rewind.oldParser;
 			advance();
 			/* Parse the string. */
-			string(EXPR_NORMAL);
+			string(state, EXPR_NORMAL);
 			/* If we did see end of input, it's a simple string expression. */
 			if (isEof) return 1;
 			/* Otherwise, it's a docstring, and there's more code following it.
 			 * Emit the instructions to assign the docstring to the current globals. */
 			KrkToken doc = syntheticToken("__doc__");
-			size_t ind = identifierConstant(&doc);
+			size_t ind = identifierConstant(state, &doc);
 			EMIT_OPERAND_OP(OP_DEFINE_GLOBAL, ind);
 			return 0;
 		} else {
 			/* There was something other than a line feed after the string token,
 			 * rewind so we can parse as an expression next. */
-			krk_rewindScanner(rewind.oldScanner);
-			parser = rewind.oldParser;
+			krk_rewindScanner(&state->scanner, rewind.oldScanner);
+			state->parser = rewind.oldParser;
 		}
 	}
 
 	/* Try to parse one single expression */
-	ParseRule * rule = getRule(parser.current.type);
+	ParseRule * rule = getRule(state->parser.current.type);
 	if (rule->prefix) {
-		parsePrecedence(PREC_ASSIGNMENT);
+		parsePrecedence(state, PREC_ASSIGNMENT);
 
 		/* Semicolon after expression statement, finish this one and continue
 		 * parsing only more simple statements, as we would normally. */
 		if (match(TOKEN_SEMICOLON)) {
 			emitByte(OP_POP);
-			simpleStatement();
+			simpleStatement(state);
 			return 0;
 		}
 
@@ -3653,7 +3694,7 @@ static int maybeSingleExpression() {
 			return 1;
 
 		/* Must be an error. */
-		errorAfterStatement();
+		errorAfterStatement(state);
 		return 0;
 	}
 
@@ -3674,18 +3715,28 @@ static int maybeSingleExpression() {
  * @exception SyntaxError if @p src could not be compiled.
  */
 KrkCodeObject * krk_compile(const char * src, char * fileName) {
-	/* Allow only one compiler across threads at a time. */
-	_obtain_lock(_compilerLock);
+
+	KrkClass * GlobalState = krk_newClass(S("GlobalState"), KRK_BASE_CLASS(object));
+	krk_push(OBJECT_VAL(GlobalState));
+
+	GlobalState->allocSize = sizeof(struct GlobalState);
+	GlobalState->_ongcscan = _GlobalState_gcscan;
+	GlobalState->_ongcsweep = _GlobalState_gcsweep;
+	GlobalState->obj.flags |= KRK_OBJ_FLAGS_NO_INHERIT;
+	krk_finalizeClass(GlobalState);
+
+	struct GlobalState * state = (void*)krk_newInstance(GlobalState);
+	krk_push(OBJECT_VAL(state));
 
 	/* Point a new scanner at the source. */
-	krk_initScanner(src);
+	state->scanner = krk_initScanner(src);
 
 	/* Reset parser state. */
-	memset(&parser, 0, sizeof(parser));
+	memset(&state->parser, 0, sizeof(state->parser));
 
 	/* Start compiling a new function. */
 	Compiler compiler;
-	initCompiler(&compiler, TYPE_MODULE);
+	initCompiler(state, &compiler, TYPE_MODULE);
 	compiler.codeobject->chunk.filename = krk_copyString(fileName, strlen(fileName));
 	compiler.codeobject->name = krk_copyString("<module>",8);
 
@@ -3693,12 +3744,12 @@ KrkCodeObject * krk_compile(const char * src, char * fileName) {
 	advance();
 
 	/* The first line of an input may be a doc string. */
-	if (maybeSingleExpression()) {
-		current->type = TYPE_LAMBDA;
+	if (maybeSingleExpression(state)) {
+		state->current->type = TYPE_LAMBDA;
 	} else {
 		/* Parse top-level declarations... */
 		while (!match(TOKEN_EOF)) {
-			declaration();
+			declaration(state);
 
 			/* Skip over redundant whitespace */
 			if (check(TOKEN_EOL) || check(TOKEN_INDENTATION) || check(TOKEN_EOF)) {
@@ -3707,7 +3758,7 @@ KrkCodeObject * krk_compile(const char * src, char * fileName) {
 		}
 	}
 
-	KrkCodeObject * function = endCompiler();
+	KrkCodeObject * function = endCompiler(state);
 	freeCompiler(&compiler);
 
 	/*
@@ -3715,25 +3766,12 @@ KrkCodeObject * krk_compile(const char * src, char * fileName) {
 	 * wasn't fully compiled, so be sure to check for a syntax
 	 * error and return NULL
 	 */
-	if (parser.hadError) function = NULL;
+	if (state->parser.hadError) function = NULL;
 
-	_release_lock(_compilerLock);
+	krk_pop();
+	krk_pop();
+
 	return function;
-}
-
-/**
- * @brief GC scan for compiler-owned references.
- *
- * Called by the garbage collector during the scan phase
- * to mark references held by the compiler.
- */
-void krk_markCompilerRoots(void) {
-	Compiler * compiler = current;
-	while (compiler != NULL) {
-		if (compiler->enclosed && compiler->enclosed->codeobject) krk_markObject((KrkObj*)compiler->enclosed->codeobject);
-		krk_markObject((KrkObj*)compiler->codeobject);
-		compiler = compiler->enclosing;
-	}
 }
 
 #ifdef KRK_NO_SCAN_TRACING

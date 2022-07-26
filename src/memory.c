@@ -475,8 +475,6 @@ static void markRoots() {
 		thread = thread->next;
 	}
 
-	krk_markCompilerRoots();
-
 	krk_markObject((KrkObj*)vm.builtins);
 	krk_markTable(&vm.modules);
 

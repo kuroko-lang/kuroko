@@ -16,7 +16,3 @@
  */
 extern KrkCodeObject * krk_compile(const char * src, char * fileName);
 
-/**
- * @brief Mark objects owned by the compiler as in use.
- */
-extern void krk_markCompilerRoots(void);

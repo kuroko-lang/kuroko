@@ -182,12 +182,12 @@ static void tab_complete_func(rline_context_t * c) {
 		memcpy(tmp, c->buffer, c->offset);
 		tmp[c->offset] = '\0';
 		/* and pass it to the scanner... */
-		krk_initScanner(tmp);
+		KrkScanner scanner = krk_initScanner(tmp);
 		/* Logically, there can be at most (offset) tokens, plus some wiggle room. */
 		KrkToken * space = malloc(sizeof(KrkToken) * (c->offset + 2));
 		int count = 0;
 		do {
-			space[count++] = krk_scanToken();
+			space[count++] = krk_scanToken(&scanner);
 		} while (space[count-1].type != TOKEN_EOF && space[count-1].type != TOKEN_ERROR);
 
 		/* If count == 1, it was EOF or an error and we have nothing to complete. */

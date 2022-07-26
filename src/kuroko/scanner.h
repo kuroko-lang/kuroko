@@ -147,23 +147,13 @@ typedef struct {
 
 /**
  * @brief Initialize the compiler to scan tokens from 'src'.
- *
- * FIXME: There is currently only a single static scanner state;
- *        along with making the compiler re-entrant, the scanner
- *        needs to also be re-entrant; there's really no reason
- *        these can't all just take a KrkScanner* argument.
  */
-extern void krk_initScanner(const char * src);
+extern KrkScanner krk_initScanner(const char * src);
 
 /**
  * @brief Read the next token from the scanner.
- *
- * FIXME: Or, maybe the scanner shouldn't even be available outside
- *        of the compiler, that would make some sense as well, as it's
- *        a low-level detail, but we use it for tab completion in the
- *        main repl, so I'm not sure that's feasible right now.
  */
-extern KrkToken krk_scanToken(void);
+extern KrkToken krk_scanToken(KrkScanner*);
 
 /**
  * @brief Push a token back to the scanner to be reprocessed.
@@ -172,7 +162,7 @@ extern KrkToken krk_scanToken(void);
  * Used to implement small backtracking operations at the
  * end of block constructs like 'if' and 'try'.
  */
-extern void krk_ungetToken(KrkToken token);
+extern void krk_ungetToken(KrkScanner*, KrkToken token);
 
 /**
  * @brief Rewind the scanner to a previous state.
@@ -181,7 +171,7 @@ extern void krk_ungetToken(KrkToken token);
  * the compiler to implement comprehensions, which would otherwise
  * not be possible in a single-pass compiler.
  */
-extern void krk_rewindScanner(KrkScanner to);
+extern void krk_rewindScanner(KrkScanner*, KrkScanner to);
 
 /**
  * @brief Retreive a copy of the current scanner state.
@@ -189,4 +179,4 @@ extern void krk_rewindScanner(KrkScanner to);
  * Used with krk_rewindScanner() to implement rescanning
  * for comprehensions.
  */
-extern KrkScanner krk_tellScanner(void);
+extern KrkScanner krk_tellScanner(KrkScanner*);
