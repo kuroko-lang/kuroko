@@ -262,7 +262,9 @@ static void dumpInnerException(KrkValue exception, int depth) {
 	if (!IS_STRING(result) || AS_STRING(result)->length == 0) {
 		fprintf(stderr, "\n");
 	} else {
-		fprintf(stderr, ": %s\n", AS_CSTRING(result));
+		fprintf(stderr, ": ");
+		fwrite(AS_CSTRING(result), AS_STRING(result)->length, 1, stderr);
+		fprintf(stderr, "\n");
 	}
 
 	/* Turn the exception flag back on */
