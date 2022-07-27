@@ -28,16 +28,14 @@ FUNC_SIG(int,__init__) {
 		}
 		KrkValue result = krk_parse_int(AS_CSTRING(argv[1]), AS_STRING(argv[1])->length, _base);
 		if (IS_NONE(result)) {
-			krk_push(argv[1]);
-			KrkValue repred = krk_callDirect(vm.baseClasses->strClass->_reprer, 1);
-			return krk_runtimeError(vm.exceptions->valueError, "invalid literal for int() with base " PRIkrk_int "%s%s",
-				_base, IS_STRING(repred) ? ": " : "", IS_STRING(repred) ? AS_CSTRING(repred) : "");
+			return krk_runtimeError(vm.exceptions->valueError,
+				"invalid literal for int() with base %zd: %R", (ssize_t)_base, argv[1]);
 		}
 		return result;
 	}
 	if (IS_FLOATING(argv[1])) return INTEGER_VAL(AS_FLOATING(argv[1]));
 	if (IS_BOOLEAN(argv[1])) return INTEGER_VAL(AS_BOOLEAN(argv[1]));
-	return krk_runtimeError(vm.exceptions->typeError, "%s() argument must be a string or a number, not '%s'", "int", krk_typeName(argv[1]));
+	return krk_runtimeError(vm.exceptions->typeError, "%s() argument must be a string or a number, not '%T'", "int", argv[1]);
 }
 
 KRK_Method(int,__str__) {
@@ -573,7 +571,7 @@ FUNC_SIG(float,__init__) {
 
 	trySlowMethod(vm.specialMethodNames[METHOD_FLOAT]);
 
-	return krk_runtimeError(vm.exceptions->typeError, "%s() argument must be a string or a number, not '%s'", "float", krk_typeName(argv[1]));
+	return krk_runtimeError(vm.exceptions->typeError, "%s() argument must be a string or a number, not '%T'", "float", argv[1]);
 }
 
 KRK_Method(float,__int__) { return INTEGER_VAL(self); }

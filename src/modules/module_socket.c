@@ -113,20 +113,20 @@ static int socket_parse_address(struct socket * self, KrkValue address, struct s
 	if (self->family == AF_INET) {
 		/* Should be 2-tuple */
 		if (!IS_tuple(address)) {
-			krk_runtimeError(vm.exceptions->typeError, "Expected 2-tuple, not '%s'", krk_typeName(address));
+			krk_runtimeError(vm.exceptions->typeError, "Expected 2-tuple, not '%T'", address);
 			return 1;
 		}
 		KrkTuple * addr = AS_TUPLE(address);
 		if (addr->values.count != 2) {
-			krk_runtimeError(vm.exceptions->typeError, "Expected 2-tuple, not '%s'", krk_typeName(address));
+			krk_runtimeError(vm.exceptions->typeError, "Expected 2-tuple, not '%T'", address);
 			return 1;
 		}
 		if (!IS_str(addr->values.values[0])) {
-			krk_runtimeError(vm.exceptions->typeError, "Address should be int, not '%s'", krk_typeName(addr->values.values[0]));
+			krk_runtimeError(vm.exceptions->typeError, "Address should be int, not '%T'", addr->values.values[0]);
 			return 1;
 		}
 		if (!IS_int(addr->values.values[1])) {
-			krk_runtimeError(vm.exceptions->typeError, "Port should be int, not '%s'", krk_typeName(addr->values.values[1]));
+			krk_runtimeError(vm.exceptions->typeError, "Port should be int, not '%T'", addr->values.values[1]);
 			return 1;
 		}
 

@@ -365,14 +365,14 @@ KRK_Method(list,index) {
 		if (IS_INTEGER(argv[2]))
 			min = AS_INTEGER(argv[2]);
 		else
-			return krk_runtimeError(vm.exceptions->typeError, "%s must be int, not '%s'", "min", krk_typeName(argv[2]));
+			return krk_runtimeError(vm.exceptions->typeError, "%s must be int, not '%T'", "min", argv[2]);
 	}
 
 	if (argc > 3) {
 		if (IS_INTEGER(argv[3]))
 			max = AS_INTEGER(argv[3]);
 		else
-			return krk_runtimeError(vm.exceptions->typeError, "%s must be int, not '%s'", "max", krk_typeName(argv[3]));
+			return krk_runtimeError(vm.exceptions->typeError, "%s must be int, not '%T'", "max", argv[3]);
 	}
 
 	pthread_rwlock_rdlock(&self->rwlock);

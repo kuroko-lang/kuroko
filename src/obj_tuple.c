@@ -177,8 +177,7 @@ KRK_Method(tuple,__add__) {
 	METHOD_TAKES_EXACTLY(1);
 	if (!IS_tuple(argv[1]))
 		return krk_runtimeError(vm.exceptions->typeError,
-			"can only concatenate tuple (not \"%s\") to tuple",
-			krk_typeName(argv[1]));
+			"can only concatenate tuple (not '%T') to tuple", argv[1]);
 
 	KrkTuple * other = AS_tuple(argv[1]);
 	KrkTuple * out = krk_newTuple(self->values.count + other->values.count);

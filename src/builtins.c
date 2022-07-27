@@ -175,7 +175,7 @@ KRK_Method(object,__format__) {
 	if (!IS_STRING(argv[1])) return TYPE_ERROR(str,argv[1]);
 	if (AS_STRING(argv[1])->length != 0) return krk_runtimeError(vm.exceptions->typeError, "Unsupported format string");
 	KrkClass * type = krk_getType(argv[0]);
-	if (!type->_tostr) return krk_runtimeError(vm.exceptions->typeError, "'%s' can not be converted to str", krk_typeName(argv[0]));
+	if (!type->_tostr) return krk_runtimeError(vm.exceptions->typeError, "'%T' can not be converted to str", argv[0]);
 	krk_push(argv[0]);
 	return krk_callDirect(type->_tostr, 1);
 }
@@ -190,7 +190,7 @@ KRK_Function(len) {
 	if (IS_TUPLE(argv[0])) return INTEGER_VAL(AS_TUPLE(argv[0])->values.count);
 
 	KrkClass * type = krk_getType(argv[0]);
-	if (!type->_len) return krk_runtimeError(vm.exceptions->typeError, "object of type '%s' has no len()", krk_typeName(argv[0]));
+	if (!type->_len) return krk_runtimeError(vm.exceptions->typeError, "object of type '%T' has no len()", argv[0]);
 	krk_push(argv[0]);
 
 	return krk_callDirect(type->_len, 1);
@@ -311,7 +311,7 @@ int krk_unpackIterable(KrkValue iterable, void * context, int callback(void *, c
 	} else {
 		KrkClass * type = krk_getType(iterable);
 		if (unlikely(!type->_iter)) {
-			krk_runtimeError(vm.exceptions->typeError, "'%s' object is not iterable", krk_typeName(iterable));
+			krk_runtimeError(vm.exceptions->typeError, "'%T' object is not iterable", iterable);
 			return 1;
 		}
 
@@ -413,7 +413,7 @@ KRK_Method(map,__init__) {
 	for (int i = 2; i < argc; ++i) {
 		KrkClass * type = krk_getType(argv[i]);
 		if (!type->_iter) {
-			return krk_runtimeError(vm.exceptions->typeError, "'%s' object is not iterable", krk_typeName(argv[i]));
+			return krk_runtimeError(vm.exceptions->typeError, "'%T' object is not iterable", argv[i]);
 		}
 		krk_push(argv[i]);
 		KrkValue asIter = krk_callDirect(type->_iter, 1);
@@ -477,7 +477,7 @@ KRK_Method(zip,__init__) {
 	for (int i = 1; i < argc; ++i) {
 		KrkClass * type = krk_getType(argv[i]);
 		if (!type->_iter) {
-			return krk_runtimeError(vm.exceptions->typeError, "'%s' object is not iterable", krk_typeName(argv[i]));
+			return krk_runtimeError(vm.exceptions->typeError, "'%T' object is not iterable", argv[i]);
 		}
 		krk_push(argv[i]);
 		KrkValue asIter = krk_callDirect(type->_iter, 1);
@@ -527,7 +527,7 @@ KRK_Method(filter,__init__) {
 	krk_attachNamedValue(&self->fields, "_function", argv[1]);
 	KrkClass * type = krk_getType(argv[2]);
 	if (!type->_iter) {
-		return krk_runtimeError(vm.exceptions->typeError, "'%s' object is not iterable", krk_typeName(argv[2]));
+		return krk_runtimeError(vm.exceptions->typeError, "'%T' object is not iterable", argv[2]);
 	}
 	krk_push(argv[2]);
 	KrkValue asIter = krk_callDirect(type->_iter, 1);
@@ -593,7 +593,7 @@ KRK_Method(enumerate,__init__) {
 	/* Attach iterator */
 	KrkClass * type = krk_getType(argv[1]);
 	if (!type->_iter) {
-		return krk_runtimeError(vm.exceptions->typeError, "'%s' object is not iterable", krk_typeName(argv[1]));
+		return krk_runtimeError(vm.exceptions->typeError, "'%T' object is not iterable", argv[1]);
 	}
 	krk_push(argv[1]);
 	KrkValue asIter = krk_callDirect(type->_iter, 1);
@@ -724,12 +724,12 @@ KRK_Function(print) {
 	char * end = "\n"; size_t endLen = 1;
 	if (hasKw) {
 		if (krk_tableGet(AS_DICT(argv[argc]), OBJECT_VAL(S("sep")), &sepVal)) {
-			if (!IS_STRING(sepVal)) return krk_runtimeError(vm.exceptions->typeError, "'%s' should be a string, not '%s'", "sep", krk_typeName(sepVal));
+			if (!IS_STRING(sepVal)) return krk_runtimeError(vm.exceptions->typeError, "'%s' should be a string, not '%T'", "sep", sepVal);
 			sep = AS_CSTRING(sepVal);
 			sepLen = AS_STRING(sepVal)->length;
 		}
 		if (krk_tableGet(AS_DICT(argv[argc]), OBJECT_VAL(S("end")), &endVal)) {
-			if (!IS_STRING(endVal)) return krk_runtimeError(vm.exceptions->typeError, "'%s' should be a string, not '%s'", "end", krk_typeName(endVal));
+			if (!IS_STRING(endVal)) return krk_runtimeError(vm.exceptions->typeError, "'%s' should be a string, not '%T'", "end", endVal);
 			end = AS_CSTRING(endVal);
 			endLen = AS_STRING(endVal)->length;
 		}
@@ -1037,7 +1037,7 @@ KRK_Method(property,__get__) {
 
 	KrkValue fget;
 	if (!krk_tableGet(&self->fields, OBJECT_VAL(S("fget")), &fget))
-		return krk_runtimeError(vm.exceptions->attributeError, "'%s' object has no attribute '%s'", "property", "fget");
+		return krk_runtimeError(vm.exceptions->attributeError, "'%T' object has no attribute '%s'", argv[0], "fget");
 
 	krk_push(fget);
 	krk_push(argv[1]);
@@ -1068,7 +1068,7 @@ KRK_Method(property,__set__) {
 
 KRK_Function(id) {
 	FUNCTION_TAKES_EXACTLY(1);
-	if (!IS_OBJECT(argv[0])) return krk_runtimeError(vm.exceptions->typeError, "'%s' has no identity", krk_typeName(argv[0]));
+	if (!IS_OBJECT(argv[0])) return krk_runtimeError(vm.exceptions->typeError, "'%T' has no identity", argv[0]);
 	return INTEGER_VAL((size_t)AS_OBJECT(argv[0]));
 }
 
@@ -1095,8 +1095,7 @@ KRK_Function(abs) {
 		return FLOATING_VAL(i >= 0 ? i : -i);
 	} else {
 		trySlowMethod(OBJECT_VAL(S("__abs__")));
-		return krk_runtimeError(vm.exceptions->typeError, "bad operand type for 'abs()': '%s'",
-			krk_typeName(argv[0]));
+		return krk_runtimeError(vm.exceptions->typeError, "bad operand type for 'abs()': '%T'", argv[0]);
 	}
 }
 
@@ -1107,7 +1106,7 @@ KRK_Function(format) {
 	KrkClass * type = krk_getType(argv[0]);
 
 	if (!type->_format) {
-		return krk_runtimeError(vm.exceptions->typeError, "'%s' has no __format__ method", krk_typeName(argv[0]));
+		return krk_runtimeError(vm.exceptions->typeError, "'%T' has no __format__ method", argv[0]);
 	}
 
 	krk_push(argv[0]);

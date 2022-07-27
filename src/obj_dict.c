@@ -4,13 +4,6 @@
 #include <kuroko/memory.h>
 #include <kuroko/util.h>
 
-#define KEY_ERROR(value) {\
-	KrkClass * type = krk_getType(value); \
-	krk_push(value); \
-	KrkValue asString = krk_callDirect(type->_reprer, 1); \
-	if (IS_STRING(asString)) return krk_runtimeError(vm.exceptions->keyError, "%s", AS_CSTRING(asString)); \
-	return krk_runtimeError(vm.exceptions->keyError, "key error"); }
-
 /**
  * Exposed method called to produce dictionaries from `{expr: expr, ...}` sequences in managed code.
  * Expects arguments as `key,value,key,value`...
@@ -131,7 +124,7 @@ KRK_Method(dict,__getitem__) {
 	KrkValue out;
 	if (!krk_tableGet(&self->entries, argv[1], &out)) {
 		if (!IS_NONE(krk_currentThread.currentException)) return NONE_VAL();
-		KEY_ERROR(argv[1]);
+		return krk_runtimeError(vm.exceptions->keyError, "%V", argv[1]);
 	}
 	return out;
 }
@@ -156,7 +149,7 @@ KRK_Method(dict,__delitem__) {
 	METHOD_TAKES_EXACTLY(1);
 	if (!krk_tableDelete(&self->entries, argv[1])) {
 		if (!IS_NONE(krk_currentThread.currentException)) return NONE_VAL();
-		KEY_ERROR(argv[1]);
+		return krk_runtimeError(vm.exceptions->keyError, "%V", argv[1]);
 	}
 	return NONE_VAL();
 }

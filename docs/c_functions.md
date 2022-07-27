@@ -49,7 +49,7 @@ static KrkValue myfunction(int argc, KrkValue argv[], int hasKw) {
     int myarg;
 
     if (argc != 1) return krk_runtimeError(vm.exceptions->argumentError, "myfunction() expects exactly 1 argument, %d given", argc);
-    if (!IS_INTEGER(argv[0])) return krk_runtimeError(vm.exceptions->typeError, "expected int, not '%s'", krk_typeName(argv[0]));
+    if (!IS_INTEGER(argv[0])) return krk_runtimeError(vm.exceptions->typeError, "expected int, not '%T'", argv[0]);
 
     myarg = AS_INTEGER(argv[0]);
 

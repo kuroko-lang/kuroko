@@ -41,7 +41,7 @@ KRK_Method(str,__init__) {
 	if (IS_STRING(argv[1])) return argv[1]; /* strings are immutable, so we can just return the arg */
 	/* Find the type of arg */
 	krk_push(argv[1]);
-	if (!krk_getType(argv[1])->_tostr) return krk_runtimeError(vm.exceptions->typeError, "Can not convert %s to str", krk_typeName(argv[1]));
+	if (!krk_getType(argv[1])->_tostr) return krk_runtimeError(vm.exceptions->typeError, "Can not convert '%T' to str", argv[1]);
 	return krk_callDirect(krk_getType(argv[1])->_tostr, 1);
 }
 
@@ -423,8 +423,8 @@ static int _str_join_callback(void * context, const KrkValue * values, size_t co
 
 	for (size_t i = 0; i < count; ++i) {
 		if (!IS_STRING(values[i])) {
-			krk_runtimeError(vm.exceptions->typeError, "%s() expects %s, not '%s'",
-				"join", "str", krk_typeName(values[i]));
+			krk_runtimeError(vm.exceptions->typeError, "%s() expects %s, not '%T'",
+				"join", "str", values[i]);
 			return 1;
 		}
 
@@ -596,8 +596,7 @@ KRK_Method(str,__mod__) {
 				} else if (IS_FLOATING(arg)) {
 					krk_push(INTEGER_VAL(AS_FLOATING(arg)));
 				} else {
-					krk_runtimeError(vm.exceptions->typeError, "%%i format: a number is required, not %s",
-						krk_typeName(arg));
+					krk_runtimeError(vm.exceptions->typeError, "%%i format: a number is required, not '%T'", arg);
 					goto _exception;
 				}
 				krk_push(krk_callDirect(krk_getType(arg)->_tostr, 1));
@@ -606,8 +605,7 @@ KRK_Method(str,__mod__) {
 				if (ti >= myTuple->values.count) goto _notEnough;
 				KrkValue arg = myTuple->values.values[ti++];
 				if (!krk_getType(arg)->_tostr) {
-					krk_runtimeError(vm.exceptions->typeError, "%%s format: cannot convert %s to string",
-						krk_typeName(arg));
+					krk_runtimeError(vm.exceptions->typeError, "%%s format: cannot convert '%T' to string", arg);
 					goto _exception;
 				}
 

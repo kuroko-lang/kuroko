@@ -34,7 +34,7 @@
 	} }
 
 #define REAL_NUMBER_NOT(name, garbage) { \
-	krk_runtimeError(vm.exceptions->typeError, "%s() argument must be real number, not %s", #name, krk_typeName(garbage)); \
+	krk_runtimeError(vm.exceptions->typeError, "%s() argument must be real number, not '%T'", #name, garbage); \
 	return NONE_VAL(); \
 }
 

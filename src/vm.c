@@ -371,17 +371,132 @@ static void raiseException(KrkValue base, KrkValue cause) {
  * found in vm.exceptions and are initialized on startup.
  */
 KrkValue krk_runtimeError(KrkClass * type, const char * fmt, ...) {
-	char buf[1024] = {0};
+	KrkValue msg = KWARGS_VAL(0);
+	struct StringBuilder sb = {0};
+
 	va_list args;
 	va_start(args, fmt);
-	size_t len = vsnprintf(buf, 1024, fmt, args);
+
+	if (!strcmp(fmt,"%V")) {
+		msg = va_arg(args, KrkValue);
+		goto _finish;
+	}
+
+	for (const char * f = fmt; *f; ++f) {
+		if (*f != '%') {
+			pushStringBuilder(&sb, *f);
+			continue;
+		}
+
+		/* Unset exception flag if it was already set. */
+		if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) {
+			krk_currentThread.flags &= ~(KRK_THREAD_HAS_EXCEPTION);
+		}
+
+		++f;
+
+		int size = ' ';
+
+		if (*f == 'z') size = *f++;
+		else if (*f == 'l') size = *f++;
+		else if (*f == 'L') size = *f++;
+
+		switch (*f) {
+			case 0: break;
+			case '%':
+				pushStringBuilder(&sb, '%');
+				break;
+
+			case 'c': {
+				char val = (char)va_arg(args, int);
+				pushStringBuilder(&sb, val);
+				break;
+			}
+
+			case 's': {
+				const char * c = va_arg(args, const char *);
+				pushStringBuilderStr(&sb, c, strlen(c));
+				break;
+			}
+
+			case 'u': {
+				size_t val;
+				if (size == ' ') {
+					val = va_arg(args, unsigned int);
+				} else if (size == 'l') {
+					val = va_arg(args, unsigned long);
+				} else if (size == 'L') {
+					val = va_arg(args, unsigned long long);
+				} else if (size == 'z') {
+					val = va_arg(args, size_t);
+				}
+				char tmp[100];
+				snprintf(tmp, 32, "%zu", val);
+				pushStringBuilderStr(&sb, tmp, strlen(tmp));
+				break;
+			}
+
+			case 'd': {
+				ssize_t val;
+				if (size == ' ') {
+					val = va_arg(args, int);
+				} else if (size == 'l') {
+					val = va_arg(args, long);
+				} else if (size == 'L') {
+					val = va_arg(args, long long);
+				} else if (size == 'z') {
+					val = va_arg(args, ssize_t);
+				}
+				char tmp[100];
+				snprintf(tmp, 32, "%zd", val);
+				pushStringBuilderStr(&sb, tmp, strlen(tmp));
+				break;
+			}
+
+			case 'T': {
+				KrkValue val = va_arg(args, KrkValue);
+				const char * typeName = krk_typeName(val);
+				pushStringBuilderStr(&sb, typeName, strlen(typeName));
+				break;
+			}
+
+			case 'S': {
+				KrkString * val = va_arg(args, KrkString*);
+				pushStringBuilderStr(&sb, val->chars, val->length);
+				break;
+			}
+
+			case 'R': {
+				KrkValue val = va_arg(args, KrkValue);
+				KrkClass * type = krk_getType(val);
+				if (likely(type->_reprer != NULL)) {
+					krk_push(val);
+					KrkValue res = krk_callDirect(type->_reprer, 1);
+					if (IS_STRING(res)) {
+						pushStringBuilderStr(&sb, AS_CSTRING(res), AS_STRING(res)->length);
+					}
+				}
+				break;
+			}
+
+			default: {
+				va_arg(args, void*);
+				pushStringBuilderStr(&sb, "(unsupported: ", 14);
+				pushStringBuilder(&sb, *f);
+				pushStringBuilder(&sb, ')');
+				break;
+			}
+		}
+	}
+
+_finish:
 	va_end(args);
 	krk_currentThread.flags |= KRK_THREAD_HAS_EXCEPTION;
 
 	/* Allocate an exception object of the requested type. */
 	KrkInstance * exceptionObject = krk_newInstance(type);
 	krk_push(OBJECT_VAL(exceptionObject));
-	krk_attachNamedValue(&exceptionObject->fields, "arg", OBJECT_VAL(krk_copyString(buf, len)));
+	krk_attachNamedValue(&exceptionObject->fields, "arg", msg == KWARGS_VAL(0) ? finishStringBuilder(&sb) : msg);
 	krk_attachNamedValue(&exceptionObject->fields, "__cause__", NONE_VAL());
 	krk_attachNamedValue(&exceptionObject->fields, "__context__", NONE_VAL());
 	krk_pop();
@@ -658,11 +773,11 @@ static inline int checkArgumentCount(const KrkClosure * closure, int argCount) {
 }
 
 static void multipleDefs(const KrkClosure * closure, int destination) {
-	krk_runtimeError(vm.exceptions->typeError, "%s() got multiple values for argument '%s'",
+	krk_runtimeError(vm.exceptions->typeError, "%s() got multiple values for argument '%S'",
 		closure->function->name ? closure->function->name->chars : "<unnamed>",
-		(destination < closure->function->requiredArgs ? AS_CSTRING(closure->function->requiredArgNames.values[destination]) :
-			(destination - closure->function->requiredArgs < closure->function->keywordArgs ? AS_CSTRING(closure->function->keywordArgNames.values[destination - closure->function->requiredArgs]) :
-				"<unnamed>")));
+		(destination < closure->function->requiredArgs ? AS_STRING(closure->function->requiredArgNames.values[destination]) :
+			(destination - closure->function->requiredArgs < closure->function->keywordArgs ? AS_STRING(closure->function->keywordArgNames.values[destination - closure->function->requiredArgs]) :
+				S("<unnamed>"))));
 }
 
 static int _unpack_op(void * context, const KrkValue * values, size_t count) {
@@ -725,7 +840,7 @@ int krk_processComplexArguments(int argCount, KrkValueArray * positionals, KrkTa
 							return 0;
 						}
 						if (!krk_tableSet(keywords, entry->key, entry->value)) {
-							krk_runtimeError(vm.exceptions->typeError, "%s() got multiple values for argument '%s'", name, AS_CSTRING(entry->key));
+							krk_runtimeError(vm.exceptions->typeError, "%s() got multiple values for argument '%S'", name, AS_STRING(entry->key));
 							return 0;
 						}
 					}
@@ -735,7 +850,7 @@ int krk_processComplexArguments(int argCount, KrkValueArray * positionals, KrkTa
 			}
 		} else if (IS_STRING(key)) {
 			if (!krk_tableSet(keywords, key, value)) {
-				krk_runtimeError(vm.exceptions->typeError, "%s() got multiple values for argument '%s'", name, AS_CSTRING(key));
+				krk_runtimeError(vm.exceptions->typeError, "%s() got multiple values for argument '%S'", name, AS_STRING(key));
 				return 0;
 			}
 		}
@@ -855,9 +970,9 @@ static inline int _callManaged(KrkClosure * closure, int argCount, int returnDep
 					}
 				}
 				if (!(closure->function->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_KWS)) {
-					krk_runtimeError(vm.exceptions->typeError, "%s() got an unexpected keyword argument '%s'",
+					krk_runtimeError(vm.exceptions->typeError, "%s() got an unexpected keyword argument '%S'",
 						closure->function->name ? closure->function->name->chars : "<unnamed>",
-						AS_CSTRING(name));
+						AS_STRING(name));
 					goto _errorAfterPositionals;
 				}
 				continue;
@@ -880,9 +995,9 @@ _finishKwarg:
 
 		for (size_t i = 0; i < (size_t)closure->function->requiredArgs; ++i) {
 			if (IS_KWARGS(krk_currentThread.stackTop[-argCount + i])) {
-				krk_runtimeError(vm.exceptions->typeError, "%s() missing required positional argument: '%s'",
+				krk_runtimeError(vm.exceptions->typeError, "%s() missing required positional argument: '%S'",
 					closure->function->name ? closure->function->name->chars : "<unnamed>",
-					AS_CSTRING(closure->function->requiredArgNames.values[i]));
+					AS_STRING(closure->function->requiredArgNames.values[i]));
 				goto _errorAfterKeywords;
 			}
 		}
@@ -1041,7 +1156,7 @@ int krk_callValue(KrkValue callee, int argCount, int returnDepth) {
 					returnDepth = returnDepth ? (returnDepth - 1) : 0;
 					return (_class->_call->type == KRK_OBJ_CLOSURE) ? _callManaged((KrkClosure*)_class->_call, argCount, returnDepth) : _callNative((KrkNative*)_class->_call, argCount, returnDepth);
 				} else {
-					krk_runtimeError(vm.exceptions->typeError, "'%s' object is not callable", krk_typeName(callee));
+					krk_runtimeError(vm.exceptions->typeError, "'%T' object is not callable", callee);
 					return 0;
 				}
 			}
@@ -1056,8 +1171,8 @@ int krk_callValue(KrkValue callee, int argCount, int returnDepth) {
 					returnDepth = returnDepth ? (returnDepth - 1) : 0;
 					goto _innerObject;
 				} else if (unlikely(argCount != 0)) {
-					krk_runtimeError(vm.exceptions->typeError, "%s() takes no arguments (%d given)",
-						_class->name->chars, argCount);
+					krk_runtimeError(vm.exceptions->typeError, "%S() takes no arguments (%d given)",
+						_class->name, argCount);
 					return 0;
 				}
 				krk_currentThread.stackTop -= argCount + returnDepth;
@@ -1081,7 +1196,7 @@ int krk_callValue(KrkValue callee, int argCount, int returnDepth) {
 				break;
 		}
 	}
-	krk_runtimeError(vm.exceptions->typeError, "'%s' object is not callable", krk_typeName(callee));
+	krk_runtimeError(vm.exceptions->typeError, "'%T' object is not callable", callee);
 	return 0;
 }
 
@@ -1676,8 +1791,8 @@ const char * krk_typeName(KrkValue value) {
 		} \
 		if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) return NONE_VAL(); \
 		return krk_runtimeError(vm.exceptions->typeError, \
-			"unsupported operand types for %s: '%s' and '%s'", \
-			operator, krk_typeName(a), krk_typeName(b)); \
+			"unsupported operand types for %s: '%T' and '%T'", \
+			operator, a, b); \
 	}
 #define MAKE_BIN_OP(name,operator,inv) \
 	MAKE_COMPARE_OP(name,operator,inv) \
@@ -1729,7 +1844,7 @@ KrkValue krk_operator_is(KrkValue a, KrkValue b) {
 			return krk_callDirect(type-> sname, 1); \
 		} \
 		if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) return NONE_VAL(); \
-		return krk_runtimeError(vm.exceptions->typeError, "bad operand type for unary %s: '%s'", #op, krk_typeName(value)); \
+		return krk_runtimeError(vm.exceptions->typeError, "bad operand type for unary %s: '%T'", #op, value); \
 	}
 
 MAKE_UNARY_OP(_invert,invert,~)
@@ -1871,8 +1986,8 @@ int krk_loadModule(KrkString * path, KrkValue * moduleOut, KrkString * runAs, Kr
 				/* Try to import that. */
 				KrkValue dotted_main = krk_peek(0);
 				if (!krk_importModule(AS_STRING(dotted_main),runAs)) {
-					krk_runtimeError(vm.exceptions->importError, "No module named %s; '%s' is a package and cannot be executed directly",
-						AS_CSTRING(dotted_main), AS_CSTRING(packageName));
+					krk_runtimeError(vm.exceptions->importError, "No module named '%S'; '%S' is a package and cannot be executed directly",
+						AS_STRING(dotted_main), AS_STRING(packageName));
 					return 0;
 				}
 
@@ -1955,7 +2070,7 @@ int krk_loadModule(KrkString * path, KrkValue * moduleOut, KrkString * runAs, Kr
 		if (!dlRef) {
 			*moduleOut = NONE_VAL();
 			krk_runtimeError(vm.exceptions->importError,
-				"Failed to load native module '%s' from shared object '%s'", runAs->chars, fileName);
+				"Failed to load native module '%S' from shared object '%s'", runAs, fileName);
 			return 0;
 		}
 
@@ -1989,7 +2104,7 @@ int krk_loadModule(KrkString * path, KrkValue * moduleOut, KrkString * runAs, Kr
 		if (!krk_isInstanceOf(*moduleOut, vm.baseClasses->moduleClass)) {
 			dlClose(dlRef);
 			krk_runtimeError(vm.exceptions->importError,
-				"Failed to load module '%s' from '%s'", runAs->chars, fileName);
+				"Failed to load module '%S' from '%s'", runAs, fileName);
 			return 0;
 		}
 
@@ -2024,7 +2139,7 @@ int krk_loadModule(KrkString * path, KrkValue * moduleOut, KrkString * runAs, Kr
 		krk_push(OBJECT_VAL(runAs));
 	}
 
-	krk_runtimeError(vm.exceptions->importError, "No module named '%s'", AS_CSTRING(krk_peek(0)));
+	krk_runtimeError(vm.exceptions->importError, "No module named '%S'", AS_STRING(krk_peek(0)));
 
 	return 0;
 }
@@ -2205,7 +2320,7 @@ int krk_importModule(KrkString * name, KrkString * runAs) {
 			/* Is this a package? */
 			KrkValue tmp;
 			if (!krk_tableGet_fast(&AS_INSTANCE(current)->fields, S("__ispackage__"), &tmp) || !IS_BOOLEAN(tmp) || AS_BOOLEAN(tmp) != 1) {
-				krk_runtimeError(vm.exceptions->importError, "'%s' is not a package", AS_CSTRING(krk_currentThread.stack[argBase+2]));
+				krk_runtimeError(vm.exceptions->importError, "'%S' is not a package", AS_STRING(krk_currentThread.stack[argBase+2]));
 				return 0;
 			}
 			krk_currentThread.stack[argBase-1] = krk_pop();
@@ -2336,15 +2451,17 @@ static int valueGetMethod(KrkString * name) {
 	}
 
 	return 0;
-
 }
 
+int krk_getAttribute(KrkString * name) {
+	return valueGetProperty(name);
+}
 
 KrkValue krk_valueGetAttribute(KrkValue value, char * name) {
 	krk_push(OBJECT_VAL(krk_copyString(name,strlen(name))));
 	krk_push(value);
 	if (!valueGetProperty(AS_STRING(krk_peek(1)))) {
-		return krk_runtimeError(vm.exceptions->attributeError, "'%s' object has no attribute '%s'", krk_typeName(krk_peek(0)), name);
+		return krk_runtimeError(vm.exceptions->attributeError, "'%T' object has no attribute '%s'", krk_peek(0), name);
 	}
 	krk_swap(1);
 	krk_pop(); /* String */
@@ -2387,11 +2504,15 @@ static int valueDelProperty(KrkString * name) {
 	return 0;
 }
 
+int krk_delAttribute(KrkString * name) {
+	return valueDelProperty(name);
+}
+
 KrkValue krk_valueDelAttribute(KrkValue owner, char * name) {
 	krk_push(OBJECT_VAL(krk_copyString(name,strlen(name))));
 	krk_push(owner);
 	if (!valueDelProperty(AS_STRING(krk_peek(1)))) {
-		return krk_runtimeError(vm.exceptions->attributeError, "'%s' object has no attribute '%s'", krk_typeName(krk_peek(0)), name);
+		return krk_runtimeError(vm.exceptions->attributeError, "'%T' object has no attribute '%s'", krk_peek(0), name);
 	}
 	krk_pop(); /* String */
 	return NONE_VAL();
@@ -2486,12 +2607,16 @@ static int valueSetProperty(KrkString * name) {
 	return 1;
 }
 
+int krk_setAttribute(KrkString * name) {
+	return valueSetProperty(name);
+}
+
 KrkValue krk_valueSetAttribute(KrkValue owner, char * name, KrkValue to) {
 	krk_push(OBJECT_VAL(krk_copyString(name,strlen(name))));
 	krk_push(owner);
 	krk_push(to);
 	if (!valueSetProperty(AS_STRING(krk_peek(2)))) {
-		return krk_runtimeError(vm.exceptions->attributeError, "'%s' object has no attribute '%s'", krk_typeName(krk_peek(1)), name);
+		return krk_runtimeError(vm.exceptions->attributeError, "'%T' object has no attribute '%s'", krk_peek(1), name);
 	}
 	krk_swap(1);
 	krk_pop(); /* String */
@@ -2564,7 +2689,7 @@ static inline int doFormatString(int options) {
 			if (unlikely(krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION)) return 1;
 		} else {
 			krk_runtimeError(vm.exceptions->typeError,
-				"Can not convert %s to str", krk_typeName(krk_peek(0)));
+				"Can not convert '%T' to str", krk_peek(0));
 			return 1;
 		}
 	} else if (options & FORMAT_OP_REPR) {
@@ -2574,7 +2699,7 @@ static inline int doFormatString(int options) {
 			if (unlikely(krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION)) return 1;
 		} else {
 			krk_runtimeError(vm.exceptions->typeError,
-				"Can not repr %s", krk_typeName(krk_peek(0)));
+				"Can not repr '%T'", krk_peek(0));
 			return 1;
 		}
 	}
@@ -2594,7 +2719,7 @@ static inline int doFormatString(int options) {
 		krk_push(krk_callDirect(type->_format, 2));
 		if (unlikely(krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION)) return 1;
 	} else {
-		krk_runtimeError(vm.exceptions->attributeError, "'%s' object has no attribute '%s'", krk_typeName(krk_peek(1)), "__format__");
+		krk_runtimeError(vm.exceptions->attributeError, "'%T' object has no attribute '%s'", krk_peek(1), "__format__");
 		return 1;
 	}
 
@@ -2612,7 +2737,7 @@ static inline void commonMethodInvoke(size_t methodOffset, int args, const char 
 	if (likely(method != NULL)) {
 		krk_push(krk_callDirect(method, args));
 	} else {
-		krk_runtimeError(vm.exceptions->attributeError, msgFormat, krk_typeName(krk_peek(args-1)));
+		krk_runtimeError(vm.exceptions->attributeError, msgFormat, krk_peek(args-1));
 	}
 }
 
@@ -2790,25 +2915,25 @@ _finishReturn: (void)0;
 				krk_pop();
 				break;
 			case OP_INVOKE_GETTER: {
-				commonMethodInvoke(offsetof(KrkClass,_getter), 2, "'%s' object is not subscriptable");
+				commonMethodInvoke(offsetof(KrkClass,_getter), 2, "'%T' object is not subscriptable");
 				break;
 			}
 			case OP_INVOKE_SETTER: {
-				commonMethodInvoke(offsetof(KrkClass,_setter), 3, "'%s' object doesn't support item assignment");
+				commonMethodInvoke(offsetof(KrkClass,_setter), 3, "'%T' object doesn't support item assignment");
 				break;
 			}
 			case OP_INVOKE_DELETE: {
-				commonMethodInvoke(offsetof(KrkClass,_delitem), 2, "'%s' object doesn't support item deletion");
+				commonMethodInvoke(offsetof(KrkClass,_delitem), 2, "'%T' object doesn't support item deletion");
 				krk_pop(); /* unused result */
 				break;
 			}
 			case OP_INVOKE_ITER: {
-				commonMethodInvoke(offsetof(KrkClass,_iter), 1, "'%s' object is not iterable");
+				commonMethodInvoke(offsetof(KrkClass,_iter), 1, "'%T' object is not iterable");
 				break;
 			}
 			case OP_INVOKE_CONTAINS: {
 				krk_swap(1); /* operands are backwards */
-				commonMethodInvoke(offsetof(KrkClass,_contains), 2, "'%s' object can not be tested for membership");
+				commonMethodInvoke(offsetof(KrkClass,_contains), 2, "'%T' object can not be tested for membership");
 				break;
 			}
 			case OP_INVOKE_AWAIT: {
@@ -2826,13 +2951,12 @@ _finishReturn: (void)0;
 			case OP_INHERIT: {
 				KrkValue superclass = krk_peek(0);
 				if (unlikely(!IS_CLASS(superclass))) {
-					krk_runtimeError(vm.exceptions->typeError, "Superclass must be a class, not '%s'",
-						krk_typeName(superclass));
+					krk_runtimeError(vm.exceptions->typeError, "Superclass must be a class, not '%T'", superclass);
 					goto _finishException;
 				}
 				if (AS_OBJECT(superclass)->flags & KRK_OBJ_FLAGS_NO_INHERIT) {
-					krk_runtimeError(vm.exceptions->typeError, "'%s' can not be subclassed",
-						AS_CLASS(superclass)->name->chars);
+					krk_runtimeError(vm.exceptions->typeError, "'%S' can not be subclassed",
+						AS_CLASS(superclass)->name);
 					goto _finishException;
 				}
 				KrkClass * subclass = AS_CLASS(krk_peek(1));
@@ -2932,7 +3056,7 @@ _finishReturn: (void)0;
 					krk_swap(1);
 					krk_pop();
 				} else {
-					krk_runtimeError(vm.exceptions->typeError, "Can not annotate '%s'.", krk_typeName(krk_peek(0)));
+					krk_runtimeError(vm.exceptions->typeError, "Can not annotate '%T'.", krk_peek(0));
 					goto _finishException;
 				}
 				break;
@@ -3079,7 +3203,7 @@ _finishReturn: (void)0;
 				KrkValue value;
 				if (!krk_tableGet_fast(frame->globals, name, &value)) {
 					if (!krk_tableGet_fast(&vm.builtins->fields, name, &value)) {
-						krk_runtimeError(vm.exceptions->nameError, "Undefined variable '%s'.", name->chars);
+						krk_runtimeError(vm.exceptions->nameError, "Undefined variable '%S'.", name);
 						goto _finishException;
 					}
 				}
@@ -3092,7 +3216,7 @@ _finishReturn: (void)0;
 				ONE_BYTE_OPERAND;
 				KrkString * name = READ_STRING(OPERAND);
 				if (!krk_tableSetIfExists(frame->globals, OBJECT_VAL(name), krk_peek(0))) {
-					krk_runtimeError(vm.exceptions->nameError, "Undefined variable '%s'.", name->chars);
+					krk_runtimeError(vm.exceptions->nameError, "Undefined variable '%S'.", name);
 					goto _finishException;
 				}
 				break;
@@ -3103,7 +3227,7 @@ _finishReturn: (void)0;
 				ONE_BYTE_OPERAND;
 				KrkString * name = READ_STRING(OPERAND);
 				if (!krk_tableDelete(frame->globals, OBJECT_VAL(name))) {
-					krk_runtimeError(vm.exceptions->nameError, "Undefined variable '%s'.", name->chars);
+					krk_runtimeError(vm.exceptions->nameError, "Undefined variable '%S'.", name);
 					goto _finishException;
 				}
 				break;
@@ -3222,7 +3346,7 @@ _finishReturn: (void)0;
 					/* Try to import... */
 					KrkValue moduleName;
 					if (!krk_tableGet(&AS_INSTANCE(krk_peek(0))->fields, vm.specialMethodNames[METHOD_NAME], &moduleName)) {
-						krk_runtimeError(vm.exceptions->importError, "Can not import '%s' from non-module '%s' object", name->chars, krk_typeName(krk_peek(0)));
+						krk_runtimeError(vm.exceptions->importError, "Can not import '%S' from non-module '%T' object", name, krk_peek(0));
 						goto _finishException;
 					}
 					krk_push(moduleName);
@@ -3231,7 +3355,7 @@ _finishReturn: (void)0;
 					krk_push(OBJECT_VAL(name));
 					krk_addObjects();
 					if (!krk_doRecursiveModuleLoad(AS_STRING(krk_peek(0)))) {
-						krk_runtimeError(vm.exceptions->importError, "Can not import '%s' from '%s'", name->chars, AS_CSTRING(moduleName));
+						krk_runtimeError(vm.exceptions->importError, "Can not import '%S' from '%S'", name, AS_STRING(moduleName));
 						goto _finishException;
 					}
 					krk_currentThread.stackTop[-3] = krk_currentThread.stackTop[-1];
@@ -3244,7 +3368,7 @@ _finishReturn: (void)0;
 				ONE_BYTE_OPERAND;
 				KrkString * name = READ_STRING(OPERAND);
 				if (unlikely(!valueGetProperty(name))) {
-					krk_runtimeError(vm.exceptions->attributeError, "'%s' object has no attribute '%s'", krk_typeName(krk_peek(0)), name->chars);
+					krk_runtimeError(vm.exceptions->attributeError, "'%T' object has no attribute '%S'", krk_peek(0), name);
 					goto _finishException;
 				}
 				break;
@@ -3255,7 +3379,7 @@ _finishReturn: (void)0;
 				ONE_BYTE_OPERAND;
 				KrkString * name = READ_STRING(OPERAND);
 				if (unlikely(!valueDelProperty(name))) {
-					krk_runtimeError(vm.exceptions->attributeError, "'%s' object has no attribute '%s'", krk_typeName(krk_peek(0)), name->chars);
+					krk_runtimeError(vm.exceptions->attributeError, "'%T' object has no attribute '%S'", krk_peek(0), name);
 					goto _finishException;
 				}
 				break;
@@ -3266,7 +3390,7 @@ _finishReturn: (void)0;
 				ONE_BYTE_OPERAND;
 				KrkString * name = READ_STRING(OPERAND);
 				if (unlikely(!valueSetProperty(name))) {
-					krk_runtimeError(vm.exceptions->attributeError, "'%s' object has no attribute '%s'", krk_typeName(krk_peek(1)), name->chars);
+					krk_runtimeError(vm.exceptions->attributeError, "'%T' object has no attribute '%S'", krk_peek(1), name);
 					goto _finishException;
 				}
 				break;
@@ -3293,7 +3417,7 @@ _finishReturn: (void)0;
 				KrkValue baseClass = krk_peek(1);
 				if (!IS_CLASS(baseClass)) {
 					krk_runtimeError(vm.exceptions->typeError,
-						"super() argument 1 must be class, not %s", krk_typeName(baseClass));
+						"super() argument 1 must be class, not %T", baseClass);
 					goto _finishException;
 				}
 				if (IS_KWARGS(krk_peek(0))) {
@@ -3303,14 +3427,14 @@ _finishReturn: (void)0;
 				}
 				if (!krk_isInstanceOf(krk_peek(0), AS_CLASS(baseClass))) {
 					krk_runtimeError(vm.exceptions->typeError,
-						"'%s' object is not an instance of '%s'",
-						krk_typeName(krk_peek(0)), AS_CLASS(baseClass)->name->chars);
+						"'%T' object is not an instance of '%S'",
+						krk_peek(0), AS_CLASS(baseClass)->name);
 					goto _finishException;
 				}
 				KrkClass * superclass = AS_CLASS(baseClass)->base ? AS_CLASS(baseClass)->base : vm.baseClasses->objectClass;
 				if (!krk_bindMethod(superclass, name)) {
-					krk_runtimeError(vm.exceptions->attributeError, "'%s' object has no attribute '%s'",
-						superclass->name->chars, name->chars);
+					krk_runtimeError(vm.exceptions->attributeError, "'%S' object has no attribute '%S'",
+						superclass->name, name);
 					goto _finishException;
 				}
 				/* Swap bind and superclass */
@@ -3330,7 +3454,7 @@ _finishReturn: (void)0;
 					krk_swap(2);
 					krk_pop();
 				} else if (unlikely(!result)) {
-					krk_runtimeError(vm.exceptions->attributeError, "'%s' object has no attribute '%s'", krk_typeName(krk_peek(0)), name->chars);
+					krk_runtimeError(vm.exceptions->attributeError, "'%T' object has no attribute '%S'", krk_peek(0), name);
 					goto _finishException;
 				} else {
 					krk_swap(1); /* unbound-method object */
@@ -3493,7 +3617,7 @@ _finishReturn: (void)0;
 					KrkValue s = krk_currentThread.stackTop[-(ssize_t)OPERAND+i];
 					if (unlikely(!IS_STRING(s))) {
 						discardStringBuilder(&sb);
-						krk_runtimeError(vm.exceptions->valueError, "'%s' is not a string", krk_typeName(s));
+						krk_runtimeError(vm.exceptions->valueError, "'%T' is not a string", s);
 						goto _finishException;
 					}
 					pushStringBuilderStr(&sb, (char*)AS_STRING(s)->chars, AS_STRING(s)->length);

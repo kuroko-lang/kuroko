@@ -108,7 +108,7 @@ KRK_Method(set,__and__) {
 
 	KrkClass * type = krk_getType(argv[1]);
 	if (!type->_contains)
-		return krk_runtimeError(vm.exceptions->typeError, "unsupported operand types for %s: '%s' and '%s'", "&", "set", krk_typeName(argv[1]));
+		return krk_runtimeError(vm.exceptions->typeError, "unsupported operand types for %s: '%T' and '%T'", "&", argv[0], argv[1]);
 
 	for (size_t i = 0; i < self->entries.capacity; ++i) {
 		KrkTableEntry * entry = &self->entries.entries[i];
@@ -136,7 +136,7 @@ KRK_Method(set,__xor__) {
 
 	KrkClass * type = krk_getType(argv[1]);
 	if (!type->_contains)
-		return krk_runtimeError(vm.exceptions->typeError, "unsupported operand types for %s: '%s' and '%s'", "&", "set", krk_typeName(argv[1]));
+		return krk_runtimeError(vm.exceptions->typeError, "unsupported operand types for %s: '%T' and '%T'", "&", argv[0], argv[1]);
 
 	for (size_t i = 0; i < self->entries.capacity; ++i) {
 		KrkTableEntry * entry = &self->entries.entries[i];

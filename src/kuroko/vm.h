@@ -472,12 +472,25 @@ extern void krk_attachNamedObject(KrkTable * table, const char name[], KrkObj * 
  * The created exception object is attached to the current thread state and
  * the @c KRK_THREAD_HAS_EXCEPTION flag is set.
  *
+ * If the format string is exactly "%V", the first format argument will
+ * be attached the exception as the 'msg' attribute.
+ *
+ * No field width or precisions are supported on any conversion specifiers.
+ *
+ * Standard conversion specifiers 'c', 's', 'd', 'u' are available, and the
+ * 'd' and 'u' specifiers may have length modifiers of l, L, or z.
+ *
+ * Additional format specifiers are as follows:
+ *
+ * %S - Accepts one KrkString* to be printed in its entirety.
+ * %R - Accepts one KrkValue and calls repr on it.
+ * %T - Accepts one KrkValue and emits the name of its type.
+ *
  * @param type Class pointer for the exception type, eg. @c vm.exceptions->valueError
  * @param fmt  Format string.
  * @return As a convenience to C extension authors, returns @c None
  */
-extern KrkValue krk_runtimeError(KrkClass * type, const char * fmt, ...)
-	__attribute__((format (printf, 2, 3)));
+extern KrkValue krk_runtimeError(KrkClass * type, const char * fmt, ...);
 
 /**
  * @brief Get a pointer to the current thread state.
@@ -749,6 +762,9 @@ extern int krk_isFalsey(KrkValue value);
  * This is a convenience function that works in essentially the
  * same way as the OP_GET_PROPERTY instruction.
  *
+ * @warning As this function takes a C string, it will not work with
+ * @warning attribute names that have nil bytes.
+ *
  * @param value Value to examine.
  * @param name  C-string of the property name to query.
  * @return The requested property, or None with an @ref AttributeError
@@ -769,6 +785,9 @@ extern KrkValue krk_valueGetAttribute_default(KrkValue value, char * name, KrkVa
  * This is a convenience function that works in essentially the
  * same way as the OP_SET_PROPERTY instruction.
  *
+ * @warning As this function takes a C string, it will not work with
+ * @warning attribute names that have nil bytes.
+ *
  * @param owner The owner of the property to modify.
  * @param name  C-string of the property name to modify.
  * @param to    The value to assign.
@@ -784,6 +803,9 @@ extern KrkValue krk_valueSetAttribute(KrkValue owner, char * name, KrkValue to);
  *
  * This is a convenience function that works in essentially the
  * same way as the OP_DEL_PROPERTY instruction.
+ *
+ * @warning As this function takes a C string, it will not work with
+ * @warning attribute names that have nil bytes.
  *
  * @param owner The owner of the property to delete.
  * @param name  C-string of the property name to delete.

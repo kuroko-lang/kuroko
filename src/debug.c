@@ -603,7 +603,7 @@ KRK_Function(dis) {
 			krk_disassembleCodeObject(stdout, func, tmp);
 			free(tmp);
 		} else {
-			krk_runtimeError(vm.exceptions->typeError, "Can not disassemble built-in method of '%s'", krk_typeName(AS_BOUND_METHOD(argv[0])->receiver));
+			krk_runtimeError(vm.exceptions->typeError, "Can not disassemble built-in method of '%T'", AS_BOUND_METHOD(argv[0])->receiver);
 		}
 	} else if (IS_CLASS(argv[0])) {
 		KrkValue code;
@@ -613,7 +613,7 @@ KRK_Function(dis) {
 		}
 		/* TODO Methods! */
 	} else {
-		krk_runtimeError(vm.exceptions->typeError, "Don't know how to disassemble '%s'", krk_typeName(argv[0]));
+		krk_runtimeError(vm.exceptions->typeError, "Don't know how to disassemble '%T'", argv[0]);
 	}
 
 	return NONE_VAL();

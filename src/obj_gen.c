@@ -253,11 +253,11 @@ int krk_getAwaitable(void) {
 		krk_push(krk_callStack(0));
 		KrkClass * _type = krk_getType(krk_peek(0));
 		if (!_type || !_type->_iter) {
-			krk_runtimeError(vm.exceptions->attributeError, "__await__ returned non-iterator of type '%s'", krk_typeName(krk_peek(0)));
+			krk_runtimeError(vm.exceptions->attributeError, "__await__ returned non-iterator of type '%T'", krk_peek(0));
 			return 0;
 		}
 	} else {
-		krk_runtimeError(vm.exceptions->attributeError, "'%s' object is not awaitable", krk_typeName(krk_peek(0)));
+		krk_runtimeError(vm.exceptions->attributeError, "'%T' object is not awaitable", krk_peek(0));
 		return 0;
 	}
 

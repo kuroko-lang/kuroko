@@ -25,8 +25,8 @@
 
 #define ADD_BASE_CLASS(obj, name, baseClass) krk_makeClass(vm.builtins, &obj, name, baseClass)
 
-#define ATTRIBUTE_NOT_ASSIGNABLE() do { if (unlikely(argc != 1)) return krk_runtimeError(vm.exceptions->attributeError, "'%s' object has no attribute '%s'", \
-	krk_typeName(argv[0]), _method_name); } while (0)
+#define ATTRIBUTE_NOT_ASSIGNABLE() do { if (unlikely(argc != 1)) return krk_runtimeError(vm.exceptions->attributeError, "'%T' object has no attribute '%s'", \
+	argv[0], _method_name); } while (0)
 
 #define METHOD_TAKES_NONE() do { if (unlikely(argc != 1)) return krk_runtimeError(vm.exceptions->argumentError, "%s() takes no arguments (%d given)", \
 	_method_name, (argc-1)); } while (0)
@@ -52,8 +52,8 @@
 #define FUNCTION_TAKES_AT_MOST(n) do { if (unlikely(argc > n)) return krk_runtimeError(vm.exceptions->argumentError, "%s() takes %s %d argument%s (%d given)", \
 	_method_name, "at most", n, (n != 1) ? "s" : "", (argc)); } while (0)
 
-#define TYPE_ERROR(expected,value) krk_runtimeError(vm.exceptions->typeError, "%s() expects %s, not '%s'", \
-		/* Function name */ _method_name, /* expected type */ #expected, krk_typeName(value))
+#define TYPE_ERROR(expected,value) krk_runtimeError(vm.exceptions->typeError, "%s() expects %s, not '%T'", \
+		/* Function name */ _method_name, /* expected type */ #expected, value)
 
 #define NOT_ENOUGH_ARGS(name) krk_runtimeError(vm.exceptions->argumentError, "Expected more args.")
 
