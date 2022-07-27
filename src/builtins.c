@@ -112,6 +112,58 @@ KRK_Method(object,__eq__) {
 }
 
 extern KrkValue krk_instanceSetAttribute_wrapper(KrkValue owner, KrkString * name, KrkValue to);
+extern int krk_getAttribute(KrkString*);
+extern int krk_setAttribute(KrkString*);
+extern int krk_delAttribute(KrkString*);
+
+KRK_Function(getattr) {
+	FUNCTION_TAKES_AT_LEAST(2);
+	CHECK_ARG(1,str,KrkString*,property);
+
+	krk_push(argv[0]);
+	if (!krk_getAttribute(AS_STRING(argv[1]))) {
+		krk_pop();
+		if (argc == 3) return argv[2];
+		return krk_runtimeError(vm.exceptions->attributeError, "'%T' object has no attribute '%S'", argv[0], AS_STRING(argv[1]));
+	}
+	return krk_pop();
+}
+
+KRK_Function(setattr) {
+	FUNCTION_TAKES_EXACTLY(3);
+	CHECK_ARG(1,str,KrkString*,property);
+
+	krk_push(argv[0]);
+	krk_push(argv[2]);
+	if (!krk_setAttribute(AS_STRING(argv[1]))) {
+		return krk_runtimeError(vm.exceptions->attributeError, "'%T' object has no attribute '%S'", argv[0], AS_STRING(argv[1]));
+	}
+	return krk_pop();
+}
+
+KRK_Function(hasattr) {
+	FUNCTION_TAKES_AT_LEAST(2);
+	CHECK_ARG(1,str,KrkString*,property);
+
+	krk_push(argv[0]);
+	if (!krk_getAttribute(AS_STRING(argv[1]))) {
+		krk_pop();
+		return BOOLEAN_VAL(0);
+	}
+	krk_pop();
+	return BOOLEAN_VAL(1);
+}
+
+KRK_Function(delattr) {
+	FUNCTION_TAKES_AT_LEAST(2);
+	CHECK_ARG(1,str,KrkString*,property);
+
+	krk_push(argv[0]);
+	if (!krk_delAttribute(AS_STRING(argv[1]))) {
+		return krk_runtimeError(vm.exceptions->attributeError, "'%T' object has no attribute '%S'", argv[0], AS_STRING(argv[1]));
+	}
+	return NONE_VAL();
+}
 
 /**
  * This must be marked as static so it doesn't get bound, or every object will
@@ -122,7 +174,7 @@ KRK_Method(object,__setattr__) {
 	if (!IS_STRING(argv[1])) return krk_runtimeError(vm.exceptions->typeError, "expected str");
 
 	if (!IS_INSTANCE(argv[0])) {
-		return krk_valueSetAttribute(argv[0], AS_CSTRING(argv[1]), argv[2]);
+		return FUNC_NAME(krk,setattr)(argc,argv,hasKw);
 	}
 
 	/* It's an instance, that presumably does not have a `__setattr__`? */
@@ -908,42 +960,6 @@ KRK_Method(module,__repr__) {
 	free(tmp);
 	return out;
 }
-
-KRK_Function(getattr) {
-	FUNCTION_TAKES_AT_LEAST(2);
-	KrkValue object = argv[0];
-	CHECK_ARG(1,str,KrkString*,property);
-	if (argc == 3) {
-		return krk_valueGetAttribute_default(object, property->chars, argv[2]);
-	} else {
-		return krk_valueGetAttribute(object, property->chars);
-	}
-}
-
-KRK_Function(setattr) {
-	FUNCTION_TAKES_EXACTLY(3);
-	KrkValue object = argv[0];
-	CHECK_ARG(1,str,KrkString*,property);
-	KrkValue value = argv[2];
-	return krk_valueSetAttribute(object, property->chars, value);
-}
-
-KRK_Function(hasattr) {
-	FUNCTION_TAKES_AT_LEAST(2);
-	KrkValue object = argv[0];
-	CHECK_ARG(1,str,KrkString*,property);
-
-	return BOOLEAN_VAL(!IS_KWARGS(krk_valueGetAttribute_default(object, property->chars, KWARGS_VAL(0))));
-}
-
-KRK_Function(delattr) {
-	FUNCTION_TAKES_AT_LEAST(2);
-	KrkValue object = argv[0];
-	CHECK_ARG(1,str,KrkString*,property);
-
-	return krk_valueDelAttribute(object, property->chars);
-}
-
 
 #define IS_Helper(o)  (krk_isInstanceOf(o, KRK_BASE_CLASS(Helper)))
 #define AS_Helper(o)  (AS_INSTANCE(o))
