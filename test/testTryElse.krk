@@ -1,0 +1,26 @@
+try:
+    print('totally fine')
+except:
+    print('impossible!')
+else:
+    print('good to go')
+finally:
+    print('then the finally')
+
+try:
+    print('totally fine')
+except:
+    print('impossible!')
+else:
+    print('good to go')
+
+try:
+    print('in the try')
+    raise ValueError()
+    print('oh no, fail')
+except:
+    print('does the except')
+else:
+    print('should not happen, fail')
+finally:
+    print('does the finally')

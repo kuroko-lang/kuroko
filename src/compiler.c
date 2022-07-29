@@ -2205,6 +2205,7 @@ static void tryStatement(struct GlobalState * state) {
 	exitJumpOffsets[0] = emitJump(OP_JUMP);
 	patchJump(tryJump);
 
+	int firstJump = 0;
 	int nextJump = -1;
 
 _anotherExcept:
@@ -2215,7 +2216,7 @@ _anotherExcept:
 			previous = state->parser.previous;
 			advance();
 		}
-		if (match(TOKEN_EXCEPT)) {
+		if (exitJumps && !firstJump && match(TOKEN_EXCEPT)) {
 			if (nextJump != -1) {
 				patchJump(nextJump);
 				emitByte(OP_POP);
@@ -2255,9 +2256,17 @@ _anotherExcept:
 			}
 
 			goto _anotherExcept;
+		} else if (firstJump != 1 && match(TOKEN_ELSE)) {
+			consume(TOKEN_COLON, "Expected ':' after 'else'.");
+			patchJump(exitJumpOffsets[0]);
+			firstJump = 1;
+			beginScope(state);
+			block(state, blockWidth, "else");
+			endScope(state);
+			goto _anotherExcept;
 		} else if (match(TOKEN_FINALLY)) {
 			consume(TOKEN_COLON, "Expected ':' after 'finally'.");
-			for (int i = 0; i < exitJumps; ++i) {
+			for (int i = firstJump; i < exitJumps; ++i) {
 				patchJump(exitJumpOffsets[i]);
 			}
 			size_t nameInd = renameLocal(state, exceptionObject, syntheticToken("__tmp"));
@@ -2285,7 +2294,7 @@ _anotherExcept:
 		}
 	}
 
-	for (int i = 0; i < exitJumps; ++i) {
+	for (int i = firstJump; i < exitJumps; ++i) {
 		patchJump(exitJumpOffsets[i]);
 	}
 
