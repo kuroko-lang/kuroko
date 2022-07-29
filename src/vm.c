@@ -1575,10 +1575,15 @@ int krk_loadModule(KrkString * path, KrkValue * moduleOut, KrkString * runAs, Kr
 	KrkValue modulePaths;
 
 	/* Obtain __builtins__.module_paths */
-	if (!krk_tableGet_fast(&vm.system->fields, S("module_paths"), &modulePaths) || !IS_INSTANCE(modulePaths)) {
+	if (!vm.system || !krk_tableGet_fast(&vm.system->fields, S("module_paths"), &modulePaths)) {
 		*moduleOut = NONE_VAL();
-		krk_runtimeError(vm.exceptions->importError,
-			"kuroko.module_paths not defined.");
+		krk_runtimeError(vm.exceptions->importError, "kuroko.module_paths not defined.");
+		return 0;
+	}
+
+	if (!IS_list(modulePaths)) {
+		*moduleOut = NONE_VAL();
+		krk_runtimeError(vm.exceptions->importError, "kuroko.module_paths must be a list, not '%T'", modulePaths);
 		return 0;
 	}
 
@@ -1602,7 +1607,7 @@ int krk_loadModule(KrkString * path, KrkValue * moduleOut, KrkString * runAs, Kr
 		if (!IS_STRING(krk_peek(0))) {
 			*moduleOut = NONE_VAL();
 			krk_runtimeError(vm.exceptions->typeError,
-				"Module search paths must be strings; check the search path at index %d", i);
+				"Module search path must be str, not '%T'", krk_peek(0));
 			return 0;
 		}
 
@@ -1700,7 +1705,7 @@ int krk_loadModule(KrkString * path, KrkValue * moduleOut, KrkString * runAs, Kr
 		if (!IS_OBJECT(*moduleOut)) {
 			if (!(krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION)) {
 				krk_runtimeError(vm.exceptions->importError,
-					"Failed to load module '%s' from '%s'", runAs->chars, fileName);
+					"Failed to load module '%S' from '%s'", runAs, fileName);
 			}
 			return 0;
 		}
