@@ -2499,8 +2499,15 @@ static int valueDelProperty(KrkString * name) {
 		}
 		krk_pop(); /* the original value */
 		return 1;
+	} else if (IS_CLOSURE(krk_peek(0))) {
+		KrkClosure * closure = AS_CLOSURE(krk_peek(0));
+		if (!krk_tableDelete(&closure->fields, OBJECT_VAL(name))) {
+			return 0;
+		}
+		krk_pop();
+		return 1;
 	}
-	/* TODO del on values? */
+	/* TODO __delattr__? Descriptor __delete__ methods? */
 	return 0;
 }
 
