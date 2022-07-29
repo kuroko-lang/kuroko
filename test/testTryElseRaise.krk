@@ -1,0 +1,12 @@
+try:
+    try:
+        print("good")
+    except:
+        print("bad")
+    else:
+        print('else')
+        raise ValueError
+    finally:
+        print('finally')
+except ValueError:
+    print("raised ValueError as expected")

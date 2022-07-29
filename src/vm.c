@@ -2414,6 +2414,12 @@ _finishReturn: (void)0;
 				krk_push(BOOLEAN_VAL(isMatch));
 				break;
 			}
+			case OP_TRY_ELSE: {
+				if (IS_HANDLER(krk_peek(0))) {
+					krk_currentThread.stackTop[-1] = HANDLER_VAL(OP_FILTER_EXCEPT,AS_HANDLER_TARGET(krk_peek(0)));
+				}
+				break;
+			}
 			case OP_BEGIN_FINALLY: {
 				if (IS_HANDLER(krk_peek(0))) {
 					if (AS_HANDLER_TYPE(krk_peek(0)) == OP_PUSH_TRY) {

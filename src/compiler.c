@@ -2260,9 +2260,16 @@ _anotherExcept:
 			consume(TOKEN_COLON, "Expected ':' after 'else'.");
 			patchJump(exitJumpOffsets[0]);
 			firstJump = 1;
+			emitByte(OP_TRY_ELSE);
 			beginScope(state);
 			block(state, blockWidth, "else");
 			endScope(state);
+			if (nextJump == -1) {
+				/* If there were no except: blocks, we need to make sure that the
+				 * 'try' handler goes directly to the finally, so that 'break'/'continue'
+				 * within the 'try' does not run this 'else' step. */
+				patchJump(tryJump);
+			}
 			goto _anotherExcept;
 		} else if (match(TOKEN_FINALLY)) {
 			consume(TOKEN_COLON, "Expected ':' after 'finally'.");
