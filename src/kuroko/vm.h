@@ -81,8 +81,8 @@ struct Exceptions {
 	KrkClass * notImplementedError; /**< @exception NotImplementedError The method is not implemented, either for the given arguments or in general. */
 	KrkClass * syntaxError;         /**< @exception SyntaxError The compiler encountered an unrecognized or invalid source code input. */
 	KrkClass * assertionError;      /**< @exception AssertionError An @c assert statement failed. */
-	KrkClass * OSError;             /**< @exception os.OSError */
-	KrkClass * ThreadError;         /**< @exception threading.ThreadError */
+	KrkClass * OSError;             /**< @exception os.OSError Raised by os module functions. */
+	KrkClass * ThreadError;         /**< @exception threading.ThreadError Raised by threading module functions. */
 };
 
 /**
@@ -128,21 +128,21 @@ struct BaseClasses {
 	KrkClass * dictvaluesClass;      /**< Iterator over values of a dict */
 	KrkClass * sliceClass;           /**< Slice object */
 	KrkClass * longClass;            /**< Arbitrary precision integer */
-	KrkClass * mapClass;
-	KrkClass * zipClass;
-	KrkClass * filterClass;
-	KrkClass * enumerateClass;
-	KrkClass * HelperClass;
-	KrkClass * LicenseReaderClass;
-	KrkClass * FileClass;
-	KrkClass * BinaryFileClass;
-	KrkClass * DirectoryClass;
-	KrkClass * stat_resultClass;
-	KrkClass * EnvironClass;
-	KrkClass * setClass;
-	KrkClass * setiteratorClass;
-	KrkClass * ThreadClass;
-	KrkClass * LockClass;
+	KrkClass * mapClass;             /**< Apply a function to entries from an iterator. */
+	KrkClass * zipClass;             /**< Yield elements from multiple iterators. */
+	KrkClass * filterClass;          /**< Yield elements from an iterator for which a function returns a truthy value. */
+	KrkClass * enumerateClass;       /**< Yield pairs of indexes and values from an iterator. */
+	KrkClass * HelperClass;          /**< Class implementation of 'help' object */
+	KrkClass * LicenseReaderClass;   /**< Class implementation of 'license' object */
+	KrkClass * FileClass;            /**< os.File */
+	KrkClass * BinaryFileClass;      /**< os.BinaryFile */
+	KrkClass * DirectoryClass;       /**< os.Directory */
+	KrkClass * stat_resultClass;     /**< stat.stat_result */
+	KrkClass * EnvironClass;         /**< os._Environ */
+	KrkClass * setClass;             /**< Unordered hashset */
+	KrkClass * setiteratorClass;     /**< Iterator over values in a set */
+	KrkClass * ThreadClass;          /**< Threading.Thread */
+	KrkClass * LockClass;            /**< Threading.Lock */
 };
 
 /**
@@ -426,6 +426,16 @@ extern KrkNative * krk_defineNativeProperty(KrkTable * table, const char * name,
  * a value to an attribute table. Rather than using @c krk_tableSet, this is
  * the preferred method of supplying fields to objects from C code.
  *
+ * Note that since this inserts values directly into tables, it skips any
+ * mechanisms like \__setattr__ or descriptor \__set__. If you need to support
+ * these mechanisms, use @c krk_setAttribute. If you have an instance and would
+ * like to emulate the behavior of object.__setattr__, you may also wish to
+ * use @c krk_instanceSetAttribute_wrapper.
+ *
+ * @warning As this function takes a C string, it does not support setting attributes
+ * @warning with names containing nil bytes. Use one of the other mechanisms if you
+ * @warning do not have full control over the attribute names you are trying to set.
+ *
  * @param table Attribute table to attach to, such as @c &someInstance->fields
  * @param name  Nil-terminated C string with the name to assign
  * @param obj   Value to attach.
@@ -442,6 +452,16 @@ extern void krk_attachNamedValue(KrkTable * table, const char name[], KrkValue o
  *
  * This is a convenience wrapper around @c krk_attachNamedValue.
  *
+ * Note that since this inserts values directly into tables, it skips any
+ * mechanisms like \__setattr__ or descriptor \__set__. If you need to support
+ * these mechanisms, use @c krk_setAttribute. If you have an instance and would
+ * like to emulate the behavior of object.__setattr__, you may also wish to
+ * use @c krk_instanceSetAttribute_wrapper.
+ *
+ * @warning As this function takes a C string, it does not support setting attributes
+ * @warning with names containing nil bytes. Use one of the other mechanisms if you
+ * @warning do not have full control over the attribute names you are trying to set.
+ *
  * @param table Attribute table to attach to, such as @c &someInstance->fields
  * @param name  Nil-terminated C string with the name to assign
  * @param obj   Object to attach.
@@ -449,7 +469,7 @@ extern void krk_attachNamedValue(KrkTable * table, const char name[], KrkValue o
 extern void krk_attachNamedObject(KrkTable * table, const char name[], KrkObj * obj);
 
 /**
- * @brief Raise an exception.
+ * @brief Produce and raise an exception with a formatted message.
  *
  * Creates an instance of the given exception type, passing a formatted
  * string to the initializer. All of the core exception types take an option
@@ -469,9 +489,9 @@ extern void krk_attachNamedObject(KrkTable * table, const char name[], KrkObj * 
  *
  * Additional format specifiers are as follows:
  *
- * %S - Accepts one KrkString* to be printed in its entirety.
- * %R - Accepts one KrkValue and calls repr on it.
- * %T - Accepts one KrkValue and emits the name of its type.
+ * @c %S - Accepts one KrkString* to be printed in its entirety.
+ * @c %R - Accepts one KrkValue and calls repr on it.
+ * @c %T - Accepts one KrkValue and emits the name of its type.
  *
  * @param type Class pointer for the exception type, eg. @c vm.exceptions->valueError
  * @param fmt  Format string.
@@ -866,6 +886,8 @@ extern KrkValue krk_operator_ge(KrkValue,KrkValue);
 
 /**
  * @brief Set the maximum recursion call depth.
+ *
+ * Must not be called while execution is in progress.
  */
 extern void krk_setMaximumRecursionDepth(size_t maxDepth);
 
