@@ -2192,8 +2192,6 @@ static int trySetDescriptor(KrkValue owner, KrkString * name, KrkValue value) {
 	return 0;
 }
 
-extern int krk_tableSetIfExists(KrkTable * table, KrkValue key, KrkValue value);
-
 _noexport
 KrkValue krk_instanceSetAttribute_wrapper(KrkValue owner, KrkString * name, KrkValue to) {
 	if (!krk_tableSetIfExists(&AS_INSTANCE(owner)->fields, OBJECT_VAL(name), to)) {

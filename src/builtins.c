@@ -111,11 +111,6 @@ KRK_Method(object,__eq__) {
 	return NOTIMPL_VAL();
 }
 
-extern KrkValue krk_instanceSetAttribute_wrapper(KrkValue owner, KrkString * name, KrkValue to);
-extern int krk_getAttribute(KrkString*);
-extern int krk_setAttribute(KrkString*);
-extern int krk_delAttribute(KrkString*);
-
 KRK_Function(getattr) {
 	FUNCTION_TAKES_AT_LEAST(2);
 	CHECK_ARG(1,str,KrkString*,property);

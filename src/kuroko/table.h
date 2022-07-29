@@ -190,3 +190,19 @@ extern int krk_hashValue(KrkValue value, uint32_t *hashOut);
  * @param capacity Target capacity.
  */
 extern void krk_tableAdjustCapacity(KrkTable * table, size_t capacity);
+
+/**
+ * @brief Update the value of a table entry only if it is found.
+ * @memberof KrkTable
+ *
+ * Searches the table for @p key and updates its value to @p value if found.
+ * If @p key is not found, it is not added to the table.
+ *
+ * @warning Note the return value of this function is inverted from krk_tableSet
+ *
+ * @param table Table to assign to.
+ * @param key   Key to assign.
+ * @param value Value to assign to the key.
+ * @return 0 if the key was not present, 1 if it was found and updated.
+ */
+extern int krk_tableSetIfExists(KrkTable * table, KrkValue key, KrkValue value);

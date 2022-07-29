@@ -892,4 +892,67 @@ extern void krk_setMaximumRecursionDepth(size_t maxDepth);
  * held stack is reallocated, it will be freed when execution returns to the call
  * to @c krk_callNativeOnStack that holds it.
  */
-KrkValue krk_callNativeOnStack(size_t argCount, const KrkValue *stackArgs, int hasKw, NativeFn native);
+extern KrkValue krk_callNativeOnStack(size_t argCount, const KrkValue *stackArgs, int hasKw, NativeFn native);
+
+/**
+ * @brief Set an attribute of an instance object, bypassing \__setattr__.
+ *
+ * This can be used to emulate the behavior of super(object).__setattr__ for
+ * types that derive from KrkInstance and have a fields table, and is the internal
+ * mechanism by which object.__setattr__() performs this task.
+ *
+ * Does not bypass descriptors.
+ *
+ * @param owner Instance object to set an attribute on.
+ * @param name  Name of the attribute
+ * @param to    New value for the attribute
+ * @return The value set, which is likely @p to but may be the returned value of a descriptor \__set__ method.
+ */
+extern KrkValue krk_instanceSetAttribute_wrapper(KrkValue owner, KrkString * name, KrkValue to);
+
+/**
+ * @brief Implementation of the GET_PROPERTY instruction.
+ *
+ * Retrieves the attribute specifed by @p name from the value at the top of the
+ * stack. The top of the stack will be replaced with the resulting attribute value,
+ * if one is found, and 1 will be returned. Otherwise, 0 is returned and the stack
+ * remains unchanged. No exception is raised if the property is not found, allowing
+ * this function to be used in context where a default value is desired, but note
+ * that exceptions may be raised \__getattr__ methods or by descriptor \__get__ methods.
+ *
+ * @param name Name of the attribute to look up.
+ * @return 1 if the attribute was found, 0 otherwise.
+ */
+extern int krk_getAttribute(KrkString * name);
+
+/**
+ * @brief Implementation of the SET_PROPERTY instruction.
+ *
+ * Sets the attribute specifed by @p name on the value second from top of the stack
+ * to the value at the top of the stack. Upon successful completion, 1 is returned
+ * the stack is reduced by one slot, and the top of the stack is the value set, which
+ * may be the result of a descriptor \__set__ method. If the owner object does not
+ * allow for attributes to be set, and no descriptor object is present, 0 will be
+ * returned and the stack remains unmodified. No exception is raised in this case,
+ * though exceptions may still be raised by \__setattr__ methods or descriptor
+ * \__set__ methods.
+ *
+ * @param name Name of the attribute to set.
+ * @return 1 if the attribute could be set, 0 otherwise.
+ */
+extern int krk_setAttribute(KrkString * name);
+
+/**
+ * @brief Implementation of the DEL_PROPERTY instruction.
+ *
+ * Attempts to delete the attribute specified by @p name from the value at the
+ * top of the stack, returning 1 and reducing the stack by one on success. If
+ * the attribute is not found or attribute deletion is not meaningful, 0 is
+ * returned and the stack remains unmodified, but no exception is raised.
+ *
+ * @warning Currently, no \__delattr__ mechanism is available.
+ *
+ * @param name Name of the attribute to delete.
+ * @return 1 if the attribute was found and can be deleted, 0 otherwise.
+ */
+extern int krk_delAttribute(KrkString * name);
