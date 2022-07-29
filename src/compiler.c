@@ -1986,9 +1986,10 @@ static void breakStatement(struct GlobalState * state) {
 		state->current->breaks = GROW_ARRAY(struct LoopExit,state->current->breaks,old,state->current->breakSpace);
 	}
 
-	for (size_t i = state->current->loopLocalCount; i < state->current->localCount; ++i) {
-		emitByte(OP_POP);
+	if (state->current->loopLocalCount != state->current->localCount) {
+		EMIT_OPERAND_OP(OP_EXIT_LOOP, state->current->loopLocalCount);
 	}
+
 	state->current->breaks[state->current->breakCount++] = (struct LoopExit){emitJump(OP_JUMP),state->parser.previous};
 }
 
@@ -1999,9 +2000,10 @@ static void continueStatement(struct GlobalState * state) {
 		state->current->continues = GROW_ARRAY(struct LoopExit,state->current->continues,old,state->current->continueSpace);
 	}
 
-	for (size_t i = state->current->loopLocalCount; i < state->current->localCount; ++i) {
-		emitByte(OP_POP);
+	if (state->current->loopLocalCount != state->current->localCount) {
+		EMIT_OPERAND_OP(OP_EXIT_LOOP, state->current->loopLocalCount);
 	}
+
 	state->current->continues[state->current->continueCount++] = (struct LoopExit){emitJump(OP_JUMP),state->parser.previous};
 }
 

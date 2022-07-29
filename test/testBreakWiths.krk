@@ -1,0 +1,25 @@
+class withable():
+    def __init__(self, name):
+        self.name = name
+    def __enter__(self):
+        print("enter", self.name)
+    def __exit__(self,*args):
+        print("exit", self.name, args)
+
+while True:
+    with withable('outer'):
+        while True:
+            with withable('a'):
+                print("into a")
+                with withable('b'):
+                    print("into b")
+                    with withable('c'):
+                        print("into c")
+                        break
+                    print("nope b")
+                print("nope a")
+            print("nope loop")
+        print("exit from loop")
+        break
+    print("nope outer")
+print("done")

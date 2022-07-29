@@ -1,0 +1,17 @@
+def foo():
+    try:
+        for i in range(5):
+            try:
+                try:
+                    print('in try')
+                    break
+                finally:
+                    print('finally')
+            finally:
+                print('another finally')
+            print('out of try/finally')
+        print('out of loop')
+    finally:
+        print('in other finally')
+
+foo()

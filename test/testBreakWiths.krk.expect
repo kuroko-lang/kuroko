@@ -1,0 +1,13 @@
+enter outer
+enter a
+into a
+enter b
+into b
+enter c
+into c
+exit c [None, None, None]
+exit b [None, None, None]
+exit a [None, None, None]
+exit from loop
+exit outer [None, None, None]
+done

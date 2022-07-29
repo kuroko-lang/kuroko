@@ -2222,6 +2222,11 @@ _resumeHook: (void)0;
 					krk_callDirect(type->_exit, 4);
 					if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) goto _finishException;
 				}
+				if (AS_HANDLER_TYPE(handler) == OP_EXIT_LOOP) {
+					frame->ip = frame->closure->function->chunk.code + AS_HANDLER_TARGET(handler);
+					OPERAND = AS_INTEGER(krk_peek(1));
+					goto _finishPopBlock;
+				}
 				if (AS_HANDLER_TYPE(handler) != OP_RETURN) break;
 				krk_pop(); /* handler */
 			} /* fallthrough */
@@ -2388,6 +2393,8 @@ _finishReturn: (void)0;
 					isMatch = 0;
 				} else if (AS_HANDLER_TYPE(krk_peek(1)) == OP_END_FINALLY) {
 					isMatch = 0;
+				} else if (AS_HANDLER_TYPE(krk_peek(1)) == OP_EXIT_LOOP) {
+					isMatch = 0;
 				} else if (IS_CLASS(krk_peek(0)) && krk_isInstanceOf(krk_peek(2), AS_CLASS(krk_peek(0)))) {
 					isMatch = 1;
 				} else if (IS_TUPLE(krk_peek(0))) {
@@ -2425,6 +2432,10 @@ _finishReturn: (void)0;
 						krk_currentThread.currentException = krk_pop();
 						krk_currentThread.flags |= KRK_THREAD_HAS_EXCEPTION;
 						goto _finishException;
+					} else if (AS_HANDLER_TYPE(handler) == OP_EXIT_LOOP) {
+						frame->ip = frame->closure->function->chunk.code + AS_HANDLER_TARGET(handler);
+						OPERAND = AS_INTEGER(krk_peek(1));
+						goto _finishPopBlock;
 					} else if (AS_HANDLER_TYPE(handler) == OP_RETURN) {
 						krk_push(krk_peek(1));
 						goto _finishReturn;
@@ -2887,6 +2898,34 @@ _finishReturn: (void)0;
 				}
 				break;
 			}
+
+			case OP_EXIT_LOOP_LONG:
+				THREE_BYTE_OPERAND;
+			case OP_EXIT_LOOP: {
+				ONE_BYTE_OPERAND;
+_finishPopBlock:
+				closeUpvalues(frame->slots + OPERAND);
+				int stackOffset;
+				for (stackOffset = (int)(krk_currentThread.stackTop - krk_currentThread.stack - 1);
+					stackOffset >= (int)(frame->slots + OPERAND) && 
+					!IS_HANDLER_TYPE(krk_currentThread.stack[stackOffset],OP_PUSH_TRY) &&
+					!IS_HANDLER_TYPE(krk_currentThread.stack[stackOffset],OP_PUSH_WITH) &&
+					!IS_HANDLER_TYPE(krk_currentThread.stack[stackOffset],OP_FILTER_EXCEPT)
+					; stackOffset--) krk_pop();
+
+				/* Do the handler. */
+				if (stackOffset >= (int)(frame->slots + OPERAND)) {
+					uint16_t popTarget = (frame->ip - frame->closure->function->chunk.code);
+					krk_currentThread.stackTop = &krk_currentThread.stack[stackOffset + 1];
+					frame->ip = frame->closure->function->chunk.code + AS_HANDLER_TARGET(krk_peek(0));
+					krk_currentThread.stackTop[-1] = HANDLER_VAL(OP_EXIT_LOOP, popTarget);
+					krk_currentThread.stackTop[-2] = INTEGER_VAL(OPERAND);
+				}
+
+				/* Continue normally */
+				break;
+			}
+
 			case OP_POP_MANY_LONG:
 				THREE_BYTE_OPERAND;
 			case OP_POP_MANY: {

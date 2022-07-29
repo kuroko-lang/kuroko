@@ -64,6 +64,7 @@ void krk_printValueSafe(FILE * f, KrkValue printable) {
 					case OP_BEGIN_FINALLY: fprintf(f, "{finally<-%d}", (int)AS_HANDLER_TARGET(printable)); break;
 					case OP_RETURN:        fprintf(f, "{return<-%d}",  (int)AS_HANDLER_TARGET(printable)); break;
 					case OP_END_FINALLY:   fprintf(f, "{end<-%d}",     (int)AS_HANDLER_TARGET(printable)); break;
+					case OP_EXIT_LOOP:     fprintf(f, "{exit<-%d}",    (int)AS_HANDLER_TARGET(printable)); break;
 				}
 				break;
 			case KRK_VAL_KWARGS: {
