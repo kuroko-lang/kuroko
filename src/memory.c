@@ -581,8 +581,7 @@ KRK_Function(resume) {
 	return NONE_VAL();
 }
 
-_noexport
-void _createAndBind_gcMod(void) {
+void krk_module_init_gc(void) {
 	/**
 	 * gc = module()
 	 *

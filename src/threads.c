@@ -199,8 +199,7 @@ KRK_Method(Lock,__exit__) {
 	return NONE_VAL();
 }
 
-_noexport
-void _createAndBind_threadsMod(void) {
+void krk_module_init_threading(void) {
 	/**
 	 * threads = module()
 	 *

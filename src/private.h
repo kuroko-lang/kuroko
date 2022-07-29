@@ -22,14 +22,6 @@ extern void _createAndBind_builtins(void);
 extern void _createAndBind_type(void);
 extern void _createAndBind_exceptions(void);
 extern void _createAndBind_longClass(void);
-extern void _createAndBind_gcMod(void);
-extern void _createAndBind_timeMod(void);
-extern void _createAndBind_osMod(void);
-extern void _createAndBind_fileioMod(void);
-#ifndef KRK_DISABLE_THREADS
-extern void _createAndBind_threadsMod(void);
-#endif
-
 
 /**
  * @brief Index numbers for always-available interned strings representing important method and member names.

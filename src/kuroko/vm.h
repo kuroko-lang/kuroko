@@ -222,6 +222,7 @@ typedef struct KrkVM {
 #define KRK_GLOBAL_CALLGRIND           (1 << 11)
 #define KRK_GLOBAL_REPORT_GC_COLLECTS  (1 << 12)
 #define KRK_GLOBAL_THREADS             (1 << 13)
+#define KRK_GLOBAL_NO_DEFAULT_MODULES  (1 << 14)
 
 #ifndef KRK_DISABLE_THREADS
 #  define threadLocal __thread
@@ -965,3 +966,44 @@ extern int krk_setAttribute(KrkString * name);
  * @return 1 if the attribute was found and can be deleted, 0 otherwise.
  */
 extern int krk_delAttribute(KrkString * name);
+
+/**
+ * @brief Initialize the built-in 'kuroko' module.
+ */
+extern void krk_module_init_kuroko(void);
+
+/**
+ * @brief Initialize the built-in 'gc' module.
+ */
+extern void krk_module_init_gc(void);
+
+/**
+ * @brief Initialize the built-in 'time' module.
+ */
+extern void krk_module_init_time(void);
+
+/**
+ * @brief Initialize the built-in 'os' module.
+ */
+extern void krk_module_init_os(void);
+
+/**
+ * @brief Initialize the built-in 'fileio' module.
+ */
+extern void krk_module_init_fileio(void);
+
+/**
+ * @brief Initialize the built-in 'dis' module.
+ *
+ * Not available if KRK_DISABLE_DEBUG is set.
+ */
+extern void krk_module_init_dis(void);
+
+/**
+ * @brief Initialize the built-in 'threading' module.
+ *
+ * Not available if KRK_DISABLE_THREADS is set.
+ */
+extern void krk_module_init_threading(void);
+
+

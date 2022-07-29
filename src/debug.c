@@ -735,8 +735,7 @@ KRK_Function(examine) {
 #undef EXPAND_ARGS_MORE
 #undef FORMAT_VALUE_MORE
 
-_noexport
-void _createAndBind_disMod(void) {
+void krk_module_init_dis(void) {
 	KrkInstance * module = krk_newInstance(vm.baseClasses->moduleClass);
 	krk_attachNamedObject(&vm.modules, "dis", (KrkObj*)module);
 	krk_attachNamedObject(&module->fields, "__name__", (KrkObj*)S("dis"));

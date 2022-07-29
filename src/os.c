@@ -661,8 +661,7 @@ KRK_Function(S_ISSOCK) {
 }
 #endif
 
-_noexport
-void _createAndBind_osMod(void) {
+void krk_module_init_os(void) {
 	KrkInstance * module = krk_newInstance(vm.baseClasses->moduleClass);
 	krk_attachNamedObject(&vm.modules, "os", (KrkObj*)module);
 	krk_attachNamedObject(&module->fields, "__name__", (KrkObj*)S("os"));

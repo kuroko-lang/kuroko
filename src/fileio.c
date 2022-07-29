@@ -494,8 +494,7 @@ KRK_Method(Directory,__exit__) {
 	return FUNC_NAME(Directory,close)(1,argv,0);
 }
 
-_noexport
-void _createAndBind_fileioMod(void) {
+void krk_module_init_fileio(void) {
 	KrkInstance * module = krk_newInstance(vm.baseClasses->moduleClass);
 	krk_attachNamedObject(&vm.modules, "fileio", (KrkObj*)module);
 	krk_attachNamedObject(&module->fields, "__name__", (KrkObj*)S("fileio"));

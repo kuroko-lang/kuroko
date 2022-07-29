@@ -48,9 +48,6 @@ extern void krk_disassembleCodeObject(FILE * f, KrkCodeObject * func, const char
  */
 extern size_t krk_disassembleInstruction(FILE * f, KrkCodeObject * func, size_t offset);
 
-/* Internal stuff */
-extern void _createAndBind_disMod(void);
-
 /**
  * @brief Called by the VM when a breakpoint is encountered.
  *
