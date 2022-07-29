@@ -493,6 +493,35 @@ extern void krk_attachNamedObject(KrkTable * table, const char name[], KrkObj * 
 extern KrkValue krk_runtimeError(KrkClass * type, const char * fmt, ...);
 
 /**
+ * @brief Raise an exception value.
+ *
+ * Implementation of the @c OP_RAISE and @c OP_RAISE_FROM instructions.
+ *
+ * If either of @p base or @p cause is a class, the class will be called to
+ * produce an instance, so exception classes may be used directly if desired.
+ *
+ * If @p cause is not @c None it will be attached as @c \__cause__ to the
+ * resulting exception object.
+ *
+ * A traceback is automatically attached.
+ *
+ * @param base Exception object or class to raise.
+ * @param cause Exception cause object or class to attach.
+ */
+extern void krk_raiseException(KrkValue base, KrkValue cause);
+
+/**
+ * @brief Attach an inner exception to the current exception object.
+ *
+ * Sets the @c \__context__ of the current exception object.
+ *
+ * There must be a current exception, and it must be an instance object.
+ *
+ * @param innerException \__context__ to set.
+ */
+extern void krk_attachInnerException(KrkValue innerException);
+
+/**
  * @brief Get a pointer to the current thread state.
  *
  * Generally equivalent to @c &krk_currentThread, though @c krk_currentThread
