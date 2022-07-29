@@ -29,7 +29,7 @@ ifeq (,$(findstring mingw,$(CC)))
   ifeq (Darwin,$(shell uname -s))
     MODLIBS += -undefined dynamic_lookup -DKRK_MEDIOCRE_TLS
   else
-    ${TOOLS}: LDFLAGS += -Wl,-rpath,$$ORIGIN
+    ${TOOLS}: LDFLAGS += '-Wl,-rpath,$$ORIGIN'
   endif
 else
   CFLAGS  += -Wno-format -static-libgcc -pthread
