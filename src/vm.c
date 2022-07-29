@@ -1694,7 +1694,7 @@ int krk_loadModule(KrkString * path, KrkValue * moduleOut, KrkString * runAs, Kr
 				krk_attachNamedValue(&krk_currentThread.module->fields, "__package__", NONE_VAL());
 			}
 		}
-		krk_callfile(fileName,fileName);
+		krk_runfile(fileName,fileName);
 		*moduleOut = OBJECT_VAL(krk_currentThread.module);
 		krk_currentThread.module = enclosing;
 		if (!IS_OBJECT(*moduleOut)) {
@@ -3349,9 +3349,7 @@ KrkValue krk_interpret(const char * src, char * fromFile) {
 	krk_pop();
 
 	krk_push(OBJECT_VAL(closure));
-	krk_callValue(OBJECT_VAL(closure), 0, 1);
-
-	return run();
+	return krk_callStack(0);
 }
 
 #ifndef KRK_NO_FILESYSTEM
@@ -3380,11 +3378,4 @@ KrkValue krk_runfile(const char * fileName, char * fromFile) {
 	return result;
 }
 
-KrkValue krk_callfile(const char * fileName, char * fromFile) {
-	int previousExitFrame = krk_currentThread.exitOnFrame;
-	krk_currentThread.exitOnFrame = krk_currentThread.frameCount;
-	KrkValue out = krk_runfile(fileName, fromFile);
-	krk_currentThread.exitOnFrame = previousExitFrame;
-	return out;
-}
 #endif

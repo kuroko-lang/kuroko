@@ -332,19 +332,6 @@ extern KrkValue krk_interpret(const char * src, char * fromFile);
 extern KrkValue krk_runfile(const char * fileName, char * fromFile);
 
 /**
- * @brief Load and run a file as a module.
- *
- * Similar to @c krk_runfile but ensures that execution of the VM returns to the caller
- * after the file is run. This should be run after calling @c krk_startModule to initialize
- * a new module context and is used internally by the import mechanism.
- *
- * @param fileName Path to the source file to read and execute.
- * @param fromFile Value to assign to @c \__file__
- * @return The object representing the module, or None if execution of the file failed.
- */
-extern KrkValue krk_callfile(const char * fileName, char * fromFile);
-
-/**
  * @brief Push a stack value.
  *
  * Pushes a value onto the current thread's stack, triggering a
