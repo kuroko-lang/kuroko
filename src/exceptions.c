@@ -485,7 +485,7 @@ KrkValue krk_runtimeError(KrkClass * type, const char * fmt, ...) {
 			}
 
 			case 'u': {
-				size_t val;
+				size_t val = 0;
 				if (size == ' ') {
 					val = va_arg(args, unsigned int);
 				} else if (size == 'l') {
@@ -502,7 +502,7 @@ KrkValue krk_runtimeError(KrkClass * type, const char * fmt, ...) {
 			}
 
 			case 'd': {
-				ssize_t val;
+				ssize_t val = 0;
 				if (size == ' ') {
 					val = va_arg(args, int);
 				} else if (size == 'l') {
