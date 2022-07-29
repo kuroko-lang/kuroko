@@ -7,26 +7,13 @@
 #include "simple-repl.h"
 
 int main(int argc, char * argv[]) {
-	/* Initialize VM with traceback printing disabled (we'll print them ourselves) */
-	krk_initVM(KRK_GLOBAL_CLEAN_OUTPUT);
-
-	/* Disable imports, ensure the system module is inaccessible, disable print */
-	krk_tableDelete(&vm.system->fields, OBJECT_VAL(S("module_paths")));
-	krk_tableDelete(&vm.modules, OBJECT_VAL(S("kuroko")));
-	krk_tableDelete(&vm.modules, OBJECT_VAL(S("os"))); /* Leaks sensitive information */
-	krk_tableDelete(&vm.modules, OBJECT_VAL(S("fileio"))); /* File access is a big no */
-	krk_tableDelete(&vm.modules, OBJECT_VAL(S("dis"))); /* Can be used to mess with bytecode and break the VM */
-	krk_tableDelete(&vm.modules, OBJECT_VAL(S("threading"))); /* Let's just turn that off for now */
-	krk_tableDelete(&vm.modules, OBJECT_VAL(S("gc"))); /* Lets users stop the garbage collector, so let's turn that off */
+	/* Disable automatic traceback printing, default modules */
+	krk_initVM(KRK_GLOBAL_CLEAN_OUTPUT|KRK_GLOBAL_NO_DEFAULT_MODULES);
 
 	/* Set up our module context. */
 	krk_startModule("__main__");
 
-	/* Attach a docstring so that we can interpret strings */
-	krk_attachNamedValue(&krk_currentThread.module->fields,"__doc__", NONE_VAL());
-
 	int retval = 0;
-
 	if (argc > 1) {
 		KrkValue result = krk_interpret(argv[1], "<stdin>");
 		if (!IS_NONE(result)) {
