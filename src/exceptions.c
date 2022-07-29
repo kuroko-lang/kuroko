@@ -453,10 +453,18 @@ KrkValue krk_runtimeError(KrkClass * type, const char * fmt, ...) {
 		++f;
 
 		int size = ' ';
+		int len  = -1;
 
 		if (*f == 'z') size = *f++;
 		else if (*f == 'l') size = *f++;
 		else if (*f == 'L') size = *f++;
+
+		if (*f == '.') {
+			if (f[1] == '*') {
+				len = va_arg(args, int);
+				f += 2;
+			}
+		}
 
 		switch (*f) {
 			case 0: break;
@@ -472,7 +480,7 @@ KrkValue krk_runtimeError(KrkClass * type, const char * fmt, ...) {
 
 			case 's': {
 				const char * c = va_arg(args, const char *);
-				pushStringBuilderStr(&sb, c, strlen(c));
+				pushStringBuilderStr(&sb, c, len == -1 ? strlen(c) : (size_t)len);
 				break;
 			}
 
