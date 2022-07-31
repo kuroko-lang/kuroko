@@ -31,15 +31,6 @@ static void _dict_gcsweep(KrkInstance * self) {
 #define CURRENT_CTYPE KrkDict *
 #define CURRENT_NAME  self
 
-#define unpackArray(counter, indexer) do { \
-		for (size_t i = 0; i < counter; ++i) { \
-			if (keyOrValue == 0) { keyOrValue = 1; key = indexer; } \
-			else if (keyOrValue == 1) { keyOrValue = 2; krk_tableSet(&self->entries, key, indexer); } \
-			else if (keyOrValue == 2) { keyOrValue = -1; goto _unpackError; } \
-			if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) return 1; \
-		} \
-	} while (0)
-
 struct _keyvalue_pair_context {
 	KrkDict * self;
 	KrkValue key;

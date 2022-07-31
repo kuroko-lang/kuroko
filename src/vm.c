@@ -480,7 +480,6 @@ int krk_processComplexArguments(int argCount, KrkValueArray * positionals, KrkTa
 	}
 	return 1;
 }
-#undef unpackArray
 
 /**
  * Call a managed method.
