@@ -333,7 +333,7 @@ static int _sub_big_small(KrkLong * res, const KrkLong * a, const KrkLong * b) {
 		int64_t a_digit = (int64_t)(i < awidth ? a->digits[i] : 0) - carry;
 		int64_t b_digit = i < bwidth ? b->digits[i] : 0;
 		if (a_digit < b_digit) {
-			a_digit += 1 << DIGIT_SHIFT;
+			a_digit += (int64_t)1 << DIGIT_SHIFT;
 			carry = 1;
 		} else {
 			carry = 0;
