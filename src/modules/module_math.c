@@ -39,7 +39,7 @@
 }
 
 #define MATH_DELEGATE(func) \
-static KrkValue _math_ ## func(int argc, const KrkValue argv[], int hasKw) { \
+static KrkValue _math_ ## func(KrkThreadState * _thread, int argc, const KrkValue argv[], int hasKw) { \
 	ONE_ARGUMENT(func) \
 	if (IS_FLOATING(argv[0])) { \
 		return INTEGER_VAL(func(AS_FLOATING(argv[0]))); \
@@ -58,7 +58,7 @@ MATH_DELEGATE(floor)
 MATH_DELEGATE(trunc)
 
 #define MATH_ONE_NAME(func,name) \
-static KrkValue _math_ ## name(int argc, const KrkValue argv[], int hasKw) { \
+static KrkValue _math_ ## name(KrkThreadState * _thread, int argc, const KrkValue argv[], int hasKw) { \
 	ONE_ARGUMENT(name) \
 	FORCE_FLOAT(argv[0],arg_0) \
 	if (IS_FLOATING(arg_0)) { \
@@ -94,7 +94,7 @@ MATH_ONE(lgamma)
 #endif
 
 #define MATH_TWO(func) \
-static KrkValue _math_ ## func(int argc, const KrkValue argv[], int hasKw) { \
+static KrkValue _math_ ## func(KrkThreadState * _thread, int argc, const KrkValue argv[], int hasKw) { \
 	TWO_ARGUMENTS(func) \
 	FORCE_FLOAT(argv[0],arg_0) \
 	FORCE_FLOAT(argv[1],arg_1) \
@@ -109,7 +109,7 @@ MATH_TWO(remainder)
 MATH_TWO(pow)
 MATH_TWO(atan2)
 
-static KrkValue _float_pow(int argc, const KrkValue argv[], int hasKw) {
+static KrkValue _float_pow(KrkThreadState * _thread, int argc, const KrkValue argv[], int hasKw) {
 	TWO_ARGUMENTS(__pow__);
 	if (unlikely(!IS_FLOATING(argv[0]))) return krk_runtimeError(vm.exceptions->typeError, "expected float");
 	if (likely(IS_FLOATING(argv[1]))) {
@@ -121,7 +121,7 @@ static KrkValue _float_pow(int argc, const KrkValue argv[], int hasKw) {
 }
 
 
-static KrkValue _math_frexp(int argc, const KrkValue argv[], int hasKw) {
+static KrkValue _math_frexp(KrkThreadState * _thread, int argc, const KrkValue argv[], int hasKw) {
 	ONE_ARGUMENT(frexp)
 	FORCE_FLOAT(argv[0],arg_0)
 	if (!IS_FLOATING(arg_0)) {
@@ -137,7 +137,7 @@ static KrkValue _math_frexp(int argc, const KrkValue argv[], int hasKw) {
 }
 
 #define MATH_IS(func) \
-static KrkValue _math_ ## func(int argc, const KrkValue argv[], int hasKw) { \
+static KrkValue _math_ ## func(KrkThreadState * _thread, int argc, const KrkValue argv[], int hasKw) { \
 	ONE_ARGUMENT(func) \
 	if (!IS_FLOATING(argv[0])) REAL_NUMBER_NOT(func,argv[0]) \
 	return BOOLEAN_VAL(func(AS_FLOATING(argv[0]))); \
@@ -149,7 +149,7 @@ MATH_IS(isnan)
 
 #define bind(name) krk_defineNative(&module->fields, #name, _math_ ## name)
 
-KrkValue krk_module_onload_math(void) {
+KrkValue krk_module_onload_math(KrkThreadState * _thread) {
 	KrkInstance * module = krk_newInstance(vm.baseClasses->moduleClass);
 	krk_push(OBJECT_VAL(module));
 

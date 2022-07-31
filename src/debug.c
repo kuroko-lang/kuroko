@@ -18,7 +18,7 @@
  * the VM will never be called to produce a string, which would result in
  * a nasty infinite recursion if we did it while trying to trace the VM!
  */
-void krk_debug_dumpStack(FILE * file, KrkCallFrame * frame) {
+void krk_debug_dumpStack_r(struct KrkThreadState * _thread, FILE * file, KrkCallFrame * frame) {
 	size_t i = 0;
 	if (!frame) frame = &krk_currentThread.frames[krk_currentThread.frameCount-1];
 	for (KrkValue * slot = krk_currentThread.stack; slot < krk_currentThread.stackTop; slot++) {
@@ -64,7 +64,7 @@ void krk_debug_dumpStack(FILE * file, KrkCallFrame * frame) {
 }
 
 
-void krk_disassembleCodeObject(FILE * f, KrkCodeObject * func, const char * name) {
+void krk_disassembleCodeObject_r(struct KrkThreadState * _thread, FILE * f, KrkCodeObject * func, const char * name) {
 	KrkChunk * chunk = &func->chunk;
 	/* Function header */
 	fprintf(f, "<%s(", name);
@@ -93,7 +93,7 @@ static inline const char * opcodeClean(const char * opc) {
 	return &opc[3];
 }
 
-static int isJumpTarget(KrkCodeObject * func, size_t startPoint) {
+static int isJumpTarget(KrkThreadState * _thread, KrkCodeObject * func, size_t startPoint) {
 	KrkChunk * chunk = &func->chunk;
 	size_t offset = 0;
 
@@ -211,7 +211,7 @@ static int isJumpTarget(KrkCodeObject * func, size_t startPoint) {
 		} \
 	}
 
-size_t krk_disassembleInstruction(FILE * f, KrkCodeObject * func, size_t offset) {
+size_t krk_disassembleInstruction_r(struct KrkThreadState * _thread, FILE * f, KrkCodeObject * func, size_t offset) {
 	KrkChunk * chunk = &func->chunk;
 	if (offset > 0 && krk_lineNumber(chunk, offset) == krk_lineNumber(chunk, offset - 1)) {
 		fprintf(f, "     ");
@@ -219,7 +219,7 @@ size_t krk_disassembleInstruction(FILE * f, KrkCodeObject * func, size_t offset)
 		if (offset > 0) fprintf(f,"\n");
 		fprintf(f, "%4d ", (int)krk_lineNumber(chunk, offset));
 	}
-	if (isJumpTarget(func,offset)) {
+	if (isJumpTarget(_thread, func,offset)) {
 		fprintf(f, " >> ");
 	} else {
 		fprintf(f, "    ");
@@ -284,7 +284,7 @@ struct DebuggerState {
 	struct BreakpointEntry breakpoints[MAX_BREAKPOINTS];
 };
 
-int krk_debug_addBreakpointCodeOffset(KrkCodeObject * target, size_t offset, int flags) {
+int krk_debug_addBreakpointCodeOffset_r(struct KrkThreadState * _thread, KrkCodeObject * target, size_t offset, int flags) {
 	int index = vm.dbgState->breakpointsCount;
 	if (vm.dbgState->breakpointsCount == MAX_BREAKPOINTS) {
 		/* See if any are available */
@@ -310,7 +310,7 @@ int krk_debug_addBreakpointCodeOffset(KrkCodeObject * target, size_t offset, int
 	return index;
 }
 
-int krk_debug_addBreakpointFileLine(KrkString * filename, size_t line, int flags) {
+int krk_debug_addBreakpointFileLine_r(struct KrkThreadState * _thread, KrkString * filename, size_t line, int flags) {
 
 	KrkCodeObject * target = NULL;
 
@@ -350,7 +350,7 @@ int krk_debug_addBreakpointFileLine(KrkString * filename, size_t line, int flags
 	return krk_debug_addBreakpointCodeOffset(target, offset, flags);
 }
 
-int krk_debug_enableBreakpoint(int breakIndex) {
+int krk_debug_enableBreakpoint_r(struct KrkThreadState * _thread, int breakIndex) {
 	if (breakIndex < 0 || breakIndex >= vm.dbgState->breakpointsCount || vm.dbgState->breakpoints[breakIndex].inFunction == NULL)
 		return 1;
 	vm.dbgState->breakpoints[breakIndex].inFunction->chunk.code[vm.dbgState->breakpoints[breakIndex].offset] = OP_BREAKPOINT;
@@ -363,7 +363,7 @@ KRK_Function(enablebreakpoint) {
 	return NONE_VAL();
 }
 
-int krk_debug_disableBreakpoint(int breakIndex) {
+int krk_debug_disableBreakpoint_r(struct KrkThreadState * _thread, int breakIndex) {
 	if (breakIndex < 0 || breakIndex >= vm.dbgState->breakpointsCount || vm.dbgState->breakpoints[breakIndex].inFunction == NULL)
 		return 1;
 	vm.dbgState->breakpoints[breakIndex].inFunction->chunk.code[vm.dbgState->breakpoints[breakIndex].offset] =
@@ -380,7 +380,7 @@ KRK_Function(disablebreakpoint) {
 	return NONE_VAL();
 }
 
-int krk_debug_removeBreakpoint(int breakIndex) {
+int krk_debug_removeBreakpoint_r(struct KrkThreadState * _thread, int breakIndex) {
 	if (breakIndex < 0 || breakIndex >= vm.dbgState->breakpointsCount || vm.dbgState->breakpoints[breakIndex].inFunction == NULL)
 		return 1;
 	krk_debug_disableBreakpoint(breakIndex);
@@ -459,7 +459,7 @@ KRK_Function(addbreakpoint) {
  * we clear the debugging bits. Then we make a new exception
  * to attach a traceback to.
  */
-void krk_debug_dumpTraceback(void) {
+void krk_debug_dumpTraceback_r(struct KrkThreadState * _thread) {
 	int flagsBefore = krk_currentThread.flags;
 	krk_debug_disableSingleStep();
 	krk_push(krk_currentThread.currentException);
@@ -471,15 +471,15 @@ void krk_debug_dumpTraceback(void) {
 	krk_currentThread.flags = flagsBefore;
 }
 
-void krk_debug_enableSingleStep(void) {
+void krk_debug_enableSingleStep_r(struct KrkThreadState * _thread) {
 	krk_currentThread.flags |= KRK_THREAD_SINGLE_STEP;
 }
 
-void krk_debug_disableSingleStep(void) {
+void krk_debug_disableSingleStep_r(struct KrkThreadState * _thread) {
 	krk_currentThread.flags &= ~(KRK_THREAD_SINGLE_STEP);
 }
 
-int krk_debuggerHook(KrkCallFrame * frame) {
+int krk_debuggerHook_r(struct KrkThreadState * _thread, KrkCallFrame * frame) {
 	if (!vm.dbgState->debuggerHook)
 		abort();
 
@@ -492,7 +492,7 @@ int krk_debuggerHook(KrkCallFrame * frame) {
 	vm.dbgState->repeatStack_bottom = -1;
 
 	if (!vm.dbgState->thisWasForced) {
-		int result = vm.dbgState->debuggerHook(frame);
+		int result = vm.dbgState->debuggerHook(_thread,frame);
 		switch (result) {
 			case KRK_DEBUGGER_CONTINUE:
 				krk_debug_disableSingleStep();
@@ -525,13 +525,13 @@ int krk_debuggerHook(KrkCallFrame * frame) {
 	return 0;
 }
 
-int krk_debug_registerCallback(KrkDebugCallback hook) {
+int krk_debug_registerCallback_r(struct KrkThreadState * _thread, KrkDebugCallback hook) {
 	if (vm.dbgState->debuggerHook) return 1;
 	vm.dbgState->debuggerHook = hook;
 	return 0;
 }
 
-int krk_debug_examineBreakpoint(int breakIndex, KrkCodeObject ** funcOut, size_t * offsetOut, int * flagsOut, int * enabled) {
+int krk_debug_examineBreakpoint_r(struct KrkThreadState * _thread, int breakIndex, KrkCodeObject ** funcOut, size_t * offsetOut, int * flagsOut, int * enabled) {
 	if (breakIndex < 0 || breakIndex >= vm.dbgState->breakpointsCount)
 		return -1;
 	if (vm.dbgState->breakpoints[breakIndex].inFunction == NULL)
@@ -545,7 +545,7 @@ int krk_debug_examineBreakpoint(int breakIndex, KrkCodeObject ** funcOut, size_t
 	return 0;
 }
 
-int krk_debugBreakpointHandler(void) {
+int krk_debugBreakpointHandler_r(struct KrkThreadState * _thread) {
 	int index = -1;
 
 	KrkCallFrame * frame = &krk_currentThread.frames[krk_currentThread.frameCount-1];
@@ -633,7 +633,7 @@ KRK_Function(build) {
 	krk_push(OBJECT_VAL(krk_currentThread.module));
 	KrkInstance * module = krk_currentThread.module;
 	krk_currentThread.module = NULL;
-	KrkCodeObject * c = krk_compile(code->chars,fileName);
+	KrkCodeObject * c = krk_compile(_thread, code->chars,fileName);
 	krk_currentThread.module = module;
 	krk_pop();
 	if (c) return OBJECT_VAL(c);
@@ -663,7 +663,7 @@ KRK_Function(build) {
 #define EXPAND_ARGS_MORE
 #define FORMAT_VALUE_MORE
 #define LOCAL_MORE local = operand;
-static KrkValue _examineInternal(KrkCodeObject* func) {
+static KrkValue _examineInternal(KrkThreadState * _thread, KrkCodeObject* func) {
 	KrkValue output = krk_list_of(0,NULL,0);
 	krk_push(output);
 
@@ -722,7 +722,7 @@ static KrkValue _examineInternal(KrkCodeObject* func) {
 KRK_Function(examine) {
 	FUNCTION_TAKES_EXACTLY(1);
 	CHECK_ARG(0,codeobject,KrkCodeObject*,func);
-	return _examineInternal(func);
+	return _examineInternal(_thread, func);
 }
 
 #undef SIMPLE
@@ -735,7 +735,7 @@ KRK_Function(examine) {
 #undef EXPAND_ARGS_MORE
 #undef FORMAT_VALUE_MORE
 
-void krk_module_init_dis(void) {
+void krk_module_init_dis(struct KrkThreadState * _thread) {
 	KrkInstance * module = krk_newInstance(vm.baseClasses->moduleClass);
 	krk_attachNamedObject(&vm.modules, "dis", (KrkObj*)module);
 	krk_attachNamedObject(&module->fields, "__name__", (KrkObj*)S("dis"));

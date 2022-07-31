@@ -38,7 +38,7 @@ KRK_Function(time) {
 	return FLOATING_VAL(out);
 }
 
-void krk_module_init_time(void) {
+void krk_module_init_time(KrkThreadState * _thread) {
 	KrkInstance * module = krk_newInstance(vm.baseClasses->moduleClass);
 	krk_attachNamedObject(&vm.modules, "time", (KrkObj*)module);
 	krk_attachNamedObject(&module->fields, "__name__", (KrkObj*)S("time"));

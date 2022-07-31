@@ -156,7 +156,7 @@ KRK_Method(File,readlines) {
 	krk_push(myList);
 
 	for (;;) {
-		KrkValue line = FUNC_NAME(File,readline)(1, argv, 0);
+		KrkValue line = FUNC_NAME(File,readline)(_thread, 1, argv, 0);
 		if (IS_NONE(line)) break;
 		if (krk_currentThread.flags & KRK_THREAD_SIGNALLED) break;
 
@@ -259,10 +259,10 @@ KRK_Method(File,__enter__) {
 	return NONE_VAL();
 }
 KRK_Method(File,__exit__) {
-	return FUNC_NAME(File,close)(1,argv,0);
+	return FUNC_NAME(File,close)(_thread, 1,argv,0);
 }
 
-static void makeFileInstance(KrkInstance * module, const char name[], FILE * file) {
+static void makeFileInstance(KrkThreadState * _thread, KrkInstance * module, const char name[], FILE * file) {
 	KrkInstance * fileObject = krk_newInstance(KRK_BASE_CLASS(File));
 	krk_push(OBJECT_VAL(fileObject));
 	KrkValue filename = OBJECT_VAL(krk_copyString(name,strlen(name)));
@@ -327,7 +327,7 @@ KRK_Method(BinaryFile,readlines) {
 	krk_push(myList);
 
 	for (;;) {
-		KrkValue line = FUNC_NAME(BinaryFile,readline)(1, argv, 0);
+		KrkValue line = FUNC_NAME(BinaryFile,readline)(_thread, 1, argv, 0);
 		if (IS_NONE(line)) break;
 		if (krk_currentThread.flags & KRK_THREAD_SIGNALLED) break;
 
@@ -410,7 +410,7 @@ KRK_Method(BinaryFile,write) {
 
 #undef CURRENT_CTYPE
 
-static void _file_sweep(KrkInstance * self) {
+static void _file_sweep(KrkThreadState * _thread, KrkInstance * self) {
 	struct File * me = (void *)self;
 	if (me->filePtr && !me->unowned) {
 		fclose(me->filePtr);
@@ -418,7 +418,7 @@ static void _file_sweep(KrkInstance * self) {
 	}
 }
 
-static void _dir_sweep(KrkInstance * self) {
+static void _dir_sweep(KrkThreadState * _thread, KrkInstance * self) {
 	struct Directory * me = (void *)self;
 	if (me->dirPtr) {
 		closedir(me->dirPtr);
@@ -491,10 +491,10 @@ KRK_Method(Directory,__enter__) {
 	return NONE_VAL();
 }
 KRK_Method(Directory,__exit__) {
-	return FUNC_NAME(Directory,close)(1,argv,0);
+	return FUNC_NAME(Directory,close)(_thread, 1,argv,0);
 }
 
-void krk_module_init_fileio(void) {
+void krk_module_init_fileio(KrkThreadState * _thread) {
 	KrkInstance * module = krk_newInstance(vm.baseClasses->moduleClass);
 	krk_attachNamedObject(&vm.modules, "fileio", (KrkObj*)module);
 	krk_attachNamedObject(&module->fields, "__name__", (KrkObj*)S("fileio"));
@@ -558,9 +558,9 @@ void krk_module_init_fileio(void) {
 	krk_finalizeClass(Directory);
 
 	/* Make an instance for stdout, stderr, and stdin */
-	makeFileInstance(module, "stdin", stdin);
-	makeFileInstance(module, "stdout", stdout);
-	makeFileInstance(module, "stderr", stderr);
+	makeFileInstance(_thread, module, "stdin", stdin);
+	makeFileInstance(_thread, module, "stdout", stdout);
+	makeFileInstance(_thread, module, "stderr", stderr);
 
 	/* Our base will be the open method */
 	KRK_DOC(BIND_FUNC(module,open), "@brief Open a file.\n"

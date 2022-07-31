@@ -7,21 +7,21 @@
  */
 #include "kuroko/kuroko.h"
 
-extern void _createAndBind_numericClasses(void);
-extern void _createAndBind_strClass(void);
-extern void _createAndBind_listClass(void);
-extern void _createAndBind_tupleClass(void);
-extern void _createAndBind_bytesClass(void);
-extern void _createAndBind_dictClass(void);
-extern void _createAndBind_functionClass(void);
-extern void _createAndBind_rangeClass(void);
-extern void _createAndBind_setClass(void);
-extern void _createAndBind_generatorClass(void);
-extern void _createAndBind_sliceClass(void);
-extern void _createAndBind_builtins(void);
-extern void _createAndBind_type(void);
-extern void _createAndBind_exceptions(void);
-extern void _createAndBind_longClass(void);
+extern void _createAndBind_numericClasses(KrkThreadState*);
+extern void _createAndBind_strClass(KrkThreadState*);
+extern void _createAndBind_listClass(KrkThreadState*);
+extern void _createAndBind_tupleClass(KrkThreadState*);
+extern void _createAndBind_bytesClass(KrkThreadState*);
+extern void _createAndBind_dictClass(KrkThreadState*);
+extern void _createAndBind_functionClass(KrkThreadState*);
+extern void _createAndBind_rangeClass(KrkThreadState*);
+extern void _createAndBind_setClass(KrkThreadState*);
+extern void _createAndBind_generatorClass(KrkThreadState*);
+extern void _createAndBind_sliceClass(KrkThreadState*);
+extern void _createAndBind_builtins(KrkThreadState*);
+extern void _createAndBind_type(KrkThreadState*);
+extern void _createAndBind_exceptions(KrkThreadState*);
+extern void _createAndBind_longClass(KrkThreadState*);
 
 /**
  * @brief Index numbers for always-available interned strings representing important method and member names.

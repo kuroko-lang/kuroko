@@ -41,7 +41,8 @@ typedef struct {
  *
  * @param table Hash table to initialize.
  */
-extern void krk_initTable(KrkTable * table);
+extern void krk_initTable_r(struct KrkThreadState * _thread, KrkTable * table);
+#define krk_initTable(t) krk_initTable_r(_thread,t)
 
 /**
  * @brief Release resources associated with a hash table.
@@ -51,7 +52,8 @@ extern void krk_initTable(KrkTable * table);
  *
  * @param table Hash table to release.
  */
-extern void krk_freeTable(KrkTable * table);
+extern void krk_freeTable_r(struct KrkThreadState * _thread, KrkTable * table);
+#define krk_freeTable(t) krk_freeTable_r(_thread,t)
 
 /**
  * @brief Add all key-value pairs from 'from' into 'to'.
@@ -64,7 +66,8 @@ extern void krk_freeTable(KrkTable * table);
  * @param from Source table.
  * @param to   Destination table.
  */
-extern void krk_tableAddAll(KrkTable * from, KrkTable * to);
+extern void krk_tableAddAll_r(struct KrkThreadState * _thread, KrkTable * from, KrkTable * to);
+#define krk_tableAddAll(f,t) krk_tableAddAll_r(_thread,f,t)
 
 /**
  * @brief Find a character sequence in the string interning table.
@@ -80,7 +83,8 @@ extern void krk_tableAddAll(KrkTable * from, KrkTable * to);
  * @param hash    Precalculated hash value for the string.
  * @return If the string was found, the string object representation, else NULL.
  */
-extern struct KrkString * krk_tableFindString(KrkTable * table, const char * chars, size_t length, uint32_t hash);
+extern struct KrkString * krk_tableFindString_r(struct KrkThreadState * _thread, KrkTable * table, const char * chars, size_t length, uint32_t hash);
+#define krk_tableFindString(t,c,l,h) krk_tableFindString_r(_thread,t,c,l,h)
 
 /**
  * @brief Assign a value to a key in a table.
@@ -95,7 +99,8 @@ extern struct KrkString * krk_tableFindString(KrkTable * table, const char * cha
  * @param value Value to assign to the key.
  * @return 0 if the key was already present and has been overwritten, 1 if the key is new to the table.
  */
-extern int krk_tableSet(KrkTable * table, KrkValue key, KrkValue value);
+extern int krk_tableSet_r(struct KrkThreadState * _thread, KrkTable * table, KrkValue key, KrkValue value);
+#define krk_tableSet(t,k,v) krk_tableSet_r(_thread,t,k,v)
 
 /**
  * @brief Obtain the value associated with a key in a table.
@@ -110,7 +115,8 @@ extern int krk_tableSet(KrkTable * table, KrkValue key, KrkValue value);
  * @param value Output pointer to place resulting value in.
  * @return 0 if the key was not found, 1 if it was.
  */
-extern int krk_tableGet(KrkTable * table, KrkValue key, KrkValue * value);
+extern int krk_tableGet_r(struct KrkThreadState * _thread, KrkTable * table, KrkValue key, KrkValue * value);
+#define krk_tableGet(t,k,v) krk_tableGet_r(_thread,t,k,v)
 
 /**
  * @brief Obtain the value associated with a string key in a table.
@@ -125,7 +131,8 @@ extern int krk_tableGet(KrkTable * table, KrkValue key, KrkValue * value);
  * @param value Output pointer to place resulting value in.
  * @return 0 if the key was not found, 1 if it was.
  */
-extern int krk_tableGet_fast(KrkTable * table, struct KrkString * str, KrkValue * value);
+extern int krk_tableGet_fast_r(struct KrkThreadState * _thread, KrkTable * table, struct KrkString * str, KrkValue * value);
+#define krk_tableGet_fast(t,s,v) krk_tableGet_fast_r(_thread,t,s,v)
 
 /**
  * @brief Remove a key from a hash table.
@@ -138,7 +145,8 @@ extern int krk_tableGet_fast(KrkTable * table, struct KrkString * str, KrkValue 
  * @param key   Key to delete.
  * @return 1 if the value was found and deleted, 0 if it was not present.
  */
-extern int krk_tableDelete(KrkTable * table, KrkValue key);
+extern int krk_tableDelete_r(struct KrkThreadState * _thread, KrkTable * table, KrkValue key);
+#define krk_tableDelete(t,k) krk_tableDelete_r(_thread,t,k)
 
 /**
  * @brief Remove a key from a hash table, with identity lookup.
@@ -151,7 +159,8 @@ extern int krk_tableDelete(KrkTable * table, KrkValue key);
  * @param key   Key to delete.
  * @return 1 if the value was found and deleted, 0 if it was not present.
  */
-extern int krk_tableDeleteExact(KrkTable * table, KrkValue key);
+extern int krk_tableDeleteExact_r(struct KrkThreadState * _thread, KrkTable * table, KrkValue key);
+#define krk_tableDeleteExact(t,k) krk_tableDeleteExact_r(_thread,t,k)
 
 /**
  * @brief Internal table scan function.
@@ -166,7 +175,8 @@ extern int krk_tableDeleteExact(KrkTable * table, KrkValue key);
  * @param key      Key to locate.
  * @return A pointer to the entry for 'key'.
  */
-extern KrkTableEntry * krk_findEntry(KrkTableEntry * entries, size_t capacity, KrkValue key);
+extern KrkTableEntry * krk_findEntry_r(struct KrkThreadState * _thread, KrkTableEntry * entries, size_t capacity, KrkValue key);
+#define krk_findEntry(e,c,k) krk_findEntry_r(_thread,e,c,k)
 
 /**
  * @brief Calculate the hash for a value.
@@ -178,7 +188,8 @@ extern KrkTableEntry * krk_findEntry(KrkTableEntry * entries, size_t capacity, K
  * @param *hashOut An unsigned 32-bit hash value.
  * @return Status code 0 for success, 1 for unhashable type.
  */
-extern int krk_hashValue(KrkValue value, uint32_t *hashOut);
+extern int krk_hashValue_r(struct KrkThreadState * _thread, KrkValue value, uint32_t *hashOut);
+#define krk_hashValue(v,h) krk_hashValue_r(_thread,v,h)
 
 /**
  * @brief Preset the size of a table.
@@ -189,7 +200,8 @@ extern int krk_hashValue(KrkValue value, uint32_t *hashOut);
  * @param table Table to resize.
  * @param capacity Target capacity.
  */
-extern void krk_tableAdjustCapacity(KrkTable * table, size_t capacity);
+extern void krk_tableAdjustCapacity_r(struct KrkThreadState * _thread, KrkTable * table, size_t capacity);
+#define krk_tableAdjustCapacity(t,c) krk_tableAdjustCapacity_r(_thread,t,c)
 
 /**
  * @brief Update the value of a table entry only if it is found.
@@ -205,4 +217,5 @@ extern void krk_tableAdjustCapacity(KrkTable * table, size_t capacity);
  * @param value Value to assign to the key.
  * @return 0 if the key was not present, 1 if it was found and updated.
  */
-extern int krk_tableSetIfExists(KrkTable * table, KrkValue key, KrkValue value);
+extern int krk_tableSetIfExists_r(struct KrkThreadState * _thread, KrkTable * table, KrkValue key, KrkValue value);
+#define krk_tableSetIfExists(t,k,v) krk_tableSetIfExists_r(_thread,t,k,v)

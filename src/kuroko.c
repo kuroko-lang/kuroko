@@ -35,6 +35,7 @@
 
 #define CALLGRIND_TMP_FILE "/tmp/kuroko.callgrind.tmp"
 
+static KrkThreadState * _global_thread = NULL;
 static int enableRline = 1;
 static int exitRepl = 0;
 static int pasteEnabled = 0;
@@ -66,7 +67,7 @@ static int doRead(char * buf, size_t bufSize) {
 		return read(STDIN_FILENO, buf, bufSize);
 }
 
-static KrkValue readLine(char * prompt, int promptWidth, char * syntaxHighlighter) {
+static KrkValue readLine(KrkThreadState * _thread, char * prompt, int promptWidth, char * syntaxHighlighter) {
 	struct StringBuilder sb = {0};
 
 #ifndef NO_RLINE
@@ -144,7 +145,7 @@ KRK_Function(input) {
 		}
 	}
 
-	return readLine(prompt, promptLength, syntaxHighlighter);
+	return readLine(_thread, prompt, promptLength, syntaxHighlighter);
 }
 
 #ifndef NO_RLINE
@@ -156,7 +157,7 @@ KRK_Function(input) {
  * We can probably also use valueGetProperty which does correct binding
  * for native dynamic fields...
  */
-static KrkValue findFromProperty(KrkValue current, KrkToken next) {
+static KrkValue findFromProperty(KrkThreadState * _thread, KrkValue current, KrkToken next) {
 	KrkValue member = OBJECT_VAL(krk_copyString(next.start, next.literalWidth));
 	krk_push(member);
 	KrkValue value = krk_valueGetAttribute_default(current, AS_CSTRING(member), NONE_VAL());
@@ -174,6 +175,7 @@ static char * syn_krk_keywords[] = {
 };
 
 static void tab_complete_func(rline_context_t * c) {
+	KrkThreadState * _thread = _global_thread;
 	/* Figure out where the cursor is and if we should be completing anything. */
 	if (c->offset) {
 		size_t stackIn = krk_currentThread.stackTop - krk_currentThread.stack;
@@ -224,7 +226,7 @@ static void tab_complete_func(rline_context_t * c) {
 			int isGlobal = 1;
 			while (n > base) {
 				/* And look at the potential fields for instances/classes */
-				KrkValue next = findFromProperty(root, space[count-n]);
+				KrkValue next = findFromProperty(_thread, root, space[count-n]);
 				if (IS_NONE(next)) {
 					/* If we hit None, we found something invalid (or literally hit a None
 					 * object, but really the difference is minimal in this case: Nothing
@@ -274,7 +276,7 @@ static void tab_complete_func(rline_context_t * c) {
 					KrkString * s = AS_STRING(AS_LIST(dirList)->values[i]);
 					krk_push(OBJECT_VAL(s));
 					KrkToken asToken = {.start = s->chars, .literalWidth = s->length};
-					KrkValue thisValue = findFromProperty(root, asToken);
+					KrkValue thisValue = findFromProperty(_thread, root, asToken);
 					krk_push(thisValue);
 					if (IS_CLOSURE(thisValue) || IS_BOUND_METHOD(thisValue) ||
 						(IS_NATIVE(thisValue) && !((AS_OBJECT(thisValue)->flags & KRK_OBJ_FLAGS_FUNCTION_IS_DYNAMIC_PROPERTY)))) {
@@ -390,7 +392,7 @@ _cleanup:
 
 #ifndef KRK_DISABLE_DEBUG
 static char * lastDebugCommand = NULL;
-static int debuggerHook(KrkCallFrame * frame) {
+static int debuggerHook(KrkThreadState *_thread,KrkCallFrame * frame) {
 
 	/* File information */
 	fprintf(stderr, "At offset 0x%04lx of function '%s' from '%s' on line %lu:\n",
@@ -474,7 +476,7 @@ static int debuggerHook(KrkCallFrame * frame) {
 			} else {
 				size_t frameCount = krk_currentThread.frameCount;
 				/* Compile statement */
-				KrkCodeObject * expression = krk_compile(arg,"<debugger>");
+				KrkCodeObject * expression = krk_compile(_thread, arg,"<debugger>");
 				if (expression) {
 					/* Make sure stepping is disabled first. */
 					krk_debug_disableSingleStep();
@@ -640,6 +642,7 @@ _dbgQuit:
 #endif
 
 static void handleSigint(int sigNum) {
+	KrkThreadState * _thread = _global_thread;
 	/* Don't set the signal flag if the VM is not running */
 	if (!krk_currentThread.frameCount) return;
 	krk_currentThread.flags |= KRK_THREAD_SIGNALLED;
@@ -647,6 +650,7 @@ static void handleSigint(int sigNum) {
 
 #ifndef _WIN32
 static void handleSigtrap(int sigNum) {
+	KrkThreadState * _thread = _global_thread;
 	if (!krk_currentThread.frameCount) return;
 	krk_currentThread.flags |= KRK_THREAD_SINGLE_STEP;
 }
@@ -680,9 +684,9 @@ static void bindSignalHandlers(void) {
 #endif
 }
 
-static void findInterpreter(char * argv[]) {
+static char * findInterpreter(char * argv[]) {
 #ifdef _WIN32
-	vm.binpath = strdup(_pgmptr);
+	return strdup(_pgmptr);
 #else
 	/* Try asking /proc */
 	char tmp[4096];
@@ -697,7 +701,7 @@ static void findInterpreter(char * argv[]) {
 		} else {
 			/* Search PATH for argv[0] */
 			char * p = getenv("PATH");
-			if (!p) return;
+			if (!p) return NULL;
 			char * _path = strdup(p);
 			char * path = _path;
 			while (path) {
@@ -714,25 +718,25 @@ static void findInterpreter(char * argv[]) {
 			free(_path);
 		}
 	}
-	if (binpath) {
-		vm.binpath = binpath;
-	} /* Else, give up at this point and just don't attach it at all. */
+	return binpath;
 #endif
 }
 
+extern KrkThreadState * krk_initVM_withBinpath(int flags, char * binpath);
+
 static int runString(char * argv[], int flags, char * string) {
-	findInterpreter(argv);
-	krk_initVM(flags);
+	char * path = findInterpreter(argv);
+	KrkThreadState * _thread = krk_initVM_withBinpath(flags,path);
 	krk_startModule("__main__");
 	krk_attachNamedValue(&krk_currentThread.module->fields,"__doc__", NONE_VAL());
-	krk_interpret(string, "<stdin>");
-	krk_freeVM();
+	krk_interpret(_thread, string, "<stdin>");
+	krk_freeVM(_thread);
 	return 0;
 }
 
 static int compileFile(char * argv[], int flags, char * fileName) {
-	findInterpreter(argv);
-	krk_initVM(flags);
+	char * path = findInterpreter(argv);
+	KrkThreadState * _thread = krk_initVM_withBinpath(flags,path);
 
 	/* Open the file. */
 	FILE * f = fopen(fileName,"r");
@@ -754,7 +758,7 @@ static int compileFile(char * argv[], int flags, char * fileName) {
 	krk_startModule("__main__");
 
 	/* Call the compiler directly. */
-	KrkCodeObject * func = krk_compile(buf, fileName);
+	KrkCodeObject * func = krk_compile(_thread, buf, fileName);
 
 	/* See if there was an exception. */
 	if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) {
@@ -765,7 +769,7 @@ static int compileFile(char * argv[], int flags, char * fileName) {
 	free(buf);
 
 	/* Close out the compiler */
-	krk_freeVM();
+	krk_freeVM(_thread);
 
 	return func == NULL;
 }
@@ -791,6 +795,7 @@ int main(int argc, char * argv[]) {
 	int inspectAfter = 0;
 	int opt;
 	int maxDepth = -1;
+	FILE * callgrindFile = NULL;
 	while ((opt = getopt(argc, argv, "+:c:C:dgGim:rR:stTMSV-:")) != -1) {
 		switch (opt) {
 			case 'c':
@@ -820,7 +825,7 @@ int main(int argc, char * argv[]) {
 				break;
 			case 'T': {
 				flags |= KRK_GLOBAL_CALLGRIND;
-				vm.callgrindFile = fopen(CALLGRIND_TMP_FILE,"w");
+				callgrindFile = fopen(CALLGRIND_TMP_FILE,"w");
 				break;
 			}
 			case 'i':
@@ -890,9 +895,10 @@ int main(int argc, char * argv[]) {
 		}
 	}
 
-_finishArgs:
-	findInterpreter(argv);
-	krk_initVM(flags);
+_finishArgs: (void)0;
+	char * path = findInterpreter(argv);
+	KrkThreadState * _thread = krk_initVM_withBinpath(flags,path);
+	if (callgrindFile) _thread->owner->callgrindFile = callgrindFile;
 
 	if (maxDepth != -1) {
 		krk_setMaximumRecursionDepth(maxDepth);
@@ -907,7 +913,7 @@ _finishArgs:
 	for (int arg = optind; arg < argc; ++arg) {
 		krk_push(OBJECT_VAL(krk_copyString(argv[arg],strlen(argv[arg]))));
 	}
-	KrkValue argList = krk_callNativeOnStack(argc - optind + (optind == argc), &krk_currentThread.stackTop[-(argc - optind + (optind == argc))], 0, krk_list_of);
+	KrkValue argList = krk_callNativeOnStack(argc - optind + (optind == argc), &krk_currentThread.stackTop[-(argc - optind + (optind == argc))], 0, krk_list_of_r);
 	krk_push(argList);
 	krk_attachNamedValue(&vm.system->fields, "argv", argList);
 	krk_pop();
@@ -933,7 +939,7 @@ _finishArgs:
 		krk_push(OBJECT_VAL(S(":")));
 
 		/* Split into list */
-		KrkValue list = krk_string_split(2,(KrkValue[]){krk_peek(1),krk_peek(0)},0);
+		KrkValue list = krk_string_split(_thread, 2,(KrkValue[]){krk_peek(1),krk_peek(0)},0);
 		krk_push(list);
 		krk_swap(2);
 		krk_pop(); /* colon */
@@ -943,7 +949,7 @@ _finishArgs:
 		krk_push(krk_valueGetAttribute(OBJECT_VAL(vm.system), "module_paths"));
 
 		extern FUNC_SIG(list,extend);
-		FUNC_NAME(list,extend)(2,(KrkValue[]){krk_peek(1),krk_peek(0)},0);
+		FUNC_NAME(list,extend)(_thread,2,(KrkValue[]){krk_peek(1),krk_peek(0)},0);
 
 		/* Store */
 		krk_attachNamedValue(&vm.system->fields, "module_paths", list);
@@ -978,7 +984,7 @@ _finishArgs:
 			AS_STRING(krk_peek(0)));
 		if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) {
 			krk_dumpTraceback();
-			krk_resetStack();
+			krk_resetStack(_thread);
 		}
 		if (!inspectAfter) return out;
 		if (IS_INSTANCE(krk_peek(0))) {
@@ -986,7 +992,7 @@ _finishArgs:
 		}
 	} else if (optind != argc) {
 		krk_startModule("__main__");
-		result = krk_runfile(argv[optind],argv[optind]);
+		result = krk_runfile(_thread, argv[optind],argv[optind]);
 		if (IS_NONE(result) && krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) result = INTEGER_VAL(1);
 	}
 
@@ -998,7 +1004,7 @@ _finishArgs:
 	}
 
 	if (runCmd) {
-		result = krk_interpret(runCmd, "<stdin>");
+		result = krk_interpret(_thread, runCmd, "<stdin>");
 	}
 
 	if ((!moduleAsMain && !runCmd && optind == argc) || inspectAfter) {
@@ -1052,6 +1058,7 @@ _finishArgs:
 			/* Enable syntax highlight for Kuroko */
 			rline_exp_set_syntax("krk");
 			/* Bind a callback for \t */
+			_global_thread = _thread;
 			rline_exp_set_tab_complete_func(tab_complete_func);
 #endif
 
@@ -1187,7 +1194,7 @@ _finishArgs:
 			FREE_ARRAY(char *, lines, lineCapacity);
 
 			if (valid) {
-				KrkValue result = krk_interpret(allData, "<stdin>");
+				KrkValue result = krk_interpret(_thread, allData, "<stdin>");
 				if (!IS_NONE(result)) {
 					krk_attachNamedValue(&vm.builtins->fields, "_", result);
 					KrkClass * type = krk_getType(result);
@@ -1205,7 +1212,7 @@ _finishArgs:
 						fprintf(stdout, formatStr, AS_CSTRING(result));
 					}
 				}
-				krk_resetStack();
+				krk_resetStack(_thread);
 				free(allData);
 			}
 
@@ -1217,17 +1224,17 @@ _finishArgs:
 		fclose(vm.callgrindFile);
 		vm.globalFlags &= ~(KRK_GLOBAL_CALLGRIND);
 
-		krk_resetStack();
+		krk_resetStack(_thread);
 		krk_startModule("<callgrind>");
 		krk_attachNamedObject(&krk_currentThread.module->fields, "filename", (KrkObj*)S(CALLGRIND_TMP_FILE));
-		krk_interpret(
+		krk_interpret(_thread,
 			"from callgrind import processFile\n"
 			"import kuroko\n"
 			"import os\n"
 			"processFile(filename, os.getpid(), ' '.join(kuroko.argv))","<callgrind>");
 	}
 
-	krk_freeVM();
+	krk_freeVM(_thread);
 
 	if (IS_INTEGER(result)) return AS_INTEGER(result);
 

@@ -16,11 +16,11 @@ struct Set {
 #define IS_set(o) krk_isInstanceOf(o,KRK_BASE_CLASS(set))
 #define AS_set(o) ((struct Set*)AS_OBJECT(o))
 
-static void _set_gcscan(KrkInstance * self) {
+static void _set_gcscan(KrkThreadState * _thread, KrkInstance * self) {
 	krk_markTable(&((struct Set*)self)->entries);
 }
 
-static void _set_gcsweep(KrkInstance * self) {
+static void _set_gcsweep(KrkThreadState * _thread, KrkInstance * self) {
 	krk_freeTable(&((struct Set*)self)->entries);
 }
 
@@ -36,14 +36,14 @@ struct SetIterator {
 #define IS_setiterator(o) krk_isInstanceOf(o,KRK_BASE_CLASS(setiterator))
 #define AS_setiterator(o) ((struct SetIterator*)AS_OBJECT(o))
 
-static void _setiterator_gcscan(KrkInstance * self) {
+static void _setiterator_gcscan(KrkThreadState * _thread, KrkInstance * self) {
 	krk_markValue(((struct SetIterator*)self)->set);
 }
 
 #define CURRENT_CTYPE struct Set *
 #define CURRENT_NAME  self
 
-static int _set_init_callback(void * context, const KrkValue * values, size_t count) {
+static int _set_init_callback(KrkThreadState * _thread, void * context, const KrkValue * values, size_t count) {
 	struct Set * self = context;
 	for (size_t i = 0; i < count; ++i) {
 		krk_tableSet(&self->entries, values[i], BOOLEAN_VAL(1));
@@ -104,7 +104,7 @@ KRK_Method(set,__and__) {
 
 	KrkValue outSet = OBJECT_VAL(krk_newInstance(KRK_BASE_CLASS(set)));
 	krk_push(outSet);
-	FUNC_NAME(set,__init__)(1,&outSet,0);
+	FUNC_NAME(set,__init__)(_thread, 1,&outSet,0);
 
 	KrkClass * type = krk_getType(argv[1]);
 	if (!type->_contains)
@@ -132,7 +132,7 @@ KRK_Method(set,__xor__) {
 
 	KrkValue outSet = OBJECT_VAL(krk_newInstance(KRK_BASE_CLASS(set)));
 	krk_push(outSet);
-	FUNC_NAME(set,__init__)(1,&outSet,0);
+	FUNC_NAME(set,__init__)(_thread, 1,&outSet,0);
 
 	KrkClass * type = krk_getType(argv[1]);
 	if (!type->_contains)
@@ -177,7 +177,7 @@ KRK_Method(set,__or__) {
 
 	KrkValue outSet = OBJECT_VAL(krk_newInstance(KRK_BASE_CLASS(set)));
 	krk_push(outSet);
-	FUNC_NAME(set,__init__)(1,&outSet,0);
+	FUNC_NAME(set,__init__)(_thread, 1,&outSet,0);
 
 	krk_tableAddAll(&self->entries, &AS_set(outSet)->entries);
 	krk_tableAddAll(&them->entries, &AS_set(outSet)->entries);
@@ -300,7 +300,7 @@ KRK_Method(set,__iter__) {
 	METHOD_TAKES_NONE();
 	KrkInstance * output = krk_newInstance(KRK_BASE_CLASS(setiterator));
 	krk_push(OBJECT_VAL(output));
-	FUNC_NAME(setiterator,__init__)(2,(KrkValue[]){krk_peek(0), argv[0]}, 0);
+	FUNC_NAME(setiterator,__init__)(_thread, 2,(KrkValue[]){krk_peek(0), argv[0]}, 0);
 	return krk_pop();
 }
 
@@ -331,7 +331,7 @@ KRK_Method(setiterator,__call__) {
 	} while (1);
 }
 
-KrkValue krk_set_of(int argc, const KrkValue argv[], int hasKw) {
+KrkValue krk_set_of_r(KrkThreadState * _thread, int argc, const KrkValue argv[], int hasKw) {
 	KrkValue outSet = OBJECT_VAL(krk_newInstance(KRK_BASE_CLASS(set)));
 	krk_push(outSet);
 	krk_initTable(&AS_set(outSet)->entries);
@@ -345,7 +345,7 @@ KrkValue krk_set_of(int argc, const KrkValue argv[], int hasKw) {
 }
 
 _noexport
-void _createAndBind_setClass(void) {
+void _createAndBind_setClass(KrkThreadState * _thread) {
 	KrkClass * set = krk_makeClass(vm.builtins, &KRK_BASE_CLASS(set), "set", vm.baseClasses->objectClass);
 	set->allocSize = sizeof(struct Set);
 	set->_ongcscan = _set_gcscan;

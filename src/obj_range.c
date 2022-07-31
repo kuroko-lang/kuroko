@@ -80,7 +80,7 @@ KRK_Method(range,__iter__) {
 	krk_integer_type step = self->step;
 
 	krk_push(OBJECT_VAL(output));
-	FUNC_NAME(rangeiterator,__init__)(4, (KrkValue[]){krk_peek(0), INTEGER_VAL(min), INTEGER_VAL(max), INTEGER_VAL(step)},0);
+	FUNC_NAME(rangeiterator,__init__)(_thread, 4, (KrkValue[]){krk_peek(0), INTEGER_VAL(min), INTEGER_VAL(max), INTEGER_VAL(step)},0);
 	krk_pop();
 
 	return OBJECT_VAL(output);
@@ -112,7 +112,7 @@ KRK_Method(rangeiterator,__call__) {
 }
 
 _noexport
-void _createAndBind_rangeClass(void) {
+void _createAndBind_rangeClass(KrkThreadState * _thread) {
 	KrkClass * range = ADD_BASE_CLASS(vm.baseClasses->rangeClass, "range", vm.baseClasses->objectClass);
 	range->allocSize = sizeof(struct Range);
 	range->obj.flags |= KRK_OBJ_FLAGS_NO_INHERIT;

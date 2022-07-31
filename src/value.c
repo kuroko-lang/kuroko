@@ -8,13 +8,13 @@
 
 #include "opcode_enum.h"
 
-void krk_initValueArray(KrkValueArray * array) {
+void krk_initValueArray_r(KrkThreadState * _thread, KrkValueArray * array) {
 	array->values = NULL;
 	array->capacity = 0;
 	array->count = 0;
 }
 
-void krk_writeValueArray(KrkValueArray * array, KrkValue value) {
+void krk_writeValueArray_r(KrkThreadState * _thread, KrkValueArray * array, KrkValue value) {
 	if (array->capacity < array->count + 1) {
 		int old = array->capacity;
 		array->capacity = GROW_CAPACITY(old);
@@ -25,12 +25,12 @@ void krk_writeValueArray(KrkValueArray * array, KrkValue value) {
 	array->count++;
 }
 
-void krk_freeValueArray(KrkValueArray * array) {
+void krk_freeValueArray_r(KrkThreadState * _thread, KrkValueArray * array) {
 	FREE_ARRAY(KrkValue, array->values, array->capacity);
 	krk_initValueArray(array);
 }
 
-void krk_printValue(FILE * f, KrkValue printable) {
+void krk_printValue_r(KrkThreadState * _thread, FILE * f, KrkValue printable) {
 	KrkClass * type = krk_getType(printable);
 	if (type->_tostr) {
 		krk_push(printable);
@@ -49,7 +49,7 @@ void krk_printValue(FILE * f, KrkValue printable) {
 
 #define STRING_DEBUG_TRUNCATE 50
 
-void krk_printValueSafe(FILE * f, KrkValue printable) {
+void krk_printValueSafe_r(KrkThreadState * _thread, FILE * f, KrkValue printable) {
 	if (!IS_OBJECT(printable)) {
 		switch (KRK_VAL_TYPE(printable)) {
 			case KRK_VAL_INTEGER:  fprintf(f, PRIkrk_int, AS_INTEGER(printable)); break;
@@ -145,11 +145,11 @@ void krk_printValueSafe(FILE * f, KrkValue printable) {
 /**
  * Identity really should be the simple...
  */
-int krk_valuesSame(KrkValue a, KrkValue b) {
+int krk_valuesSame_r(KrkThreadState * _thread, KrkValue a, KrkValue b) {
 	return a == b;
 }
 
-static inline int _krk_method_equivalence(KrkValue a, KrkValue b) {
+static inline int _krk_method_equivalence(KrkThreadState * _thread, KrkValue a, KrkValue b) {
 	KrkClass * type = krk_getType(a);
 	if (likely(type && type->_eq)) {
 		krk_push(a);
@@ -173,7 +173,7 @@ static inline int _krk_method_equivalence(KrkValue a, KrkValue b) {
 	return 0;
 }
 
-static inline int _krk_same_type_equivalence(uint16_t valtype, KrkValue a, KrkValue b) {
+static inline int _krk_same_type_equivalence(KrkThreadState * _thread, uint16_t valtype, KrkValue a, KrkValue b) {
 	switch (valtype) {
 		case KRK_VAL_BOOLEAN:
 		case KRK_VAL_INTEGER:
@@ -184,11 +184,11 @@ static inline int _krk_same_type_equivalence(uint16_t valtype, KrkValue a, KrkVa
 			return a == b;
 		case KRK_VAL_OBJECT:
 		default:
-			return _krk_method_equivalence(a,b);
+			return _krk_method_equivalence(_thread,a,b);
 	}
 }
 
-static inline int _krk_same_type_equivalence_b(uint16_t valtype, KrkValue a, KrkValue b) {
+static inline int _krk_same_type_equivalence_b(KrkThreadState * _thread, uint16_t valtype, KrkValue a, KrkValue b) {
 	switch (valtype) {
 		case KRK_VAL_BOOLEAN:
 		case KRK_VAL_INTEGER:
@@ -199,33 +199,33 @@ static inline int _krk_same_type_equivalence_b(uint16_t valtype, KrkValue a, Krk
 			return 0;
 		case KRK_VAL_OBJECT:
 		default:
-			return _krk_method_equivalence(a,b);
+			return _krk_method_equivalence(_thread,a,b);
 	}
 }
 
-static inline int _krk_diff_type_equivalence(uint16_t val_a, uint16_t val_b, KrkValue a, KrkValue b) {
+static inline int _krk_diff_type_equivalence(KrkThreadState * _thread, uint16_t val_a, uint16_t val_b, KrkValue a, KrkValue b) {
 	/* We do not want to let KWARGS leak to anything needs to, eg., examine types. */
 	if (val_b == KRK_VAL_KWARGS || val_a == KRK_VAL_KWARGS) return 0;
 
 	/* Fall back to methods */
-	return _krk_method_equivalence(a,b);
+	return _krk_method_equivalence(_thread,a,b);
 }
 
 __attribute__((hot))
-int krk_valuesSameOrEqual(KrkValue a, KrkValue b) {
+int krk_valuesSameOrEqual_r(KrkThreadState * _thread, KrkValue a, KrkValue b) {
 	if (a == b) return 1;
 	uint16_t val_a = KRK_VAL_TYPE(a);
 	uint16_t val_b = KRK_VAL_TYPE(b);
 	return (val_a == val_b)
-		? _krk_same_type_equivalence_b(val_a, a, b)
-		: _krk_diff_type_equivalence(val_a, val_b, a, b);
+		? _krk_same_type_equivalence_b(_thread, val_a, a, b)
+		: _krk_diff_type_equivalence(_thread, val_a, val_b, a, b);
 }
 
 __attribute__((hot))
-int krk_valuesEqual(KrkValue a, KrkValue b) {
+int krk_valuesEqual_r(KrkThreadState * _thread, KrkValue a, KrkValue b) {
 	uint16_t val_a = KRK_VAL_TYPE(a);
 	uint16_t val_b = KRK_VAL_TYPE(b);
 	return (val_a == val_b)
-		? _krk_same_type_equivalence(val_a,a,b)
-		: _krk_diff_type_equivalence(val_a,val_b,a,b);
+		? _krk_same_type_equivalence(_thread,val_a,a,b)
+		: _krk_diff_type_equivalence(_thread,val_a,val_b,a,b);
 }

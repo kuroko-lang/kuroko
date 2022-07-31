@@ -31,6 +31,8 @@ typedef enum {
 	KRK_OBJ_BYTES,
 } KrkObjType;
 
+struct KrkThreadState;
+
 #undef KrkObj
 /**
  * @brief The most basic object type.
@@ -178,7 +180,7 @@ typedef struct {
 	KrkTable * globalsTable;   /**< @brief Pointer to globals table with owner object */
 } KrkClosure;
 
-typedef void (*KrkCleanupCallback)(struct KrkInstance *);
+typedef void (*KrkCleanupCallback)(struct KrkThreadState *, struct KrkInstance *);
 
 /**
  * @brief Type object.
@@ -269,7 +271,7 @@ typedef struct {
 	KrkObj * method;    /**< @brief Function to call */
 } KrkBoundMethod;
 
-typedef KrkValue (*NativeFn)(int argCount, const KrkValue* args, int hasKwargs);
+typedef KrkValue (*NativeFn)(struct KrkThreadState *, int argCount, const KrkValue* args, int hasKwargs);
 
 /**
  * @brief Managed binding to a C function.
@@ -387,7 +389,8 @@ struct KrkSlice {
  * @param length Length of the C string.
  * @return A string object.
  */
-extern KrkString * krk_takeString(char * chars, size_t length);
+extern KrkString * krk_takeString_r(struct KrkThreadState * _thread, char * chars, size_t length);
+#define krk_takeString(c,l) krk_takeString_r(_thread,c,l)
 
 /**
  * @brief Like @ref krk_takeString but for when the caller has already calculated
@@ -405,7 +408,8 @@ extern KrkString * krk_takeString(char * chars, size_t length);
  * @param type Compact type of the string, eg. UCS1, UCS2, UCS4... @see KrkStringType
  * @param hash Precalculated string hash.
  */
-extern KrkString * krk_takeStringVetted(char * chars, size_t length, size_t codesLength, KrkStringType type, uint32_t hash);
+extern KrkString * krk_takeStringVetted_r(struct KrkThreadState * _thread, char * chars, size_t length, size_t codesLength, KrkStringType type, uint32_t hash);
+#define krk_takeStringVetted(c,l,cl,t,h) krk_takeStringVetted_r(_thread,c,l,cl,t,h)
 
 /**
  * @brief Obtain a string object representation of the given C string.
@@ -422,7 +426,8 @@ extern KrkString * krk_takeStringVetted(char * chars, size_t length, size_t code
  * @param length Length of the C string.
  * @return A string object.
  */
-extern KrkString * krk_copyString(const char * chars, size_t length);
+extern KrkString * krk_copyString_r(struct KrkThreadState * _thread, const char * chars, size_t length);
+#define krk_copyString(c,l) krk_copyString_r(_thread,c,l)
 
 /**
  * @brief Ensure that a codepoint representation of a string is available.
@@ -436,7 +441,8 @@ extern KrkString * krk_copyString(const char * chars, size_t length);
  * @param string String to obtain the codepoint representation of.
  * @return A pointer to the bytes of the codepoint representation.
  */
-extern void * krk_unicodeString(KrkString * string);
+extern void * krk_unicodeString_r(struct KrkThreadState * _thread, KrkString * string);
+#define krk_unicodeString(s) krk_unicodeString_r(_thread,s)
 
 /**
  * @brief Obtain the codepoint at a given index in a string.
@@ -454,7 +460,8 @@ extern void * krk_unicodeString(KrkString * string);
  * @param index  Offset of the codepoint to obtain.
  * @return Integer representation of the codepoint at the requested index.
  */
-extern uint32_t krk_unicodeCodepoint(KrkString * string, size_t index);
+extern uint32_t krk_unicodeCodepoint_r(struct KrkThreadState * _thread, KrkString * string, size_t index);
+#define krk_unicodeCodepoint(s,i) krk_unicodeCodepoint_r(_thread,s,i)
 
 /**
  * @brief Convert an integer codepoint to a UTF-8 byte representation.
@@ -467,7 +474,8 @@ extern uint32_t krk_unicodeCodepoint(KrkString * string, size_t index);
  * @param out   Array to write UTF-8 sequence into.
  * @return The length of the UTF-8 sequence, in bytes.
  */
-extern size_t krk_codepointToBytes(krk_integer_type value, unsigned char * out);
+extern size_t krk_codepointToBytes_r(struct KrkThreadState * _thread, krk_integer_type value, unsigned char * out);
+#define krk_codepointToBytes(v,o) krk_codepointToBytes_r(_thread,v,o)
 
 /**
  * @brief Convert a function into a generator with the given arguments.
@@ -481,12 +489,14 @@ extern size_t krk_codepointToBytes(krk_integer_type value, unsigned char * out);
  * @param argCount  Number of arguments in @p arguments
  * @return A new generator object.
  */
-extern KrkInstance * krk_buildGenerator(KrkClosure * function, KrkValue * arguments, size_t argCount);
+extern KrkInstance * krk_buildGenerator_r(struct KrkThreadState * _thread, KrkClosure * function, KrkValue * arguments, size_t argCount);
+#define krk_buildGenerator(f,a,c) krk_buildGenerator_r(_thread,f,a,c)
 
 /**
  * @brief Calls __await__
  */
-extern int krk_getAwaitable(void);
+extern int krk_getAwaitable_r(struct KrkThreadState * _thread);
+#define krk_getAwaitable() krk_getAwaitable_r(_thread)
 
 /**
  * @brief Special value for type hint expressions.
@@ -504,7 +514,8 @@ extern NativeFn krk_GenericAlias;
  * no assigned names or docstrings. This is intended only
  * to be used by a compiler directly.
  */
-extern KrkCodeObject *    krk_newCodeObject(void);
+extern KrkCodeObject *    krk_newCodeObject_r(struct KrkThreadState * _thread);
+#define krk_newCodeObject() krk_newCodeObject_r(_thread)
 
 /**
  * @brief Create a native function binding object.
@@ -514,7 +525,8 @@ extern KrkCodeObject *    krk_newCodeObject(void);
  * which can then be used in the same place a function object
  * (KrkClosure) would be used.
  */
-extern KrkNative *      krk_newNative(NativeFn function, const char * name, int type);
+extern KrkNative *      krk_newNative_r(struct KrkThreadState * _thread, NativeFn function, const char * name, int type);
+#define krk_newNative(f,n,t) krk_newNative_r(_thread,f,n,t)
 
 /**
  * @brief Create a new function object.
@@ -527,7 +539,8 @@ extern KrkNative *      krk_newNative(NativeFn function, const char * name, int 
  *
  * @param function Code object to assign to the new function object.
  */
-extern KrkClosure *     krk_newClosure(KrkCodeObject * function, KrkValue globals);
+extern KrkClosure *     krk_newClosure_r(struct KrkThreadState * _thread, KrkCodeObject * function, KrkValue globals);
+#define krk_newClosure(f,g) krk_newClosure_r(_thread,f,g)
 
 /**
  * @brief Create an upvalue slot.
@@ -538,7 +551,8 @@ extern KrkClosure *     krk_newClosure(KrkCodeObject * function, KrkValue global
  * process of running compiled bytecode and creating function
  * objects from code objects.
  */
-extern KrkUpvalue *     krk_newUpvalue(int slot);
+extern KrkUpvalue *     krk_newUpvalue_r(struct KrkThreadState * _thread, int slot);
+#define krk_newUpvalue(s) krk_newUpvalue_r(_thread, s)
 
 /**
  * @brief Create a new class object.
@@ -548,7 +562,8 @@ extern KrkUpvalue *     krk_newUpvalue(int slot);
  * Generally, you will want to use @ref krk_makeClass instead,
  * which handles binding the class to a module.
  */
-extern KrkClass *       krk_newClass(KrkString * name, KrkClass * base);
+extern KrkClass *       krk_newClass_r(struct KrkThreadState * _thread, KrkString * name, KrkClass * base);
+#define krk_newClass(n,b) krk_newClass_r(_thread,n,b)
 
 /**
  * @brief Create a new instance of the given class.
@@ -558,7 +573,8 @@ extern KrkClass *       krk_newClass(KrkString * name, KrkClass * base);
  * Be sure to populate any fields expected by the class or call
  * its __init__ function (eg. with @ref krk_callStack) as needed.
  */
-extern KrkInstance *    krk_newInstance(KrkClass * _class);
+extern KrkInstance *    krk_newInstance_r(struct KrkThreadState * _thread, KrkClass * _class);
+#define krk_newInstance(c) krk_newInstance_r(_thread,c)
 
 /**
  * @brief Create a new bound method.
@@ -568,7 +584,8 @@ extern KrkInstance *    krk_newInstance(KrkClass * _class);
  * and returns a @c method object. When a @c method object is called,
  * @p receiver will automatically be provided as the first argument.
  */
-extern KrkBoundMethod * krk_newBoundMethod(KrkValue receiver, KrkObj * method);
+extern KrkBoundMethod * krk_newBoundMethod_r(struct KrkThreadState * _thread, KrkValue receiver, KrkObj * method);
+#define krk_newBoundMethod(r,m) krk_newBoundMethod_r(_thread,r,m)
 
 /**
  * @brief Create a new tuple.
@@ -578,7 +595,8 @@ extern KrkBoundMethod * krk_newBoundMethod(KrkValue receiver, KrkObj * method);
  * The actual length of the tuple must be updated after places
  * values within it by setting @c value.count.
  */
-extern KrkTuple *       krk_newTuple(size_t length);
+extern KrkTuple *       krk_newTuple_r(struct KrkThreadState * _thread, size_t length);
+#define krk_newTuple(l) krk_newTuple_r(_thread,l)
 
 /**
  * @brief Create a new byte array.
@@ -587,7 +605,8 @@ extern KrkTuple *       krk_newTuple(size_t length);
  * Allocates a bytes object of the given size, optionally copying
  * data from @p source.
  */
-extern KrkBytes *       krk_newBytes(size_t length, uint8_t * source);
+extern KrkBytes *       krk_newBytes_r(struct KrkThreadState * _thread, size_t length, uint8_t * source);
+#define krk_newBytes(l,s) krk_newBytes_r(_thread,l,s)
 
 #define krk_isObjType(v,t) (IS_OBJECT(v) && (AS_OBJECT(v)->type == (t)))
 #define OBJECT_TYPE(value) (AS_OBJECT(value)->type)

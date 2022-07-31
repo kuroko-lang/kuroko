@@ -108,7 +108,7 @@ KRK_Method(KeyError,__str__) {
 			return krk_callDirect(krk_getType(arg)->_reprer, 1);
 		}
 	}
-	return FUNC_NAME(Exception,__str__)(argc,argv,hasKw);
+	return FUNC_NAME(Exception,__str__)(_thread, argc,argv,hasKw);
 }
 
 /**
@@ -159,7 +159,7 @@ KRK_Method(SyntaxError,__str__) {
 	} else {
 		krk_push(OBJECT_VAL(S("")));
 	}
-	KrkValue formattedString = krk_string_format(9,
+	KrkValue formattedString = krk_string_format(_thread, 9,
 		(KrkValue[]){krk_peek(3), file, lineno, krk_peek(0), line, krk_peek(2), krk_peek(4), krk_peek(1), arg}, 0);
 	krk_pop(); /* instr */
 	krk_pop(); /* class */
@@ -181,7 +181,7 @@ _badSyntaxError:
  * and bind the native methods for exception objects.
  */
 _noexport
-void _createAndBind_exceptions(void) {
+void _createAndBind_exceptions(KrkThreadState * _thread) {
 	/* Add exception classes */
 	ADD_EXCEPTION_CLASS(vm.exceptions->baseException, Exception, vm.baseClasses->objectClass);
 	BIND_METHOD(Exception,__init__);
@@ -211,7 +211,7 @@ void _createAndBind_exceptions(void) {
 	krk_finalizeClass(SyntaxError);
 }
 
-static void dumpInnerException(KrkValue exception, int depth) {
+static void dumpInnerException(KrkThreadState * _thread, KrkValue exception, int depth) {
 	if (depth > 10) {
 		fprintf(stderr, "Too many inner exceptions encountered.\n");
 		return;
@@ -224,10 +224,10 @@ static void dumpInnerException(KrkValue exception, int depth) {
 
 		/* Print cause or context */
 		if (krk_tableGet(&AS_INSTANCE(exception)->fields, OBJECT_VAL(S("__cause__")), &inner) && !IS_NONE(inner)) {
-			dumpInnerException(inner, depth + 1);
+			dumpInnerException(_thread, inner, depth + 1);
 			fprintf(stderr, "\nThe above exception was the direct cause of the following exception:\n\n");
 		} else if (krk_tableGet(&AS_INSTANCE(exception)->fields, OBJECT_VAL(S("__context__")), &inner) && !IS_NONE(inner)) {
-			dumpInnerException(inner, depth + 1);
+			dumpInnerException(_thread, inner, depth + 1);
 			fprintf(stderr, "\nDuring handling of the above exception, another exception occurred:\n\n");
 		}
 
@@ -335,16 +335,16 @@ static void dumpInnerException(KrkValue exception, int depth) {
  * and then move inwards; on each call frame we try to open
  * the source file and print the corresponding line.
  */
-void krk_dumpTraceback(void) {
+void krk_dumpTraceback_r(KrkThreadState * _thread) {
 	if (!krk_valuesEqual(krk_currentThread.currentException,NONE_VAL())) {
-		dumpInnerException(krk_currentThread.currentException, 0);
+		dumpInnerException(_thread, krk_currentThread.currentException, 0);
 	}
 }
 
 /**
  * Attach a traceback to the current exception object, if it doesn't already have one.
  */
-static void attachTraceback(void) {
+static void attachTraceback(KrkThreadState * _thread) {
 	if (IS_INSTANCE(krk_currentThread.currentException)) {
 		KrkInstance * theException = AS_INSTANCE(krk_currentThread.currentException);
 		KrkValue tracebackList;
@@ -392,7 +392,7 @@ static void attachTraceback(void) {
 	} /* else: probably a legacy 'raise str', just don't bother. */
 }
 
-void krk_attachInnerException(KrkValue innerException) {
+void krk_attachInnerException_r(KrkThreadState * _thread, KrkValue innerException) {
 	if (IS_INSTANCE(krk_currentThread.currentException)) {
 		KrkInstance * theException = AS_INSTANCE(krk_currentThread.currentException);
 		if (krk_valuesSame(krk_currentThread.currentException,innerException)) {
@@ -404,7 +404,7 @@ void krk_attachInnerException(KrkValue innerException) {
 	}
 }
 
-void krk_raiseException(KrkValue base, KrkValue cause) {
+void krk_raiseException_r(KrkThreadState * _thread, KrkValue base, KrkValue cause) {
 	if (IS_CLASS(base)) {
 		krk_push(base);
 		base = krk_callStack(0);
@@ -418,7 +418,7 @@ void krk_raiseException(KrkValue base, KrkValue cause) {
 		krk_attachNamedValue(&AS_INSTANCE(krk_currentThread.currentException)->fields,
 			"__cause__", cause);
 	}
-	attachTraceback();
+	attachTraceback(_thread);
 	krk_currentThread.flags |= KRK_THREAD_HAS_EXCEPTION;
 }
 
@@ -427,7 +427,7 @@ void krk_raiseException(KrkValue base, KrkValue cause) {
  * and formats a message string to attach to it. Exception classes are
  * found in vm.exceptions and are initialized on startup.
  */
-KrkValue krk_runtimeError(KrkClass * type, const char * fmt, ...) {
+KrkValue krk_runtimeError_r(KrkThreadState * _thread, KrkClass * type, const char * fmt, ...) {
 	KrkValue msg = KWARGS_VAL(0);
 	struct StringBuilder sb = {0};
 
@@ -568,6 +568,6 @@ _finish:
 
 	/* Set the current exception to be picked up by handleException */
 	krk_currentThread.currentException = OBJECT_VAL(exceptionObject);
-	attachTraceback();
+	attachTraceback(_thread);
 	return NONE_VAL();
 }

@@ -14,20 +14,20 @@
 	if (val < 0) val = 0; \
 	if (val > (krk_integer_type)self->values.count) val = self->values.count
 
-static void _list_gcscan(KrkInstance * self) {
+static void _list_gcscan(KrkThreadState * _thread, KrkInstance * self) {
 	for (size_t i = 0; i < ((KrkList*)self)->values.count; ++i) {
 		krk_markValue(((KrkList*)self)->values.values[i]);
 	}
 }
 
-static void _list_gcsweep(KrkInstance * self) {
+static void _list_gcsweep(KrkThreadState * _thread, KrkInstance * self) {
 	krk_freeValueArray(&((KrkList*)self)->values);
 }
 
 /**
  * Convenience constructor for the C API.
  */
-KrkValue krk_list_of(int argc, const KrkValue argv[], int hasKw) {
+KrkValue krk_list_of_r(KrkThreadState * _thread, int argc, const KrkValue argv[], int hasKw) {
 	KrkValue outList = OBJECT_VAL(krk_newInstance(vm.baseClasses->listClass));
 	krk_push(outList);
 	krk_initValueArray(AS_LIST(outList));
@@ -80,7 +80,7 @@ KRK_Method(list,__getitem__) {
 			}
 
 			/* make into a list */
-			KrkValue result = krk_callNativeOnStack(len, &krk_currentThread.stackTop[-len], 0, krk_list_of);
+			KrkValue result = krk_callNativeOnStack(len, &krk_currentThread.stackTop[-len], 0, krk_list_of_r);
 			krk_currentThread.stackTop[-len-1] = result;
 			while (len) {
 				krk_pop();
@@ -158,7 +158,7 @@ KRK_Method(list,__repr__) {
 	return finishStringBuilder(&sb);
 }
 
-static int _list_extend_callback(void * context, const KrkValue * values, size_t count) {
+static int _list_extend_callback(KrkThreadState * _thread, void * context, const KrkValue * values, size_t count) {
 	KrkValueArray * positionals = context;
 	if (positionals->count + count > positionals->capacity) {
 		size_t old = positionals->capacity;
@@ -193,7 +193,7 @@ KRK_Method(list,__init__) {
 	krk_initValueArray(AS_LIST(argv[0]));
 	pthread_rwlock_init(&self->rwlock, NULL);
 	if (argc == 2) {
-		_list_extend(2,(KrkValue[]){argv[0],argv[1]},0);
+		FUNC_NAME(list,extend)(_thread, 2,(KrkValue[]){argv[0],argv[1]},0);
 	}
 	return argv[0];
 }
@@ -207,7 +207,7 @@ KRK_Method(list,__mul__) {
 	krk_push(out);
 
 	for (krk_integer_type i = 0; i < howMany; i++) {
-		_list_extend(2, (KrkValue[]){out,argv[0]},0);
+		FUNC_NAME(list,extend)(_thread, 2, (KrkValue[]){out,argv[0]},0);
 	}
 
 	return krk_pop();
@@ -287,12 +287,12 @@ KRK_Method(list,__setitem__) {
 		}
 
 		while (len < newLen) {
-			FUNC_NAME(list,insert)(3, (KrkValue[]){argv[0], INTEGER_VAL(start + len), AS_LIST(argv[2])->values[len]}, 0);
+			FUNC_NAME(list,insert)(_thread, 3, (KrkValue[]){argv[0], INTEGER_VAL(start + len), AS_LIST(argv[2])->values[len]}, 0);
 			len++;
 		}
 
 		while (newLen < len) {
-			FUNC_NAME(list,pop)(2, (KrkValue[]){argv[0], INTEGER_VAL(start + len - 1)}, 0);
+			FUNC_NAME(list,pop)(_thread, 2, (KrkValue[]){argv[0], INTEGER_VAL(start + len - 1)}, 0);
 			len--;
 		}
 
@@ -306,7 +306,7 @@ KRK_Method(list,__delitem__) {
 	METHOD_TAKES_EXACTLY(1);
 
 	if (IS_INTEGER(argv[1])) {
-		FUNC_NAME(list,pop)(2,(KrkValue[]){argv[0],INTEGER_VAL(argv[1])},0);
+		FUNC_NAME(list,pop)(_thread, 2,(KrkValue[]){argv[0],INTEGER_VAL(argv[1])},0);
 	} else if (IS_slice(argv[1])) {
 		KRK_SLICER(argv[1],self->values.count) {
 			return NONE_VAL();
@@ -319,7 +319,7 @@ KRK_Method(list,__delitem__) {
 		krk_integer_type len = end - start;
 
 		while (len > 0) {
-			FUNC_NAME(list,pop)(2,(KrkValue[]){argv[0],INTEGER_VAL(start)},0);
+			FUNC_NAME(list,pop)(_thread, 2,(KrkValue[]){argv[0],INTEGER_VAL(start)},0);
 			len--;
 		}
 	} else {
@@ -335,7 +335,7 @@ KRK_Method(list,remove) {
 	for (size_t i = 0; i < self->values.count; ++i) {
 		if (krk_valuesSameOrEqual(self->values.values[i], argv[1])) {
 			pthread_rwlock_unlock(&self->rwlock);
-			return FUNC_NAME(list,pop)(2,(KrkValue[]){argv[0], INTEGER_VAL(i)},0);
+			return FUNC_NAME(list,pop)(_thread, 2,(KrkValue[]){argv[0], INTEGER_VAL(i)},0);
 		}
 		if (unlikely(krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION)) {
 			pthread_rwlock_unlock(&self->rwlock);
@@ -428,9 +428,15 @@ KRK_Method(list,reverse) {
 	return NONE_VAL();
 }
 
-static int _list_sorter(const void * _a, const void * _b) {
+    extern   void qsort_r(void *base, size_t nmemb, size_t size,
+                  int (*compar)(const void *, const void *, void *),
+                  void *arg);
+
+
+static int _list_sorter(const void * _a, const void * _b, void * t) {
 	KrkValue a = *(KrkValue*)_a;
 	KrkValue b = *(KrkValue*)_b;
+	KrkThreadState * _thread = t;
 
 	/* Avoid actually calling the sort function if there's an active exception */
 	if (unlikely(krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION)) return -1;
@@ -445,7 +451,7 @@ KRK_Method(list,sort) {
 	METHOD_TAKES_NONE();
 
 	pthread_rwlock_wrlock(&self->rwlock);
-	qsort(self->values.values, self->values.count, sizeof(KrkValue), _list_sorter);
+	qsort_r(self->values.values, self->values.count, sizeof(KrkValue), _list_sorter, _thread);
 	pthread_rwlock_unlock(&self->rwlock);
 
 	return NONE_VAL();
@@ -458,7 +464,7 @@ KRK_Method(list,__add__) {
 	pthread_rwlock_rdlock(&self->rwlock);
 	KrkValue outList = krk_list_of(self->values.count, self->values.values, 0); /* copy */
 	pthread_rwlock_unlock(&self->rwlock);
-	FUNC_NAME(list,extend)(2,(KrkValue[]){outList,argv[1]},0); /* extend */
+	FUNC_NAME(list,extend)(_thread, 2,(KrkValue[]){outList,argv[1]},0); /* extend */
 	return outList;
 }
 
@@ -469,7 +475,7 @@ KRK_Method(list,__iter__) {
 	KrkInstance * output = krk_newInstance(vm.baseClasses->listiteratorClass);
 
 	krk_push(OBJECT_VAL(output));
-	FUNC_NAME(listiterator,__init__)(2, (KrkValue[]){krk_peek(0), argv[0]},0);
+	FUNC_NAME(listiterator,__init__)(_thread, 2, (KrkValue[]){krk_peek(0), argv[0]},0);
 	krk_pop();
 
 	return OBJECT_VAL(output);
@@ -508,7 +514,7 @@ struct ListIterator {
 #define IS_listiterator(o) (likely(IS_INSTANCE(o) && AS_INSTANCE(o)->_class == vm.baseClasses->listiteratorClass) || krk_isInstanceOf(o,vm.baseClasses->listiteratorClass))
 #define AS_listiterator(o) (struct ListIterator*)AS_OBJECT(o)
 
-static void _listiterator_gcscan(KrkInstance * self) {
+static void _listiterator_gcscan(KrkThreadState * _thread, KrkInstance * self) {
 	krk_markValue(((struct ListIterator*)self)->l);
 }
 
@@ -544,32 +550,32 @@ _bad:
 	goto _maybeGood;
 }
 
-static KrkValue _sorted(int argc, const KrkValue argv[], int hasKw) {
+static KrkValue _sorted(KrkThreadState *_thread, int argc, const KrkValue argv[], int hasKw) {
 	if (argc != 1) return krk_runtimeError(vm.exceptions->argumentError,"%s() takes %s %d argument%s (%d given)","sorted","exactly",1,"",argc);
 	KrkValue listOut = krk_list_of(0,NULL,0);
 	krk_push(listOut);
-	FUNC_NAME(list,extend)(2,(KrkValue[]){listOut,argv[0]},0);
+	FUNC_NAME(list,extend)(_thread, 2,(KrkValue[]){listOut,argv[0]},0);
 	if (!IS_NONE(krk_currentThread.currentException)) return NONE_VAL();
-	FUNC_NAME(list,sort)(1,&listOut,0);
+	FUNC_NAME(list,sort)(_thread, 1,&listOut,0);
 	if (!IS_NONE(krk_currentThread.currentException)) return NONE_VAL();
 	return krk_pop();
 }
 
-static KrkValue _reversed(int argc, const KrkValue argv[], int hasKw) {
+static KrkValue _reversed(KrkThreadState * _thread, int argc, const KrkValue argv[], int hasKw) {
 	/* FIXME The Python reversed() function produces an iterator and only works for things with indexing or a __reversed__ method;
 	 *       Building a list and reversing it like we do here is not correct! */
 	if (argc != 1) return krk_runtimeError(vm.exceptions->argumentError,"%s() takes %s %d argument%s (%d given)","reversed","exactly",1,"",argc);
 	KrkValue listOut = krk_list_of(0,NULL,0);
 	krk_push(listOut);
-	FUNC_NAME(list,extend)(2,(KrkValue[]){listOut,argv[0]},0);
+	FUNC_NAME(list,extend)(_thread, 2,(KrkValue[]){listOut,argv[0]},0);
 	if (!IS_NONE(krk_currentThread.currentException)) return NONE_VAL();
-	FUNC_NAME(list,reverse)(1,&listOut,0);
+	FUNC_NAME(list,reverse)(_thread, 1,&listOut,0);
 	if (!IS_NONE(krk_currentThread.currentException)) return NONE_VAL();
 	return krk_pop();
 }
 
 _noexport
-void _createAndBind_listClass(void) {
+void _createAndBind_listClass(KrkThreadState * _thread) {
 	KrkClass * list = ADD_BASE_CLASS(vm.baseClasses->listClass, "list", vm.baseClasses->objectClass);
 	list->allocSize = sizeof(KrkList);
 	list->_ongcscan = _list_gcscan;

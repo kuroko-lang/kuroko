@@ -37,7 +37,7 @@ struct generator {
 #define CURRENT_CTYPE struct generator *
 #define CURRENT_NAME  self
 
-static void _generator_close_upvalues(struct generator * self) {
+static void _generator_close_upvalues(KrkThreadState * _thread, struct generator * self) {
 	while (self->capturedUpvalues) {
 		KrkUpvalue * upvalue = self->capturedUpvalues;
 		upvalue->closed = self->args[upvalue->location];
@@ -46,7 +46,7 @@ static void _generator_close_upvalues(struct generator * self) {
 	}
 }
 
-static void _generator_gcscan(KrkInstance * _self) {
+static void _generator_gcscan(KrkThreadState * _thread, KrkInstance * _self) {
 	struct generator * self = (struct generator*)_self;
 	krk_markObject((KrkObj*)self->closure);
 	for (size_t i = 0; i < self->argCount; ++i) {
@@ -58,14 +58,14 @@ static void _generator_gcscan(KrkInstance * _self) {
 	krk_markValue(self->result);
 }
 
-static void _generator_gcsweep(KrkInstance * self) {
-	_generator_close_upvalues((struct generator*)self);
+static void _generator_gcsweep(KrkThreadState * _thread, KrkInstance * self) {
+	_generator_close_upvalues(_thread, (struct generator*)self);
 	free(((struct generator*)self)->args);
 }
 
-static void _set_generator_done(struct generator * self) {
+static void _set_generator_done(KrkThreadState * _thread, struct generator * self) {
 	self->ip = NULL;
-	_generator_close_upvalues(self);
+	_generator_close_upvalues(_thread, self);
 }
 
 /**
@@ -79,7 +79,7 @@ static void _set_generator_done(struct generator * self) {
  * @param argCount Number of arguments in @p argsIn
  * @return A @ref generator object.
  */
-KrkInstance * krk_buildGenerator(KrkClosure * closure, KrkValue * argsIn, size_t argCount) {
+KrkInstance * krk_buildGenerator_r(KrkThreadState * _thread, KrkClosure * closure, KrkValue * argsIn, size_t argCount) {
 	/* Copy the args */
 	KrkValue * args = malloc(sizeof(KrkValue) * (argCount));
 	memcpy(args, argsIn, sizeof(KrkValue) * argCount);
@@ -175,13 +175,13 @@ KRK_Method(generator,__call__) {
 
 	if (IS_KWARGS(result) && AS_INTEGER(result) == 0) {
 		self->result = krk_pop();
-		_set_generator_done(self);
+		_set_generator_done(_thread, self);
 		return OBJECT_VAL(self);
 	}
 
 	/* Was there an exception? */
 	if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) {
-		_set_generator_done(self);
+		_set_generator_done(_thread, self);
 		krk_currentThread.stackTop = krk_currentThread.stack + frame->slots;
 		return NONE_VAL();
 	}
@@ -222,7 +222,7 @@ KRK_Method(generator,send) {
 	if (!self->started && !IS_NONE(argv[1])) {
 		return krk_runtimeError(vm.exceptions->typeError, "Can not send non-None value to just-started generator");
 	}
-	return FUNC_NAME(generator,__call__)(argc,argv,0);
+	return FUNC_NAME(generator,__call__)(_thread, argc,argv,0);
 }
 
 KRK_Method(generator,__finish__) {
@@ -238,7 +238,7 @@ KRK_Method(generator,gi_running) {
 	return BOOLEAN_VAL(self->running);
 }
 
-int krk_getAwaitable(void) {
+int krk_getAwaitable_r(KrkThreadState * _thread) {
 	if (IS_generator(krk_peek(0)) && AS_generator(krk_peek(0))->type == KRK_OBJ_FLAGS_CODEOBJECT_IS_COROUTINE) {
 		/* Good to go */
 		return 1;
@@ -265,7 +265,7 @@ int krk_getAwaitable(void) {
 }
 
 _noexport
-void _createAndBind_generatorClass(void) {
+void _createAndBind_generatorClass(KrkThreadState * _thread) {
 	KrkClass * generator = ADD_BASE_CLASS(vm.baseClasses->generatorClass, "generator", vm.baseClasses->objectClass);
 	generator->allocSize = sizeof(struct generator);
 	generator->_ongcscan = _generator_gcscan;

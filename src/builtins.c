@@ -10,7 +10,7 @@
 FUNC_SIG(list,__init__);
 FUNC_SIG(list,sort);
 
-KrkValue krk_dirObject(int argc, const KrkValue argv[], int hasKw) {
+KrkValue krk_dirObject_r(KrkThreadState * _thread, int argc, const KrkValue argv[], int hasKw) {
 	if (argc != 1)
 		return krk_runtimeError(vm.exceptions->argumentError, "%s() takes %s %d argument%s (%d given)",
 			"dir", "exactly", 1, "", argc);
@@ -71,8 +71,8 @@ KrkValue krk_dirObject(int argc, const KrkValue argv[], int hasKw) {
 	myList = krk_list_of(0,NULL,0);
 	krk_push(myList);
 	krk_swap(1);
-	FUNC_NAME(list,__init__)(2,(KrkValue[]){krk_peek(1), krk_peek(0)},0);
-	FUNC_NAME(list,sort)(1,(KrkValue[]){krk_peek(1)},0);
+	FUNC_NAME(list,__init__)(_thread, 2,(KrkValue[]){krk_peek(1), krk_peek(0)},0);
+	FUNC_NAME(list,sort)(_thread, 1,(KrkValue[]){krk_peek(1)},0);
 	krk_pop();
 
 	return krk_pop();
@@ -169,7 +169,7 @@ KRK_Method(object,__setattr__) {
 	if (!IS_STRING(argv[1])) return krk_runtimeError(vm.exceptions->typeError, "expected str");
 
 	if (!IS_INSTANCE(argv[0])) {
-		return FUNC_NAME(krk,setattr)(argc,argv,hasKw);
+		return FUNC_NAME(krk,setattr)(_thread, argc,argv,hasKw);
 	}
 
 	/* It's an instance, that presumably does not have a `__setattr__`? */
@@ -271,7 +271,7 @@ KRK_Function(dir) {
 		}
 
 		/* Now sort it */
-		FUNC_NAME(list,sort)(1,(KrkValue[]){krk_peek(0)},0);
+		FUNC_NAME(list,sort)(_thread, 1,(KrkValue[]){krk_peek(0)},0);
 		return krk_pop(); /* Return the list */
 	}
 }
@@ -332,24 +332,24 @@ KRK_Function(bin) {
 	((string->obj.flags & KRK_OBJ_FLAGS_STRING_MASK) == (KRK_OBJ_FLAGS_STRING_UCS2) ? ((uint16_t*)string->codes)[offset] : \
 	((uint32_t*)string->codes)[offset]))
 
-int krk_unpackIterable(KrkValue iterable, void * context, int callback(void *, const KrkValue *, size_t)) {
+int krk_unpackIterable_r(KrkThreadState * _thread, KrkValue iterable, void * context, int callback(KrkThreadState *, void *, const KrkValue *, size_t)) {
 	if (IS_TUPLE(iterable)) {
-		if (callback(context, AS_TUPLE(iterable)->values.values, AS_TUPLE(iterable)->values.count)) return 1;
+		if (callback(_thread, context, AS_TUPLE(iterable)->values.values, AS_TUPLE(iterable)->values.count)) return 1;
 	} else if (IS_list(iterable)) {
-		if (callback(context, AS_LIST(iterable)->values, AS_LIST(iterable)->count)) return 1;
+		if (callback(_thread, context, AS_LIST(iterable)->values, AS_LIST(iterable)->count)) return 1;
 	} else if (IS_dict(iterable)) {
 		for (size_t i = 0; i < AS_DICT(iterable)->capacity; ++i) {
 			if (!IS_KWARGS(AS_DICT(iterable)->entries[i].key)) {
-				if (callback(context, &AS_DICT(iterable)->entries[i].key, 1)) return 1;
+				if (callback(_thread, context, &AS_DICT(iterable)->entries[i].key, 1)) return 1;
 			}
 		}
 	} else if (IS_STRING(iterable)) {
 		krk_unicodeString(AS_STRING(iterable));
 		for (size_t i = 0; i < AS_STRING(iterable)->codesLength; ++i) {
-			KrkValue s = krk_string_get(2, (KrkValue[]){iterable,INTEGER_VAL(i)}, i);
+			KrkValue s = krk_string_get(_thread, 2, (KrkValue[]){iterable,INTEGER_VAL(i)}, i);
 			if (unlikely(krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION)) return 1;
 			krk_push(s);
-			if (callback(context, &s, 1)) {
+			if (callback(_thread, context, &s, 1)) {
 				krk_pop();
 				return 1;
 			}
@@ -385,7 +385,7 @@ int krk_unpackIterable(KrkValue iterable, void * context, int callback(void *, c
 			}
 
 			krk_push(item);
-			if (callback(context, &item, 1)) {
+			if (callback(_thread, context, &item, 1)) {
 				krk_pop(); /* item */
 				krk_pop(); /* __iter__ */
 				return 1;
@@ -402,7 +402,7 @@ struct SimpleContext {
 	KrkValue base;
 };
 
-static int _any_callback(void * context, const KrkValue * values, size_t count) {
+static int _any_callback(KrkThreadState * _thread, void * context, const KrkValue * values, size_t count) {
 	struct SimpleContext * _context = context;
 	for (size_t i = 0; i < count; ++i) {
 		if (!krk_isFalsey(values[i])) {
@@ -420,7 +420,7 @@ KRK_Function(any) {
 	return context.base;
 }
 
-static int _all_callback(void * context, const KrkValue * values, size_t count) {
+static int _all_callback(KrkThreadState * _thread, void * context, const KrkValue * values, size_t count) {
 	struct SimpleContext * _context = context;
 	for (size_t i = 0; i < count; ++i) {
 		if (krk_isFalsey(values[i])) {
@@ -655,7 +655,7 @@ KRK_Method(enumerate,__iter__) {
 	return OBJECT_VAL(self);
 }
 
-extern KrkValue krk_operator_add (KrkValue a, KrkValue b);
+extern KrkValue krk_operator_add_r (KrkThreadState *, KrkValue a, KrkValue b);
 KRK_Method(enumerate,__call__) {
 	METHOD_TAKES_NONE();
 	size_t stackOffset = krk_currentThread.stackTop - krk_currentThread.stack;
@@ -686,7 +686,7 @@ KRK_Method(enumerate,__call__) {
 	tupleOut->values.values[tupleOut->values.count++] = counter;
 	tupleOut->values.values[tupleOut->values.count++] = krk_pop();
 
-	krk_push(krk_operator_add(counter, INTEGER_VAL(1)));
+	krk_push(krk_operator_add_r(_thread, counter, INTEGER_VAL(1)));
 	krk_attachNamedValue(&self->fields, "_counter", krk_pop());
 
 	KrkValue out = krk_pop();
@@ -694,10 +694,10 @@ KRK_Method(enumerate,__call__) {
 	return out;
 }
 
-static int _sum_callback(void * context, const KrkValue * values, size_t count) {
+static int _sum_callback(KrkThreadState * _thread, void * context, const KrkValue * values, size_t count) {
 	struct SimpleContext * _context = context;
 	for (size_t i = 0; i < count; ++i) {
-		_context->base = krk_operator_add(_context->base, values[i]);
+		_context->base = krk_operator_add_r(_thread,_context->base, values[i]);
 		if (unlikely(krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION)) return 1;
 	}
 	return 0;
@@ -714,7 +714,7 @@ KRK_Function(sum) {
 	return context.base;
 }
 
-static int _min_callback(void * context, const KrkValue * values, size_t count) {
+static int _min_callback(KrkThreadState * _thread, void * context, const KrkValue * values, size_t count) {
 	struct SimpleContext * _context = context;
 	for (size_t i = 0; i < count; ++i) {
 		if (IS_KWARGS(_context->base)) _context->base = values[i];
@@ -731,7 +731,7 @@ KRK_Function(min) {
 	FUNCTION_TAKES_AT_LEAST(1);
 	struct SimpleContext context = { KWARGS_VAL(0) };
 	if (argc > 1) {
-		if (_min_callback(&context, argv, argc)) return NONE_VAL();
+		if (_min_callback(_thread, &context, argv, argc)) return NONE_VAL();
 	} else {
 		if (krk_unpackIterable(argv[0], &context, _min_callback)) return NONE_VAL();
 	}
@@ -739,7 +739,7 @@ KRK_Function(min) {
 	return context.base;
 }
 
-static int _max_callback(void * context, const KrkValue * values, size_t count) {
+static int _max_callback(KrkThreadState * _thread, void * context, const KrkValue * values, size_t count) {
 	struct SimpleContext * _context = context;
 	for (size_t i = 0; i < count; ++i) {
 		if (IS_KWARGS(_context->base)) _context->base = values[i];
@@ -756,7 +756,7 @@ KRK_Function(max) {
 	FUNCTION_TAKES_AT_LEAST(1);
 	struct SimpleContext context = { KWARGS_VAL(0) };
 	if (argc > 1) {
-		if (_max_callback(&context, argv, argc)) return NONE_VAL();
+		if (_max_callback(_thread, &context, argv, argc)) return NONE_VAL();
 	} else {
 		if (krk_unpackIterable(argv[0], &context, _max_callback)) return NONE_VAL();
 	}
@@ -1131,7 +1131,7 @@ KRK_Function(format) {
 	return result;
 }
 
-static void module_sweep(KrkInstance * inst) {
+static void module_sweep(KrkThreadState * _thread, KrkInstance * inst) {
 #ifndef STATIC_ONLY
 	struct KrkModule * module = (struct KrkModule*)inst;
 	if (module->libHandle) {
@@ -1141,7 +1141,7 @@ static void module_sweep(KrkInstance * inst) {
 }
 
 _noexport
-void _createAndBind_builtins(void) {
+void _createAndBind_builtins(KrkThreadState *_thread) {
 	vm.baseClasses->objectClass = krk_newClass(S("object"), NULL);
 	krk_push(OBJECT_VAL(vm.baseClasses->objectClass));
 

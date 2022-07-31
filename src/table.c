@@ -11,18 +11,18 @@
 
 #define TABLE_MAX_LOAD 0.75
 
-void krk_initTable(KrkTable * table) {
+void krk_initTable_r(struct KrkThreadState * _thread, KrkTable * table) {
 	table->count = 0;
 	table->capacity = 0;
 	table->entries = NULL;
 }
 
-void krk_freeTable(KrkTable * table) {
+void krk_freeTable_r(struct KrkThreadState * _thread, KrkTable * table) {
 	FREE_ARRAY(KrkTableEntry, table->entries, table->capacity);
 	krk_initTable(table);
 }
 
-inline int krk_hashValue(KrkValue value, uint32_t *hashOut) {
+inline int krk_hashValue_r(struct KrkThreadState * _thread, KrkValue value, uint32_t *hashOut) {
 	switch (KRK_VAL_TYPE(value)) {
 		case KRK_VAL_BOOLEAN:
 		case KRK_VAL_INTEGER:
@@ -59,7 +59,7 @@ _unhashable:
 	return 1;
 }
 
-KrkTableEntry * krk_findEntry(KrkTableEntry * entries, size_t capacity, KrkValue key) {
+KrkTableEntry * krk_findEntry_r(struct KrkThreadState * _thread, KrkTableEntry * entries, size_t capacity, KrkValue key) {
 	uint32_t index;
 	if (krk_hashValue(key, &index)) {
 		return NULL;
@@ -82,7 +82,7 @@ KrkTableEntry * krk_findEntry(KrkTableEntry * entries, size_t capacity, KrkValue
 	}
 }
 
-KrkTableEntry * krk_findEntryExact(KrkTableEntry * entries, size_t capacity, KrkValue key) {
+KrkTableEntry * krk_findEntryExact_r(struct KrkThreadState * _thread, KrkTableEntry * entries, size_t capacity, KrkValue key) {
 	uint32_t index;
 	if (krk_hashValue(key, &index)) {
 		return NULL;
@@ -113,7 +113,7 @@ int __builtin_clz(unsigned int x) {
 }
 #endif
 
-void krk_tableAdjustCapacity(KrkTable * table, size_t capacity) {
+void krk_tableAdjustCapacity_r(struct KrkThreadState * _thread, KrkTable * table, size_t capacity) {
 	if (capacity) {
 		/* Fast power-of-two calculation */
 		size_t powerOfTwoCapacity = __builtin_clz(1) - __builtin_clz(capacity);
@@ -142,7 +142,7 @@ void krk_tableAdjustCapacity(KrkTable * table, size_t capacity) {
 	table->capacity = capacity;
 }
 
-int krk_tableSet(KrkTable * table, KrkValue key, KrkValue value) {
+int krk_tableSet_r(struct KrkThreadState * _thread, KrkTable * table, KrkValue key, KrkValue value) {
 	if (table->count + 1 > table->capacity * TABLE_MAX_LOAD) {
 		size_t capacity = GROW_CAPACITY(table->capacity);
 		krk_tableAdjustCapacity(table, capacity);
@@ -156,7 +156,7 @@ int krk_tableSet(KrkTable * table, KrkValue key, KrkValue value) {
 	return isNewKey;
 }
 
-int krk_tableSetIfExists(KrkTable * table, KrkValue key, KrkValue value) {
+int krk_tableSetIfExists_r(struct KrkThreadState * _thread, KrkTable * table, KrkValue key, KrkValue value) {
 	if (table->count == 0) return 0;
 	KrkTableEntry * entry = krk_findEntry(table->entries, table->capacity, key);
 	if (!entry) return 0;
@@ -166,7 +166,7 @@ int krk_tableSetIfExists(KrkTable * table, KrkValue key, KrkValue value) {
 	return 1;
 }
 
-void krk_tableAddAll(KrkTable * from, KrkTable * to) {
+void krk_tableAddAll_r(struct KrkThreadState * _thread, KrkTable * from, KrkTable * to) {
 	for (size_t i = 0; i < from->capacity; ++i) {
 		KrkTableEntry * entry = &from->entries[i];
 		if (!IS_KWARGS(entry->key)) {
@@ -175,7 +175,7 @@ void krk_tableAddAll(KrkTable * from, KrkTable * to) {
 	}
 }
 
-int krk_tableGet(KrkTable * table, KrkValue key, KrkValue * value) {
+int krk_tableGet_r(struct KrkThreadState * _thread, KrkTable * table, KrkValue key, KrkValue * value) {
 	if (table->count == 0) return 0;
 	KrkTableEntry * entry = krk_findEntry(table->entries, table->capacity, key);
 	if (!entry || IS_KWARGS(entry->key)) {
@@ -186,7 +186,7 @@ int krk_tableGet(KrkTable * table, KrkValue key, KrkValue * value) {
 	}
 }
 
-int krk_tableGet_fast(KrkTable * table, KrkString * str, KrkValue * value) {
+int krk_tableGet_fast_r(struct KrkThreadState * _thread, KrkTable * table, KrkString * str, KrkValue * value) {
 	if (unlikely(table->count == 0)) return 0;
 	uint32_t index = str->obj.hash & (table->capacity-1);
 	for (;;) {
@@ -200,7 +200,7 @@ int krk_tableGet_fast(KrkTable * table, KrkString * str, KrkValue * value) {
 	}
 }
 
-int krk_tableDelete(KrkTable * table, KrkValue key) {
+int krk_tableDelete_r(struct KrkThreadState * _thread, KrkTable * table, KrkValue key) {
 	if (table->count == 0) return 0;
 	KrkTableEntry * entry = krk_findEntry(table->entries, table->capacity, key);
 	if (!entry || IS_KWARGS(entry->key)) {
@@ -212,9 +212,9 @@ int krk_tableDelete(KrkTable * table, KrkValue key) {
 	return 1;
 }
 
-int krk_tableDeleteExact(KrkTable * table, KrkValue key) {
+int krk_tableDeleteExact_r(struct KrkThreadState * _thread, KrkTable * table, KrkValue key) {
 	if (table->count == 0) return 0;
-	KrkTableEntry * entry = krk_findEntryExact(table->entries, table->capacity, key);
+	KrkTableEntry * entry = krk_findEntryExact_r(_thread, table->entries, table->capacity, key);
 	if (!entry || IS_KWARGS(entry->key)) {
 		return 0;
 	}
@@ -224,7 +224,7 @@ int krk_tableDeleteExact(KrkTable * table, KrkValue key) {
 	return 1;
 }
 
-KrkString * krk_tableFindString(KrkTable * table, const char * chars, size_t length, uint32_t hash) {
+KrkString * krk_tableFindString_r(struct KrkThreadState * _thread, KrkTable * table, const char * chars, size_t length, uint32_t hash) {
 	if (table->count == 0) return NULL;
 
 	uint32_t index = hash & (table->capacity-1);

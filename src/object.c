@@ -9,14 +9,14 @@
 #include <kuroko/table.h>
 
 #define ALLOCATE_OBJECT(type, objectType) \
-	(type*)allocateObject(sizeof(type), objectType)
+	(type*)allocateObject(_thread,sizeof(type), objectType)
 
 #ifndef KRK_DISABLE_THREADS
 static volatile int _stringLock = 0;
 static volatile int _objectLock = 0;
 #endif
 
-static KrkObj * allocateObject(size_t size, KrkObjType type) {
+static KrkObj * allocateObject(KrkThreadState *_thread, size_t size, KrkObjType type) {
 	KrkObj * object = (KrkObj*)krk_reallocate(NULL, 0, size);
 	memset(object,0,size);
 	object->type = type;
@@ -32,7 +32,7 @@ static KrkObj * allocateObject(size_t size, KrkObjType type) {
 	return object;
 }
 
-size_t krk_codepointToBytes(krk_integer_type value, unsigned char * out) {
+size_t krk_codepointToBytes_r(KrkThreadState * _thread, krk_integer_type value, unsigned char * out) {
 	if (value > 0xFFFF) {
 		out[0] = (0xF0 | (value >> 18));
 		out[1] = (0x80 | ((value >> 12) & 0x3F));
@@ -100,7 +100,7 @@ _reject:
 	return *state;
 }
 
-static int checkString(const char * chars, size_t length, size_t *codepointCount) {
+static int checkString(KrkThreadState * _thread, const char * chars, size_t length, size_t *codepointCount) {
 	uint32_t state = 0;
 	uint32_t codepoint = 0;
 	unsigned char * end = (unsigned char *)chars + length;
@@ -147,7 +147,7 @@ GENREADY(2,uint16_t)
 GENREADY(4,uint32_t)
 #undef GENREADY
 
-void * krk_unicodeString(KrkString * string) {
+void * krk_unicodeString_r(KrkThreadState * _thread, KrkString * string) {
 	if (string->codes) return string->codes;
 	else if ((string->obj.flags & KRK_OBJ_FLAGS_STRING_MASK) == KRK_OBJ_FLAGS_STRING_UCS1) _readyUCS1(string);
 	else if ((string->obj.flags & KRK_OBJ_FLAGS_STRING_MASK) == KRK_OBJ_FLAGS_STRING_UCS2) _readyUCS2(string);
@@ -156,7 +156,7 @@ void * krk_unicodeString(KrkString * string) {
 	return string->codes;
 }
 
-uint32_t krk_unicodeCodepoint(KrkString * string, size_t index) {
+uint32_t krk_unicodeCodepoint_r(KrkThreadState * _thread, KrkString * string, size_t index) {
 	krk_unicodeString(string);
 	switch (string->obj.flags & KRK_OBJ_FLAGS_STRING_MASK) {
 		case KRK_OBJ_FLAGS_STRING_ASCII:
@@ -169,9 +169,9 @@ uint32_t krk_unicodeCodepoint(KrkString * string, size_t index) {
 	}
 }
 
-static KrkString * allocateString(char * chars, size_t length, uint32_t hash) {
+static KrkString * allocateString(KrkThreadState * _thread, char * chars, size_t length, uint32_t hash) {
 	size_t codesLength = 0;
-	int type = checkString(chars,length,&codesLength);
+	int type = checkString(_thread, chars,length,&codesLength);
 	if (type == -1) {
 		return krk_copyString("",0);
 	}
@@ -190,7 +190,7 @@ static KrkString * allocateString(char * chars, size_t length, uint32_t hash) {
 	return string;
 }
 
-static uint32_t hashString(const char * key, size_t length) {
+static uint32_t hashString(KrkThreadState * _thread, const char * key, size_t length) {
 	uint32_t hash = 0;
 	/* This is the so-called "sdbm" hash. It comes from a piece of
 	 * public domain code from a clone of ndbm. */
@@ -200,8 +200,8 @@ static uint32_t hashString(const char * key, size_t length) {
 	return hash;
 }
 
-KrkString * krk_takeString(char * chars, size_t length) {
-	uint32_t hash = hashString(chars, length);
+KrkString * krk_takeString_r(KrkThreadState * _thread, char * chars, size_t length) {
+	uint32_t hash = hashString(_thread, chars, length);
 	_obtain_lock(_stringLock);
 	KrkString * interned = krk_tableFindString(&vm.strings, chars, length, hash);
 	if (interned != NULL) {
@@ -212,12 +212,12 @@ KrkString * krk_takeString(char * chars, size_t length) {
 
 	/* Part of taking ownership of this string is that we track its memory usage */
 	krk_gcTakeBytes(chars, length + 1);
-	KrkString * result = allocateString(chars, length, hash);
+	KrkString * result = allocateString(_thread, chars, length, hash);
 	return result;
 }
 
-KrkString * krk_copyString(const char * chars, size_t length) {
-	uint32_t hash = hashString(chars, length);
+KrkString * krk_copyString_r(KrkThreadState * _thread, const char * chars, size_t length) {
+	uint32_t hash = hashString(_thread, chars, length);
 	_obtain_lock(_stringLock);
 	KrkString * interned = krk_tableFindString(&vm.strings, chars ? chars : "", length, hash);
 	if (interned) {
@@ -227,13 +227,13 @@ KrkString * krk_copyString(const char * chars, size_t length) {
 	char * heapChars = ALLOCATE(char, length + 1);
 	memcpy(heapChars, chars ? chars : "", length);
 	heapChars[length] = '\0';
-	KrkString * result = allocateString(heapChars, length, hash);
+	KrkString * result = allocateString(_thread, heapChars, length, hash);
 	if (result->chars != heapChars) free(heapChars);
 	_release_lock(_stringLock);
 	return result;
 }
 
-KrkString * krk_takeStringVetted(char * chars, size_t length, size_t codesLength, KrkStringType type, uint32_t hash) {
+KrkString * krk_takeStringVetted_r(KrkThreadState * _thread, char * chars, size_t length, size_t codesLength, KrkStringType type, uint32_t hash) {
 	_obtain_lock(_stringLock);
 	KrkString * interned = krk_tableFindString(&vm.strings, chars, length, hash);
 	if (interned != NULL) {
@@ -256,7 +256,7 @@ KrkString * krk_takeStringVetted(char * chars, size_t length, size_t codesLength
 	return string;
 }
 
-KrkCodeObject * krk_newCodeObject(void) {
+KrkCodeObject * krk_newCodeObject_r(KrkThreadState * _thread) {
 	KrkCodeObject * codeobject = ALLOCATE_OBJECT(KrkCodeObject, KRK_OBJ_CODEOBJECT);
 	codeobject->requiredArgs = 0;
 	codeobject->keywordArgs = 0;
@@ -271,7 +271,7 @@ KrkCodeObject * krk_newCodeObject(void) {
 	return codeobject;
 }
 
-KrkNative * krk_newNative(NativeFn function, const char * name, int type) {
+KrkNative * krk_newNative_r(KrkThreadState * _thread, NativeFn function, const char * name, int type) {
 	KrkNative * native = ALLOCATE_OBJECT(KrkNative, KRK_OBJ_NATIVE);
 	native->function = function;
 	native->obj.flags = type;
@@ -280,7 +280,7 @@ KrkNative * krk_newNative(NativeFn function, const char * name, int type) {
 	return native;
 }
 
-KrkClosure * krk_newClosure(KrkCodeObject * function, KrkValue globals) {
+KrkClosure * krk_newClosure_r(KrkThreadState * _thread, KrkCodeObject * function, KrkValue globals) {
 	KrkUpvalue ** upvalues = ALLOCATE(KrkUpvalue*, function->upvalueCount);
 	for (size_t i = 0; i < function->upvalueCount; ++i) {
 		upvalues[i] = NULL;
@@ -305,7 +305,7 @@ KrkClosure * krk_newClosure(KrkCodeObject * function, KrkValue globals) {
 	return closure;
 }
 
-KrkUpvalue * krk_newUpvalue(int slot) {
+KrkUpvalue * krk_newUpvalue_r(KrkThreadState * _thread, int slot) {
 	KrkUpvalue * upvalue = ALLOCATE_OBJECT(KrkUpvalue, KRK_OBJ_UPVALUE);
 	upvalue->location = slot;
 	upvalue->next = NULL;
@@ -314,7 +314,7 @@ KrkUpvalue * krk_newUpvalue(int slot) {
 	return upvalue;
 }
 
-KrkClass * krk_newClass(KrkString * name, KrkClass * baseClass) {
+KrkClass * krk_newClass_r(KrkThreadState * _thread, KrkString * name, KrkClass * baseClass) {
 	KrkClass * _class = ALLOCATE_OBJECT(KrkClass, KRK_OBJ_CLASS);
 	_class->name = name;
 	_class->allocSize = sizeof(KrkInstance);
@@ -333,21 +333,21 @@ KrkClass * krk_newClass(KrkString * name, KrkClass * baseClass) {
 	return _class;
 }
 
-KrkInstance * krk_newInstance(KrkClass * _class) {
-	KrkInstance * instance = (KrkInstance*)allocateObject(_class->allocSize, KRK_OBJ_INSTANCE);
+KrkInstance * krk_newInstance_r(KrkThreadState * _thread, KrkClass * _class) {
+	KrkInstance * instance = (KrkInstance*)allocateObject(_thread, _class->allocSize, KRK_OBJ_INSTANCE);
 	instance->_class = _class;
 	krk_initTable(&instance->fields);
 	return instance;
 }
 
-KrkBoundMethod * krk_newBoundMethod(KrkValue receiver, KrkObj * method) {
+KrkBoundMethod * krk_newBoundMethod_r(KrkThreadState * _thread, KrkValue receiver, KrkObj * method) {
 	KrkBoundMethod * bound = ALLOCATE_OBJECT(KrkBoundMethod, KRK_OBJ_BOUND_METHOD);
 	bound->receiver = receiver;
 	bound->method = method;
 	return bound;
 }
 
-KrkTuple * krk_newTuple(size_t length) {
+KrkTuple * krk_newTuple_r(KrkThreadState * _thread, size_t length) {
 	KrkTuple * tuple = ALLOCATE_OBJECT(KrkTuple, KRK_OBJ_TUPLE);
 	krk_initValueArray(&tuple->values);
 	krk_push(OBJECT_VAL(tuple));
@@ -357,7 +357,7 @@ KrkTuple * krk_newTuple(size_t length) {
 	return tuple;
 }
 
-KrkBytes * krk_newBytes(size_t length, uint8_t * source) {
+KrkBytes * krk_newBytes_r(KrkThreadState * _thread, size_t length, uint8_t * source) {
 	KrkBytes * bytes = ALLOCATE_OBJECT(KrkBytes, KRK_OBJ_BYTES);
 	bytes->length = length;
 	bytes->bytes  = NULL;

@@ -177,7 +177,7 @@ KRK_Function(inspect_value) {
 	return OBJECT_VAL(krk_newBytes(sizeof(KrkValue),(uint8_t*)&argv[0]));
 }
 
-void krk_module_init_kuroko(void) {
+void krk_module_init_kuroko(KrkThreadState * _thread) {
 	/**
 	 * kuroko = module()
 	 *

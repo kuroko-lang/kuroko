@@ -278,9 +278,10 @@ typedef struct GlobalState {
 	KrkScanner scanner;
 	Compiler * current;
 	ClassCompiler * currentClass;
+	KrkThreadState * thread;
 } GlobalState;
 
-static void _GlobalState_gcscan(KrkInstance * _self) {
+static void _GlobalState_gcscan(KrkThreadState * _thread, KrkInstance * _self) {
 	struct GlobalState * self = (void*)_self;
 	Compiler * compiler = self->current;
 	while (compiler != NULL) {
@@ -290,9 +291,12 @@ static void _GlobalState_gcscan(KrkInstance * _self) {
 	}
 }
 
-static void _GlobalState_gcsweep(KrkInstance * _self) {
+static void _GlobalState_gcsweep(KrkThreadState * _thread, KrkInstance * _self) {
 	/* nothing to do? */
 }
+
+#undef _thread
+#define _thread (state->thread)
 
 #define currentChunk() (&state->current->codeobject->chunk)
 
@@ -619,7 +623,7 @@ static KrkCodeObject * endCompiler(struct GlobalState * state) {
 	return function;
 }
 
-static void freeCompiler(Compiler * compiler) {
+static void freeCompiler(struct GlobalState * state, Compiler * compiler) {
 	FREE_ARRAY(Local,compiler->locals, compiler->localsSpace);
 	FREE_ARRAY(Upvalue,compiler->upvalues, compiler->upvaluesSpace);
 	FREE_ARRAY(struct LoopExit,compiler->breaks, compiler->breakSpace);
@@ -1414,7 +1418,7 @@ static void functionPrologue(struct GlobalState * state, Compiler * compiler) {
 	if (compiler->annotationCount) {
 		emitByte(OP_ANNOTATE);
 	}
-	freeCompiler(compiler);
+	freeCompiler(state, compiler);
 }
 
 static int argumentList(struct GlobalState * state, FunctionType type) {
@@ -1704,7 +1708,7 @@ _pop_class:
 	size_t indFunc = krk_addConstant(currentChunk(), OBJECT_VAL(makeclass));
 	EMIT_OPERAND_OP(OP_CLOSURE, indFunc);
 	doUpvalues(state, &subcompiler, makeclass);
-	freeCompiler(&subcompiler);
+	freeCompiler(state, &subcompiler);
 	emitBytes(OP_CALL, 0);
 
 	return classCompiler.name;
@@ -3115,7 +3119,7 @@ static void generatorExpression(struct GlobalState * state, KrkScanner scannerBe
 	size_t indFunc = krk_addConstant(currentChunk(), OBJECT_VAL(subfunction));
 	EMIT_OPERAND_OP(OP_CLOSURE, indFunc);
 	doUpvalues(state, &subcompiler, subfunction);
-	freeCompiler(&subcompiler);
+	freeCompiler(state, &subcompiler);
 	emitBytes(OP_CALL, 0);
 }
 
@@ -3150,7 +3154,7 @@ static void comprehensionExpression(struct GlobalState * state, KrkScanner scann
 	size_t indFunc = krk_addConstant(currentChunk(), OBJECT_VAL(subfunction));
 	EMIT_OPERAND_OP(OP_CLOSURE, indFunc);
 	doUpvalues(state, &subcompiler, subfunction);
-	freeCompiler(&subcompiler);
+	freeCompiler(state, &subcompiler);
 	emitBytes(OP_CALL, 0);
 }
 
@@ -3732,22 +3736,23 @@ static int maybeSingleExpression(struct GlobalState * state) {
  * @return A compiled code object, or NULL on error.
  * @exception SyntaxError if @p src could not be compiled.
  */
-KrkCodeObject * krk_compile(const char * src, char * fileName) {
+KrkCodeObject * krk_compile(KrkThreadState * base_thread, const char * src, char * fileName) {
 
-	KrkClass * GlobalState = krk_newClass(S("GlobalState"), KRK_BASE_CLASS(object));
-	krk_push(OBJECT_VAL(GlobalState));
+	KrkClass * GlobalState = krk_newClass_r(base_thread, krk_copyString_r(base_thread, "GlobalState", 11), base_thread->owner->baseClasses->objectClass);
+	krk_push_r(base_thread, OBJECT_VAL(GlobalState));
 
 	GlobalState->allocSize = sizeof(struct GlobalState);
 	GlobalState->_ongcscan = _GlobalState_gcscan;
 	GlobalState->_ongcsweep = _GlobalState_gcsweep;
 	GlobalState->obj.flags |= KRK_OBJ_FLAGS_NO_INHERIT;
-	krk_finalizeClass(GlobalState);
+	krk_finalizeClass_r(base_thread, GlobalState);
 
-	struct GlobalState * state = (void*)krk_newInstance(GlobalState);
-	krk_push(OBJECT_VAL(state));
+	struct GlobalState * state = (void*)krk_newInstance_r(base_thread, GlobalState);
+	krk_push_r(base_thread, OBJECT_VAL(state));
 
 	/* Point a new scanner at the source. */
 	state->scanner = krk_initScanner(src);
+	state->thread = base_thread;
 
 	/* Reset parser state. */
 	memset(&state->parser, 0, sizeof(state->parser));
@@ -3777,7 +3782,7 @@ KrkCodeObject * krk_compile(const char * src, char * fileName) {
 	}
 
 	KrkCodeObject * function = endCompiler(state);
-	freeCompiler(&compiler);
+	freeCompiler(state, &compiler);
 
 	/*
 	 * We'll always get something out of endCompiler even if it

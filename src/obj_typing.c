@@ -20,7 +20,7 @@
  * So if you specify list[int], you'll get 'list[int]'.
  */
 
-static KrkValue typeToString(KrkValue val) {
+static KrkValue typeToString(KrkThreadState * _thread, KrkValue val) {
 	if (IS_CLASS(val)) {
 		return OBJECT_VAL(AS_CLASS(val)->name);
 	} else if (IS_STRING(val)) {
@@ -30,7 +30,7 @@ static KrkValue typeToString(KrkValue val) {
 		struct StringBuilder sb = {0};
 
 		for (size_t i = 0; i < AS_TUPLE(val)->values.count; ++i) {
-			krk_push(typeToString(AS_TUPLE(val)->values.values[i]));
+			krk_push(typeToString(_thread, AS_TUPLE(val)->values.values[i]));
 			pushStringBuilderStr(&sb, AS_CSTRING(krk_peek(0)), AS_STRING(krk_peek(0))->length);
 			krk_pop();
 			if (i < AS_TUPLE(val)->values.count - 1) {
@@ -57,7 +57,7 @@ KRK_Function(__class_getitem__) {
 	pushStringBuilderStr(&sb, AS_CLASS(argv[0])->name->chars, AS_CLASS(argv[0])->name->length);
 	pushStringBuilder(&sb,'[');
 
-	krk_push(typeToString(argv[1]));
+	krk_push(typeToString(_thread, argv[1]));
 	pushStringBuilderStr(&sb, AS_CSTRING(krk_peek(0)), AS_STRING(krk_peek(0))->length);
 	krk_pop();
 	pushStringBuilder(&sb,']');

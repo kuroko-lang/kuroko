@@ -55,7 +55,7 @@ KrkValue SeenFunctions;
 KrkValue UnseenFunctions;
 KrkValue StringTable;
 
-static void _initListFunctions(void) {
+static void _initListFunctions(KrkThreadState * _thread) {
 	KrkValue _list_pop;
 	KrkValue _list_append;
 	KrkValue _list_contains;
@@ -70,24 +70,30 @@ static void _initListFunctions(void) {
 	ListIndex = AS_NATIVE(_list_index)->function;
 }
 
-static void findInterpreter(char * argv[]) {
+static char * findInterpreter(char * argv[]) {
 #ifdef _WIN32
-	vm.binpath = strdup(_pgmptr);
+	return strdup(_pgmptr);
 #else
 	/* Try asking /proc */
+	char tmp[4096];
 	char * binpath = realpath("/proc/self/exe", NULL);
 	if (!binpath || (access(binpath, X_OK) != 0)) {
+		if (binpath) {
+			free(binpath);
+			binpath = NULL;
+		}
 		if (strchr(argv[0], '/')) {
 			binpath = realpath(argv[0], NULL);
 		} else {
 			/* Search PATH for argv[0] */
-			char * _path = strdup(getenv("PATH"));
+			char * p = getenv("PATH");
+			if (!p) return NULL;
+			char * _path = strdup(p);
 			char * path = _path;
 			while (path) {
 				char * next = strchr(path,':');
 				if (next) *next++ = '\0';
 
-				char tmp[4096];
 				snprintf(tmp, 4096, "%s/%s", path, argv[0]);
 				if (access(tmp, X_OK) == 0) {
 					binpath = strdup(tmp);
@@ -98,9 +104,7 @@ static void findInterpreter(char * argv[]) {
 			free(_path);
 		}
 	}
-	if (binpath) {
-		vm.binpath = binpath;
-	} /* Else, give up at this point and just don't attach it at all. */
+	return binpath;
 #endif
 }
 
@@ -121,7 +125,7 @@ static size_t internString(KrkString * str) {
 	return count++;
 }
 
-static int doStringTable(FILE * out) {
+static int doStringTable(KrkThreadState * _thread, FILE * out) {
 	uint32_t stringCount = count;
 	fwrite(&stringCount, 1, sizeof(uint32_t), out);
 
@@ -134,8 +138,8 @@ static int doStringTable(FILE * out) {
 	return 0;
 }
 
-#define WRITE_INTEGER(i) _writeInteger(out, i)
-static void _writeInteger(FILE* out, krk_integer_type i) {
+#define WRITE_INTEGER(i) _writeInteger(_thread, out, i)
+static void _writeInteger(KrkThreadState * _thread, FILE* out, krk_integer_type i) {
 	if (i >= 0 && i < 256) { \
 		fwrite((uint8_t[]){'i',i}, 1, 2, out);
 	} else {
@@ -147,8 +151,8 @@ static void _writeInteger(FILE* out, krk_integer_type i) {
 	}
 }
 
-#define WRITE_FLOATING(f) _writeFloating(out, f)
-static void _writeFloating(FILE * out, double f) {
+#define WRITE_FLOATING(f) _writeFloating(_thread, out, f)
+static void _writeFloating(KrkThreadState * _thread, FILE * out, double f) {
 	uint64_t doubleOut;
 	memcpy(&doubleOut, &f, sizeof(double));
 	fwrite("d", 1, 1, out);
@@ -157,8 +161,8 @@ static void _writeFloating(FILE * out, double f) {
 
 #define WRITE_KWARGS(k) fwrite("k",1,1,out);
 
-#define WRITE_STRING(s) _writeString(out, s)
-static void _writeString(FILE * out, KrkString * s) {
+#define WRITE_STRING(s) _writeString(_thread, out, s)
+static void _writeString(KrkThreadState * _thread, FILE * out, KrkString * s) {
 	uint32_t ind = internString(s);
 	if (ind < 256) {
 		fwrite((uint8_t[]){'s',(uint8_t)ind}, 1, 2, out);
@@ -168,8 +172,8 @@ static void _writeString(FILE * out, KrkString * s) {
 	}
 }
 
-#define WRITE_BYTES(b) _writeBytes(out,b)
-static void _writeBytes(FILE * out, KrkBytes * b) {
+#define WRITE_BYTES(b) _writeBytes(_thread, out,b)
+static void _writeBytes(KrkThreadState * _thread, FILE * out, KrkBytes * b) {
 	if (b->length < 256) {
 		fwrite((uint8_t[]){'b', (uint8_t)b->length}, 1, 2, out);
 		fwrite(b->bytes, 1, b->length, out);
@@ -181,11 +185,11 @@ static void _writeBytes(FILE * out, KrkBytes * b) {
 	}
 }
 
-#define WRITE_FUNCTION(f) _writeFunction(out,f)
-static void _writeFunction(FILE * out, KrkCodeObject * f) {
+#define WRITE_FUNCTION(f) _writeFunction(_thread,out,f)
+static void _writeFunction(KrkThreadState * _thread, FILE * out, KrkCodeObject * f) {
 	/* Find this function in the function table. */
 	KrkValue this = OBJECT_VAL(f);
-	KrkValue index = ListIndex(2,(KrkValue[]){SeenFunctions,this},0);
+	KrkValue index = ListIndex(_thread,2,(KrkValue[]){SeenFunctions,this},0);
 	if (!IS_INTEGER(index)) {
 		fprintf(stderr, "Internal error: Expected int from list.index, got '%s'\n", krk_typeName(index));
 		exit(1);
@@ -204,13 +208,13 @@ static void _writeFunction(FILE * out, KrkCodeObject * f) {
 	}
 }
 
-static int doFirstPass(FILE * out) {
+static int doFirstPass(KrkThreadState * _thread, FILE * out) {
 	/* Go through all functions and build string tables and function index */
 
 	while (AS_LIST(UnseenFunctions)->count) {
-		KrkValue nextFunc = ListPop(2,(KrkValue[]){UnseenFunctions,INTEGER_VAL(0)},0);
+		KrkValue nextFunc = ListPop(_thread, 2,(KrkValue[]){UnseenFunctions,INTEGER_VAL(0)},0);
 		krk_push(nextFunc);
-		ListAppend(2,(KrkValue[]){SeenFunctions,nextFunc},0);
+		ListAppend(_thread,2,(KrkValue[]){SeenFunctions,nextFunc},0);
 
 		/* Examine */
 		KrkCodeObject * func = AS_codeobject(nextFunc);
@@ -235,9 +239,9 @@ static int doFirstPass(FILE * out) {
 				} else if (IS_codeobject(value)) {
 					/* If we haven't seen this function yet, append it to the list */
 					krk_push(value);
-					KrkValue boolResult = ListContains(2,(KrkValue[]){SeenFunctions,value},0);
+					KrkValue boolResult = ListContains(_thread,2,(KrkValue[]){SeenFunctions,value},0);
 					if (IS_BOOLEAN(boolResult) && AS_BOOLEAN(boolResult) == 0) {
-						ListAppend(2,(KrkValue[]){UnseenFunctions,value},0);
+						ListAppend(_thread,2,(KrkValue[]){UnseenFunctions,value},0);
 					}
 					krk_pop();
 				}
@@ -250,7 +254,7 @@ static int doFirstPass(FILE * out) {
 	return 0;
 }
 
-static int doSecondPass(FILE * out) {
+static int doSecondPass(KrkThreadState * _thread, FILE * out) {
 
 	/* Write the function count */
 	uint32_t functionCount = AS_LIST(SeenFunctions)->count;
@@ -343,7 +347,7 @@ static int doSecondPass(FILE * out) {
 	return 0;
 }
 
-static int compileFile(char * fileName) {
+static int compileFile(KrkThreadState * _thread, char * fileName) {
 	/* Compile source file */
 	FILE * f = fopen(fileName, "r");
 	if (!f) {
@@ -366,7 +370,7 @@ static int compileFile(char * fileName) {
 
 
 	krk_startModule("__main__");
-	KrkCodeObject * func = krk_compile(buf, fileName);
+	KrkCodeObject * func = krk_compile(_thread, buf, fileName);
 
 	if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) {
 		fprintf(stderr, "%s: exception during compilation:\n", fileName);
@@ -382,15 +386,15 @@ static int compileFile(char * fileName) {
 
 	fwrite(&header, 1, sizeof(header), out);
 
-	SeenFunctions = krk_list_of(0,NULL,0);
+	SeenFunctions = krk_list_of_r(_thread, 0,NULL,0);
 	krk_push(SeenFunctions);
 
-	UnseenFunctions = krk_list_of(1,(KrkValue[]){OBJECT_VAL(func)},0);
+	UnseenFunctions = krk_list_of_r(_thread,1,(KrkValue[]){OBJECT_VAL(func)},0);
 	krk_push(UnseenFunctions);
 
-	if (doFirstPass(out)) return 1;
-	if (doStringTable(out)) return 1;
-	if (doSecondPass(out)) return 1;
+	if (doFirstPass(_thread, out)) return 1;
+	if (doStringTable(_thread, out)) return 1;
+	if (doSecondPass(_thread, out)) return 1;
 
 	krk_pop(); /* UnseenFunctions */
 	krk_pop(); /* SeenFunctions */
@@ -398,7 +402,7 @@ static int compileFile(char * fileName) {
 	return 0;
 }
 
-static KrkValue valueFromConstant(int i, FILE * inFile) {
+static KrkValue valueFromConstant(KrkThreadState *  _thread, int i, FILE * inFile) {
 	uint8_t c = fgetc(inFile);
 	DEBUGOUT("  %4lu: ", (unsigned long)i);
 	switch (c) {
@@ -444,7 +448,7 @@ static KrkValue valueFromConstant(int i, FILE * inFile) {
 	}
 }
 
-static int readFile(char * fileName) {
+static int readFile(KrkThreadState * _thread, char * fileName) {
 
 	FILE * inFile = fopen(fileName, "r");
 	if (!inFile) {
@@ -484,7 +488,7 @@ static int readFile(char * fileName) {
 
 		/* Create a string */
 		krk_push(OBJECT_VAL(krk_takeString(strVal,strLen)));
-		ListAppend(2,(KrkValue[]){StringTable, krk_peek(0)},0);
+		ListAppend(_thread,2,(KrkValue[]){StringTable, krk_peek(0)},0);
 #ifdef ISDEBUG
 		fprintf(stderr, "%04lu: ", (unsigned long)i);
 		krk_printValueSafe(stderr, krk_peek(0));
@@ -500,7 +504,7 @@ static int readFile(char * fileName) {
 
 	for (size_t i = 0; i < (size_t)functionCount; ++i) {
 		krk_push(OBJECT_VAL(krk_newCodeObject()));
-		ListAppend(2,(KrkValue[]){SeenFunctions, krk_peek(0)}, 0);
+		ListAppend(_thread,2,(KrkValue[]){SeenFunctions, krk_peek(0)}, 0);
 		krk_pop();
 	}
 
@@ -551,12 +555,12 @@ static int readFile(char * fileName) {
 		/* Read argument names */
 		DEBUGOUT("  [Required Arguments]\n");
 		for (size_t i = 0; i < (size_t)function.reqArgs + !!(self->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_ARGS); i++) {
-			krk_writeValueArray(&self->requiredArgNames, valueFromConstant(i,inFile));
+			krk_writeValueArray(&self->requiredArgNames, valueFromConstant(_thread, i,inFile));
 		}
 
 		DEBUGOUT("  [Keyword Arguments]\n");
 		for (size_t i = 0; i < (size_t)function.kwArgs + !!(self->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_KWS); i++) {
-			krk_writeValueArray(&self->keywordArgNames, valueFromConstant(i,inFile));
+			krk_writeValueArray(&self->keywordArgNames, valueFromConstant(_thread, i,inFile));
 		}
 
 		/* Skip bytecode for now, we'll look at it later */
@@ -584,7 +588,7 @@ static int readFile(char * fileName) {
 		/* Read constants */
 		DEBUGOUT("  [Constants Table]\n");
 		for (size_t i = 0; i < function.ctSize; i++) {
-			krk_writeValueArray(&self->chunk.constants, valueFromConstant(i, inFile));
+			krk_writeValueArray(&self->chunk.constants, valueFromConstant(_thread, i, inFile));
 		}
 	}
 
@@ -603,10 +607,11 @@ static int readFile(char * fileName) {
 	KrkValue result = krk_runNext();
 	if (IS_INTEGER(result)) return AS_INTEGER(result);
 	else {
-		return runSimpleRepl();
+		return runSimpleRepl(_thread);
 	}
 }
 
+extern KrkThreadState * krk_initVM_withBinpath(int flags, char * binpath);
 int main(int argc, char * argv[]) {
 	if (argc < 2) {
 		fprintf(stderr, "usage: %s path-to-file.krk\n"
@@ -616,14 +621,14 @@ int main(int argc, char * argv[]) {
 	}
 
 	/* Initialize a VM */
-	findInterpreter(argv);
-	krk_initVM(0);
-	_initListFunctions();
+	char * path = findInterpreter(argv);
+	KrkThreadState * _thread = krk_initVM_withBinpath(0,path);
+	_initListFunctions(_thread);
 
 	if (argc < 3) {
-		return compileFile(argv[1]);
+		return compileFile(_thread, argv[1]);
 	} else if (argc == 3 && !strcmp(argv[1],"-r")) {
-		return readFile(argv[2]);
+		return readFile(_thread, argv[2]);
 	}
 
 	return 1;

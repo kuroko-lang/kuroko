@@ -32,6 +32,7 @@
 struct Thread {
 	KrkInstance inst;
 	KrkThreadState * threadState;
+	KrkVM * owner;
 	pthread_t nativeRef;
 	pid_t  tid;
 	unsigned int    started:1;
@@ -61,10 +62,11 @@ KRK_Function(current_thread) {
 
 static volatile int _threadLock = 0;
 static void * _startthread(void * _threadObj) {
-#if defined(__APPLE__) && defined(__aarch64__)
-	krk_forceThreadData();
-#endif
-	memset(&krk_currentThread, 0, sizeof(KrkThreadState));
+	struct Thread * self = _threadObj;
+	self->threadState = calloc(1,sizeof(KrkThreadState));
+	KrkThreadState * _thread = self->threadState;
+	_thread->owner = self->owner;
+
 	krk_currentThread.frames = calloc(vm.maximumCallDepth,sizeof(KrkCallFrame));
 	vm.globalFlags |= KRK_GLOBAL_THREADS;
 	_obtain_lock(_threadLock);
@@ -75,8 +77,6 @@ static void * _startthread(void * _threadObj) {
 	_release_lock(_threadLock);
 
 	/* Get our run function */
-	struct Thread * self = _threadObj;
-	self->threadState = &krk_currentThread;
 	self->tid = gettid();
 
 	KrkValue runMethod = NONE_VAL();
@@ -93,7 +93,7 @@ static void * _startthread(void * _threadObj) {
 
 	/* Remove this thread from the thread pool, its stack is garbage anyway */
 	_obtain_lock(_threadLock);
-	krk_resetStack();
+	krk_resetStack(_thread);
 	KrkThreadState * previous = vm.threads;
 	while (previous) {
 		if (previous->next == &krk_currentThread) {
@@ -133,6 +133,7 @@ KRK_Method(Thread,start) {
 
 	self->started = 1;
 	self->alive   = 1;
+	self->owner   = _thread->owner;
 	pthread_create(&self->nativeRef, NULL, _startthread, (void*)self);
 
 	return argv[0];
@@ -155,7 +156,7 @@ KRK_Method(Lock,__init__) {
 	return argv[0];
 }
 
-static inline void _pushLockStatus(struct Lock * self, struct StringBuilder * sb) {
+static inline void _pushLockStatus(KrkThreadState * _thread, struct Lock * self, struct StringBuilder * sb) {
 #ifdef __GLIBC__
 	{
 		if (self->mutex.__data.__owner) {
@@ -182,7 +183,7 @@ KRK_Method(Lock,__repr__) {
 		pushStringBuilderStr(&sb, tmp, len);
 	}
 
-	_pushLockStatus(self,&sb);
+	_pushLockStatus(_thread, self,&sb);
 
 	pushStringBuilder(&sb,'>');
 	return finishStringBuilder(&sb);
@@ -199,7 +200,7 @@ KRK_Method(Lock,__exit__) {
 	return NONE_VAL();
 }
 
-void krk_module_init_threading(void) {
+void krk_module_init_threading(KrkThreadState * _thread) {
 	/**
 	 * threads = module()
 	 *

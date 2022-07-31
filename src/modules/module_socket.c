@@ -109,7 +109,7 @@ KRK_Method(socket,__repr__) {
 	return OBJECT_VAL(krk_copyString(tmp,len));
 }
 
-static int socket_parse_address(struct socket * self, KrkValue address, struct sockaddr_storage *sock_addr, socklen_t *sock_size) {
+static int socket_parse_address(KrkThreadState * _thread, struct socket * self, KrkValue address, struct sockaddr_storage *sock_addr, socklen_t *sock_size) {
 	if (self->family == AF_INET) {
 		/* Should be 2-tuple */
 		if (!IS_tuple(address)) {
@@ -186,7 +186,7 @@ KRK_Method(socket,connect) {
 	socklen_t sock_size = 0;
 
 	/* What do we take? I guess a tuple for AF_INET */
-	int parseResult = socket_parse_address(self, argv[1], &sock_addr, &sock_size);
+	int parseResult = socket_parse_address(_thread, self, argv[1], &sock_addr, &sock_size);
 	if (parseResult) {
 		if (!(krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION))
 			return krk_runtimeError(SocketError, "Unspecified error.");
@@ -209,7 +209,7 @@ KRK_Method(socket,bind) {
 	socklen_t sock_size = 0;
 
 	/* What do we take? I guess a tuple for AF_INET */
-	int parseResult = socket_parse_address(self, argv[1], &sock_addr, &sock_size);
+	int parseResult = socket_parse_address(_thread, self, argv[1], &sock_addr, &sock_size);
 	if (parseResult) {
 		if (!(krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION))
 			return krk_runtimeError(SocketError, "Unspecified error.");
@@ -355,7 +355,7 @@ KRK_Method(socket,sendto) {
 	socklen_t sock_size = 0;
 
 	/* What do we take? I guess a tuple for AF_INET */
-	int parseResult = socket_parse_address(self, argv[argc-1], &sock_addr, &sock_size);
+	int parseResult = socket_parse_address(_thread, self, argv[argc-1], &sock_addr, &sock_size);
 	if (parseResult) {
 		if (!(krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION))
 			return krk_runtimeError(SocketError, "Unspecified error.");
@@ -404,7 +404,7 @@ KRK_Function(htons) {
 	return INTEGER_VAL(htons(value));
 }
 
-KrkValue krk_module_onload_socket(void) {
+KrkValue krk_module_onload_socket(KrkThreadState * _thread) {
 	KrkInstance * module = krk_newInstance(vm.baseClasses->moduleClass);
 	krk_push(OBJECT_VAL(module));
 

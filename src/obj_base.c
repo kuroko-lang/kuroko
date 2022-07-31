@@ -84,7 +84,7 @@ KRK_Method(type,__getitem__) {
 }
 
 _noexport
-void _createAndBind_type(void) {
+void _createAndBind_type(KrkThreadState * _thread) {
 	KrkClass * type = ADD_BASE_CLASS(vm.baseClasses->typeClass, "type", vm.baseClasses->objectClass);
 	type->obj.flags |= KRK_OBJ_FLAGS_NO_INHERIT;
 

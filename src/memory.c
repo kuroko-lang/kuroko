@@ -143,7 +143,7 @@ static int _debug_mem_has(const void *ptr) {
 }
 #endif
 
-void krk_gcTakeBytes(const void * ptr, size_t size) {
+void krk_gcTakeBytes_r(KrkThreadState * _thread, const void * ptr, size_t size) {
 #if defined(KRK_EXTENSIVE_MEMORY_DEBUGGING)
 	_debug_mem_set(ptr, size);
 #endif
@@ -151,7 +151,7 @@ void krk_gcTakeBytes(const void * ptr, size_t size) {
 	vm.bytesAllocated += size;
 }
 
-void * krk_reallocate(void * ptr, size_t old, size_t new) {
+void * krk_reallocate_r(KrkThreadState * _thread, void * ptr, size_t old, size_t new) {
 
 	vm.bytesAllocated -= old;
 	vm.bytesAllocated += new;
@@ -198,7 +198,7 @@ void * krk_reallocate(void * ptr, size_t old, size_t new) {
 	return out;
 }
 
-static void freeObject(KrkObj * object) {
+static void freeObject(KrkThreadState * _thread, KrkObj * object) {
 	switch (object->type) {
 		case KRK_OBJ_STRING: {
 			KrkString * string = (KrkString*)object;
@@ -245,7 +245,7 @@ static void freeObject(KrkObj * object) {
 		case KRK_OBJ_INSTANCE: {
 			KrkInstance * inst = (KrkInstance*)object;
 			if (inst->_class->_ongcsweep) {
-				inst->_class->_ongcsweep(inst);
+				inst->_class->_ongcsweep(_thread, inst);
 			}
 			krk_freeTable(&inst->fields);
 			krk_reallocate(object,inst->_class->allocSize,0);
@@ -269,14 +269,14 @@ static void freeObject(KrkObj * object) {
 	}
 }
 
-void krk_freeObjects() {
+void krk_freeObjects_r(KrkThreadState * _thread) {
 	KrkObj * object = vm.objects;
 	KrkObj * other = NULL;
 
 	while (object) {
 		KrkObj * next = object->next;
 		if (object->type == KRK_OBJ_INSTANCE) {
-			freeObject(object);
+			freeObject(_thread, object);
 		} else {
 			object->next = other;
 			other = object;
@@ -289,14 +289,14 @@ void krk_freeObjects() {
 		if (other->type == KRK_OBJ_CLASS) {
 			((KrkClass*)other)->base = NULL;
 		}
-		freeObject(other);
+		freeObject(_thread, other);
 		other = next;
 	}
 
 	free(vm.grayStack);
 }
 
-void krk_freeMemoryDebugger(void) {
+void krk_freeMemoryDebugger_r(KrkThreadState * _thread) {
 #if defined(KRK_EXTENSIVE_MEMORY_DEBUGGING)
 	for (unsigned int i = 0; i < DHE_SIZE; ++i) {
 		_dhe * x = _debug_mem[i];
@@ -313,7 +313,7 @@ void krk_freeMemoryDebugger(void) {
 #endif
 }
 
-void krk_markObject(KrkObj * object) {
+void krk_markObject_r(KrkThreadState * _thread, KrkObj * object) {
 	if (!object) return;
 	if (object->flags & KRK_OBJ_FLAGS_IS_MARKED) return;
 	object->flags |= KRK_OBJ_FLAGS_IS_MARKED;
@@ -326,18 +326,18 @@ void krk_markObject(KrkObj * object) {
 	vm.grayStack[vm.grayCount++] = object;
 }
 
-void krk_markValue(KrkValue value) {
+void krk_markValue_r(KrkThreadState * _thread, KrkValue value) {
 	if (!IS_OBJECT(value)) return;
 	krk_markObject(AS_OBJECT(value));
 }
 
-static void markArray(KrkValueArray * array) {
+static void markArray(KrkThreadState * _thread, KrkValueArray * array) {
 	for (size_t i = 0; i < array->count; ++i) {
 		krk_markValue(array->values[i]);
 	}
 }
 
-static void blackenObject(KrkObj * object) {
+static void blackenObject(KrkThreadState * _thread, KrkObj * object) {
 	switch (object->type) {
 		case KRK_OBJ_CLOSURE: {
 			KrkClosure * closure = (KrkClosure *)object;
@@ -356,9 +356,9 @@ static void blackenObject(KrkObj * object) {
 			krk_markObject((KrkObj*)function->qualname);
 			krk_markObject((KrkObj*)function->docstring);
 			krk_markObject((KrkObj*)function->chunk.filename);
-			markArray(&function->requiredArgNames);
-			markArray(&function->keywordArgNames);
-			markArray(&function->chunk.constants);
+			markArray(_thread, &function->requiredArgNames);
+			markArray(_thread, &function->keywordArgNames);
+			markArray(_thread, &function->chunk.constants);
 			for (size_t i = 0; i < function->localNameCount; ++i) {
 				krk_markObject((KrkObj*)function->localNames[i].name);
 			}
@@ -378,7 +378,7 @@ static void blackenObject(KrkObj * object) {
 		}
 		case KRK_OBJ_INSTANCE: {
 			krk_markObject((KrkObj*)((KrkInstance*)object)->_class);
-			if (((KrkInstance*)object)->_class->_ongcscan) ((KrkInstance*)object)->_class->_ongcscan((KrkInstance*)object);
+			if (((KrkInstance*)object)->_class->_ongcscan) ((KrkInstance*)object)->_class->_ongcscan(_thread, (KrkInstance*)object);
 			krk_markTable(&((KrkInstance*)object)->fields);
 			break;
 		}
@@ -390,7 +390,7 @@ static void blackenObject(KrkObj * object) {
 		}
 		case KRK_OBJ_TUPLE: {
 			KrkTuple * tuple = (KrkTuple *)object;
-			markArray(&tuple->values);
+			markArray(_thread, &tuple->values);
 			break;
 		}
 		case KRK_OBJ_NATIVE:
@@ -400,14 +400,14 @@ static void blackenObject(KrkObj * object) {
 	}
 }
 
-static void traceReferences() {
+static void traceReferences(KrkThreadState * _thread) {
 	while (vm.grayCount > 0) {
 		KrkObj * object = vm.grayStack[--vm.grayCount];
-		blackenObject(object);
+		blackenObject(_thread, object);
 	}
 }
 
-static size_t sweep() {
+static size_t sweep(KrkThreadState * _thread) {
 	KrkObj * previous = NULL;
 	KrkObj * object = vm.objects;
 	size_t count = 0;
@@ -424,7 +424,7 @@ static size_t sweep() {
 			} else {
 				vm.objects = object;
 			}
-			freeObject(unreached);
+			freeObject(_thread, unreached);
 			count++;
 		} else {
 			object->flags |= KRK_OBJ_FLAGS_SECOND_CHANCE;
@@ -435,7 +435,7 @@ static size_t sweep() {
 	return count;
 }
 
-void krk_markTable(KrkTable * table) {
+void krk_markTable_r(KrkThreadState * _thread, KrkTable * table) {
 	for (size_t i = 0; i < table->capacity; ++i) {
 		KrkTableEntry * entry = &table->entries[i];
 		krk_markValue(entry->key);
@@ -443,7 +443,7 @@ void krk_markTable(KrkTable * table) {
 	}
 }
 
-static void tableRemoveWhite(KrkTable * table) {
+static void tableRemoveWhite(KrkThreadState * _thread, KrkTable * table) {
 	for (size_t i = 0; i < table->capacity; ++i) {
 		KrkTableEntry * entry = &table->entries[i];
 		if (IS_OBJECT(entry->key) && !((AS_OBJECT(entry->key))->flags & KRK_OBJ_FLAGS_IS_MARKED)) {
@@ -452,7 +452,7 @@ static void tableRemoveWhite(KrkTable * table) {
 	}
 }
 
-static void markThreadRoots(KrkThreadState * thread) {
+static void markThreadRoots(KrkThreadState * _thread, KrkThreadState * thread) {
 	for (KrkValue * slot = thread->stack; slot && slot < thread->stackTop; ++slot) {
 		krk_markValue(*slot);
 	}
@@ -468,10 +468,10 @@ static void markThreadRoots(KrkThreadState * thread) {
 	}
 }
 
-static void markRoots() {
+static void markRoots(KrkThreadState * _thread) {
 	KrkThreadState * thread = vm.threads;
 	while (thread) {
-		markThreadRoots(thread);
+		markThreadRoots(_thread, thread);
 		thread = thread->next;
 	}
 
@@ -505,7 +505,7 @@ static int smartSize(char _out[100], size_t s) {
 }
 #endif
 
-size_t krk_collectGarbage(void) {
+size_t krk_collectGarbage_r(KrkThreadState * _thread) {
 #ifndef KRK_NO_GC_TRACING
 	struct timespec outTime, inTime;
 
@@ -516,10 +516,10 @@ size_t krk_collectGarbage(void) {
 	size_t bytesBefore = vm.bytesAllocated;
 #endif
 
-	markRoots();
-	traceReferences();
-	tableRemoveWhite(&vm.strings);
-	size_t out = sweep();
+	markRoots(_thread);
+	traceReferences(_thread);
+	tableRemoveWhite(_thread, &vm.strings);
+	size_t out = sweep(_thread);
 
 	/**
 	 * The GC scheduling is in need of some improvement. The strategy at the moment
@@ -581,7 +581,7 @@ KRK_Function(resume) {
 	return NONE_VAL();
 }
 
-void krk_module_init_gc(void) {
+void krk_module_init_gc(KrkThreadState * _thread) {
 	/**
 	 * gc = module()
 	 *

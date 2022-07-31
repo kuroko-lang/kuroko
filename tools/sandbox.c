@@ -8,14 +8,14 @@
 
 int main(int argc, char * argv[]) {
 	/* Disable automatic traceback printing, default modules */
-	krk_initVM(KRK_GLOBAL_CLEAN_OUTPUT|KRK_GLOBAL_NO_DEFAULT_MODULES);
+	KrkThreadState * _thread = krk_initVM(KRK_GLOBAL_CLEAN_OUTPUT|KRK_GLOBAL_NO_DEFAULT_MODULES);
 
 	/* Set up our module context. */
 	krk_startModule("__main__");
 
 	int retval = 0;
 	if (argc > 1) {
-		KrkValue result = krk_interpret(argv[1], "<stdin>");
+		KrkValue result = krk_interpret(_thread, argv[1], "<stdin>");
 		if (!IS_NONE(result)) {
 			if (IS_INTEGER(result)) {
 				retval = AS_INTEGER(result);
@@ -33,10 +33,10 @@ int main(int argc, char * argv[]) {
 			retval = 1;
 		}
 	} else {
-		runSimpleRepl();
+		runSimpleRepl(_thread);
 	}
 
-	krk_freeVM();
+	krk_freeVM(_thread);
 	return retval;
 }
 

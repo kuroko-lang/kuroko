@@ -3,10 +3,10 @@
 #include <kuroko/vm.h>
  
 int main(int argc, char *argv[]) {
-    krk_initVM(0);
+    KrkThreadState * _thread = krk_initVM(0);
     krk_startModule("__main__");
-    krk_interpret("import kuroko\nprint('Kuroko',kuroko.version)\n", "<stdin>");
-    krk_freeVM();
+    krk_interpret(_thread, "import kuroko\nprint('Kuroko',kuroko.version)\n", "<stdin>");
+    krk_freeVM(_thread);
     return 0;
 }
 

@@ -71,7 +71,7 @@ static inline int matches(char c, const char * options) {
 	return 0;
 }
 
-const char * krk_parseCommonFormatSpec(struct ParsedFormatSpec *result, const char * spec, size_t length) {
+const char * krk_parseCommonFormatSpec(KrkThreadState * _thread, struct ParsedFormatSpec *result, const char * spec, size_t length) {
 	result->fill = " ";
 	result->fillSize = 1;
 
@@ -147,10 +147,10 @@ const char * krk_parseCommonFormatSpec(struct ParsedFormatSpec *result, const ch
 	return spec;
 }
 
-KrkValue krk_doFormatString(const char * typeName, KrkString * format_spec, int positive, void * abs, int (*callback)(void *,int,int*)) {
+KrkValue krk_doFormatString(KrkThreadState * _thread, const char * typeName, KrkString * format_spec, int positive, void * abs, int (*callback)(KrkThreadState*,void *,int,int*)) {
 
 	struct ParsedFormatSpec opts = {0};
-	const char * spec = krk_parseCommonFormatSpec(&opts, format_spec->chars, format_spec->length);
+	const char * spec = krk_parseCommonFormatSpec(_thread, &opts, format_spec->chars, format_spec->length);
 	if (!spec) return NONE_VAL();
 
 	const char * altPrefix = NULL;
@@ -211,7 +211,7 @@ KrkValue krk_doFormatString(const char * typeName, KrkString * format_spec, int 
 	int more = 0;
 
 	do {
-		int digit = callback(abs, base, &more);
+		int digit = callback(_thread, abs, base, &more);
 
 		if (unlikely(krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION)) {
 			discardStringBuilder(&sb);
@@ -283,7 +283,7 @@ KrkValue krk_doFormatString(const char * typeName, KrkString * format_spec, int 
 	return finishStringBuilder(&sb);
 }
 
-static int formatIntCallback(void * a, int base, int *more) {
+static int formatIntCallback(KrkThreadState *_thread,void * a, int base, int *more) {
 	krk_integer_type v = *(krk_integer_type*)a;
 	int digit = v % base;
 	v /= base;
@@ -299,7 +299,7 @@ KRK_Method(int,__format__) {
 
 	krk_integer_type abs = self < 0 ? -self : self;
 
-	return krk_doFormatString(krk_typeName(argv[0]), format_spec,
+	return krk_doFormatString(_thread, krk_typeName(argv[0]), format_spec,
 		self >= 0,
 		&abs,
 		formatIntCallback);
@@ -316,15 +316,15 @@ KRK_Method(int,__format__) {
  * and then reduce if that still yields something that would fit in our 'int48'.
  */
 #define OVERFLOW_CHECKED_INT_OPERATION(name,operator) \
-	extern KrkValue krk_long_coerced_ ## name (krk_integer_type a, krk_integer_type b); \
+	extern KrkValue krk_long_coerced_ ## name (KrkThreadState *, krk_integer_type a, krk_integer_type b); \
 	_noexport \
-	KrkValue krk_int_op_ ## name (krk_integer_type a, krk_integer_type b) { \
+	KrkValue krk_int_op_ ## name (KrkThreadState * _thread, krk_integer_type a, krk_integer_type b) { \
 		if (likely((int32_t)a == a && (int32_t)b == b)) { \
 			int32_t result_one = a operator b; \
 			int64_t result_two = a operator b; \
 			if (likely(result_one == result_two)) return INTEGER_VAL(result_two); \
 		} \
-		return krk_long_coerced_ ## name (a, b); \
+		return krk_long_coerced_ ## name (_thread, a, b); \
 	}
 
 OVERFLOW_CHECKED_INT_OPERATION(add,+)
@@ -333,12 +333,12 @@ OVERFLOW_CHECKED_INT_OPERATION(mul,*)
 
 #define BASIC_BIN_OP(name,operator) \
 	KRK_Method(int,__ ## name ## __) { \
-		if (likely(IS_INTEGER(argv[1]))) return krk_int_op_ ## name(self, AS_INTEGER(argv[1])); \
+		if (likely(IS_INTEGER(argv[1]))) return krk_int_op_ ## name(_thread, self, AS_INTEGER(argv[1])); \
 		else if (likely(IS_FLOATING(argv[1]))) return FLOATING_VAL((double)self operator AS_FLOATING(argv[1])); \
 		return NOTIMPL_VAL(); \
 	} \
 	KRK_Method(int,__r ## name ## __) { \
-		if (likely(IS_INTEGER(argv[1]))) return krk_int_op_ ## name(AS_INTEGER(argv[1]), self); \
+		if (likely(IS_INTEGER(argv[1]))) return krk_int_op_ ## name(_thread, AS_INTEGER(argv[1]), self); \
 		else if (likely(IS_FLOATING(argv[1]))) return FLOATING_VAL(AS_FLOATING(argv[1]) operator (double)self); \
 		return NOTIMPL_VAL(); \
 	}
@@ -368,13 +368,13 @@ INT_ONLY_BIN_OP(xor,^)
 INT_ONLY_BIN_OP(and,&)
 
 #define DEFER_TO_LONG(name) \
-	extern KrkValue krk_long_coerced_ ## name (krk_integer_type a, krk_integer_type b); \
+	extern KrkValue krk_long_coerced_ ## name (KrkThreadState *, krk_integer_type a, krk_integer_type b); \
 	KRK_Method(int,__ ## name ## __) { \
-		if (likely(IS_INTEGER(argv[1]))) return krk_long_coerced_ ## name (self, AS_INTEGER(argv[1])); \
+		if (likely(IS_INTEGER(argv[1]))) return krk_long_coerced_ ## name (_thread,self, AS_INTEGER(argv[1])); \
 		return NOTIMPL_VAL(); \
 	} \
 	KRK_Method(int,__r ## name ## __) { \
-		if (likely(IS_INTEGER(argv[1]))) return krk_long_coerced_ ## name (AS_INTEGER(argv[1]), self); \
+		if (likely(IS_INTEGER(argv[1]))) return krk_long_coerced_ ## name (_thread,AS_INTEGER(argv[1]), self); \
 		return NOTIMPL_VAL(); \
 	}
 
@@ -423,7 +423,7 @@ KRK_Method(int,__rtruediv__) {
  * that Python produces, for compatibility, and also because that's
  * what our 'long' type does...
  */
-static KrkValue _krk_int_div(krk_integer_type a, krk_integer_type b) {
+static KrkValue _krk_int_div(KrkThreadState * _thread, krk_integer_type a, krk_integer_type b) {
 	if (unlikely(b == 0)) return krk_runtimeError(vm.exceptions->zeroDivisionError, "integer division or modulo by zero");
 	if (a == 0) return INTEGER_VAL(0);
 	int64_t abs_a = a < 0 ? -a : a;
@@ -436,7 +436,7 @@ static KrkValue _krk_int_div(krk_integer_type a, krk_integer_type b) {
 	return INTEGER_VAL((abs_a / abs_b));
 }
 
-static KrkValue _krk_int_mod(krk_integer_type a, krk_integer_type b) {
+static KrkValue _krk_int_mod(KrkThreadState * _thread, krk_integer_type a, krk_integer_type b) {
 	if (unlikely(b == 0)) return krk_runtimeError(vm.exceptions->zeroDivisionError, "integer division or modulo by zero");
 	if (a == 0) return INTEGER_VAL(0);
 	int64_t abs_a = a < 0 ? -a : a;
@@ -455,13 +455,13 @@ static KrkValue _krk_int_mod(krk_integer_type a, krk_integer_type b) {
 
 KRK_Method(int,__mod__) {
 	METHOD_TAKES_EXACTLY(1);
-	if (likely(IS_INTEGER(argv[1]))) return _krk_int_mod(self, AS_INTEGER(argv[1]));
+	if (likely(IS_INTEGER(argv[1]))) return _krk_int_mod(_thread, self, AS_INTEGER(argv[1]));
 	return NOTIMPL_VAL();
 }
 
 KRK_Method(int,__rmod__) {
 	METHOD_TAKES_EXACTLY(1);
-	if (likely(IS_INTEGER(argv[1]))) return _krk_int_mod(AS_INTEGER(argv[1]), self);
+	if (likely(IS_INTEGER(argv[1]))) return _krk_int_mod(_thread, AS_INTEGER(argv[1]), self);
 	return NOTIMPL_VAL();
 }
 
@@ -469,7 +469,7 @@ KRK_Method(int,__rmod__) {
 KRK_Method(int,__floordiv__) {
 	METHOD_TAKES_EXACTLY(1);
 	if (likely(IS_INTEGER(argv[1]))) {
-		return _krk_int_div(self,AS_INTEGER(argv[1]));
+		return _krk_int_div(_thread, self,AS_INTEGER(argv[1]));
 	} else if (likely(IS_FLOATING(argv[1]))) {
 		double b = AS_FLOATING(argv[1]);
 		if (unlikely(b == 0.0)) return krk_runtimeError(vm.exceptions->zeroDivisionError, "float division by zero");
@@ -481,7 +481,7 @@ KRK_Method(int,__floordiv__) {
 KRK_Method(int,__rfloordiv__) {
 	METHOD_TAKES_EXACTLY(1);
 	if (unlikely(self == 0)) return krk_runtimeError(vm.exceptions->zeroDivisionError, "integer division by zero");
-	else if (likely(IS_INTEGER(argv[1]))) return _krk_int_div(AS_INTEGER(argv[1]), self);
+	else if (likely(IS_INTEGER(argv[1]))) return _krk_int_div(_thread, AS_INTEGER(argv[1]), self);
 	else if (likely(IS_FLOATING(argv[1]))) return FLOATING_VAL(__builtin_floor(AS_FLOATING(argv[1]) / (double)self));
 	return NOTIMPL_VAL();
 }
@@ -757,7 +757,7 @@ KRK_Method(NotImplementedType,__eq__) {
 	BIND_METHOD(klass,__r ## name ## __); \
 	krk_defineNative(&_ ## klass->methods,"__i" #name "__",_ ## klass ## ___ ## name ## __);
 _noexport
-void _createAndBind_numericClasses(void) {
+void _createAndBind_numericClasses(KrkThreadState *_thread) {
 	KrkClass * _int = ADD_BASE_CLASS(vm.baseClasses->intClass, "int", vm.baseClasses->objectClass);
 	_int->obj.flags |= KRK_OBJ_FLAGS_NO_INHERIT;
 	BIND_METHOD(int,__init__);

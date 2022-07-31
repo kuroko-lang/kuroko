@@ -1175,7 +1175,7 @@ static void make_long(krk_integer_type t, struct BigInt * self) {
 	krk_long_init_si(self->value, t);
 }
 
-static void _long_gcsweep(KrkInstance * self) {
+static void _long_gcsweep(KrkThreadState * _thread, KrkInstance * self) {
 	krk_long_clear(((struct BigInt*)self)->value);
 }
 
@@ -1224,7 +1224,7 @@ KRK_Method(long,__float__) {
 	return FLOATING_VAL(krk_long_get_double(self->value));
 }
 
-static KrkValue _krk_long_truediv(KrkLong * top, KrkLong * bottom) {
+static KrkValue _krk_long_truediv(KrkThreadState * _thread, KrkLong * top, KrkLong * bottom) {
 	if (bottom->width == 0) return krk_runtimeError(vm.exceptions->valueError, "float division by zero");
 
 	KrkLong quot, rem;
@@ -1241,7 +1241,7 @@ static KrkValue _krk_long_truediv(KrkLong * top, KrkLong * bottom) {
 	return FLOATING_VAL(quot_float + (rem_float / div_float));
 }
 
-static KrkValue checked_float_div(double top, double bottom) {
+static KrkValue checked_float_div(KrkThreadState * _thread, double top, double bottom) {
 	if (unlikely(bottom == 0.0)) return krk_runtimeError(vm.exceptions->valueError, "float division by zero");
 	return FLOATING_VAL(top/bottom);
 }
@@ -1250,18 +1250,18 @@ KRK_Method(long,__truediv__) {
 	krk_long tmp;
 	if (IS_long(argv[1])) krk_long_init_copy(tmp, AS_long(argv[1])->value);
 	else if (IS_INTEGER(argv[1])) krk_long_init_si(tmp, AS_INTEGER(argv[1]));
-	else if (IS_FLOATING(argv[1])) return checked_float_div(krk_long_get_double(self->value), AS_FLOATING(argv[1]));
+	else if (IS_FLOATING(argv[1])) return checked_float_div(_thread, krk_long_get_double(self->value), AS_FLOATING(argv[1]));
 	else return NOTIMPL_VAL();
-	return _krk_long_truediv(self->value,tmp);
+	return _krk_long_truediv(_thread, self->value,tmp);
 }
 
 KRK_Method(long,__rtruediv__) {
 	krk_long tmp;
 	if (IS_long(argv[1])) krk_long_init_copy(tmp, AS_long(argv[1])->value);
 	else if (IS_INTEGER(argv[1])) krk_long_init_si(tmp, AS_INTEGER(argv[1]));
-	else if (IS_FLOATING(argv[1])) return checked_float_div(AS_FLOATING(argv[1]), krk_long_get_double(self->value));
+	else if (IS_FLOATING(argv[1])) return checked_float_div(_thread, AS_FLOATING(argv[1]), krk_long_get_double(self->value));
 	else return NOTIMPL_VAL();
-	return _krk_long_truediv(tmp,self->value);
+	return _krk_long_truediv(_thread, tmp,self->value);
 }
 
 #define PRINTER(name,base,prefix) \
@@ -1280,7 +1280,7 @@ KRK_Method(long,__hash__) {
 	return INTEGER_VAL((uint32_t)(krk_long_medium(self->value)));
 }
 
-static KrkValue make_long_obj(KrkLong * val) {
+static KrkValue make_long_obj_r(KrkThreadState * _thread, KrkLong * val) {
 	krk_integer_type maybe = 0;
 	if (val->width == 0) {
 		maybe = 0;
@@ -1301,8 +1301,9 @@ static KrkValue make_long_obj(KrkLong * val) {
 	krk_long_clear(val);
 	return INTEGER_VAL(maybe);
 }
+#define make_long_obj(v) make_long_obj_r(_thread, v)
 
-KrkValue krk_parse_int(const char * start, size_t width, unsigned int base) {
+KrkValue krk_parse_int_r(KrkThreadState * _thread, const char * start, size_t width, unsigned int base) {
 	KrkLong _value;
 	if (krk_long_parse_string(start, &_value, base, width)) {
 		return NONE_VAL();
@@ -1335,7 +1336,7 @@ KRK_Method(long,__int__) {
 		return make_long_obj(tmp); \
 	} \
 	_noexport \
-	KrkValue krk_long_coerced_ ## name (krk_integer_type a, krk_integer_type b) { \
+	KrkValue krk_long_coerced_ ## name (KrkThreadState * _thread, krk_integer_type a, krk_integer_type b) { \
 		krk_long tmp_res, tmp_a, tmp_b; \
 		krk_long_init_si(tmp_res, 0); \
 		krk_long_init_si(tmp_a, a); \
@@ -1357,7 +1358,7 @@ BASIC_BIN_OP(or, krk_long_or)
 BASIC_BIN_OP(xor,krk_long_xor)
 BASIC_BIN_OP(and,krk_long_and)
 
-static void _krk_long_lshift(krk_long out, krk_long val, krk_long shift) {
+static void _krk_long_lshift(KrkThreadState * _thread, krk_long out, krk_long val, krk_long shift) {
 	if (krk_long_sign(shift) < 0) { krk_runtimeError(vm.exceptions->valueError, "negative shift count"); return; }
 	krk_long multiplier;
 	krk_long_init_si(multiplier,0);
@@ -1366,7 +1367,7 @@ static void _krk_long_lshift(krk_long out, krk_long val, krk_long shift) {
 	krk_long_clear(multiplier);
 }
 
-static void _krk_long_rshift(krk_long out, krk_long val, krk_long shift) {
+static void _krk_long_rshift(KrkThreadState * _thread, krk_long out, krk_long val, krk_long shift) {
 	if (krk_long_sign(shift) < 0) { krk_runtimeError(vm.exceptions->valueError, "negative shift count"); return; }
 	krk_long multiplier, garbage;
 	krk_long_init_many(multiplier,garbage,NULL);
@@ -1375,7 +1376,7 @@ static void _krk_long_rshift(krk_long out, krk_long val, krk_long shift) {
 	krk_long_clear_many(multiplier,garbage,NULL);
 }
 
-static void _krk_long_mod(krk_long out, krk_long a, krk_long b) {
+static void _krk_long_mod(KrkThreadState * _thread, krk_long out, krk_long a, krk_long b) {
 	if (krk_long_sign(b) == 0) { krk_runtimeError(vm.exceptions->valueError, "integer division or modulo by zero"); return; }
 	krk_long garbage;
 	krk_long_init_si(garbage,0);
@@ -1383,7 +1384,7 @@ static void _krk_long_mod(krk_long out, krk_long a, krk_long b) {
 	krk_long_clear(garbage);
 }
 
-static void _krk_long_div(krk_long out, krk_long a, krk_long b) {
+static void _krk_long_div(KrkThreadState * _thread, krk_long out, krk_long a, krk_long b) {
 	if (krk_long_sign(b) == 0) { krk_runtimeError(vm.exceptions->valueError, "integer division or modulo by zero"); return; }
 	krk_long garbage;
 	krk_long_init_si(garbage,0);
@@ -1391,7 +1392,7 @@ static void _krk_long_div(krk_long out, krk_long a, krk_long b) {
 	krk_long_clear(garbage);
 }
 
-static void _krk_long_pow(krk_long out, krk_long a, krk_long b) {
+static void _krk_long_pow(KrkThreadState * _thread, krk_long out, krk_long a, krk_long b) {
 	if (krk_long_sign(b) == 0) {
 		krk_long_clear(out);
 		krk_long_init_si(out, 1);
@@ -1450,11 +1451,40 @@ static void _krk_long_pow(krk_long out, krk_long a, krk_long b) {
 	FINISH_OUTPUT(out);
 }
 
-BASIC_BIN_OP(lshift,_krk_long_lshift)
-BASIC_BIN_OP(rshift,_krk_long_rshift)
-BASIC_BIN_OP(mod,_krk_long_mod)
-BASIC_BIN_OP(floordiv,_krk_long_div)
-BASIC_BIN_OP(pow,_krk_long_pow)
+
+#define UNBASIC_BIN_OP(name, long_func) \
+	KRK_Method(long,__ ## name ## __) { \
+		krk_long tmp; \
+		if (IS_long(argv[1])) krk_long_init_copy(tmp, AS_long(argv[1])->value); \
+		else if (IS_INTEGER(argv[1])) krk_long_init_si(tmp, AS_INTEGER(argv[1])); \
+		else return NOTIMPL_VAL(); \
+		long_func(_thread,tmp,self->value,tmp); \
+		return make_long_obj(tmp); \
+	} \
+	KRK_Method(long,__r ## name ## __) { \
+		krk_long tmp; \
+		if (IS_long(argv[1])) krk_long_init_copy(tmp, AS_long(argv[1])->value); \
+		else if (IS_INTEGER(argv[1])) krk_long_init_si(tmp, AS_INTEGER(argv[1])); \
+		else return NOTIMPL_VAL(); \
+		long_func(_thread,tmp,tmp,self->value); \
+		return make_long_obj(tmp); \
+	} \
+	_noexport \
+	KrkValue krk_long_coerced_ ## name (KrkThreadState * _thread, krk_integer_type a, krk_integer_type b) { \
+		krk_long tmp_res, tmp_a, tmp_b; \
+		krk_long_init_si(tmp_res, 0); \
+		krk_long_init_si(tmp_a, a); \
+		krk_long_init_si(tmp_b, b); \
+		long_func(_thread,tmp_res, tmp_a, tmp_b); \
+		krk_long_clear_many(tmp_a, tmp_b, NULL); \
+		return make_long_obj(tmp_res); \
+	}
+
+UNBASIC_BIN_OP(lshift,_krk_long_lshift)
+UNBASIC_BIN_OP(rshift,_krk_long_rshift)
+UNBASIC_BIN_OP(mod,_krk_long_mod)
+UNBASIC_BIN_OP(floordiv,_krk_long_div)
+UNBASIC_BIN_OP(pow,_krk_long_pow)
 
 #define COMPARE_OP(name, comp) \
 	KRK_Method(long,__ ## name ## __) { \
@@ -1509,9 +1539,9 @@ KRK_Method(long,__pos__) {
 	return argv[0];
 }
 
-extern KrkValue krk_doFormatString(const char * typeName, KrkString * format_spec, int positive, void* abs, int (*callback)(void *,int,int*));
+extern KrkValue krk_doFormatString(KrkThreadState *, const char * typeName, KrkString * format_spec, int positive, void* abs, int (*callback)(KrkThreadState *,void *,int,int*));
 
-static int formatLongCallback(void * a, int base, int *more) {
+static int formatLongCallback(KrkThreadState * _thread, void * a, int base, int *more) {
 	uint32_t result = _div_inplace((KrkLong*)a, base);
 	*more = krk_long_sign(a);
 	return result;
@@ -1525,7 +1555,7 @@ KRK_Method(long,__format__) {
 	krk_long_init_copy(&tmp, self->value);
 	krk_long_set_sign(&tmp, 1);
 
-	KrkValue result = krk_doFormatString("long",format_spec,
+	KrkValue result = krk_doFormatString(_thread, "long",format_spec,
 		krk_long_sign(self->value) >= 0,
 		&tmp,
 		formatLongCallback);
@@ -1534,7 +1564,7 @@ KRK_Method(long,__format__) {
 	return result;
 }
 
-static KrkValue long_bit_count(KrkLong * val) {
+static KrkValue long_bit_count(KrkThreadState * _thread, KrkLong * val) {
 	size_t count = 0;
 	size_t bits = _bits_in(val);
 
@@ -1548,10 +1578,10 @@ static KrkValue long_bit_count(KrkLong * val) {
 }
 
 KRK_Method(long,bit_count) {
-	return long_bit_count(self->value);
+	return long_bit_count(_thread,self->value);
 }
 
-static KrkValue long_bit_length(KrkLong * val) {
+static KrkValue long_bit_length(KrkThreadState * _thread, KrkLong * val) {
 	size_t bits = _bits_in(val);
 	KrkLong tmp;
 	krk_long_init_ui(&tmp, bits);
@@ -1559,10 +1589,10 @@ static KrkValue long_bit_length(KrkLong * val) {
 }
 
 KRK_Method(long,bit_length) {
-	return long_bit_length(self->value);
+	return long_bit_length(_thread, self->value);
 }
 
-static KrkValue long_to_bytes(KrkLong * val, size_t argc, const KrkValue argv[], int hasKw) {
+static KrkValue long_to_bytes(KrkThreadState * _thread, KrkLong * val, size_t argc, const KrkValue argv[], int hasKw) {
 	static const char _method_name[] = "to_bytes";
 	/**
 	 * @fn to_bytes(length: int, byteorder: str, *, signed: bool = False) -> bytes
@@ -1681,7 +1711,7 @@ static KrkValue long_to_bytes(KrkLong * val, size_t argc, const KrkValue argv[],
 
 KRK_Method(long,to_bytes) {
 	METHOD_TAKES_AT_LEAST(2);
-	return long_to_bytes(self->value, argc, argv, hasKw);
+	return long_to_bytes(_thread, self->value, argc, argv, hasKw);
 }
 
 /**
@@ -1747,7 +1777,7 @@ KRK_Method(long,_get_digit) {
 KRK_Method(int,bit_count) {
 	krk_long value;
 	krk_long_init_si(value, self);
-	KrkValue out = long_bit_count(value);
+	KrkValue out = long_bit_count(_thread,value);
 	krk_long_clear(value);
 	return out;
 }
@@ -1755,7 +1785,7 @@ KRK_Method(int,bit_count) {
 KRK_Method(int,bit_length) {
 	krk_long value;
 	krk_long_init_si(value, self);
-	KrkValue out = long_bit_length(value);
+	KrkValue out = long_bit_length(_thread, value);
 	krk_long_clear(value);
 	return out;
 }
@@ -1763,7 +1793,7 @@ KRK_Method(int,bit_length) {
 KRK_Method(int,to_bytes) {
 	krk_long value;
 	krk_long_init_si(value, self);
-	KrkValue out = long_to_bytes(value, argc, argv, hasKw);
+	KrkValue out = long_to_bytes(_thread, value, argc, argv, hasKw);
 	krk_long_clear(value);
 	return out;
 }
@@ -1776,7 +1806,7 @@ KRK_Method(int,to_bytes) {
 	BIND_METHOD(klass,__r ## name ## __); \
 	krk_defineNative(&_ ## klass->methods,"__i" #name "__",_ ## klass ## ___ ## name ## __);
 _noexport
-void _createAndBind_longClass(void) {
+void _createAndBind_longClass(KrkThreadState * _thread) {
 	KrkClass * _long = ADD_BASE_CLASS(vm.baseClasses->longClass, "long", vm.baseClasses->intClass);
 	_long->obj.flags |= KRK_OBJ_FLAGS_NO_INHERIT;
 	_long->allocSize = sizeof(struct BigInt);

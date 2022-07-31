@@ -9,7 +9,7 @@
 	if (index < 0) index += self->values.count; \
 	if (index < 0 || index >= (krk_integer_type)self->values.count) return krk_runtimeError(vm.exceptions->indexError, "tuple index out of range: " PRIkrk_int, index)
 
-static int _tuple_init_callback(void * context, const KrkValue * values, size_t count) {
+static int _tuple_init_callback(KrkThreadState * _thread, void * context, const KrkValue * values, size_t count) {
 	KrkValueArray * positionals = context;
 	if (positionals->count + count > positionals->capacity) {
 		size_t old = positionals->capacity;
@@ -24,7 +24,7 @@ static int _tuple_init_callback(void * context, const KrkValue * values, size_t 
 	return 0;
 }
 
-static KrkValue _tuple_init(int argc, const KrkValue argv[], int hasKw) {
+static KrkValue _tuple_init(KrkThreadState * _thread, int argc, const KrkValue argv[], int hasKw) {
 	if (argc == 1) {
 		return OBJECT_VAL(krk_newTuple(0));
 	} else if (argc == 2) {
@@ -42,7 +42,7 @@ static KrkValue _tuple_init(int argc, const KrkValue argv[], int hasKw) {
 }
 
 /* tuple creator */
-KrkValue krk_tuple_of(int argc, const KrkValue argv[], int hasKw) {
+KrkValue krk_tuple_of_r(KrkThreadState * _thread, int argc, const KrkValue argv[], int hasKw) {
 	KrkTuple * self = krk_newTuple(argc);
 	krk_push(OBJECT_VAL(self));
 	for (size_t i = 0; i < (size_t)argc; ++i) {
@@ -99,7 +99,7 @@ KRK_Method(tuple,__getitem__) {
 			}
 
 			/* make into a list */
-			KrkValue result = krk_callNativeOnStack(len, &krk_currentThread.stackTop[-len], 0, krk_tuple_of);
+			KrkValue result = krk_callNativeOnStack(len, &krk_currentThread.stackTop[-len], 0, krk_tuple_of_r);
 			krk_currentThread.stackTop[-len-1] = result;
 			while (len) {
 				krk_pop();
@@ -201,18 +201,18 @@ struct TupleIter {
 	int i;
 };
 
-static KrkValue _tuple_iter_init(int argc, const KrkValue argv[], int hasKw) {
+static KrkValue _tuple_iter_init(KrkThreadState * _thread, int argc, const KrkValue argv[], int hasKw) {
 	struct TupleIter * self = (struct TupleIter *)AS_OBJECT(argv[0]);
 	self->myTuple = argv[1];
 	self->i = 0;
 	return argv[0];
 }
 
-static void _tuple_iter_gcscan(KrkInstance * self) {
+static void _tuple_iter_gcscan(KrkThreadState * _thread, KrkInstance * self) {
 	krk_markValue(((struct TupleIter*)self)->myTuple);
 }
 
-static KrkValue _tuple_iter_call(int argc, const KrkValue argv[], int hasKw) {
+static KrkValue _tuple_iter_call(KrkThreadState * _thread, int argc, const KrkValue argv[], int hasKw) {
 	struct TupleIter * self = (struct TupleIter *)AS_OBJECT(argv[0]);
 	KrkValue t = self->myTuple; /* Tuple to iterate */
 	int i = self->i;
@@ -227,7 +227,7 @@ static KrkValue _tuple_iter_call(int argc, const KrkValue argv[], int hasKw) {
 KRK_Method(tuple,__iter__) {
 	KrkInstance * output = krk_newInstance(vm.baseClasses->tupleiteratorClass);
 	krk_push(OBJECT_VAL(output));
-	_tuple_iter_init(2, (KrkValue[]){krk_peek(0), argv[0]}, 0);
+	_tuple_iter_init(_thread, 2, (KrkValue[]){krk_peek(0), argv[0]}, 0);
 	krk_pop();
 	return OBJECT_VAL(output);
 }
@@ -270,7 +270,7 @@ KRK_Method(tuple,__mul__) {
 }
 
 _noexport
-void _createAndBind_tupleClass(void) {
+void _createAndBind_tupleClass(KrkThreadState *_thread) {
 	KrkClass * tuple = ADD_BASE_CLASS(vm.baseClasses->tupleClass, "tuple", vm.baseClasses->objectClass);
 	tuple->obj.flags |= KRK_OBJ_FLAGS_NO_INHERIT;
 	BIND_METHOD(tuple,__repr__);

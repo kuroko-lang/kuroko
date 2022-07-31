@@ -63,7 +63,7 @@
 	ctype name __attribute__((unused)) = AS_ ## type (argv[i])
 
 #define FUNC_NAME(klass, name) _ ## klass ## _ ## name
-#define FUNC_SIG(klass, name) _noexport KrkValue FUNC_NAME(klass,name) (int argc, const KrkValue argv[], int hasKw)
+#define FUNC_SIG(klass, name) _noexport KrkValue FUNC_NAME(klass,name) (KrkThreadState * _thread, int argc, const KrkValue argv[], int hasKw)
 
 /* These forms are deprecated. */
 #define KRK_METHOD(klass, name, ...) FUNC_SIG(klass, name) { \
@@ -86,27 +86,27 @@
 #define KRK_Method_internal_name(klass, name) \
 	_krk_method_ ## klass ## _ ## name
 #define KRK_Method_internal_sig(klass, name) \
-	static inline KrkValue KRK_Method_internal_name(klass,name) (const char * _method_name, CURRENT_CTYPE CURRENT_NAME, int argc, const KrkValue argv[], int hasKw)
+	static inline KrkValue KRK_Method_internal_name(klass,name) (const char * _method_name, CURRENT_CTYPE CURRENT_NAME, KrkThreadState * _thread, int argc, const KrkValue argv[], int hasKw)
 
 #define KRK_Method(klass, name) \
 	KRK_Method_internal_sig(klass, name); \
 	FUNC_SIG(klass, name) { \
 		static const char * _method_name = # name; \
 		CHECK_ARG(0,klass,CURRENT_CTYPE,CURRENT_NAME); \
-		return KRK_Method_internal_name(klass,name)(_method_name, CURRENT_NAME, argc, argv, hasKw); \
+		return KRK_Method_internal_name(klass,name)(_method_name, CURRENT_NAME, _thread, argc, argv, hasKw); \
 	} \
 	KRK_Method_internal_sig(klass,name)
 
 #define KRK_Function_internal_name(name) \
 	_krk_function_ ## name
 #define KRK_Function_internal_sig(name) \
-	static inline KrkValue KRK_Function_internal_name(name) (const char * _method_name, int argc, const KrkValue argv[], int hasKw)
+	static inline KrkValue KRK_Function_internal_name(name) (const char * _method_name, KrkThreadState * _thread, int argc, const KrkValue argv[], int hasKw)
 
 #define KRK_Function(name) \
 	KRK_Function_internal_sig(name); \
-	static KrkValue _krk_ ## name (int argc, const KrkValue argv[], int hasKw) { \
+	static KrkValue _krk_ ## name (KrkThreadState * _thread, int argc, const KrkValue argv[], int hasKw) { \
 		static const char* _method_name = # name; \
-		return KRK_Function_internal_name(name)(_method_name,argc,argv,hasKw); \
+		return KRK_Function_internal_name(name)(_method_name,_thread, argc,argv,hasKw); \
 	} \
 	KRK_Function_internal_sig(name)
 
@@ -125,7 +125,7 @@ struct StringBuilder {
  * @param sb String builder to append to.
  * @param c  Character to append.
  */
-static inline void pushStringBuilder(struct StringBuilder * sb, char c) {
+static inline void pushStringBuilder_r(struct KrkThreadState * _thread, struct StringBuilder * sb, char c) {
 	if (sb->capacity < sb->length + 1) {
 		size_t old = sb->capacity;
 		sb->capacity = GROW_CAPACITY(old);
@@ -133,6 +133,7 @@ static inline void pushStringBuilder(struct StringBuilder * sb, char c) {
 	}
 	sb->bytes[sb->length++] = c;
 }
+#define pushStringBuilder(sb,c) pushStringBuilder_r(_thread,sb,c)
 
 /**
  * @brief Append a string to the end of a string builder.
@@ -141,7 +142,7 @@ static inline void pushStringBuilder(struct StringBuilder * sb, char c) {
  * @param str C string to add.
  * @param len Length of the C string.
  */
-static inline void pushStringBuilderStr(struct StringBuilder * sb, const char *str, size_t len) {
+static inline void pushStringBuilderStr_r(struct KrkThreadState * _thread, struct StringBuilder * sb, const char *str, size_t len) {
 	if (sb->capacity < sb->length + len) {
 		size_t prevcap = sb->capacity;
 		while (sb->capacity < sb->length + len) {
@@ -154,6 +155,7 @@ static inline void pushStringBuilderStr(struct StringBuilder * sb, const char *s
 		sb->bytes[sb->length++] = *(str++);
 	}
 }
+#define pushStringBuilderStr(sb,st,l) pushStringBuilderStr_r(_thread,sb,st,l)
 
 /**
  * @brief Finalize a string builder into a string object.
@@ -165,11 +167,12 @@ static inline void pushStringBuilderStr(struct StringBuilder * sb, const char *s
  * @param sb String builder to finalize.
  * @return A value representing a string object.
  */
-static inline KrkValue finishStringBuilder(struct StringBuilder * sb) {
+static inline KrkValue finishStringBuilder_r(struct KrkThreadState * _thread, struct StringBuilder * sb) {
 	KrkValue out = OBJECT_VAL(krk_copyString(sb->bytes, sb->length));
 	FREE_ARRAY(char,sb->bytes, sb->capacity);
 	return out;
 }
+#define finishStringBuilder(sb) finishStringBuilder_r(_thread,sb)
 
 /**
  * @brief Finalize a string builder in a bytes object.
@@ -180,11 +183,12 @@ static inline KrkValue finishStringBuilder(struct StringBuilder * sb) {
  * @param sb String builder to finalize.
  * @return A value representing a bytes object.
  */
-static inline KrkValue finishStringBuilderBytes(struct StringBuilder * sb) {
+static inline KrkValue finishStringBuilderBytes_r(struct KrkThreadState * _thread, struct StringBuilder * sb) {
 	KrkValue out = OBJECT_VAL(krk_newBytes(sb->length, (uint8_t*)sb->bytes));
 	FREE_ARRAY(char,sb->bytes, sb->capacity);
 	return out;
 }
+#define finishStringBuilderBytes(sb) finishStringBuilderBytes_r(_thread,sb)
 
 /**
  * @brief Discard the contents of a string builder.
@@ -196,10 +200,11 @@ static inline KrkValue finishStringBuilderBytes(struct StringBuilder * sb) {
  * @param  sb String builder to discard.
  * @return None, as a convenience.
  */
-static inline KrkValue discardStringBuilder(struct StringBuilder * sb) {
+static inline KrkValue discardStringBuilder_r(struct KrkThreadState * _thread, struct StringBuilder * sb) {
 	FREE_ARRAY(char,sb->bytes, sb->capacity);
 	return NONE_VAL();
 }
+#define discardStringBuilder(sb) discardStringBuilder_r(_thread,sb)
 
 #define IS_int(o)     (IS_INTEGER(o))
 #define AS_int(o)     (AS_INTEGER(o))
@@ -246,21 +251,21 @@ static inline KrkValue discardStringBuilder(struct StringBuilder * sb) {
 #define IS_slice(o) krk_isInstanceOf(o,vm.baseClasses->sliceClass)
 #define AS_slice(o) ((struct KrkSlice*)AS_INSTANCE(o))
 
-extern KrkValue krk_dict_nth_key_fast(size_t capacity, KrkTableEntry * entries, size_t index);
-extern KrkValue FUNC_NAME(str,__getitem__)(int,const KrkValue*,int);
-extern KrkValue FUNC_NAME(str,split)(int,const KrkValue*,int);
-extern KrkValue FUNC_NAME(str,format)(int,const KrkValue*,int);
+extern KrkValue krk_dict_nth_key_fast(KrkThreadState *,size_t capacity, KrkTableEntry * entries, size_t index);
+extern KrkValue FUNC_NAME(str,__getitem__)(KrkThreadState *,int,const KrkValue*,int);
+extern KrkValue FUNC_NAME(str,split)(KrkThreadState *,int,const KrkValue*,int);
+extern KrkValue FUNC_NAME(str,format)(KrkThreadState *,int,const KrkValue*,int);
 #define krk_string_get FUNC_NAME(str,__getitem__)
 #define krk_string_split FUNC_NAME(str,split)
 #define krk_string_format FUNC_NAME(str,format)
 
-static inline void _setDoc_class(KrkClass * thing, const char * text, size_t size) {
+static inline void _setDoc_class(struct KrkThreadState * _thread, KrkClass * thing, const char * text, size_t size) {
 	thing->docstring = krk_copyString(text, size);
 }
-static inline void _setDoc_instance(KrkInstance * thing, const char * text, size_t size) {
+static inline void _setDoc_instance(struct KrkThreadState * _thread, KrkInstance * thing, const char * text, size_t size) {
 	krk_attachNamedObject(&thing->fields, "__doc__", (KrkObj*)krk_copyString(text, size));
 }
-static inline void _setDoc_native(KrkNative * thing, const char * text, size_t size) {
+static inline void _setDoc_native(struct KrkThreadState * _thread, KrkNative * thing, const char * text, size_t size) {
 	(void)size;
 	thing->doc = text;
 }
@@ -285,17 +290,17 @@ static inline void _setDoc_native(KrkNative * thing, const char * text, size_t s
 		KrkClass*: _setDoc_class, \
 		KrkInstance*: _setDoc_instance, \
 		KrkNative*: _setDoc_native \
-	)(thing,text,sizeof(text)-1)
+	)(_thread,thing,text,sizeof(text)-1)
 #endif
 
 #define BUILTIN_FUNCTION(name, func, docStr) KRK_DOC(krk_defineNative(&vm.builtins->fields, name, func), docStr)
 
-extern int krk_extractSlicer(const char * _method_name, KrkValue slicerVal, krk_integer_type count, krk_integer_type *start, krk_integer_type *end, krk_integer_type *step);
+extern int krk_extractSlicer(KrkThreadState * _thread, const char * _method_name, KrkValue slicerVal, krk_integer_type count, krk_integer_type *start, krk_integer_type *end, krk_integer_type *step);
 #define KRK_SLICER(arg,count) \
 	krk_integer_type start; \
 	krk_integer_type end; \
 	krk_integer_type step; \
-	if (krk_extractSlicer(_method_name, arg, count, &start, &end, &step)) 
+	if (krk_extractSlicer(_thread, _method_name, arg, count, &start, &end, &step)) 
 
 /**
  * @brief Unpack an iterable.
@@ -308,7 +313,8 @@ extern int krk_extractSlicer(const char * _method_name, KrkValue slicerVal, krk_
  * If @p iterable is not iterable, an exception is set and 1 is returned.
  * If @p callback returns non-zero, unpacking stops and 1 is returned, with no additional exception.
  */
-extern int krk_unpackIterable(KrkValue iterable, void * context, int callback(void *, const KrkValue *, size_t));
+extern int krk_unpackIterable_r(KrkThreadState * _thread, KrkValue iterable, void * context, int callback(KrkThreadState *, void *, const KrkValue *, size_t));
+#define krk_unpackIterable(i,c,cb) krk_unpackIterable_r(_thread,i,c,cb)
 
 
 #define KRK_BASE_CLASS(cls) (vm.baseClasses->cls ## Class)

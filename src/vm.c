@@ -17,61 +17,11 @@
 #include "private.h"
 #include "opcode_enum.h"
 
-/* Ensure we don't have a macro for this so we can reference a local version. */
-#undef krk_currentThread
-
-/* This is macro'd to krk_vm for namespacing reasons. */
-KrkVM vm = {0};
-
-#ifndef KRK_DISABLE_THREADS
-/*
- * Marking our little VM thread state as 'initial-exec' is
- * the fastest way to allocate TLS data and yields virtually
- * identical performance in the single-thread case to not
- * having a TLS pointer, but it has some drawbacks...
- *
- * Despite documentation saying otherwise, a small thread-local
- * can generally be allocated even with dlopen, but this is
- * not guaranteed.
- */
-__attribute__((tls_model("initial-exec")))
-__thread KrkThreadState krk_currentThread;
-#else
-/* There is only one thread, so don't store it as TLS... */
-KrkThreadState krk_currentThread;
-#endif
-
-#if !defined(KRK_DISABLE_THREADS) && defined(__APPLE__) && defined(__aarch64__)
-/**
- * I have not checked how this works on x86-64, so we only do this
- * on M1 Macs at the moment, but TLS is disastrously poorly implemented
- * with a function pointer thunk, provided by dyld. This is very slow.
- * We can emulate the behavior inline, and achieve better performance -
- * much closer to the direct access case, though not as good as a dedicated
- * register - but in order for that to work we have to do at least one
- * traditional access to trigger the "bootstrap" and ensure our thread
- * state is actually allocated. We do that here, called by @c krk_initVM
- * as well as by @c _startthread, and check that our approach yields
- * the same address.
- */
-void krk_forceThreadData(void) {
-	krk_currentThread.next = NULL;
-	assert(&krk_currentThread == _macos_currentThread());
-}
-/**
- * And then we macro away @c krk_currentThread behind the inlinable emulation
- * which is defined in src/kuroko/vm.h so the rest of the interpreter can do
- * the same - not strictly necessary, just doing it locally here is enough
- * for major performance gains, but it's nice to be consistent.
- */
-#define krk_currentThread (*_macos_currentThread())
-#endif
-
 #if !defined(KRK_NO_TRACING) && !defined(__EMSCRIPTEN__) && !defined(KRK_NO_CALLGRIND)
-static void _frame_in(KrkCallFrame * frame) {
+static void _frame_in(KrkThreadState * _thread, KrkCallFrame * frame) {
 	 clock_gettime(CLOCK_MONOTONIC, &frame->in_time);
 }
-static void _frame_out(KrkCallFrame * frame) {
+static void _frame_out(KrkThreadState * _thread, KrkCallFrame * frame) {
 	if (frame->closure->function->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_IS_GENERATOR) return;
 
 	KrkCallFrame * caller = krk_currentThread.frameCount > 1 ? &krk_currentThread.frames[krk_currentThread.frameCount-2] : NULL;
@@ -98,8 +48,8 @@ static void _frame_out(KrkCallFrame * frame) {
 		(int)krk_lineNumber(&frame->closure->function->chunk, 0),
 		(long long)diff.tv_sec, diff.tv_nsec);
 }
-# define FRAME_IN(frame) if (unlikely(vm.globalFlags & KRK_GLOBAL_CALLGRIND)) { _frame_in(frame); }
-# define FRAME_OUT(frame) if (unlikely(vm.globalFlags & KRK_GLOBAL_CALLGRIND)) { _frame_out(frame); }
+# define FRAME_IN(frame) if (unlikely(vm.globalFlags & KRK_GLOBAL_CALLGRIND)) { _frame_in(_thread, frame); }
+# define FRAME_OUT(frame) if (unlikely(vm.globalFlags & KRK_GLOBAL_CALLGRIND)) { _frame_out(_thread, frame); }
 #else
 # define FRAME_IN(frame)
 # define FRAME_OUT(frame)
@@ -112,16 +62,16 @@ static void _frame_out(KrkCallFrame * frame) {
  * we make @ref krk_currentThread a macro outside of the core
  * sources that will call this function.
  */
-KrkThreadState * krk_getCurrentThread(void) {
-	return &krk_currentThread;
-}
+//KrkThreadState * krk_getCurrentThread(void) {
+//	return &krk_currentThread;
+//}
 
 /**
  * Reset the stack pointers, frame, upvalue list,
  * clear the exception flag and current exception;
  * happens on startup (twice) and after an exception.
  */
-void krk_resetStack(void) {
+void krk_resetStack(KrkThreadState * _thread) {
 	krk_currentThread.stackTop = krk_currentThread.stack;
 	krk_currentThread.stackMax = krk_currentThread.stack + krk_currentThread.stackSize;
 	krk_currentThread.frameCount = 0;
@@ -130,7 +80,7 @@ void krk_resetStack(void) {
 	krk_currentThread.currentException = NONE_VAL();
 }
 
-void krk_growStack(void) {
+void krk_growStack(KrkThreadState * _thread) {
 	size_t old = krk_currentThread.stackSize;
 	size_t old_offset = krk_currentThread.stackTop - krk_currentThread.stack;
 	size_t newsize = GROW_CAPACITY(old);
@@ -154,8 +104,8 @@ void krk_growStack(void) {
  * the stack to grow - eg. if you are calling into managed code
  * to do anything, or if you are pushing anything.
  */
-inline void krk_push(KrkValue value) {
-	if (unlikely(krk_currentThread.stackTop == krk_currentThread.stackMax)) krk_growStack();
+inline void krk_push_r(KrkThreadState * _thread, KrkValue value) {
+	if (unlikely(krk_currentThread.stackTop == krk_currentThread.stackMax)) krk_growStack(_thread);
 	*krk_currentThread.stackTop++ = value;
 }
 
@@ -167,7 +117,7 @@ inline void krk_push(KrkValue value) {
  * the repl relies on this it expects to be able to get the last
  * pushed value and display it (if it's not None).
  */
-inline KrkValue krk_pop() {
+inline KrkValue krk_pop_r(KrkThreadState * _thread) {
 	if (unlikely(krk_currentThread.stackTop == krk_currentThread.stack)) {
 		abort();
 	}
@@ -175,13 +125,13 @@ inline KrkValue krk_pop() {
 }
 
 /* Read a value `distance` units from the top of the stack without poping it. */
-inline KrkValue krk_peek(int distance) {
+inline KrkValue krk_peek_r(KrkThreadState * _thread, int distance) {
 	return krk_currentThread.stackTop[-1 - distance];
 }
 
 /* Exchange the value `distance` units down from the top of the stack with
  * the value at the top of the stack. */
-inline void krk_swap(int distance) {
+inline void krk_swap_r(KrkThreadState * _thread, int distance) {
 	KrkValue top = krk_currentThread.stackTop[-1];
 	krk_currentThread.stackTop[-1] = krk_currentThread.stackTop[-1 - distance];
 	krk_currentThread.stackTop[-1 - distance] = top;
@@ -191,7 +141,7 @@ inline void krk_swap(int distance) {
  * Bind a native function to the given table (eg. vm.builtins->fields, or _class->methods)
  * GC safe: pushes allocated values.
  */
-KrkNative * krk_defineNative(KrkTable * table, const char * name, NativeFn function) {
+KrkNative * krk_defineNative_r(KrkThreadState * _thread, KrkTable * table, const char * name, NativeFn function) {
 	KrkNative * func = krk_newNative(function, name, 0);
 	krk_attachNamedObject(table, name, (KrkObj*)func);
 	return func;
@@ -203,7 +153,7 @@ KrkNative * krk_defineNative(KrkTable * table, const char * name, NativeFn funct
  * be used with the "fields" table rather than the methods table. This will eventually replace
  * the ":field" option for defineNative().
  */
-KrkNative * krk_defineNativeProperty(KrkTable * table, const char * name, NativeFn function) {
+KrkNative * krk_defineNativeProperty_r(KrkThreadState * _thread, KrkTable * table, const char * name, NativeFn function) {
 	KrkNative * func = krk_newNative(function, name, 0);
 	krk_push(OBJECT_VAL(func));
 	KrkInstance * property = krk_newInstance(vm.baseClasses->propertyClass);
@@ -216,7 +166,7 @@ KrkNative * krk_defineNativeProperty(KrkTable * table, const char * name, Native
 /**
  * Shortcut for building classes.
  */
-KrkClass * krk_makeClass(KrkInstance * module, KrkClass ** _class, const char * name, KrkClass * base) {
+KrkClass * krk_makeClass_r(KrkThreadState * _thread, KrkInstance * module, KrkClass ** _class, const char * name, KrkClass * base) {
 	KrkString * str_Name = krk_copyString(name,strlen(name));
 	krk_push(OBJECT_VAL(str_Name));
 	*_class = krk_newClass(str_Name, base);
@@ -241,7 +191,7 @@ KrkClass * krk_makeClass(KrkInstance * module, KrkClass ** _class, const char * 
  * For a class built by managed code, called by OP_FINALIZE
  */
 __attribute__((nonnull))
-void krk_finalizeClass(KrkClass * _class) {
+void krk_finalizeClass_r(KrkThreadState * _thread, KrkClass * _class) {
 	KrkValue tmp;
 
 	struct TypeMap {
@@ -285,7 +235,7 @@ void krk_finalizeClass(KrkClass * _class) {
 /**
  * This should really be the default behavior of type.__new__?
  */
-static void _callSetName(KrkClass * _class) {
+static void _callSetName(KrkThreadState * _thread, KrkClass * _class) {
 	KrkValue setnames = krk_list_of(0,NULL,0);
 	krk_push(setnames);
 	extern FUNC_SIG(list,append);
@@ -296,8 +246,8 @@ static void _callSetName(KrkClass * _class) {
 		if (!IS_KWARGS(entry->key)) {
 			KrkClass * type = krk_getType(entry->value);
 			if (type->_set_name) {
-				FUNC_NAME(list,append)(2,(KrkValue[]){setnames,entry->key},0);
-				FUNC_NAME(list,append)(2,(KrkValue[]){setnames,entry->value},0);
+				FUNC_NAME(list,append)(_thread, 2,(KrkValue[]){setnames,entry->key},0);
+				FUNC_NAME(list,append)(_thread, 2,(KrkValue[]){setnames,entry->value},0);
 			}
 		}
 	}
@@ -330,7 +280,7 @@ static void _callSetName(KrkClass * _class) {
  * Maps values to their base classes.
  * Internal version of type().
  */
-inline KrkClass * krk_getType(KrkValue of) {
+inline KrkClass * krk_getType_r(KrkThreadState * _thread, KrkValue of) {
 
 	static size_t objClasses[] = {
 		[KRK_OBJ_CODEOBJECT]   = offsetof(struct BaseClasses, codeobjectClass),
@@ -371,7 +321,7 @@ inline KrkClass * krk_getType(KrkValue of) {
  * type and didn't inherit from object(), everything is eventually
  * an object - even basic types like INTEGERs and FLOATINGs.
  */
-int krk_isInstanceOf(KrkValue obj, const KrkClass * type) {
+int krk_isInstanceOf_r(KrkThreadState * _thread, KrkValue obj, const KrkClass * type) {
 	KrkClass * mine = krk_getType(obj);
 	while (mine) {
 		if (mine == type) return 1;
@@ -380,7 +330,7 @@ int krk_isInstanceOf(KrkValue obj, const KrkClass * type) {
 	return 0;
 }
 
-static inline int checkArgumentCount(const KrkClosure * closure, int argCount) {
+static inline int checkArgumentCount(KrkThreadState * _thread, const KrkClosure * closure, int argCount) {
 	int minArgs = closure->function->requiredArgs;
 	int maxArgs = minArgs + closure->function->keywordArgs;
 	if (unlikely(argCount < minArgs || argCount > maxArgs)) {
@@ -395,7 +345,7 @@ static inline int checkArgumentCount(const KrkClosure * closure, int argCount) {
 	return 1;
 }
 
-static void multipleDefs(const KrkClosure * closure, int destination) {
+static void multipleDefs(KrkThreadState * _thread, const KrkClosure * closure, int destination) {
 	krk_runtimeError(vm.exceptions->typeError, "%s() got multiple values for argument '%S'",
 		closure->function->name ? closure->function->name->chars : "<unnamed>",
 		(destination < closure->function->requiredArgs ? AS_STRING(closure->function->requiredArgNames.values[destination]) :
@@ -403,7 +353,7 @@ static void multipleDefs(const KrkClosure * closure, int destination) {
 				S("<unnamed>"))));
 }
 
-static int _unpack_op(void * context, const KrkValue * values, size_t count) {
+static int _unpack_op(KrkThreadState * _thread, void * context, const KrkValue * values, size_t count) {
 	KrkTuple * output = context;
 	if (unlikely(output->values.count + count > output->values.capacity)) {
 		krk_runtimeError(vm.exceptions->valueError, "too many values to unpack (expected %zu)",
@@ -416,7 +366,7 @@ static int _unpack_op(void * context, const KrkValue * values, size_t count) {
 	return 0;
 }
 
-static int _unpack_args(void * context, const KrkValue * values, size_t count) {
+static int _unpack_args(KrkThreadState * _thread, void * context, const KrkValue * values, size_t count) {
 	KrkValueArray * positionals = context;
 	if (positionals->count + count > positionals->capacity) {
 		size_t old = positionals->capacity;
@@ -431,7 +381,7 @@ static int _unpack_args(void * context, const KrkValue * values, size_t count) {
 	return 0;
 }
 
-int krk_processComplexArguments(int argCount, KrkValueArray * positionals, KrkTable * keywords, const char * name) {
+int krk_processComplexArguments_r(KrkThreadState * _thread, int argCount, KrkValueArray * positionals, KrkTable * keywords, const char * name) {
 #define TOP_ARGS 3
 	size_t kwargsCount = AS_INTEGER(krk_currentThread.stackTop[-TOP_ARGS]);
 	argCount--;
@@ -481,6 +431,8 @@ int krk_processComplexArguments(int argCount, KrkValueArray * positionals, KrkTa
 	return 1;
 }
 
+#define krk_processComplexArguments(c,p,k,n) krk_processComplexArguments_r(_thread,c,p,k,n)
+
 /**
  * Call a managed method.
  * Takes care of argument count checking, default argument filling,
@@ -491,7 +443,7 @@ int krk_processComplexArguments(int argCount, KrkValueArray * positionals, KrkTa
  * `extra` is passed by `callValue` to tell us which case we have, and thus
  * where we need to restore the stack to when we return from this call.
  */
-static inline int _callManaged(KrkClosure * closure, int argCount, int returnDepth) {
+static inline int _callManaged(KrkThreadState * _thread, KrkClosure * closure, int argCount, int returnDepth) {
 	size_t potentialPositionalArgs = closure->function->potentialPositionals;
 	size_t totalArguments = closure->function->totalArguments;
 	size_t offsetOfExtraArgs = potentialPositionalArgs;
@@ -527,7 +479,7 @@ static inline int _callManaged(KrkClosure * closure, int argCount, int returnDep
 
 		/* Do we already know we have too many arguments? Let's bail before doing a bunch of work. */
 		if ((positionals->count > potentialPositionalArgs) && !(closure->function->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_ARGS)) {
-			checkArgumentCount(closure,positionals->count);
+			checkArgumentCount(_thread, closure,positionals->count);
 			goto _errorDuringPositionals;
 		}
 
@@ -573,7 +525,7 @@ static inline int _callManaged(KrkClosure * closure, int argCount, int returnDep
 				for (int j = 0; j < (int)closure->function->requiredArgs; ++j) {
 					if (krk_valuesEqual(name, closure->function->requiredArgNames.values[j])) {
 						if (!IS_KWARGS(krk_currentThread.stackTop[-argCount + j])) {
-							multipleDefs(closure,j);
+							multipleDefs(_thread, closure,j);
 							goto _errorAfterPositionals;
 						}
 						krk_currentThread.stackTop[-argCount + j] = value;
@@ -584,7 +536,7 @@ static inline int _callManaged(KrkClosure * closure, int argCount, int returnDep
 				for (int j = 0; j < (int)closure->function->keywordArgs; ++j) {
 					if (krk_valuesEqual(name, closure->function->keywordArgNames.values[j])) {
 						if (!IS_KWARGS(krk_currentThread.stackTop[-argCount + j + closure->function->requiredArgs])) {
-							multipleDefs(closure, j + closure->function->requiredArgs);
+							multipleDefs(_thread, closure, j + closure->function->requiredArgs);
 							goto _errorAfterPositionals;
 						}
 						krk_currentThread.stackTop[-argCount + j + closure->function->requiredArgs] = value;
@@ -628,7 +580,7 @@ _finishKwarg:
 	} else if ((size_t)argCount > potentialPositionalArgs && (closure->function->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_ARGS)) {
 		KrkValue * startOfPositionals = &krk_currentThread.stackTop[-argCount];
 		KrkValue tmp = krk_callNativeOnStack(argCount - potentialPositionalArgs,
-			&startOfPositionals[potentialPositionalArgs], 0, krk_list_of);
+			&startOfPositionals[potentialPositionalArgs], 0, krk_list_of_r);
 		startOfPositionals = &krk_currentThread.stackTop[-argCount];
 		startOfPositionals[offsetOfExtraArgs] = tmp;
 		argCount = potentialPositionalArgs + 1;
@@ -636,7 +588,7 @@ _finishKwarg:
 		while (krk_currentThread.stackTop > startOfPositionals + argCount) krk_pop();
 	}
 
-	if (unlikely(!checkArgumentCount(closure, argCountX))) goto _errorAfterKeywords;
+	if (unlikely(!checkArgumentCount(_thread, closure, argCountX))) goto _errorAfterKeywords;
 
 	while (argCount < (int)totalArguments) {
 		krk_push(KWARGS_VAL(0));
@@ -678,20 +630,20 @@ _errorAfterKeywords:
  * If the stack is reallocated within this call, the old stack will not be freed until
  * all such nested calls through krk_callNativeOnStack have returned.
  */
-inline KrkValue krk_callNativeOnStack(size_t argCount, const KrkValue *stackArgs, int hasKw, NativeFn native) {
+inline KrkValue krk_callNativeOnStack_r(KrkThreadState * _thread, size_t argCount, const KrkValue *stackArgs, int hasKw, NativeFn native) {
 
 	/**
 	 * If someone is already preserving this stack, we can just call directly.
 	 */
 	if (unlikely(krk_currentThread.flags & KRK_THREAD_DEFER_STACK_FREE)) {
-		return native(argCount, stackArgs, hasKw);
+		return native(_thread, argCount, stackArgs, hasKw);
 	}
 
 	/* Mark the thread's stack as preserved. */
 	krk_currentThread.flags |= KRK_THREAD_DEFER_STACK_FREE;
 	size_t sizeBefore  = krk_currentThread.stackSize;
 	void * stackBefore = krk_currentThread.stack;
-	KrkValue result = native(argCount, stackArgs, hasKw);
+	KrkValue result = native(_thread, argCount, stackArgs, hasKw);
 
 	if (unlikely(krk_currentThread.stack != stackBefore)) {
 		FREE_ARRAY(KrkValue, stackBefore, sizeBefore);
@@ -707,12 +659,12 @@ inline KrkValue krk_callNativeOnStack(size_t argCount, const KrkValue *stackArgs
  * object on the stack - only its arguments. If that is the case, we unfortunately need
  * to rotate the stack so we can inject the implicit bound argument at the front.
  */
-static void _rotate(size_t argCount) {
+static void _rotate(KrkThreadState * _thread, size_t argCount) {
 	krk_push(NONE_VAL());
 	memmove(&krk_currentThread.stackTop[-argCount],&krk_currentThread.stackTop[-argCount-1],sizeof(KrkValue) * argCount);
 }
 
-static inline int _callNative(KrkNative* callee, int argCount, int returnDepth) {
+static inline int _callNative(KrkThreadState * _thread, KrkNative* callee, int argCount, int returnDepth) {
 	NativeFn native = (NativeFn)callee->function;
 	size_t stackOffsetAfterCall = (krk_currentThread.stackTop - krk_currentThread.stack) - argCount - returnDepth;
 	KrkValue result;
@@ -735,7 +687,7 @@ static inline int _callNative(KrkNative* callee, int argCount, int returnDepth) 
 		krk_currentThread.stackTop = &krk_currentThread.stack[stackOffsetAfterCall+1];
 
 		/* Call with list as arguments */
-		result = native(AS_LIST(myList)->count-1, AS_LIST(myList)->values, 1);
+		result = native(_thread, AS_LIST(myList)->count-1, AS_LIST(myList)->values, 1);
 	} else {
 		result = krk_callNativeOnStack(argCount, krk_currentThread.stackTop - argCount, 0, native);
 	}
@@ -763,20 +715,20 @@ static inline int _callNative(KrkNative* callee, int argCount, int returnDepth) 
  *   If callValue returns 0, the VM should already be in the exception state
  *   and it is not necessary to raise another exception.
  */
-int krk_callValue(KrkValue callee, int argCount, int returnDepth) {
+int krk_callValue_r(KrkThreadState * _thread, KrkValue callee, int argCount, int returnDepth) {
 	if (likely(IS_OBJECT(callee))) {
 		_innerObject:
 		switch (OBJECT_TYPE(callee)) {
-			case KRK_OBJ_CLOSURE: return _callManaged(AS_CLOSURE(callee), argCount, returnDepth);
-			case KRK_OBJ_NATIVE: return _callNative(AS_NATIVE(callee), argCount, returnDepth);
+			case KRK_OBJ_CLOSURE: return _callManaged(_thread, AS_CLOSURE(callee), argCount, returnDepth);
+			case KRK_OBJ_NATIVE: return _callNative(_thread, AS_NATIVE(callee), argCount, returnDepth);
 			case KRK_OBJ_INSTANCE: {
 				KrkClass * _class = AS_INSTANCE(callee)->_class;
 				if (likely(_class->_call != NULL)) {
-					if (unlikely(returnDepth == 0)) _rotate(argCount);
+					if (unlikely(returnDepth == 0)) _rotate(_thread, argCount);
 					krk_currentThread.stackTop[-argCount - 1] = callee;
 					argCount++;
 					returnDepth = returnDepth ? (returnDepth - 1) : 0;
-					return (_class->_call->type == KRK_OBJ_CLOSURE) ? _callManaged((KrkClosure*)_class->_call, argCount, returnDepth) : _callNative((KrkNative*)_class->_call, argCount, returnDepth);
+					return (_class->_call->type == KRK_OBJ_CLOSURE) ? _callManaged(_thread, (KrkClosure*)_class->_call, argCount, returnDepth) : _callNative(_thread, (KrkNative*)_class->_call, argCount, returnDepth);
 				} else {
 					krk_runtimeError(vm.exceptions->typeError, "'%T' object is not callable", callee);
 					return 0;
@@ -786,7 +738,7 @@ int krk_callValue(KrkValue callee, int argCount, int returnDepth) {
 				KrkClass * _class = AS_CLASS(callee);
 				KrkInstance * newInstance = krk_newInstance(_class);
 				if (likely(_class->_init != NULL)) {
-					if (unlikely(returnDepth == 0)) _rotate(argCount);
+					if (unlikely(returnDepth == 0)) _rotate(_thread, argCount);
 					krk_currentThread.stackTop[-argCount - 1] = OBJECT_VAL(newInstance);
 					callee = OBJECT_VAL(_class->_init);
 					argCount++;
@@ -807,7 +759,7 @@ int krk_callValue(KrkValue callee, int argCount, int returnDepth) {
 					krk_runtimeError(vm.exceptions->argumentError, "???");
 					return 0;
 				}
-				if (unlikely(returnDepth == 0)) _rotate(argCount);
+				if (unlikely(returnDepth == 0)) _rotate(_thread, argCount);
 				krk_currentThread.stackTop[-argCount - 1] = bound->receiver;
 				callee = OBJECT_VAL(bound->method);
 				argCount++;
@@ -825,7 +777,7 @@ int krk_callValue(KrkValue callee, int argCount, int returnDepth) {
 /**
  * Takes care of runnext/pop
  */
-KrkValue krk_callStack(int argCount) {
+KrkValue krk_callStack_r(KrkThreadState * _thread, int argCount) {
 	switch (krk_callValue(krk_peek(argCount), argCount, 1)) {
 		case 2: return krk_pop();
 		case 1: return krk_runNext();
@@ -833,11 +785,11 @@ KrkValue krk_callStack(int argCount) {
 	}
 }
 
-KrkValue krk_callDirect(KrkObj * callable, int argCount) {
+KrkValue krk_callDirect_r(KrkThreadState * _thread, KrkObj * callable, int argCount) {
 	int result = 0;
 	switch (callable->type) {
-		case KRK_OBJ_CLOSURE: result = _callManaged((KrkClosure*)callable, argCount, 0); break;
-		case KRK_OBJ_NATIVE: result = _callNative((KrkNative*)callable, argCount, 0); break;
+		case KRK_OBJ_CLOSURE: result = _callManaged(_thread, (KrkClosure*)callable, argCount, 0); break;
+		case KRK_OBJ_NATIVE: result = _callNative(_thread, (KrkNative*)callable, argCount, 0); break;
 		default: __builtin_unreachable();
 	}
 	if (likely(result == 2)) return krk_pop();
@@ -849,7 +801,7 @@ KrkValue krk_callDirect(KrkObj * callable, int argCount) {
  * Attach a method call to its callee and return a BoundMethod.
  * Works for managed and native method calls.
  */
-int krk_bindMethod(KrkClass * _class, KrkString * name) {
+int krk_bindMethod_r(KrkThreadState * _thread, KrkClass * _class, KrkString * name) {
 	KrkClass * originalClass = _class;
 	KrkValue method, out;
 	while (_class) {
@@ -863,7 +815,7 @@ int krk_bindMethod(KrkClass * _class, KrkString * name) {
 		} else if (AS_OBJECT(method)->flags & KRK_OBJ_FLAGS_FUNCTION_IS_STATIC_METHOD) {
 			out = method;
 		} else if (AS_OBJECT(method)->flags & KRK_OBJ_FLAGS_FUNCTION_IS_DYNAMIC_PROPERTY) {
-			out = AS_NATIVE(method)->function(1, (KrkValue[]){krk_peek(0)}, 0);
+			out = AS_NATIVE(method)->function(_thread, 1, (KrkValue[]){krk_peek(0)}, 0);
 		} else {
 			out = OBJECT_VAL(krk_newBoundMethod(krk_peek(0), AS_OBJECT(method)));
 		}
@@ -887,7 +839,7 @@ int krk_bindMethod(KrkClass * _class, KrkString * name) {
  * Similar to @ref krk_bindMethod but does not create bound method objects.
  * @returns 1 if the result was an (unbound) method, 2 if it was something else, 0 if it was not found.
  */
-int krk_unbindMethod(KrkClass * _class, KrkString * name) {
+int krk_unbindMethod(KrkThreadState * _thread, KrkClass * _class, KrkString * name) {
 	KrkClass * originalClass = _class;
 	KrkValue method, out;
 	while (_class) {
@@ -897,7 +849,7 @@ int krk_unbindMethod(KrkClass * _class, KrkString * name) {
 	if (!_class) return 0;
 	if (IS_NATIVE(method) || IS_CLOSURE(method)) {
 		if (AS_OBJECT(method)->flags & KRK_OBJ_FLAGS_FUNCTION_IS_DYNAMIC_PROPERTY) {
-			out = AS_NATIVE(method)->function(1, (KrkValue[]){krk_peek(0)}, 0);
+			out = AS_NATIVE(method)->function(_thread, 1, (KrkValue[]){krk_peek(0)}, 0);
 		} else if (AS_CLOSURE(method)->obj.flags & KRK_OBJ_FLAGS_FUNCTION_IS_CLASS_METHOD) {
 			krk_pop();
 			krk_push(OBJECT_VAL(originalClass));
@@ -930,7 +882,7 @@ int krk_unbindMethod(KrkClass * _class, KrkString * name) {
  * Capture upvalues and mark them as open. Called upon closure creation to
  * mark stack slots used by a function.
  */
-static KrkUpvalue * captureUpvalue(int index) {
+static KrkUpvalue * captureUpvalue(KrkThreadState *_thread, int index) {
 	KrkUpvalue * prevUpvalue = NULL;
 	KrkUpvalue * upvalue = krk_currentThread.openUpvalues;
 	while (upvalue != NULL && upvalue->location > index) {
@@ -956,7 +908,7 @@ static KrkUpvalue * captureUpvalue(int index) {
  * Close upvalues by moving them out of the stack and into the heap.
  * Their location attribute is set to -1 to indicate they now live on the heap.
  */
-static void closeUpvalues(int last) {
+static void closeUpvalues(KrkThreadState * _thread, int last) {
 	while (krk_currentThread.openUpvalues != NULL && krk_currentThread.openUpvalues->location >= last) {
 		KrkUpvalue * upvalue = krk_currentThread.openUpvalues;
 		upvalue->closed = krk_currentThread.stack[upvalue->location];
@@ -968,7 +920,7 @@ static void closeUpvalues(int last) {
 /**
  * Same as above, but the object has already been wrapped in a value.
  */
-void krk_attachNamedValue(KrkTable * table, const char name[], KrkValue obj) {
+void krk_attachNamedValue_r(KrkThreadState * _thread, KrkTable * table, const char name[], KrkValue obj) {
 	krk_push(obj);
 	krk_push(OBJECT_VAL(krk_copyString(name,strlen(name))));
 	krk_tableSet(table, krk_peek(0), krk_peek(1));
@@ -982,7 +934,7 @@ void krk_attachNamedValue(KrkTable * table, const char name[], KrkValue obj) {
  * Generally used to attach classes or objects to the globals table, or to
  * a native module's export object.
  */
-void krk_attachNamedObject(KrkTable * table, const char name[], KrkObj * obj) {
+void krk_attachNamedObject_r(KrkThreadState * _thread, KrkTable * table, const char name[], KrkObj * obj) {
 	krk_attachNamedValue(table,name,OBJECT_VAL(obj));
 }
 
@@ -995,7 +947,7 @@ void krk_attachNamedObject(KrkTable * table, const char name[], KrkObj * obj) {
  * Or in more managed code terms, `if None`, `if False`, and `if 0` are all
  * going to take the else branch.
  */
-int krk_isFalsey(KrkValue value) {
+int krk_isFalsey_r(KrkThreadState * _thread, KrkValue value) {
 	switch (KRK_VAL_TYPE(value)) {
 		case KRK_VAL_NONE: return 1;
 		case KRK_VAL_BOOLEAN: return !AS_BOOLEAN(value);
@@ -1024,7 +976,7 @@ int krk_isFalsey(KrkValue value) {
 	return 0; /* Assume anything else is truthy */
 }
 
-void krk_setMaximumRecursionDepth(size_t maxDepth) {
+void krk_setMaximumRecursionDepth_r(KrkThreadState * _thread, size_t maxDepth) {
 	vm.maximumCallDepth = maxDepth;
 
 	KrkThreadState * thread = vm.threads;
@@ -1034,16 +986,16 @@ void krk_setMaximumRecursionDepth(size_t maxDepth) {
 	}
 }
 
-void krk_initVM(int flags) {
-#if !defined(KRK_DISABLE_THREADS) && defined(__APPLE__) && defined(__aarch64__)
-	krk_forceThreadData();
-#endif
+KrkThreadState * krk_initVM_withBinpath(int flags, char * binpath) {
+	KrkThreadState * _thread = calloc(1,sizeof(KrkThreadState));
+	_thread->owner = calloc(1,sizeof(KrkVM));
 
+	vm.binpath = binpath;
 	vm.globalFlags = flags & 0xFF00;
 	vm.maximumCallDepth = KRK_CALL_FRAMES_MAX;
 
 	/* Reset current thread */
-	krk_resetStack();
+	krk_resetStack(_thread);
 	krk_currentThread.frames   = calloc(vm.maximumCallDepth,sizeof(KrkCallFrame));
 	krk_currentThread.flags    = flags & 0x00FF;
 	krk_currentThread.module   = NULL;
@@ -1081,47 +1033,53 @@ void krk_initVM(int flags) {
 	}
 
 	/* Build classes for basic types */
-	_createAndBind_builtins();
-	_createAndBind_type();
-	_createAndBind_numericClasses();
-	_createAndBind_strClass();
-	_createAndBind_listClass();
-	_createAndBind_tupleClass();
-	_createAndBind_bytesClass();
-	_createAndBind_dictClass();
-	_createAndBind_functionClass();
-	_createAndBind_rangeClass();
-	_createAndBind_setClass();
-	_createAndBind_sliceClass();
-	_createAndBind_exceptions();
-	_createAndBind_generatorClass();
-	_createAndBind_longClass();
+	_createAndBind_builtins(_thread);
+	_createAndBind_type(_thread);
+	_createAndBind_numericClasses(_thread);
+	_createAndBind_strClass(_thread);
+	_createAndBind_listClass(_thread);
+	_createAndBind_tupleClass(_thread);
+	_createAndBind_bytesClass(_thread);
+	_createAndBind_dictClass(_thread);
+	_createAndBind_functionClass(_thread);
+	_createAndBind_rangeClass(_thread);
+	_createAndBind_setClass(_thread);
+	_createAndBind_sliceClass(_thread);
+	_createAndBind_exceptions(_thread);
+	_createAndBind_generatorClass(_thread);
+	_createAndBind_longClass(_thread);
 
 	if (!(vm.globalFlags & KRK_GLOBAL_NO_DEFAULT_MODULES)) {
 #ifndef KRK_NO_SYSTEM_MODULES
-		krk_module_init_kuroko();
-		krk_module_init_gc();
-		krk_module_init_time();
-		krk_module_init_os();
-		krk_module_init_fileio();
+		krk_module_init_kuroko(_thread);
+		krk_module_init_gc(_thread);
+		krk_module_init_time(_thread);
+		krk_module_init_os(_thread);
+		krk_module_init_fileio(_thread);
 #endif
 #ifndef KRK_DISABLE_DEBUG
-		krk_module_init_dis();
+		krk_module_init_dis(_thread);
 #endif
 #ifndef KRK_DISABLE_THREADS
-		krk_module_init_threading();
+		krk_module_init_threading(_thread);
 #endif
 	}
 
-
 	/* The VM is now ready to start executing code. */
-	krk_resetStack();
+	krk_resetStack(_thread);
+
+	return _thread;
 }
+
+KrkThreadState * krk_initVM(int flags) {
+	return krk_initVM_withBinpath(flags,NULL);
+}
+
 
 /**
  * Reclaim resources used by the VM.
  */
-void krk_freeVM() {
+void krk_freeVM(KrkThreadState * _thread) {
 	krk_freeTable(&vm.strings);
 	krk_freeTable(&vm.modules);
 	if (vm.specialMethodNames) free(vm.specialMethodNames);
@@ -1137,22 +1095,24 @@ void krk_freeVM() {
 		krk_currentThread.next = thread->next;
 		FREE_ARRAY(size_t, thread->stack, thread->stackSize);
 		free(thread->frames);
+		free(thread);
 	}
 
 	FREE_ARRAY(size_t, krk_currentThread.stack, krk_currentThread.stackSize);
-	memset(&krk_vm,0,sizeof(krk_vm));
 	free(krk_currentThread.frames);
-	memset(&krk_currentThread,0,sizeof(KrkThreadState));
 
-	extern void krk_freeMemoryDebugger(void);
-	krk_freeMemoryDebugger();
+	extern void krk_freeMemoryDebugger_r(KrkThreadState *_thread);
+	krk_freeMemoryDebugger_r(_thread);
+
+	free(_thread->owner);
+	free(_thread);
 }
 
 /**
  * Internal type(value).__name__ call for use in debugging methods and
  * creating exception strings.
  */
-const char * krk_typeName(KrkValue value) {
+const char * krk_typeName_r(KrkThreadState * _thread, KrkValue value) {
 	return krk_getType(value)->name->chars;
 }
 
@@ -1167,7 +1127,7 @@ const char * krk_typeName(KrkValue value) {
 #endif
 
 #define MAKE_COMPARE_OP(name,operator,inv) \
-	_protected KrkValue krk_operator_ ## name (KrkValue a, KrkValue b) { \
+	_protected KrkValue krk_operator_ ## name ## _r(KrkThreadState * _thread, KrkValue a, KrkValue b) { \
 		KrkClass * atype = krk_getType(a); \
 		if (likely(atype->_ ## name != NULL)) { \
 			krk_push(a); krk_push(b); \
@@ -1188,7 +1148,7 @@ const char * krk_typeName(KrkValue value) {
 	}
 #define MAKE_BIN_OP(name,operator,inv) \
 	MAKE_COMPARE_OP(name,operator,inv) \
-	_protected KrkValue krk_operator_i ## name (KrkValue a, KrkValue b) { \
+	_protected KrkValue krk_operator_i ## name ## _r (KrkThreadState * _thread, KrkValue a, KrkValue b) { \
 		KrkClass * atype = krk_getType(a); \
 		if (likely(atype->_i ## name != NULL)) { \
 			krk_push(a); krk_push(b); \
@@ -1196,7 +1156,7 @@ const char * krk_typeName(KrkValue value) {
 			if (!IS_NOTIMPL(result)) { return result; } \
 		} \
 		if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) return NONE_VAL(); \
-		return krk_operator_ ## name(a,b); \
+		return krk_operator_ ## name ## _r(_thread, a,b); \
 	}
 
 MAKE_BIN_OP(add,"+",radd)
@@ -1219,17 +1179,17 @@ MAKE_COMPARE_OP(le, "<=", ge)
 MAKE_COMPARE_OP(ge, ">=", le)
 
 _protected
-KrkValue krk_operator_eq(KrkValue a, KrkValue b) {
+KrkValue krk_operator_eq_r(KrkThreadState * _thread, KrkValue a, KrkValue b) {
 	return BOOLEAN_VAL(krk_valuesEqual(a,b));
 }
 
 _protected
-KrkValue krk_operator_is(KrkValue a, KrkValue b) {
+KrkValue krk_operator_is_r(KrkThreadState * _thread, KrkValue a, KrkValue b) {
 	return BOOLEAN_VAL(krk_valuesSame(a,b));
 }
 
 #define MAKE_UNARY_OP(sname,operator,op) \
-	_protected KrkValue krk_operator_ ## operator (KrkValue value) { \
+	_protected KrkValue krk_operator_ ## operator ## _r (KrkThreadState * _thread, KrkValue value) { \
 		KrkClass * type = krk_getType(value); \
 		if (likely(type-> sname != NULL)) { \
 			krk_push(value); \
@@ -1254,7 +1214,7 @@ MAKE_UNARY_OP(_pos,pos,+)
  * stack manipulation could result in a handler being in the wrong place,
  * at which point there's no guarantees about what happens.
  */
-static int handleException() {
+static int handleException(KrkThreadState * _thread) {
 	int stackOffset, frameOffset;
 	int exitSlot = (krk_currentThread.exitOnFrame >= 0) ? krk_currentThread.frames[krk_currentThread.exitOnFrame].outSlots : 0;
 	for (stackOffset = (int)(krk_currentThread.stackTop - krk_currentThread.stack - 1);
@@ -1276,7 +1236,7 @@ static int handleException() {
 		krk_currentThread.frameCount = krk_currentThread.exitOnFrame;
 
 		/* Ensure stack is in the expected place, as if we returned None. */
-		closeUpvalues(exitSlot);
+		closeUpvalues(_thread, exitSlot);
 		krk_currentThread.stackTop = &krk_currentThread.stack[exitSlot];
 
 		/* If exitSlot was not 0, there was an exception during a call to runNext();
@@ -1292,7 +1252,7 @@ static int handleException() {
 	}
 
 	/* We found an exception handler and can reset the VM to its call frame. */
-	closeUpvalues(stackOffset);
+	closeUpvalues(_thread, stackOffset);
 	krk_currentThread.stackTop = krk_currentThread.stack + stackOffset + 1;
 	krk_currentThread.frameCount = frameOffset + 1;
 
@@ -1310,7 +1270,7 @@ static int handleException() {
  * a later search path has a krk source and an earlier search path has a shared
  * object module, the later search path will still win.
  */
-int krk_loadModule(KrkString * path, KrkValue * moduleOut, KrkString * runAs, KrkValue parent) {
+int krk_loadModule_r(KrkThreadState * _thread, KrkString * path, KrkValue * moduleOut, KrkString * runAs, KrkValue parent) {
 	/* See if the module is already loaded */
 	if (krk_tableGet_fast(&vm.modules, runAs, moduleOut)) {
 		krk_push(*moduleOut);
@@ -1445,7 +1405,7 @@ int krk_loadModule(KrkString * path, KrkValue * moduleOut, KrkString * runAs, Kr
 				krk_attachNamedValue(&krk_currentThread.module->fields, "__package__", NONE_VAL());
 			}
 		}
-		krk_runfile(fileName,fileName);
+		krk_runfile(_thread,fileName,fileName);
 		*moduleOut = OBJECT_VAL(krk_currentThread.module);
 		krk_currentThread.module = enclosing;
 		if (!IS_OBJECT(*moduleOut)) {
@@ -1482,7 +1442,7 @@ int krk_loadModule(KrkString * path, KrkValue * moduleOut, KrkString * runAs, Kr
 
 		char * handlerName = AS_CSTRING(krk_peek(0));
 
-		KrkValue (*moduleOnLoad)(KrkString * name);
+		KrkValue (*moduleOnLoad)(KrkThreadState *, KrkString * name);
 		dlSymType out = dlSym(dlRef, handlerName);
 		memcpy(&moduleOnLoad,&out,sizeof(out));
 
@@ -1497,7 +1457,7 @@ int krk_loadModule(KrkString * path, KrkValue * moduleOut, KrkString * runAs, Kr
 
 		krk_pop(); /* onload function */
 
-		*moduleOut = moduleOnLoad(runAs);
+		*moduleOut = moduleOnLoad(_thread, runAs);
 		if (!krk_isInstanceOf(*moduleOut, vm.baseClasses->moduleClass)) {
 			dlClose(dlRef);
 			krk_runtimeError(vm.exceptions->importError,
@@ -1541,7 +1501,7 @@ int krk_loadModule(KrkString * path, KrkValue * moduleOut, KrkString * runAs, Kr
 	return 0;
 }
 
-int krk_importModule(KrkString * name, KrkString * runAs) {
+int krk_importModule_r(KrkThreadState * _thread, KrkString * name, KrkString * runAs) {
 	/* See if 'name' is clear to directly import */
 	int isClear = 1;
 	for (size_t i = 0; i < name->length; ++i) {
@@ -1603,7 +1563,7 @@ int krk_importModule(KrkString * name, KrkString * runAs) {
 		/* We'll split the package name is str.split(__package__,'.') */
 		krk_push(packageName);
 		krk_push(OBJECT_VAL(S(".")));
-		KrkValue components = krk_string_split(2,(KrkValue[]){krk_peek(1),krk_peek(0)}, 0);
+		KrkValue components = krk_string_split(_thread, 2,(KrkValue[]){krk_peek(1),krk_peek(0)}, 0);
 		if (!IS_list(components)) {
 			krk_runtimeError(vm.exceptions->importError, "internal error while calculating package path");
 			return 0;
@@ -1670,7 +1630,7 @@ int krk_importModule(KrkString * name, KrkString * runAs) {
 	krk_push(OBJECT_VAL(name));   // 3: remaining path to process
 	krk_push(OBJECT_VAL(S("."))); // 4: string "." to search for
 	do {
-		KrkValue listOut = krk_string_split(3,(KrkValue[]){krk_currentThread.stack[argBase+3], krk_currentThread.stack[argBase+4], INTEGER_VAL(1)}, 0);
+		KrkValue listOut = krk_string_split(_thread, 3,(KrkValue[]){krk_currentThread.stack[argBase+3], krk_currentThread.stack[argBase+4], INTEGER_VAL(1)}, 0);
 		if (!IS_INSTANCE(listOut)) return 0;
 
 		/* Set node */
@@ -1735,7 +1695,7 @@ int krk_importModule(KrkString * name, KrkString * runAs) {
 	} while (1);
 }
 
-int krk_doRecursiveModuleLoad(KrkString * name) {
+int krk_doRecursiveModuleLoad_r(KrkThreadState * _thread, KrkString * name) {
 	return krk_importModule(name,name);
 }
 
@@ -1746,7 +1706,7 @@ int krk_doRecursiveModuleLoad(KrkString * name) {
  * Returns 0 if nothing was found, 1 if something was - and that
  * "something" will replace [stack top].
  */
-static int valueGetProperty(KrkString * name) {
+static int valueGetProperty(KrkThreadState * _thread, KrkString * name) {
 	KrkValue this = krk_peek(0);
 	KrkClass * objectClass;
 	KrkValue value;
@@ -1800,7 +1760,7 @@ static int valueGetProperty(KrkString * name) {
  * immediately called, eg. for GET_METHOD that is followed by argument pushing
  * and then CALL_METHOD.
  */
-static int valueGetMethod(KrkString * name) {
+static int valueGetMethod(KrkThreadState * _thread, KrkString * name) {
 	KrkValue this = krk_peek(0);
 	KrkClass * objectClass;
 	KrkValue value;
@@ -1837,7 +1797,7 @@ static int valueGetMethod(KrkString * name) {
 	}
 
 	/* See if the base class for this non-instance type has a method available */
-	int maybe = krk_unbindMethod(objectClass, name);
+	int maybe = krk_unbindMethod(_thread, objectClass, name);
 	if (maybe) return maybe;
 
 	if (objectClass->_getattr) {
@@ -1850,14 +1810,14 @@ static int valueGetMethod(KrkString * name) {
 	return 0;
 }
 
-int krk_getAttribute(KrkString * name) {
-	return valueGetProperty(name);
+int krk_getAttribute_r(KrkThreadState * _thread, KrkString * name) {
+	return valueGetProperty(_thread, name);
 }
 
-KrkValue krk_valueGetAttribute(KrkValue value, char * name) {
+KrkValue krk_valueGetAttribute_r(KrkThreadState *_thread, KrkValue value, char * name) {
 	krk_push(OBJECT_VAL(krk_copyString(name,strlen(name))));
 	krk_push(value);
-	if (!valueGetProperty(AS_STRING(krk_peek(1)))) {
+	if (!valueGetProperty(_thread, AS_STRING(krk_peek(1)))) {
 		return krk_runtimeError(vm.exceptions->attributeError, "'%T' object has no attribute '%s'", krk_peek(0), name);
 	}
 	krk_swap(1);
@@ -1865,10 +1825,10 @@ KrkValue krk_valueGetAttribute(KrkValue value, char * name) {
 	return krk_pop();
 }
 
-KrkValue krk_valueGetAttribute_default(KrkValue value, char * name, KrkValue defaultVal) {
+KrkValue krk_valueGetAttribute_default_r(KrkThreadState * _thread, KrkValue value, char * name, KrkValue defaultVal) {
 	krk_push(OBJECT_VAL(krk_copyString(name,strlen(name))));
 	krk_push(value);
-	if (!valueGetProperty(AS_STRING(krk_peek(1)))) {
+	if (!valueGetProperty(_thread, AS_STRING(krk_peek(1)))) {
 		krk_pop();
 		krk_pop();
 		return defaultVal;
@@ -1878,7 +1838,7 @@ KrkValue krk_valueGetAttribute_default(KrkValue value, char * name, KrkValue def
 	return krk_pop();
 }
 
-static int valueDelProperty(KrkString * name) {
+static int valueDelProperty(KrkThreadState * _thread, KrkString * name) {
 	if (IS_INSTANCE(krk_peek(0))) {
 		KrkInstance* instance = AS_INSTANCE(krk_peek(0));
 		if (!krk_tableDelete(&instance->fields, OBJECT_VAL(name))) {
@@ -1908,21 +1868,21 @@ static int valueDelProperty(KrkString * name) {
 	return 0;
 }
 
-int krk_delAttribute(KrkString * name) {
-	return valueDelProperty(name);
+int krk_delAttribute_r(KrkThreadState * _thread, KrkString * name) {
+	return valueDelProperty(_thread, name);
 }
 
-KrkValue krk_valueDelAttribute(KrkValue owner, char * name) {
+KrkValue krk_valueDelAttribute_r(KrkThreadState * _thread, KrkValue owner, char * name) {
 	krk_push(OBJECT_VAL(krk_copyString(name,strlen(name))));
 	krk_push(owner);
-	if (!valueDelProperty(AS_STRING(krk_peek(1)))) {
+	if (!valueDelProperty(_thread, AS_STRING(krk_peek(1)))) {
 		return krk_runtimeError(vm.exceptions->attributeError, "'%T' object has no attribute '%s'", krk_peek(0), name);
 	}
 	krk_pop(); /* String */
 	return NONE_VAL();
 }
 
-static int trySetDescriptor(KrkValue owner, KrkString * name, KrkValue value) {
+static int trySetDescriptor(KrkThreadState * _thread, KrkValue owner, KrkString * name, KrkValue value) {
 	KrkClass * _class = krk_getType(owner);
 	KrkValue property;
 	while (_class) {
@@ -1944,7 +1904,7 @@ static int trySetDescriptor(KrkValue owner, KrkString * name, KrkValue value) {
 }
 
 _noexport
-KrkValue krk_instanceSetAttribute_wrapper(KrkValue owner, KrkString * name, KrkValue to) {
+KrkValue krk_instanceSetAttribute_wrapper_r(KrkThreadState * _thread, KrkValue owner, KrkString * name, KrkValue to) {
 	if (!krk_tableSetIfExists(&AS_INSTANCE(owner)->fields, OBJECT_VAL(name), to)) {
 		/* That might have raised an exception. */
 		if (unlikely(krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION)) return NONE_VAL();
@@ -1970,7 +1930,7 @@ KrkValue krk_instanceSetAttribute_wrapper(KrkValue owner, KrkString * name, KrkV
 	return to;
 }
 
-static int valueSetProperty(KrkString * name) {
+static int valueSetProperty(KrkThreadState * _thread, KrkString * name) {
 	KrkValue owner = krk_peek(1);
 	KrkValue value = krk_peek(0);
 	if (IS_INSTANCE(owner)) {
@@ -1982,7 +1942,7 @@ static int valueSetProperty(KrkString * name) {
 			return 1;
 		}
 		if (krk_tableSet(&AS_INSTANCE(owner)->fields, OBJECT_VAL(name), value)) {
-			if (trySetDescriptor(owner, name, value)) {
+			if (trySetDescriptor(_thread, owner, name, value)) {
 				krk_tableDelete(&AS_INSTANCE(owner)->fields, OBJECT_VAL(name));
 				return 1;
 			}
@@ -1996,28 +1956,28 @@ static int valueSetProperty(KrkString * name) {
 	} else if (IS_CLOSURE(owner)) {
 		/* Closures shouldn't have descriptors, but let's let this happen anyway... */
 		if (krk_tableSet(&AS_CLOSURE(owner)->fields, OBJECT_VAL(name), value)) {
-			if (trySetDescriptor(owner, name, value)) {
+			if (trySetDescriptor(_thread, owner, name, value)) {
 				krk_tableDelete(&AS_CLOSURE(owner)->fields, OBJECT_VAL(name));
 				return 1;
 			}
 		}
 	} else {
-		return (trySetDescriptor(owner,name,value));
+		return (trySetDescriptor(_thread, owner,name,value));
 	}
 	krk_swap(1);
 	krk_pop();
 	return 1;
 }
 
-int krk_setAttribute(KrkString * name) {
-	return valueSetProperty(name);
+int krk_setAttribute_r(KrkThreadState * _thread, KrkString * name) {
+	return valueSetProperty(_thread, name);
 }
 
-KrkValue krk_valueSetAttribute(KrkValue owner, char * name, KrkValue to) {
+KrkValue krk_valueSetAttribute_r(KrkThreadState * _thread, KrkValue owner, char * name, KrkValue to) {
 	krk_push(OBJECT_VAL(krk_copyString(name,strlen(name))));
 	krk_push(owner);
 	krk_push(to);
-	if (!valueSetProperty(AS_STRING(krk_peek(2)))) {
+	if (!valueSetProperty(_thread, AS_STRING(krk_peek(2)))) {
 		return krk_runtimeError(vm.exceptions->attributeError, "'%T' object has no attribute '%s'", krk_peek(1), name);
 	}
 	krk_swap(1);
@@ -2026,30 +1986,30 @@ KrkValue krk_valueSetAttribute(KrkValue owner, char * name, KrkValue to) {
 }
 
 #define BINARY_OP(op) { KrkValue b = krk_peek(0); KrkValue a = krk_peek(1); \
-	a = krk_operator_ ## op (a,b); \
+	a = krk_operator_ ## op ## _r(_thread, a,b); \
 	krk_currentThread.stackTop[-2] = a; krk_pop(); break; }
 #define INPLACE_BINARY_OP(op) { KrkValue b = krk_peek(0); KrkValue a = krk_peek(1); \
-	a = krk_operator_i ## op (a,b); \
+	a = krk_operator_i ## op ## _r(_thread, a,b); \
 	krk_currentThread.stackTop[-2] = a; krk_pop(); break; }
 
-extern KrkValue krk_int_op_add(krk_integer_type a, krk_integer_type b);
-extern KrkValue krk_int_op_sub(krk_integer_type a, krk_integer_type b);
+extern KrkValue krk_int_op_add(KrkThreadState * _thread, krk_integer_type a, krk_integer_type b);
+extern KrkValue krk_int_op_sub(KrkThreadState * _thread, krk_integer_type a, krk_integer_type b);
 
 /* These operations are most likely to occur on integers, so we special case them */
 #define LIKELY_INT_BINARY_OP(op) { KrkValue b = krk_peek(0); KrkValue a = krk_peek(1); \
-	if (likely(IS_INTEGER(a) && IS_INTEGER(b))) a = krk_int_op_ ## op (AS_INTEGER(a), AS_INTEGER(b)); \
-	else a = krk_operator_ ## op (a,b); \
+	if (likely(IS_INTEGER(a) && IS_INTEGER(b))) a = krk_int_op_ ## op (_thread, AS_INTEGER(a), AS_INTEGER(b)); \
+	else a = krk_operator_ ## op ## _r (_thread, a,b); \
 	krk_currentThread.stackTop[-2] = a; krk_pop(); break; }
 
 /* Comparators like these are almost definitely going to happen on integers. */
 #define LIKELY_INT_COMPARE_OP(op,operator) { KrkValue b = krk_peek(0); KrkValue a = krk_peek(1); \
 	if (likely(IS_INTEGER(a) && IS_INTEGER(b))) a = BOOLEAN_VAL(AS_INTEGER(a) operator AS_INTEGER(b)); \
-	else a = krk_operator_ ## op (a,b); \
+	else a = krk_operator_ ## op ## _r(_thread, a,b); \
 	krk_currentThread.stackTop[-2] = a; krk_pop(); break; }
 
 #define LIKELY_INT_UNARY_OP(op,operator) { KrkValue a = krk_peek(0); \
 	if (likely(IS_INTEGER(a))) a = INTEGER_VAL(operator AS_INTEGER(a)); \
-	else a = krk_operator_ ## op (a); \
+	else a = krk_operator_ ## op ## _r(_thread, a); \
 	krk_currentThread.stackTop[-1] = a; break; }
 
 #define READ_BYTE() (*frame->ip++)
@@ -2060,7 +2020,7 @@ extern FUNC_SIG(list,append);
 extern FUNC_SIG(dict,__setitem__);
 extern FUNC_SIG(set,add);
 
-static inline void makeCollection(NativeFn func, size_t count) {
+static inline void makeCollection(KrkThreadState * _thread, NativeFn func, size_t count) {
 	KrkValue collection = krk_callNativeOnStack(count, &krk_currentThread.stackTop[-count], 0, func);
 	if (count) {
 		krk_currentThread.stackTop[-count] = collection;
@@ -2073,7 +2033,7 @@ static inline void makeCollection(NativeFn func, size_t count) {
 	}
 }
 
-static inline int doFormatString(int options) {
+static inline int doFormatString(KrkThreadState * _thread, int options) {
 	if (options & FORMAT_OP_FORMAT) {
 		krk_swap(1);
 		if (options & FORMAT_OP_EQ) {
@@ -2133,7 +2093,7 @@ static inline int doFormatString(int options) {
 	return 0;
 }
 
-static inline void commonMethodInvoke(size_t methodOffset, int args, const char * msgFormat) {
+static inline void commonMethodInvoke(KrkThreadState * _thread, size_t methodOffset, int args, const char * msgFormat) {
 	KrkClass * type = krk_getType(krk_peek(args-1));
 	KrkObj * method = *(KrkObj**)((char*)type + methodOffset);
 	if (likely(method != NULL)) {
@@ -2147,7 +2107,7 @@ static inline void commonMethodInvoke(size_t methodOffset, int args, const char 
 /**
  * VM main loop.
  */
-static KrkValue run() {
+static KrkValue run(KrkThreadState * _thread) {
 	KrkCallFrame* frame = &krk_currentThread.frames[krk_currentThread.frameCount - 1];
 
 	while (1) {
@@ -2232,7 +2192,7 @@ _resumeHook: (void)0;
 			case OP_RETURN: {
 _finishReturn: (void)0;
 				KrkValue result = krk_pop();
-				closeUpvalues(frame->slots);
+				closeUpvalues(_thread, frame->slots);
 				/* See if this frame had a thing */
 				int stackOffset;
 				for (stackOffset = (int)(krk_currentThread.stackTop - krk_currentThread.stack - 1);
@@ -2318,29 +2278,29 @@ _finishReturn: (void)0;
 				goto _finishException;
 			}
 			case OP_CLOSE_UPVALUE:
-				closeUpvalues((krk_currentThread.stackTop - krk_currentThread.stack)-1);
+				closeUpvalues(_thread, (krk_currentThread.stackTop - krk_currentThread.stack)-1);
 				krk_pop();
 				break;
 			case OP_INVOKE_GETTER: {
-				commonMethodInvoke(offsetof(KrkClass,_getter), 2, "'%T' object is not subscriptable");
+				commonMethodInvoke(_thread, offsetof(KrkClass,_getter), 2, "'%T' object is not subscriptable");
 				break;
 			}
 			case OP_INVOKE_SETTER: {
-				commonMethodInvoke(offsetof(KrkClass,_setter), 3, "'%T' object doesn't support item assignment");
+				commonMethodInvoke(_thread, offsetof(KrkClass,_setter), 3, "'%T' object doesn't support item assignment");
 				break;
 			}
 			case OP_INVOKE_DELETE: {
-				commonMethodInvoke(offsetof(KrkClass,_delitem), 2, "'%T' object doesn't support item deletion");
+				commonMethodInvoke(_thread, offsetof(KrkClass,_delitem), 2, "'%T' object doesn't support item deletion");
 				krk_pop(); /* unused result */
 				break;
 			}
 			case OP_INVOKE_ITER: {
-				commonMethodInvoke(offsetof(KrkClass,_iter), 1, "'%T' object is not iterable");
+				commonMethodInvoke(_thread, offsetof(KrkClass,_iter), 1, "'%T' object is not iterable");
 				break;
 			}
 			case OP_INVOKE_CONTAINS: {
 				krk_swap(1); /* operands are backwards */
-				commonMethodInvoke(offsetof(KrkClass,_contains), 2, "'%T' object can not be tested for membership");
+				commonMethodInvoke(_thread, offsetof(KrkClass,_contains), 2, "'%T' object can not be tested for membership");
 				break;
 			}
 			case OP_INVOKE_AWAIT: {
@@ -2352,7 +2312,7 @@ _finishReturn: (void)0;
 				/* Store special methods for quick access */
 				krk_finalizeClass(_class);
 				/* Call __set_name__? */
-				_callSetName(_class);
+				_callSetName(_thread, _class);
 				break;
 			}
 			case OP_INHERIT: {
@@ -2724,7 +2684,7 @@ _finishReturn: (void)0;
 						frame->ip += 2;
 					}
 					if (isLocal & 1) {
-						closure->upvalues[i] = captureUpvalue(frame->slots + index);
+						closure->upvalues[i] = captureUpvalue(_thread, frame->slots + index);
 					} else {
 						closure->upvalues[i] = frame->closure->upvalues[index];
 					}
@@ -2761,7 +2721,7 @@ _finishReturn: (void)0;
 			case OP_IMPORT_FROM: {
 				ONE_BYTE_OPERAND;
 				KrkString * name = READ_STRING(OPERAND);
-				if (unlikely(!valueGetProperty(name))) {
+				if (unlikely(!valueGetProperty(_thread, name))) {
 					/* Try to import... */
 					KrkValue moduleName;
 					if (!krk_tableGet(&AS_INSTANCE(krk_peek(0))->fields, vm.specialMethodNames[METHOD_NAME], &moduleName)) {
@@ -2786,7 +2746,7 @@ _finishReturn: (void)0;
 			case OP_GET_PROPERTY: {
 				ONE_BYTE_OPERAND;
 				KrkString * name = READ_STRING(OPERAND);
-				if (unlikely(!valueGetProperty(name))) {
+				if (unlikely(!valueGetProperty(_thread, name))) {
 					krk_runtimeError(vm.exceptions->attributeError, "'%T' object has no attribute '%S'", krk_peek(0), name);
 					goto _finishException;
 				}
@@ -2797,7 +2757,7 @@ _finishReturn: (void)0;
 			case OP_DEL_PROPERTY: {
 				ONE_BYTE_OPERAND;
 				KrkString * name = READ_STRING(OPERAND);
-				if (unlikely(!valueDelProperty(name))) {
+				if (unlikely(!valueDelProperty(_thread, name))) {
 					krk_runtimeError(vm.exceptions->attributeError, "'%T' object has no attribute '%S'", krk_peek(0), name);
 					goto _finishException;
 				}
@@ -2808,7 +2768,7 @@ _finishReturn: (void)0;
 			case OP_SET_PROPERTY: {
 				ONE_BYTE_OPERAND;
 				KrkString * name = READ_STRING(OPERAND);
-				if (unlikely(!valueSetProperty(name))) {
+				if (unlikely(!valueSetProperty(_thread, name))) {
 					krk_runtimeError(vm.exceptions->attributeError, "'%T' object has no attribute '%S'", krk_peek(1), name);
 					goto _finishException;
 				}
@@ -2867,7 +2827,7 @@ _finishReturn: (void)0;
 			case OP_GET_METHOD: {
 				ONE_BYTE_OPERAND;
 				KrkString * name = READ_STRING(OPERAND);
-				int result = valueGetMethod(name);
+				int result = valueGetMethod(_thread, name);
 				if (result == 2) {
 					krk_push(NONE_VAL());
 					krk_swap(2);
@@ -2897,7 +2857,7 @@ _finishReturn: (void)0;
 				THREE_BYTE_OPERAND;
 			case OP_CLOSE_MANY: {
 				ONE_BYTE_OPERAND;
-				closeUpvalues((krk_currentThread.stackTop - krk_currentThread.stack) - OPERAND);
+				closeUpvalues(_thread, (krk_currentThread.stackTop - krk_currentThread.stack) - OPERAND);
 				for (unsigned int i = 0; i < OPERAND; ++i) {
 					krk_pop();
 				}
@@ -2909,7 +2869,7 @@ _finishReturn: (void)0;
 			case OP_EXIT_LOOP: {
 				ONE_BYTE_OPERAND;
 _finishPopBlock:
-				closeUpvalues(frame->slots + OPERAND);
+				closeUpvalues(_thread, frame->slots + OPERAND);
 				int stackOffset;
 				for (stackOffset = (int)(krk_currentThread.stackTop - krk_currentThread.stack - 1);
 					stackOffset >= (int)(frame->slots + OPERAND) && 
@@ -2944,35 +2904,35 @@ _finishPopBlock:
 				THREE_BYTE_OPERAND;
 			case OP_TUPLE: {
 				ONE_BYTE_OPERAND;
-				makeCollection(krk_tuple_of, OPERAND);
+				makeCollection(_thread, krk_tuple_of_r, OPERAND);
 				break;
 			}
 			case OP_MAKE_LIST_LONG:
 				THREE_BYTE_OPERAND;
 			case OP_MAKE_LIST: {
 				ONE_BYTE_OPERAND;
-				makeCollection(krk_list_of, OPERAND);
+				makeCollection(_thread, krk_list_of_r, OPERAND);
 				break;
 			}
 			case OP_MAKE_DICT_LONG:
 				THREE_BYTE_OPERAND;
 			case OP_MAKE_DICT: {
 				ONE_BYTE_OPERAND;
-				makeCollection(krk_dict_of, OPERAND);
+				makeCollection(_thread, krk_dict_of_r, OPERAND);
 				break;
 			}
 			case OP_MAKE_SET_LONG:
 				THREE_BYTE_OPERAND;
 			case OP_MAKE_SET: {
 				ONE_BYTE_OPERAND;
-				makeCollection(krk_set_of, OPERAND);
+				makeCollection(_thread, krk_set_of_r, OPERAND);
 				break;
 			}
 			case OP_SLICE_LONG:
 				THREE_BYTE_OPERAND;
 			case OP_SLICE: {
 				ONE_BYTE_OPERAND;
-				makeCollection(krk_slice_of, OPERAND);
+				makeCollection(_thread, krk_slice_of_r, OPERAND);
 				break;
 			}
 			case OP_LIST_APPEND_LONG:
@@ -2980,7 +2940,7 @@ _finishPopBlock:
 			case OP_LIST_APPEND: {
 				ONE_BYTE_OPERAND;
 				KrkValue list = krk_currentThread.stack[frame->slots + OPERAND];
-				FUNC_NAME(list,append)(2,(KrkValue[]){list,krk_peek(0)},0);
+				FUNC_NAME(list,append)(_thread, 2,(KrkValue[]){list,krk_peek(0)},0);
 				krk_pop();
 				break;
 			}
@@ -2989,7 +2949,7 @@ _finishPopBlock:
 			case OP_DICT_SET: {
 				ONE_BYTE_OPERAND;
 				KrkValue dict = krk_currentThread.stack[frame->slots + OPERAND];
-				FUNC_NAME(dict,__setitem__)(3,(KrkValue[]){dict,krk_peek(1),krk_peek(0)},0);
+				FUNC_NAME(dict,__setitem__)(_thread, 3,(KrkValue[]){dict,krk_peek(1),krk_peek(0)},0);
 				krk_pop();
 				krk_pop();
 				break;
@@ -2999,7 +2959,7 @@ _finishPopBlock:
 			case OP_SET_ADD: {
 				ONE_BYTE_OPERAND;
 				KrkValue set = krk_currentThread.stack[frame->slots + OPERAND];
-				FUNC_NAME(set,add)(2,(KrkValue[]){set,krk_peek(0)},0);
+				FUNC_NAME(set,add)(_thread, 2,(KrkValue[]){set,krk_peek(0)},0);
 				krk_pop();
 				break;
 			}
@@ -3049,7 +3009,7 @@ _finishPopBlock:
 				THREE_BYTE_OPERAND;
 			case OP_FORMAT_VALUE: {
 				ONE_BYTE_OPERAND;
-				if (doFormatString(OPERAND)) goto _finishException;
+				if (doFormatString(_thread, OPERAND)) goto _finishException;
 				break;
 			}
 
@@ -3083,7 +3043,7 @@ _finishPopBlock:
 		}
 		if (unlikely(krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION)) {
 _finishException:
-			if (!handleException()) {
+			if (!handleException(_thread)) {
 				if (!IS_NONE(krk_currentThread.stackTop[-2])) {
 					krk_attachInnerException(krk_currentThread.stackTop[-2]);
 				}
@@ -3114,15 +3074,15 @@ _finishException:
  * can call a native method can call a managed can call a native
  * and so on (hopefully).
  */
-KrkValue krk_runNext(void) {
+KrkValue krk_runNext_r(KrkThreadState *_thread) {
 	size_t oldExit = krk_currentThread.exitOnFrame;
 	krk_currentThread.exitOnFrame = krk_currentThread.frameCount - 1;
-	KrkValue result = run();
+	KrkValue result = run(_thread);
 	krk_currentThread.exitOnFrame = oldExit;
 	return result;
 }
 
-KrkInstance * krk_startModule(const char * name) {
+KrkInstance * krk_startModule_r(KrkThreadState * _thread, const char * name) {
 	KrkInstance * module = krk_newInstance(vm.baseClasses->moduleClass);
 	krk_currentThread.module = module;
 	krk_attachNamedObject(&vm.modules, name, (KrkObj*)module);
@@ -3132,10 +3092,10 @@ KrkInstance * krk_startModule(const char * name) {
 	return module;
 }
 
-KrkValue krk_interpret(const char * src, char * fromFile) {
-	KrkCodeObject * function = krk_compile(src, fromFile);
+KrkValue krk_interpret(KrkThreadState * _thread, const char * src, char * fromFile) {
+	KrkCodeObject * function = krk_compile(_thread, src, fromFile);
 	if (!function) {
-		if (!krk_currentThread.frameCount) handleException();
+		if (!krk_currentThread.frameCount) handleException(_thread);
 		return NONE_VAL();
 	}
 
@@ -3149,7 +3109,7 @@ KrkValue krk_interpret(const char * src, char * fromFile) {
 }
 
 #ifndef KRK_NO_FILESYSTEM
-KrkValue krk_runfile(const char * fileName, char * fromFile) {
+KrkValue krk_runfile(KrkThreadState * _thread, const char * fileName, char * fromFile) {
 	FILE * f = fopen(fileName,"r");
 	if (!f) {
 		fprintf(stderr, "%s: could not open file '%s': %s\n", "kuroko", fileName, strerror(errno));
@@ -3168,7 +3128,7 @@ KrkValue krk_runfile(const char * fileName, char * fromFile) {
 	fclose(f);
 	buf[size] = '\0';
 
-	KrkValue result = krk_interpret(buf, fromFile);
+	KrkValue result = krk_interpret(_thread, buf, fromFile);
 	free(buf);
 
 	return result;

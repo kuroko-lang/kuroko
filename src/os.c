@@ -139,7 +139,7 @@ KRK_Method(Environ,__delitem__) {
 	return krk_callDirect(vm.baseClasses->dictClass->_delitem, 2);
 }
 
-static void _loadEnviron(KrkInstance * module) {
+static void _loadEnviron(KrkThreadState * _thread, KrkInstance * module) {
 	/* Create a new class to subclass `dict` */
 	KrkClass * Environ = krk_makeClass(module, &KRK_BASE_CLASS(Environ), "_Environ", vm.baseClasses->dictClass);
 	krk_attachNamedObject(&module->fields, "_Environ", (KrkObj*)Environ);
@@ -463,7 +463,7 @@ KRK_Function(get_terminal_size) {
 }
 #endif
 
-static int makeArgs(int count, const KrkValue * values, char *** argsOut, const char * _method_name) {
+static int makeArgs_r(KrkThreadState * _thread, int count, const KrkValue * values, char *** argsOut, const char * _method_name) {
 	char ** out = malloc(sizeof(char*)*(count+1));
 	for (int i = 0; i < count; ++i) {
 		if (!IS_STRING(values[i])) {
@@ -477,6 +477,7 @@ static int makeArgs(int count, const KrkValue * values, char *** argsOut, const 
 	*argsOut = out;
 	return 0;
 }
+#define makeArgs(c,v,a,m) makeArgs_r(_thread,c,v,a,m)
 
 KRK_Function(execl) {
 	FUNCTION_TAKES_AT_LEAST(1);
@@ -661,7 +662,7 @@ KRK_Function(S_ISSOCK) {
 }
 #endif
 
-void krk_module_init_os(void) {
+void krk_module_init_os(KrkThreadState * _thread) {
 	KrkInstance * module = krk_newInstance(vm.baseClasses->moduleClass);
 	krk_attachNamedObject(&vm.modules, "os", (KrkObj*)module);
 	krk_attachNamedObject(&module->fields, "__name__", (KrkObj*)S("os"));
@@ -881,7 +882,7 @@ void krk_module_init_os(void) {
 		"Obtain the size of the host terminal as a tuple of columns and lines.");
 #endif
 
-	_loadEnviron(module);
+	_loadEnviron(_thread, module);
 
 	/* Nothing special */
 	KrkClass * stat_result = krk_makeClass(module, &KRK_BASE_CLASS(stat_result), "stat_result", vm.baseClasses->objectClass);

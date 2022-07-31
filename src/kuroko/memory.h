@@ -27,7 +27,8 @@
  * @param new New size of the object.
  * @return New pointer for heap object.
  */
-extern void * krk_reallocate(void * ptr, size_t old, size_t new);
+extern void * krk_reallocate_r(struct KrkThreadState * _thread, void * ptr, size_t old, size_t new);
+#define krk_reallocate(p,o,n) krk_reallocate_r(_thread,p,o,n)
 
 /**
  * @brief Release all objects.
@@ -35,7 +36,8 @@ extern void * krk_reallocate(void * ptr, size_t old, size_t new);
  * Generally called automatically by krk_freeVM(); releases all of
  * the GC-tracked heap objects.
  */
-extern void krk_freeObjects(void);
+extern void krk_freeObjects_r(struct KrkThreadState * _thread);
+#define krk_freeObjects() krk_freeObjects_r(_thread)
 
 /**
  * @brief Run a cycle of the garbage collector.
@@ -46,7 +48,8 @@ extern void krk_freeObjects(void);
  *
  * @return The number of bytes released by this collection cycle.
  */
-extern size_t krk_collectGarbage(void);
+extern size_t krk_collectGarbage_r(struct KrkThreadState * _thread);
+#define krk_collectGarbage() krk_collectGarbage_r(_thread)
 
 /**
  * @brief During a GC scan cycle, mark a value as used.
@@ -57,7 +60,8 @@ extern size_t krk_collectGarbage(void);
  *
  * @param value The value to mark.
  */
-extern void krk_markValue(KrkValue value);
+extern void krk_markValue_r(struct KrkThreadState * _thread, KrkValue value);
+#define krk_markValue(v) krk_markValue_r(_thread,v)
 
 /**
  * @brief During a GC scan cycle, mark an object as used.
@@ -66,7 +70,8 @@ extern void krk_markValue(KrkValue value);
  *
  * @param object The object to mark.
  */
-extern void krk_markObject(KrkObj * object);
+extern void krk_markObject_r(struct KrkThreadState * _thread, KrkObj * object);
+#define krk_markObject(o) krk_markObject_r(_thread,o)
 
 /**
  * @brief During a GC scan cycle, mark the contents of a table as used.
@@ -76,7 +81,8 @@ extern void krk_markObject(KrkObj * object);
  *
  * @param table The table to mark.
  */
-extern void krk_markTable(KrkTable * table);
+extern void krk_markTable_r(struct KrkThreadState * _thread, KrkTable * table);
+#define krk_markTable(t) krk_markTable_r(_thread,t)
 
 /**
  * @brief Assume ownership of @p size bytes at @p ptr
@@ -89,4 +95,5 @@ extern void krk_markTable(KrkTable * table);
  * @param ptr Pointer to take ownership of
  * @param size Size of data at @p ptr
  */
-extern void krk_gcTakeBytes(const void * ptr, size_t size);
+extern void krk_gcTakeBytes_r(struct KrkThreadState * _thread, const void * ptr, size_t size);
+#define krk_gcTakeBytes(p,s) krk_gcTakeBytes_r(_thread,p,s)

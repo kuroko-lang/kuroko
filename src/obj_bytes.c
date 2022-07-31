@@ -193,7 +193,7 @@ struct _bytes_join_context {
 	int isFirst;
 };
 
-static int _bytes_join_callback(void * context, const KrkValue * values, size_t count) {
+static int _bytes_join_callback(KrkThreadState * _thread, void * context, const KrkValue * values, size_t count) {
 	struct _bytes_join_context * _context = context;
 
 	for (size_t i = 0; i < count; ++i) {
@@ -247,7 +247,7 @@ KRK_Method(bytes,__iter__) {
 	KrkInstance * output = krk_newInstance(vm.baseClasses->bytesiteratorClass);
 
 	krk_push(OBJECT_VAL(output));
-	FUNC_NAME(bytesiterator,__init__)(2, (KrkValue[]){krk_peek(0), argv[0]},0);
+	FUNC_NAME(bytesiterator,__init__)(_thread, 2, (KrkValue[]){krk_peek(0), argv[0]},0);
 	krk_pop();
 
 	return OBJECT_VAL(output);
@@ -265,7 +265,7 @@ struct BytesIterator {
 #define IS_bytesiterator(o) krk_isInstanceOf(o,vm.baseClasses->bytesiteratorClass)
 #define AS_bytesiterator(o) (struct BytesIterator*)AS_OBJECT(o)
 
-static void _bytesiterator_gcscan(KrkInstance * self) {
+static void _bytesiterator_gcscan(KrkThreadState * _thread, KrkInstance * self) {
 	krk_markValue(((struct BytesIterator*)self)->l);
 }
 
@@ -291,7 +291,7 @@ KRK_Method(bytesiterator,__call__) {
 #undef CURRENT_CTYPE
 #define CURRENT_CTYPE struct ByteArray *
 
-static void _bytearray_gcscan(KrkInstance * self) {
+static void _bytearray_gcscan(KrkThreadState * _thread, KrkInstance * self) {
 	krk_markValue(((struct ByteArray*)self)->actual);
 }
 
@@ -408,7 +408,7 @@ KRK_Method(bytearray,__iter__) {
 	KrkInstance * output = krk_newInstance(vm.baseClasses->bytesiteratorClass);
 
 	krk_push(OBJECT_VAL(output));
-	FUNC_NAME(bytesiterator,__init__)(2, (KrkValue[]){krk_peek(0), self->actual},0);
+	FUNC_NAME(bytesiterator,__init__)(_thread, 2, (KrkValue[]){krk_peek(0), self->actual},0);
 	krk_pop();
 
 	return OBJECT_VAL(output);
@@ -416,7 +416,7 @@ KRK_Method(bytearray,__iter__) {
 
 
 _noexport
-void _createAndBind_bytesClass(void) {
+void _createAndBind_bytesClass(KrkThreadState * _thread) {
 	KrkClass * bytes = ADD_BASE_CLASS(vm.baseClasses->bytesClass, "bytes", vm.baseClasses->objectClass);
 	bytes->obj.flags |= KRK_OBJ_FLAGS_NO_INHERIT;
 	KRK_DOC(BIND_METHOD(bytes,__init__),

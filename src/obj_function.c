@@ -6,14 +6,14 @@
 #include <kuroko/debug.h>
 
 /* Check for and return the name of a native function as a string object */
-static KrkValue nativeFunctionName(KrkValue func) {
+static KrkValue nativeFunctionName(KrkThreadState * _thread, KrkValue func) {
 	const char * string = ((KrkNative*)AS_OBJECT(func))->name;
 	if (!string) return OBJECT_VAL(S("<unnamed>"));
 	size_t len = strlen(string);
 	return OBJECT_VAL(krk_copyString(string,len));
 }
 
-static KrkTuple * functionArgs(KrkCodeObject * _self) {
+static KrkTuple * functionArgs(KrkThreadState * _thread, KrkCodeObject * _self) {
 	KrkTuple * tuple = krk_newTuple(_self->requiredArgs + _self->keywordArgs + !!(_self->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_ARGS) + !!(_self->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_KWS));
 	krk_push(OBJECT_VAL(tuple));
 
@@ -109,7 +109,7 @@ KRK_Method(function,__name__) {
 	ATTRIBUTE_NOT_ASSIGNABLE();
 
 	if (IS_NATIVE(self)) {
-		return nativeFunctionName(self);
+		return nativeFunctionName(_thread, self);
 	} else if (IS_CLOSURE(self) && AS_CLOSURE(self)->function->name) {
 		return OBJECT_VAL(AS_CLOSURE(self)->function->name);
 	}
@@ -155,9 +155,9 @@ KRK_Method(function,__str__) {
 	pushStringBuilderStr(&sb, "<function ", 10);
 
 	/* Do we have a qualified name? */
-	KrkValue name = FUNC_NAME(function,__qualname__)(1,&self,0);
+	KrkValue name = FUNC_NAME(function,__qualname__)(_thread, 1,&self,0);
 	if (IS_NONE(name)) {
-		name = FUNC_NAME(function,__name__)(1,&self,0);
+		name = FUNC_NAME(function,__name__)(_thread, 1,&self,0);
 	}
 
 	if (!IS_STRING(name)) name = OBJECT_VAL(S("<unnamed>"));
@@ -188,7 +188,7 @@ KRK_Method(function,__file__) {
 KRK_Method(function,__args__) {
 	ATTRIBUTE_NOT_ASSIGNABLE();
 	if (!IS_CLOSURE(self)) return OBJECT_VAL(krk_newTuple(0));
-	KrkTuple * tuple = functionArgs(AS_CLOSURE(self)->function);
+	KrkTuple * tuple = functionArgs(_thread, AS_CLOSURE(self)->function);
 	return OBJECT_VAL(tuple);
 }
 
@@ -218,7 +218,7 @@ KRK_Method(codeobject,__name__) {
 
 KRK_Method(codeobject,__str__) {
 	METHOD_TAKES_NONE();
-	KrkValue s = FUNC_NAME(codeobject,__name__)(1,argv,0);
+	KrkValue s = FUNC_NAME(codeobject,__name__)(_thread, 1,argv,0);
 	if (!IS_STRING(s)) return NONE_VAL();
 	krk_push(s);
 
@@ -290,7 +290,7 @@ KRK_Method(codeobject,co_flags) {
 
 KRK_Method(codeobject,__args__) {
 	ATTRIBUTE_NOT_ASSIGNABLE();
-	KrkTuple * tuple = functionArgs(self);
+	KrkTuple * tuple = functionArgs(_thread, self);
 	return OBJECT_VAL(tuple);
 }
 
@@ -309,23 +309,23 @@ FUNC_SIG(method,__init__) {
 
 KRK_Method(method,__name__) {
 	ATTRIBUTE_NOT_ASSIGNABLE();
-	return IS_function(OBJECT_VAL(self->method)) ? FUNC_NAME(function,__name__)(1,(KrkValue[]){OBJECT_VAL(self->method)},0) : OBJECT_VAL(S("?"));
+	return IS_function(OBJECT_VAL(self->method)) ? FUNC_NAME(function,__name__)(_thread, 1,(KrkValue[]){OBJECT_VAL(self->method)},0) : OBJECT_VAL(S("?"));
 }
 
 KRK_Method(method,__qualname__) {
 	ATTRIBUTE_NOT_ASSIGNABLE();
-	return IS_function(OBJECT_VAL(self->method)) ? FUNC_NAME(function,__qualname__)(1,(KrkValue[]){OBJECT_VAL(self->method)},0) : OBJECT_VAL(S("?"));
+	return IS_function(OBJECT_VAL(self->method)) ? FUNC_NAME(function,__qualname__)(_thread, 1,(KrkValue[]){OBJECT_VAL(self->method)},0) : OBJECT_VAL(S("?"));
 }
 
 KRK_Method(method,_ip_to_line) {
 	METHOD_TAKES_EXACTLY(1);
-	return IS_function(OBJECT_VAL(self->method)) ? FUNC_NAME(function,_ip_to_line)(2,(KrkValue[]){OBJECT_VAL(self->method),argv[1]},0) : OBJECT_VAL(S("?"));
+	return IS_function(OBJECT_VAL(self->method)) ? FUNC_NAME(function,_ip_to_line)(_thread, 2,(KrkValue[]){OBJECT_VAL(self->method),argv[1]},0) : OBJECT_VAL(S("?"));
 }
 
 KRK_Method(method,__str__) {
 	METHOD_TAKES_NONE();
-	KrkValue s = FUNC_NAME(method,__qualname__)(1,argv,0);
-	if (!IS_STRING(s)) s = FUNC_NAME(method,__name__)(1,argv,0);
+	KrkValue s = FUNC_NAME(method,__qualname__)(_thread, 1,argv,0);
+	if (!IS_STRING(s)) s = FUNC_NAME(method,__name__)(_thread, 1,argv,0);
 	if (!IS_STRING(s)) return NONE_VAL();
 	krk_push(s);
 
@@ -344,27 +344,27 @@ KRK_Method(method,__str__) {
 
 KRK_Method(method,__file__) {
 	ATTRIBUTE_NOT_ASSIGNABLE();
-	return IS_function(OBJECT_VAL(self->method)) ? FUNC_NAME(function,__file__)(1,(KrkValue[]){OBJECT_VAL(self->method)},0) : OBJECT_VAL(S("?"));
+	return IS_function(OBJECT_VAL(self->method)) ? FUNC_NAME(function,__file__)(_thread, 1,(KrkValue[]){OBJECT_VAL(self->method)},0) : OBJECT_VAL(S("?"));
 }
 
 KRK_Method(method,__args__) {
 	ATTRIBUTE_NOT_ASSIGNABLE();
-	return IS_function(OBJECT_VAL(self->method)) ? FUNC_NAME(function,__args__)(1,(KrkValue[]){OBJECT_VAL(self->method)},0) : OBJECT_VAL(S("?"));
+	return IS_function(OBJECT_VAL(self->method)) ? FUNC_NAME(function,__args__)(_thread, 1,(KrkValue[]){OBJECT_VAL(self->method)},0) : OBJECT_VAL(S("?"));
 }
 
 KRK_Method(method,__doc__) {
 	ATTRIBUTE_NOT_ASSIGNABLE();
-	return IS_function(OBJECT_VAL(self->method)) ? FUNC_NAME(function,__doc__)(1,(KrkValue[]){OBJECT_VAL(self->method)},0) : OBJECT_VAL(S("?"));
+	return IS_function(OBJECT_VAL(self->method)) ? FUNC_NAME(function,__doc__)(_thread, 1,(KrkValue[]){OBJECT_VAL(self->method)},0) : OBJECT_VAL(S("?"));
 }
 
 KRK_Method(method,__annotations__) {
 	ATTRIBUTE_NOT_ASSIGNABLE();
-	return IS_function(OBJECT_VAL(self->method)) ? FUNC_NAME(function,__annotations__)(1,(KrkValue[]){OBJECT_VAL(self->method)},0) : OBJECT_VAL(S("?"));
+	return IS_function(OBJECT_VAL(self->method)) ? FUNC_NAME(function,__annotations__)(_thread, 1,(KrkValue[]){OBJECT_VAL(self->method)},0) : OBJECT_VAL(S("?"));
 }
 
 KRK_Method(method,__code__) {
 	ATTRIBUTE_NOT_ASSIGNABLE();
-	return IS_function(OBJECT_VAL(self->method)) ? FUNC_NAME(function,__code__)(1,(KrkValue[]){OBJECT_VAL(self->method)},0) : OBJECT_VAL(S("?"));
+	return IS_function(OBJECT_VAL(self->method)) ? FUNC_NAME(function,__code__)(_thread, 1,(KrkValue[]){OBJECT_VAL(self->method)},0) : OBJECT_VAL(S("?"));
 }
 
 KRK_Method(method,__func__) {
@@ -394,7 +394,7 @@ KRK_Function(classmethod) {
 }
 
 _noexport
-void _createAndBind_functionClass(void) {
+void _createAndBind_functionClass(KrkThreadState * _thread) {
 	KrkClass * codeobject = ADD_BASE_CLASS(vm.baseClasses->codeobjectClass, "codeobject", vm.baseClasses->objectClass);
 	codeobject->obj.flags |= KRK_OBJ_FLAGS_NO_INHERIT;
 	BIND_METHOD(codeobject,__init__);

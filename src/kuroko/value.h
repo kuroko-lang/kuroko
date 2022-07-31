@@ -23,6 +23,8 @@ typedef enum {
 	KRK_VAL_NOTIMPL  = 0x7FFE,
 } KrkValueType;
 
+struct KrkThreadState;
+
 /*
  * The following poorly-named macros define bit patterns for identifying
  * various boxed types.
@@ -83,7 +85,8 @@ typedef struct {
  *
  * @param array Value array to initialize.
  */
-extern void krk_initValueArray(KrkValueArray * array);
+extern void krk_initValueArray_r(struct KrkThreadState * _thread, KrkValueArray * array);
+#define krk_initValueArray(a) krk_initValueArray_r(_thread,a)
 
 /**
  * @brief Add a value to a value array.
@@ -95,7 +98,8 @@ extern void krk_initValueArray(KrkValueArray * array);
  * @param array Array to append to.
  * @param value Value to append to array.
  */
-extern void krk_writeValueArray(KrkValueArray * array, KrkValue value);
+extern void krk_writeValueArray_r(struct KrkThreadState * _thread, KrkValueArray * array, KrkValue value);
+#define krk_writeValueArray(a,v) krk_writeValueArray_r(_thread,a,v)
 
 /**
  * @brief Release relesources used by a value array.
@@ -108,7 +112,8 @@ extern void krk_writeValueArray(KrkValueArray * array, KrkValue value);
  *
  * @param array Array to release.
  */
-extern void krk_freeValueArray(KrkValueArray * array);
+extern void krk_freeValueArray_r(struct KrkThreadState * _thread, KrkValueArray * array);
+#define krk_freeValueArray(a) krk_freeValueArray_r(_thread,a)
 
 /**
  * @brief Print a string representation of a value.
@@ -126,7 +131,8 @@ extern void krk_freeValueArray(KrkValueArray * array);
  * @param f     Stream to write to.
  * @param value Value to display.
  */
-extern void krk_printValue(FILE * f, KrkValue value);
+extern void krk_printValue_r(struct KrkThreadState * _thread, FILE * f, KrkValue value);
+#define krk_printValue(f,v) krk_printValue_r(_thread,f,v)
 
 /**
  * @brief Print a value without calling the VM.
@@ -144,7 +150,8 @@ extern void krk_printValue(FILE * f, KrkValue value);
  * @param f     Stream to write to.
  * @param value Value to display.
  */
-extern void krk_printValueSafe(FILE * f, KrkValue value);
+extern void krk_printValueSafe_r(struct KrkThreadState * _thread, FILE * f, KrkValue value);
+#define krk_printValueSafe(f,v) krk_printValueSafe_r(_thread,f,v)
 
 /**
  * @brief Compare two values for equality.
@@ -156,7 +163,8 @@ extern void krk_printValueSafe(FILE * f, KrkValue value);
  *
  * @return 1 if values are equivalent, 0 otherwise.
  */
-extern int krk_valuesEqual(KrkValue a, KrkValue b);
+extern int krk_valuesEqual_r(struct KrkThreadState * _thread, KrkValue a, KrkValue b);
+#define krk_valuesEqual(a,b) krk_valuesEqual_r(_thread,a,b)
 
 /**
  * @brief Compare two values by identity.
@@ -169,7 +177,8 @@ extern int krk_valuesEqual(KrkValue a, KrkValue b);
  *
  * @return 1 if values represent the same object or value, 0 otherwise.
  */
-extern int krk_valuesSame(KrkValue a, KrkValue b);
+extern int krk_valuesSame_r(struct KrkThreadState * _thread, KrkValue a, KrkValue b);
+#define krk_valuesSame(a,b) krk_valuesSame_r(_thread,a,b)
 
 /**
  * @brief Compare two values by identity, then by equality.
@@ -179,9 +188,11 @@ extern int krk_valuesSame(KrkValue a, KrkValue b);
  *
  * @return 1 if values represent the same object or value, 0 otherwise.
  */
-extern int krk_valuesSameOrEqual(KrkValue a, KrkValue b);
+extern int krk_valuesSameOrEqual_r(struct KrkThreadState * _thread, KrkValue a, KrkValue b);
+#define krk_valuesSameOrEqual(a,b) krk_valuesSameOrEqual_r(_thread,a,b)
 
-extern KrkValue krk_parse_int(const char * start, size_t width, unsigned int base);
+extern KrkValue krk_parse_int_r(struct KrkThreadState * _thread, const char * start, size_t width, unsigned int base);
+#define krk_parse_int(s,w,b) krk_parse_int_r(_thread,s,w,b)
 
 typedef union {
 	KrkValue val;

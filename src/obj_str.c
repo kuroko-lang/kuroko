@@ -6,7 +6,7 @@
 
 #include "private.h"
 
-static KrkValue FUNC_NAME(striterator,__init__)(int,const KrkValue[],int);
+static KrkValue FUNC_NAME(striterator,__init__)(KrkThreadState*,int,const KrkValue[],int);
 
 #define CURRENT_CTYPE KrkString *
 #define CURRENT_NAME  self
@@ -169,14 +169,14 @@ KRK_Method(str,__getitem__) {
 	}
 }
 
-const char * krk_parseCommonFormatSpec(struct ParsedFormatSpec *result, const char * spec, size_t length);
+const char * krk_parseCommonFormatSpec(KrkThreadState * _thread, struct ParsedFormatSpec *result, const char * spec, size_t length);
 
 KRK_Method(str,__format__) {
 	METHOD_TAKES_EXACTLY(1);
 	CHECK_ARG(1,str,KrkString*,format_spec);
 
 	struct ParsedFormatSpec opts = {0};
-	const char * spec = krk_parseCommonFormatSpec(&opts, format_spec->chars, format_spec->length);
+	const char * spec = krk_parseCommonFormatSpec(_thread, &opts, format_spec->chars, format_spec->length);
 	if (!spec) return NONE_VAL();
 
 	switch (*spec) {
@@ -408,7 +408,7 @@ KRK_Method(str,__mul__) {
 
 KRK_Method(str,__rmul__) {
 	METHOD_TAKES_EXACTLY(1);
-	if (IS_INTEGER(argv[1])) return FUNC_NAME(str,__mul__)(argc,argv,hasKw);
+	if (IS_INTEGER(argv[1])) return FUNC_NAME(str,__mul__)(_thread, argc,argv,hasKw);
 	return NOTIMPL_VAL();
 }
 
@@ -418,7 +418,7 @@ struct _str_join_context {
 	int isFirst;
 };
 
-static int _str_join_callback(void * context, const KrkValue * values, size_t count) {
+static int _str_join_callback(KrkThreadState * _thread, void * context, const KrkValue * values, size_t count) {
 	struct _str_join_context * _context = context;
 
 	for (size_t i = 0; i < count; ++i) {
@@ -490,7 +490,7 @@ static int charIn(uint32_t c, KrkString * str) {
  * Implements all three of strip, lstrip, rstrip.
  * Set which = 0, 1, 2 respectively
  */
-static KrkValue _string_strip_shared(int argc, const KrkValue argv[], int which) {
+static KrkValue _string_strip_shared(KrkThreadState *_thread, int argc, const KrkValue argv[], int which) {
 	KrkString * subset = AS_STRING(vm.specialMethodNames[METHOD_STRSTRIP]);
 	if (argc > 1) {
 		if (IS_STRING(argv[1])) {
@@ -519,15 +519,15 @@ static KrkValue _string_strip_shared(int argc, const KrkValue argv[], int which)
 
 KRK_Method(str,strip) {
 	METHOD_TAKES_AT_MOST(1); /* TODO */
-	return _string_strip_shared(argc,argv,0);
+	return _string_strip_shared(_thread, argc,argv,0);
 }
 KRK_Method(str,lstrip) {
 	METHOD_TAKES_AT_MOST(1); /* TODO */
-	return _string_strip_shared(argc,argv,1);
+	return _string_strip_shared(_thread, argc,argv,1);
 }
 KRK_Method(str,rstrip) {
 	METHOD_TAKES_AT_MOST(1); /* TODO */
-	return _string_strip_shared(argc,argv,2);
+	return _string_strip_shared(_thread, argc,argv,2);
 }
 
 #define strCompare(name,lop,iop,rop) \
@@ -831,7 +831,7 @@ KRK_Method(str,find) {
 }
 
 KRK_Method(str,index) {
-	KrkValue result = FUNC_NAME(str,find)(argc,argv,hasKw);
+	KrkValue result = FUNC_NAME(str,find)(_thread, argc,argv,hasKw);
 	if (IS_INTEGER(result) && AS_INTEGER(result) == -1) {
 		return krk_runtimeError(vm.exceptions->valueError, "substring not found");
 	}
@@ -924,8 +924,8 @@ KRK_Method(str,__str__) {
 	return argv[0];
 }
 
-void krk_addObjects(void) {
-	KrkValue tmp = FUNC_NAME(str,__add__)(2, (KrkValue[]){krk_peek(1), krk_peek(0)},0);
+void krk_addObjects_r(KrkThreadState * _thread) {
+	KrkValue tmp = FUNC_NAME(str,__add__)(_thread, 2, (KrkValue[]){krk_peek(1), krk_peek(0)},0);
 	krk_pop(); krk_pop();
 	krk_push(tmp);
 }
@@ -935,7 +935,7 @@ KRK_Method(str,__iter__) {
 	KrkInstance * output = krk_newInstance(vm.baseClasses->striteratorClass);
 
 	krk_push(OBJECT_VAL(output));
-	FUNC_NAME(striterator,__init__)(2, (KrkValue[]){krk_peek(0), argv[0]},0);
+	FUNC_NAME(striterator,__init__)(_thread, 2, (KrkValue[]){krk_peek(0), argv[0]},0);
 	krk_pop();
 
 	return OBJECT_VAL(output);
@@ -1057,14 +1057,14 @@ KRK_Method(striterator,__call__) {
 		return argv[0];
 	} else {
 		krk_attachNamedValue(&self->fields, "i", INTEGER_VAL(AS_INTEGER(_counter)+1));
-		return FUNC_NAME(str,__getitem__)(2,(KrkValue[]){_str,_counter},3);
+		return FUNC_NAME(str,__getitem__)(_thread, 2,(KrkValue[]){_str,_counter},3);
 	}
 _corrupt:
 	return krk_runtimeError(vm.exceptions->typeError, "Corrupt str iterator: %s", errorStr);
 }
 
 _noexport
-void _createAndBind_strClass(void) {
+void _createAndBind_strClass(KrkThreadState * _thread) {
 	KrkClass * str = ADD_BASE_CLASS(vm.baseClasses->strClass, "str", vm.baseClasses->objectClass);
 	str->obj.flags |= KRK_OBJ_FLAGS_NO_INHERIT;
 	BIND_METHOD(str,__init__);

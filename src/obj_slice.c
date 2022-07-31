@@ -5,13 +5,13 @@
 #include <kuroko/memory.h>
 #include <kuroko/util.h>
 
-static void _slice_gcscan(KrkInstance * self) {
+static void _slice_gcscan(KrkThreadState * _thread, KrkInstance * self) {
 	krk_markValue(((struct KrkSlice*)self)->start);
 	krk_markValue(((struct KrkSlice*)self)->end);
 	krk_markValue(((struct KrkSlice*)self)->step);
 }
 
-KrkValue krk_slice_of(int argc, const KrkValue argv[], int hasKw) {
+KrkValue krk_slice_of_r(KrkThreadState * _thread, int argc, const KrkValue argv[], int hasKw) {
 	KrkValue outSlice = OBJECT_VAL(krk_newInstance(vm.baseClasses->sliceClass));
 	krk_push(outSlice);
 
@@ -36,7 +36,7 @@ static inline krk_integer_type _wrapn(krk_integer_type count, krk_integer_type v
 	return val;
 }
 
-int krk_extractSlicer(const char * _method_name, KrkValue slicerVal, krk_integer_type count, krk_integer_type *start, krk_integer_type *end, krk_integer_type *step) {
+int krk_extractSlicer(KrkThreadState * _thread, const char * _method_name, KrkValue slicerVal, krk_integer_type count, krk_integer_type *start, krk_integer_type *end, krk_integer_type *step) {
 	if (!(IS_slice(slicerVal))) {
 		TYPE_ERROR(slice, slicerVal);
 		return 1;
@@ -166,7 +166,7 @@ KRK_Method(slice,step) {
 }
 
 _noexport
-void _createAndBind_sliceClass(void) {
+void _createAndBind_sliceClass(KrkThreadState * _thread) {
 	KrkClass * slice = ADD_BASE_CLASS(vm.baseClasses->sliceClass, "slice", vm.baseClasses->objectClass);
 	slice->allocSize = sizeof(struct KrkSlice);
 	slice->_ongcscan = _slice_gcscan;

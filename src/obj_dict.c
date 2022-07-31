@@ -8,7 +8,7 @@
  * Exposed method called to produce dictionaries from `{expr: expr, ...}` sequences in managed code.
  * Expects arguments as `key,value,key,value`...
  */
-KrkValue krk_dict_of(int argc, const KrkValue argv[], int hasKw) {
+KrkValue krk_dict_of_r(KrkThreadState * _thread, int argc, const KrkValue argv[], int hasKw) {
 	if (argc % 2 != 0) return krk_runtimeError(vm.exceptions->argumentError, "Expected even number of arguments to krk_dict_of");
 	KrkInstance * outDict = krk_newInstance(vm.baseClasses->dictClass);
 	krk_push(OBJECT_VAL(outDict));
@@ -20,11 +20,11 @@ KrkValue krk_dict_of(int argc, const KrkValue argv[], int hasKw) {
 	return krk_pop();
 }
 
-static void _dict_gcscan(KrkInstance * self) {
+static void _dict_gcscan(KrkThreadState * _thread, KrkInstance * self) {
 	krk_markTable(&((KrkDict*)self)->entries);
 }
 
-static void _dict_gcsweep(KrkInstance * self) {
+static void _dict_gcsweep(KrkThreadState * _thread, KrkInstance * self) {
 	krk_freeTable(&((KrkDict*)self)->entries);
 }
 
@@ -37,7 +37,7 @@ struct _keyvalue_pair_context {
 	int counter;
 };
 
-static int _keyvalue_pair_callback(void * context, const KrkValue * entries, size_t count) {
+static int _keyvalue_pair_callback(KrkThreadState * _thread, void * context, const KrkValue * entries, size_t count) {
 	struct _keyvalue_pair_context * _context = context;
 
 	if (count > 2) {
@@ -62,7 +62,7 @@ static int _keyvalue_pair_callback(void * context, const KrkValue * entries, siz
 	return 0;
 }
 
-static int unpackKeyValuePair(void * self, const KrkValue * pairs, size_t count) {
+static int unpackKeyValuePair(KrkThreadState * _thread, void * self, const KrkValue * pairs, size_t count) {
 	struct _keyvalue_pair_context context = { (KrkDict*)self, NONE_VAL(), 0 };
 
 	for (size_t i = 0; i < count; ++i) {
@@ -267,7 +267,7 @@ KRK_Method(dict,keys) {
 	METHOD_TAKES_NONE();
 	KrkInstance * output = krk_newInstance(vm.baseClasses->dictkeysClass);
 	krk_push(OBJECT_VAL(output));
-	FUNC_NAME(dictkeys,__init__)(2, (KrkValue[]){krk_peek(0), argv[0]},0);
+	FUNC_NAME(dictkeys,__init__)(_thread, 2, (KrkValue[]){krk_peek(0), argv[0]},0);
 	krk_pop();
 	return OBJECT_VAL(output);
 }
@@ -278,7 +278,7 @@ KRK_Method(dict,items) {
 	METHOD_TAKES_NONE();
 	KrkInstance * output = krk_newInstance(vm.baseClasses->dictitemsClass);
 	krk_push(OBJECT_VAL(output));
-	FUNC_NAME(dictitems,__init__)(2, (KrkValue[]){krk_peek(0), argv[0]},0);
+	FUNC_NAME(dictitems,__init__)(_thread, 2, (KrkValue[]){krk_peek(0), argv[0]},0);
 	krk_pop();
 	return OBJECT_VAL(output);
 }
@@ -289,12 +289,12 @@ KRK_Method(dict,values) {
 	METHOD_TAKES_NONE();
 	KrkInstance * output = krk_newInstance(vm.baseClasses->dictvaluesClass);
 	krk_push(OBJECT_VAL(output));
-	FUNC_NAME(dictvalues,__init__)(2, (KrkValue[]){krk_peek(0), argv[0]},0);
+	FUNC_NAME(dictvalues,__init__)(_thread, 2, (KrkValue[]){krk_peek(0), argv[0]},0);
 	krk_pop();
 	return OBJECT_VAL(output);
 }
 
-KrkValue krk_dict_nth_key_fast(size_t capacity, KrkTableEntry * entries, size_t index) {
+KrkValue krk_dict_nth_key_fast(KrkThreadState * _thread, size_t capacity, KrkTableEntry * entries, size_t index) {
 	size_t found = 0;
 	for (size_t i = 0; i < capacity; ++i) {
 		if (IS_KWARGS(entries[i].key)) continue;
@@ -307,7 +307,7 @@ KrkValue krk_dict_nth_key_fast(size_t capacity, KrkTableEntry * entries, size_t 
 #undef CURRENT_CTYPE
 #define CURRENT_CTYPE struct DictItems *
 
-static void _dictitems_gcscan(KrkInstance * self) {
+static void _dictitems_gcscan(KrkThreadState * _thread, KrkInstance * self) {
 	krk_markValue(((struct DictItems*)self)->dict);
 }
 
@@ -391,7 +391,7 @@ KRK_Method(dictitems,__repr__) {
 #undef CURRENT_CTYPE
 #define CURRENT_CTYPE struct DictKeys *
 
-static void _dictkeys_gcscan(KrkInstance * self) {
+static void _dictkeys_gcscan(KrkThreadState * _thread, KrkInstance * self) {
 	krk_markValue(((struct DictKeys*)self)->dict);
 }
 
@@ -457,7 +457,7 @@ KRK_Method(dictkeys,__repr__) {
 #undef CURRENT_CTYPE
 #define CURRENT_CTYPE struct DictValues *
 
-static void _dictvalues_gcscan(KrkInstance * self) {
+static void _dictvalues_gcscan(KrkThreadState * _thread, KrkInstance * self) {
 	krk_markValue(((struct DictValues*)self)->dict);
 }
 
@@ -521,7 +521,7 @@ KRK_Method(dictvalues,__repr__) {
 }
 
 _noexport
-void _createAndBind_dictClass(void) {
+void _createAndBind_dictClass(KrkThreadState * _thread) {
 	KrkClass * dict = ADD_BASE_CLASS(vm.baseClasses->dictClass, "dict", vm.baseClasses->objectClass);
 	dict->allocSize = sizeof(KrkDict);
 	dict->_ongcscan = _dict_gcscan;

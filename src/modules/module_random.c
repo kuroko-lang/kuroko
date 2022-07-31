@@ -58,7 +58,7 @@ KRK_Function(seed) {
 	return NONE_VAL();
 }
 
-KrkValue krk_module_onload_random(void) {
+KrkValue krk_module_onload_random(KrkThreadState * _thread) {
 	KrkInstance * module = krk_newInstance(vm.baseClasses->moduleClass);
 	krk_push(OBJECT_VAL(module));
 
@@ -67,7 +67,7 @@ KrkValue krk_module_onload_random(void) {
 	BIND_FUNC(module, random);
 	BIND_FUNC(module, seed);
 
-	FUNC_NAME(krk,seed)(0,NULL,0);
+	FUNC_NAME(krk,seed)(_thread, 0,NULL,0);
 
 	return krk_pop();
 }

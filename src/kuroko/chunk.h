@@ -50,37 +50,43 @@ typedef struct {
  * @brief Initialize an opcode chunk.
  * @memberof KrkChunk
  */
-extern void krk_initChunk(KrkChunk * chunk);
+extern void krk_initChunk_r(struct KrkThreadState * _thread, KrkChunk * chunk);
+#define krk_initChunk(c) krk_initChunk_r(_thread, c)
 
 /**
  * @memberof KrkChunk
  * @brief Append a byte to an opcode chunk.
  */
-extern void krk_writeChunk(KrkChunk * chunk, uint8_t byte, size_t line);
+extern void krk_writeChunk_r(struct KrkThreadState * _thread, KrkChunk * chunk, uint8_t byte, size_t line);
+#define krk_writeChunk(c,b,l) krk_writeChunk_r(_thread,c,b,l)
 
 /**
  * @brief Release the resources allocated to an opcode chunk.
  * @memberof KrkChunk
  */
-extern void krk_freeChunk(KrkChunk * chunk);
+extern void krk_freeChunk_r(struct KrkThreadState * _thread, KrkChunk * chunk);
+#define krk_freeChunk(c) krk_freeChunk_r(_thread,c)
 
 /**
  * @brief Add a new constant value to an opcode chunk.
  * @memberof KrkChunk
  */
-extern size_t krk_addConstant(KrkChunk * chunk, KrkValue value);
+extern size_t krk_addConstant_r(struct KrkThreadState * _thread, KrkChunk * chunk, KrkValue value);
+#define krk_addConstant(c,v) krk_addConstant_r(_thread,c,v)
 
 /**
  * @brief Write an OP_CONSTANT(_LONG) instruction.
  * @memberof KrkChunk
  */
-extern void krk_emitConstant(KrkChunk * chunk, size_t ind, size_t line);
+extern void krk_emitConstant_r(struct KrkThreadState * _thread, KrkChunk * chunk, size_t ind, size_t line);
+#define krk_emitConstant(c,i,l) krk_emitConstant_r(_thread,c,i,l)
 
 /**
  * @brief Add a new constant and write an instruction for it.
  * @memberof KrkChunk
  */
-extern size_t krk_writeConstant(KrkChunk * chunk, KrkValue value, size_t line);
+extern size_t krk_writeConstant_r(struct KrkThreadState * _thread, KrkChunk * chunk, KrkValue value, size_t line);
+#define krk_writeConstant(c,v,l) krk_writeConstant_r(_thread,c,v,l)
 
 /**
  * @brief Obtain the line number for a byte offset into a bytecode chunk.
@@ -94,4 +100,6 @@ extern size_t krk_writeConstant(KrkChunk * chunk, KrkValue value, size_t line);
  * @param offset Byte offset of the instruction to locate.
  * @return Line number, 1-indexed.
  */
-extern size_t krk_lineNumber(KrkChunk * chunk, size_t offset);
+extern size_t krk_lineNumber_r(struct KrkThreadState * _thread, KrkChunk * chunk, size_t offset);
+#define krk_lineNumber(c,o) krk_lineNumber_r(_thread,c,o)
+

@@ -32,7 +32,8 @@
  * @param func  Code object to disassemble.
  * @param name  Function name to display in disassembly output.
  */
-extern void krk_disassembleCodeObject(FILE * f, KrkCodeObject * func, const char * name);
+extern void krk_disassembleCodeObject_r(struct KrkThreadState * _thread, FILE * f, KrkCodeObject * func, const char * name);
+#define krk_disassembleCodeObject(f,fn,n) krk_disassembleCodeObject_r(_thread,f,fn,n)
 
 /**
  * @brief Print a disassembly of a single opcode instruction.
@@ -46,14 +47,16 @@ extern void krk_disassembleCodeObject(FILE * f, KrkCodeObject * func, const char
  * @param offset Byte offset of the instruction to disassemble.
  * @return The size of the instruction in bytes.
  */
-extern size_t krk_disassembleInstruction(FILE * f, KrkCodeObject * func, size_t offset);
+extern size_t krk_disassembleInstruction_r(struct KrkThreadState * _thread, FILE * f, KrkCodeObject * func, size_t offset);
+#define krk_disassembleInstruction(f,fn,o) krk_disassembleInstruction_r(_thread,f,fn,o)
 
 /**
  * @brief Called by the VM when a breakpoint is encountered.
  *
  * Internal method, should not generally be called.
  */
-extern int krk_debugBreakpointHandler(void);
+extern int krk_debugBreakpointHandler_r(struct KrkThreadState * _thread);
+#define krk_debugBreakpointHandler() krk_debugBreakpointHandler_r(_thread)
 
 /**
  * @brief Called by the VM on single step.
@@ -64,13 +67,14 @@ extern int krk_debugBreakpointHandler(void);
  *
  * Internal method, should not generally be called.
  */
-extern int krk_debuggerHook(KrkCallFrame * frame);
+extern int krk_debuggerHook_r(struct KrkThreadState * _thread, KrkCallFrame * frame);
+#define krk_debuggerHook(f) krk_debuggerHook_r(_thread,f)
 
 /**
  * @brief Function pointer for a debugger hook.
  * @ref krk_debug_registerCallback()
  */
-typedef int (*KrkDebugCallback)(KrkCallFrame *frame);
+typedef int (*KrkDebugCallback)(struct KrkThreadState * _thread, KrkCallFrame *frame);
 
 /**
  * @brief Register a debugger callback.
@@ -91,7 +95,8 @@ typedef int (*KrkDebugCallback)(KrkCallFrame *frame);
  *         already registered, in which case the new hook
  *         has not been registered.
  */
-extern int krk_debug_registerCallback(KrkDebugCallback hook);
+extern int krk_debug_registerCallback_r(struct KrkThreadState * _thread, KrkDebugCallback hook);
+#define krk_debug_registerCallback(h) krk_debug_registerCallback_r(_thread,h)
 
 /**
  * @brief Add a breakpoint to the given line of a file.
@@ -108,7 +113,8 @@ extern int krk_debug_registerCallback(KrkDebugCallback hook);
  * @param flags Allows configuring the disposition of the breakpoint.
  * @return A breakpoint identifier handle on success, or -1 on failure.
  */
-extern int krk_debug_addBreakpointFileLine(KrkString * filename, size_t line, int flags);
+extern int krk_debug_addBreakpointFileLine_r(struct KrkThreadState * _thread, KrkString * filename, size_t line, int flags);
+#define krk_debug_addBreakpointFileLine(f,l,fl) krk_debug_addBreakpointFileLine_r(_thread,f,l,fl)
 
 /**
  * @brief Add a breakpoint to the given code object.
@@ -126,7 +132,8 @@ extern int krk_debug_addBreakpointFileLine(KrkString * filename, size_t line, in
  * @param flags Allows configuring the disposition of the breakpoint.
  * @return A breakpoint identifier handle on success, or -1 on failure.
  */
-extern int krk_debug_addBreakpointCodeOffset(KrkCodeObject * codeObject, size_t offset, int flags);
+extern int krk_debug_addBreakpointCodeOffset_r(struct KrkThreadState * _thread, KrkCodeObject * codeObject, size_t offset, int flags);
+#define krk_debug_addBreakpointCodeOffset(c,o,f) krk_debug_addBreakpointCodeOffset_r(_thread,c,o,f)
 
 /**
  * @brief Remove a breakpoint from the breakpoint table.
@@ -138,7 +145,8 @@ extern int krk_debug_addBreakpointCodeOffset(KrkCodeObject * codeObject, size_t 
  * @param breakpointId The breakpoint to remove.
  * @return 0 on success, 1 if the breakpoint identifier is invalid.
  */
-extern int krk_debug_removeBreakpoint(int breakpointId);
+extern int krk_debug_removeBreakpoint_r(struct KrkThreadState * _thread, int breakpointId);
+#define krk_debug_removeBreakpoint(b) krk_debug_removeBreakpoint_r(_thread,b)
 
 /**
  * @brief Enable a breakpoint.
@@ -149,7 +157,8 @@ extern int krk_debug_removeBreakpoint(int breakpointId);
  * @param breakpointId The breakpoint to enable.
  * @return 0 on success, 1 if the breakpoint identifier is invalid.
  */
-extern int krk_debug_enableBreakpoint(int breakpointId);
+extern int krk_debug_enableBreakpoint_r(struct KrkThreadState * _thread, int breakpointId);
+#define krk_debug_enableBreakpoint(b) krk_debug_enableBreakpoint_r(_thread,b)
 
 /**
  * @brief Disable a breakpoint.
@@ -162,17 +171,21 @@ extern int krk_debug_enableBreakpoint(int breakpointId);
  * @param breakpointId The breakpoint to disable.
  * @return 0 on success, 1 if the breakpoint identifier is invalid.
  */
-extern int krk_debug_disableBreakpoint(int breakpointId);
+extern int krk_debug_disableBreakpoint_r(struct KrkThreadState * _thread, int breakpointId);
+#define krk_debug_disableBreakpoint(b) krk_debug_disableBreakpoint_r(_thread,b)
+
 
 /**
  * @brief Enable single stepping in the current thread.
  */
-extern void krk_debug_enableSingleStep(void);
+extern void krk_debug_enableSingleStep_r(struct KrkThreadState * _thread);
+#define krk_debug_enableSingleStep() krk_debug_enableSingleStep_r(_thread);
 
 /**
  * @brief Disable single stepping in the current thread.
  */
-extern void krk_debug_disableSingleStep(void);
+extern void krk_debug_disableSingleStep_r(struct KrkThreadState * _thread);
+#define krk_debug_disableSingleStep() krk_debug_disableSingleStep_r(_thread)
 
 /**
  * @brief Safely dump a traceback to stderr.
@@ -180,7 +193,8 @@ extern void krk_debug_disableSingleStep(void);
  * Wraps @ref krk_dumpTraceback() so it can be safely
  * called from a debugger.
  */
-extern void krk_debug_dumpTraceback(void);
+extern void krk_debug_dumpTraceback_r(struct KrkThreadState * _thread);
+#define krk_debug_dumpTraceback() krk_debug_dumpTraceback_r(_thread);
 
 /**
  * @brief Retreive information on a breakpoint.
@@ -195,7 +209,8 @@ extern void krk_debug_dumpTraceback(void);
  * @param enabledOut (Out) Whether the breakpoint is enabled or not.
  * @return 0 on success, -1 on out of range, -2 if the selected slot was removed.
  */
-extern int krk_debug_examineBreakpoint(int breakIndex, KrkCodeObject ** funcOut, size_t * offsetOut, int * flagsOut, int *enabledOut);
+extern int krk_debug_examineBreakpoint_r(struct KrkThreadState * _thread, int breakIndex, KrkCodeObject ** funcOut, size_t * offsetOut, int * flagsOut, int *enabledOut);
+#define krk_debug_examineBreakpoint(b,f,o,fl,e) krk_debug_examineBreakpoint_r(_thread,b,f,o,fl,e)
 
 /**
  * @brief Print the elements on the stack.
@@ -204,7 +219,8 @@ extern int krk_debug_examineBreakpoint(int breakIndex, KrkCodeObject ** funcOut,
  * highlighting @p frame as the activate call point and indicating
  * where its arguments start.
  */
-extern void krk_debug_dumpStack(FILE * f, KrkCallFrame * frame);
+extern void krk_debug_dumpStack_r(struct KrkThreadState * _thread, FILE * f, KrkCallFrame * frame);
+#define krk_debug_dumpStack(f,fr) krk_debug_dumpStack_r(_thread,f,fr)
 
 /**
  * @def KRK_BREAKPOINT_NORMAL
