@@ -229,8 +229,7 @@ deb: kuroko libkuroko.so
 		--license     "MIT" \
 		--category    "devel" \
 		-d            "libc6 (>= $(LIBCMIN))" \
-		--version     $(VERSION) \
-		--iteration   0 \
+		--version     $(shell ./kuroko tools/deb-ver.krk) \
 		--directories $(libdir)/kuroko
 	rm -r $(DESTDIR)
 

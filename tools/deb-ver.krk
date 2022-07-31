@@ -1,0 +1,26 @@
+'''
+Generates a version string suitable for a Debian package
+'''
+
+import kuroko
+import os
+
+let version = kuroko.hexversion
+
+# Extract version number components
+let major  = (version >> 24) & 0xFF
+let minor  = (version >> 16) & 0xFF
+let patch  = (version >> 8)  & 0xFF
+let level  = (version >> 4)  & 0xF
+let serial = version & 0xF
+
+# Map prerelease levels to strings
+let levels = {0xa: 'a', 0xb: 'b', 0xc: 'rc'}
+level = f'~{levels.get(level)}{serial}' if level in levels else ''
+
+# Figure out what the package revision number should be;
+# set this if you want something other than 1.
+let revision = os.environ.get('KRK_PACKAGE_REVISION','1')
+
+# Print a final version number
+print(f'{major}.{minor}.{patch}{level}-{revision}')
