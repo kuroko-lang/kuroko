@@ -7,7 +7,7 @@
 
 #define LIST_WRAP_INDEX() \
 	if (index < 0) index += self->values.count; \
-	if (unlikely(index < 0 || index >= (krk_integer_type)self->values.count)) return krk_runtimeError(vm.exceptions->indexError, "list index out of range: " PRIkrk_int, index)
+	if (unlikely(index < 0 || index >= (krk_integer_type)self->values.count)) return krk_runtimeError(vm.exceptions->indexError, "list index out of range: %zd", (ssize_t)index)
 
 #define LIST_WRAP_SOFT(val) \
 	if (val < 0) val += self->values.count; \

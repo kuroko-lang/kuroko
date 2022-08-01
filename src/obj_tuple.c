@@ -7,7 +7,7 @@
 
 #define TUPLE_WRAP_INDEX() \
 	if (index < 0) index += self->values.count; \
-	if (index < 0 || index >= (krk_integer_type)self->values.count) return krk_runtimeError(vm.exceptions->indexError, "tuple index out of range: " PRIkrk_int, index)
+	if (index < 0 || index >= (krk_integer_type)self->values.count) return krk_runtimeError(vm.exceptions->indexError, "tuple index out of range: %zd", (ssize_t)index)
 
 static int _tuple_init_callback(void * context, const KrkValue * values, size_t count) {
 	KrkValueArray * positionals = context;
