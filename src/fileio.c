@@ -262,18 +262,22 @@ KRK_Method(File,__exit__) {
 	return FUNC_NAME(File,close)(1,argv,0);
 }
 
-static void makeFileInstance(KrkInstance * module, const char name[], FILE * file) {
+static void makeFileInstance(KrkInstance * module, const char name[], FILE * file, const char mode[]) {
 	KrkInstance * fileObject = krk_newInstance(KRK_BASE_CLASS(File));
 	krk_push(OBJECT_VAL(fileObject));
 	KrkValue filename = OBJECT_VAL(krk_copyString(name,strlen(name)));
 	krk_push(filename);
+	KrkValue modestr = OBJECT_VAL(krk_copyString(mode,strlen(mode)));
+	krk_push(modestr);
 
 	krk_attachNamedValue(&fileObject->fields, "filename", filename);
+	krk_attachNamedValue(&fileObject->fields, "modestr", modestr);
 	((struct File*)fileObject)->filePtr = file;
 	((struct File*)fileObject)->unowned = 1;
 
 	krk_attachNamedObject(&module->fields, name, (KrkObj*)fileObject);
 
+	krk_pop(); /* modestr */
 	krk_pop(); /* filename */
 	krk_pop(); /* fileObject */
 }
@@ -558,9 +562,9 @@ void krk_module_init_fileio(void) {
 	krk_finalizeClass(Directory);
 
 	/* Make an instance for stdout, stderr, and stdin */
-	makeFileInstance(module, "stdin", stdin);
-	makeFileInstance(module, "stdout", stdout);
-	makeFileInstance(module, "stderr", stderr);
+	makeFileInstance(module, "stdin", stdin, "r");
+	makeFileInstance(module, "stdout", stdout, "w");
+	makeFileInstance(module, "stderr", stderr, "w");
 
 	/* Our base will be the open method */
 	KRK_DOC(BIND_FUNC(module,open), "@brief Open a file.\n"
