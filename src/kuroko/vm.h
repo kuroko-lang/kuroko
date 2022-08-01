@@ -239,6 +239,7 @@ typedef struct KrkVM {
 extern void krk_forceThreadData(void);
 #define krk_currentThread (*_macos_currentThread())
 #pragma clang diagnostic ignored "-Wlanguage-extension-token"
+__attribute__((always_inline))
 inline KrkThreadState * _macos_currentThread(void) {
 	extern const uint64_t tls_desc[] asm("_krk_currentThread");
 	const uintptr_t * threadptr; asm ("mrs %0, TPIDRRO_EL0" : "=r"(threadptr));
