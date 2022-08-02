@@ -13,11 +13,6 @@ static KrkValue FUNC_NAME(striterator,__init__)(int,const KrkValue[],int);
 
 #define AT_END() (self->length == 0 || i == self->length - 1)
 
-#define PUSH_CHAR(c) do { if (stringCapacity < stringLength + 1) { \
-		size_t old = stringCapacity; stringCapacity = GROW_CAPACITY(old); \
-		stringBytes = GROW_ARRAY(char, stringBytes, old, stringCapacity); \
-	} stringBytes[stringLength++] = c; } while (0)
-
 #define KRK_STRING_FAST(string,offset)  (uint32_t)\
 	((string->obj.flags & KRK_OBJ_FLAGS_STRING_MASK) <= (KRK_OBJ_FLAGS_STRING_UCS1) ? ((uint8_t*)string->codes)[offset] : \
 	((string->obj.flags & KRK_OBJ_FLAGS_STRING_MASK) == (KRK_OBJ_FLAGS_STRING_UCS2) ? ((uint16_t*)string->codes)[offset] : \
@@ -251,9 +246,7 @@ KRK_Method(str,format) {
 	}
 
 	/* Read through `self` until we find a field specifier. */
-	size_t stringCapacity = 0;
-	size_t stringLength   = 0;
-	char * stringBytes    = 0;
+	struct StringBuilder sb = {0};
 
 	int counterOffset = 0;
 	char * erroneousField = NULL;
@@ -265,7 +258,7 @@ KRK_Method(str,format) {
 	for (size_t i = 0; i < self->length; i++, c++) {
 		if (*c == '{') {
 			if (!AT_END() && c[1] == '{') {
-				PUSH_CHAR('{');
+				pushStringBuilder(&sb, '{');
 				i++; c++; /* Skip both */
 				continue;
 			} else {
@@ -339,14 +332,12 @@ KRK_Method(str,format) {
 					if (!IS_STRING(asString)) goto _freeAndDone;
 				}
 				krk_push(asString);
-				for (size_t i = 0; i < AS_STRING(asString)->length; ++i) {
-					PUSH_CHAR(AS_CSTRING(asString)[i]);
-				}
+				pushStringBuilderStr(&sb, AS_CSTRING(asString), AS_STRING(asString)->length);
 				krk_pop();
 			}
 		} else if (*c == '}') {
 			if (!AT_END() && c[1] == '}') {
-				PUSH_CHAR('}');
+				pushStringBuilder(&sb, '}');
 				i++; c++; /* Skip both */
 				continue;
 			} else {
@@ -354,14 +345,12 @@ KRK_Method(str,format) {
 				goto _formatError;
 			}
 		} else {
-			PUSH_CHAR(*c);
+			pushStringBuilder(&sb, *c);
 		}
 	}
 
-	KrkValue out = OBJECT_VAL(krk_copyString(stringBytes, stringLength));
 	free(workSpace);
-	FREE_ARRAY(char,stringBytes,stringCapacity);
-	return out;
+	return finishStringBuilder(&sb);
 
 _formatError:
 	krk_runtimeError(vm.exceptions->typeError, "Error parsing format string: %s", errorStr);
@@ -381,7 +370,7 @@ _formatKeyError:
 	goto _freeAndDone;
 
 _freeAndDone:
-	FREE_ARRAY(char,stringBytes,stringCapacity);
+	discardStringBuilder(&sb);
 	free(workSpace);
 	return NONE_VAL();
 }
@@ -456,7 +445,7 @@ KRK_Method(str,join) {
 
 static int isWhitespace(char c) {
 	return (c == ' ' || c == '\t' || c == '\n' || c == '\r');
-}\
+}
 
 static int substringMatch(const char * haystack, size_t haystackLen, const char * needle, size_t needleLength) {
 	if (haystackLen < needleLength) return 0;
@@ -658,17 +647,19 @@ _exception:
 
 /* str.split() */
 KRK_Method(str,split) {
+	const char * sep = NULL;
+	size_t sepLen = 0;
+	int maxsplit = -1;
+
 	METHOD_TAKES_AT_MOST(2);
 	if (argc > 1) {
-		if (!IS_STRING(argv[1])) {
-			return krk_runtimeError(vm.exceptions->typeError, "Expected separator to be a string");
-		} else if (AS_STRING(argv[1])->length == 0) {
-			return krk_runtimeError(vm.exceptions->valueError, "Empty separator");
-		}
-		if (argc > 2 && !IS_INTEGER(argv[2])) {
-			return krk_runtimeError(vm.exceptions->typeError, "Expected maxsplit to be an integer.");
-		} else if (argc > 2 && AS_INTEGER(argv[2]) == 0) {
-			return argv[0];
+		if (!IS_STRING(argv[1])) return krk_runtimeError(vm.exceptions->typeError, "Expected separator to be a string");
+		if (AS_STRING(argv[1])->length == 0) return krk_runtimeError(vm.exceptions->valueError, "Empty separator");
+		sep = AS_CSTRING(argv[1]);
+		sepLen = AS_STRING(argv[1])->length;
+		if (argc > 2) {
+			if (!IS_INTEGER(argv[2])) return krk_runtimeError(vm.exceptions->typeError, "Expected maxsplit to be an integer.");
+			maxsplit = AS_INTEGER(argv[2]);
 		}
 	}
 
@@ -677,73 +668,65 @@ KRK_Method(str,split) {
 
 	size_t i = 0;
 	char * c = self->chars;
-	size_t count = 0;
+	ssize_t count = 0;
 
-	if (argc < 2) {
+	if (!sep) {
 		while (i != self->length) {
 			while (i != self->length && isWhitespace(*c)) {
-				i++; c++;
+				i++;
+				c++;
 			}
-			if (i != self->length) {
-				size_t stringCapacity = 0;
-				size_t stringLength   = 0;
-				char * stringBytes    = NULL;
-				while (i != self->length && !isWhitespace(*c)) {
-					PUSH_CHAR(*c);
-					i++; c++;
-				}
-				KrkValue tmp = OBJECT_VAL(krk_copyString(stringBytes, stringLength));
-				FREE_ARRAY(char,stringBytes,stringCapacity);
-				krk_push(tmp);
-				krk_writeValueArray(AS_LIST(myList), tmp);
+			if (i == self->length) break;
+
+			if (count == maxsplit) {
+				krk_push(OBJECT_VAL(krk_copyString(&self->chars[i], self->length - i)));
+				krk_writeValueArray(AS_LIST(myList), krk_peek(0));
 				krk_pop();
+				break;
 			}
+
+			struct StringBuilder sb = {0};
+			while (i != self->length && !isWhitespace(*c)) {
+				pushStringBuilder(&sb, *c);
+				i++;
+				c++;
+			}
+			krk_push(finishStringBuilder(&sb));
+			krk_writeValueArray(AS_LIST(myList), krk_peek(0));
+			krk_pop();
+			count++;
 		}
 	} else {
+		/* Special case 0 */
+		if (maxsplit == 0) {
+			krk_writeValueArray(AS_LIST(myList), argv[0]);
+			return krk_pop();
+		}
+
 		while (i != self->length) {
-			size_t stringCapacity = 0;
-			size_t stringLength   = 0;
-			char * stringBytes    = NULL;
-			while (i != self->length && !substringMatch(c, self->length - i, AS_STRING(argv[1])->chars, AS_STRING(argv[1])->length)) {
-				PUSH_CHAR(*c);
-				i++; c++;
+			struct StringBuilder sb = {0};
+			while (i != self->length && !substringMatch(c, self->length - i, sep, sepLen)) {
+				pushStringBuilder(&sb, *c);
+				i++;
+				c++;
 			}
-			KrkValue tmp = OBJECT_VAL(krk_copyString(stringBytes, stringLength));
-			if (stringBytes) FREE_ARRAY(char,stringBytes,stringCapacity);
-			krk_push(tmp);
-			krk_writeValueArray(AS_LIST(myList), tmp);
+			krk_push(finishStringBuilder(&sb));
+			krk_writeValueArray(AS_LIST(myList), krk_peek(0));
 			krk_pop();
-			if (substringMatch(c, self->length - i, AS_STRING(argv[1])->chars, AS_STRING(argv[1])->length)) {
-				i += AS_STRING(argv[1])->length;
-				c += AS_STRING(argv[1])->length;
-				count++;
-				if (argc > 2 && count == (size_t)AS_INTEGER(argv[2])) {
-					size_t stringCapacity = 0;
-					size_t stringLength   = 0;
-					char * stringBytes    = NULL;
-					while (i != self->length) {
-						PUSH_CHAR(*c);
-						i++; c++;
-					}
-					KrkValue tmp = OBJECT_VAL(krk_copyString(stringBytes, stringLength));
-					if (stringBytes) FREE_ARRAY(char,stringBytes,stringCapacity);
-					krk_push(tmp);
-					krk_writeValueArray(AS_LIST(myList), tmp);
-					krk_pop();
-					break;
-				}
-				if (i == self->length) {
-					KrkValue tmp = OBJECT_VAL(S(""));
-					krk_push(tmp);
-					krk_writeValueArray(AS_LIST(myList), tmp);
-					krk_pop();
-				}
+			if (i == self->length) break;
+			i += sepLen;
+			c += sepLen;
+			count++;
+			if (count == maxsplit || i == self->length) {
+				krk_push(OBJECT_VAL(krk_copyString(&self->chars[i], self->length - i)));
+				krk_writeValueArray(AS_LIST(myList), krk_peek(0));
+				krk_pop();
+				break;
 			}
 		}
 	}
 
-	krk_pop();
-	return myList;
+	return krk_pop();
 }
 
 KRK_Method(str,replace) {
@@ -752,20 +735,17 @@ KRK_Method(str,replace) {
 	CHECK_ARG(1,str,KrkString*,oldStr);
 	CHECK_ARG(2,str,KrkString*,newStr);
 	KrkValue count = (argc > 3 && IS_INTEGER(argv[3])) ? argv[3] : NONE_VAL();
-	size_t stringCapacity = 0;
-	size_t stringLength   = 0;
-	char * stringBytes    = NULL;
+
+	struct StringBuilder sb = {0};
 
 	int replacements = 0;
 	size_t i = 0;
 	char * c = self->chars;
 	while (i < self->length) {
 		if ( substringMatch(c, self->length - i, oldStr->chars, oldStr->length) && (IS_NONE(count) || replacements < AS_INTEGER(count))) {
-			for (size_t j = 0; j < newStr->length; j++) {
-				PUSH_CHAR(newStr->chars[j]);
-			}
+			pushStringBuilderStr(&sb, newStr->chars, newStr->length);
 			if (oldStr->length == 0) {
-				PUSH_CHAR(*c);
+				pushStringBuilder(&sb, *c);
 				c++;
 				i++;
 			}
@@ -773,14 +753,13 @@ KRK_Method(str,replace) {
 			i += oldStr->length;
 			replacements++;
 		} else {
-			PUSH_CHAR(*c);
+			pushStringBuilder(&sb, *c);
 			c++;
 			i++;
 		}
 	}
-	KrkValue tmp = OBJECT_VAL(krk_copyString(stringBytes, stringLength));
-	if (stringBytes) FREE_ARRAY(char,stringBytes,stringCapacity);
-	return tmp;
+
+	return finishStringBuilder(&sb);
 }
 
 #define WRAP_INDEX(index) \
@@ -860,10 +839,7 @@ KRK_Method(str,endswith) {
  */
 KRK_Method(str,__repr__) {
 	METHOD_TAKES_NONE();
-	size_t stringCapacity = 0;
-	size_t stringLength   = 0;
-	char * stringBytes    = NULL;
-
+	struct StringBuilder sb = {0};
 	char * end = AS_CSTRING(argv[0]) + AS_STRING(argv[0])->length;
 
 	/* First count quotes */
@@ -876,42 +852,41 @@ KRK_Method(str,__repr__) {
 
 	char quote = (singles > doubles) ? '\"' : '\'';
 
-	PUSH_CHAR(quote);
+	pushStringBuilder(&sb, quote);
 
 	for (char * c = AS_CSTRING(argv[0]); c < end; ++c) {
 		switch (*c) {
 			/* XXX: Other non-printables should probably be escaped as well. */
-			case '\\': PUSH_CHAR('\\'); PUSH_CHAR('\\'); break;
-			case '\'': if (quote == *c) { PUSH_CHAR('\\'); } PUSH_CHAR('\''); break;
-			case '\"': if (quote == *c) { PUSH_CHAR('\\'); } PUSH_CHAR('\"'); break;
-			case '\a': PUSH_CHAR('\\'); PUSH_CHAR('a'); break;
-			case '\b': PUSH_CHAR('\\'); PUSH_CHAR('b'); break;
-			case '\f': PUSH_CHAR('\\'); PUSH_CHAR('f'); break;
-			case '\n': PUSH_CHAR('\\'); PUSH_CHAR('n'); break;
-			case '\r': PUSH_CHAR('\\'); PUSH_CHAR('r'); break;
-			case '\t': PUSH_CHAR('\\'); PUSH_CHAR('t'); break;
-			case '\v': PUSH_CHAR('\\'); PUSH_CHAR('v'); break;
-			case 27:   PUSH_CHAR('\\'); PUSH_CHAR('['); break;
+			case '\\': pushStringBuilder(&sb,'\\'); pushStringBuilder(&sb,'\\'); break;
+			case '\'': if (quote == *c) { pushStringBuilder(&sb,'\\'); } pushStringBuilder(&sb,'\''); break;
+			case '\"': if (quote == *c) { pushStringBuilder(&sb,'\\'); } pushStringBuilder(&sb,'\"'); break;
+			case '\a': pushStringBuilder(&sb,'\\'); pushStringBuilder(&sb,'a'); break;
+			case '\b': pushStringBuilder(&sb,'\\'); pushStringBuilder(&sb,'b'); break;
+			case '\f': pushStringBuilder(&sb,'\\'); pushStringBuilder(&sb,'f'); break;
+			case '\n': pushStringBuilder(&sb,'\\'); pushStringBuilder(&sb,'n'); break;
+			case '\r': pushStringBuilder(&sb,'\\'); pushStringBuilder(&sb,'r'); break;
+			case '\t': pushStringBuilder(&sb,'\\'); pushStringBuilder(&sb,'t'); break;
+			case '\v': pushStringBuilder(&sb,'\\'); pushStringBuilder(&sb,'v'); break;
+			case 27:   pushStringBuilder(&sb,'\\'); pushStringBuilder(&sb,'['); break;
 			default: {
 				if ((unsigned char)*c < ' ' || (unsigned char)*c == 0x7F) {
-					PUSH_CHAR('\\');
-					PUSH_CHAR('x');
+					pushStringBuilder(&sb,'\\');
+					pushStringBuilder(&sb,'x');
 					char hex[3];
 					snprintf(hex, 3, "%02x", (unsigned char)*c);
-					PUSH_CHAR(hex[0]);
-					PUSH_CHAR(hex[1]);
+					pushStringBuilder(&sb,hex[0]);
+					pushStringBuilder(&sb,hex[1]);
 				} else {
-					PUSH_CHAR(*c);
+					pushStringBuilder(&sb,*c);
 				}
 				break;
 			}
 		}
 	}
 
-	PUSH_CHAR(quote);
-	KrkValue tmp = OBJECT_VAL(krk_copyString(stringBytes, stringLength));
-	if (stringBytes) FREE_ARRAY(char,stringBytes,stringCapacity);
-	return tmp;
+	pushStringBuilder(&sb, quote);
+
+	return finishStringBuilder(&sb);
 }
 
 KRK_Method(str,encode) {
