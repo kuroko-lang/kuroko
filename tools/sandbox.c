@@ -7,8 +7,8 @@
 #include "simple-repl.h"
 
 int main(int argc, char * argv[]) {
-	/* Disable automatic traceback printing, default modules */
-	krk_initVM(KRK_GLOBAL_CLEAN_OUTPUT|KRK_GLOBAL_NO_DEFAULT_MODULES);
+	/* Disable default modules */
+	krk_initVM(KRK_GLOBAL_NO_DEFAULT_MODULES);
 
 	/* Set up our module context. */
 	krk_startModule("__main__");
@@ -29,7 +29,6 @@ int main(int argc, char * argv[]) {
 				fprintf(stdout, " => %s\n", AS_CSTRING(result));
 			}
 		} else if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) {
-			krk_dumpTraceback();
 			retval = 1;
 		}
 	} else {

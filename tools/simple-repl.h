@@ -1,7 +1,16 @@
+#ifdef SIMPLE_REPL_ENABLE_RLINE
+#include "vendor/rline.h"
+static int enableRline = 1;
+#endif
 
 #define PROMPT_MAIN  ">>> "
 #define PROMPT_BLOCK "  > "
+
 static int runSimpleRepl(void) {
+#ifdef _WIN32
+	SetConsoleOutputCP(65001);
+	SetConsoleCP(65001);
+#endif
 	int exitRepl = 0;
 	while (!exitRepl) {
 		size_t lineCapacity = 8;
@@ -12,19 +21,56 @@ static int runSimpleRepl(void) {
 		char * allData = NULL;
 		int inBlock = 0;
 		int blockWidth = 0;
+#ifdef SIMPLE_REPL_ENABLE_RLINE
+		rline_exp_set_prompts(PROMPT_MAIN, "", 4, 0);
+		rline_exit_string="";
+		rline_exp_set_syntax("krk");
+		rline_exp_set_tab_complete_func(NULL);
+#endif
 		while (1) {
 			/* This would be a nice place for line editing */
 			char buf[4096] = {0};
-			fprintf(stdout, "%s", inBlock ? PROMPT_BLOCK : PROMPT_MAIN);
-			fflush(stdout);
-
-			char * out = fgets(buf, 4096, stdin);
-			if (!out || !strlen(buf)) {
-				fprintf(stdout, "^D\n");
-				valid = 0;
-				exitRepl = 1;
-				break;
+#ifdef SIMPLE_REPL_ENABLE_RLINE
+			if (inBlock) {
+				/* When entering multiple lines, the additional lines
+				 * will show a single > (and keep the left side aligned) */
+				rline_exp_set_prompts(PROMPT_BLOCK, "", 4, 0);
+				/* Also add indentation as necessary */
+				rline_preload = malloc(blockWidth + 1);
+				for (int i = 0; i < blockWidth; ++i) {
+					rline_preload[i] = ' ';
+				}
+				rline_preload[blockWidth] = '\0';
 			}
+
+			if (!enableRline) {
+#else
+			if (1) {
+#endif
+				fprintf(stdout, "%s", inBlock ? PROMPT_BLOCK : PROMPT_MAIN);
+				fflush(stdout);
+			}
+
+#ifdef SIMPLE_REPL_ENABLE_RLINE
+			rline_scroll = 0;
+			if (enableRline) {
+				if (rline(buf, 4096) == 0) {
+					valid = 0;
+					exitRepl = 1;
+					break;
+				}
+			} else {
+#endif
+				char * out = fgets(buf, 4096, stdin);
+				if (!out || !strlen(buf)) {
+					fprintf(stdout, "^D\n");
+					valid = 0;
+					exitRepl = 1;
+					break;
+				}
+#ifdef SIMPLE_REPL_ENABLE_RLINE
+			}
+#endif
 
 			if (buf[strlen(buf)-1] != '\n') {
 				valid = 0;
@@ -95,14 +141,21 @@ static int runSimpleRepl(void) {
 
 		for (size_t i = 0; i < lineCount; ++i) {
 			if (valid) strcat(allData, lines[i]);
+#ifdef SIMPLE_REPL_ENABLE_RLINE
+			if (enableRline) {
+				rline_history_insert(strdup(lines[i]));
+				rline_scroll = 0;
+			}
+#endif
 			free(lines[i]);
 		}
 		FREE_ARRAY(char *, lines, lineCapacity);
 		if (valid) {
 			KrkValue result = krk_interpret(allData, "<stdin>");
 			if (!IS_NONE(result)) {
+				krk_attachNamedValue(&vm.builtins->fields, "_", result);
 				KrkClass * type = krk_getType(result);
-				const char * formatStr = " \033[1;30m=> %s\033[0m\n";
+				const char * formatStr = " \033[1;90m=> %s\033[0m\n";
 				if (type->_reprer) {
 					krk_push(result);
 					result = krk_callDirect(type->_reprer, 1);
@@ -111,12 +164,10 @@ static int runSimpleRepl(void) {
 					result = krk_callDirect(type->_tostr, 1);
 				}
 				if (!IS_STRING(result)) {
-					fprintf(stdout, " \033[1;31m=> Unable to produce representation for value.\033[0m\n");
+					fprintf(stdout, " \033[1;91m=> Unable to produce representation for value.\033[0m\n");
 				} else {
 					fprintf(stdout, formatStr, AS_CSTRING(result));
 				}
-			} else if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) {
-				krk_dumpTraceback();
 			}
 			krk_resetStack();
 			free(allData);
