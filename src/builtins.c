@@ -1009,10 +1009,25 @@ KRK_Method(LicenseReader,__call__) {
 
 #define IS_property(o) (krk_isInstanceOf(o,KRK_BASE_CLASS(property)))
 #define AS_property(o) (AS_INSTANCE(o))
+
+struct Property {
+	KrkInstance inst;
+	KrkObj* fget;
+	KrkObj* fset;
+};
+
+static void _property_gcscan(KrkInstance *_self) {
+	struct Property * self = (struct Property*)_self;
+	if (self->fget) krk_markObject(self->fget);
+	if (self->fset) krk_markObject(self->fset);
+}
+
 KRK_Method(property,__init__) {
 	METHOD_TAKES_AT_LEAST(1);
 	METHOD_TAKES_AT_MOST(2); /* TODO fdel */
 	krk_attachNamedValue(&self->fields, "fget", argv[1]);
+
+	((struct Property*)self)->fget = IS_OBJECT(argv[1]) ? AS_OBJECT(argv[1]) : NULL;
 
 	/* Try to attach doc */
 	if (IS_NATIVE(argv[1]) && AS_NATIVE(argv[1])->doc) {
@@ -1032,8 +1047,10 @@ KRK_Method(property,__init__) {
 			OBJECT_VAL(AS_CLOSURE(argv[1])->function->name));
 	}
 
-	if (argc > 2)
+	if (argc > 2) {
 		krk_attachNamedValue(&self->fields, "fset", argv[2]);
+		((struct Property*)self)->fset = IS_OBJECT(argv[2]) ? AS_OBJECT(argv[2]) : NULL;
+	}
 
 	return argv[0];
 }
@@ -1047,6 +1064,13 @@ KRK_Method(property,setter) {
 KRK_Method(property,__get__) {
 	METHOD_TAKES_EXACTLY(1); /* the owner */
 
+	struct Property * asProp = (struct Property *)self;
+
+	if (asProp->fget) {
+		krk_push(argv[1]);
+		return krk_callDirect(asProp->fget, 1);
+	}
+
 	KrkValue fget;
 	if (!krk_tableGet(&self->fields, OBJECT_VAL(S("fget")), &fget))
 		return krk_runtimeError(vm.exceptions->attributeError, "'%T' object has no attribute '%s'", argv[0], "fget");
@@ -1059,12 +1083,26 @@ KRK_Method(property,__get__) {
 KRK_Method(property,__set__) {
 	METHOD_TAKES_EXACTLY(2); /* the owner and the value */
 
+	struct Property * asProp = (struct Property *)self;
+
+	if (asProp->fset) {
+		krk_push(argv[1]);
+		krk_push(argv[2]);
+		return krk_callDirect(asProp->fset, 2);
+	}
+
 	KrkValue fset;
 	if (krk_tableGet(&self->fields, OBJECT_VAL(S("fset")), &fset)) {
 		krk_push(fset);
 		krk_push(argv[1]);
 		krk_push(argv[2]);
 		return krk_callStack(2);
+	}
+
+	if (asProp->fget) {
+		krk_push(argv[1]);
+		krk_push(argv[2]);
+		return krk_callDirect(asProp->fget, 2);
 	}
 
 	KrkValue fget;
@@ -1076,6 +1114,42 @@ KRK_Method(property,__set__) {
 	}
 
 	return krk_runtimeError(vm.exceptions->attributeError, "attribute can not be set");
+}
+
+KRK_Method(property,__setattr__) {
+	METHOD_TAKES_EXACTLY(2);
+	if (!IS_STRING(argv[1])) return TYPE_ERROR(str,argv[1]);
+	krk_instanceSetAttribute_wrapper(argv[0], AS_STRING(argv[1]), argv[2]);
+	struct Property * asProp = (struct Property *)self;
+
+	KrkValue fget = NONE_VAL();
+	krk_tableGet(&self->fields, OBJECT_VAL(S("fget")), &fget);
+	asProp->fget = (IS_CLOSURE(fget) || IS_NATIVE(fget)) ? AS_OBJECT(fget) : NULL;
+
+	KrkValue fset = NONE_VAL();
+	krk_tableGet(&self->fields, OBJECT_VAL(S("fset")), &fset);
+	asProp->fset = (IS_CLOSURE(fset) || IS_NATIVE(fset)) ? AS_OBJECT(fset) : NULL;
+
+	return argv[2];
+}
+
+/**
+ * Create a new property object that calls a C function; same semantics as defineNative, but
+ * instead of applying the function directly it is applied as a property value, so it should
+ * be used with the "fields" table rather than the methods table. This will eventually replace
+ * the ":field" option for defineNative().
+ */
+KrkNative * krk_defineNativeProperty(KrkTable * table, const char * name, NativeFn function) {
+	KrkNative * func = krk_newNative(function, name, 0);
+	krk_push(OBJECT_VAL(func));
+	KrkInstance * property = krk_newInstance(vm.baseClasses->propertyClass);
+	krk_attachNamedObject(table, name, (KrkObj*)property);
+	krk_attachNamedObject(&property->fields, "fget", (KrkObj*)func);
+	krk_attachNamedObject(&property->fields, "fset", (KrkObj*)func);
+	((struct Property*)property)->fget = (KrkObj*)func;
+	((struct Property*)property)->fset = (KrkObj*)func;
+	krk_pop();
+	return func;
 }
 
 KRK_Function(id) {
@@ -1196,6 +1270,8 @@ void _createAndBind_builtins(void) {
 	);
 
 	KrkClass * property = ADD_BASE_CLASS(KRK_BASE_CLASS(property), "property", object);
+	property->allocSize = sizeof(struct Property);
+	property->_ongcscan = _property_gcscan;
 	KRK_DOC(BIND_METHOD(property,__init__),
 		"@brief Create a property object.\n"
 		"@arguments fget,[fset]\n\n"

@@ -198,22 +198,6 @@ KrkNative * krk_defineNative(KrkTable * table, const char * name, NativeFn funct
 }
 
 /**
- * Create a new property object that calls a C function; same semantics as defineNative, but
- * instead of applying the function directly it is applied as a property value, so it should
- * be used with the "fields" table rather than the methods table. This will eventually replace
- * the ":field" option for defineNative().
- */
-KrkNative * krk_defineNativeProperty(KrkTable * table, const char * name, NativeFn function) {
-	KrkNative * func = krk_newNative(function, name, 0);
-	krk_push(OBJECT_VAL(func));
-	KrkInstance * property = krk_newInstance(vm.baseClasses->propertyClass);
-	krk_attachNamedObject(table, name, (KrkObj*)property);
-	krk_attachNamedObject(&property->fields, "fget", (KrkObj*)func);
-	krk_pop();
-	return func;
-}
-
-/**
  * Shortcut for building classes.
  */
 KrkClass * krk_makeClass(KrkInstance * module, KrkClass ** _class, const char * name, KrkClass * base) {
