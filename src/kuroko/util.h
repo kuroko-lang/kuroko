@@ -313,3 +313,27 @@ extern int krk_unpackIterable(KrkValue iterable, void * context, int callback(vo
 
 #define KRK_BASE_CLASS(cls) (vm.baseClasses->cls ## Class)
 #define KRK_EXC(exc) (vm.exceptions->exc)
+
+
+extern int krk_parseVArgs(
+		const char * _method_name,
+		int argc, const KrkValue argv[], int hasKw,
+		const char * fmt, const char ** names, va_list args);
+
+extern int krk_parseArgs_impl(
+		const char * _method_name,
+		int argc, const KrkValue argv[], int hasKw,
+		const char * format, const char ** names, ...);
+
+/**
+ * @def krk_parseArgs(f,n,...)
+ * @brief Parse arguments to a function while accepting keyword arguments.
+ *
+ * Convenience macro for @c krk_parseArgs_impl to avoid needing to pass all of
+ * the implicit arguments normally provided to a KRK_Function or KRK_Method.
+ *
+ * @param f Format string.
+ * @param n Names array.
+ * @returns 1 on success, 0 on failure with an exception set.
+ */
+#define krk_parseArgs(f,n,...) krk_parseArgs_impl(_method_name,argc,argv,hasKw,f,n,__VA_ARGS__)
