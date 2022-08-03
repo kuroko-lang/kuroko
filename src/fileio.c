@@ -511,7 +511,7 @@ void krk_module_init_fileio(void) {
 	);
 
 	/* Define a class to represent files. (Should this be a helper method?) */
-	KrkClass * File = ADD_BASE_CLASS(KRK_BASE_CLASS(File), "File", KRK_BASE_CLASS(object));
+	KrkClass * File = krk_makeClass(module, &KRK_BASE_CLASS(File), "File", KRK_BASE_CLASS(object));
 	KRK_DOC(File,"Interface to a buffered file stream.");
 	File->allocSize = sizeof(struct File);
 	File->_ongcsweep = _file_sweep;
@@ -536,7 +536,7 @@ void krk_module_init_fileio(void) {
 	krk_defineNative(&File->methods, "__repr__", FUNC_NAME(File,__str__));
 	krk_finalizeClass(File);
 
-	KrkClass * BinaryFile = ADD_BASE_CLASS(KRK_BASE_CLASS(BinaryFile), "BinaryFile", File);
+	KrkClass * BinaryFile = krk_makeClass(module, &KRK_BASE_CLASS(BinaryFile), "BinaryFile", File);
 	KRK_DOC(BinaryFile,
 		"Equivalent to @ref File but using @ref bytes instead of string @ref str."
 	);
@@ -546,7 +546,7 @@ void krk_module_init_fileio(void) {
 	BIND_METHOD(BinaryFile,write);
 	krk_finalizeClass(BinaryFile);
 
-	KrkClass * Directory = ADD_BASE_CLASS(KRK_BASE_CLASS(Directory), "Directory", KRK_BASE_CLASS(object));
+	KrkClass * Directory = krk_makeClass(module, &KRK_BASE_CLASS(Directory), "Directory", KRK_BASE_CLASS(object));
 	KRK_DOC(Directory,
 		"Represents an opened file system directory."
 	);
