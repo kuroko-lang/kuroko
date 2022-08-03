@@ -651,17 +651,14 @@ KRK_Method(str,split) {
 	size_t sepLen = 0;
 	int maxsplit = -1;
 
-	METHOD_TAKES_AT_MOST(2);
-	if (argc > 1) {
-		if (!IS_STRING(argv[1])) return krk_runtimeError(vm.exceptions->typeError, "Expected separator to be a string");
-		if (AS_STRING(argv[1])->length == 0) return krk_runtimeError(vm.exceptions->valueError, "Empty separator");
-		sep = AS_CSTRING(argv[1]);
-		sepLen = AS_STRING(argv[1])->length;
-		if (argc > 2) {
-			if (!IS_INTEGER(argv[2])) return krk_runtimeError(vm.exceptions->typeError, "Expected maxsplit to be an integer.");
-			maxsplit = AS_INTEGER(argv[2]);
-		}
+	if (!krk_parseArgs(
+		".|z#i", (const char *[]){"sep","maxsplit"},
+		&sep, &sepLen,
+		&maxsplit)) {
+		return NONE_VAL();
 	}
+
+	if (sep && sepLen == 0) return krk_runtimeError(vm.exceptions->valueError, "Empty separator");
 
 	KrkValue myList = krk_list_of(0,NULL,0);
 	krk_push(myList);

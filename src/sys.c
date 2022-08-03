@@ -30,18 +30,22 @@
 
 #ifndef KRK_DISABLE_DEBUG
 KRK_Function(set_tracing) {
-	if (hasKw) {
-		KrkValue test;
-		if (krk_tableGet(AS_DICT(argv[argc]), OBJECT_VAL(S("tracing")), &test) && IS_INTEGER(test)) {
-			if (AS_INTEGER(test) == 1) krk_currentThread.flags |= KRK_THREAD_ENABLE_TRACING; else krk_currentThread.flags &= ~KRK_THREAD_ENABLE_TRACING; }
-		if (krk_tableGet(AS_DICT(argv[argc]), OBJECT_VAL(S("disassembly")), &test) && IS_INTEGER(test)) {
-			if (AS_INTEGER(test) == 1) krk_currentThread.flags |= KRK_THREAD_ENABLE_DISASSEMBLY; else krk_currentThread.flags &= ~KRK_THREAD_ENABLE_DISASSEMBLY; }
-		if (krk_tableGet(AS_DICT(argv[argc]), OBJECT_VAL(S("scantracing")), &test) && IS_INTEGER(test)) {
-			if (AS_INTEGER(test) == 1) krk_currentThread.flags |= KRK_THREAD_ENABLE_SCAN_TRACING; else krk_currentThread.flags &= ~KRK_THREAD_ENABLE_SCAN_TRACING; }
+	int tracing = -1;
+	int disassembly = -1;
+	int scantracing = -1;
 
-		if (krk_tableGet(AS_DICT(argv[argc]), OBJECT_VAL(S("stressgc")), &test) && IS_INTEGER(test)) {
-			if (AS_INTEGER(test) == 1) vm.globalFlags |= KRK_GLOBAL_ENABLE_STRESS_GC; else krk_currentThread.flags &= ~KRK_GLOBAL_ENABLE_STRESS_GC; }
+	if (!krk_parseArgs(
+		"|$ppp", (const char *[]){"tracing","disassembly","scantracing"},
+		&tracing, &disassembly, &scantracing)) {
+		return NONE_VAL();
 	}
+
+#define SET_THREAD(arg,flag) do { if (arg != -1) { if (arg) krk_currentThread.flags |= KRK_THREAD_ENABLE_ ## flag; else krk_currentThread.flags &= ~KRK_THREAD_ENABLE_ ## flag; } } while (0)
+	SET_THREAD(tracing,TRACING);
+	SET_THREAD(disassembly,DISASSEMBLY);
+	SET_THREAD(scantracing,SCAN_TRACING);
+#undef SET_THREAD
+
 	return BOOLEAN_VAL(1);
 }
 #else

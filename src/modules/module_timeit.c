@@ -12,17 +12,18 @@
 #include <kuroko/util.h>
 
 KRK_Function(timeit) {
-	KrkValue number;
+	KrkValue callable;
 	int times = 1000000;
-	if (hasKw && krk_tableGet_fast(AS_DICT(argv[argc]), S("number"), &number)) {
-		if (!IS_INTEGER(number)) return TYPE_ERROR(int,number);
-		times = AS_INTEGER(number);
+
+	if (!krk_parseArgs("V|i", (const char *[]){"callable","number"},
+		&callable, &times)) {
+		return NONE_VAL();
 	}
 
 	struct timeval tv_before, tv_after;
 	gettimeofday(&tv_before,NULL);
 	for (krk_integer_type t = 0; t < times; ++t) {
-		krk_push(argv[0]);
+		krk_push(callable);
 		krk_callStack(0);
 		if (unlikely(krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION)) return NONE_VAL();
 	}
