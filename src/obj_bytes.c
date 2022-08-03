@@ -15,42 +15,41 @@ struct ByteArray {
 
 #undef IS_bytes
 #define IS_bytes(o) (IS_BYTES(o) || krk_isInstanceOf(o, vm.baseClasses->bytesClass))
-KRK_Method(bytes,__init__) {
-	if (argc < 2) {
-		return OBJECT_VAL(krk_newBytes(0,NULL));
+
+static int _bytes_callback(void * context, const KrkValue * values, size_t count) {
+	struct StringBuilder * sb = context;
+	for (size_t i = 0; i < count; ++i) {
+		if (!IS_INTEGER(values[i])) {
+			krk_runtimeError(vm.exceptions->typeError, "'%T' is not an integer", values[i]);
+			return 1;
+		}
+		if (AS_INTEGER(values[i]) < 0 || AS_INTEGER(values[i]) > 255) {
+			krk_runtimeError(vm.exceptions->typeError, "bytes object must be in range(0, 256)");
+			return 1;
+		}
+		pushStringBuilder(sb, AS_INTEGER(values[i]));
 	}
+	return 0;
+}
+
+KRK_Method(bytes,__init__) {
+	if (argc < 2) return OBJECT_VAL(krk_newBytes(0,NULL));
 	METHOD_TAKES_AT_MOST(1);
 
-	/* TODO: Use generic unpacker */
-	if (IS_TUPLE(argv[1])) {
-		KrkBytes * out = krk_newBytes(AS_TUPLE(argv[1])->values.count, NULL);
-		krk_push(OBJECT_VAL(out));
-		for (size_t i = 0; i < AS_TUPLE(argv[1])->values.count; ++i) {
-			if (!IS_INTEGER(AS_TUPLE(argv[1])->values.values[i])) {
-				return krk_runtimeError(vm.exceptions->typeError, "%s() expects %s, not '%T'",
-					"bytes", "tuple of ints", AS_TUPLE(argv[1])->values.values[i]);
-			}
-			out->bytes[i] = AS_INTEGER(AS_TUPLE(argv[1])->values.values[i]);
-		}
-		return krk_pop();
-	} else if (IS_list(argv[1])) {
-		KrkBytes * out = krk_newBytes(AS_LIST(argv[1])->count, NULL);
-		krk_push(OBJECT_VAL(out));
-		for (size_t i = 0; i < AS_LIST(argv[1])->count; ++i) {
-			if (!IS_INTEGER(AS_LIST(argv[1])->values[i])) {
-				return krk_runtimeError(vm.exceptions->typeError, "%s() expects %s, not '%T'",
-					"bytes", "list of ints", AS_LIST(argv[1])->values[i]);
-			}
-			out->bytes[i] = AS_INTEGER(AS_LIST(argv[1])->values[i]);
-		}
-		return krk_pop();
-	} else if (IS_bytearray(argv[1])) {
+	if (IS_bytearray(argv[1])) {
 		return OBJECT_VAL(krk_newBytes(
 			AS_BYTES(AS_bytearray(argv[1])->actual)->length,
 			AS_BYTES(AS_bytearray(argv[1])->actual)->bytes));
+	} else if (IS_STRING(argv[1])) {
+		return OBJECT_VAL(krk_newBytes(AS_STRING(argv[1])->length, (uint8_t*)AS_CSTRING(argv[1])));
+	} else if (IS_INTEGER(argv[1])) {
+		if (AS_INTEGER(argv[1]) < 0) return krk_runtimeError(vm.exceptions->valueError, "negative count");
+		return OBJECT_VAL(krk_newBytes(AS_INTEGER(argv[1]),NULL));
+	} else {
+		struct StringBuilder sb = {0};
+		if (krk_unpackIterable(argv[1], &sb, _bytes_callback)) return NONE_VAL();
+		return finishStringBuilderBytes(&sb);
 	}
-
-	return krk_runtimeError(vm.exceptions->typeError, "Can not convert '%T' to bytes", argv[1]);
 }
 
 #undef IS_bytes
