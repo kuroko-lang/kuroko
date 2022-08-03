@@ -23,18 +23,31 @@ KRK_Method(type,__init__) {
 #define CURRENT_CTYPE KrkClass *
 
 KRK_Method(type,__base__) {
+	if (argc > 1) return krk_runtimeError(vm.exceptions->typeError, "__base__ can not be reassigned");
 	return self->base ? OBJECT_VAL(self->base) : NONE_VAL();
 }
 
 KRK_Method(type,__name__) {
+	if (argc > 1) {
+		if (!IS_STRING(argv[1])) return TYPE_ERROR(str,argv[1]);
+		self->name = AS_STRING(argv[1]);
+	}
 	return self->name ? OBJECT_VAL(self->name) : NONE_VAL();
 }
 
 KRK_Method(type,__file__) {
+	if (argc > 1) {
+		if (!IS_STRING(argv[1])) return TYPE_ERROR(str,argv[1]);
+		self->filename = AS_STRING(argv[1]);
+	}
 	return self->filename ? OBJECT_VAL(self->filename) : NONE_VAL();
 }
 
 KRK_Method(type,__doc__) {
+	if (argc > 1) {
+		if (!IS_STRING(argv[1])) return TYPE_ERROR(str,argv[1]);
+		self->docstring = AS_STRING(argv[1]);
+	}
 	return self->docstring ? OBJECT_VAL(self->docstring) : NONE_VAL();
 }
 
@@ -88,10 +101,10 @@ void _createAndBind_type(void) {
 	KrkClass * type = ADD_BASE_CLASS(vm.baseClasses->typeClass, "type", vm.baseClasses->objectClass);
 	type->obj.flags |= KRK_OBJ_FLAGS_NO_INHERIT;
 
-	BIND_METHOD(type,__base__)->obj.flags = KRK_OBJ_FLAGS_FUNCTION_IS_DYNAMIC_PROPERTY;
-	BIND_METHOD(type,__file__)->obj.flags = KRK_OBJ_FLAGS_FUNCTION_IS_DYNAMIC_PROPERTY;
-	BIND_METHOD(type,__doc__) ->obj.flags = KRK_OBJ_FLAGS_FUNCTION_IS_DYNAMIC_PROPERTY;
-	BIND_METHOD(type,__name__)->obj.flags = KRK_OBJ_FLAGS_FUNCTION_IS_DYNAMIC_PROPERTY;
+	BIND_PROP(type,__base__);
+	BIND_PROP(type,__file__);
+	BIND_PROP(type,__doc__);
+	BIND_PROP(type,__name__);
 
 	BIND_METHOD(type,__init__);
 	BIND_METHOD(type,__str__);

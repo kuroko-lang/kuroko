@@ -257,6 +257,8 @@ void krk_finalizeClass(KrkClass * _class) {
 		{NULL, 0},
 	};
 
+	_class->cacheIndex = 0;
+
 	for (struct TypeMap * entry = specials; entry->method; ++entry) {
 		*entry->method = NULL;
 		KrkClass * _base = _class;
@@ -844,87 +846,6 @@ KrkValue krk_callDirect(KrkObj * callable, int argCount) {
 	else if (result == 1) return krk_runNext();
 	return NONE_VAL();
 }
-
-/**
- * Attach a method call to its callee and return a BoundMethod.
- * Works for managed and native method calls.
- */
-int krk_bindMethod(KrkClass * _class, KrkString * name) {
-	KrkClass * originalClass = _class;
-	KrkValue method, out;
-	while (_class) {
-		if (krk_tableGet_fast(&_class->methods, name, &method)) break;
-		_class = _class->base;
-	}
-	if (!_class) return 0;
-	if (IS_NATIVE(method)||IS_CLOSURE(method)) {
-		if (AS_OBJECT(method)->flags & KRK_OBJ_FLAGS_FUNCTION_IS_CLASS_METHOD) {
-			out = OBJECT_VAL(krk_newBoundMethod(OBJECT_VAL(originalClass), AS_OBJECT(method)));
-		} else if (AS_OBJECT(method)->flags & KRK_OBJ_FLAGS_FUNCTION_IS_STATIC_METHOD) {
-			out = method;
-		} else if (AS_OBJECT(method)->flags & KRK_OBJ_FLAGS_FUNCTION_IS_DYNAMIC_PROPERTY) {
-			out = AS_NATIVE(method)->function(1, (KrkValue[]){krk_peek(0)}, 0);
-		} else {
-			out = OBJECT_VAL(krk_newBoundMethod(krk_peek(0), AS_OBJECT(method)));
-		}
-	} else {
-		/* Does it have a descriptor __get__? */
-		KrkClass * type = krk_getType(method);
-		if (type->_descget) {
-			krk_push(method);
-			krk_swap(1);
-			krk_push(krk_callDirect(type->_descget, 2));
-			return 1;
-		}
-		out = method;
-	}
-	krk_pop();
-	krk_push(out);
-	return 1;
-}
-
-/**
- * Similar to @ref krk_bindMethod but does not create bound method objects.
- * @returns 1 if the result was an (unbound) method, 2 if it was something else, 0 if it was not found.
- */
-int krk_unbindMethod(KrkClass * _class, KrkString * name) {
-	KrkClass * originalClass = _class;
-	KrkValue method, out;
-	while (_class) {
-		if (krk_tableGet_fast(&_class->methods, name, &method)) break;
-		_class = _class->base;
-	}
-	if (!_class) return 0;
-	if (IS_NATIVE(method) || IS_CLOSURE(method)) {
-		if (AS_OBJECT(method)->flags & KRK_OBJ_FLAGS_FUNCTION_IS_DYNAMIC_PROPERTY) {
-			out = AS_NATIVE(method)->function(1, (KrkValue[]){krk_peek(0)}, 0);
-		} else if (AS_CLOSURE(method)->obj.flags & KRK_OBJ_FLAGS_FUNCTION_IS_CLASS_METHOD) {
-			krk_pop();
-			krk_push(OBJECT_VAL(originalClass));
-			krk_push(method);
-			return 1;
-		} else if (AS_CLOSURE(method)->obj.flags & KRK_OBJ_FLAGS_FUNCTION_IS_STATIC_METHOD) {
-			out = method;
-		} else {
-			krk_push(method);
-			return 1;
-		}
-	} else {
-		/* Does it have a descriptor __get__? */
-		KrkClass * type = krk_getType(method);
-		if (type->_descget) {
-			krk_push(krk_peek(0));
-			krk_push(method);
-			krk_swap(1);
-			krk_push(krk_callDirect(type->_descget, 2));
-			return 2;
-		}
-		out = method;
-	}
-	krk_push(out);
-	return 2;
-}
-
 
 /**
  * Capture upvalues and mark them as open. Called upon closure creation to
@@ -1739,115 +1660,171 @@ int krk_doRecursiveModuleLoad(KrkString * name) {
 	return krk_importModule(name,name);
 }
 
-/**
- * Try to resolve and push [stack top].name.
- * If [stack top] is an instance, scan fields first.
- * Otherwise, scan for methods from [stack top].__class__.
- * Returns 0 if nothing was found, 1 if something was - and that
- * "something" will replace [stack top].
- */
-static int valueGetProperty(KrkString * name) {
-	KrkValue this = krk_peek(0);
-	KrkClass * objectClass;
-	KrkValue value;
-	if (IS_INSTANCE(this)) {
-		KrkInstance * instance = AS_INSTANCE(this);
-		if (krk_tableGet_fast(&instance->fields, name, &value)) {
-			krk_currentThread.stackTop[-1] = value;
-			return 1;
+#define CACHE_SIZE 4096
+typedef struct {
+	KrkString * name;
+	struct KrkClass  * owner;
+	KrkValue    value;
+	size_t index;
+} KrkClassCacheEntry;
+static KrkClassCacheEntry cache[CACHE_SIZE] = {0};
+static size_t nextCount = 1;
+
+static KrkClass * checkCache(KrkClass * type, KrkString * name, KrkValue * method) {
+	size_t index = (name->obj.hash ^ (type->obj.hash << 4)) & (CACHE_SIZE-1);
+	KrkClassCacheEntry * entry = &cache[index];
+	if (entry->name == name && entry->index == type->cacheIndex) {
+		*method = entry->value;
+		return entry->owner;
+	}
+
+	KrkClass * _class = NULL;
+	if (krk_tableGet_fast(&type->methods, name, method)) {
+		_class = type;
+	} else if (type->base) {
+		_class = checkCache(type->base, name, method);
+	}
+
+	if (!type->cacheIndex) {
+		type->cacheIndex = nextCount++;
+	}
+	entry->name = name;
+	entry->owner = _class;
+	entry->value = *method;
+	entry->index = type->cacheIndex;
+	return _class;
+}
+
+static void clearCache(KrkClass * type) {
+	if (type->cacheIndex) {
+		type->cacheIndex = 0;
+		for (size_t i = 0; i < type->subclasses.capacity; ++i) {
+			KrkTableEntry * entry = &type->subclasses.entries[i];
+			if (entry->key == KWARGS_VAL(0)) continue;
+			clearCache(AS_CLASS(entry->key));
 		}
-		objectClass = instance->_class;
-	} else if (IS_CLASS(this)) {
-		KrkClass * _class = AS_CLASS(this);
-		do {
-			if (krk_tableGet_fast(&_class->methods, name, &value)) {
-				if ((IS_NATIVE(value) || IS_CLOSURE(value)) && (AS_OBJECT(value)->flags & KRK_OBJ_FLAGS_FUNCTION_IS_CLASS_METHOD)) {
-					value = OBJECT_VAL(krk_newBoundMethod(this, AS_OBJECT(value)));
-				}
-				krk_currentThread.stackTop[-1] = value;
-				return 1;
-			}
-			_class = _class->base;
-		} while (_class);
-		objectClass = vm.baseClasses->typeClass;
-	} else if (IS_CLOSURE(krk_peek(0))) {
-		KrkClosure * closure = AS_CLOSURE(this);
-		if (krk_tableGet_fast(&closure->fields, name, &value)) {
-			krk_currentThread.stackTop[-1] = value;
-			return 1;
-		}
-		objectClass = vm.baseClasses->functionClass;
-	} else {
-		objectClass = krk_getType(this);
 	}
-
-	/* See if the base class for this non-instance type has a method available */
-	if (krk_bindMethod(objectClass, name)) {
-		return 1;
-	}
-
-	if (objectClass->_getattr) {
-		krk_push(OBJECT_VAL(name));
-		krk_push(krk_callDirect(objectClass->_getattr, 2));
-		return 1;
-	}
-
-	return 0;
 }
 
 /**
- * Similar to the above, but specifically for getting properties that will be
- * immediately called, eg. for GET_METHOD that is followed by argument pushing
- * and then CALL_METHOD.
+ * Attach a method call to its callee and return a BoundMethod.
+ * Works for managed and native method calls.
  */
+int krk_bindMethod(KrkClass * originalClass, KrkString * name) {
+	KrkValue method, out;
+	KrkClass * _class = checkCache(originalClass, name, &method);
+	if (!_class) return 0;
+	if (IS_NATIVE(method)||IS_CLOSURE(method)) {
+		if (AS_OBJECT(method)->flags & KRK_OBJ_FLAGS_FUNCTION_IS_CLASS_METHOD) {
+			out = OBJECT_VAL(krk_newBoundMethod(OBJECT_VAL(originalClass), AS_OBJECT(method)));
+		} else if (AS_OBJECT(method)->flags & KRK_OBJ_FLAGS_FUNCTION_IS_STATIC_METHOD) {
+			out = method;
+		} else {
+			out = OBJECT_VAL(krk_newBoundMethod(krk_peek(0), AS_OBJECT(method)));
+		}
+	} else {
+		/* Does it have a descriptor __get__? */
+		KrkClass * type = krk_getType(method);
+		if (type->_descget) {
+			krk_push(method);
+			krk_swap(1);
+			krk_push(krk_callDirect(type->_descget, 2));
+			return 1;
+		}
+		out = method;
+	}
+	krk_pop();
+	krk_push(out);
+	return 1;
+}
+
+
 static int valueGetMethod(KrkString * name) {
 	KrkValue this = krk_peek(0);
-	KrkClass * objectClass;
-	KrkValue value;
-	if (IS_INSTANCE(this)) {
-		KrkInstance * instance = AS_INSTANCE(this);
-		if (krk_tableGet_fast(&instance->fields, name, &value)) {
-			krk_push(value);
-			return 2;
+	KrkClass * myClass = krk_getType(this);
+	KrkValue value, method;
+	KrkClass * _class = checkCache(myClass, name, &method);
+
+	/* Class descriptors */
+	if (_class) {
+		KrkClass * valtype = krk_getType(method);
+		if (valtype->_descget) {
+			krk_push(method);
+			krk_push(this);
+			value = krk_callDirect(valtype->_descget, 2);
+			goto found;
 		}
-		objectClass = instance->_class;
-	} else if (IS_CLASS(this)) {
-		KrkClass * _class = AS_CLASS(this);
-		do {
-			if (krk_tableGet_fast(&_class->methods, name, &value)) {
-				if ((IS_CLOSURE(value)||IS_NATIVE(value)) && (AS_OBJECT(value)->flags & KRK_OBJ_FLAGS_FUNCTION_IS_CLASS_METHOD)) {
-					krk_push(value);
-					return 1;
-				}
-				krk_push(value);
-				return 2;
-			}
-			_class = _class->base;
-		} while (_class);
-		objectClass = vm.baseClasses->typeClass;
-	} else if (IS_CLOSURE(krk_peek(0))) {
-		KrkClosure * closure = AS_CLOSURE(this);
-		if (krk_tableGet_fast(&closure->fields, name, &value)) {
-			krk_push(value);
-			return 2;
-		}
-		objectClass = vm.baseClasses->functionClass;
-	} else {
-		objectClass = krk_getType(this);
 	}
 
-	/* See if the base class for this non-instance type has a method available */
-	int maybe = krk_unbindMethod(objectClass, name);
-	if (maybe) return maybe;
+	/* Fields */
+	if (IS_INSTANCE(this)) {
+		if (krk_tableGet_fast(&AS_INSTANCE(this)->fields, name, &value)) goto found;
+	} else if (IS_CLASS(this)) {
+		KrkClass * type = AS_CLASS(this);
+		do {
+			if (krk_tableGet_fast(&type->methods, name, &value)) {
+				if ((IS_NATIVE(value) || IS_CLOSURE(value)) && (AS_OBJECT(value)->flags & KRK_OBJ_FLAGS_FUNCTION_IS_CLASS_METHOD)) {
+					goto found_method;
+				}
+				goto found;
+			}
+			type = type->base;
+		} while (type);
+	} else if (IS_CLOSURE(this)) {
+		if (krk_tableGet_fast(&AS_CLOSURE(this)->fields, name, &value)) goto found;
+	}
 
-	if (objectClass->_getattr) {
-		krk_push(krk_peek(0));
+	/* Method from type */
+	if (_class) {
+		if (IS_NATIVE(method)||IS_CLOSURE(method)) {
+			if (AS_OBJECT(method)->flags & KRK_OBJ_FLAGS_FUNCTION_IS_CLASS_METHOD) {
+				krk_currentThread.stackTop[-1] = OBJECT_VAL(myClass);
+				value = method;
+				goto found_method;
+			} else if (AS_OBJECT(method)->flags & KRK_OBJ_FLAGS_FUNCTION_IS_STATIC_METHOD) {
+				value = method;
+			} else {
+				value = method;
+				goto found_method;
+			}
+		} else {
+			value = method;
+		}
+		goto found;
+	}
+
+	/* __getattr__ */
+	if (myClass->_getattr) {
+		krk_push(this);
 		krk_push(OBJECT_VAL(name));
-		krk_push(krk_callDirect(objectClass->_getattr, 2));
-		return 2;
+		value = krk_callDirect(myClass->_getattr, 2);
+		goto found;
 	}
 
 	return 0;
+
+found:
+	krk_push(value);
+	return 2;
+
+found_method:
+	krk_push(value);
+	return 1;
+}
+
+static int valueGetProperty(KrkString * name) {
+	switch (valueGetMethod(name)) {
+		case 2:
+			krk_currentThread.stackTop[-2] = krk_currentThread.stackTop[-1];
+			krk_currentThread.stackTop--;
+			return 1;
+		case 1:
+			krk_currentThread.stackTop[-2] = OBJECT_VAL(krk_newBoundMethod(krk_currentThread.stackTop[-2], AS_OBJECT(krk_currentThread.stackTop[-1])));
+			krk_currentThread.stackTop--;
+			return 1;
+		default:
+			return 0;
+	}
 }
 
 int krk_getAttribute(KrkString * name) {
@@ -1893,6 +1870,8 @@ static int valueDelProperty(KrkString * name) {
 		}
 		if (name->length > 1 && name->chars[0] == '_' && name->chars[1] == '_') {
 			krk_finalizeClass(_class);
+		} else {
+			clearCache(_class);
 		}
 		krk_pop(); /* the original value */
 		return 1;
@@ -1922,20 +1901,15 @@ KrkValue krk_valueDelAttribute(KrkValue owner, char * name) {
 	return NONE_VAL();
 }
 
-static int trySetDescriptor(KrkValue owner, KrkString * name, KrkValue value) {
-	KrkClass * _class = krk_getType(owner);
+static int _setDescriptor(KrkValue owner, KrkClass * _class, KrkString * name, KrkValue to) {
 	KrkValue property;
-	while (_class) {
-		if (krk_tableGet_fast(&_class->methods, name, &property)) break;
-		_class = _class->base;
-	}
+	_class = checkCache(_class, name, &property);
 	if (_class) {
 		KrkClass * type = krk_getType(property);
 		if (type->_descset) {
-			/* Need to rearrange arguments */
-			krk_push(property); /* owner value property */
-			krk_swap(2);        /* property value owner */
-			krk_swap(1);        /* property owner value */
+			krk_push(property);
+			krk_push(owner);
+			krk_push(to);
 			krk_push(krk_callDirect(type->_descset, 3));
 			return 1;
 		}
@@ -1943,66 +1917,45 @@ static int trySetDescriptor(KrkValue owner, KrkString * name, KrkValue value) {
 	return 0;
 }
 
+static KrkValue setAttr_wrapper(KrkValue owner, KrkClass * _class, KrkTable * fields, KrkString * name, KrkValue to) {
+	if (_setDescriptor(owner,_class,name,to)) return krk_pop();
+	krk_tableSet(fields, OBJECT_VAL(name), to);
+	return to;
+}
+
 _noexport
 KrkValue krk_instanceSetAttribute_wrapper(KrkValue owner, KrkString * name, KrkValue to) {
-	if (!krk_tableSetIfExists(&AS_INSTANCE(owner)->fields, OBJECT_VAL(name), to)) {
-		/* That might have raised an exception. */
-		if (unlikely(krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION)) return NONE_VAL();
-		/* Entry did not exist, check for properties */
-		KrkClass * _class = krk_getType(owner);
-		KrkValue property;
-		do {
-			if (krk_tableGet_fast(&_class->methods, name, &property)) break;
-			_class = _class->base;
-		} while (_class);
-		if (_class) {
-			KrkClass * type = krk_getType(property);
-			if (type->_descset) {
-				krk_push(property);
-				krk_push(owner);
-				krk_push(to);
-				return krk_callDirect(type->_descset, 3);
-			}
-		}
-		/* No descriptor, go ahead and set. */
-		krk_tableSet(&AS_INSTANCE(owner)->fields, OBJECT_VAL(name), to);
-	}
-	return to;
+	return setAttr_wrapper(owner, AS_INSTANCE(owner)->_class, &AS_INSTANCE(owner)->fields, name, to);
 }
 
 static int valueSetProperty(KrkString * name) {
 	KrkValue owner = krk_peek(1);
 	KrkValue value = krk_peek(0);
+	KrkClass * type = krk_getType(owner);
+	if (unlikely(type->_setattr != NULL)) {
+		krk_push(OBJECT_VAL(name));
+		krk_swap(1);
+		krk_push(krk_callDirect(type->_setattr, 3));
+		return 1;
+	}
 	if (IS_INSTANCE(owner)) {
-		KrkClass * type = AS_INSTANCE(owner)->_class;
-		if (unlikely(type->_setattr != NULL)) {
-			krk_push(OBJECT_VAL(name));
-			krk_swap(1);
-			krk_push(krk_callDirect(type->_setattr, 3));
-			return 1;
-		}
-		if (krk_tableSet(&AS_INSTANCE(owner)->fields, OBJECT_VAL(name), value)) {
-			if (trySetDescriptor(owner, name, value)) {
-				krk_tableDelete(&AS_INSTANCE(owner)->fields, OBJECT_VAL(name));
-				return 1;
-			}
-		}
+		krk_currentThread.stackTop[-1] = setAttr_wrapper(owner,type,&AS_INSTANCE(owner)->fields, name, value);
 	} else if (IS_CLASS(owner)) {
-		krk_tableSet(&AS_CLASS(owner)->methods, OBJECT_VAL(name), value);
+		krk_currentThread.stackTop[-1] = setAttr_wrapper(owner,type,&AS_CLASS(owner)->methods, name, value);
 		if (name->length > 1 && name->chars[0] == '_' && name->chars[1] == '_') {
-			/* Quietly call finalizeClass to update special method table if this looks like it might be one */
 			krk_finalizeClass(AS_CLASS(owner));
+		} else {
+			clearCache(AS_CLASS(owner));
 		}
 	} else if (IS_CLOSURE(owner)) {
-		/* Closures shouldn't have descriptors, but let's let this happen anyway... */
-		if (krk_tableSet(&AS_CLOSURE(owner)->fields, OBJECT_VAL(name), value)) {
-			if (trySetDescriptor(owner, name, value)) {
-				krk_tableDelete(&AS_CLOSURE(owner)->fields, OBJECT_VAL(name));
-				return 1;
-			}
-		}
+		krk_currentThread.stackTop[-1] = setAttr_wrapper(owner,type,&AS_CLOSURE(owner)->fields, name, value);
 	} else {
-		return (trySetDescriptor(owner,name,value));
+		if (_setDescriptor(owner,type,name,value)) {
+			krk_swap(1);
+			krk_pop();
+		} else {
+			return 0;
+		}
 	}
 	krk_swap(1);
 	krk_pop();

@@ -88,6 +88,7 @@ KRK_Method(object,__dir__) {
 }
 
 KRK_Method(object,__class__) {
+	if (argc > 1) return krk_runtimeError(vm.exceptions->typeError, "__class__ can not be assigned");
 	return OBJECT_VAL(krk_getType(self));
 }
 
@@ -99,7 +100,7 @@ KRK_Method(object,__hash__) {
 	}
 	KrkObj * obj = AS_OBJECT(self);
 	if (!(obj->flags & KRK_OBJ_FLAGS_VALID_HASH)) {
-		obj->hash = INTEGER_VAL((int)(intptr_t)self);
+		obj->hash = INTEGER_VAL((int)((intptr_t)self >> 3));
 		obj->flags |= KRK_OBJ_FLAGS_VALID_HASH;
 	}
 	return INTEGER_VAL(obj->hash);
@@ -1146,7 +1147,6 @@ void _createAndBind_builtins(void) {
 	krk_push(OBJECT_VAL(vm.baseClasses->objectClass));
 
 	KrkClass * object = vm.baseClasses->objectClass;
-	BIND_METHOD(object,__class__)->obj.flags = KRK_OBJ_FLAGS_FUNCTION_IS_DYNAMIC_PROPERTY;
 	BIND_METHOD(object,__dir__);
 	BIND_METHOD(object,__str__);
 	BIND_METHOD(object,__hash__);
@@ -1227,6 +1227,9 @@ void _createAndBind_builtins(void) {
 		"name will be used to assign the property to the class's attribute table; using a "
 		"different name will create a duplicate alias.");
 	krk_finalizeClass(property);
+
+	/* Need to do this after creating 'property' */
+	BIND_PROP(object,__class__);
 
 	KrkClass * Helper = ADD_BASE_CLASS(KRK_BASE_CLASS(Helper), "Helper", object);
 	KRK_DOC(Helper,

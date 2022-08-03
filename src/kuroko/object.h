@@ -56,10 +56,9 @@ typedef struct KrkObj {
 #define KRK_OBJ_FLAGS_CODEOBJECT_IS_GENERATOR  0x0004
 #define KRK_OBJ_FLAGS_CODEOBJECT_IS_COROUTINE  0x0008
 
-#define KRK_OBJ_FLAGS_FUNCTION_MASK                0x0007
+#define KRK_OBJ_FLAGS_FUNCTION_MASK                0x0003
 #define KRK_OBJ_FLAGS_FUNCTION_IS_CLASS_METHOD     0x0001
 #define KRK_OBJ_FLAGS_FUNCTION_IS_STATIC_METHOD    0x0002
-#define KRK_OBJ_FLAGS_FUNCTION_IS_DYNAMIC_PROPERTY 0x0004
 
 #define KRK_OBJ_FLAGS_NO_INHERIT    0x0200
 #define KRK_OBJ_FLAGS_SECOND_CHANCE 0x0100
@@ -239,6 +238,8 @@ typedef struct KrkClass {
 	KrkObj * _pos;
 	KrkObj * _setattr;
 	KrkObj * _format;
+
+	size_t cacheIndex;
 } KrkClass;
 
 /**
