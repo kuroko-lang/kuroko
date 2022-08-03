@@ -99,7 +99,7 @@ class Pair():
 
 let modules = [
     # Integrated stuff
-    '__builtins__',
+    'builtins',
     'os',
     'kuroko',
     'math',

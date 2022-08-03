@@ -60,7 +60,7 @@ KRK_Method(type,__str__) {
 	krk_tableGet(&self->methods, OBJECT_VAL(S("__qualname__")), &qualname);
 	KrkString * name = IS_STRING(qualname) ? AS_STRING(qualname) : self->name;
 
-	int includeModule = !(IS_NONE(module) || (IS_STRING(module) && AS_STRING(module) == S("__builtins__")));
+	int includeModule = !(IS_NONE(module) || (IS_STRING(module) && AS_STRING(module) == S("builtins")));
 
 	size_t allocSize = sizeof("<class ''>") + name->length;
 	if (IS_STRING(module)) allocSize += AS_STRING(module)->length + 1;

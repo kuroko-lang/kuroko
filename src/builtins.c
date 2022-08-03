@@ -198,7 +198,7 @@ KRK_Method(object,__str__) {
 	KrkValue qualname = NONE_VAL();
 	krk_tableGet(&type->methods, OBJECT_VAL(S("__qualname__")), &qualname);
 	KrkString * name = IS_STRING(qualname) ? AS_STRING(qualname) : type->name;
-	int includeModule = !(IS_NONE(module) || (IS_STRING(module) && AS_STRING(module) == S("__builtins__")));
+	int includeModule = !(IS_NONE(module) || (IS_STRING(module) && AS_STRING(module) == S("builtins")));
 
 	size_t allocSize = sizeof("<. object at 0x1234567812345678>") + name->length;
 	if (includeModule) allocSize += AS_STRING(module)->length + 1;
@@ -1249,12 +1249,12 @@ void _createAndBind_builtins(void) {
 	KRK_DOC(module, "Type of imported modules and packages.");
 
 	vm.builtins = krk_newInstance(module);
-	krk_attachNamedObject(&vm.modules, "__builtins__", (KrkObj*)vm.builtins);
+	krk_attachNamedObject(&vm.modules, "builtins", (KrkObj*)vm.builtins);
 	krk_attachNamedObject(&vm.builtins->fields, "object", (KrkObj*)vm.baseClasses->objectClass);
 	krk_pop();
 	krk_pop();
 
-	krk_attachNamedObject(&vm.builtins->fields, "__name__", (KrkObj*)S("__builtins__"));
+	krk_attachNamedObject(&vm.builtins->fields, "__name__", (KrkObj*)S("builtins"));
 	krk_attachNamedValue(&vm.builtins->fields, "__file__", NONE_VAL());
 	KRK_DOC(vm.builtins,
 		"@brief Internal module containing built-in functions and classes.\n\n"

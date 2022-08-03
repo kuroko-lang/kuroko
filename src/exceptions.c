@@ -307,7 +307,7 @@ static void dumpInnerException(KrkValue exception, int depth) {
 	KrkClass * type = krk_getType(exception);
 	KrkValue module = NONE_VAL();
 	krk_tableGet(&type->methods, OBJECT_VAL(S("__module__")), &module);
-	if (!(IS_NONE(module) || (IS_STRING(module) && AS_STRING(module) == S("__builtins__")))) {
+	if (!(IS_NONE(module) || (IS_STRING(module) && AS_STRING(module) == S("builtins")))) {
 		fprintf(stderr, "%s.", AS_CSTRING(module));
 	}
 
