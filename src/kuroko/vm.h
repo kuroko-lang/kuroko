@@ -143,6 +143,7 @@ struct BaseClasses {
 	KrkClass * setiteratorClass;     /**< Iterator over values in a set */
 	KrkClass * ThreadClass;          /**< Threading.Thread */
 	KrkClass * LockClass;            /**< Threading.Lock */
+	KrkClass * CompilerStateClass;   /**< Compiler global state */
 };
 
 /**

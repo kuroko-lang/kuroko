@@ -1001,6 +1001,7 @@ void krk_initVM(int flags) {
 	_createAndBind_exceptions();
 	_createAndBind_generatorClass();
 	_createAndBind_longClass();
+	_createAndBind_compilerClass();
 
 	if (!(vm.globalFlags & KRK_GLOBAL_NO_DEFAULT_MODULES)) {
 #ifndef KRK_NO_SYSTEM_MODULES

@@ -3719,6 +3719,16 @@ static int maybeSingleExpression(struct GlobalState * state) {
 	return 0;
 }
 
+_noexport
+void _createAndBind_compilerClass(void) {
+	KrkClass * CompilerState = ADD_BASE_CLASS(KRK_BASE_CLASS(CompilerState), "CompilerState", KRK_BASE_CLASS(object));
+	CompilerState->allocSize = sizeof(struct GlobalState);
+	CompilerState->_ongcscan = _GlobalState_gcscan;
+	CompilerState->_ongcsweep = _GlobalState_gcsweep;
+	CompilerState->obj.flags |= KRK_OBJ_FLAGS_NO_INHERIT;
+	krk_finalizeClass(CompilerState);
+}
+
 /**
  * @brief Compile a source string to bytecode.
  *
@@ -3733,17 +3743,7 @@ static int maybeSingleExpression(struct GlobalState * state) {
  * @exception SyntaxError if @p src could not be compiled.
  */
 KrkCodeObject * krk_compile(const char * src, char * fileName) {
-
-	KrkClass * GlobalState = krk_newClass(S("GlobalState"), KRK_BASE_CLASS(object));
-	krk_push(OBJECT_VAL(GlobalState));
-
-	GlobalState->allocSize = sizeof(struct GlobalState);
-	GlobalState->_ongcscan = _GlobalState_gcscan;
-	GlobalState->_ongcsweep = _GlobalState_gcsweep;
-	GlobalState->obj.flags |= KRK_OBJ_FLAGS_NO_INHERIT;
-	krk_finalizeClass(GlobalState);
-
-	struct GlobalState * state = (void*)krk_newInstance(GlobalState);
+	struct GlobalState * state = (void*)krk_newInstance(KRK_BASE_CLASS(CompilerState));
 	krk_push(OBJECT_VAL(state));
 
 	/* Point a new scanner at the source. */
@@ -3787,8 +3787,6 @@ KrkCodeObject * krk_compile(const char * src, char * fileName) {
 	if (state->parser.hadError) function = NULL;
 
 	krk_pop();
-	krk_pop();
-
 	return function;
 }
 
