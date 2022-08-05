@@ -578,7 +578,7 @@ static char * syn_krk_exception[] = {
 	"Exception", "TypeError", "ArgumentError", "IndexError", "KeyError",
 	"AttributeError", "NameError", "ImportError", "IOError", "ValueError",
 	"KeyboardInterrupt", "ZeroDivisionError", "NotImplementedError", "SyntaxError",
-	"AssertionError",
+	"AssertionError", "BaseException", "OSError", "SystemError",
 	NULL
 };
 

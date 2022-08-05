@@ -725,12 +725,6 @@ void krk_module_init_os(void) {
 	DO_INT(SEEK_DATA);
 #endif
 
-	KrkClass * OSError = krk_makeClass(module, &vm.exceptions->OSError, "OSError", vm.exceptions->baseException);
-	KRK_DOC(OSError,
-		"Raised when system functions return a failure code. @p Exception.arg will provide a textual description of the error."
-	);
-	krk_finalizeClass(OSError);
-
 	KRK_DOC(BIND_FUNC(module,uname),
 		"@brief Returns a @ref dict of attributes describing the current platform.\n\n"
 		"On POSIX platforms, the result should match the contents and layout of a standard @c uname() call. "

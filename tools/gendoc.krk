@@ -162,13 +162,7 @@ def fixupDoc(doc):
 
 def isExceptionType(cls):
     '''Determines if @p cls is an @c Exception type by examining its superclass chain.'''
-    if cls == Exception: return True
-    let checked = []
-    while '__base__' in dir(cls) and cls.__base__ not in checked:
-        if cls.__base__ == Exception: return True
-        checked.append(cls.__base__)
-        cls = cls.__base__
-    return False
+    return issubclass(cls,BaseException)
 
 def typeName(t: type) -> str:
     '''Get a clean type name from @p t '''

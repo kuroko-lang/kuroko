@@ -218,7 +218,7 @@ void krk_module_init_threading(void) {
 		"@arguments \n\n"
 		"Returns the @ref Thread object associated with the calling thread, if one exists.");
 
-	KrkClass * ThreadError = krk_makeClass(threadsModule, &KRK_EXC(ThreadError), "ThreadError", vm.exceptions->baseException);
+	KrkClass * ThreadError = krk_makeClass(threadsModule, &KRK_EXC(ThreadError), "ThreadError", vm.exceptions->OSError);
 	KRK_DOC(ThreadError,
 		"Raised in various situations when an action on a thread is invalid."
 	);

@@ -66,7 +66,7 @@ typedef struct {
  * @see krk_runtimeException
  */
 struct Exceptions {
-	KrkClass * baseException;       /**< @exception Exception The base exception type. */
+	KrkClass * baseException;       /**< @exception BaseException The base exception type. */
 	KrkClass * typeError;           /**< @exception TypeError An argument or value was not of the expected type. */
 	KrkClass * argumentError;       /**< @exception ArgumentException The number of arguments passed to a function was not as expected. */
 	KrkClass * indexError;          /**< @exception IndexError An attempt was made to reference an invalid array index. */
@@ -83,6 +83,8 @@ struct Exceptions {
 	KrkClass * assertionError;      /**< @exception AssertionError An @c assert statement failed. */
 	KrkClass * OSError;             /**< @exception os.OSError Raised by os module functions. */
 	KrkClass * ThreadError;         /**< @exception threading.ThreadError Raised by threading module functions. */
+	KrkClass * Exception;           /**< @exception Exception The main exception type that most other exceptions subclass. */
+	KrkClass * SystemError;         /**< @exception SystemError Something we can throw when C code is broken. */
 };
 
 /**

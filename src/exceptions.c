@@ -23,8 +23,8 @@
 	(void)name; \
 } while (0)
 
-#define IS_Exception(o)    (likely(krk_isInstanceOf(o,vm.exceptions->baseException)))
-#define AS_Exception(o)    (AS_INSTANCE(o))
+#define IS_BaseException(o)    (likely(krk_isInstanceOf(o,vm.exceptions->baseException)))
+#define AS_BaseException(o)    (AS_INSTANCE(o))
 #define IS_KeyError(o)     (likely(krk_isInstanceOf(o,vm.exceptions->keyError)))
 #define AS_KeyError(o)     (AS_INSTANCE(o))
 #define IS_SyntaxError(o)  (likely(krk_isInstanceOf(o,vm.exceptions->syntaxError)))
@@ -35,11 +35,11 @@
 /**
  * @brief Initialize an exception object.
  *
- * Native binding for Exception.__init__
+ * Native binding for BaseException.__init__
  *
  * @param arg Optional string to attach to the exception object.
  */
-KRK_Method(Exception,__init__) {
+KRK_Method(BaseException,__init__) {
 	if (argc > 1) {
 		krk_attachNamedValue(&self->fields, "arg", argv[1]);
 	}
@@ -49,13 +49,13 @@ KRK_Method(Exception,__init__) {
 }
 
 /**
- * @brief Create a string representation of an Exception.
+ * @brief Create a string representation of an BaseException.
  *
- * Native binding for @c Exception.__repr__
+ * Native binding for @c BaseException.__repr__
  *
- * Generates a string representation of the form @c "Exception(arg)" .
+ * Generates a string representation of the form @c "BaseException(arg)" .
  */
-KRK_Method(Exception,__repr__) {
+KRK_Method(BaseException,__repr__) {
 	KrkValue arg;
 	struct StringBuilder sb = {0};
 
@@ -77,12 +77,12 @@ KRK_Method(Exception,__repr__) {
 /**
  * @brief Obtain a descriptive string from an exception.
  *
- * Native binding for @c Exception.__str__
+ * Native binding for @c BaseException.__str__
  *
  * For most exceptions, this is the 'arg' value attached at initialization
  * and is printed during a traceback after the name of the exception type.
  */
-KRK_Method(Exception,__str__) {
+KRK_Method(BaseException,__str__) {
 	KrkValue arg;
 	if (!krk_tableGet(&self->fields, OBJECT_VAL(S("arg")), &arg) || IS_NONE(arg)) {
 		return OBJECT_VAL(S(""));
@@ -108,7 +108,7 @@ KRK_Method(KeyError,__str__) {
 			return krk_callDirect(krk_getType(arg)->_reprer, 1);
 		}
 	}
-	return FUNC_NAME(Exception,__str__)(argc,argv,hasKw);
+	return FUNC_NAME(BaseException,__str__)(argc,argv,hasKw);
 }
 
 /**
@@ -118,8 +118,8 @@ KRK_Method(KeyError,__str__) {
  *
  * Syntax errors are handled specially by the traceback generator so that they
  * can print the original source line containing the erroneous input, so instead
- * of printing {Exception.__class__.__name__}: {str(Exception)} we just print
- * {str(Exception)} for syntax errors and they handle the rest. This is a bit
+ * of printing {BaseException.__class__.__name__}: {str(BaseException)} we just print
+ * {str(BaseException)} for syntax errors and they handle the rest. This is a bit
  * of a kludge, but it works for now.
  */
 KRK_Method(SyntaxError,__str__) {
@@ -183,30 +183,43 @@ _badSyntaxError:
 _noexport
 void _createAndBind_exceptions(void) {
 	/* Add exception classes */
-	ADD_EXCEPTION_CLASS(vm.exceptions->baseException, Exception, vm.baseClasses->objectClass);
-	BIND_METHOD(Exception,__init__);
-	BIND_METHOD(Exception,__repr__);
-	BIND_METHOD(Exception,__str__);
-	krk_finalizeClass(Exception);
+	ADD_EXCEPTION_CLASS(vm.exceptions->baseException, BaseException, vm.baseClasses->objectClass);
+	BIND_METHOD(BaseException,__init__);
+	BIND_METHOD(BaseException,__repr__);
+	BIND_METHOD(BaseException,__str__);
+	krk_finalizeClass(BaseException);
 
+	/* KeyboardInterrupt is currently the only thing that directly inherits from BaseException. */
+	ADD_EXCEPTION_CLASS(vm.exceptions->keyboardInterrupt, KeyboardInterrupt, BaseException);
+
+	/* Everything else subclasses Exception */
+	ADD_EXCEPTION_CLASS(vm.exceptions->Exception, Exception, BaseException);
+
+	/* TypeError has a subclass ArgumentError, which is what we raise on arity mismatches */
 	ADD_EXCEPTION_CLASS(vm.exceptions->typeError, TypeError, Exception);
-	ADD_EXCEPTION_CLASS(vm.exceptions->argumentError, ArgumentError, Exception);
-	ADD_EXCEPTION_CLASS(vm.exceptions->indexError, IndexError, Exception);
+	ADD_EXCEPTION_CLASS(vm.exceptions->argumentError, ArgumentError, TypeError);
+
+	/* KeyError gets its own string conversion so it can repr msg */
 	ADD_EXCEPTION_CLASS(vm.exceptions->keyError, KeyError, Exception);
 	BIND_METHOD(KeyError,__str__);
 	krk_finalizeClass(KeyError);
 
+	/* There is nothing special about these. */
+	ADD_EXCEPTION_CLASS(vm.exceptions->indexError, IndexError, Exception);
 	ADD_EXCEPTION_CLASS(vm.exceptions->attributeError, AttributeError, Exception);
 	ADD_EXCEPTION_CLASS(vm.exceptions->nameError, NameError, Exception);
 	ADD_EXCEPTION_CLASS(vm.exceptions->importError, ImportError, Exception);
 	ADD_EXCEPTION_CLASS(vm.exceptions->ioError, IOError, Exception);
 	ADD_EXCEPTION_CLASS(vm.exceptions->valueError, ValueError, Exception);
-	ADD_EXCEPTION_CLASS(vm.exceptions->keyboardInterrupt, KeyboardInterrupt, Exception);
 	ADD_EXCEPTION_CLASS(vm.exceptions->zeroDivisionError, ZeroDivisionError, Exception);
 	ADD_EXCEPTION_CLASS(vm.exceptions->notImplementedError, NotImplementedError, Exception);
-	ADD_EXCEPTION_CLASS(vm.exceptions->assertionError, AssertionError, vm.exceptions->baseException);
+	ADD_EXCEPTION_CLASS(vm.exceptions->assertionError, AssertionError, Exception);
+	ADD_EXCEPTION_CLASS(vm.exceptions->OSError, OSError, Exception);
+	ADD_EXCEPTION_CLASS(vm.exceptions->SystemError, SystemError, Exception);
 
-	ADD_EXCEPTION_CLASS(vm.exceptions->syntaxError, SyntaxError, vm.exceptions->baseException);
+	/* SyntaxError also gets a special __str__ method... but also the whole exception
+	 * printer has special logic for it - TODO fix that */
+	ADD_EXCEPTION_CLASS(vm.exceptions->syntaxError, SyntaxError, vm.exceptions->Exception);
 	BIND_METHOD(SyntaxError,__str__);
 	krk_finalizeClass(SyntaxError);
 }
