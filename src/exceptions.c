@@ -408,11 +408,13 @@ void krk_raiseException(KrkValue base, KrkValue cause) {
 	if (IS_CLASS(base)) {
 		krk_push(base);
 		base = krk_callStack(0);
+		if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) return;
 	}
 	krk_currentThread.currentException = base;
 	if (IS_CLASS(cause)) {
 		krk_push(cause);
 		cause = krk_callStack(0);
+		if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) return;
 	}
 	if (IS_INSTANCE(krk_currentThread.currentException) && !IS_NONE(cause)) {
 		krk_attachNamedValue(&AS_INSTANCE(krk_currentThread.currentException)->fields,
