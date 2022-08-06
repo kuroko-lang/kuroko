@@ -640,13 +640,11 @@ _dbgQuit:
 
 static void handleSigint(int sigNum) {
 	/* Don't set the signal flag if the VM is not running */
-	if (!krk_currentThread.frameCount) return;
 	krk_currentThread.flags |= KRK_THREAD_SIGNALLED;
 }
 
 #ifndef _WIN32
 static void handleSigtrap(int sigNum) {
-	if (!krk_currentThread.frameCount) return;
 	krk_currentThread.flags |= KRK_THREAD_SINGLE_STEP;
 }
 #endif
@@ -1092,7 +1090,9 @@ _finishArgs:
 				} else {
 #endif
 					char * out = fgets(buf, 4096, stdin);
-					if (!out || !strlen(buf)) {
+					if (krk_currentThread.flags & KRK_THREAD_SIGNALLED) {
+						fprintf(stdout, "\n");
+					} else if ((!out || !strlen(buf))) {
 						fprintf(stdout, "^D\n");
 						valid = 0;
 						exitRepl = 1;
@@ -1101,6 +1101,13 @@ _finishArgs:
 #ifndef NO_RLINE
 				}
 #endif
+				if (krk_currentThread.flags & KRK_THREAD_SIGNALLED) {
+					/* We should actually be properly raising the interrupt and printing it with an empty traceback, but whatever. */
+					krk_currentThread.flags &= ~(KRK_THREAD_SIGNALLED); /* Clear signal flag */
+					fprintf(stderr, "KeyboardInterrupt\n");
+					valid = 0;
+					break;
+				}
 
 				if (buf[strlen(buf)-1] != '\n') {
 					/* rline shouldn't allow this as it doesn't accept ^D to submit input
