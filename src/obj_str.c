@@ -1035,6 +1035,185 @@ _corrupt:
 	return krk_runtimeError(vm.exceptions->typeError, "Corrupt str iterator: %s", errorStr);
 }
 
+
+void krk_pushStringBuilder(struct StringBuilder * sb, char c) {
+	if (sb->capacity < sb->length + 1) {
+		size_t old = sb->capacity;
+		sb->capacity = GROW_CAPACITY(old);
+		sb->bytes = GROW_ARRAY(char, sb->bytes, old, sb->capacity);
+	}
+	sb->bytes[sb->length++] = c;
+}
+
+void krk_pushStringBuilderStr(struct StringBuilder * sb, const char *str, size_t len) {
+	if (sb->capacity < sb->length + len) {
+		size_t prevcap = sb->capacity;
+		while (sb->capacity < sb->length + len) {
+			size_t old = sb->capacity;
+			sb->capacity = GROW_CAPACITY(old);
+		}
+		sb->bytes = GROW_ARRAY(char, sb->bytes, prevcap, sb->capacity);
+	}
+	for (size_t i = 0; i < len; ++i) {
+		sb->bytes[sb->length++] = *(str++);
+	}
+}
+
+KrkValue krk_finishStringBuilder(struct StringBuilder * sb) {
+	KrkValue out = OBJECT_VAL(krk_copyString(sb->bytes, sb->length));
+	FREE_ARRAY(char,sb->bytes, sb->capacity);
+	return out;
+}
+
+KrkValue krk_finishStringBuilderBytes(struct StringBuilder * sb) {
+	KrkValue out = OBJECT_VAL(krk_newBytes(sb->length, (uint8_t*)sb->bytes));
+	FREE_ARRAY(char,sb->bytes, sb->capacity);
+	return out;
+}
+
+KrkValue krk_discardStringBuilder(struct StringBuilder * sb) {
+	FREE_ARRAY(char,sb->bytes, sb->capacity);
+	return NONE_VAL();
+}
+
+int krk_pushStringBuilderFormatV(struct StringBuilder * sb, const char * fmt, va_list args) {
+	for (const char * f = fmt; *f; ++f) {
+		if (*f != '%') {
+			pushStringBuilder(sb, *f);
+			continue;
+		}
+
+		/* Bail on exception */
+		if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) {
+			return 0;
+		}
+
+		++f;
+
+		int size = ' ';
+		int len  = -1;
+
+		if (*f == 'z') size = *f++;
+		else if (*f == 'l') size = *f++;
+		else if (*f == 'L') size = *f++;
+
+		if (*f == '.') {
+			if (f[1] == '*') {
+				len = va_arg(args, int);
+				f += 2;
+			}
+		}
+
+		switch (*f) {
+			case 0: break;
+			case '%':
+				pushStringBuilder(sb, '%');
+				break;
+
+			case 'c': {
+				char val = (char)va_arg(args, int);
+				pushStringBuilder(sb, val);
+				break;
+			}
+
+			case 's': {
+				const char * c = va_arg(args, const char *);
+				pushStringBuilderStr(sb, c, len == -1 ? strlen(c) : (size_t)len);
+				break;
+			}
+
+			case 'u': {
+				size_t val = 0;
+				if (size == ' ') {
+					val = va_arg(args, unsigned int);
+				} else if (size == 'l') {
+					val = va_arg(args, unsigned long);
+				} else if (size == 'L') {
+					val = va_arg(args, unsigned long long);
+				} else if (size == 'z') {
+					val = va_arg(args, size_t);
+				}
+				char tmp[100];
+				snprintf(tmp, 32, "%zu", val);
+				pushStringBuilderStr(sb, tmp, strlen(tmp));
+				break;
+			}
+
+			case 'd': {
+				ssize_t val = 0;
+				if (size == ' ') {
+					val = va_arg(args, int);
+				} else if (size == 'l') {
+					val = va_arg(args, long);
+				} else if (size == 'L') {
+					val = va_arg(args, long long);
+				} else if (size == 'z') {
+					val = va_arg(args, ssize_t);
+				}
+				char tmp[100];
+				snprintf(tmp, 32, "%zd", val);
+				pushStringBuilderStr(sb, tmp, strlen(tmp));
+				break;
+			}
+
+			case 'T': {
+				KrkValue val = va_arg(args, KrkValue);
+				const char * typeName = krk_typeName(val);
+				pushStringBuilderStr(sb, typeName, strlen(typeName));
+				break;
+			}
+
+			case 'S': {
+				KrkString * val = va_arg(args, KrkString*);
+				pushStringBuilderStr(sb, val->chars, val->length);
+				break;
+			}
+
+			case 'R': {
+				KrkValue val = va_arg(args, KrkValue);
+				KrkClass * type = krk_getType(val);
+				if (likely(type->_reprer != NULL)) {
+					krk_push(val);
+					KrkValue res = krk_callDirect(type->_reprer, 1);
+					krk_push(res);
+					if (IS_STRING(res)) {
+						pushStringBuilderStr(sb, AS_CSTRING(res), AS_STRING(res)->length);
+					}
+					krk_pop();
+				}
+				break;
+			}
+
+			case 'p': {
+				uintptr_t val = va_arg(args, uintptr_t);
+				char tmp[100];
+				snprintf(tmp, 32, "0x%zx", (size_t)val);
+				pushStringBuilderStr(sb, tmp, strlen(tmp));
+				break;
+			}
+
+			default: {
+				va_arg(args, void*);
+				pushStringBuilderStr(sb, "(unsupported: ", 14);
+				pushStringBuilder(sb, *f);
+				pushStringBuilder(sb, ')');
+				break;
+			}
+		}
+	}
+
+	return 1;
+}
+
+int krk_pushStringBuilderFormat(struct StringBuilder * sb, const char * fmt, ...) {
+	va_list args;
+	va_start(args, fmt);
+	int result = krk_pushStringBuilderFormatV(sb,fmt,args);
+	va_end(args);
+	return result;
+}
+
+
 _noexport
 void _createAndBind_strClass(void) {
 	KrkClass * str = ADD_BASE_CLASS(vm.baseClasses->strClass, "str", vm.baseClasses->objectClass);

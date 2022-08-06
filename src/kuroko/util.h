@@ -125,14 +125,8 @@ struct StringBuilder {
  * @param sb String builder to append to.
  * @param c  Character to append.
  */
-static inline void pushStringBuilder(struct StringBuilder * sb, char c) {
-	if (sb->capacity < sb->length + 1) {
-		size_t old = sb->capacity;
-		sb->capacity = GROW_CAPACITY(old);
-		sb->bytes = GROW_ARRAY(char, sb->bytes, old, sb->capacity);
-	}
-	sb->bytes[sb->length++] = c;
-}
+void krk_pushStringBuilder(struct StringBuilder * sb, char c);
+#define pushStringBuilder krk_pushStringBuilder
 
 /**
  * @brief Append a string to the end of a string builder.
@@ -141,19 +135,8 @@ static inline void pushStringBuilder(struct StringBuilder * sb, char c) {
  * @param str C string to add.
  * @param len Length of the C string.
  */
-static inline void pushStringBuilderStr(struct StringBuilder * sb, const char *str, size_t len) {
-	if (sb->capacity < sb->length + len) {
-		size_t prevcap = sb->capacity;
-		while (sb->capacity < sb->length + len) {
-			size_t old = sb->capacity;
-			sb->capacity = GROW_CAPACITY(old);
-		}
-		sb->bytes = GROW_ARRAY(char, sb->bytes, prevcap, sb->capacity);
-	}
-	for (size_t i = 0; i < len; ++i) {
-		sb->bytes[sb->length++] = *(str++);
-	}
-}
+void krk_pushStringBuilderStr(struct StringBuilder * sb, const char *str, size_t len);
+#define pushStringBuilderStr krk_pushStringBuilderStr
 
 /**
  * @brief Finalize a string builder into a string object.
@@ -165,11 +148,8 @@ static inline void pushStringBuilderStr(struct StringBuilder * sb, const char *s
  * @param sb String builder to finalize.
  * @return A value representing a string object.
  */
-static inline KrkValue finishStringBuilder(struct StringBuilder * sb) {
-	KrkValue out = OBJECT_VAL(krk_copyString(sb->bytes, sb->length));
-	FREE_ARRAY(char,sb->bytes, sb->capacity);
-	return out;
-}
+KrkValue krk_finishStringBuilder(struct StringBuilder * sb);
+#define finishStringBuilder krk_finishStringBuilder
 
 /**
  * @brief Finalize a string builder in a bytes object.
@@ -180,11 +160,8 @@ static inline KrkValue finishStringBuilder(struct StringBuilder * sb) {
  * @param sb String builder to finalize.
  * @return A value representing a bytes object.
  */
-static inline KrkValue finishStringBuilderBytes(struct StringBuilder * sb) {
-	KrkValue out = OBJECT_VAL(krk_newBytes(sb->length, (uint8_t*)sb->bytes));
-	FREE_ARRAY(char,sb->bytes, sb->capacity);
-	return out;
-}
+KrkValue krk_finishStringBuilderBytes(struct StringBuilder * sb);
+#define finishStringBuilderBytes krk_finishStringBuilderBytes
 
 /**
  * @brief Discard the contents of a string builder.
@@ -196,10 +173,8 @@ static inline KrkValue finishStringBuilderBytes(struct StringBuilder * sb) {
  * @param  sb String builder to discard.
  * @return None, as a convenience.
  */
-static inline KrkValue discardStringBuilder(struct StringBuilder * sb) {
-	FREE_ARRAY(char,sb->bytes, sb->capacity);
-	return NONE_VAL();
-}
+KrkValue krk_discardStringBuilder(struct StringBuilder * sb);
+#define discardStringBuilder krk_discardStringBuilder
 
 #define IS_int(o)     (IS_INTEGER(o))
 #define AS_int(o)     (AS_INTEGER(o))
@@ -337,3 +312,7 @@ extern int krk_parseArgs_impl(
  * @returns 1 on success, 0 on failure with an exception set.
  */
 #define krk_parseArgs(f,n,...) krk_parseArgs_impl(_method_name,argc,argv,hasKw,f,n,__VA_ARGS__)
+
+
+extern int krk_pushStringBuilderFormatV(struct StringBuilder * sb, const char * fmt, va_list args);
+extern int krk_pushStringBuilderFormat(struct StringBuilder * sb, const char * fmt, ...);
