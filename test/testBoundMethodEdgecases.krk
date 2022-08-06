@@ -1,3 +1,9 @@
+# Emulate the old behavior of method.__repr__ when printing,
+# which called repr() on the receiver...
+def __str__(self):
+    return f'<bound method {self.__qualname__} of {self.__self__!r}>'
+method.__str__ = __str__
+
 class Callable():
     def __init__(self,name):
         self.name = name

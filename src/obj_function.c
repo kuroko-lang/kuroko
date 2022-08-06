@@ -22,25 +22,15 @@ static KrkTuple * functionArgs(KrkCodeObject * _self) {
 	}
 
 	for (short i = 0; i < _self->keywordArgs; ++i) {
-		struct StringBuilder sb = {0};
-		pushStringBuilderStr(&sb, AS_CSTRING(_self->keywordArgNames.values[i]), AS_STRING(_self->keywordArgNames.values[i])->length);
-		pushStringBuilder(&sb,'=');
-		tuple->values.values[tuple->values.count++] = finishStringBuilder(&sb);
+		tuple->values.values[tuple->values.count++] = krk_stringFromFormat("%S=", AS_STRING(_self->keywordArgNames.values[i]));
 	}
 
 	if (_self->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_ARGS) {
-		struct StringBuilder sb = {0};
-		pushStringBuilder(&sb, '*');
-		pushStringBuilderStr(&sb, AS_CSTRING(_self->requiredArgNames.values[_self->requiredArgs]), AS_STRING(_self->requiredArgNames.values[_self->requiredArgs])->length);
-		tuple->values.values[tuple->values.count++] = finishStringBuilder(&sb);
+		tuple->values.values[tuple->values.count++] = krk_stringFromFormat("*%S", AS_STRING(_self->requiredArgNames.values[_self->requiredArgs]));
 	}
 
 	if (_self->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_KWS) {
-		struct StringBuilder sb = {0};
-		pushStringBuilder(&sb, '*');
-		pushStringBuilder(&sb, '*');
-		pushStringBuilderStr(&sb, AS_CSTRING(_self->keywordArgNames.values[_self->keywordArgs]), AS_STRING(_self->keywordArgNames.values[_self->keywordArgs])->length);
-		tuple->values.values[tuple->values.count++] = finishStringBuilder(&sb);
+		tuple->values.values[tuple->values.count++] = krk_stringFromFormat("**%S", AS_STRING(_self->keywordArgNames.values[_self->keywordArgs]));
 	}
 
 	krk_pop();
@@ -151,9 +141,6 @@ KRK_Method(function,_ip_to_line) {
 KRK_Method(function,__str__) {
 	METHOD_TAKES_NONE();
 
-	struct StringBuilder sb = {0};
-	pushStringBuilderStr(&sb, "<function ", 10);
-
 	/* Do we have a qualified name? */
 	KrkValue name = FUNC_NAME(function,__qualname__)(1,&self,0);
 	if (IS_NONE(name)) {
@@ -162,17 +149,14 @@ KRK_Method(function,__str__) {
 
 	if (!IS_STRING(name)) name = OBJECT_VAL(S("<unnamed>"));
 
-	pushStringBuilderStr(&sb, AS_CSTRING(name), AS_STRING(name)->length);
+	krk_push(name);
 
-	pushStringBuilderStr(&sb," at ", 4);
+	struct StringBuilder sb = {0};
+	krk_pushStringBuilderFormat(&sb, "<function %S at %p>", AS_STRING(name), (void*)AS_OBJECT(self));
 
-	char address[100];
-	size_t len = snprintf(address, 100, "%p", (void*)AS_OBJECT(self));
-	pushStringBuilderStr(&sb, address, len);
+	krk_pop();
 
-	pushStringBuilder(&sb,'>');
-
-	return finishStringBuilder(&sb);
+	return krk_finishStringBuilder(&sb);
 }
 
 KRK_Method(function,__file__) {
@@ -222,14 +206,12 @@ KRK_Method(codeobject,__str__) {
 	if (!IS_STRING(s)) return NONE_VAL();
 	krk_push(s);
 
-	size_t len = AS_STRING(s)->length + sizeof("<codeobject >");
-	char * tmp = malloc(len);
-	snprintf(tmp, len, "<codeobject %s>", AS_CSTRING(s));
-	s = OBJECT_VAL(krk_copyString(tmp,len-1));
-	free(tmp);
+	struct StringBuilder sb = {0};
+	krk_pushStringBuilderFormat(&sb, "<codeobject %S at %p>", AS_STRING(s), (void*)self);
 
 	krk_pop();
-	return s;
+
+	return krk_finishStringBuilder(&sb);
 }
 
 KRK_Method(codeobject,_ip_to_line) {
@@ -329,17 +311,14 @@ KRK_Method(method,__str__) {
 	if (!IS_STRING(s)) return NONE_VAL();
 	krk_push(s);
 
-	KrkClass * type = krk_getType(self->receiver);
-	krk_push(self->receiver);
-	KrkValue reprVal = krk_callDirect(type->_reprer, 1);
+	struct StringBuilder sb = {0};
+	krk_pushStringBuilderFormat(&sb, "<bound method '%S' of %T object", AS_STRING(s), self->receiver);
+	if (IS_OBJECT(self->receiver)) krk_pushStringBuilderFormat(&sb, " at %p", (void*)AS_OBJECT(self->receiver));
+	krk_pushStringBuilder(&sb, '>');
 
-	size_t len = AS_STRING(s)->length + AS_STRING(reprVal)->length + sizeof("<bound method of >") + 1;
-	char * tmp = malloc(len);
-	snprintf(tmp, len, "<bound method %s of %s>", AS_CSTRING(s), AS_CSTRING(reprVal));
-	s = OBJECT_VAL(krk_copyString(tmp,len-1));
-	free(tmp);
 	krk_pop();
-	return s;
+
+	return krk_finishStringBuilder(&sb);
 }
 
 KRK_Method(method,__file__) {

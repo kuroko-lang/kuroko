@@ -112,7 +112,7 @@ let test = Test()
 test.doAThing()
 test.foo = "bar"
 print(test.foo)
-print('<bound method Test.doAThing of ' in str(test.doAThing))
+print('<bound method \'Test.doAThing\' of ' in str(test.doAThing))
 test.doAThing()
 
 

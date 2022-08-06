@@ -14,10 +14,10 @@ def noargs():
 Foo.other = other
 Foo.noargs = noargs
 
-print('<bound method other' in str(f.other))
+print('<bound method \'other' in str(f.other))
 f.other()
 
-print('<bound method noargs' in str(f.noargs))
+print('<bound method \'noargs' in str(f.noargs))
 try:
 	f.noargs()
 except Exception as e:
