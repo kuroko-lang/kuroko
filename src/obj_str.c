@@ -1213,6 +1213,15 @@ int krk_pushStringBuilderFormat(struct StringBuilder * sb, const char * fmt, ...
 	return result;
 }
 
+KrkValue krk_stringFromFormat(const char * fmt, ...) {
+	struct StringBuilder sb = {0};
+	va_list args;
+	va_start(args, fmt);
+	int result = krk_pushStringBuilderFormatV(&sb,fmt,args);
+	va_end(args);
+	if (!result) return krk_discardStringBuilder(&sb);
+	return krk_finishStringBuilder(&sb);
+}
 
 _noexport
 void _createAndBind_strClass(void) {
