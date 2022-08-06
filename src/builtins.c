@@ -200,22 +200,23 @@ KRK_Method(object,__str__) {
 	KrkString * name = IS_STRING(qualname) ? AS_STRING(qualname) : type->name;
 	int includeModule = !(IS_NONE(module) || (IS_STRING(module) && AS_STRING(module) == S("builtins")));
 
-	size_t allocSize = sizeof("<. object at 0x1234567812345678>") + name->length;
-	if (includeModule) allocSize += AS_STRING(module)->length + 1;
-	char * tmp = malloc(allocSize);
-	size_t len;
-	if (IS_OBJECT(self)) {
-		len = snprintf(tmp, allocSize, "<%s%s%s object at %p>",
-			includeModule ? AS_CSTRING(module) : "",
-			includeModule ? "." : "",
-			name->chars,
-			(void*)AS_OBJECT(self));
-	} else {
-		len = snprintf(tmp, allocSize, "<%s object>", name->chars);
+	struct StringBuilder sb = {0};
+
+	if (!krk_pushStringBuilderFormat(&sb, "<%s%s%s object",
+		includeModule ? AS_CSTRING(module) : "",
+		includeModule ? "." : "",
+		name->chars)) goto _error;
+
+	if (IS_OBJECT(self) && !krk_pushStringBuilderFormat(&sb, " at %p", (void*)AS_OBJECT(self))) {
+		goto _error;
 	}
-	KrkValue out = OBJECT_VAL(krk_copyString(tmp, len));
-	free(tmp);
-	return out;
+
+	krk_pushStringBuilder(&sb, '>');
+	return krk_finishStringBuilder(&sb);
+
+_error:
+	krk_discardStringBuilder(&sb);
+	return NONE_VAL();
 }
 
 KRK_Method(object,__format__) {
@@ -943,18 +944,20 @@ KRK_Method(module,__repr__) {
 	KrkValue file = NONE_VAL();
 	krk_tableGet(&self->fields, vm.specialMethodNames[METHOD_FILE], &file);
 
-	size_t allocSize = 50 + AS_STRING(name)->length + (IS_STRING(file) ? AS_STRING(file)->length : 20);
-	char * tmp = malloc(allocSize);
-	size_t len;
+	struct StringBuilder sb = {0};
+
+	if (!krk_pushStringBuilderFormat(&sb,"<module '%S' ", AS_STRING(name))) goto _error;
+
 	if (IS_STRING(file)) {
-		len = snprintf(tmp, allocSize, "<module '%s' from '%s'>", AS_CSTRING(name), AS_CSTRING(file));
+		if (!krk_pushStringBuilderFormat(&sb, "from %R>", file)) goto _error;
 	} else {
-		len = snprintf(tmp, allocSize, "<module '%s' (built-in)>", AS_CSTRING(name));
+		if (!krk_pushStringBuilderFormat(&sb, "(built-in)>")) goto _error;
 	}
 
-	KrkValue out = OBJECT_VAL(krk_copyString(tmp, len));
-	free(tmp);
-	return out;
+	return krk_finishStringBuilder(&sb);
+_error:
+	krk_discardStringBuilder(&sb);
+	return NONE_VAL();
 }
 
 #define IS_Helper(o)  (krk_isInstanceOf(o, KRK_BASE_CLASS(Helper)))
