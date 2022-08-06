@@ -652,13 +652,14 @@ static ssize_t identifierConstant(struct GlobalState * state, KrkToken * name) {
 			className++;
 		}
 
-		size_t total = name->length + 2 + classLength;
-		char * mangled = malloc(total);
-		snprintf(mangled, total, "_%.*s%.*s",
+		struct StringBuilder sb = {0};
+		krk_pushStringBuilderFormat(&sb,"_%.*s%.*s",
 			(int)classLength, className,
 			(int)name->length, name->start);
-		return krk_addConstant(currentChunk(), OBJECT_VAL(krk_takeString(mangled, total-1)));
+
+		return krk_addConstant(currentChunk(), krk_finishStringBuilder(&sb));
 	}
+
 	return krk_addConstant(currentChunk(), OBJECT_VAL(krk_copyString(name->start, name->length)));
 }
 

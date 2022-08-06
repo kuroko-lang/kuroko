@@ -62,16 +62,10 @@ KRK_Method(type,__str__) {
 
 	int includeModule = !(IS_NONE(module) || (IS_STRING(module) && AS_STRING(module) == S("builtins")));
 
-	size_t allocSize = sizeof("<class ''>") + name->length;
-	if (IS_STRING(module)) allocSize += AS_STRING(module)->length + 1;
-	char * tmp = malloc(allocSize);
-	size_t l = snprintf(tmp, allocSize, "<class '%s%s%s'>",
+	return krk_stringFromFormat("<class '%s%s%S'>",
 		includeModule ? AS_CSTRING(module) : "",
 		includeModule ? "." : "",
-		name->chars);
-	KrkString * out = krk_copyString(tmp,l);
-	free(tmp);
-	return OBJECT_VAL(out);
+		name);
 }
 
 KRK_Method(type,__subclasses__) {

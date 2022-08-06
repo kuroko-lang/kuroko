@@ -59,18 +59,11 @@ KRK_Method(range,__init__) {
 
 KRK_Method(range,__repr__) {
 	METHOD_TAKES_NONE();
-	krk_integer_type min = self->min;
-	krk_integer_type max = self->max;
-	krk_integer_type step = self->step;
-
-	char tmp[1024];
-	size_t len;
-	if (step == 1) {
-		len = snprintf(tmp,1024,"range(" PRIkrk_int "," PRIkrk_int ")", min, max);
-	} else {
-		len = snprintf(tmp,1024,"range(" PRIkrk_int "," PRIkrk_int "," PRIkrk_int ")", min, max, step);
-	}
-	return OBJECT_VAL(krk_copyString(tmp,len));
+	struct StringBuilder sb = {0};
+	krk_pushStringBuilderFormat(&sb, "range(%zd,%zd", (ssize_t)self->min, (ssize_t)self->max);
+	if (self->step != 1) krk_pushStringBuilderFormat(&sb, ",%zd", (ssize_t)self->step);
+	krk_pushStringBuilder(&sb,')');
+	return krk_finishStringBuilder(&sb);
 }
 
 KRK_Method(range,__iter__) {

@@ -110,14 +110,8 @@ KRK_Method(generator,__repr__) {
 		typeStr = "async_generator";
 	}
 
-	size_t estimatedLength = sizeof("< object at 0x1234567812345678>") + strlen(typeStr) + 1 + self->closure->function->name->length;
-	char * tmp = malloc(estimatedLength);
-	size_t lenActual = snprintf(tmp, estimatedLength, "<%s object %s at %p>",
-		typeStr,
-		self->closure->function->name->chars,
-		(void*)self);
-
-	return OBJECT_VAL(krk_takeString(tmp,lenActual));
+	return krk_stringFromFormat("<%s object %S at %p>",
+		typeStr, self->closure->function->name, (void*)self);
 }
 
 KRK_Method(generator,__iter__) {
