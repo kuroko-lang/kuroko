@@ -1072,36 +1072,43 @@ const char * krk_typeName(KrkValue value) {
 # define _protected
 #endif
 
+static int _try_op(size_t methodOffset, KrkValue a, KrkValue b, KrkValue *out) {
+	KrkClass * type = krk_getType(a);
+	KrkObj * method = *(KrkObj**)((char*)type + methodOffset);
+	if (likely(method != NULL)) {
+		krk_push(a);
+		krk_push(b);
+		KrkValue result = krk_callDirect(method, 2);
+		if (likely(!IS_NOTIMPL(result))) {
+			*out = result;
+			return 1;
+		}
+		if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) {
+			*out = NONE_VAL();
+			return 1;
+		}
+	}
+	return 0;
+}
+
+static KrkValue _bin_op(size_t methodOffset, size_t invOffset, const char * operator, KrkValue a, KrkValue b) {
+	KrkValue result;
+	if (_try_op(methodOffset, a, b, &result)) return result;
+	if (_try_op(invOffset, b, a, &result)) return result;
+	return krk_runtimeError(vm.exceptions->typeError,
+		"unsupported operand types for %s: '%T' and '%T'",
+		operator, a, b);
+}
+
 #define MAKE_COMPARE_OP(name,operator,inv) \
 	_protected KrkValue krk_operator_ ## name (KrkValue a, KrkValue b) { \
-		KrkClass * atype = krk_getType(a); \
-		if (likely(atype->_ ## name != NULL)) { \
-			krk_push(a); krk_push(b); \
-			KrkValue result = krk_callDirect(atype->_ ## name, 2); \
-			if (likely(!IS_NOTIMPL(result))) { return result; } \
-		} \
-		if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) return NONE_VAL(); \
-		KrkClass * btype = krk_getType(b); \
-		if (btype->_ ## inv) { \
-			krk_push(b); krk_push(a); \
-			KrkValue result = krk_callDirect(btype->_ ## inv, 2); \
-			if (likely(!IS_NOTIMPL(result))) { return result; } \
-		} \
-		if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) return NONE_VAL(); \
-		return krk_runtimeError(vm.exceptions->typeError, \
-			"unsupported operand types for %s: '%T' and '%T'", \
-			operator, a, b); \
+		return _bin_op(offsetof(KrkClass,_ ## name),offsetof(KrkClass,_ ## inv), operator, a, b); \
 	}
 #define MAKE_BIN_OP(name,operator,inv) \
 	MAKE_COMPARE_OP(name,operator,inv) \
 	_protected KrkValue krk_operator_i ## name (KrkValue a, KrkValue b) { \
-		KrkClass * atype = krk_getType(a); \
-		if (likely(atype->_i ## name != NULL)) { \
-			krk_push(a); krk_push(b); \
-			KrkValue result = krk_callDirect(atype->_i ## name, 2); \
-			if (!IS_NOTIMPL(result)) { return result; } \
-		} \
-		if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) return NONE_VAL(); \
+		KrkValue result; \
+		if (_try_op(offsetof(KrkClass,_i ## name), a, b, &result)) return result; \
 		return krk_operator_ ## name(a,b); \
 	}
 
@@ -1134,15 +1141,20 @@ KrkValue krk_operator_is(KrkValue a, KrkValue b) {
 	return BOOLEAN_VAL(krk_valuesSame(a,b));
 }
 
+static KrkValue _unary_op(size_t methodOffset, const char * operator, KrkValue value) {
+	KrkClass * type = krk_getType(value);
+	KrkObj * method = *(KrkObj**)((char*)type + methodOffset);
+	if (likely(method != NULL)) {
+		krk_push(value);
+		return krk_callDirect(method, 1);
+	}
+	if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) return NONE_VAL();
+	return krk_runtimeError(vm.exceptions->typeError, "bad operand type for unary %s: '%T'", operator, value);
+}
+
 #define MAKE_UNARY_OP(sname,operator,op) \
 	_protected KrkValue krk_operator_ ## operator (KrkValue value) { \
-		KrkClass * type = krk_getType(value); \
-		if (likely(type-> sname != NULL)) { \
-			krk_push(value); \
-			return krk_callDirect(type-> sname, 1); \
-		} \
-		if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) return NONE_VAL(); \
-		return krk_runtimeError(vm.exceptions->typeError, "bad operand type for unary %s: '%T'", #op, value); \
+		return _unary_op(offsetof(KrkClass,sname),#op,value); \
 	}
 
 MAKE_UNARY_OP(_invert,invert,~)
