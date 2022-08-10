@@ -14,6 +14,8 @@
 #define CURRENT_CTYPE krk_integer_type
 #define CURRENT_NAME  self
 
+extern KrkValue krk_int_from_float(double val);
+
 FUNC_SIG(int,__init__) {
 	static __attribute__ ((unused)) const char* _method_name = "__init__";
 	METHOD_TAKES_AT_MOST(2);
@@ -33,7 +35,7 @@ FUNC_SIG(int,__init__) {
 		}
 		return result;
 	}
-	if (IS_FLOATING(argv[1])) return INTEGER_VAL(AS_FLOATING(argv[1]));
+	if (IS_FLOATING(argv[1])) return krk_int_from_float(AS_FLOATING(argv[1]));
 	if (IS_BOOLEAN(argv[1])) return INTEGER_VAL(AS_BOOLEAN(argv[1]));
 	return krk_runtimeError(vm.exceptions->typeError, "%s() argument must be a string or a number, not '%T'", "int", argv[1]);
 }

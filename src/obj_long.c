@@ -11,13 +11,11 @@
  *
  *
  * TODO:
- * - Implement proper float conversions, make float ops more accurate.
  * - Expose better functions for extracting and converting native integers,
  *   which would be useful in modules that want to take 64-bit values,
  *   extracted unsigned values, etc.
  * - Faster division for large divisors?
  * - Shifts without multiply/divide...
- * - Exponentiation...
  */
 #include <kuroko/vm.h>
 #include <kuroko/value.h>
@@ -1179,6 +1177,8 @@ static void _long_gcsweep(KrkInstance * self) {
 	krk_long_clear(((struct BigInt*)self)->value);
 }
 
+KrkValue krk_int_from_float(double val);
+
 KRK_Method(long,__init__) {
 	METHOD_TAKES_AT_MOST(1);
 	if (argc < 2) {
@@ -1194,6 +1194,8 @@ KRK_Method(long,__init__) {
 		}
 	} else if (IS_long(argv[1])) {
 		krk_long_init_copy(self->value,AS_long(argv[1])->value);
+	} else if (IS_FLOATING(argv[1])) {
+		return krk_int_from_float(AS_FLOATING(argv[1]));
 	} else {
 		return krk_runtimeError(vm.exceptions->typeError, "%s() argument must be a string or a number, not '%T'", "int", argv[1]);
 	}
@@ -1211,13 +1213,42 @@ KRK_Method(long,__init__) {
  */
 static double krk_long_get_double(const KrkLong * value) {
 	size_t awidth = value->width < 0 ? -value->width : value->width;
-	double out = 0.0;
-	for (size_t i = 0; i < awidth; ++i) {
-		out *= (double)((uint64_t)DIGIT_MAX + 1);
-		out += (double)value->digits[awidth-i-1];
+	if (awidth == 0) return 0.0;
+
+	uint64_t sign = value->width < 0 ? 1 : 0;
+
+	/* We only need the top two digits if this value is normalized */
+	uint64_t mantissa = 0;
+	uint64_t high = value->digits[awidth-1];
+	uint64_t med  = awidth > 1 ? value->digits[awidth-2] : 0;
+	uint64_t low  = awidth > 2 ? value->digits[awidth-3] : 0;
+
+	int s = 0;
+	for (s = DIGIT_SHIFT; s >= 0; s--) {
+		if (high & (1 << s)) break;
 	}
-	if (value->width < 0) return -out;
-	return out;
+
+	int high_shift = 52 - s;
+	int med_shift  = 21 - s;
+	int low_shift  = 10 + s;
+
+	mantissa |= high << high_shift;
+	mantissa |= med_shift >= 0 ? (med << med_shift) : (med >> -med_shift);
+	mantissa |= low >> low_shift;
+
+	mantissa &= 0xfffffffffffffUL;
+
+	uint64_t exp = (s + (awidth - 1) * DIGIT_SHIFT) + 0x3FF;
+
+	if (exp > 0x7Fe) {
+		krk_runtimeError(vm.exceptions->valueError, "overflow, too large for float conversion");
+		return 0.0;
+	}
+
+	uint64_t val = (sign << 63) | (exp << 52) | mantissa;
+
+	union { uint64_t asInt; double asDbl; } u = {val};
+	return u.asDbl;
 }
 
 KRK_Method(long,__float__) {
@@ -1733,6 +1764,33 @@ KRK_Method(long,_get_digit) {
 	}
 
 	return INTEGER_VAL(_self->digits[index]);
+}
+
+KrkValue krk_int_from_float(double val) {
+	union { double asDbl; uint64_t asInt; } u = {val};
+
+	int sign     = (u.asInt >> 63);
+	int exponent = ((u.asInt >> 52) & 0x7FF) - 0x3FF;
+	uint64_t man = (u.asInt & 0xfffffffffffffUL);
+
+	if (exponent < 0) return INTEGER_VAL(0);
+	if (exponent == 1024) return krk_runtimeError(vm.exceptions->valueError, "can not convert float %s to int", man ? "Nan" : "infinity");
+
+	KrkLong _value;
+	krk_long_init_si(&_value, 0x10000000000000 | man);
+
+	KrkLong exp = {0};
+	if (exponent > 52) {
+		krk_long_init_si(&exp, exponent - 52);
+		_krk_long_lshift(&_value, &_value, &exp);
+	} else if (exponent < 52) {
+		krk_long_init_si(&exp, -(exponent - 52));
+		_krk_long_rshift(&_value, &_value, &exp);
+	}
+	krk_long_clear(&exp);
+
+	krk_long_set_sign(&_value, sign == 1 ? -1 : 1);
+	return make_long_obj(&_value);
 }
 
 #undef CURRENT_CTYPE
