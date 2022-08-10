@@ -118,33 +118,18 @@ _exit:
  * a trailing linefeed.
  */
 KRK_Function(input) {
-	FUNCTION_TAKES_AT_MOST(1);
-
 	char * prompt = "";
-	int promptLength = 0;
-	char * syntaxHighlighter = NULL;
+	int promptwidth = 0;
+	char * syntax = NULL;
 
-	if (argc) {
-		CHECK_ARG(0,str,KrkString*,_prompt);
-		prompt = _prompt->chars;
-		promptLength = _prompt->codesLength;
+	if (!krk_parseArgs("|siz", (const char*[]){"prompt","promptwidth","syntax"},
+		&prompt, &promptwidth, &syntax)) return NONE_VAL();
+
+	if (promptwidth == 0 && *prompt) {
+		promptwidth = strlen(prompt);
 	}
 
-	if (hasKw) {
-		KrkValue promptwidth;
-		if (krk_tableGet(AS_DICT(argv[argc]), OBJECT_VAL(S("promptwidth")), &promptwidth)) {
-			if (!IS_INTEGER(promptwidth)) return TYPE_ERROR(int,promptwidth);
-			promptLength = AS_INTEGER(promptwidth);
-		}
-
-		KrkValue syntax;
-		if (krk_tableGet(AS_DICT(argv[argc]), OBJECT_VAL(S("syntax")), &syntax)) {
-			if (!IS_STRING(syntax)) return TYPE_ERROR(str,syntax);
-			syntaxHighlighter = AS_CSTRING(syntax);
-		}
-	}
-
-	return readLine(prompt, promptLength, syntaxHighlighter);
+	return readLine(prompt, promptwidth, syntax);
 }
 
 #ifndef NO_RLINE
