@@ -46,13 +46,9 @@ KRK_Function(exit) {
 }
 
 KRK_Function(paste) {
-	FUNCTION_TAKES_AT_MOST(1);
-	if (argc) {
-		CHECK_ARG(0,bool,int,enabled);
-		pasteEnabled = enabled;
-	} else {
-		pasteEnabled = !pasteEnabled;
-	}
+	int enabled = !pasteEnabled;
+	if (!krk_parseArgs("|p",(const char*[]){"enabled"},&enabled)) return NONE_VAL();
+	pasteEnabled = enabled;
 	fprintf(stderr, "Pasting is %s.\n", pasteEnabled ? "enabled" : "disabled");
 	return NONE_VAL();
 }
