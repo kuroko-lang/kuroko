@@ -185,9 +185,9 @@ static void _loadEnviron(KrkInstance * module) {
 }
 
 KRK_Function(system) {
-	FUNCTION_TAKES_EXACTLY(1);
-	CHECK_ARG(0,str,KrkString*,cmd);
-	return INTEGER_VAL(system(cmd->chars));
+	const char * cmd;
+	if (!krk_parseArgs("s",(const char*[]){"command"},&cmd)) return NONE_VAL();
+	return INTEGER_VAL(system(cmd));
 }
 
 KRK_Function(getcwd) {
@@ -198,9 +198,9 @@ KRK_Function(getcwd) {
 }
 
 KRK_Function(chdir) {
-	FUNCTION_TAKES_EXACTLY(1);
-	CHECK_ARG(0,str,KrkString*,newDir);
-	if (chdir(newDir->chars)) return krk_runtimeError(KRK_EXC(OSError), "%s", strerror(errno));
+	const char * path;
+	if (!krk_parseArgs("s",(const char*[]){"path"}, &path)) return NONE_VAL();
+	if (chdir(path)) return krk_runtimeError(KRK_EXC(OSError), "%s", strerror(errno));
 	return NONE_VAL();
 }
 
@@ -210,18 +210,18 @@ KRK_Function(getpid) {
 }
 
 KRK_Function(strerror) {
-	FUNCTION_TAKES_EXACTLY(1);
-	CHECK_ARG(0,int,krk_integer_type,errorNo);
-	char *s = strerror(errorNo);
+	int errnum;
+	if (!krk_parseArgs("i",(const char*[]){"errnum"},&errnum)) return NONE_VAL();
+	char *s = strerror(errnum);
 	if (!s) return NONE_VAL();
 	return OBJECT_VAL(krk_copyString(s,strlen(s)));
 }
 
 KRK_Function(access) {
-	FUNCTION_TAKES_EXACTLY(2);
-	CHECK_ARG(0,str,KrkString*,path);
-	CHECK_ARG(1,int,krk_integer_type,mask);
-	if (access(path->chars, mask) == 0) return BOOLEAN_VAL(1);
+	const char * path;
+	int mask;
+	if (!krk_parseArgs("si",(const char*[]){"pathname","mode"},&path,&mask)) return NONE_VAL();
+	if (access(path, mask) == 0) return BOOLEAN_VAL(1);
 	return BOOLEAN_VAL(0);
 }
 
@@ -230,33 +230,33 @@ KRK_Function(abort) {
 }
 
 KRK_Function(exit) {
-	FUNCTION_TAKES_EXACTLY(1);
-	CHECK_ARG(0,int,krk_integer_type,retcode);
-	exit(retcode);
+	int status;
+	if (!krk_parseArgs("i",(const char*[]){"status"},&status)) return NONE_VAL();
+	exit(status);
 }
 
 KRK_Function(remove) {
-	FUNCTION_TAKES_EXACTLY(1);
-	CHECK_ARG(0,str,KrkString*,path);
-	if (remove(path->chars) != 0) {
+	const char * path;
+	if (!krk_parseArgs("s",(const char*[]){"path"}, &path)) return NONE_VAL();
+	if (remove(path) != 0) {
 		return krk_runtimeError(KRK_EXC(OSError), "%s", strerror(errno));
 	}
 	return NONE_VAL();
 }
 
 KRK_Function(truncate) {
-	FUNCTION_TAKES_EXACTLY(2);
-	CHECK_ARG(0,str,KrkString*,path);
-	CHECK_ARG(1,int,krk_integer_type,length);
-	if (truncate(path->chars, length) != 0) {
+	const char * path;
+	size_t length;
+	if (!krk_parseArgs("sn",(const char*[]){"path","length"}, &path, &length)) return NONE_VAL();
+	if (truncate(path, length) != 0) {
 		return krk_runtimeError(KRK_EXC(OSError), "%s", strerror(errno));
 	}
 	return NONE_VAL();
 }
 
 KRK_Function(dup) {
-	FUNCTION_TAKES_EXACTLY(1);
-	CHECK_ARG(0,int,krk_integer_type,fd);
+	int fd;
+	if (!krk_parseArgs("i",(const char*[]){"fd"}, &fd)) return NONE_VAL();
 	int result = dup(fd);
 	if (result < 0) {
 		return krk_runtimeError(KRK_EXC(OSError), "%s", strerror(errno));
@@ -265,9 +265,8 @@ KRK_Function(dup) {
 }
 
 KRK_Function(dup2) {
-	FUNCTION_TAKES_EXACTLY(2);
-	CHECK_ARG(0,int,krk_integer_type,fd);
-	CHECK_ARG(1,int,krk_integer_type,fd2);
+	int fd, fd2;
+	if (!krk_parseArgs("ii",(const char*[]){"fd","fd2"}, &fd, &fd2)) return NONE_VAL();
 	int result = dup2(fd,fd2);
 	if (result < 0) {
 		return krk_runtimeError(KRK_EXC(OSError), "%s", strerror(errno));
@@ -276,17 +275,16 @@ KRK_Function(dup2) {
 }
 
 KRK_Function(isatty) {
-	FUNCTION_TAKES_EXACTLY(1);
-	CHECK_ARG(0,int,krk_integer_type,fd);
+	int fd;
+	if (!krk_parseArgs("i",(const char*[]){"fd"}, &fd)) return NONE_VAL();
 	return BOOLEAN_VAL(isatty(fd));
 }
 
 KRK_Function(lseek) {
-	FUNCTION_TAKES_EXACTLY(3);
-	CHECK_ARG(0,int,krk_integer_type,fd);
-	CHECK_ARG(1,int,krk_integer_type,pos);
-	CHECK_ARG(2,int,krk_integer_type,how);
-	off_t result = lseek(fd,pos,how);
+	int fd, how;
+	ssize_t offset;
+	if (!krk_parseArgs("ini",(const char*[]){"fd","offset","how"}, &fd, &offset, &how)) return NONE_VAL();
+	off_t result = lseek(fd,offset,how);
 	if (result == -1) {
 		return krk_runtimeError(KRK_EXC(OSError), "%s", strerror(errno));
 	}
@@ -294,16 +292,11 @@ KRK_Function(lseek) {
 }
 
 KRK_Function(open) {
-	FUNCTION_TAKES_AT_LEAST(2);
-	FUNCTION_TAKES_AT_MOST(3);
-	CHECK_ARG(0,str,KrkString*,path);
-	CHECK_ARG(1,int,krk_integer_type,flags);
+	const char * path;
+	int flags;
 	int mode = 0777;
-	if (argc == 3) {
-		CHECK_ARG(2,int,krk_integer_type,_mode);
-		mode = _mode;
-	}
-	int result = open(path->chars, flags, mode);
+	if (!krk_parseArgs("si|i",(const char*[]){"path","flags","mode"}, &path, &flags, &mode)) return NONE_VAL();
+	int result = open(path, flags, mode);
 	if (result == -1) {
 		return krk_runtimeError(KRK_EXC(OSError), "%s", strerror(errno));
 	}
@@ -311,8 +304,8 @@ KRK_Function(open) {
 }
 
 KRK_Function(close) {
-	FUNCTION_TAKES_EXACTLY(1);
-	CHECK_ARG(0,int,krk_integer_type,fd);
+	int fd;
+	if (!krk_parseArgs("i",(const char*[]){"fd"}, &fd)) return NONE_VAL();
 	if (close(fd) == -1) {
 		return krk_runtimeError(KRK_EXC(OSError), "%s", strerror(errno));
 	}
@@ -323,15 +316,10 @@ KRK_Function(close) {
 #define mkdir(p,m) mkdir(p); (void)m
 #endif
 KRK_Function(mkdir) {
-	FUNCTION_TAKES_AT_LEAST(1);
-	FUNCTION_TAKES_AT_MOST(2);
-	CHECK_ARG(0,str,KrkString*,path);
+	const char * path;
 	int mode = 0777;
-	if (argc > 1) {
-		CHECK_ARG(1,int,krk_integer_type,_mode);
-		mode = _mode;
-	}
-	int result = mkdir(path->chars, mode);
+	if (!krk_parseArgs("s|i",(const char*[]){"path","mode"}, &path, &mode)) return NONE_VAL();
+	int result = mkdir(path, mode);
 	if (result == -1) {
 		return krk_runtimeError(KRK_EXC(OSError), "%s", strerror(errno));
 	}
@@ -339,12 +327,12 @@ KRK_Function(mkdir) {
 }
 
 KRK_Function(read) {
-	FUNCTION_TAKES_EXACTLY(2);
-	CHECK_ARG(0,int,krk_integer_type,fd);
-	CHECK_ARG(1,int,krk_integer_type,n);
+	int fd;
+	ssize_t count;
+	if (!krk_parseArgs("in",(const char*[]){"fd","count"}, &fd, &count)) return NONE_VAL();
 
-	uint8_t * tmp = malloc(n);
-	ssize_t result = read(fd,tmp,n);
+	uint8_t * tmp = malloc(count);
+	ssize_t result = read(fd,tmp,count);
 	if (result == -1) {
 		free(tmp);
 		return krk_runtimeError(KRK_EXC(OSError), "%s", strerror(errno));
@@ -361,10 +349,11 @@ KRK_Function(read) {
 #endif
 
 KRK_Function(write) {
-	FUNCTION_TAKES_EXACTLY(2);
-	CHECK_ARG(0,int,krk_integer_type,fd);
-	CHECK_ARG(1,bytes,KrkBytes*,data);
-	ssize_t result = write(fd,data->bytes,data->length);
+	int fd;
+	KrkBytes * buf;
+	if (!krk_parseArgs("iO!",(const char*[]){"fd","buf"}, &fd, KRK_BASE_CLASS(bytes), &buf)) return NONE_VAL();
+
+	ssize_t result = write(fd,buf->bytes,buf->length);
 	if (result == -1) {
 		return krk_runtimeError(KRK_EXC(OSError), "%s", strerror(errno));
 	}
@@ -387,7 +376,11 @@ KRK_Function(pipe) {
 
 KRK_Function(kill) {
 	FUNCTION_TAKES_EXACTLY(2);
-	int result = kill(AS_INTEGER(argv[0]), AS_INTEGER(argv[1]));
+	ssize_t pid;
+	int sig;
+	if (!krk_parseArgs("ni",(const char*[]){"pid","sig"}, &pid, &sig)) return NONE_VAL();
+
+	int result = kill(pid, sig);
 	if (result == -1) {
 		return krk_runtimeError(KRK_EXC(OSError), "%s", strerror(errno));
 	}
@@ -400,18 +393,19 @@ KRK_Function(fork) {
 }
 
 KRK_Function(symlink) {
-	FUNCTION_TAKES_EXACTLY(2);
-	CHECK_ARG(0,str,KrkString*,src);
-	CHECK_ARG(1,str,KrkString*,dst);
-	if (symlink(src->chars, dst->chars) != 0) {
+	const char * src;
+	const char * dst;
+	if (!krk_parseArgs("ss",(const char*[]){"target","linkpath"}, &src, &dst)) return NONE_VAL();
+
+	if (symlink(src, dst) != 0) {
 		return krk_runtimeError(KRK_EXC(OSError), "%s", strerror(errno));
 	}
 	return NONE_VAL();
 }
 
 KRK_Function(tcgetpgrp) {
-	FUNCTION_TAKES_EXACTLY(1);
-	CHECK_ARG(0,int,krk_integer_type,fd);
+	int fd;
+	if (!krk_parseArgs("i",(const char*[]){"fd"}, &fd)) return NONE_VAL();
 	int result = tcgetpgrp(fd);
 	if (result == -1) {
 		return krk_runtimeError(KRK_EXC(OSError), "%s", strerror(errno));
@@ -420,9 +414,9 @@ KRK_Function(tcgetpgrp) {
 }
 
 KRK_Function(tcsetpgrp) {
-	FUNCTION_TAKES_EXACTLY(2);
-	CHECK_ARG(0,int,krk_integer_type,fd);
-	CHECK_ARG(1,int,krk_integer_type,pgrp);
+	int fd;
+	ssize_t pgrp;
+	if (!krk_parseArgs("in",(const char*[]){"fd","pgrp"}, &fd, &pgrp)) return NONE_VAL();
 	int result = tcsetpgrp(fd,pgrp);
 	if (result == -1) {
 		return krk_runtimeError(KRK_EXC(OSError), "%s", strerror(errno));
@@ -431,8 +425,8 @@ KRK_Function(tcsetpgrp) {
 }
 
 KRK_Function(ttyname) {
-	FUNCTION_TAKES_EXACTLY(1);
-	CHECK_ARG(0,int,krk_integer_type,fd);
+	int fd;
+	if (!krk_parseArgs("i",(const char*[]){"fd"}, &fd)) return NONE_VAL();
 	char * result = ttyname(fd);
 	if (!result) {
 		return krk_runtimeError(KRK_EXC(OSError), "%s", strerror(errno));
@@ -441,12 +435,8 @@ KRK_Function(ttyname) {
 }
 
 KRK_Function(get_terminal_size) {
-	FUNCTION_TAKES_AT_MOST(1);
 	int fd = 1;
-	if (argc > 0) {
-		CHECK_ARG(0,int,krk_integer_type,_fd);
-		fd = _fd;
-	}
+	if (!krk_parseArgs("|i",(const char*[]){"fd"}, &fd)) return NONE_VAL();
 
 	struct winsize wsz;
 	int res = ioctl(fd, TIOCGWINSZ, &wsz);
@@ -555,10 +545,11 @@ KRK_Function(execvp) {
 #define STAT_STRUCT struct stat
 #endif
 KRK_Function(stat) {
-	FUNCTION_TAKES_EXACTLY(1);
-	CHECK_ARG(0,str,KrkString*,path);
+	const char * path;
+	if (!krk_parseArgs("s",(const char*[]){"path"}, &path)) return NONE_VAL();
+
 	STAT_STRUCT buf;
-	int result = stat(path->chars, &buf);
+	int result = stat(path, &buf);
 	if (result == -1) {
 		return krk_runtimeError(KRK_EXC(OSError), "%s", strerror(errno));
 	}
@@ -624,39 +615,39 @@ KRK_Method(stat_result,__repr__) {
 }
 
 KRK_Function(S_ISBLK) {
-	FUNCTION_TAKES_EXACTLY(1);
-	CHECK_ARG(0,int,krk_integer_type,mode);
+	int mode;
+	if (!krk_parseArgs("i",(const char*[]){"mode"},&mode)) return NONE_VAL();
 	return INTEGER_VAL(S_ISBLK(mode));
 }
 KRK_Function(S_ISCHR) {
-	FUNCTION_TAKES_EXACTLY(1);
-	CHECK_ARG(0,int,krk_integer_type,mode);
+	int mode;
+	if (!krk_parseArgs("i",(const char*[]){"mode"},&mode)) return NONE_VAL();
 	return INTEGER_VAL(S_ISCHR(mode));
 }
 KRK_Function(S_ISDIR) {
-	FUNCTION_TAKES_EXACTLY(1);
-	CHECK_ARG(0,int,krk_integer_type,mode);
+	int mode;
+	if (!krk_parseArgs("i",(const char*[]){"mode"},&mode)) return NONE_VAL();
 	return INTEGER_VAL(S_ISDIR(mode));
 }
 KRK_Function(S_ISFIFO) {
-	FUNCTION_TAKES_EXACTLY(1);
-	CHECK_ARG(0,int,krk_integer_type,mode);
+	int mode;
+	if (!krk_parseArgs("i",(const char*[]){"mode"},&mode)) return NONE_VAL();
 	return INTEGER_VAL(S_ISFIFO(mode));
 }
 KRK_Function(S_ISREG) {
-	FUNCTION_TAKES_EXACTLY(1);
-	CHECK_ARG(0,int,krk_integer_type,mode);
+	int mode;
+	if (!krk_parseArgs("i",(const char*[]){"mode"},&mode)) return NONE_VAL();
 	return INTEGER_VAL(S_ISREG(mode));
 }
 #ifndef _WIN32
 KRK_Function(S_ISLNK) {
-	FUNCTION_TAKES_EXACTLY(1);
-	CHECK_ARG(0,int,krk_integer_type,mode);
+	int mode;
+	if (!krk_parseArgs("i",(const char*[]){"mode"},&mode)) return NONE_VAL();
 	return INTEGER_VAL(S_ISLNK(mode));
 }
 KRK_Function(S_ISSOCK) {
-	FUNCTION_TAKES_EXACTLY(1);
-	CHECK_ARG(0,int,krk_integer_type,mode);
+	int mode;
+	if (!krk_parseArgs("i",(const char*[]){"mode"},&mode)) return NONE_VAL();
 	return INTEGER_VAL(S_ISSOCK(mode));
 }
 #endif
