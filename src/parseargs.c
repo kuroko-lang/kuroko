@@ -244,22 +244,26 @@ int krk_parseVArgs(
 			}
 
 			/**
-			 * @c i   Simple integer. The argument must be a normal @c int. No conversion
-			 *        is done from other types and @c long objects are not supported. No
-			 *        overflow checking is done, either. If you want to accept @c long
-			 *        objects reliably, use @c V! with a type of @c int instead.
+			 * Integer conversions.
+			 *
+			 * TODO Currently no overflow checking is done for any case, but we should do it
+			 *      for at least the signed values to align with the CPython API this is
+			 *      all based on... The distinct signed vs. unsigned variants are intended
+			 *      both for future compatibility and to make intent clear, but have no
+			 *      functional difference at this point.
 			 */
-			case 'i': {
-				int * out = va_arg(args, int*);
-				if (arg != KWARGS_VAL(0)) {
-					if (!IS_INTEGER(arg)) {
-						TYPE_ERROR(int,arg);
-						goto _error;
-					}
-					*out = AS_INTEGER(arg);
-				}
-				break;
-			}
+#define NUMERIC(c,type) case c: { type * out = va_arg(args, type*); if (arg != KWARGS_VAL(0)) { if (!krk_long_to_int(arg, sizeof(type), out)) goto _error; } break; }
+			NUMERIC('b',unsigned char)
+			NUMERIC('h',short)
+			NUMERIC('H',unsigned short)
+			NUMERIC('i',int)
+			NUMERIC('I',unsigned int)
+			NUMERIC('l',long)
+			NUMERIC('k',unsigned long)
+			NUMERIC('L',long long)
+			NUMERIC('K',unsigned long long)
+			NUMERIC('n',ssize_t)
+			NUMERIC('N',size_t)
 
 			/**
 			 * @c C   Accept a string of length one and convert it to

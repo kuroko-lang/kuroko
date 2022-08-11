@@ -327,3 +327,5 @@ extern int krk_parseArgs_impl(
 extern int krk_pushStringBuilderFormatV(struct StringBuilder * sb, const char * fmt, va_list args);
 extern int krk_pushStringBuilderFormat(struct StringBuilder * sb, const char * fmt, ...);
 extern KrkValue krk_stringFromFormat(const char * fmt, ...);
+extern int krk_long_to_int(KrkValue val, char size, void * out);
+

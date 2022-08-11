@@ -1793,6 +1793,64 @@ KrkValue krk_int_from_float(double val) {
 	return make_long_obj(&_value);
 }
 
+/**
+ * @brief Convert an int or long to a C integer.
+ *
+ * No overflow checking is performed in any case.
+ *
+ * @param val  int or long to convert.
+ * @param size Size in bytes of desired C integer type.
+ * @param out  Pointer to resulting int.
+ */
+_protected
+int krk_long_to_int(KrkValue val, char size, void * out) {
+	uint64_t accum = 0;
+	if (IS_INTEGER(val)) {
+		/* For integers, there's nothing to do until we want to start
+		 * doing overflow checking, so just extend to 64-bit. */
+		accum = AS_INTEGER(val);
+	} else if (IS_long(val)) {
+		/* For longs, we have some additional work. */
+		struct BigInt * self = (void*)AS_OBJECT(val);
+		KrkLong * this = self->value;
+		size_t swidth = this->width < 0 ? -this->width : this->width;
+
+		if (swidth > 0) {
+			/* Collect up to three digits worth of bits, to the maximum
+			 * we support of 64. 31, 31, and 2. */
+			accum |= (uint64_t)this->digits[0];
+			if (swidth > 1) {
+				accum |= (uint64_t)this->digits[1] << DIGIT_SHIFT;
+				if (swidth > 2) {
+					accum |= (uint64_t)(this->digits[2] & 0x3) << DIGIT_SHIFT * 2;
+				}
+			}
+			/* If this is a negative value, convert the result to twos-complement. */
+			if (this->width < 0) {
+				accum -= 1;
+				accum ^= 0xFFFFffffFFFFffff;
+			}
+		}
+	} else {
+		krk_runtimeError(vm.exceptions->typeError, "expected %s, not '%T'", "int", val);
+		return 0;
+	}
+
+	/* Now copy over the output. */
+	switch (size) {
+		case sizeof(uint8_t):   *(uint8_t*)out  = accum; break;
+		case sizeof(uint16_t):  *(uint16_t*)out = accum; break;
+		case sizeof(uint32_t):  *(uint32_t*)out = accum; break;
+		case sizeof(uint64_t):  *(uint64_t*)out = accum; break;
+		default:
+			krk_runtimeError(vm.exceptions->SystemError, "invalid size");
+			return 0;
+	}
+
+	return 1;
+}
+
+
 #undef CURRENT_CTYPE
 #define CURRENT_CTYPE krk_integer_type
 
