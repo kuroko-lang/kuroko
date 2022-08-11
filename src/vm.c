@@ -1062,16 +1062,6 @@ const char * krk_typeName(KrkValue value) {
 	return krk_getType(value)->name->chars;
 }
 
-#if !defined(__has_attribute)
-# define __has_attribute(attr) 0
-#endif
-
-#if __has_attribute(protected)
-# define _protected __attribute__((protected))
-#else
-# define _protected
-#endif
-
 static int _try_op(size_t methodOffset, KrkValue a, KrkValue b, KrkValue *out) {
 	KrkClass * type = krk_getType(a);
 	KrkObj * method = *(KrkObj**)((char*)type + methodOffset);
