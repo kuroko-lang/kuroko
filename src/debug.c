@@ -10,6 +10,7 @@
 #include "opcode_enum.h"
 
 #ifndef KRK_DISABLE_DEBUG
+#define NOOP (void)0
 
 /**
  * When tracing is enabled, we will present the elements on the stack with
@@ -139,77 +140,111 @@ static int isJumpTarget(KrkCodeObject * func, size_t startPoint) {
 #undef FORMAT_VALUE_MORE
 }
 
-#define SIMPLE(opc) case opc: fprintf(f, "%-16s      ", opcodeClean(#opc)); size = 1; break;
-#define CONSTANT(opc,more) case opc: { size_t constant = chunk->code[offset + 1]; \
-	fprintf(f, "%-16s %4d ", opcodeClean(#opc), (int)constant); \
-	krk_printValueSafe(f, chunk->constants.values[constant]); \
-	size = 2; more; break; } \
-	case opc ## _LONG: { size_t constant = (chunk->code[offset + 1] << 16) | \
-	(chunk->code[offset + 2] << 8) | (chunk->code[offset + 3]); \
-	fprintf(f, "%-16s %4d ", opcodeClean(#opc "_LONG"), (int)constant); \
-	krk_printValueSafe(f, chunk->constants.values[constant]); \
-	size = 4; more; break; }
-#define OPERANDB(opc,more) case opc: { uint32_t operand = chunk->code[offset + 1]; \
-	fprintf(f, "%-16s %4d", opcodeClean(#opc), (int)operand); \
-	size = 2; more; break; }
-#define OPERAND(opc,more) OPERANDB(opc,more) \
-	case opc ## _LONG: { uint32_t operand = (chunk->code[offset + 1] << 16) | \
-	(chunk->code[offset + 2] << 8) | (chunk->code[offset + 3]); \
-	fprintf(f, "%-16s %4d", opcodeClean(#opc "_LONG"), (int)operand); \
-	size = 4; more; fprintf(f,"\n"); break; }
-#define JUMP(opc,sign) case opc: { uint16_t jump = (chunk->code[offset + 1] << 8) | \
-	(chunk->code[offset + 2]); \
-	fprintf(f, "%-16s %4d (to %d)", opcodeClean(#opc), (int)jump, (int)(offset + 3 sign jump)); \
-	size = 3; break; }
+#define OPARGS FILE * f, const char * fullName, size_t * size, size_t * offset, KrkCodeObject * func, KrkChunk * chunk
+#define OPARG_VALS f,fullName,size,offset,func,chunk
 
-#define CLOSURE_MORE \
-	KrkCodeObject * function = AS_codeobject(chunk->constants.values[constant]); \
-	fprintf(f, " "); \
-	for (size_t j = 0; j < function->upvalueCount; ++j) { \
-		int isLocal = chunk->code[offset++ + size]; \
-		int index = chunk->code[offset++ + size]; \
-		if (isLocal & 2) { \
-			index = (index << 16) | (chunk->code[offset + size] << 8) | chunk->code[offset + 1 + size]; \
-			offset += 2; \
-		} \
-		if (isLocal & 1) { \
-			for (size_t i = 0; i < func->localNameCount; ++i) { \
-				if (func->localNames[i].id == (size_t)index && func->localNames[i].birthday <= offset && func->localNames[i].deathday >= offset) { \
-					fprintf(f, "%s", func->localNames[i].name->chars); \
-					break; \
-				} \
-			} \
-		} else { fprintf(f, "upvalue<%d>", index); } \
-		if (j + 1 != function->upvalueCount) fprintf(f, ", "); \
+static void _print_opcode(OPARGS) {
+	fprintf(f, "%-16s ", opcodeClean(fullName));
+}
+
+static void _simple(OPARGS) {
+	_print_opcode(OPARG_VALS);
+	fprintf(f, "     ");
+	*size = 1;
+}
+
+static void _constant(OPARGS, int isLong, void (*more)(OPARGS, size_t constant)) {
+	_print_opcode(OPARG_VALS);
+	size_t constant = isLong ? (chunk->code[*offset + 1] << 16) | (chunk->code[*offset + 2] << 8) | (chunk->code[*offset + 3]) : chunk->code[*offset + 1];
+	fprintf(f, "%4d ", (int)constant);
+	krk_printValueSafe(f, chunk->constants.values[constant]);
+	*size = isLong ? 4 : 2;
+	if (more) more(OPARG_VALS, constant);
+}
+
+static void _operand(OPARGS, int isLong, void (*more)(OPARGS, size_t constant)) {
+	_print_opcode(OPARG_VALS);
+	uint32_t operand = isLong ? (chunk->code[*offset + 1] << 16) | (chunk->code[*offset + 2] << 8) | (chunk->code[*offset + 3]) : chunk->code[*offset + 1];
+	fprintf(f, "%4d", (int)operand);
+	*size = isLong ? 4 : 2;
+	if (more) more(OPARG_VALS, operand);
+}
+
+static void _jump(OPARGS, int sign) {
+	_print_opcode(OPARG_VALS);
+	uint16_t jump = (chunk->code[*offset + 1] << 8) | (chunk->code[*offset + 2]);
+	fprintf(f, "%4d (to %d)", (int)jump, (int)(*offset + 3 + sign * jump));
+	*size = 3;
+}
+
+#undef NOOP
+#define NOOP (NULL)
+#define SIMPLE(opc) case opc: _simple(f,#opc,&size,&offset,func,chunk); break;
+#define CONSTANT(opc,more) case opc: _constant(f,#opc,&size,&offset,func,chunk,0,more); break; \
+	case opc ## _LONG: _constant(f,#opc "_LONG",&size,&offset,func,chunk,1,more); break;
+#define OPERAND(opc,more) case opc: _operand(f,#opc,&size,&offset,func,chunk,0,more); break; \
+	case opc ## _LONG: _operand(f,#opc "_LONG",&size,&offset,func,chunk,1,more); break;
+#define JUMP(opc,sign) case opc: _jump(f,#opc,&size,&offset,func,chunk,sign 1); break;
+
+#define CLOSURE_MORE _closure_more
+
+static void _closure_more(OPARGS, size_t constant) {
+	KrkCodeObject * function = AS_codeobject(chunk->constants.values[constant]);
+	fprintf(f, " ");
+	for (size_t j = 0; j < function->upvalueCount; ++j) {
+		int isLocal = chunk->code[(*offset)++ + *size];
+		int index = chunk->code[(*offset)++ + *size];
+		if (isLocal & 2) {
+			index = (index << 16) | (chunk->code[*offset + *size] << 8) | chunk->code[*offset + 1 + *size];
+			offset += 2;
+		}
+		if (isLocal & 1) {
+			for (size_t i = 0; i < func->localNameCount; ++i) {
+				if (func->localNames[i].id == (size_t)index && func->localNames[i].birthday <= *offset && func->localNames[i].deathday >= *offset) {
+					fprintf(f, "%s", func->localNames[i].name->chars);
+					break;
+				}
+			}
+		} else { fprintf(f, "upvalue<%d>", index); }
+		if (j + 1 != function->upvalueCount) fprintf(f, ", ");
 	}
+}
 
-#define EXPAND_ARGS_MORE \
+#define EXPAND_ARGS_MORE _expand_args_more
+
+static void _expand_args_more(OPARGS, size_t operand) {
 	fprintf(f, " (%s)", operand == 0 ? "singleton" : (operand == 1 ? "list" : "dict"));
+}
 
-#define FORMAT_VALUE_MORE \
-	if (operand != 0) {\
-		int hasThing = 0; \
-		fprintf(f, " ("); \
-		if (operand & FORMAT_OP_EQ)     { fprintf(f, "eq"); hasThing = 1; } \
-		if (operand & FORMAT_OP_STR)    { fprintf(f, "%sstr", hasThing ? ", " : ""); hasThing = 1; } \
-		if (operand & FORMAT_OP_REPR)   { fprintf(f, "%srepr", hasThing ? ", " : ""); hasThing = 1; } \
-		if (operand & FORMAT_OP_FORMAT) { fprintf(f, "%swith format", hasThing ? ", " : ""); } \
-		fprintf(f, ")"); \
-	}
+#define FORMAT_VALUE_MORE _format_value_more
 
-#define LOCAL_MORE \
-	if ((short int)operand < (func->requiredArgs)) { \
-		fprintf(f, " (%s, arg)", AS_CSTRING(func->requiredArgNames.values[operand])); \
-	} else if ((short int)operand < (func->requiredArgs + func->keywordArgs)) { \
-		fprintf(f, " (%s, kwarg))", AS_CSTRING(func->keywordArgNames.values[operand-func->requiredArgs])); \
-	} else { \
-		for (size_t i = 0; i < func->localNameCount; ++i) { \
-			if (func->localNames[i].id == operand && func->localNames[i].birthday <= offset && func->localNames[i].deathday >= offset) { \
-				fprintf(f, " (%s)", func->localNames[i].name->chars); \
-				break; \
-			} \
-		} \
+static void _format_value_more(OPARGS, size_t operand) {
+	if (operand != 0) {
+		int hasThing = 0;
+		fprintf(f, " (");
+		if (operand & FORMAT_OP_EQ)     { fprintf(f, "eq"); hasThing = 1; }
+		if (operand & FORMAT_OP_STR)    { fprintf(f, "%sstr", hasThing ? ", " : ""); hasThing = 1; }
+		if (operand & FORMAT_OP_REPR)   { fprintf(f, "%srepr", hasThing ? ", " : ""); hasThing = 1; }
+		if (operand & FORMAT_OP_FORMAT) { fprintf(f, "%swith format", hasThing ? ", " : ""); }
+		fprintf(f, ")");
 	}
+}
+
+#define LOCAL_MORE _local_more
+static void _local_more(OPARGS, size_t operand) {
+	if ((short int)operand < (func->requiredArgs)) {
+		fprintf(f, " (%s, arg)", AS_CSTRING(func->requiredArgNames.values[operand]));
+	} else if ((short int)operand < (func->requiredArgs + func->keywordArgs)) {
+		fprintf(f, " (%s, kwarg))", AS_CSTRING(func->keywordArgNames.values[operand-func->requiredArgs]));
+	} else {
+		for (size_t i = 0; i < func->localNameCount; ++i) {
+			if (func->localNames[i].id == operand && func->localNames[i].birthday <= *offset && func->localNames[i].deathday >= *offset) {
+				fprintf(f, " (%s)", func->localNames[i].name->chars);
+				break;
+			}
+		}
+	}
+}
 
 size_t krk_disassembleInstruction(FILE * f, KrkCodeObject * func, size_t offset) {
 	KrkChunk * chunk = &func->chunk;
@@ -261,6 +296,7 @@ size_t krk_disassembleInstruction(FILE * f, KrkCodeObject * func, size_t offset)
 #undef LOCAL_MORE
 #undef EXPAND_ARGS_MORE
 #undef FORMAT_VALUE_MORE
+#undef NOOP
 
 struct BreakpointEntry {
 	KrkCodeObject * inFunction;
@@ -640,6 +676,7 @@ KRK_Function(build) {
 	else return NONE_VAL();
 }
 
+#define NOOP (void)0
 #define SIMPLE(opc) case opc: size = 1; break;
 #define CONSTANT(opc,more) case opc: { constant = chunk->code[offset + 1]; size = 2; more; break; } \
 	case opc ## _LONG: { constant = (chunk->code[offset + 1] << 16) | \
@@ -811,20 +848,12 @@ void krk_module_init_dis(void) {
 #define CONSTANT(opc,more) OPCODE(opc) OPCODE(opc ## _LONG)
 #define OPERAND(opc,more) OPCODE(opc) OPCODE(opc ## _LONG)
 #define JUMP(opc,sign) OPCODE(opc)
-#define CLOSURE_MORE
-#define EXPAND_ARGS_MORE
-#define FORMAT_VALUE_MORE
-#define LOCAL_MORE
 #include "opcodes.h"
 #undef SIMPLE
 #undef OPERANDB
 #undef OPERAND
 #undef CONSTANT
 #undef JUMP
-#undef CLOSURE_MORE
-#undef LOCAL_MORE
-#undef EXPAND_ARGS_MORE
-#undef FORMAT_VALUE_MORE
 }
 
 #endif
