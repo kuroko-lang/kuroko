@@ -57,8 +57,8 @@ KRK_Method(int,__chr__) {
 
 KRK_Method(int,__eq__) {
 	METHOD_TAKES_EXACTLY(1);
-	if (likely(IS_INTEGER(argv[1]))) return self == AS_INTEGER(argv[1]);
-	else if (IS_FLOATING(argv[1])) return self == AS_FLOATING(argv[1]);
+	if (likely(IS_INTEGER(argv[1]))) return BOOLEAN_VAL(self == AS_INTEGER(argv[1]));
+	else if (IS_FLOATING(argv[1])) return BOOLEAN_VAL(self == AS_FLOATING(argv[1]));
 	return NOTIMPL_VAL();
 }
 
@@ -598,8 +598,8 @@ KRK_Method(float,__str__) {
 
 KRK_Method(float,__eq__) {
 	METHOD_TAKES_EXACTLY(1);
-	if (IS_INTEGER(argv[1])) return self == (double)AS_INTEGER(argv[1]);
-	else if (IS_FLOATING(argv[1])) return self == AS_FLOATING(argv[1]);
+	if (IS_INTEGER(argv[1])) return BOOLEAN_VAL(self == (double)AS_INTEGER(argv[1]));
+	else if (IS_FLOATING(argv[1])) return BOOLEAN_VAL(self == AS_FLOATING(argv[1]));
 	return NOTIMPL_VAL();
 }
 
