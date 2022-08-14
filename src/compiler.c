@@ -2620,38 +2620,34 @@ static int isHex(int c) {
 	return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
 }
 
-static void string(struct GlobalState * state, int exprType) {
-	/* We'll just build with a flexible array like everything else. */
-	size_t stringCapacity = 0;
-	size_t stringLength   = 0;
-	char * stringBytes    = 0;
-#define PUSH_CHAR(c) do { if (stringCapacity < stringLength + 1) { \
-		size_t old = stringCapacity; stringCapacity = GROW_CAPACITY(old); \
-		stringBytes = GROW_ARRAY(char, stringBytes, old, stringCapacity); \
-	} stringBytes[stringLength++] = c; } while (0)
+static int _pushHex(struct GlobalState * state, int isBytes, struct StringBuilder * sb, const char *c, const char *end, size_t n, char type) {
+	char tmpbuf[10] = {0};
+	for (size_t i = 0; i < n; ++i) {
+		if (c + i + 2 == end || !isHex(c[i+2])) {
+			error("truncated \\%c escape", type);
+			return 1;
+		}
+		tmpbuf[i] = c[i+2];
+	}
+	unsigned long value = strtoul(tmpbuf, NULL, 16);
+	if (value >= 0x110000) {
+		error("invalid codepoint in \\%c escape", type);
+		return 1;
+	}
+	if (isBytes) {
+		krk_pushStringBuilder(sb, value);
+	} else {
+		unsigned char bytes[5] = {0};
+		size_t len = krk_codepointToBytes(value, bytes);
+		krk_pushStringBuilderStr(sb, (char*)bytes, len);
+	}
+	return 0;
+}
 
-#define PUSH_HEX(n, type) do { \
-	char tmpbuf[10] = {0}; \
-	for (size_t i = 0; i < n; ++i) { \
-		if (c + i + 2 == end || !isHex(c[i+2])) { \
-			error("truncated \\%c escape", type); \
-			goto _cleanupError; \
-		} \
-		tmpbuf[i] = c[i+2]; \
-	} \
-	unsigned long value = strtoul(tmpbuf, NULL, 16); \
-	if (value >= 0x110000) { \
-		error("invalid codepoint in \\%c escape", type); \
-		goto _cleanupError; \
-	} \
-	if (isBytes) { \
-		PUSH_CHAR(value); \
-		break; \
-	} \
-	unsigned char bytes[5] = {0}; \
-	size_t len = krk_codepointToBytes(value, bytes); \
-	for (size_t i = 0; i < len; i++) PUSH_CHAR(bytes[i]); \
-} while (0)
+static void string(struct GlobalState * state, int exprType) {
+	struct StringBuilder sb = {0};
+#define PUSH_CHAR(c) krk_pushStringBuilder(&sb, c)
+#define PUSH_HEX(n, type) _pushHex(state, isBytes, &sb, c, end, n, type)
 
 	int isBytes = (state->parser.previous.type == TOKEN_PREFIX_B);
 	int isFormat = (state->parser.previous.type == TOKEN_PREFIX_F);
@@ -2757,13 +2753,11 @@ static void string(struct GlobalState * state, int exprType) {
 					c += 2;
 					continue;
 				}
-				if (stringLength) { /* Make sure there's a string for coersion reasons */
-					emitConstant(OBJECT_VAL(krk_copyString(stringBytes,stringLength)));
+				if (sb.length) { /* Make sure there's a string for coersion reasons */
+					emitConstant(krk_finishStringBuilder(&sb));
 					formatElements++;
-					stringLength = 0;
 				}
 				const char * start = c+1;
-				stringLength = 0;
 				KrkScanner beforeExpression = krk_tellScanner(&state->scanner);
 				Parser  parserBefore = state->parser;
 				KrkScanner inner = (KrkScanner){.start=c+1, .cur=c+1, .linePtr=lineBefore, .line=lineNo, .startOfLine = 0, .hasUnget = 0};
@@ -2851,22 +2845,18 @@ _nextStr:
 		goto _cleanupError;
 	}
 	if (isBytes) {
-		stringBytes = krk_reallocate(stringBytes, stringCapacity, stringLength);
-		KrkBytes * bytes = krk_newBytes(0,NULL);
-		bytes->bytes = (uint8_t*)stringBytes;
-		bytes->length = stringLength;
-		emitConstant(OBJECT_VAL(bytes));
+		emitConstant(krk_finishStringBuilderBytes(&sb));
 		return;
 	}
-	if (stringLength || !formatElements) {
-		emitConstant(OBJECT_VAL(krk_copyString(stringBytes,stringLength)));
+	if (sb.length || !formatElements) {
+		emitConstant(krk_finishStringBuilder(&sb));
 		formatElements++;
 	}
 	if (formatElements != 1) {
 		EMIT_OPERAND_OP(OP_MAKE_STRING, formatElements);
 	}
 _cleanupError:
-	FREE_ARRAY(char,stringBytes,stringCapacity);
+	krk_discardStringBuilder(&sb);
 #undef PUSH_CHAR
 }
 
