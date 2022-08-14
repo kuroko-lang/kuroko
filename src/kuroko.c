@@ -765,7 +765,7 @@ int main(int argc, char * argv[]) {
 	int inspectAfter = 0;
 	int opt;
 	int maxDepth = -1;
-	while ((opt = getopt(argc, argv, "+:c:C:dgGim:rR:stTMSV-:")) != -1) {
+	while ((opt = getopt(argc, argv, "+:c:C:dgGim:rR:tTMSV-:")) != -1) {
 		switch (opt) {
 			case 'c':
 				runCmd = optarg;
@@ -780,10 +780,6 @@ int main(int argc, char * argv[]) {
 				break;
 			case 'G':
 				flags |= KRK_GLOBAL_REPORT_GC_COLLECTS;
-				break;
-			case 's':
-				/* Print debug information during compilation. */
-				flags |= KRK_THREAD_ENABLE_SCAN_TRACING;
 				break;
 			case 'S':
 				flags |= KRK_THREAD_SINGLE_STEP;
@@ -841,7 +837,6 @@ int main(int argc, char * argv[]) {
 						" -m mod      Run a module as a script.\n"
 						" -r          Disable complex line editing in the REPL.\n"
 						" -R depth    Set maximum recursion depth.\n"
-						" -s          Debug output from the scanner/tokenizer.\n"
 						" -t          Disassemble instructions as they are exceuted.\n"
 						" -T          Write call trace file.\n"
 						" -C file     Compile 'file', but do not execute it.\n"

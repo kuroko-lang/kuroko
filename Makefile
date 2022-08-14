@@ -68,10 +68,6 @@ ifdef KRK_NO_TRACING
   CFLAGS += -DKRK_NO_TRACING=1
 endif
 
-ifdef KRK_NO_SCAN_TRACING
-  CFLAGS += -DKRK_NO_SCAN_TRACING=1
-endif
-
 ifdef KRK_NO_STRESS_GC
   CFLAGS += -DKRK_NO_STRESS_GC=1
 endif
@@ -83,7 +79,6 @@ help:
 	@echo "   KRK_NO_...             Compile without support for debugging features..."
 	@echo "      DISASSEMBLY=1          Do not enable disassembly at compile time."
 	@echo "      TRACING=1              Do not enable runtime tracing."
-	@echo "      SCAN_TRACING=1         Do not enable lexer debugging."
 	@echo "      STRESS_GC=1            Do not enable eager GC stress testing."
 	@echo "   KRK_DISABLE_THREADS=1  Disable threads on platforms that otherwise support them."
 	@echo "   KRK_DISABLE_RLINE=1    Do not build with the rich line editing library enabled."

@@ -32,18 +32,16 @@
 KRK_Function(set_tracing) {
 	int tracing = -1;
 	int disassembly = -1;
-	int scantracing = -1;
 
 	if (!krk_parseArgs(
-		"|$ppp", (const char *[]){"tracing","disassembly","scantracing"},
-		&tracing, &disassembly, &scantracing)) {
+		"|$pp", (const char *[]){"tracing","disassembly"},
+		&tracing, &disassembly)) {
 		return NONE_VAL();
 	}
 
 #define SET_THREAD(arg,flag) do { if (arg != -1) { if (arg) krk_currentThread.flags |= KRK_THREAD_ENABLE_ ## flag; else krk_currentThread.flags &= ~KRK_THREAD_ENABLE_ ## flag; } } while (0)
 	SET_THREAD(tracing,TRACING);
 	SET_THREAD(disassembly,DISASSEMBLY);
-	SET_THREAD(scantracing,SCAN_TRACING);
 #undef SET_THREAD
 
 	return BOOLEAN_VAL(1);
@@ -213,12 +211,10 @@ void krk_module_init_kuroko(void) {
 		"@param clean Whether to remove escapes.");
 	KRK_DOC(BIND_FUNC(vm.system,set_tracing),
 		"@brief Toggle debugging modes.\n"
-		"@arguments tracing=None,disassembly=None,scantracing=None,stressgc=None\n\n"
+		"@arguments tracing=None,disassembly=None\n\n"
 		"Enables or disables tracing options for the current thread.\n\n"
 		"@param tracing Enables instruction tracing.\n"
-		"@param disassembly Prints bytecode disassembly after compilation.\n"
-		"@param scantracing Prints debug output from the token scanner during compilation.\n"
-		"@param stressgc Forces a garbage collection cycle on each heap allocation.");
+		"@param disassembly Prints bytecode disassembly after compilation.");
 	KRK_DOC(BIND_FUNC(vm.system,importmodule),
 		"@brief Import a module by string name\n"
 		"@arguments module\n\n"

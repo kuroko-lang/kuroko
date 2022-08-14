@@ -122,9 +122,6 @@ typedef void (*ParseInfixFn)(struct GlobalState *, int, struct RewindState *);
  * are for the infix parsing.
  */
 typedef struct {
-#ifndef KRK_NO_SCAN_TRACING
-	const char * name;     /**< Stringified token name for error messages and debugging. */
-#endif
 	ParsePrefixFn prefix;  /**< Parse function to call when this token appears at the start of an expression. */
 	ParseInfixFn infix;    /**< Parse function to call when this token appears after an expression. */
 	Precedence precedence; /**< Precedence ordering for Pratt parsing, @ref Precedence */
@@ -454,18 +451,6 @@ static void _advance(struct GlobalState * state) {
 
 		if (state->parser.eatingWhitespace &&
 			(state->parser.current.type == TOKEN_INDENTATION || state->parser.current.type == TOKEN_EOL)) continue;
-
-#ifndef KRK_NO_SCAN_TRACING
-		if (krk_currentThread.flags & KRK_THREAD_ENABLE_SCAN_TRACING) {
-			fprintf(stderr, "  [%s<%d> %d:%d '%.*s']\n",
-				getRule(state->parser.current.type)->name,
-				(int)state->parser.current.type,
-				(int)state->parser.current.line,
-				(int)state->parser.current.col,
-				(int)state->parser.current.length,
-				state->parser.current.start);
-		}
-#endif
 
 		if (state->parser.current.type == TOKEN_RETRY) continue;
 		if (state->parser.current.type != TOKEN_ERROR) break;
@@ -1335,13 +1320,6 @@ static void block(struct GlobalState * state, size_t indentation, const char * b
 				}
 				if (state->parser.hadError) skipToEnd();
 			};
-#ifndef KRK_NO_SCAN_TRACING
-			if (krk_currentThread.flags & KRK_THREAD_ENABLE_SCAN_TRACING) {
-				fprintf(stderr, "\n\nfinished with block %s (ind=%d) on line %d, sitting on a %s (len=%d)\n\n",
-					blockName, (int)indentation, (int)state->parser.current.line,
-					getRule(state->parser.current.type)->name, (int)state->parser.current.length);
-			}
-#endif
 		}
 	} else {
 		statement(state);
@@ -1694,9 +1672,6 @@ static KrkToken classDeclaration(struct GlobalState * state) {
 				advance(); /* Pass the indentation */
 				classBody(state, currentIndentation);
 			}
-#ifndef KRK_NO_SCAN_TRACING
-			if (krk_currentThread.flags & KRK_THREAD_ENABLE_SCAN_TRACING) fprintf(stderr, "Exiting from class definition on %s\n", getRule(state->parser.current.type)->name);
-#endif
 			/* Exit from block */
 		}
 	} /* else empty class (and at end of file?) we'll allow it for now... */
@@ -3796,11 +3771,7 @@ KrkCodeObject * krk_compile(const char * src, char * fileName) {
 	return function;
 }
 
-#ifdef KRK_NO_SCAN_TRACING
-# define RULE(token, a, b, c) [TOKEN_ ## token] = {a, b, c}
-#else
-# define RULE(token, a, b, c) [TOKEN_ ## token] = {# token, a, b, c}
-#endif
+#define RULE(token, a, b, c) [TOKEN_ ## token] = {a, b, c}
 
 /**
  * @brief Parse rules table.

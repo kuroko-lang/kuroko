@@ -212,7 +212,7 @@ typedef struct KrkVM {
 /* Thread-specific flags */
 #define KRK_THREAD_ENABLE_TRACING      (1 << 0)
 #define KRK_THREAD_ENABLE_DISASSEMBLY  (1 << 1)
-#define KRK_THREAD_ENABLE_SCAN_TRACING (1 << 2)
+/* reserved, formerly SCAN_TRACING */
 #define KRK_THREAD_HAS_EXCEPTION       (1 << 3)
 #define KRK_THREAD_SINGLE_STEP         (1 << 4)
 #define KRK_THREAD_SIGNALLED           (1 << 5)

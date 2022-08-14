@@ -39,8 +39,6 @@ Valid flags to pass to `krk_initVM()` include:
 Prints instruction traces during execution.
 - `KRK_THREAD_ENABLE_DISASSEMBLY`  
 Prints function bytecode disassembly whenever the compiler is called.
-- `KRK_THREAD_ENABLE_SCAN_TRACING`  
-Prints token stream data whenever the compiler is called. (Not recommended.)
 - `KRK_THREAD_SINGLE_STEP`  
 Halts execution and calls the debugger before every instruction.
 - `KRK_GLOBAL_REPORT_GC_COLLECTS`  
