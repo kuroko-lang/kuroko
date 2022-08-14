@@ -229,6 +229,7 @@ typedef struct Compiler {
 } Compiler;
 
 #define OPTIONS_FLAG_COMPILE_TIME_BUILTINS    (1 << 0)
+#define OPTIONS_FLAG_NO_IMPLICIT_SELF         (1 << 1)
 
 /**
  * @brief Class compilation context.
@@ -378,13 +379,16 @@ static void initCompiler(struct GlobalState * state, Compiler * compiler, Functi
 		state->current->codeobject->qualname = krk_copyString(qualname, strlen(qualname));
 	}
 
-	if (isMethod(type)) {
+	if (isMethod(type) && !(compiler->optionsFlags & OPTIONS_FLAG_NO_IMPLICIT_SELF)) {
 		Local * local = &state->current->locals[state->current->localCount++];
 		local->depth = 0;
 		local->isCaptured = 0;
 		local->name.start = "self";
 		local->name.length = 4;
+		state->current->codeobject->requiredArgs = 1;
 	}
+
+	if (isCoroutine(type)) state->current->codeobject->obj.flags |= KRK_OBJ_FLAGS_CODEOBJECT_IS_COROUTINE;
 }
 
 static void rememberClassProperty(struct GlobalState * state, size_t ind) {
@@ -1423,7 +1427,8 @@ static int argumentList(struct GlobalState * state, FunctionType type) {
 	KrkToken self = syntheticToken("self");
 
 	do {
-		if (isMethod(type) && check(TOKEN_IDENTIFIER) &&
+		if (!(state->current->optionsFlags & OPTIONS_FLAG_NO_IMPLICIT_SELF) &&
+				isMethod(type) && check(TOKEN_IDENTIFIER) &&
 				identifiersEqual(&state->parser.current, &self)) {
 			if (hasCollectors || state->current->codeobject->requiredArgs != 1) {
 				errorAtCurrent("Argument name 'self' in a method signature is reserved for the implicit first argument.");
@@ -1463,7 +1468,7 @@ static int argumentList(struct GlobalState * state, FunctionType type) {
 			if (state->parser.hadError) return 1;
 			defineVariable(state, paramConstant);
 			KrkToken name = state->parser.previous;
-			if (isMethod(type) && identifiersEqual(&name,&self)) {
+			if (!(state->current->optionsFlags & OPTIONS_FLAG_NO_IMPLICIT_SELF) && isMethod(type) && identifiersEqual(&name,&self)) {
 				errorAtCurrent("Argument name 'self' in a method signature is reserved for the implicit first argument.");
 				return 1;
 			}
@@ -1511,9 +1516,6 @@ static void function(struct GlobalState * state, FunctionType type, size_t block
 	compiler.codeobject->chunk.filename = compiler.enclosing->codeobject->chunk.filename;
 
 	beginScope(state);
-
-	if (isMethod(type)) state->current->codeobject->requiredArgs = 1;
-	if (isCoroutine(type)) state->current->codeobject->obj.flags |= KRK_OBJ_FLAGS_CODEOBJECT_IS_COROUTINE;
 
 	consume(TOKEN_LEFT_PAREN, "Expected start of parameter list after function name.");
 	startEatingWhitespace();
@@ -2390,6 +2392,7 @@ static void optionsImport(struct GlobalState * state) {
 	int expectCloseParen = 0;
 
 	KrkToken compile_time_builtins = syntheticToken("compile_time_builtins");
+	KrkToken no_implicit_self = syntheticToken("no_implicit_self");
 
 	advance();
 	consume(TOKEN_IMPORT, "__options__ is not a package\n");
@@ -2405,6 +2408,8 @@ static void optionsImport(struct GlobalState * state) {
 		/* Okay, what is it? */
 		if (identifiersEqual(&state->parser.previous, &compile_time_builtins)) {
 			state->current->optionsFlags |= OPTIONS_FLAG_COMPILE_TIME_BUILTINS;
+		} else if (identifiersEqual(&state->parser.previous, &no_implicit_self)) {
+			state->current->optionsFlags |= OPTIONS_FLAG_NO_IMPLICIT_SELF;
 		} else {
 			error("'%.*s' is not a recognized __options__ import",
 				(int)state->parser.previous.length, state->parser.previous.start);
