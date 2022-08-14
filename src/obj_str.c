@@ -1059,20 +1059,26 @@ void krk_pushStringBuilderStr(struct StringBuilder * sb, const char *str, size_t
 	}
 }
 
+static void _freeStringBuilder(struct StringBuilder * sb) {
+	FREE_ARRAY(char,sb->bytes, sb->capacity);
+	sb->bytes = NULL;
+	sb->length = 0;
+	sb->capacity = 0;
+}
 KrkValue krk_finishStringBuilder(struct StringBuilder * sb) {
 	KrkValue out = OBJECT_VAL(krk_copyString(sb->bytes, sb->length));
-	FREE_ARRAY(char,sb->bytes, sb->capacity);
+	_freeStringBuilder(sb);
 	return out;
 }
 
 KrkValue krk_finishStringBuilderBytes(struct StringBuilder * sb) {
 	KrkValue out = OBJECT_VAL(krk_newBytes(sb->length, (uint8_t*)sb->bytes));
-	FREE_ARRAY(char,sb->bytes, sb->capacity);
+	_freeStringBuilder(sb);
 	return out;
 }
 
 KrkValue krk_discardStringBuilder(struct StringBuilder * sb) {
-	FREE_ARRAY(char,sb->bytes, sb->capacity);
+	_freeStringBuilder(sb);
 	return NONE_VAL();
 }
 
