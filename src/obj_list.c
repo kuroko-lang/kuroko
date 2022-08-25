@@ -118,7 +118,7 @@ KRK_Method(list,insert) {
 	METHOD_TAKES_EXACTLY(2);
 	CHECK_ARG(1,int,krk_integer_type,index);
 	pthread_rwlock_wrlock(&self->rwlock);
-	LIST_WRAP_INDEX();
+	LIST_WRAP_SOFT(index);
 	krk_writeValueArray(&self->values, NONE_VAL());
 	memmove(
 		&self->values.values[index+1],
