@@ -89,6 +89,7 @@ MATH_ONE(erfc)
 MATH_ONE(log1p)
 
 #if !defined(__EMSCRIPTEN__) && !defined(__APPLE__) && !defined(_WIN32)
+MATH_ONE(tgamma)
 MATH_ONE(lgamma)
 #endif
 
@@ -220,6 +221,9 @@ KrkValue krk_module_onload_math(void) {
 		"@brief Calculates the complementary error function of the input.\n"
 		"@arguments x");
 #if !defined(__EMSCRIPTEN__) && !defined(__APPLE__) && !defined(_WIN32)
+	KRK_DOC(bind(tgamma),
+		"@brief Calculates the gamma of the input.\n"
+		"@arguments x");
 	KRK_DOC(bind(lgamma),
 		"@brief Calculates the log gamma of the input.\n"
 		"@arguments x");
