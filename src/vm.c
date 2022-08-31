@@ -428,11 +428,11 @@ int krk_processComplexArguments(int argCount, KrkValueArray * positionals, KrkTa
 		krk_writeValueArray(positionals, krk_currentThread.stackTop[-argCount + i - TOP_ARGS]);
 	}
 
-	KrkValue * startOfExtras = &krk_currentThread.stackTop[-kwargsCount * 2 - TOP_ARGS];
+	size_t startOfExtras = &krk_currentThread.stackTop[-kwargsCount * 2 - TOP_ARGS] - krk_currentThread.stack;
 	/* Now unpack everything else. */
 	for (size_t i = 0; i < kwargsCount; ++i) {
-		KrkValue key = startOfExtras[i*2];
-		KrkValue value = startOfExtras[i*2 + 1];
+		KrkValue key = krk_currentThread.stack[startOfExtras + i*2];
+		KrkValue value = krk_currentThread.stack[startOfExtras + i*2 + 1];
 		if (IS_KWARGS(key)) {
 			if (AS_INTEGER(key) == KWARGS_LIST) { /* unpack list */
 				if (krk_unpackIterable(value,positionals,_unpack_args)) return 0;
