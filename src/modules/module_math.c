@@ -87,11 +87,8 @@ MATH_ONE(tanh)
 MATH_ONE(erf)
 MATH_ONE(erfc)
 MATH_ONE(log1p)
-
-#if !defined(__EMSCRIPTEN__) && !defined(__APPLE__) && !defined(_WIN32)
 MATH_ONE(tgamma)
 MATH_ONE(lgamma)
-#endif
 
 #define MATH_TWO(func) \
 static KrkValue _math_ ## func(int argc, const KrkValue argv[], int hasKw) { \
@@ -220,14 +217,12 @@ KrkValue krk_module_onload_math(void) {
 	KRK_DOC(bind(erfc),
 		"@brief Calculates the complementary error function of the input.\n"
 		"@arguments x");
-#if !defined(__EMSCRIPTEN__) && !defined(__APPLE__) && !defined(_WIN32)
 	KRK_DOC(bind(tgamma),
 		"@brief Calculates the gamma of the input.\n"
 		"@arguments x");
 	KRK_DOC(bind(lgamma),
 		"@brief Calculates the log gamma of the input.\n"
 		"@arguments x");
-#endif
 	KRK_DOC(bind(copysign),
 		"@brief Copies the sign from @p x to @p y\n"
 		"@arguments x,y");
