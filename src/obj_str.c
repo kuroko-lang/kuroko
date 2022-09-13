@@ -385,14 +385,18 @@ KRK_Method(str,__mul__) {
 	char * out = malloc(totalLength + 1);
 	char * c = out;
 
+	uint32_t hash = 0;
+
 	for (krk_integer_type i = 0; i < howMany; ++i) {
 		for (size_t j = 0; j < self->length; ++j) {
-			*(c++) = self->chars[j];
+			*c = self->chars[j];
+			hash = (int)*c + (hash << 6) + (hash << 16) - hash;
+			c++;
 		}
 	}
 
 	*c = '\0';
-	return OBJECT_VAL(krk_takeString(out, totalLength));
+	return OBJECT_VAL(krk_takeStringVetted(out, totalLength, self->codesLength * howMany, (self->obj.flags & KRK_OBJ_FLAGS_STRING_MASK), hash));
 }
 
 KRK_Method(str,__rmul__) {
