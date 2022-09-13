@@ -1202,10 +1202,6 @@ static void letDeclaration(struct GlobalState * state) {
 	}
 
 _letDone:
-	if (!match(TOKEN_EOL) && !match(TOKEN_EOF)) {
-		errorAtCurrent("Expected end of line after 'let' statement.");
-	}
-
 	FREE_ARRAY(ssize_t,args,argSpace);
 	return;
 }
@@ -1213,8 +1209,6 @@ _letDone:
 static void declaration(struct GlobalState * state) {
 	if (check(TOKEN_DEF)) {
 		defDeclaration(state);
-	} else if (match(TOKEN_LET)) {
-		letDeclaration(state);
 	} else if (check(TOKEN_CLASS)) {
 		KrkToken className = classDeclaration(state);
 		size_t classConst = identifierConstant(state, &className);
@@ -2521,6 +2515,8 @@ _anotherSimpleStatement:
 		assertStatement(state);
 	} else if (match(TOKEN_PASS)) {
 		/* Do nothing. */
+	} else if (match(TOKEN_LET)) {
+		letDeclaration(state);
 	} else {
 		expressionStatement(state);
 	}
