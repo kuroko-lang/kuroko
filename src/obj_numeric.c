@@ -28,6 +28,7 @@ FUNC_SIG(int,__init__) {
 			CHECK_ARG(2,int,krk_integer_type,base);
 			_base = base;
 		}
+		if (unlikely(_base < 0 || _base == 1 || _base > 36)) return krk_runtimeError(vm.exceptions->valueError, "base must be 0 or between 2 and 36");
 		KrkValue result = krk_parse_int(AS_CSTRING(argv[1]), AS_STRING(argv[1])->length, _base);
 		if (IS_NONE(result)) {
 			return krk_runtimeError(vm.exceptions->valueError,
@@ -149,7 +150,8 @@ const char * krk_parseCommonFormatSpec(struct ParsedFormatSpec *result, const ch
 	return spec;
 }
 
-KrkValue krk_doFormatString(const char * typeName, KrkString * format_spec, int positive, void * abs, int (*callback)(void *,int,int*)) {
+typedef int (*fmtCallback)(void *, int, int *);
+KrkValue krk_doFormatString(const char * typeName, KrkString * format_spec, int positive, void * abs, fmtCallback callback, fmtCallback (*prepCallback)(void*,int)) {
 
 	struct ParsedFormatSpec opts = {0};
 	const char * spec = krk_parseCommonFormatSpec(&opts, format_spec->chars, format_spec->length);
@@ -211,6 +213,8 @@ KrkValue krk_doFormatString(const char * typeName, KrkString * format_spec, int 
 	int digits = 0;
 	int sepcount = opts.sep == ',' ? 3 : 4;
 	int more = 0;
+
+	if (prepCallback) callback = prepCallback(abs, base);
 
 	do {
 		int digit = callback(abs, base, &more);
@@ -304,7 +308,7 @@ KRK_Method(int,__format__) {
 	return krk_doFormatString(krk_typeName(argv[0]), format_spec,
 		self >= 0,
 		&abs,
-		formatIntCallback);
+		formatIntCallback, NULL);
 }
 
 /**

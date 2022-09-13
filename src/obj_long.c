@@ -979,11 +979,34 @@ static uint32_t _div_inplace(KrkLong * a, uint32_t base) {
 	return remainder;
 }
 
+static const char _vals[] = "0123456789abcdef";
+static char * _fast_conversion(const KrkLong * abs, unsigned int bits, char * writer) {
+	uint64_t buf  = abs->digits[0];
+	uint32_t cnt  = DIGIT_SHIFT;
+	ssize_t  ind  = 1;
+	uint32_t out  = 0;
+
+	while (ind < abs->width || buf) {
+		if (ind < abs->width && cnt < bits) {
+			buf |= (uint64_t)abs->digits[ind] << (uint64_t)cnt;
+			ind++;
+			cnt += DIGIT_SHIFT;
+		}
+
+		out = buf & ((1 << bits) - 1);
+		cnt -= bits;
+		buf >>= bits;
+
+		*writer++ = _vals[out];
+	}
+
+	return writer;
+}
+
 /**
  * @brief Convert a long to a string in a given base.
  */
 static char * krk_long_to_str(const KrkLong * n, int _base, const char * prefix, size_t *size) {
-	static const char vals[] = "0123456789abcdef";
 	KrkLong abs;
 
 	krk_long_init_si(&abs, 0);
@@ -998,9 +1021,16 @@ static char * krk_long_to_str(const KrkLong * n, int _base, const char * prefix,
 	if (sign == 0) {
 		*writer++ = '0';
 	} else {
-		while (krk_long_sign(&abs) > 0) {
-			uint32_t rem = _div_inplace(&abs,_base);
-			*writer++ = vals[rem];
+		switch (_base) {
+			case 2:  writer = _fast_conversion(&abs,1,writer); break;
+			case 4:  writer = _fast_conversion(&abs,2,writer); break;
+			case 8:  writer = _fast_conversion(&abs,3,writer); break;
+			case 16: writer = _fast_conversion(&abs,4,writer); break;
+			default:
+				while (krk_long_sign(&abs) > 0) {
+					uint32_t rem = _div_inplace(&abs,_base);
+					*writer++ = _vals[rem];
+				}
 		}
 	}
 
@@ -1023,29 +1053,23 @@ static char * krk_long_to_str(const KrkLong * n, int _base, const char * prefix,
 	return rev;
 }
 
-static int is_valid(int base, char c) {
-	if (c < '0') return 0;
-	if (base <= 10) {
-		return c < ('0' + base);
-	}
+static const unsigned char _convert_table[256] = {
+255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
+255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,  0,  1,  2,  3,  4,  5,  6,  7,  8,  9,255,255,255,255,255,255,
+255, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35,255,255,255,255,255,
+255, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35,255,255,255,255,255,
+255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
+255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
+255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
+255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
+};
 
-	if (c >= 'a' && c < 'a' + (base - 10)) return 1;
-	if (c >= 'A' && c < 'A' + (base - 10)) return 1;
-	if (c >= '0' && c <= '9') return 1;
-	return 0;
+static int is_valid(int base, uint8_t c) {
+	return _convert_table[c] < base;
 }
 
-static int convert_digit(char c) {
-	if (c >= '0' && c <= '9') {
-		return c - '0';
-	}
-	if (c >= 'a' && c <= 'z') {
-		return c - 'a' + 0xa;
-	}
-	if (c >= 'A' && c <= 'Z') {
-		return c - 'A' + 0xa;
-	}
-	return 0;
+static int convert_digit(uint8_t c) {
+	return _convert_table[c];
 }
 
 static int is_whitespace(char c) {
@@ -1120,39 +1144,94 @@ static int krk_long_parse_string(const char * str, KrkLong * num, unsigned int b
 		return 1;
 	}
 
+	if (base == 1 || base > 36) {
+		return 2;
+	}
+
 	krk_long_init_si(num, 0);
 
-	KrkLong _base, scratch;
-	krk_long_init_si(&_base, 0);
-	krk_long_init_si(&scratch, 0);
-
-	while (c < end && *c) {
-		uint64_t accum = 0;
-		uint64_t basediv = 1;
-		while (c < end && *c && (basediv * base < 0x10000000000000UL)) {
-			if (*c == '_') c++;
-			if (c == (str + len) || !is_valid(base, *c)) {
-				krk_long_clear_many(&_base, &scratch, num, NULL);
+	if (base == 2 || base == 4 || base == 8 || base == 16 || base == 32) {
+		size_t bits = 0;
+		switch (base) {
+			case 2: bits = 1; break;
+			case 4: bits = 2; break;
+			case 8: bits = 3; break;
+			case 16:bits = 4; break;
+			case 32:bits = 5; break;
+		}
+		size_t digits = 0;
+		for (const char * x = c; x < end; ++x) {
+			if (*x == '_') continue;
+			if (unlikely(!is_valid(base, *x))) {
+				krk_long_clear(num);
 				return 1;
 			}
-
-			basediv *= base;
-			accum *= base;
-			accum += convert_digit(*c);
-			c++;
+			digits++;
 		}
-		krk_long_init_ui(&_base, basediv);
-		krk_long_mul(num, num, &_base);
-		krk_long_clear_many(&scratch, &_base, NULL);
-		krk_long_init_ui(&scratch, accum);
-		krk_long_add(num, num, &scratch);
+
+		if (!digits) {
+			krk_long_clear(num);
+			return 1;
+		}
+
+		size_t digit_offset = (digits * bits - 1) / DIGIT_SHIFT;
+		krk_long_resize(num, digit_offset + 1);
+
+		uint32_t cnt = 0;
+		uint64_t buf = 0;
+		const char * x = end;
+		size_t i = 0;
+
+		while (x != c && x[-1] == '_') x--;
+
+		while (x != c || buf) {
+			while (cnt < DIGIT_SHIFT && x > c) {
+				buf |=  (uint64_t)convert_digit(x[-1]) << cnt;
+				cnt += bits;
+				x--;
+				while (x != c && x[-1] == '_') x--;
+			}
+
+			num->digits[i++] = buf & DIGIT_MAX;
+			cnt -= DIGIT_SHIFT;
+			buf >>= DIGIT_SHIFT;
+		}
+
+		krk_long_trim(num);
+	} else {
+		KrkLong _base, scratch;
+		krk_long_init_si(&_base, 0);
+		krk_long_init_si(&scratch, 0);
+
+		while (c < end && *c) {
+			uint64_t accum = 0;
+			uint64_t basediv = 1;
+			while (c < end && *c && (basediv * base < 0x10000000000000UL)) {
+				if (*c == '_') { c++; continue; }
+				if (!is_valid(base, *c)) {
+					krk_long_clear_many(&_base, &scratch, num, NULL);
+					return 1;
+				}
+
+				basediv *= base;
+				accum *= base;
+				accum += convert_digit(*c);
+				c++;
+			}
+			krk_long_init_ui(&_base, basediv);
+			krk_long_mul(num, num, &_base);
+			krk_long_clear_many(&scratch, &_base, NULL);
+			krk_long_init_ui(&scratch, accum);
+			krk_long_add(num, num, &scratch);
+		}
+
+		krk_long_clear_many(&_base, &scratch, NULL);
 	}
 
 	if (sign == -1) {
 		krk_long_set_sign(num, -1);
 	}
 
-	krk_long_clear_many(&_base, &scratch, NULL);
 	return 0;
 }
 
@@ -1540,28 +1619,70 @@ KRK_Method(long,__pos__) {
 	return argv[0];
 }
 
-extern KrkValue krk_doFormatString(const char * typeName, KrkString * format_spec, int positive, void* abs, int (*callback)(void *,int,int*));
+typedef int (*fmtCallback)(void *, int, int *);
+KrkValue krk_doFormatString(const char * typeName, KrkString * format_spec, int positive, void * abs, fmtCallback callback, fmtCallback (*prepCallback)(void*,int));
 
-static int formatLongCallback(void * a, int base, int *more) {
-	uint32_t result = _div_inplace((KrkLong*)a, base);
-	*more = krk_long_sign(a);
+struct _private {
+	KrkLong val;
+	uint64_t buf;
+	ssize_t  ind;
+	uint32_t cnt;
+	uint32_t bits;
+};
+
+static int formatLongCallback_decimal(void * a, int base, int *more) {
+	struct _private * val = a;
+	uint32_t result = _div_inplace(&val->val, base);
+	*more = krk_long_sign(&val->val);
 	return result;
+}
+
+static int formatLongCallback_binary(void * a, int base, int *more) {
+	struct _private * val = a;
+	if (val->ind < val->val.width && val->cnt < val->bits) {
+		val->buf |= (uint64_t)val->val.digits[val->ind] << (uint64_t)val->cnt;
+		val->ind++;
+		val->cnt += DIGIT_SHIFT;
+	}
+
+	uint32_t out = val->buf & ((1 << val->bits) - 1);
+	val->cnt -= val->bits;
+	val->buf >>= val->bits;
+	*more = val->buf || val->ind < val->val.width;
+	return out;
+}
+
+static fmtCallback prepLongCallback(void * a, int base) {
+	struct _private * val = a;
+	switch (base) {
+		case 2: val->bits = 1; break;
+		case 4: val->bits = 2; break;
+		case 8: val->bits = 3; break;
+		case 16:val->bits = 4; break;
+		default: return formatLongCallback_decimal;
+	}
+	return formatLongCallback_binary;
 }
 
 KRK_Method(long,__format__) {
 	METHOD_TAKES_EXACTLY(1);
 	CHECK_ARG(1,str,KrkString*,format_spec);
 
-	KrkLong tmp;
-	krk_long_init_copy(&tmp, self->value);
-	krk_long_set_sign(&tmp, 1);
+	struct _private tmp;
+	krk_long_init_copy(&tmp.val, self->value);
+	krk_long_set_sign(&tmp.val, 1);
+
+	tmp.buf = 0;
+	tmp.ind = 0;
+	tmp.cnt = 0;
 
 	KrkValue result = krk_doFormatString("long",format_spec,
 		krk_long_sign(self->value) >= 0,
 		&tmp,
-		formatLongCallback);
+		NULL,
+		prepLongCallback);
 
-	krk_long_clear(&tmp);
+	krk_long_clear(&tmp.val);
 	return result;
 }
 
