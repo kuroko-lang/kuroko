@@ -4,6 +4,8 @@
 #include <kuroko/memory.h>
 #include <kuroko/util.h>
 
+#include "private.h"
+
 struct ByteArray {
 	KrkInstance inst;
 	KrkValue actual;
@@ -61,7 +63,7 @@ KRK_Method(bytes,__hash__) {
 	/* This is the so-called "sdbm" hash. It comes from a piece of
 	 * public domain code from a clone of ndbm. */
 	for (size_t i = 0; i < self->length; ++i) {
-		hash = (int)self->bytes[i] + (hash << 6) + (hash << 16) - hash;
+		krk_hash_advance(hash,self->bytes[i]);
 	}
 	return INTEGER_VAL(hash);
 }

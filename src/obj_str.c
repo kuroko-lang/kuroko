@@ -71,7 +71,7 @@ KRK_Method(str,__add__) {
 	/* Hashes can be extended, which saves us calculating the whole thing */
 	uint32_t hash = self->obj.hash;
 	for (size_t i = 0; i < bl; ++i) {
-		hash = (int)b[i] + (hash << 6) + (hash << 16) - hash;
+		krk_hash_advance(hash,b[i]);
 	}
 
 	KrkString * result = krk_takeStringVetted(chars, length, cpLength, type, hash);
@@ -390,7 +390,7 @@ KRK_Method(str,__mul__) {
 	for (krk_integer_type i = 0; i < howMany; ++i) {
 		for (size_t j = 0; j < self->length; ++j) {
 			*c = self->chars[j];
-			hash = (int)*c + (hash << 6) + (hash << 16) - hash;
+			krk_hash_advance(hash, *c);
 			c++;
 		}
 	}

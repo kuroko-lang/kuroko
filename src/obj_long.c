@@ -20,6 +20,7 @@
 #include <kuroko/vm.h>
 #include <kuroko/value.h>
 #include <kuroko/util.h>
+#include "private.h"
 
 #define DIGIT_SHIFT 31
 #define DIGIT_MAX   0x7FFFFFFF
@@ -1006,7 +1007,7 @@ static char * _fast_conversion(const KrkLong * abs, unsigned int bits, char * wr
 /**
  * @brief Convert a long to a string in a given base.
  */
-static char * krk_long_to_str(const KrkLong * n, int _base, const char * prefix, size_t *size) {
+static char * krk_long_to_str(const KrkLong * n, int _base, const char * prefix, size_t *size, uint32_t *_hash) {
 	KrkLong abs;
 
 	krk_long_init_si(&abs, 0);
@@ -1039,11 +1040,14 @@ static char * krk_long_to_str(const KrkLong * n, int _base, const char * prefix,
 
 	char * rev = malloc(len);
 	char * out = rev;
+	uint32_t hash = 0;
 	while (writer != tmp) {
-		writer--;
-		*out++ = *writer;
+		*out = *--writer;
+		krk_hash_advance(hash,*out);
+		out++;
 	}
 	*out = '\0';
+	*_hash = hash;
 
 	free(tmp);
 
@@ -1377,8 +1381,9 @@ KRK_Method(long,__rtruediv__) {
 #define PRINTER(name,base,prefix) \
 	KRK_Method(long,__ ## name ## __) { \
 		size_t size; \
-		char * rev = krk_long_to_str(self->value, base, prefix, &size); \
-		return OBJECT_VAL(krk_takeString(rev,size)); \
+		uint32_t hash; \
+		char * rev = krk_long_to_str(self->value, base, prefix, &size, &hash); \
+		return OBJECT_VAL(krk_takeStringVetted(rev,size,size,KRK_OBJ_FLAGS_STRING_ASCII,hash)); \
 	}
 
 PRINTER(str,10,"")

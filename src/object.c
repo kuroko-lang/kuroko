@@ -8,6 +8,8 @@
 #include <kuroko/vm.h>
 #include <kuroko/table.h>
 
+#include "private.h"
+
 #define ALLOCATE_OBJECT(type, objectType) \
 	(type*)allocateObject(sizeof(type), objectType)
 
@@ -195,7 +197,7 @@ static uint32_t hashString(const char * key, size_t length) {
 	/* This is the so-called "sdbm" hash. It comes from a piece of
 	 * public domain code from a clone of ndbm. */
 	for (size_t i = 0; i < length; ++i) {
-		hash = (int)key[i] + (hash << 6) + (hash << 16) - hash;
+		krk_hash_advance(hash,key[i]);
 	}
 	return hash;
 }

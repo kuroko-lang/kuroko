@@ -62,3 +62,8 @@ struct ParsedFormatSpec {
 	int hasPrecision;
 	int fillSize;
 };
+
+/* We inline hashing in a few places, so it's nice to have this in one place.
+ * This is the "sdbm" hash. I've been using it in various places for many years,
+ * and this specific version apparently traces to gawk. */
+#define krk_hash_advance(hash,c) do { hash = (int)(c) + (hash << 6) + (hash << 16) - hash; } while (0)
