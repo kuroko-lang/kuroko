@@ -400,14 +400,14 @@ static void blackenObject(KrkObj * object) {
 	}
 }
 
-static void traceReferences() {
+static void traceReferences(void) {
 	while (vm.grayCount > 0) {
 		KrkObj * object = vm.grayStack[--vm.grayCount];
 		blackenObject(object);
 	}
 }
 
-static size_t sweep() {
+static size_t sweep(void) {
 	KrkObj * previous = NULL;
 	KrkObj * object = vm.objects;
 	size_t count = 0;
@@ -468,7 +468,7 @@ static void markThreadRoots(KrkThreadState * thread) {
 	}
 }
 
-static void markRoots() {
+static void markRoots(void) {
 	KrkThreadState * thread = vm.threads;
 	while (thread) {
 		markThreadRoots(thread);

@@ -167,7 +167,7 @@ inline void krk_push(KrkValue value) {
  * the repl relies on this it expects to be able to get the last
  * pushed value and display it (if it's not None).
  */
-inline KrkValue krk_pop() {
+inline KrkValue krk_pop(void) {
 	if (unlikely(krk_currentThread.stackTop == krk_currentThread.stack)) {
 		abort();
 	}
@@ -1027,7 +1027,7 @@ void krk_initVM(int flags) {
 /**
  * Reclaim resources used by the VM.
  */
-void krk_freeVM() {
+void krk_freeVM(void) {
 	krk_freeTable(&vm.strings);
 	krk_freeTable(&vm.modules);
 	if (vm.specialMethodNames) free(vm.specialMethodNames);
@@ -1162,7 +1162,7 @@ MAKE_UNARY_OP(_pos,pos,+)
  * stack manipulation could result in a handler being in the wrong place,
  * at which point there's no guarantees about what happens.
  */
-static int handleException() {
+static int handleException(void) {
 	int stackOffset, frameOffset;
 	int exitSlot = (krk_currentThread.exitOnFrame >= 0) ? krk_currentThread.frames[krk_currentThread.exitOnFrame].outSlots : 0;
 	for (stackOffset = (int)(krk_currentThread.stackTop - krk_currentThread.stack - 1);
@@ -2087,7 +2087,7 @@ static inline void commonMethodInvoke(size_t methodOffset, int args, const char 
 /**
  * VM main loop.
  */
-static KrkValue run() {
+static KrkValue run(void) {
 	KrkCallFrame* frame = &krk_currentThread.frames[krk_currentThread.frameCount - 1];
 
 	while (1) {
