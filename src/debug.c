@@ -106,7 +106,8 @@ static int isJumpTarget(KrkCodeObject * func, size_t startPoint) {
 #define OPERAND(opc,more) OPERANDB(opc,more) \
 	case opc ## _LONG: { size = 4; more; break; }
 #define JUMP(opc,sign) case opc: { uint16_t jump = (chunk->code[offset + 1] << 8) | (chunk->code[offset + 2]); \
-	if ((size_t)(offset + 3 sign jump) == startPoint) return 1; size = 3; break; }
+	if ((size_t)(offset + 3 sign jump) == startPoint) return 1; \
+	size = 3; break; }
 #define CLOSURE_MORE \
 	KrkCodeObject * function = AS_codeobject(chunk->constants.values[constant]); \
 	for (size_t j = 0; j < function->upvalueCount; ++j) { \
