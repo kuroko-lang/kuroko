@@ -203,9 +203,10 @@ static int krk_long_resize(KrkLong * num, ssize_t newdigits) {
 	size_t abs = newdigits < 0 ? -newdigits : newdigits;
 	size_t eabs = num->width < 0 ? -num->width : num->width;
 	if (num->width == 0) {
-		num->digits = malloc(sizeof(uint32_t) * newdigits);
+		num->digits = calloc(sizeof(uint32_t), newdigits);
 	} else if (eabs < abs) {
 		num->digits = realloc(num->digits, sizeof(uint32_t) * newdigits);
+		memset(&num->digits[eabs], 0, sizeof(uint32_t)*(abs-eabs));
 	}
 
 	num->width = newdigits;
