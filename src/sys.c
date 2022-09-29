@@ -5,7 +5,7 @@
 
 #define KRK_VERSION_MAJOR  1
 #define KRK_VERSION_MINOR  3
-#define KRK_VERSION_PATCH  0
+#define KRK_VERSION_PATCH  1
 #define KRK_VERSION_LEVEL  0xF
 #define KRK_VERSION_SERIAL 0x0
 
@@ -74,7 +74,7 @@ KRK_Function(getsizeof) {
 			mySize += sizeof(KrkLineMap) * self->chunk.linesCapacity;
 			mySize += sizeof(KrkValue) * self->chunk.constants.capacity;
 			/* requiredArgNames */
-			mySize += sizeof(KrkValue) * self->requiredArgNames.capacity;
+			mySize += sizeof(KrkValue) * self->positionalArgNames.capacity;
 			/* keywordArgNames */
 			mySize += sizeof(KrkValue) * self->keywordArgNames.capacity;
 			/* Locals array */

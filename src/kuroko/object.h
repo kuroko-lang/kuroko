@@ -151,8 +151,8 @@ typedef struct {
 	KrkChunk chunk;                        /**< @brief Bytecode data */
 	KrkString * name;                      /**< @brief Name of the function */
 	KrkString * docstring;                 /**< @brief Docstring attached to the function */
-	KrkValueArray requiredArgNames;        /**< @brief Array of names for required arguments (and *args) */
-	KrkValueArray keywordArgNames;         /**< @brief Array of names for keyword arguments (and **kwargs) */
+	KrkValueArray positionalArgNames;      /**< @brief Array of names for positional arguments (and *args) */
+	KrkValueArray keywordArgNames;         /**< @brief Array of names for keyword-only arguments (and **kwargs) */
 	size_t localNameCapacity;              /**< @brief Capacity of @ref localNames */
 	size_t localNameCount;                 /**< @brief Number of entries in @ref localNames */
 	KrkLocalEntry * localNames;            /**< @brief Stores the names of local variables used in the function, for debugging */

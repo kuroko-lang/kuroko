@@ -262,12 +262,13 @@ KrkCodeObject * krk_newCodeObject(void) {
 	KrkCodeObject * codeobject = ALLOCATE_OBJECT(KrkCodeObject, KRK_OBJ_CODEOBJECT);
 	codeobject->requiredArgs = 0;
 	codeobject->keywordArgs = 0;
+	codeobject->potentialPositionals = 0;
 	codeobject->upvalueCount = 0;
 	codeobject->name = NULL;
 	codeobject->docstring = NULL;
 	codeobject->localNameCount = 0;
 	codeobject->localNames = NULL;
-	krk_initValueArray(&codeobject->requiredArgNames);
+	krk_initValueArray(&codeobject->positionalArgNames);
 	krk_initValueArray(&codeobject->keywordArgNames);
 	krk_initChunk(&codeobject->chunk);
 	return codeobject;

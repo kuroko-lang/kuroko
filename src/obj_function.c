@@ -14,19 +14,19 @@ static KrkValue nativeFunctionName(KrkValue func) {
 }
 
 static KrkTuple * functionArgs(KrkCodeObject * _self) {
-	KrkTuple * tuple = krk_newTuple(_self->requiredArgs + _self->keywordArgs + !!(_self->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_ARGS) + !!(_self->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_KWS));
+	KrkTuple * tuple = krk_newTuple(_self->totalArguments);
 	krk_push(OBJECT_VAL(tuple));
 
-	for (short i = 0; i < _self->requiredArgs; ++i) {
-		tuple->values.values[tuple->values.count++] = _self->requiredArgNames.values[i];
+	for (short i = 0; i < _self->potentialPositionals; ++i) {
+		tuple->values.values[tuple->values.count++] = _self->positionalArgNames.values[i];
+	}
+
+	if (_self->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_ARGS) {
+		tuple->values.values[tuple->values.count++] = krk_stringFromFormat("*%S", AS_STRING(_self->positionalArgNames.values[_self->potentialPositionals]));
 	}
 
 	for (short i = 0; i < _self->keywordArgs; ++i) {
 		tuple->values.values[tuple->values.count++] = krk_stringFromFormat("%S=", AS_STRING(_self->keywordArgNames.values[i]));
-	}
-
-	if (_self->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_ARGS) {
-		tuple->values.values[tuple->values.count++] = krk_stringFromFormat("*%S", AS_STRING(_self->requiredArgNames.values[_self->requiredArgs]));
 	}
 
 	if (_self->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_KWS) {
@@ -239,6 +239,18 @@ KRK_Method(codeobject,co_argcount) {
 	return INTEGER_VAL(self->potentialPositionals);
 }
 
+KRK_Method(codeobject,co_kwonlyargcount) {
+	return INTEGER_VAL(self->keywordArgs);
+}
+
+KRK_Method(codeobject,co_posonlyargcount) {
+	/* This is tricky because we don't store it anywhere */
+	for (size_t i = 0; i < self->potentialPositionals; ++i) {
+		if (!IS_NONE(self->positionalArgNames.values[i])) return INTEGER_VAL(i);
+	}
+	return INTEGER_VAL(0);
+}
+
 KRK_Method(codeobject,__locals__) {
 	krk_push(OBJECT_VAL(krk_newTuple(self->localNameCount)));
 	for (size_t i = 0; i < self->localNameCount; ++i) {
@@ -384,6 +396,8 @@ void _createAndBind_functionClass(void) {
 	BIND_PROP(codeobject,co_flags);
 	BIND_PROP(codeobject,co_code);
 	BIND_PROP(codeobject,co_argcount);
+	BIND_PROP(codeobject,co_kwonlyargcount);
+	BIND_PROP(codeobject,co_posonlyargcount);
 	BIND_PROP(codeobject,__locals__);
 	BIND_PROP(codeobject,__args__);
 	krk_defineNative(&codeobject->methods, "__repr__", FUNC_NAME(codeobject,__str__));

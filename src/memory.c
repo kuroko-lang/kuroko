@@ -210,7 +210,7 @@ static void freeObject(KrkObj * object) {
 		case KRK_OBJ_CODEOBJECT: {
 			KrkCodeObject * function = (KrkCodeObject*)object;
 			krk_freeChunk(&function->chunk);
-			krk_freeValueArray(&function->requiredArgNames);
+			krk_freeValueArray(&function->positionalArgNames);
 			krk_freeValueArray(&function->keywordArgNames);
 			FREE_ARRAY(KrkLocalEntry, function->localNames, function->localNameCount);
 			function->localNameCount = 0;
@@ -356,7 +356,7 @@ static void blackenObject(KrkObj * object) {
 			krk_markObject((KrkObj*)function->qualname);
 			krk_markObject((KrkObj*)function->docstring);
 			krk_markObject((KrkObj*)function->chunk.filename);
-			markArray(&function->requiredArgNames);
+			markArray(&function->positionalArgNames);
 			markArray(&function->keywordArgNames);
 			markArray(&function->chunk.constants);
 			for (size_t i = 0; i < function->localNameCount; ++i) {

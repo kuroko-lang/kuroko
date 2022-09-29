@@ -24,7 +24,7 @@
 
 struct MarshalHeader {
 	uint8_t  magic[4];   /* K R K B */
-	uint8_t  version[4]; /* 1 0 1 1 */
+	uint8_t  version[4]; /* 1 0 1 2 */
 } __attribute__((packed));
 
 struct FunctionHeader {
@@ -33,6 +33,7 @@ struct FunctionHeader {
 	uint32_t qualInd;
 	uint16_t reqArgs;
 	uint16_t kwArgs;
+	uint16_t posArgs;
 	uint16_t upvalues;
 	uint32_t locals;
 	uint32_t bcSize;
@@ -219,8 +220,8 @@ static int doFirstPass(FILE * out) {
 		if (func->docstring) internString(func->docstring);
 		if (func->qualname) internString(func->qualname);
 
-		for (size_t i = 0; i < (size_t)func->requiredArgs + !!(func->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_ARGS); ++i) {
-			internString(AS_STRING(func->requiredArgNames.values[i]));
+		for (size_t i = 0; i < (size_t)func->potentialPositionals + !!(func->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_ARGS); ++i) {
+			internString(AS_STRING(func->positionalArgNames.values[i]));
 		}
 
 		for (size_t i = 0; i < (size_t)func->keywordArgs + !!(func->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_KWS); ++i) {
@@ -267,6 +268,7 @@ static int doSecondPass(FILE * out) {
 			func->qualname ? internString(func->qualname) : UINT32_MAX,
 			func->requiredArgs,
 			func->keywordArgs,
+			func->potentialPositionals,
 			func->upvalueCount,
 			func->localNameCount,
 			func->chunk.count,
@@ -278,8 +280,8 @@ static int doSecondPass(FILE * out) {
 		fwrite(&header, 1, sizeof(struct FunctionHeader), out);
 
 		/* Argument names first */
-		for (size_t i = 0; i < (size_t)func->requiredArgs + !!(func->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_ARGS); ++i) {
-			WRITE_STRING(AS_STRING(func->requiredArgNames.values[i]));
+		for (size_t i = 0; i < (size_t)func->potentialPositionals + !!(func->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_ARGS); ++i) {
+			WRITE_STRING(AS_STRING(func->positionalArgNames.values[i]));
 		}
 
 		for (size_t i = 0; i < (size_t)func->keywordArgs + !!(func->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_KWS); ++i) {
@@ -377,7 +379,7 @@ static int compileFile(char * fileName) {
 	/* Start with the primary header */
 	struct MarshalHeader header = {
 		{'K','R','K','B'},
-		{'1','0','1','1'},
+		{'1','0','1','2'},
 	};
 
 	fwrite(&header, 1, sizeof(header), out);
@@ -466,7 +468,7 @@ static int readFile(char * fileName) {
 	if (memcmp(header.magic,(uint8_t[]){'K','R','K','B'},4) != 0)
 		return fprintf(stderr, "Invalid header.\n"), 1;
 
-	if (memcmp(header.version,(uint8_t[]){'1','0','1','1'},4) != 0)
+	if (memcmp(header.version,(uint8_t[]){'1','0','1','2'},4) != 0)
 		return fprintf(stderr, "Bytecode is for a different version.\n"), 2;
 
 	/* Read string table */
@@ -544,14 +546,14 @@ static int readFile(char * fileName) {
 		self->keywordArgs  = function.kwArgs;
 		self->obj.flags    = function.flags;
 		self->upvalueCount = function.upvalues;
+		self->potentialPositionals = function.posArgs;
 
-		self->potentialPositionals = self->requiredArgs + self->keywordArgs;
 		self->totalArguments = self->potentialPositionals + !!(self->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_ARGS) + !!(self->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_KWS);
 
 		/* Read argument names */
-		DEBUGOUT("  [Required Arguments]\n");
-		for (size_t i = 0; i < (size_t)function.reqArgs + !!(self->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_ARGS); i++) {
-			krk_writeValueArray(&self->requiredArgNames, valueFromConstant(i,inFile));
+		DEBUGOUT("  [Positional Arguments]\n");
+		for (size_t i = 0; i < (size_t)function.posArgs + !!(self->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_ARGS); i++) {
+			krk_writeValueArray(&self->positionalArgNames, valueFromConstant(i,inFile));
 		}
 
 		DEBUGOUT("  [Keyword Arguments]\n");

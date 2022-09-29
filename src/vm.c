@@ -368,12 +368,13 @@ int krk_isInstanceOf(KrkValue obj, const KrkClass * type) {
 
 static inline int checkArgumentCount(const KrkClosure * closure, int argCount) {
 	int minArgs = closure->function->requiredArgs;
-	int maxArgs = minArgs + closure->function->keywordArgs;
+	int maxArgs = closure->function->potentialPositionals;
 	if (unlikely(argCount < minArgs || argCount > maxArgs)) {
-		krk_runtimeError(vm.exceptions->argumentError, "%s() takes %s %d argument%s (%d given)",
+		krk_runtimeError(vm.exceptions->argumentError, "%s() takes %s %d %sargument%s (%d given)",
 		closure->function->name ? closure->function->name->chars : "<unnamed>",
 		(minArgs == maxArgs) ? "exactly" : (argCount < minArgs ? "at least" : "at most"),
 		(argCount < minArgs) ? minArgs : maxArgs,
+		closure->function->keywordArgs ? "positional " : "",
 		((argCount < minArgs) ? minArgs : maxArgs) == 1 ? "" : "s",
 		argCount);
 		return 0;
@@ -384,8 +385,8 @@ static inline int checkArgumentCount(const KrkClosure * closure, int argCount) {
 static void multipleDefs(const KrkClosure * closure, int destination) {
 	krk_runtimeError(vm.exceptions->typeError, "%s() got multiple values for argument '%S'",
 		closure->function->name ? closure->function->name->chars : "<unnamed>",
-		(destination < closure->function->requiredArgs ? AS_STRING(closure->function->requiredArgNames.values[destination]) :
-			(destination - closure->function->requiredArgs < closure->function->keywordArgs ? AS_STRING(closure->function->keywordArgNames.values[destination - closure->function->requiredArgs]) :
+		(destination < closure->function->potentialPositionals ? AS_STRING(closure->function->positionalArgNames.values[destination]) :
+			(destination - closure->function->potentialPositionals < closure->function->keywordArgs ? AS_STRING(closure->function->keywordArgNames.values[destination - closure->function->potentialPositionals]) :
 				S("<unnamed>"))));
 }
 
@@ -546,6 +547,11 @@ static inline int _callManaged(KrkClosure * closure, int argCount, int returnDep
 			argCount++;
 		}
 
+		for (size_t i = 0; i < closure->function->keywordArgs; ++i) {
+			krk_push(KWARGS_VAL(0));
+			argCount++;
+		}
+
 		/* We're done with the positionals */
 		krk_currentThread.scratchSpace[0] = NONE_VAL();
 
@@ -556,8 +562,8 @@ static inline int _callManaged(KrkClosure * closure, int argCount, int returnDep
 				KrkValue name = entry->key;
 				KrkValue value = entry->value;
 				/* See if we can place it */
-				for (int j = 0; j < (int)closure->function->requiredArgs; ++j) {
-					if (krk_valuesEqual(name, closure->function->requiredArgNames.values[j])) {
+				for (int j = 0; j < (int)closure->function->potentialPositionals; ++j) {
+					if (krk_valuesSame(name, closure->function->positionalArgNames.values[j])) {
 						if (!IS_KWARGS(krk_currentThread.stackTop[-argCount + j])) {
 							multipleDefs(closure,j);
 							goto _errorAfterPositionals;
@@ -568,12 +574,12 @@ static inline int _callManaged(KrkClosure * closure, int argCount, int returnDep
 				}
 				/* See if it's a keyword arg. */
 				for (int j = 0; j < (int)closure->function->keywordArgs; ++j) {
-					if (krk_valuesEqual(name, closure->function->keywordArgNames.values[j])) {
-						if (!IS_KWARGS(krk_currentThread.stackTop[-argCount + j + closure->function->requiredArgs])) {
-							multipleDefs(closure, j + closure->function->requiredArgs);
+					if (krk_valuesSame(name, closure->function->keywordArgNames.values[j])) {
+						if (!IS_KWARGS(krk_currentThread.stackTop[-argCount + j + closure->function->potentialPositionals + !!(closure->function->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_ARGS)])) {
+							multipleDefs(closure, j + closure->function->potentialPositionals);
 							goto _errorAfterPositionals;
 						}
-						krk_currentThread.stackTop[-argCount + j + closure->function->requiredArgs] = value;
+						krk_currentThread.stackTop[-argCount + j + closure->function->potentialPositionals + !!(closure->function->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_ARGS)] = value;
 						goto _finishKwarg;
 					}
 				}
@@ -603,14 +609,21 @@ _finishKwarg:
 
 		for (size_t i = 0; i < (size_t)closure->function->requiredArgs; ++i) {
 			if (IS_KWARGS(krk_currentThread.stackTop[-argCount + i])) {
-				krk_runtimeError(vm.exceptions->typeError, "%s() missing required positional argument: '%S'",
-					closure->function->name ? closure->function->name->chars : "<unnamed>",
-					AS_STRING(closure->function->requiredArgNames.values[i]));
+				if (i < closure->function->localNameCount) {
+					krk_runtimeError(vm.exceptions->typeError, "%s() %s: '%S'",
+						closure->function->name ? closure->function->name->chars : "<unnamed>",
+						"missing required positional argument",
+						closure->function->localNames[i].name);
+				} else {
+					krk_runtimeError(vm.exceptions->typeError, "%s() %s",
+						closure->function->name ? closure->function->name->chars : "<unnamed>",
+						"missing required positional argument");
+				}
 				goto _errorAfterKeywords;
 			}
 		}
 
-		argCountX = argCount - (!!(closure->function->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_ARGS) + !!(closure->function->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_KWS));
+		argCountX = argCount - closure->function->keywordArgs - (!!(closure->function->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_ARGS) + !!(closure->function->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_KWS));
 	} else if ((size_t)argCount > potentialPositionalArgs && (closure->function->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_ARGS)) {
 		KrkValue * startOfPositionals = &krk_currentThread.stackTop[-argCount];
 		KrkValue tmp = krk_callNativeOnStack(argCount - potentialPositionalArgs,
@@ -3015,6 +3028,16 @@ _finishPopBlock:
 				}
 
 				krk_push(finishStringBuilder(&sb));
+				break;
+			}
+
+			case OP_MISSING_KW_LONG:
+				THREE_BYTE_OPERAND;
+			case OP_MISSING_KW: {
+				ONE_BYTE_OPERAND;
+				krk_runtimeError(vm.exceptions->typeError, "%s() missing required keyword-only argument: %R",
+					frame->closure->function->name ? frame->closure->function->name->chars : "<unnamed>",
+					frame->closure->function->keywordArgNames.values[OPERAND]);
 				break;
 			}
 

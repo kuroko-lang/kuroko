@@ -852,21 +852,21 @@ KRK_Function(locals) {
 
 	/* First, we'll populate with arguments */
 	size_t slot = 0;
-	for (short int i = 0; i < func->requiredArgs; ++i) {
+	for (short int i = 0; i < func->potentialPositionals; ++i) {
 		krk_tableSet(AS_DICT(dict),
-			func->requiredArgNames.values[i],
+			func->positionalArgNames.values[i],
+			krk_currentThread.stack[frame->slots + slot]);
+		slot++;
+	}
+	if (func->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_ARGS) {
+		krk_tableSet(AS_DICT(dict),
+			func->positionalArgNames.values[func->potentialPositionals],
 			krk_currentThread.stack[frame->slots + slot]);
 		slot++;
 	}
 	for (short int i = 0; i < func->keywordArgs; ++i) {
 		krk_tableSet(AS_DICT(dict),
 			func->keywordArgNames.values[i],
-			krk_currentThread.stack[frame->slots + slot]);
-		slot++;
-	}
-	if (func->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_ARGS) {
-		krk_tableSet(AS_DICT(dict),
-			func->requiredArgNames.values[func->requiredArgs],
 			krk_currentThread.stack[frame->slots + slot]);
 		slot++;
 	}

@@ -223,6 +223,7 @@ typedef struct Compiler {
 	int delSatisfied;                  /**< Flag indicating if a 'del' target has been completed. */
 
 	size_t optionsFlags;               /**< Special __options__ imports; similar to __future__ in Python */
+	int unnamedArgs;
 } Compiler;
 
 #define OPTIONS_FLAG_COMPILE_TIME_BUILTINS    (1 << 0)
@@ -344,6 +345,8 @@ static void rewindChunk(KrkChunk * out, ChunkRecorder from) {
 	out->constants.count = from.constants;
 }
 
+static size_t renameLocal(struct GlobalState * state, size_t ind, KrkToken name);
+
 static void initCompiler(struct GlobalState * state, Compiler * compiler, FunctionType type) {
 	compiler->enclosing = state->current;
 	state->current = compiler;
@@ -368,6 +371,7 @@ static void initCompiler(struct GlobalState * state, Compiler * compiler, Functi
 	compiler->properties = NULL;
 	compiler->annotationCount = 0;
 	compiler->delSatisfied = 0;
+	compiler->unnamedArgs = 0;
 	compiler->optionsFlags = compiler->enclosing ? compiler->enclosing->optionsFlags : 0;
 
 	if (type != TYPE_MODULE) {
@@ -382,7 +386,9 @@ static void initCompiler(struct GlobalState * state, Compiler * compiler, Functi
 		local->isCaptured = 0;
 		local->name.start = "self";
 		local->name.length = 4;
+		renameLocal(state, 0, local->name);
 		state->current->codeobject->requiredArgs = 1;
+		state->current->codeobject->potentialPositionals = 1;
 	}
 
 	if (isCoroutine(type)) state->current->codeobject->obj.flags |= KRK_OBJ_FLAGS_CODEOBJECT_IS_COROUTINE;
@@ -551,42 +557,50 @@ static void emitReturn(struct GlobalState * state) {
 static KrkCodeObject * endCompiler(struct GlobalState * state) {
 	KrkCodeObject * function = state->current->codeobject;
 
-	for (size_t i = 0; i < state->current->codeobject->localNameCount; i++) {
-		if (state->current->codeobject->localNames[i].deathday == 0) {
-			state->current->codeobject->localNames[i].deathday = currentChunk()->count;
+	for (size_t i = 0; i < function->localNameCount; i++) {
+		if (function->localNames[i].deathday == 0) {
+			function->localNames[i].deathday = currentChunk()->count;
 		}
 	}
-	state->current->codeobject->localNames = GROW_ARRAY(KrkLocalEntry, state->current->codeobject->localNames, \
-		state->current->localNameCapacity, state->current->codeobject->localNameCount); /* Shorten this down for runtime */
+	function->localNames = GROW_ARRAY(KrkLocalEntry, function->localNames, \
+		state->current->localNameCapacity, function->localNameCount); /* Shorten this down for runtime */
 
 	if (state->current->continueCount) { state->parser.previous = state->current->continues[0].token; error("continue without loop"); }
 	if (state->current->breakCount) { state->parser.previous = state->current->breaks[0].token; error("break without loop"); }
 	emitReturn(state);
 
 	/* Attach contants for arguments */
-	for (int i = 0; i < function->requiredArgs; ++i) {
+	for (int i = 0; i < function->potentialPositionals; ++i) {
+		if (i < state->current->unnamedArgs) {
+			krk_writeValueArray(&function->positionalArgNames, NONE_VAL());
+			continue;
+		}
 		KrkValue value = OBJECT_VAL(krk_copyString(state->current->locals[i].name.start, state->current->locals[i].name.length));
 		krk_push(value);
-		krk_writeValueArray(&function->requiredArgNames, value);
+		krk_writeValueArray(&function->positionalArgNames, value);
 		krk_pop();
 	}
+
+	size_t args = function->potentialPositionals;
+	if (function->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_ARGS) {
+		KrkValue value = OBJECT_VAL(krk_copyString(state->current->locals[args].name.start,
+			state->current->locals[args].name.length));
+		krk_push(value);
+		krk_writeValueArray(&function->positionalArgNames, value);
+		krk_pop();
+		args++;
+	}
+
 	for (int i = 0; i < function->keywordArgs; ++i) {
-		KrkValue value = OBJECT_VAL(krk_copyString(state->current->locals[i+function->requiredArgs].name.start,
-			state->current->locals[i+function->requiredArgs].name.length));
+		KrkValue value = OBJECT_VAL(krk_copyString(state->current->locals[i+args].name.start,
+			state->current->locals[i+args].name.length));
 		krk_push(value);
 		krk_writeValueArray(&function->keywordArgNames, value);
 		krk_pop();
 	}
-	size_t args = state->current->codeobject->requiredArgs + state->current->codeobject->keywordArgs;
-	if (state->current->codeobject->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_ARGS) {
-		KrkValue value = OBJECT_VAL(krk_copyString(state->current->locals[args].name.start,
-			state->current->locals[args].name.length));
-		krk_push(value);
-		krk_writeValueArray(&function->requiredArgNames, value);
-		krk_pop();
-		args++;
-	}
-	if (state->current->codeobject->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_KWS) {
+	args += function->keywordArgs;
+
+	if (function->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_KWS) {
 		KrkValue value = OBJECT_VAL(krk_copyString(state->current->locals[args].name.start,
 			state->current->locals[args].name.length));
 		krk_push(value);
@@ -595,8 +609,7 @@ static KrkCodeObject * endCompiler(struct GlobalState * state) {
 		args++;
 	}
 
-	state->current->codeobject->potentialPositionals = state->current->codeobject->requiredArgs + state->current->codeobject->keywordArgs;
-	state->current->codeobject->totalArguments = state->current->codeobject->potentialPositionals + !!(state->current->codeobject->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_ARGS) + !!(state->current->codeobject->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_KWS);
+	function->totalArguments = function->potentialPositionals + function->keywordArgs + !!(function->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_ARGS) + !!(function->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_KWS);
 
 #ifndef KRK_NO_DISASSEMBLY
 	if ((krk_currentThread.flags & KRK_THREAD_ENABLE_DISASSEMBLY) && !state->parser.hadError) {
@@ -1351,7 +1364,7 @@ static void hideLocal(struct GlobalState * state) {
 	state->current->locals[state->current->localCount - 1].depth = -2;
 }
 
-static void argumentDefinition(struct GlobalState * state) {
+static void argumentDefinition(struct GlobalState * state, int hasCollectors) {
 	if (match(TOKEN_EQUAL)) {
 		/*
 		 * We inline default arguments by checking if they are equal
@@ -1370,13 +1383,27 @@ static void argumentDefinition(struct GlobalState * state) {
 		EMIT_OPERAND_OP(OP_SET_LOCAL_POP, myLocal);
 		endScope(state);
 		patchJump(jumpIndex);
-		state->current->codeobject->keywordArgs++;
-	} else {
-		if (state->current->codeobject->keywordArgs) {
-			error("non-keyword argument follows keyword argument");
-			return;
+		if (hasCollectors) {
+			state->current->codeobject->keywordArgs++;
+		} else {
+			state->current->codeobject->potentialPositionals++;
 		}
-		state->current->codeobject->requiredArgs++;
+	} else {
+		if (hasCollectors) {
+			size_t myLocal = state->current->localCount - 1;
+			EMIT_OPERAND_OP(OP_GET_LOCAL, myLocal);
+			int jumpIndex = emitJump(OP_TEST_ARG);
+			EMIT_OPERAND_OP(OP_MISSING_KW, state->current->codeobject->keywordArgs);
+			patchJump(jumpIndex);
+			state->current->codeobject->keywordArgs++;
+		} else {
+			if (state->current->codeobject->potentialPositionals != state->current->codeobject->requiredArgs) {
+				error("non-default argument follows default argument");
+				return;
+			}
+			state->current->codeobject->requiredArgs++;
+			state->current->codeobject->potentialPositionals++;
+		}
 	}
 }
 
@@ -1413,9 +1440,17 @@ static int argumentList(struct GlobalState * state, FunctionType type) {
 				typeHint(state, name);
 			}
 			if (check(TOKEN_EQUAL)) {
-				errorAtCurrent("'self' can not be a keyword argument.");
+				errorAtCurrent("'self' can not be a default argument.");
 				return 1;
 			}
+			continue;
+		}
+		if (match(TOKEN_SOLIDUS)) {
+			if (hasCollectors || state->current->unnamedArgs || !state->current->codeobject->potentialPositionals) {
+				error("Syntax error.");
+				return 1;
+			}
+			state->current->unnamedArgs = state->current->codeobject->potentialPositionals;
 			continue;
 		}
 		if (match(TOKEN_ASTERISK) || check(TOKEN_POW)) {
@@ -1432,6 +1467,9 @@ static int argumentList(struct GlobalState * state, FunctionType type) {
 					return 1;
 				}
 				hasCollectors = 1;
+				if (check(TOKEN_COMMA)) {
+					continue;
+				}
 				state->current->codeobject->obj.flags |= KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_ARGS;
 			}
 			/* Collect a name, specifically "args" or "kwargs" are commont */
@@ -1463,8 +1501,8 @@ static int argumentList(struct GlobalState * state, FunctionType type) {
 			patchJump(jumpIndex);
 			continue;
 		}
-		if (hasCollectors) {
-			error("arguments follow catch-all collector");
+		if (hasCollectors == 2) {
+			error("arguments follow catch-all keyword collector");
 			break;
 		}
 		ssize_t paramConstant = parseVariable(state, "Expected parameter name.");
@@ -1475,7 +1513,7 @@ static int argumentList(struct GlobalState * state, FunctionType type) {
 			match(TOKEN_COLON);
 			typeHint(state, name);
 		}
-		argumentDefinition(state);
+		argumentDefinition(state, hasCollectors);
 		defineVariable(state, paramConstant);
 	} while (match(TOKEN_COMMA));
 

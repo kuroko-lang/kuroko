@@ -31,27 +31,19 @@ void krk_debug_dumpStack(FILE * file, KrkCallFrame * frame) {
 			size_t relative = i - f->slots;
 
 			/* Figure out the name of this value */
-			if (relative < (size_t)f->closure->function->requiredArgs) {
-				fprintf(file, "%s=", AS_CSTRING(f->closure->function->requiredArgNames.values[relative]));
-				break;
-			} else if (relative < (size_t)f->closure->function->requiredArgs + (size_t)f->closure->function->keywordArgs) {
-				fprintf(file, "%s=", AS_CSTRING(f->closure->function->keywordArgNames.values[relative - f->closure->function->requiredArgs]));
-				break;
-			} else {
-				int found = 0;
-				for (size_t j = 0; j < f->closure->function->localNameCount; ++j) {
-					if (relative == f->closure->function->localNames[j].id
-						/* Only display this name if it's currently valid */
-						&&  f->closure->function->localNames[j].birthday <= (size_t)(f->ip - f->closure->function->chunk.code)
-						&&  f->closure->function->localNames[j].deathday >= (size_t)(f->ip - f->closure->function->chunk.code)
-						) {
-						fprintf(file, "%s=", f->closure->function->localNames[j].name->chars);
-						found = 1;
-						break;
-					}
+			int found = 0;
+			for (size_t j = 0; j < f->closure->function->localNameCount; ++j) {
+				if (relative == f->closure->function->localNames[j].id
+					/* Only display this name if it's currently valid */
+					&&  f->closure->function->localNames[j].birthday <= (size_t)(f->ip - f->closure->function->chunk.code)
+					&&  f->closure->function->localNames[j].deathday >= (size_t)(f->ip - f->closure->function->chunk.code)
+					) {
+					fprintf(file, "%s=", f->closure->function->localNames[j].name->chars);
+					found = 1;
+					break;
 				}
-				if (found) break;
 			}
+			if (found) break;
 		}
 
 		krk_printValueSafe(file, *slot);
@@ -69,20 +61,24 @@ void krk_disassembleCodeObject(FILE * f, KrkCodeObject * func, const char * name
 	KrkChunk * chunk = &func->chunk;
 	/* Function header */
 	fprintf(f, "<%s(", name);
-	for (int i = 0; i < func->requiredArgs; ++i) {
-		fprintf(f,"%s",AS_CSTRING(func->requiredArgNames.values[i]));
-		if (i + 1 < func->requiredArgs || func->keywordArgs || !!(func->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_ARGS) || !!(func->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_KWS)) fprintf(f,",");
-	}
-	for (int i = 0; i < func->keywordArgs; ++i) {
-		fprintf(f,"%s=...",AS_CSTRING(func->keywordArgNames.values[i]));
-		if (i + 1 < func->keywordArgs || !!(func->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_ARGS) || !!(func->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_KWS)) fprintf(f,",");
+	int j = 0;
+	for (int i = 0; i < func->potentialPositionals; ++i) {
+		fprintf(f,"%s",func->localNames[j].name->chars);
+		if (j + 1 < func->totalArguments) fprintf(f,",");
+		j++;
 	}
 	if (func->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_ARGS) {
-		fprintf(f,"*%s", AS_CSTRING(func->requiredArgNames.values[func->requiredArgs]));
-		if (func->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_KWS) fprintf(f,",");
+		fprintf(f,"*%s",func->localNames[j].name->chars);
+		if (j + 1 < func->totalArguments) fprintf(f,",");
+		j++;
+	}
+	for (int i = 0; i < func->keywordArgs; ++i) {
+		fprintf(f,"%s=",func->localNames[j].name->chars);
+		if (j + 1 < func->totalArguments) fprintf(f,",");
+		j++;
 	}
 	if (func->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_KWS) {
-		fprintf(f,"**%s", AS_CSTRING(func->keywordArgNames.values[func->keywordArgs]));
+		fprintf(f,"**%s",func->localNames[j].name->chars);
 	}
 	fprintf(f, ") from %s>\n", chunk->filename->chars);
 	for (size_t offset = 0; offset < chunk->count;) {
@@ -233,16 +229,16 @@ static void _format_value_more(OPARGS, size_t operand) {
 
 #define LOCAL_MORE _local_more
 static void _local_more(OPARGS, size_t operand) {
-	if ((short int)operand < (func->requiredArgs)) {
-		fprintf(f, " (%s, arg)", AS_CSTRING(func->requiredArgNames.values[operand]));
-	} else if ((short int)operand < (func->requiredArgs + func->keywordArgs)) {
-		fprintf(f, " (%s, kwarg))", AS_CSTRING(func->keywordArgNames.values[operand-func->requiredArgs]));
-	} else {
-		for (size_t i = 0; i < func->localNameCount; ++i) {
-			if (func->localNames[i].id == operand && func->localNames[i].birthday <= *offset && func->localNames[i].deathday >= *offset) {
-				fprintf(f, " (%s)", func->localNames[i].name->chars);
-				break;
+	for (size_t i = 0; i < func->localNameCount; ++i) {
+		if (func->localNames[i].id == operand && func->localNames[i].birthday <= *offset && func->localNames[i].deathday >= *offset) {
+			fprintf(f, " (%s", func->localNames[i].name->chars);
+			if ((short int) operand < func->potentialPositionals) {
+				fprintf(f, ", arg");
+			} else if ((short int)operand < func->potentialPositionals + func->keywordArgs + !!(func->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_ARGS)) {
+				fprintf(f, ", kwarg");
 			}
+			fprintf(f, ")");
+			break;
 		}
 	}
 }
@@ -727,17 +723,11 @@ static KrkValue _examineInternal(KrkCodeObject* func) {
 		} else if (jump != 0) {
 			newTuple->values.values[newTuple->values.count++] = INTEGER_VAL(jump);
 		} else if (local != -1) {
-			if ((short int)local < func->requiredArgs) {
-				newTuple->values.values[newTuple->values.count++] = func->requiredArgNames.values[local];
-			} else if ((short int)local < func->requiredArgs + func->keywordArgs) {
-				newTuple->values.values[newTuple->values.count++] = func->keywordArgNames.values[local - func->requiredArgs];
-			} else {
-				newTuple->values.values[newTuple->values.count++] = INTEGER_VAL(operand); /* Just in case */
-				for (size_t i = 0; i < func->localNameCount; ++i) {
-					if (func->localNames[i].id == (size_t)local && func->localNames[i].birthday <= offset && func->localNames[i].deathday >= offset) {
-						newTuple->values.values[newTuple->values.count-1] = OBJECT_VAL(func->localNames[i].name);
-						break;
-					}
+			newTuple->values.values[newTuple->values.count++] = INTEGER_VAL(operand); /* Just in case */
+			for (size_t i = 0; i < func->localNameCount; ++i) {
+				if (func->localNames[i].id == (size_t)local && func->localNames[i].birthday <= offset && func->localNames[i].deathday >= offset) {
+					newTuple->values.values[newTuple->values.count-1] = OBJECT_VAL(func->localNames[i].name);
+					break;
 				}
 			}
 		} else if (operand != -1) {

@@ -32,7 +32,7 @@ try:
     dis.build(template.replace('__args__','self=42'))
     print('fail')
 except SyntaxError as e:
-    print('pass' if 'keyword argument' in str(e) else 'fail')
+    print('pass' if 'default argument' in str(e) else 'fail')
 
 # for that matter, neither can star args
 try:
