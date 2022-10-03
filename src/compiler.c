@@ -3136,7 +3136,7 @@ static void generatorExpression(struct GlobalState * state, KrkScanner scannerBe
  */
 static void comprehensionExpression(struct GlobalState * state, KrkScanner scannerBefore, Parser parserBefore, void (*body)(struct GlobalState *,size_t), int type) {
 	Compiler subcompiler;
-	initCompiler(state, &subcompiler, TYPE_FUNCTION);
+	initCompiler(state, &subcompiler, TYPE_LAMBDA);
 	subcompiler.codeobject->chunk.filename = subcompiler.enclosing->codeobject->chunk.filename;
 
 	beginScope(state);
@@ -3148,8 +3148,6 @@ static void comprehensionExpression(struct GlobalState * state, KrkScanner scann
 	beginScope(state);
 	comprehensionInner(state, scannerBefore, parserBefore, body, ind);
 	endScope(state);
-
-	emitByte(OP_RETURN);
 
 	KrkCodeObject *subfunction = endCompiler(state);
 	size_t indFunc = krk_addConstant(currentChunk(), OBJECT_VAL(subfunction));
