@@ -1033,21 +1033,21 @@ KRK_Method(property,__init__) {
 	((struct Property*)self)->fget = IS_OBJECT(argv[1]) ? AS_OBJECT(argv[1]) : NULL;
 
 	/* Try to attach doc */
-	if (IS_NATIVE(argv[1]) && AS_NATIVE(argv[1])->doc) {
+	if (IS_NATIVE(argv[1])) {
 		krk_attachNamedValue(&self->fields, "__doc__",
-			OBJECT_VAL(krk_copyString(AS_NATIVE(argv[1])->doc, strlen(AS_NATIVE(argv[1])->doc))));
+			AS_NATIVE(argv[1])->doc ? OBJECT_VAL(krk_copyString(AS_NATIVE(argv[1])->doc, strlen(AS_NATIVE(argv[1])->doc))) : NONE_VAL());
 	} else if (IS_CLOSURE(argv[1])) {
 		krk_attachNamedValue(&self->fields, "__doc__",
-			OBJECT_VAL(AS_CLOSURE(argv[1])->function->docstring));
+			AS_CLOSURE(argv[1])->function->docstring ? OBJECT_VAL(AS_CLOSURE(argv[1])->function->docstring) : NONE_VAL());
 	}
 
 	/* Try to attach name */
-	if (IS_NATIVE(argv[1]) && AS_NATIVE(argv[1])->name) {
+	if (IS_NATIVE(argv[1])) {
 		krk_attachNamedValue(&self->fields, "__name__",
-			OBJECT_VAL(krk_copyString(AS_NATIVE(argv[1])->name, strlen(AS_NATIVE(argv[1])->name))));
+			 AS_NATIVE(argv[1])->name ? OBJECT_VAL(krk_copyString(AS_NATIVE(argv[1])->name, strlen(AS_NATIVE(argv[1])->name))) : NONE_VAL());
 	} else if (IS_CLOSURE(argv[1])) {
 		krk_attachNamedValue(&self->fields, "__name__",
-			OBJECT_VAL(AS_CLOSURE(argv[1])->function->name));
+			 AS_CLOSURE(argv[1])->function->name ? OBJECT_VAL(AS_CLOSURE(argv[1])->function->name) : NONE_VAL());
 	}
 
 	if (argc > 2) {
