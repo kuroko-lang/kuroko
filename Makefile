@@ -72,6 +72,10 @@ ifdef KRK_NO_STRESS_GC
   CFLAGS += -DKRK_NO_STRESS_GC=1
 endif
 
+ifdef KRK_HEAP_TAG_BYTE
+  CFLAGS += -DKRK_HEAP_TAG_BYTE=${KRK_HEAP_TAG_BYTE}
+endif
+
 .PHONY: help
 
 help:
