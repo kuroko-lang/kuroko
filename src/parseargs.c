@@ -9,8 +9,7 @@
  * module is not loaded, but may still need to be referenced as a potential
  * type in a function like @c print ).
  */
-static int matchType(const char * _method_name, va_list * args, KrkValue arg) {
-	KrkClass * type = va_arg(*args, KrkClass*);
+static int matchType(const char * _method_name, KrkClass * type, KrkValue arg) {
 	if (arg != KWARGS_VAL(0) && !krk_isInstanceOf(arg, type)) {
 		krk_runtimeError(vm.exceptions->typeError, "%s() expects %s, not '%T'",
 			_method_name, type ? type->name->chars : "unknown type", arg);
@@ -155,7 +154,8 @@ int krk_parseVArgs(
 			case 'O': {
 				if (fmt[1] == '!') {
 					fmt++;
-					if (!matchType(_method_name, &args, arg)) goto _error;
+					KrkClass * type = va_arg(args, KrkClass*);
+					if (!matchType(_method_name, type, arg)) goto _error;
 				}
 				KrkObj ** out = va_arg(args, KrkObj**);
 				if (arg != KWARGS_VAL(0)) {
@@ -183,7 +183,8 @@ int krk_parseVArgs(
 			case 'V': {
 				if (fmt[1] == '!') {
 					fmt++;
-					if (!matchType(_method_name, &args, arg)) goto _error;
+					KrkClass * type = va_arg(args, KrkClass*);
+					if (!matchType(_method_name, type, arg)) goto _error;
 				}
 				KrkValue * out = va_arg(args, KrkValue*);
 				if (arg != KWARGS_VAL(0)) {
