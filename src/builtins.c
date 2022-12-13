@@ -516,7 +516,7 @@ KRK_Method(map,__call__) {
 #define IS_zip(o) (krk_isInstanceOf(o,KRK_BASE_CLASS(zip)))
 #define AS_zip(o) (AS_INSTANCE(o))
 KRK_Method(zip,__init__) {
-	if (hasKw) return krk_runtimeError(vm.exceptions->typeError, "%s() takes no keyword arguments", "zip");
+	if (hasKw && AS_DICT(argv[argc])->count) return krk_runtimeError(vm.exceptions->typeError, "%s() takes no keyword arguments", "zip");
 
 	KrkTuple * iters = krk_newTuple(argc - 1);
 	krk_push(OBJECT_VAL(iters));
