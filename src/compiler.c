@@ -1606,20 +1606,22 @@ static void classBody(struct GlobalState * state, size_t blockWidth) {
 		consume(TOKEN_IDENTIFIER, "Expected method name after 'def'");
 		size_t ind = identifierConstant(state, &state->parser.previous);
 
-		if (state->parser.previous.length == 8 && memcmp(state->parser.previous.start, "__init__", 8) == 0) {
-			if (type == TYPE_COROUTINE_METHOD) {
-				error("'%s' can not be a coroutine","__init__");
-				return;
+		static struct CompilerSpecialMethod { const char * name; int type; } compilerSpecialMethods[] = {
+			{"__init__", TYPE_INIT},
+			{"__class_getitem__", TYPE_CLASSMETHOD},
+			{"__new__", TYPE_STATIC},
+			{"__prepare__", TYPE_CLASSMETHOD},
+			{NULL,0}
+		};
+
+		for (struct CompilerSpecialMethod * method = compilerSpecialMethods; method->name; method++) {
+			if (state->parser.previous.length == strlen(method->name) && memcmp(state->parser.previous.start, method->name, strlen(method->name)) == 0) {
+				if (type == TYPE_COROUTINE_METHOD) {
+					error("'%s' can not be a coroutine",method->name);
+					return;
+				}
+				type = method->type;
 			}
-			type = TYPE_INIT;
-		} else if (state->parser.previous.length == 17 && memcmp(state->parser.previous.start, "__class_getitem__", 17) == 0) {
-			if (type == TYPE_COROUTINE_METHOD) {
-				error("'%s' can not be a coroutine","__class_getitem__");
-				return;
-			}
-			/* This magic method is implicitly always a class method,
-			 * so mark it as such so we don't do implicit self for it. */
-			type = TYPE_CLASSMETHOD;
 		}
 
 		function(state, type, blockWidth);

@@ -24,21 +24,16 @@ static int _tuple_init_callback(void * context, const KrkValue * values, size_t 
 	return 0;
 }
 
-static KrkValue _tuple_init(int argc, const KrkValue argv[], int hasKw) {
+KRK_StaticMethod(tuple,__new__) {
+	METHOD_TAKES_AT_MOST(1);
 	if (argc == 1) {
 		return OBJECT_VAL(krk_newTuple(0));
-	} else if (argc == 2) {
-		/* Expand argument as an iterable. */
-		krk_push(OBJECT_VAL(krk_newTuple(0)));
-		KrkValueArray * positionals = &AS_TUPLE(krk_peek(0))->values;
-		KrkValue other = argv[1];
-		krk_unpackIterable(other, positionals, _tuple_init_callback);
-		return krk_pop();
-	} else {
-		return krk_runtimeError(vm.exceptions->argumentError,
-			"%s() takes %s %d argument%s (%d given)",
-			"tuple","at most",1,"",argc-1);
 	}
+	krk_push(OBJECT_VAL(krk_newTuple(0)));
+	KrkValueArray * positionals = &AS_TUPLE(krk_peek(0))->values;
+	KrkValue other = argv[1];
+	krk_unpackIterable(other, positionals, _tuple_init_callback);
+	return krk_pop();
 }
 
 /* tuple creator */
@@ -273,6 +268,7 @@ _noexport
 void _createAndBind_tupleClass(void) {
 	KrkClass * tuple = ADD_BASE_CLASS(vm.baseClasses->tupleClass, "tuple", vm.baseClasses->objectClass);
 	tuple->obj.flags |= KRK_OBJ_FLAGS_NO_INHERIT;
+	BIND_STATICMETHOD(tuple,__new__);
 	BIND_METHOD(tuple,__repr__);
 	BIND_METHOD(tuple,__getitem__);
 	BIND_METHOD(tuple,__len__);
@@ -286,7 +282,6 @@ void _createAndBind_tupleClass(void) {
 	BIND_METHOD(tuple,__hash__);
 	BIND_METHOD(tuple,__add__);
 	BIND_METHOD(tuple,__mul__);
-	krk_defineNative(&tuple->methods, "__init__", _tuple_init);
 	krk_defineNative(&tuple->methods, "__str__", FUNC_NAME(tuple,__repr__));
 	krk_finalizeClass(tuple);
 

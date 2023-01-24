@@ -27,12 +27,12 @@ KRK_Method(str,__ord__) {
 	return INTEGER_VAL(krk_unicodeCodepoint(self,0));
 }
 
-KRK_Method(str,__init__) {
+KRK_StaticMethod(str,__new__) {
 	/* Ignore argument which would have been an instance */
 	if (argc < 2) {
 		return OBJECT_VAL(S(""));
 	}
-	METHOD_TAKES_AT_MOST(1);
+	FUNCTION_TAKES_AT_MOST(2);
 	if (IS_STRING(argv[1])) return argv[1]; /* strings are immutable, so we can just return the arg */
 	/* Find the type of arg */
 	krk_push(argv[1]);
@@ -1237,7 +1237,7 @@ _noexport
 void _createAndBind_strClass(void) {
 	KrkClass * str = ADD_BASE_CLASS(vm.baseClasses->strClass, "str", vm.baseClasses->objectClass);
 	str->obj.flags |= KRK_OBJ_FLAGS_NO_INHERIT;
-	BIND_METHOD(str,__init__);
+	BIND_STATICMETHOD(str,__new__);
 	BIND_METHOD(str,__iter__);
 	BIND_METHOD(str,__ord__);
 	BIND_METHOD(str,__int__);

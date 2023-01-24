@@ -16,8 +16,7 @@
 
 extern KrkValue krk_int_from_float(double val);
 
-FUNC_SIG(int,__init__) {
-	static __attribute__ ((unused)) const char* _method_name = "__init__";
+KRK_StaticMethod(int,__new__) {
 	METHOD_TAKES_AT_MOST(2);
 	if (argc < 2) return INTEGER_VAL(0);
 	if (IS_BOOLEAN(argv[1])) return INTEGER_VAL(AS_INTEGER(argv[1]));
@@ -567,9 +566,8 @@ KRK_Method(int,__pos__) {
 	} \
 } while (0)
 
-FUNC_SIG(float,__init__) {
-	static __attribute__ ((unused)) const char* _method_name = "__init__";
-	METHOD_TAKES_AT_MOST(1);
+KRK_StaticMethod(float,__new__) {
+	FUNCTION_TAKES_AT_MOST(2);
 	if (argc < 2) return FLOATING_VAL(0.0);
 	if (IS_FLOATING(argv[1])) return argv[1];
 	if (IS_INTEGER(argv[1])) return FLOATING_VAL(AS_INTEGER(argv[1]));
@@ -703,9 +701,8 @@ KRK_Method(float,__pos__) {
 #undef CURRENT_CTYPE
 #define CURRENT_CTYPE krk_integer_type
 
-FUNC_SIG(bool,__init__) {
-	static __attribute__ ((unused)) const char* _method_name = "__init__";
-	METHOD_TAKES_AT_MOST(1);
+KRK_StaticMethod(bool,__new__) {
+	FUNCTION_TAKES_AT_MOST(2);
 	if (argc < 2) return BOOLEAN_VAL(0);
 	return BOOLEAN_VAL(!krk_isFalsey(argv[1]));
 }
@@ -714,7 +711,7 @@ KRK_Method(bool,__str__) {
 	return OBJECT_VAL((self ? S("True") : S("False")));
 }
 
-FUNC_SIG(NoneType,__init__) {
+KRK_StaticMethod(NoneType,__new__) {
 	if (argc > 1) return krk_runtimeError(vm.exceptions->argumentError, "%s takes no arguments", "NoneType");
 	return NONE_VAL();
 }
@@ -736,7 +733,7 @@ KRK_Method(NoneType,__eq__) {
 #define IS_NotImplementedType(o) IS_NOTIMPL(o)
 #define AS_NotImplementedType(o) (1)
 
-FUNC_SIG(NotImplementedType,__init__) {
+KRK_StaticMethod(NotImplementedType,__new__) {
 	if (argc > 1) return krk_runtimeError(vm.exceptions->argumentError, "%s takes no arguments", "NotImplementedType");
 	return NOTIMPL_VAL();
 }
@@ -756,8 +753,10 @@ KRK_Method(NotImplementedType,__eq__) {
 }
 
 #undef BIND_METHOD
+#undef BIND_STATICMETHOD
 /* These class names conflict with C types, so we need to cheat a bit */
 #define BIND_METHOD(klass,method) do { krk_defineNative(& _ ## klass->methods, #method, _ ## klass ## _ ## method); } while (0)
+#define BIND_STATICMETHOD(klass,method) do { krk_defineNativeStaticMethod(& _ ## klass->methods, #method, _ ## klass ## _ ## method); } while (0)
 #define BIND_TRIPLET(klass,name) \
 	BIND_METHOD(klass,__ ## name ## __); \
 	BIND_METHOD(klass,__r ## name ## __); \
@@ -766,7 +765,7 @@ _noexport
 void _createAndBind_numericClasses(void) {
 	KrkClass * _int = ADD_BASE_CLASS(vm.baseClasses->intClass, "int", vm.baseClasses->objectClass);
 	_int->obj.flags |= KRK_OBJ_FLAGS_NO_INHERIT;
-	BIND_METHOD(int,__init__);
+	BIND_STATICMETHOD(int,__new__);
 	BIND_METHOD(int,__str__);
 	BIND_METHOD(int,__int__);
 	BIND_METHOD(int,__chr__);
@@ -807,7 +806,7 @@ void _createAndBind_numericClasses(void) {
 
 	KrkClass * _float = ADD_BASE_CLASS(vm.baseClasses->floatClass, "float", vm.baseClasses->objectClass);
 	_float->obj.flags |= KRK_OBJ_FLAGS_NO_INHERIT;
-	BIND_METHOD(float,__init__);
+	BIND_STATICMETHOD(float,__new__);
 	BIND_METHOD(float,__int__);
 	BIND_METHOD(float,__float__);
 	BIND_METHOD(float,__str__);
@@ -831,7 +830,7 @@ void _createAndBind_numericClasses(void) {
 
 	KrkClass * _bool = ADD_BASE_CLASS(vm.baseClasses->boolClass, "bool", vm.baseClasses->intClass);
 	_bool->obj.flags |= KRK_OBJ_FLAGS_NO_INHERIT;
-	BIND_METHOD(bool,__init__);
+	BIND_STATICMETHOD(bool,__new__);
 	BIND_METHOD(bool,__str__);
 	krk_defineNative(&_bool->methods, "__repr__", FUNC_NAME(bool,__str__));
 	krk_finalizeClass(_bool);
@@ -839,7 +838,7 @@ void _createAndBind_numericClasses(void) {
 
 	KrkClass * _NoneType = ADD_BASE_CLASS(vm.baseClasses->noneTypeClass, "NoneType", vm.baseClasses->objectClass);
 	_NoneType->obj.flags |= KRK_OBJ_FLAGS_NO_INHERIT;
-	BIND_METHOD(NoneType, __init__);
+	BIND_STATICMETHOD(NoneType, __new__);
 	BIND_METHOD(NoneType, __str__);
 	BIND_METHOD(NoneType, __hash__);
 	BIND_METHOD(NoneType, __eq__);
@@ -848,7 +847,7 @@ void _createAndBind_numericClasses(void) {
 
 	KrkClass * _NotImplementedType = ADD_BASE_CLASS(vm.baseClasses->notImplClass, "NotImplementedType", vm.baseClasses->objectClass);
 	_NotImplementedType->obj.flags |= KRK_OBJ_FLAGS_NO_INHERIT;
-	BIND_METHOD(NotImplementedType, __init__);
+	BIND_STATICMETHOD(NotImplementedType, __new__);
 	BIND_METHOD(NotImplementedType, __str__);
 	BIND_METHOD(NotImplementedType, __hash__);
 	BIND_METHOD(NotImplementedType, __eq__);

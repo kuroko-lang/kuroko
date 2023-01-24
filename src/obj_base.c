@@ -90,10 +90,58 @@ KRK_Method(type,__getitem__) {
 	return krk_runtimeError(vm.exceptions->attributeError, "'%s' object is not subscriptable", "type");
 }
 
+KRK_Method(type,__call__) {
+	if (self == vm.baseClasses->typeClass) {
+		if (argc == 2) {
+			return OBJECT_VAL(krk_getType(argv[1]));
+		}
+		return krk_runtimeError(vm.exceptions->attributeError, "TODO type(...)");
+	}
+
+	if (!self->_new) {
+		return krk_runtimeError(vm.exceptions->typeError, "%S() can not be built", self->name);
+	}
+
+	/* Push args */
+	int argCount = argc;
+	for (int i = 0; i < argc; ++i) {
+		krk_push(argv[i]);
+	}
+
+	if (hasKw) {
+		argCount += 3;
+		krk_push(KWARGS_VAL(KWARGS_DICT));
+		krk_push(argv[argc]);
+		krk_push(KWARGS_VAL(1));
+	}
+
+	krk_push(krk_callDirect(self->_new, argCount));
+
+	/* Exception here */
+	if (unlikely(krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION)) return NONE_VAL();
+
+	if (krk_isInstanceOf(krk_peek(0), self) && likely(self->_init != NULL)) {
+		for (int i = 0; i < argc - 1; ++i) {
+			krk_push(argv[i+1]);
+		}
+
+		if (hasKw) {
+			krk_push(KWARGS_VAL(KWARGS_DICT));
+			krk_push(argv[argc]);
+			krk_push(KWARGS_VAL(1));
+		}
+
+		return krk_callDirect(self->_init, argCount);
+	}
+
+	return krk_pop();
+}
+
 _noexport
 void _createAndBind_type(void) {
 	KrkClass * type = ADD_BASE_CLASS(vm.baseClasses->typeClass, "type", vm.baseClasses->objectClass);
 	type->obj.flags |= KRK_OBJ_FLAGS_NO_INHERIT;
+	type->allocSize = sizeof(KrkClass);
 
 	BIND_PROP(type,__base__);
 	BIND_PROP(type,__file__);
@@ -104,6 +152,7 @@ void _createAndBind_type(void) {
 	BIND_METHOD(type,__str__);
 	BIND_METHOD(type,__subclasses__);
 	BIND_METHOD(type,__getitem__);
+	BIND_METHOD(type,__call__);
 	krk_defineNative(&type->methods,"__repr__",FUNC_NAME(type,__str__));
 
 	krk_finalizeClass(type);

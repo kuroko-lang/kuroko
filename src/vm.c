@@ -250,7 +250,7 @@ void krk_finalizeClass(KrkClass * _class) {
 			if (krk_tableGet(&_base->methods, vm.specialMethodNames[entry->index], &tmp)) break;
 			_base = _base->base;
 		}
-		if (_base && (IS_CLOSURE(tmp) || IS_NATIVE(tmp)) && !(AS_OBJECT(tmp)->flags & KRK_OBJ_FLAGS_FUNCTION_IS_STATIC_METHOD)) {
+		if (_base && (IS_CLOSURE(tmp) || IS_NATIVE(tmp)) && (!(AS_OBJECT(tmp)->flags & KRK_OBJ_FLAGS_FUNCTION_IS_STATIC_METHOD) || entry->index == METHOD_NEW)) {
 			*entry->method = AS_OBJECT(tmp);
 		}
 	}
@@ -768,38 +768,6 @@ int krk_callValue(KrkValue callee, int argCount, int returnDepth) {
 		switch (OBJECT_TYPE(callee)) {
 			case KRK_OBJ_CLOSURE: return _callManaged(AS_CLOSURE(callee), argCount, returnDepth);
 			case KRK_OBJ_NATIVE: return _callNative(AS_NATIVE(callee), argCount, returnDepth);
-			case KRK_OBJ_INSTANCE: {
-				KrkClass * _class = AS_INSTANCE(callee)->_class;
-				if (likely(_class->_call != NULL)) {
-					if (unlikely(returnDepth == 0)) _rotate(argCount);
-					krk_currentThread.stackTop[-argCount - 1] = callee;
-					argCount++;
-					returnDepth = returnDepth ? (returnDepth - 1) : 0;
-					return (_class->_call->type == KRK_OBJ_CLOSURE) ? _callManaged((KrkClosure*)_class->_call, argCount, returnDepth) : _callNative((KrkNative*)_class->_call, argCount, returnDepth);
-				} else {
-					krk_runtimeError(vm.exceptions->typeError, "'%T' object is not callable", callee);
-					return 0;
-				}
-			}
-			case KRK_OBJ_CLASS: {
-				KrkClass * _class = AS_CLASS(callee);
-				KrkInstance * newInstance = krk_newInstance(_class);
-				if (likely(_class->_init != NULL)) {
-					if (unlikely(returnDepth == 0)) _rotate(argCount);
-					krk_currentThread.stackTop[-argCount - 1] = OBJECT_VAL(newInstance);
-					callee = OBJECT_VAL(_class->_init);
-					argCount++;
-					returnDepth = returnDepth ? (returnDepth - 1) : 0;
-					goto _innerObject;
-				} else if (unlikely(argCount != 0)) {
-					krk_runtimeError(vm.exceptions->typeError, "%S() takes no arguments (%d given)",
-						_class->name, argCount);
-					return 0;
-				}
-				krk_currentThread.stackTop -= argCount + returnDepth;
-				krk_push(OBJECT_VAL(newInstance));
-				return 2;
-			}
 			case KRK_OBJ_BOUND_METHOD: {
 				KrkBoundMethod * bound = AS_BOUND_METHOD(callee);
 				if (unlikely(!bound->method)) {
@@ -813,8 +781,19 @@ int krk_callValue(KrkValue callee, int argCount, int returnDepth) {
 				returnDepth = returnDepth ? (returnDepth - 1) : 0;
 				goto _innerObject;
 			}
-			default:
-				break;
+			default: {
+				KrkClass * _class = krk_getType(callee);
+				if (likely(_class->_call != NULL)) {
+					if (unlikely(returnDepth == 0)) _rotate(argCount);
+					krk_currentThread.stackTop[-argCount - 1] = callee;
+					argCount++;
+					returnDepth = returnDepth ? (returnDepth - 1) : 0;
+					return (_class->_call->type == KRK_OBJ_CLOSURE) ? _callManaged((KrkClosure*)_class->_call, argCount, returnDepth) : _callNative((KrkNative*)_class->_call, argCount, returnDepth);
+				} else {
+					krk_runtimeError(vm.exceptions->typeError, "'%T' object is not callable", callee);
+					return 0;
+				}
+			}
 		}
 	}
 	krk_runtimeError(vm.exceptions->typeError, "'%T' object is not callable", callee);
@@ -2777,6 +2756,9 @@ _finishReturn: (void)0;
 				krk_tableSet(&_class->methods, name, method);
 				if (AS_STRING(name) == S("__class_getitem__") && IS_CLOSURE(method)) {
 					AS_CLOSURE(method)->obj.flags |= KRK_OBJ_FLAGS_FUNCTION_IS_CLASS_METHOD;
+				}
+				if (AS_STRING(name) == S("__new__") && IS_CLOSURE(method)) {
+					AS_CLOSURE(method)->obj.flags |= KRK_OBJ_FLAGS_FUNCTION_IS_STATIC_METHOD;
 				}
 				krk_pop();
 				break;

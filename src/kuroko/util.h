@@ -93,6 +93,20 @@
 #define BIND_PROP(klass,method) krk_defineNativeProperty(&klass->methods, #method, _ ## klass ## _ ## method)
 #define BIND_FUNC(module,func) krk_defineNative(&module->fields, #func, _krk_ ## func)
 
+static inline KrkNative * krk_defineNativeStaticMethod(KrkTable * table, const char * name, NativeFn function) {
+	KrkNative * out = krk_defineNative(table,name,function);
+	out->obj.flags |= KRK_OBJ_FLAGS_FUNCTION_IS_STATIC_METHOD;
+	return out;
+}
+#define BIND_STATICMETHOD(klass,method) krk_defineNativeStaticMethod(&klass->methods, #method, _ ## klass ## _ ## method)
+
+static inline KrkNative * krk_deifneNativeClassMethod(KrkTable * table, const char * name, NativeFn function) {
+	KrkNative * out = krk_defineNative(table,name,function);
+	out->obj.flags |= KRK_OBJ_FLAGS_FUNCTION_IS_CLASS_METHOD;
+	return out;
+}
+#define BIND_CLASSMETHOD(klass,method) krk_defineNativeClassMethod(&klass->methods, #method, _ ## klass ## _ ## method)
+
 #define KRK_Method_internal_name(klass, name) \
 	_krk_method_ ## klass ## _ ## name
 #define KRK_Method_internal_sig(klass, name) \
@@ -119,6 +133,16 @@
 		return KRK_Function_internal_name(name)(_method_name,argc,argv,hasKw); \
 	} \
 	KRK_Function_internal_sig(name)
+
+#define KRK_StaticMethod_internal_sig(klass, name) \
+	static inline KrkValue KRK_Method_internal_name(klass, name) (const char * _method_name, int argc, const KrkValue argv[], int hasKw)
+#define KRK_StaticMethod(klass, name) \
+	KRK_StaticMethod_internal_sig(klass, name); \
+	FUNC_SIG(klass, name) { \
+		static const char * _method_name = # name; \
+		return KRK_Method_internal_name(klass,name)(_method_name,argc,argv,hasKw); \
+	} \
+	KRK_StaticMethod_internal_sig(klass,name)
 
 /**
  * @brief Inline flexible string array.

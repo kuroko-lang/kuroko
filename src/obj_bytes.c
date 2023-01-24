@@ -34,7 +34,7 @@ static int _bytes_callback(void * context, const KrkValue * values, size_t count
 	return 0;
 }
 
-KRK_Method(bytes,__init__) {
+KRK_StaticMethod(bytes,__new__) {
 	if (argc < 2) return OBJECT_VAL(krk_newBytes(0,NULL));
 	METHOD_TAKES_AT_MOST(1);
 
@@ -420,7 +420,7 @@ _noexport
 void _createAndBind_bytesClass(void) {
 	KrkClass * bytes = ADD_BASE_CLASS(vm.baseClasses->bytesClass, "bytes", vm.baseClasses->objectClass);
 	bytes->obj.flags |= KRK_OBJ_FLAGS_NO_INHERIT;
-	KRK_DOC(BIND_METHOD(bytes,__init__),
+	KRK_DOC(BIND_STATICMETHOD(bytes,__new__),
 		"@brief An array of bytes.\n"
 		"@arguments iter=None\n\n"
 		"Creates a new @ref bytes object. If @p iter is provided, it should be a @ref tuple or @ref list "

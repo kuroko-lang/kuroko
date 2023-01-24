@@ -46,8 +46,7 @@ static KrkTuple * functionArgs(KrkCodeObject * _self) {
 #define CURRENT_NAME  self
 #define CURRENT_CTYPE KrkValue
 
-FUNC_SIG(function,__init__) {
-	static __attribute__ ((unused)) const char* _method_name = "__init__";
+KRK_StaticMethod(function,__new__) {
 	METHOD_TAKES_EXACTLY(3);
 	CHECK_ARG(1,codeobject,KrkCodeObject*,code);
 
@@ -191,7 +190,7 @@ KRK_Method(function,__code__) {
 #undef CURRENT_CTYPE
 #define CURRENT_CTYPE KrkCodeObject*
 
-FUNC_SIG(codeobject,__init__) {
+KRK_StaticMethod(codeobject,__new__) {
 	return krk_runtimeError(vm.exceptions->typeError, "codeobject object is not instantiable");
 }
 
@@ -294,9 +293,8 @@ KRK_Method(codeobject,__args__) {
 
 /* __init__ here will be called with a dummy instance as argv[0]; avoid
  * complications with method argument checking by not using KRK_METHOD. */
-FUNC_SIG(method,__init__) {
-	static __attribute__ ((unused)) const char* _method_name = "__init__";
-	METHOD_TAKES_EXACTLY(2);
+KRK_StaticMethod(method,__new__) {
+	FUNCTION_TAKES_EXACTLY(3);
 	if (!IS_OBJECT(argv[1])) return krk_runtimeError(vm.exceptions->typeError, "first argument must be a heap object");
 	return OBJECT_VAL(krk_newBoundMethod(argv[2],AS_OBJECT(argv[1])));
 }
@@ -388,7 +386,7 @@ _noexport
 void _createAndBind_functionClass(void) {
 	KrkClass * codeobject = ADD_BASE_CLASS(vm.baseClasses->codeobjectClass, "codeobject", vm.baseClasses->objectClass);
 	codeobject->obj.flags |= KRK_OBJ_FLAGS_NO_INHERIT;
-	BIND_METHOD(codeobject,__init__);
+	BIND_STATICMETHOD(codeobject,__new__);
 	BIND_METHOD(codeobject,__str__);
 	BIND_METHOD(codeobject,_ip_to_line);
 	BIND_PROP(codeobject,__constants__);
@@ -405,7 +403,7 @@ void _createAndBind_functionClass(void) {
 
 	KrkClass * function = ADD_BASE_CLASS(vm.baseClasses->functionClass, "function", vm.baseClasses->objectClass);
 	function->obj.flags |= KRK_OBJ_FLAGS_NO_INHERIT;
-	BIND_METHOD(function,__init__);
+	BIND_STATICMETHOD(function,__new__);
 	BIND_METHOD(function,__str__);
 	BIND_METHOD(function,_ip_to_line);
 	BIND_PROP(function,__doc__);
@@ -422,9 +420,9 @@ void _createAndBind_functionClass(void) {
 
 	KrkClass * method = ADD_BASE_CLASS(vm.baseClasses->methodClass, "method", vm.baseClasses->objectClass);
 	method->obj.flags |= KRK_OBJ_FLAGS_NO_INHERIT;
+	BIND_STATICMETHOD(method,__new__);
 	BIND_METHOD(method,__str__);
 	BIND_METHOD(method,_ip_to_line);
-	BIND_METHOD(method,__init__);
 	BIND_PROP(method,__doc__);
 	BIND_PROP(method,__name__);
 	BIND_PROP(method,__qualname__);

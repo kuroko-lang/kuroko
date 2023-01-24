@@ -177,6 +177,29 @@ KRK_Method(object,__setattr__) {
 	return krk_instanceSetAttribute_wrapper(argv[0], AS_STRING(argv[1]), argv[2]);
 }
 
+KRK_StaticMethod(object,__new__) {
+	KrkClass * _class = NULL;
+
+	/* We don't actually care, but we want to accept them anyway */
+	int _argc = 0;
+	const KrkValue * _args = NULL;
+
+	if (!krk_parseArgs("O!*~", (const char*[]){"cls"}, vm.baseClasses->typeClass, &_class, &_argc, &_args)) {
+		return NONE_VAL();
+	}
+
+	if (_argc && _class->_init == vm.baseClasses->objectClass->_init) {
+		return krk_runtimeError(vm.exceptions->typeError, "%S() takes no arguments", _class->name);
+	}
+
+	return OBJECT_VAL(krk_newInstance(_class));
+}
+
+KRK_Method(object,__init__) {
+	return argv[0];
+}
+
+
 /**
  * object.__str__() / object.__repr__()
  *
@@ -1229,7 +1252,9 @@ void _createAndBind_builtins(void) {
 	BIND_METHOD(object,__hash__);
 	BIND_METHOD(object,__eq__);
 	BIND_METHOD(object,__format__);
-	BIND_METHOD(object,__setattr__)->obj.flags = KRK_OBJ_FLAGS_FUNCTION_IS_STATIC_METHOD;
+	BIND_STATICMETHOD(object,__setattr__);
+	BIND_STATICMETHOD(object,__new__);
+	BIND_METHOD(object,__init__);
 	krk_defineNative(&object->methods, "__repr__", FUNC_NAME(object,__str__));
 	krk_finalizeClass(object);
 	KRK_DOC(object,
