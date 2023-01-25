@@ -1622,8 +1622,8 @@ static void classBody(struct GlobalState * state, size_t blockWidth) {
 		static struct CompilerSpecialMethod { const char * name; int type; } compilerSpecialMethods[] = {
 			{"__init__", TYPE_INIT},
 			{"__class_getitem__", TYPE_CLASSMETHOD},
+			{"__init_subclass__", TYPE_CLASSMETHOD},
 			{"__new__", TYPE_STATIC},
-			{"__prepare__", TYPE_CLASSMETHOD},
 			{NULL,0}
 		};
 

@@ -82,6 +82,21 @@ KRK_StaticMethod(type,__new__) {
 
 	/* Now copy the values over */
 	krk_tableAddAll(&nspace->entries, &_class->methods);
+
+	KrkValue tmp;
+
+	if (krk_tableGet_fast(&_class->methods, S("__class_getitem__"), &tmp) && IS_CLOSURE(tmp)) {
+		AS_CLOSURE(tmp)->obj.flags |= KRK_OBJ_FLAGS_FUNCTION_IS_CLASS_METHOD;
+	}
+
+	if (krk_tableGet_fast(&_class->methods, S("__init_subclass__"), &tmp) && IS_CLOSURE(tmp)) {
+		AS_CLOSURE(tmp)->obj.flags |= KRK_OBJ_FLAGS_FUNCTION_IS_CLASS_METHOD;
+	}
+
+	if (krk_tableGet_fast(&_class->methods, S("__new__"), &tmp) && IS_CLOSURE(tmp)) {
+		AS_CLOSURE(tmp)->obj.flags |= KRK_OBJ_FLAGS_FUNCTION_IS_STATIC_METHOD;
+	}
+
 	krk_finalizeClass(_class);
 	_callSetName(_class);
 
