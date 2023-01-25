@@ -371,7 +371,6 @@ static void blackenObject(KrkObj * object) {
 			KrkClass * _class = (KrkClass *)object;
 			krk_markObject((KrkObj*)_class->name);
 			krk_markObject((KrkObj*)_class->filename);
-			krk_markObject((KrkObj*)_class->docstring);
 			krk_markObject((KrkObj*)_class->base);
 			krk_markTable(&_class->methods);
 			break;

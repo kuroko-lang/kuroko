@@ -43,14 +43,6 @@ KRK_Method(type,__file__) {
 	return self->filename ? OBJECT_VAL(self->filename) : NONE_VAL();
 }
 
-KRK_Method(type,__doc__) {
-	if (argc > 1) {
-		if (!IS_STRING(argv[1])) return TYPE_ERROR(str,argv[1]);
-		self->docstring = AS_STRING(argv[1]);
-	}
-	return self->docstring ? OBJECT_VAL(self->docstring) : NONE_VAL();
-}
-
 KRK_Method(type,__str__) {
 	/* Determine if this class has a module */
 	KrkValue module = NONE_VAL();
@@ -140,12 +132,11 @@ KRK_Method(type,__call__) {
 _noexport
 void _createAndBind_type(void) {
 	KrkClass * type = ADD_BASE_CLASS(vm.baseClasses->typeClass, "type", vm.baseClasses->objectClass);
-	type->obj.flags |= KRK_OBJ_FLAGS_NO_INHERIT;
+	//type->obj.flags |= KRK_OBJ_FLAGS_NO_INHERIT;
 	type->allocSize = sizeof(KrkClass);
 
 	BIND_PROP(type,__base__);
 	BIND_PROP(type,__file__);
-	BIND_PROP(type,__doc__);
 	BIND_PROP(type,__name__);
 
 	BIND_METHOD(type,__init__);

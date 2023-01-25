@@ -100,6 +100,7 @@ typedef enum {
 	EXPR_ASSIGN_TARGET, /**< This expression is definitely an assignment target or chained to one. */
 	EXPR_DEL_TARGET,    /**< This expression is in the target list of a 'del' statement. */
 	EXPR_METHOD_CALL,   /**< This expression is the parameter list of a method call; only used by @ref dot and @ref call */
+	EXPR_CLASS_PARAMETERS,
 } ExpressionType;
 
 struct RewindState;
@@ -148,6 +149,7 @@ typedef struct {
 typedef struct {
 	size_t index;    /**< Enclosing local index or upvalue index. */
 	char   isLocal;  /**< Flag indicating if @ref index is a local or upvalue index. */
+	KrkToken name;
 } Upvalue;
 
 /**
@@ -386,6 +388,17 @@ static void initCompiler(struct GlobalState * state, Compiler * compiler, Functi
 		local->isCaptured = 0;
 		local->name.start = "self";
 		local->name.length = 4;
+		renameLocal(state, 0, local->name);
+		state->current->codeobject->requiredArgs = 1;
+		state->current->codeobject->potentialPositionals = 1;
+	}
+
+	if (type == TYPE_CLASS) {
+		Local * local = &state->current->locals[state->current->localCount++];
+		local->depth = 0;
+		local->isCaptured = 0;
+		local->name.start = "";
+		local->name.length = 0;
 		renameLocal(state, 0, local->name);
 		state->current->codeobject->requiredArgs = 1;
 		state->current->codeobject->potentialPositionals = 1;
@@ -1337,7 +1350,7 @@ static void doUpvalues(struct GlobalState * state, Compiler * compiler, KrkCodeO
 	assert(!!function->upvalueCount == !!compiler->upvalues);
 	for (size_t i = 0; i < function->upvalueCount; ++i) {
 		size_t index = compiler->upvalues[i].index;
-		emitByte((compiler->upvalues[i].isLocal ? 1 : 0) | ((index > 255) ? 2 : 0));
+		emitByte((compiler->upvalues[i].isLocal) | ((index > 255) ? 2 : 0));
 		if (index > 255) {
 			emitByte((index >> 16) & 0xFF);
 			emitByte((index >> 8) & 0xFF);
@@ -1562,15 +1575,14 @@ static void classBody(struct GlobalState * state, size_t blockWidth) {
 			KrkToken name = state->parser.previous;
 			match(TOKEN_COLON);
 			/* Get __annotations__ from class */
-			emitBytes(OP_DUP, 0);
 			KrkToken annotations = syntheticToken("__annotations__");
 			size_t ind = identifierConstant(state, &annotations);
 			if (!state->currentClass->hasAnnotations) {
 				EMIT_OPERAND_OP(OP_MAKE_DICT, 0);
-				EMIT_OPERAND_OP(OP_SET_PROPERTY, ind);
+				EMIT_OPERAND_OP(OP_SET_NAME, ind);
 				state->currentClass->hasAnnotations = 1;
 			} else {
-				EMIT_OPERAND_OP(OP_GET_PROPERTY, ind);
+				EMIT_OPERAND_OP(OP_GET_NAME, ind);
 			}
 			emitConstant(OBJECT_VAL(krk_copyString(name.start, name.length)));
 			parsePrecedence(state, PREC_TERNARY);
@@ -1586,7 +1598,8 @@ static void classBody(struct GlobalState * state, size_t blockWidth) {
 		parsePrecedence(state, PREC_COMMA);
 
 		rememberClassProperty(state, ind);
-		EMIT_OPERAND_OP(OP_CLASS_PROPERTY, ind);
+		EMIT_OPERAND_OP(OP_SET_NAME, ind);
+		emitByte(OP_POP);
 
 		if (!match(TOKEN_EOL) && !match(TOKEN_EOF)) {
 			errorAtCurrent("Expected end of line after class attribute declaration");
@@ -1626,7 +1639,8 @@ static void classBody(struct GlobalState * state, size_t blockWidth) {
 
 		function(state, type, blockWidth);
 		rememberClassProperty(state, ind);
-		EMIT_OPERAND_OP(OP_CLASS_PROPERTY, ind);
+		EMIT_OPERAND_OP(OP_SET_NAME, ind);
+		emitByte(OP_POP);
 	}
 }
 
@@ -1636,28 +1650,29 @@ static void classBody(struct GlobalState * state, size_t blockWidth) {
 	EMIT_OPERAND_OP(how, val_ind); \
 	KrkToken name_tok = syntheticToken(propName); \
 	size_t name_ind = identifierConstant(state, &name_tok); \
-	EMIT_OPERAND_OP(OP_CLASS_PROPERTY, name_ind); \
+	EMIT_OPERAND_OP(OP_SET_NAME, name_ind); \
+	emitByte(OP_POP); \
 } while (0)
 
+static size_t addUpvalue(struct GlobalState * state, Compiler * compiler, ssize_t index, int isLocal, KrkToken name);
 static KrkToken classDeclaration(struct GlobalState * state) {
 	size_t blockWidth = (state->parser.previous.type == TOKEN_INDENTATION) ? state->parser.previous.length : 0;
 	advance(); /* Collect the `class` */
 
 	consume(TOKEN_IDENTIFIER, "Expected class name after 'class'.");
+
+	KrkToken buildClass = syntheticToken("__build_class__");
+	size_t ind = identifierConstant(state, &buildClass);
+	EMIT_OPERAND_OP(OP_GET_GLOBAL, ind);
+
 	Compiler subcompiler;
 	initCompiler(state, &subcompiler, TYPE_CLASS);
 	subcompiler.codeobject->chunk.filename = subcompiler.enclosing->codeobject->chunk.filename;
 
 	beginScope(state);
 
-	/* We want to expose the mangled name within the class definition, which then
-	 * becomes available as a nonlocal, but we want to hand the non-mangled name
-	 * to the CLASS instruction so that __name__ is right. */
-	size_t nameInd = nonidentifierTokenConstant(state, &state->parser.previous);
-	identifierConstant(state, &state->parser.previous);
-	declareVariable(state);
-	EMIT_OPERAND_OP(OP_CLASS, nameInd);
-	markInitialized(state);
+	KrkToken classNameToken = state->parser.previous;
+	assert(addUpvalue(state, state->current, 0, 4, classNameToken) == 0);
 
 	ClassCompiler classCompiler;
 	classCompiler.name = state->parser.previous;
@@ -1665,14 +1680,23 @@ static KrkToken classDeclaration(struct GlobalState * state) {
 	state->currentClass = &classCompiler;
 	classCompiler.hasAnnotations = 0;
 
+	RewindState parameters = {recordChunk(currentChunk()), krk_tellScanner(&state->scanner), state->parser};
+
+	/* Class parameters */
 	if (match(TOKEN_LEFT_PAREN)) {
-		startEatingWhitespace();
-		if (!check(TOKEN_RIGHT_PAREN)) {
-			expression(state);
-			emitByte(OP_INHERIT);
+		int parenDepth = 0;
+		while (!check(TOKEN_EOF)) {
+			if (check(TOKEN_RIGHT_PAREN) && parenDepth == 0) {
+				advance();
+				break;
+			} else if (match(TOKEN_LEFT_BRACE)) {
+				parenDepth++;
+			} else if (match(TOKEN_RIGHT_BRACE)) {
+				parenDepth--;
+			} else {
+				advance();
+			}
 		}
-		stopEatingWhitespace();
-		consume(TOKEN_RIGHT_PAREN, "Expected ')' after superclass.");
 	}
 
 	beginScope(state);
@@ -1693,7 +1717,10 @@ static KrkToken classDeclaration(struct GlobalState * state) {
 			advance();
 			if (match(TOKEN_STRING) || match(TOKEN_BIG_STRING)) {
 				string(state, EXPR_NORMAL);
-				emitByte(OP_DOCSTRING);
+				KrkToken doc = syntheticToken("__doc__");
+				size_t ind = identifierConstant(state, &doc);
+				EMIT_OPERAND_OP(OP_SET_NAME, ind);
+				emitByte(OP_POP);
 				consume(TOKEN_EOL,"Garbage after docstring defintion");
 				if (!check(TOKEN_INDENTATION) || state->parser.current.length != currentIndentation) {
 					goto _pop_class;
@@ -1710,14 +1737,30 @@ static KrkToken classDeclaration(struct GlobalState * state) {
 		}
 	} /* else empty class (and at end of file?) we'll allow it for now... */
 _pop_class:
-	emitByte(OP_FINALIZE);
+	//emitByte(OP_FINALIZE);
 	state->currentClass = state->currentClass->enclosing;
 	KrkCodeObject * makeclass = endCompiler(state);
 	size_t indFunc = krk_addConstant(currentChunk(), OBJECT_VAL(makeclass));
 	EMIT_OPERAND_OP(OP_CLOSURE, indFunc);
 	doUpvalues(state, &subcompiler, makeclass);
 	freeCompiler(&subcompiler);
-	emitBytes(OP_CALL, 0);
+
+	RewindState afterFunction = {recordChunk(currentChunk()), krk_tellScanner(&state->scanner), state->parser};
+
+	size_t nameInd = nonidentifierTokenConstant(state, &classNameToken);
+	EMIT_OPERAND_OP(OP_CONSTANT, nameInd);
+
+	krk_rewindScanner(&state->scanner, parameters.oldScanner);
+	state->parser = parameters.oldParser;
+
+	if (match(TOKEN_LEFT_PAREN)) {
+		call(state, EXPR_CLASS_PARAMETERS, NULL);
+	} else {
+		emitBytes(OP_CALL, 2);
+	}
+
+	krk_rewindScanner(&state->scanner, afterFunction.oldScanner);
+	state->parser = afterFunction.oldParser;
 
 	return classCompiler.name;
 }
@@ -1853,7 +1896,8 @@ static KrkToken decorator(struct GlobalState * state, size_t level, FunctionType
 		} else {
 			size_t ind = identifierConstant(state, &funcName);
 			rememberClassProperty(state, ind);
-			EMIT_OPERAND_OP(OP_CLASS_PROPERTY, ind);
+			EMIT_OPERAND_OP(OP_SET_NAME, ind);
+			emitByte(OP_POP);
 		}
 	}
 
@@ -2896,7 +2940,7 @@ _cleanupError:
 #undef PUSH_CHAR
 }
 
-static size_t addUpvalue(struct GlobalState * state, Compiler * compiler, ssize_t index, int isLocal) {
+static size_t addUpvalue(struct GlobalState * state, Compiler * compiler, ssize_t index, int isLocal, KrkToken name) {
 	size_t upvalueCount = compiler->codeobject->upvalueCount;
 	for (size_t i = 0; i < upvalueCount; ++i) {
 		Upvalue * upvalue = &compiler->upvalues[i];
@@ -2911,19 +2955,28 @@ static size_t addUpvalue(struct GlobalState * state, Compiler * compiler, ssize_
 	}
 	compiler->upvalues[upvalueCount].isLocal = isLocal;
 	compiler->upvalues[upvalueCount].index = index;
+	compiler->upvalues[upvalueCount].name = name;
 	return compiler->codeobject->upvalueCount++;
 }
 
 static ssize_t resolveUpvalue(struct GlobalState * state, Compiler * compiler, KrkToken * name) {
+	size_t upvalueCount = compiler->codeobject->upvalueCount;
+	for (size_t i = 0; i < upvalueCount; ++i) {
+		if (identifiersEqual(name, &compiler->upvalues[i].name)) {
+			return i;
+		}
+	}
+
 	if (compiler->enclosing == NULL) return -1;
+
 	ssize_t local = resolveLocal(state, compiler->enclosing, name);
 	if (local != -1) {
 		compiler->enclosing->locals[local].isCaptured = 1;
-		return addUpvalue(state, compiler, local, 1);
+		return addUpvalue(state, compiler, local, 1, *name);
 	}
 	ssize_t upvalue = resolveUpvalue(state, compiler->enclosing, name);
 	if (upvalue != -1) {
-		return addUpvalue(state, compiler, upvalue, 0);
+		return addUpvalue(state, compiler, upvalue, 0, *name);
 	}
 	return -1;
 }
@@ -2959,8 +3012,7 @@ static void namedVariable(struct GlobalState * state, KrkToken name, int exprTyp
 			KrkString * constant = AS_STRING(currentChunk()->constants.values[properties->ind]);
 			if (constant->length == name.length && !memcmp(constant->chars, name.start, name.length)) {
 				ssize_t arg = properties->ind;
-				EMIT_OPERAND_OP(OP_GET_LOCAL, 0);
-				DO_VARIABLE(OP_SET_PROPERTY, OP_GET_PROPERTY, OP_NONE);
+				DO_VARIABLE(OP_SET_NAME, OP_GET_NAME, OP_NONE);
 				return;
 			}
 			properties = properties->next;
@@ -3579,6 +3631,8 @@ static void call(struct GlobalState * state, int exprType, RewindState *rewind) 
 
 	if (exprType == EXPR_METHOD_CALL) {
 		EMIT_OPERAND_OP(OP_CALL_METHOD, argCount);
+	} else if (exprType == EXPR_CLASS_PARAMETERS) {
+		EMIT_OPERAND_OP(OP_CALL, (argCount + 2));
 	} else {
 		EMIT_OPERAND_OP(OP_CALL, argCount);
 	}

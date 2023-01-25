@@ -188,11 +188,11 @@ typedef void (*KrkCleanupCallback)(struct KrkInstance *);
  */
 typedef struct KrkClass {
 	KrkObj obj;               /**< @protected @brief Base */
+	struct KrkClass * _class; /**< @brief Metaclass */
+	KrkTable methods;         /**< @brief General attributes table */
 	KrkString * name;         /**< @brief Name of the class */
 	KrkString * filename;     /**< @brief Filename of the original source that defined the codeobject for the class */
-	KrkString * docstring;    /**< @brief Storage for the class's docstring */
 	struct KrkClass * base;   /**< @brief Pointer to base class implementation */
-	KrkTable methods;         /**< @brief General attributes table */
 	size_t allocSize;         /**< @brief Size to allocate when creating instances of this class */
 	KrkCleanupCallback _ongcscan;   /**< @brief C function to call when the garbage collector visits an instance of this class in the scan phase */
 	KrkCleanupCallback _ongcsweep;  /**< @brief C function to call when the garbage collector is discarding an instance of this class */

@@ -264,7 +264,7 @@ extern KrkValue FUNC_NAME(str,format)(int,const KrkValue*,int);
 #define krk_string_format FUNC_NAME(str,format)
 
 static inline void _setDoc_class(KrkClass * thing, const char * text, size_t size) {
-	thing->docstring = krk_copyString(text, size);
+	krk_attachNamedObject(&thing->methods, "__doc__", (KrkObj*)krk_copyString(text, size));
 }
 static inline void _setDoc_instance(KrkInstance * thing, const char * text, size_t size) {
 	krk_attachNamedObject(&thing->fields, "__doc__", (KrkObj*)krk_copyString(text, size));

@@ -269,50 +269,6 @@ void krk_finalizeClass(KrkClass * _class) {
 }
 
 /**
- * This should really be the default behavior of type.__new__?
- */
-static void _callSetName(KrkClass * _class) {
-	KrkValue setnames = krk_list_of(0,NULL,0);
-	krk_push(setnames);
-	extern FUNC_SIG(list,append);
-
-	/* The semantics of this require that we first collect all of the relevant items... */
-	for (size_t i = 0; i < _class->methods.capacity; ++i) {
-		KrkTableEntry * entry = &_class->methods.entries[i];
-		if (!IS_KWARGS(entry->key)) {
-			KrkClass * type = krk_getType(entry->value);
-			if (type->_set_name) {
-				FUNC_NAME(list,append)(2,(KrkValue[]){setnames,entry->key},0);
-				FUNC_NAME(list,append)(2,(KrkValue[]){setnames,entry->value},0);
-			}
-		}
-	}
-
-	/* Then call __set_name__ on them */
-	for (size_t i = 0; i < AS_LIST(setnames)->count; i += 2) {
-		KrkValue name = AS_LIST(setnames)->values[i];
-		KrkValue value = AS_LIST(setnames)->values[i+1];
-		KrkClass * type = krk_getType(value);
-		if (type->_set_name) {
-			krk_push(value);
-			krk_push(OBJECT_VAL(_class));
-			krk_push(name);
-			krk_callDirect(type->_set_name, 3);
-
-			/* If any of these raises an exception, bail; CPython raises
-			 * an outer exception, setting the cause, but I'm being lazy
-			 * at the moment... */
-			if (unlikely(krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION)) {
-				break;
-			}
-		}
-	}
-
-	/* List used to store name+value pairs */
-	krk_pop();
-}
-
-/**
  * Maps values to their base classes.
  * Internal version of type().
  */
@@ -342,6 +298,7 @@ inline KrkClass * krk_getType(KrkValue of) {
 			return vm.baseClasses->notImplClass;
 		case KRK_VAL_OBJECT:
 			if (IS_INSTANCE(of)) return AS_INSTANCE(of)->_class;
+			if (IS_CLASS(of) && AS_CLASS(of)->_class) return AS_CLASS(of)->_class;
 			return *(KrkClass **)((char*)vm.baseClasses + objClasses[AS_OBJECT(of)->type]);
 		default:
 			if (IS_FLOATING(of)) return vm.baseClasses->floatClass;
@@ -2280,12 +2237,8 @@ _finishReturn: (void)0;
 				break;
 			}
 			case OP_FINALIZE: {
-				KrkClass * _class = AS_CLASS(krk_peek(0));
-				/* Store special methods for quick access */
-				krk_finalizeClass(_class);
-				/* Call __set_name__? */
-				_callSetName(_class);
-				break;
+				krk_runtimeError(vm.exceptions->typeError, "OP_FINALIZE called");
+				goto _finishException;
 			}
 			case OP_INHERIT: {
 				KrkValue superclass = krk_peek(0);
@@ -2311,9 +2264,8 @@ _finishReturn: (void)0;
 				break;
 			}
 			case OP_DOCSTRING: {
-				KrkClass * me = AS_CLASS(krk_peek(1));
-				me->docstring = AS_STRING(krk_pop());
-				break;
+				krk_runtimeError(vm.exceptions->typeError, "OP_DOCSTRING called");
+				goto _finishException;
 			}
 			case OP_SWAP:
 				krk_swap(1);
@@ -2657,6 +2609,10 @@ _finishReturn: (void)0;
 					}
 					if (isLocal & 1) {
 						closure->upvalues[i] = captureUpvalue(frame->slots + index);
+					} else if (isLocal & 4) {
+						closure->upvalues[i] = krk_newUpvalue(0);
+						closure->upvalues[i]->closed = NONE_VAL();
+						closure->upvalues[i]->location = -1;
 					} else {
 						closure->upvalues[i] = frame->closure->upvalues[index];
 					}
@@ -2681,12 +2637,11 @@ _finishReturn: (void)0;
 				THREE_BYTE_OPERAND;
 			case OP_CLASS: {
 				ONE_BYTE_OPERAND;
-				KrkString * name = READ_STRING(OPERAND);
-				KrkClass * _class = krk_newClass(name, vm.baseClasses->objectClass);
-				krk_push(OBJECT_VAL(_class));
-				_class->filename = frame->closure->function->chunk.filename;
-				krk_attachNamedObject(&_class->methods, "__func__", (KrkObj*)frame->closure);
-				break;
+				/* OPERAND is number of arguments to pass to initializer */
+				/* stackTop[-OPERAND-1] is class function */
+				/* stackTop[-OPERAND-2] is class name */
+				krk_runtimeError(vm.exceptions->typeError, "what the fuck");
+				goto _finishException;
 			}
 			case OP_IMPORT_FROM_LONG:
 				THREE_BYTE_OPERAND;
@@ -2746,10 +2701,16 @@ _finishReturn: (void)0;
 				}
 				break;
 			}
-			case OP_CLASS_PROPERTY_LONG:
+			case OP_SET_NAME_LONG:
 				THREE_BYTE_OPERAND;
-			case OP_CLASS_PROPERTY: {
+			case OP_SET_NAME: {
 				ONE_BYTE_OPERAND;
+				krk_push(krk_currentThread.stack[frame->slots]);
+				krk_swap(1);
+				krk_push(OBJECT_VAL(READ_STRING(OPERAND)));
+				krk_swap(1);
+				commonMethodInvoke(offsetof(KrkClass,_setter), 3, "'%T' object doesn't support item assignment");
+				#if 0
 				KrkValue method = krk_peek(0);
 				KrkClass * _class = AS_CLASS(krk_peek(1));
 				KrkValue name = OBJECT_VAL(READ_STRING(OPERAND));
@@ -2761,6 +2722,16 @@ _finishReturn: (void)0;
 					AS_CLOSURE(method)->obj.flags |= KRK_OBJ_FLAGS_FUNCTION_IS_STATIC_METHOD;
 				}
 				krk_pop();
+				#endif
+				break;
+			}
+			case OP_GET_NAME_LONG:
+				THREE_BYTE_OPERAND;
+			case OP_GET_NAME: {
+				ONE_BYTE_OPERAND;
+				krk_push(krk_currentThread.stack[frame->slots]);
+				krk_push(OBJECT_VAL(READ_STRING(OPERAND)));
+				commonMethodInvoke(offsetof(KrkClass,_getter), 2, "'%T' object doesn't support item assignment");
 				break;
 			}
 			case OP_GET_SUPER_LONG:

@@ -1241,6 +1241,98 @@ static void module_sweep(KrkInstance * inst) {
 #endif
 }
 
+/**
+ * This should really be the default behavior of type.__new__?
+ */
+static void _callSetName(KrkClass * _class) {
+	KrkValue setnames = krk_list_of(0,NULL,0);
+	krk_push(setnames);
+	extern FUNC_SIG(list,append);
+
+	/* The semantics of this require that we first collect all of the relevant items... */
+	for (size_t i = 0; i < _class->methods.capacity; ++i) {
+		KrkTableEntry * entry = &_class->methods.entries[i];
+		if (!IS_KWARGS(entry->key)) {
+			KrkClass * type = krk_getType(entry->value);
+			if (type->_set_name) {
+				FUNC_NAME(list,append)(2,(KrkValue[]){setnames,entry->key},0);
+				FUNC_NAME(list,append)(2,(KrkValue[]){setnames,entry->value},0);
+			}
+		}
+	}
+
+	/* Then call __set_name__ on them */
+	for (size_t i = 0; i < AS_LIST(setnames)->count; i += 2) {
+		KrkValue name = AS_LIST(setnames)->values[i];
+		KrkValue value = AS_LIST(setnames)->values[i+1];
+		KrkClass * type = krk_getType(value);
+		if (type->_set_name) {
+			krk_push(value);
+			krk_push(OBJECT_VAL(_class));
+			krk_push(name);
+			krk_callDirect(type->_set_name, 3);
+
+			/* If any of these raises an exception, bail; CPython raises
+			 * an outer exception, setting the cause, but I'm being lazy
+			 * at the moment... */
+			if (unlikely(krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION)) {
+				break;
+			}
+		}
+	}
+
+	/* List used to store name+value pairs */
+	krk_pop();
+}
+
+
+KRK_Function(__build_class__) {
+	KrkValue func = NONE_VAL();
+	KrkString * name = NULL;
+	KrkClass * base = vm.baseClasses->objectClass;
+	KrkValue metaclass = OBJECT_VAL(vm.baseClasses->typeClass);
+
+	if (!krk_parseArgs("VO!|O!$V~",
+		(const char*[]){"func","name","base","metaclass"},
+		&func,
+		vm.baseClasses->strClass, &name,
+		vm.baseClasses->typeClass, &base,
+		&metaclass)) {
+		return NONE_VAL();
+	}
+
+	/* Push function */
+	krk_push(func);
+
+	/* Dict */
+	krk_push(krk_dict_of(0,NULL,0));
+
+	/* Run the class function on it */
+	krk_push(krk_callStack(1));
+
+	/* Now make a class */
+	KrkClass * _class = krk_newClass(name, base);
+	krk_push(OBJECT_VAL(_class));
+
+	/* Now copy the values over */
+	krk_tableAddAll(AS_DICT(krk_peek(1)), &_class->methods);
+	krk_swap(1);
+	krk_pop(); /* Get rid of the namespace dict */
+
+	/* Now assign the upvalue for the original function if it's a closure. */
+	if (IS_CLOSURE(func)) {
+		if (AS_CLOSURE(func)->upvalueCount && AS_CLOSURE(func)->upvalues[0]->location == -1 && IS_NONE(AS_CLOSURE(func)->upvalues[0]->closed)) {
+			AS_CLOSURE(func)->upvalues[0]->closed = krk_peek(0);
+		}
+	}
+
+	krk_finalizeClass(_class);
+	_callSetName(_class);
+
+	/* We're done, return the resulting class object. */
+	return krk_pop();
+}
+
 _noexport
 void _createAndBind_builtins(void) {
 	vm.baseClasses->objectClass = krk_newClass(S("object"), NULL);
@@ -1513,5 +1605,8 @@ void _createAndBind_builtins(void) {
 	BUILTIN_FUNCTION("format", FUNC_NAME(krk,format),
 		"@brief Format a value for string printing.\n"
 		"@arguments value[,format_spec]");
+
+
+	BUILTIN_FUNCTION("__build_class__", FUNC_NAME(krk,__build_class__), "fuck");
 }
 
