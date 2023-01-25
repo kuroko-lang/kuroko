@@ -222,7 +222,7 @@ KrkClass * krk_makeClass(KrkInstance * module, KrkClass ** _class, const char * 
  * For a class built by native code, call this after attaching methods to
  * finalize the attachment of special methods for quicker accessn.
  *
- * For a class built by managed code, called by OP_FINALIZE
+ * For a class built by managed code, called by type.__new__
  */
 __attribute__((nonnull))
 void krk_finalizeClass(KrkClass * _class) {
@@ -2236,37 +2236,6 @@ _finishReturn: (void)0;
 				if (!krk_getAwaitable()) goto _finishException;
 				break;
 			}
-			case OP_FINALIZE: {
-				krk_runtimeError(vm.exceptions->typeError, "OP_FINALIZE called");
-				goto _finishException;
-			}
-			case OP_INHERIT: {
-				KrkValue superclass = krk_peek(0);
-				if (unlikely(!IS_CLASS(superclass))) {
-					krk_runtimeError(vm.exceptions->typeError, "Superclass must be a class, not '%T'", superclass);
-					goto _finishException;
-				}
-				if (AS_OBJECT(superclass)->flags & KRK_OBJ_FLAGS_NO_INHERIT) {
-					krk_runtimeError(vm.exceptions->typeError, "'%S' can not be subclassed",
-						AS_CLASS(superclass)->name);
-					goto _finishException;
-				}
-				KrkClass * subclass = AS_CLASS(krk_peek(1));
-				if (subclass->base) {
-					krk_tableDelete(&subclass->base->subclasses, krk_peek(1));
-				}
-				subclass->base = AS_CLASS(superclass);
-				subclass->allocSize = AS_CLASS(superclass)->allocSize;
-				subclass->_ongcsweep = AS_CLASS(superclass)->_ongcsweep;
-				subclass->_ongcscan = AS_CLASS(superclass)->_ongcscan;
-				krk_tableSet(&AS_CLASS(superclass)->subclasses, krk_peek(1), NONE_VAL());
-				krk_pop(); /* Super class */
-				break;
-			}
-			case OP_DOCSTRING: {
-				krk_runtimeError(vm.exceptions->typeError, "OP_DOCSTRING called");
-				goto _finishException;
-			}
 			case OP_SWAP:
 				krk_swap(1);
 				break;
@@ -2632,16 +2601,6 @@ _finishReturn: (void)0;
 				ONE_BYTE_OPERAND;
 				*UPVALUE_LOCATION(frame->closure->upvalues[OPERAND]) = krk_peek(0);
 				break;
-			}
-			case OP_CLASS_LONG:
-				THREE_BYTE_OPERAND;
-			case OP_CLASS: {
-				ONE_BYTE_OPERAND;
-				/* OPERAND is number of arguments to pass to initializer */
-				/* stackTop[-OPERAND-1] is class function */
-				/* stackTop[-OPERAND-2] is class name */
-				krk_runtimeError(vm.exceptions->typeError, "what the fuck");
-				goto _finishException;
 			}
 			case OP_IMPORT_FROM_LONG:
 				THREE_BYTE_OPERAND;

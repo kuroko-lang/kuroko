@@ -1737,7 +1737,6 @@ static KrkToken classDeclaration(struct GlobalState * state) {
 		}
 	} /* else empty class (and at end of file?) we'll allow it for now... */
 _pop_class:
-	//emitByte(OP_FINALIZE);
 	state->currentClass = state->currentClass->enclosing;
 	KrkCodeObject * makeclass = endCompiler(state);
 	size_t indFunc = krk_addConstant(currentChunk(), OBJECT_VAL(makeclass));

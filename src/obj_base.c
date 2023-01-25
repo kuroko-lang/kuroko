@@ -71,6 +71,10 @@ KRK_StaticMethod(type,__new__) {
 		return NONE_VAL();
 	}
 
+	if (base->obj.flags & KRK_OBJ_FLAGS_NO_INHERIT) {
+		return krk_runtimeError(vm.exceptions->typeError, "'%S' can not be subclassed", base->name);
+	}
+
 	/* Now make a class */
 	KrkClass * _class = krk_newClass(name, base);
 	krk_push(OBJECT_VAL(_class));
