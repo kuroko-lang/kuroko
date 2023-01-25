@@ -6,21 +6,83 @@
 
 #define CURRENT_NAME  self
 
-#define IS_type(o) (1)
-#define AS_type(o) (o)
-#define CURRENT_CTYPE KrkValue
-KRK_Method(type,__init__) {
-	METHOD_TAKES_EXACTLY(1);
-	return OBJECT_VAL(krk_getType(argv[1]));
-}
-#undef IS_type
-#undef AS_type
-#undef CURRENT_CTYPE
-
 #define IS_type(o) (IS_CLASS(o))
 #define AS_type(o) (AS_CLASS(o))
 
 #define CURRENT_CTYPE KrkClass *
+
+/**
+ * This should really be the default behavior of type.__new__?
+ */
+static void _callSetName(KrkClass * _class) {
+	KrkValue setnames = krk_list_of(0,NULL,0);
+	krk_push(setnames);
+	extern FUNC_SIG(list,append);
+
+	/* The semantics of this require that we first collect all of the relevant items... */
+	for (size_t i = 0; i < _class->methods.capacity; ++i) {
+		KrkTableEntry * entry = &_class->methods.entries[i];
+		if (!IS_KWARGS(entry->key)) {
+			KrkClass * type = krk_getType(entry->value);
+			if (type->_set_name) {
+				FUNC_NAME(list,append)(2,(KrkValue[]){setnames,entry->key},0);
+				FUNC_NAME(list,append)(2,(KrkValue[]){setnames,entry->value},0);
+			}
+		}
+	}
+
+	/* Then call __set_name__ on them */
+	for (size_t i = 0; i < AS_LIST(setnames)->count; i += 2) {
+		KrkValue name = AS_LIST(setnames)->values[i];
+		KrkValue value = AS_LIST(setnames)->values[i+1];
+		KrkClass * type = krk_getType(value);
+		if (type->_set_name) {
+			krk_push(value);
+			krk_push(OBJECT_VAL(_class));
+			krk_push(name);
+			krk_callDirect(type->_set_name, 3);
+
+			/* If any of these raises an exception, bail; CPython raises
+			 * an outer exception, setting the cause, but I'm being lazy
+			 * at the moment... */
+			if (unlikely(krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION)) {
+				break;
+			}
+		}
+	}
+
+	/* List used to store name+value pairs */
+	krk_pop();
+}
+
+
+KRK_StaticMethod(type,__new__) {
+	KrkClass * metaclass;
+	KrkString * name;
+	KrkClass * base;
+	KrkDict * nspace;
+
+	if (!krk_parseArgs("O!O!O!O!",
+		(const char*[]){"cls","name","base","namespace"},
+		vm.baseClasses->typeClass, &metaclass,
+		vm.baseClasses->strClass, &name,
+		vm.baseClasses->typeClass, &base,
+		vm.baseClasses->dictClass, &nspace)) {
+		return NONE_VAL();
+	}
+
+	/* Now make a class */
+	KrkClass * _class = krk_newClass(name, base);
+	krk_push(OBJECT_VAL(_class));
+	_class->_class = metaclass;
+
+	/* Now copy the values over */
+	krk_tableAddAll(&nspace->entries, &_class->methods);
+	krk_finalizeClass(_class);
+	_callSetName(_class);
+
+	return krk_pop();
+}
 
 KRK_Method(type,__base__) {
 	if (argc > 1) return krk_runtimeError(vm.exceptions->typeError, "__base__ can not be reassigned");
@@ -87,7 +149,6 @@ KRK_Method(type,__call__) {
 		if (argc == 2) {
 			return OBJECT_VAL(krk_getType(argv[1]));
 		}
-		return krk_runtimeError(vm.exceptions->attributeError, "TODO type(...)");
 	}
 
 	if (!self->_new) {
@@ -139,11 +200,11 @@ void _createAndBind_type(void) {
 	BIND_PROP(type,__file__);
 	BIND_PROP(type,__name__);
 
-	BIND_METHOD(type,__init__);
 	BIND_METHOD(type,__str__);
 	BIND_METHOD(type,__subclasses__);
 	BIND_METHOD(type,__getitem__);
 	BIND_METHOD(type,__call__);
+	BIND_STATICMETHOD(type,__new__);
 	krk_defineNative(&type->methods,"__repr__",FUNC_NAME(type,__str__));
 
 	krk_finalizeClass(type);
