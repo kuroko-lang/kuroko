@@ -1269,6 +1269,19 @@ KRK_Function(__build_class__) {
 		return NONE_VAL();
 	}
 
+	if (IS_CLASS(metaclass)) {
+		KrkClass * basemeta = base->_class ? base->_class : vm.baseClasses->typeClass;
+		if (_isSubClass(AS_CLASS(metaclass), basemeta)) {
+			/* good to go */
+		} else if (_isSubClass(basemeta, AS_CLASS(metaclass))) {
+			/* take the more derived one */
+			metaclass = OBJECT_VAL(basemeta);
+		} else {
+			return krk_runtimeError(vm.exceptions->typeError,
+				"metaclass conflict: %S is not a subclass of %S", AS_CLASS(metaclass)->name, basemeta->name);
+		}
+	}
+
 	/* Push function */
 	krk_push(func);
 
