@@ -1242,19 +1242,6 @@ static void module_sweep(KrkInstance * inst) {
 #endif
 }
 
-static void krk_printf(const char * fmt, ...) {
-	struct StringBuilder sb = {0};
-	va_list args;
-	va_start(args, fmt);
-	int result = krk_pushStringBuilderFormatV(&sb,fmt,args);
-	va_end(args);
-	if (result) {
-		fprintf(stderr, "%.*s", (int)sb.length, sb.bytes);
-	}
-	krk_discardStringBuilder(&sb);
-}
-
-
 KRK_Function(__build_class__) {
 	KrkValue func = NONE_VAL();
 	KrkString * name = NULL;
@@ -1614,8 +1601,8 @@ void _createAndBind_builtins(void) {
 	BUILTIN_FUNCTION("format", FUNC_NAME(krk,format),
 		"@brief Format a value for string printing.\n"
 		"@arguments value[,format_spec]");
-
-
-	BUILTIN_FUNCTION("__build_class__", FUNC_NAME(krk,__build_class__), "fuck");
+	BUILTIN_FUNCTION("__build_class__", FUNC_NAME(krk,__build_class__),
+		"@brief Internal function to build a type object.\n"
+		"@arguments func, name, base=object, metaclass=type");
 }
 

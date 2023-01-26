@@ -213,7 +213,6 @@ KRK_Method(type,__call__) {
 _noexport
 void _createAndBind_type(void) {
 	KrkClass * type = ADD_BASE_CLASS(vm.baseClasses->typeClass, "type", vm.baseClasses->objectClass);
-	//type->obj.flags |= KRK_OBJ_FLAGS_NO_INHERIT;
 	type->allocSize = sizeof(KrkClass);
 
 	BIND_PROP(type,__base__);
