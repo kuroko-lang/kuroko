@@ -1646,14 +1646,14 @@ static void clearCache(KrkClass * type) {
  * Attach a method call to its callee and return a BoundMethod.
  * Works for managed and native method calls.
  */
-int krk_bindMethod(KrkClass * originalClass, KrkString * name) {
+int krk_bindMethodSuper(KrkClass * originalClass, KrkString * name, KrkClass * realClass) {
 	KrkValue method, out;
 	KrkClass * _class = checkCache(originalClass, name, &method);
 	if (!_class) return 0;
 	if (IS_NATIVE(method)||IS_CLOSURE(method)) {
 		if (AS_OBJECT(method)->flags & KRK_OBJ_FLAGS_FUNCTION_IS_CLASS_METHOD) {
-			out = OBJECT_VAL(krk_newBoundMethod(OBJECT_VAL(originalClass), AS_OBJECT(method)));
-		} else if (AS_OBJECT(method)->flags & KRK_OBJ_FLAGS_FUNCTION_IS_STATIC_METHOD) {
+			out = OBJECT_VAL(krk_newBoundMethod(OBJECT_VAL(realClass), AS_OBJECT(method)));
+		} else if (IS_NONE(krk_peek(0)) || (AS_OBJECT(method)->flags & KRK_OBJ_FLAGS_FUNCTION_IS_STATIC_METHOD)) {
 			out = method;
 		} else {
 			out = OBJECT_VAL(krk_newBoundMethod(krk_peek(0), AS_OBJECT(method)));
@@ -1664,7 +1664,8 @@ int krk_bindMethod(KrkClass * originalClass, KrkString * name) {
 		if (type->_descget) {
 			krk_push(method);
 			krk_swap(1);
-			krk_push(krk_callDirect(type->_descget, 2));
+			krk_push(OBJECT_VAL(originalClass));
+			krk_push(krk_callDirect(type->_descget, 3));
 			return 1;
 		}
 		out = method;
@@ -1674,6 +1675,9 @@ int krk_bindMethod(KrkClass * originalClass, KrkString * name) {
 	return 1;
 }
 
+int krk_bindMethod(KrkClass * originalClass, KrkString * name) {
+	return krk_bindMethodSuper(originalClass,name,originalClass);
+}
 
 static int valueGetMethod(KrkString * name) {
 	KrkValue this = krk_peek(0);
@@ -1687,7 +1691,8 @@ static int valueGetMethod(KrkString * name) {
 		if (valtype->_descget) {
 			krk_push(method);
 			krk_push(this);
-			value = krk_callDirect(valtype->_descget, 2);
+			krk_push(OBJECT_VAL(myClass));
+			value = krk_callDirect(valtype->_descget, 3);
 			goto found;
 		}
 	}
@@ -1701,6 +1706,13 @@ static int valueGetMethod(KrkString * name) {
 			if (krk_tableGet_fast(&type->methods, name, &value)) {
 				if ((IS_NATIVE(value) || IS_CLOSURE(value)) && (AS_OBJECT(value)->flags & KRK_OBJ_FLAGS_FUNCTION_IS_CLASS_METHOD)) {
 					goto found_method;
+				}
+				KrkClass * valtype = krk_getType(value);
+				if (valtype->_descget) {
+					krk_push(value);
+					krk_push(NONE_VAL());
+					krk_push(this);
+					value = krk_callDirect(valtype->_descget, 3);
 				}
 				goto found;
 			}
@@ -2032,6 +2044,13 @@ static inline void commonMethodInvoke(size_t methodOffset, int args, const char 
 	}
 }
 
+static int _isSubClass(KrkClass * cls, KrkClass * base) {
+	while (cls) {
+		if (cls == base) return 1;
+		cls = cls->base;
+	}
+	return 0;
+}
 
 /**
  * VM main loop.
@@ -2669,19 +2688,6 @@ _finishReturn: (void)0;
 				krk_push(OBJECT_VAL(READ_STRING(OPERAND)));
 				krk_swap(1);
 				commonMethodInvoke(offsetof(KrkClass,_setter), 3, "'%T' object doesn't support item assignment");
-				#if 0
-				KrkValue method = krk_peek(0);
-				KrkClass * _class = AS_CLASS(krk_peek(1));
-				KrkValue name = OBJECT_VAL(READ_STRING(OPERAND));
-				krk_tableSet(&_class->methods, name, method);
-				if (AS_STRING(name) == S("__class_getitem__") && IS_CLOSURE(method)) {
-					AS_CLOSURE(method)->obj.flags |= KRK_OBJ_FLAGS_FUNCTION_IS_CLASS_METHOD;
-				}
-				if (AS_STRING(name) == S("__new__") && IS_CLOSURE(method)) {
-					AS_CLOSURE(method)->obj.flags |= KRK_OBJ_FLAGS_FUNCTION_IS_STATIC_METHOD;
-				}
-				krk_pop();
-				#endif
 				break;
 			}
 			case OP_GET_NAME_LONG:
@@ -2709,14 +2715,26 @@ _finishReturn: (void)0;
 						"Unbound super() reference not supported");
 					goto _finishException;
 				}
-				if (!krk_isInstanceOf(krk_peek(0), AS_CLASS(baseClass))) {
-					krk_runtimeError(vm.exceptions->typeError,
-						"'%T' object is not an instance of '%S'",
-						krk_peek(0), AS_CLASS(baseClass)->name);
-					goto _finishException;
+
+				KrkClass * obj_type;
+				KrkValue obj = krk_peek(0);
+
+				if (IS_CLASS(obj) && _isSubClass(AS_CLASS(obj),AS_CLASS(baseClass))) {
+					/* Class method call */
+					obj_type = AS_CLASS(obj);
+					krk_pop();
+					krk_push(NONE_VAL());
+				} else {
+					obj_type = krk_getType(obj);
+					if (!krk_isInstanceOf(krk_peek(0), AS_CLASS(baseClass))) {
+						krk_runtimeError(vm.exceptions->typeError,
+							"'%T' object is not an instance of '%S'",
+							krk_peek(0), AS_CLASS(baseClass)->name);
+						goto _finishException;
+					}
 				}
 				KrkClass * superclass = AS_CLASS(baseClass)->base ? AS_CLASS(baseClass)->base : vm.baseClasses->objectClass;
-				if (!krk_bindMethod(superclass, name)) {
+				if (!krk_bindMethodSuper(superclass, name, obj_type)) {
 					krk_runtimeError(vm.exceptions->attributeError, "'%S' object has no attribute '%S'",
 						superclass->name, name);
 					goto _finishException;

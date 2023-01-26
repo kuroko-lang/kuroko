@@ -3048,13 +3048,21 @@ static void variable(struct GlobalState * state, int exprType) {
 	namedVariable(state, state->parser.previous, exprType);
 }
 
+static int isClassOrStaticMethod(FunctionType type) {
+	return (type == TYPE_STATIC || type == TYPE_CLASSMETHOD);
+}
+
 static void super_(struct GlobalState * state, int exprType) {
 	consume(TOKEN_LEFT_PAREN, "Expected 'super' to be called.");
 
 	/* Argument time */
 	if (match(TOKEN_RIGHT_PAREN)) {
-		if (!isMethod(state->current->type)) {
+		if (!isMethod(state->current->type) && !isClassOrStaticMethod(state->current->type)) {
 			error("super() outside of a method body requires arguments");
+			return;
+		}
+		if (!state->current->codeobject->potentialPositionals) {
+			error("super() is not valid in a function with no arguments");
 			return;
 		}
 		namedVariable(state, state->currentClass->name, 0);

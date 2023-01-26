@@ -1089,7 +1089,9 @@ KRK_Method(property,setter) {
 }
 
 KRK_Method(property,__get__) {
-	METHOD_TAKES_EXACTLY(1); /* the owner */
+	METHOD_TAKES_AT_LEAST(1); /* the owner */
+
+	if (IS_NONE(argv[1])) return argv[0];
 
 	struct Property * asProp = (struct Property *)self;
 
