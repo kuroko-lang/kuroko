@@ -112,7 +112,8 @@ KRK_Method(slice,__init__) {
 			self->step = NONE_VAL();
 		}
 	}
-	return argv[0];
+
+	return NONE_VAL();
 }
 
 KRK_Method(slice,__repr__) {

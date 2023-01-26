@@ -275,7 +275,7 @@ KRK_Method(bytesiterator,__init__) {
 	CHECK_ARG(1,bytes,KrkBytes*,bytes);
 	self->l = argv[1];
 	self->i = 0;
-	return argv[0];
+	return NONE_VAL();
 }
 
 KRK_Method(bytesiterator,__call__) {
@@ -307,7 +307,7 @@ KRK_Method(bytearray,__init__) {
 	} else {
 		return krk_runtimeError(vm.exceptions->valueError, "expected bytes");
 	}
-	return argv[0];
+	return NONE_VAL();
 }
 
 #undef IS_bytearray

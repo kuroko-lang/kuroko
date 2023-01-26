@@ -1012,7 +1012,8 @@ KRK_Method(striterator,__init__) {
 	krk_push(OBJECT_VAL(self));
 	krk_attachNamedObject(&self->fields, "s", (KrkObj*)base);
 	krk_attachNamedValue(&self->fields, "i", INTEGER_VAL(0));
-	return krk_pop();
+	krk_pop();
+	return NONE_VAL();
 }
 
 KRK_Method(striterator,__call__) {

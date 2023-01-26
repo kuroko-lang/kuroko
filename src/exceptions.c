@@ -45,7 +45,7 @@ KRK_Method(BaseException,__init__) {
 	}
 	krk_attachNamedValue(&self->fields, "__cause__", NONE_VAL());
 	krk_attachNamedValue(&self->fields, "__context__", NONE_VAL());
-	return argv[0];
+	return NONE_VAL();
 }
 
 /**

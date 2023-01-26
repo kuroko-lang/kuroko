@@ -58,7 +58,7 @@ KRK_Method(set,__init__) {
 	if (argc == 2) {
 		if (krk_unpackIterable(argv[1], self, _set_init_callback)) return NONE_VAL();
 	}
-	return argv[0];
+	return NONE_VAL();
 }
 
 KRK_Method(set,__contains__) {
@@ -312,7 +312,7 @@ KRK_Method(setiterator,__init__) {
 	CHECK_ARG(1,set,void*,source);
 	self->set = argv[1];
 	self->i = 0;
-	return argv[0];
+	return NONE_VAL();
 }
 
 KRK_Method(setiterator,__call__) {

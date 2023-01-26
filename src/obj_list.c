@@ -195,7 +195,7 @@ KRK_Method(list,__init__) {
 	if (argc == 2) {
 		_list_extend(2,(KrkValue[]){argv[0],argv[1]},0);
 	}
-	return argv[0];
+	return NONE_VAL();
 }
 
 KRK_Method(list,__mul__) {
@@ -517,7 +517,7 @@ KRK_Method(listiterator,__init__) {
 	CHECK_ARG(1,list,KrkList*,list);
 	self->l = argv[1];
 	self->i = 0;
-	return argv[0];
+	return NONE_VAL();
 }
 
 FUNC_SIG(listiterator,__call__) {

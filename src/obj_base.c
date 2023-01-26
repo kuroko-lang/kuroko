@@ -11,9 +11,6 @@
 
 #define CURRENT_CTYPE KrkClass *
 
-/**
- * This should really be the default behavior of type.__new__?
- */
 static void _callSetName(KrkClass * _class) {
 	KrkValue setnames = krk_list_of(0,NULL,0);
 	krk_push(setnames);
@@ -54,7 +51,6 @@ static void _callSetName(KrkClass * _class) {
 	/* List used to store name+value pairs */
 	krk_pop();
 }
-
 
 KRK_StaticMethod(type,__new__) {
 	KrkClass * metaclass;
@@ -193,6 +189,7 @@ KRK_Method(type,__call__) {
 	if (unlikely(krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION)) return NONE_VAL();
 
 	if (krk_isInstanceOf(krk_peek(0), self) && likely(self->_init != NULL)) {
+		krk_push(krk_peek(0));
 		for (int i = 0; i < argc - 1; ++i) {
 			krk_push(argv[i+1]);
 		}
@@ -203,7 +200,11 @@ KRK_Method(type,__call__) {
 			krk_push(KWARGS_VAL(1));
 		}
 
-		return krk_callDirect(self->_init, argCount);
+		KrkValue result = krk_callDirect(self->_init, argCount);
+		if (!IS_NONE(result)) {
+			fprintf(stderr, "Warning: Non-None result returned from %s.__init__\n",
+				self->name->chars);
+		}
 	}
 
 	return krk_pop();

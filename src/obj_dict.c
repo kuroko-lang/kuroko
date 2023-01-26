@@ -87,7 +87,8 @@ KRK_Method(dict,__init__) {
 	if (hasKw) {
 		krk_tableAddAll(AS_DICT(argv[argc]), &self->entries);
 	}
-	return argv[0];
+
+	return NONE_VAL();
 }
 
 KRK_Method(dict,__eq__) {
@@ -316,7 +317,7 @@ KRK_Method(dictitems,__init__) {
 	CHECK_ARG(1,dict,KrkDict*,source);
 	self->dict = argv[1];
 	self->i = 0;
-	return argv[0];
+	return NONE_VAL();
 }
 
 KRK_Method(dictitems,__iter__) {
@@ -400,7 +401,7 @@ KRK_Method(dictkeys,__init__) {
 	CHECK_ARG(1,dict,KrkDict*,source);
 	self->dict = argv[1];
 	self->i = 0;
-	return argv[0];
+	return NONE_VAL();
 }
 
 KRK_Method(dictkeys,__iter__) {
@@ -466,7 +467,7 @@ KRK_Method(dictvalues,__init__) {
 	CHECK_ARG(1,dict,KrkDict*,source);
 	self->dict = argv[1];
 	self->i = 0;
-	return argv[0];
+	return NONE_VAL();
 }
 
 KRK_Method(dictvalues,__iter__) {

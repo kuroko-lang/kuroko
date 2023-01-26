@@ -196,7 +196,7 @@ KRK_StaticMethod(object,__new__) {
 }
 
 KRK_Method(object,__init__) {
-	return argv[0];
+	return NONE_VAL();
 }
 
 
@@ -494,7 +494,7 @@ KRK_Method(map,__init__) {
 		iters->values.values[iters->values.count++] = asIter;
 	}
 
-	return argv[0];
+	return NONE_VAL();
 }
 
 KRK_Method(map,__iter__) {
@@ -558,7 +558,7 @@ KRK_Method(zip,__init__) {
 		iters->values.values[iters->values.count++] = asIter;
 	}
 
-	return argv[0];
+	return NONE_VAL();
 }
 
 KRK_Method(zip,__iter__) {
@@ -605,7 +605,8 @@ KRK_Method(filter,__init__) {
 	KrkValue asIter = krk_callDirect(type->_iter, 1);
 	if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) return NONE_VAL();
 	krk_attachNamedValue(&self->fields, "_iterator", asIter);
-	return argv[0];
+
+	return NONE_VAL();
 }
 
 KRK_Method(filter,__iter__) {
@@ -672,7 +673,7 @@ KRK_Method(enumerate,__init__) {
 	if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) return NONE_VAL();
 	krk_attachNamedValue(&self->fields, "_iterator", asIter);
 
-	return argv[0];
+	return NONE_VAL();
 }
 
 KRK_Method(enumerate,__iter__) {
@@ -1078,7 +1079,7 @@ KRK_Method(property,__init__) {
 		((struct Property*)self)->fset = IS_OBJECT(argv[2]) ? AS_OBJECT(argv[2]) : NULL;
 	}
 
-	return argv[0];
+	return NONE_VAL();
 }
 
 KRK_Method(property,setter) {

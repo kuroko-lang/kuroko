@@ -36,27 +36,18 @@ struct socket {
 #define CURRENT_CTYPE struct socket *
 #define CURRENT_NAME  self
 
-#define NAMED_ARG(name,type,ctype,def,ind) \
-	ctype name = def; \
-	if (argc > ind) { \
-		CHECK_ARG(ind,type,ctype,_tmp); \
-		name = _tmp; \
-	} \
-	if (hasKw) { \
-		KrkValue tmp; \
-		if (krk_tableGet(AS_DICT(argv[argc]), OBJECT_VAL(S(#name)), &tmp)) { \
-			if (!IS_ ## type (tmp)) return TYPE_ERROR(type,tmp); \
-			name = AS_ ## type (tmp); \
-		} \
-	}
-
 KRK_Method(socket,__init__) {
 	METHOD_TAKES_AT_MOST(3);
 
-	/* Complex argument processing time... */
-	NAMED_ARG(family,int,krk_integer_type,AF_INET,1);
-	NAMED_ARG(type,int,krk_integer_type,SOCK_STREAM,2);
-	NAMED_ARG(proto,int,krk_integer_type,0,3);
+	int family = AF_INET;
+	int type = SOCK_STREAM;
+	int proto = 0;
+
+	if (!krk_parseArgs(".|iii",
+		(const char *[]){"family","type","proto"},
+		&family, &type, &proto)) {
+		return NONE_VAL();
+	}
 
 	int result = socket(family,type,proto);
 
@@ -69,7 +60,7 @@ KRK_Method(socket,__init__) {
 	self->type   = type;
 	self->proto  = proto;
 
-	return argv[0];
+	return NONE_VAL();
 }
 
 static char * _af_name(int afval) {
@@ -404,6 +395,21 @@ KRK_Function(htons) {
 	return INTEGER_VAL(htons(value));
 }
 
+KRK_Method(socket,family) {
+	if (argc > 1) return krk_runtimeError(vm.exceptions->attributeError, "readonly attribute");
+	return INTEGER_VAL(self->family);
+}
+
+KRK_Method(socket,type) {
+	if (argc > 1) return krk_runtimeError(vm.exceptions->attributeError, "readonly attribute");
+	return INTEGER_VAL(self->type);
+}
+
+KRK_Method(socket,proto) {
+	if (argc > 1) return krk_runtimeError(vm.exceptions->attributeError, "readonly attribute");
+	return INTEGER_VAL(self->proto);
+}
+
 KrkValue krk_module_onload_socket(void) {
 	KrkInstance * module = krk_newInstance(vm.baseClasses->moduleClass);
 	krk_push(OBJECT_VAL(module));
@@ -459,6 +465,11 @@ KrkValue krk_module_onload_socket(void) {
 		"@arguments level,optname,value\n\n"
 		"@p level and @p optname should be integer values defined by @c SOL and @c SO options. "
 		"@p value must be either an @ref int or a @ref bytes object.");
+
+	BIND_PROP(socket,family);
+	BIND_PROP(socket,type);
+	BIND_PROP(socket,proto);
+
 	krk_defineNative(&socket->methods,"__str__", FUNC_NAME(socket,__repr__));
 	krk_finalizeClass(SocketClass);
 

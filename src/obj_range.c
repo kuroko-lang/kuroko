@@ -54,7 +54,7 @@ KRK_Method(range,__init__) {
 			self->step = _step;
 		}
 	}
-	return argv[0];
+	return NONE_VAL();
 }
 
 KRK_Method(range,__repr__) {
@@ -90,7 +90,7 @@ KRK_Method(rangeiterator,__init__) {
 	self->i = i;
 	self->max = max;
 	self->step = step;
-	return argv[0];
+	return NONE_VAL();
 }
 
 KRK_Method(rangeiterator,__call__) {

@@ -152,7 +152,7 @@ KRK_Method(Thread,is_alive) {
 KRK_Method(Lock,__init__) {
 	METHOD_TAKES_NONE(); /* TODO lock options, like recursive or error-checked? */
 	pthread_mutex_init(&self->mutex, NULL);
-	return argv[0];
+	return NONE_VAL();
 }
 
 static inline void _pushLockStatus(struct Lock * self, struct StringBuilder * sb) {

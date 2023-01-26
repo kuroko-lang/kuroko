@@ -559,9 +559,7 @@ static void _emitBytes(struct GlobalState * state, uint8_t byte1, uint8_t byte2)
 #define emitBytes(a,b) _emitBytes(state,a,b)
 
 static void emitReturn(struct GlobalState * state) {
-	if (state->current->type == TYPE_INIT) {
-		emitBytes(OP_GET_LOCAL, 0);
-	} else if (state->current->type != TYPE_LAMBDA && state->current->type != TYPE_CLASS) {
+	if (state->current->type != TYPE_LAMBDA && state->current->type != TYPE_CLASS) {
 		emitByte(OP_NONE);
 	}
 	emitByte(OP_RETURN);

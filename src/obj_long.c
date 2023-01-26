@@ -1253,8 +1253,11 @@ struct BigInt {
 #define CURRENT_CTYPE struct BigInt *
 #define CURRENT_NAME  self
 
-static void make_long(krk_integer_type t, struct BigInt * self) {
+static KrkValue make_long(krk_integer_type t) {
+	struct BigInt * self = (struct BigInt*)krk_newInstance(KRK_BASE_CLASS(long));
+	krk_push(OBJECT_VAL(self));
 	krk_long_init_si(self->value, t);
+	return krk_pop();
 }
 
 static void _long_gcsweep(KrkInstance * self) {
@@ -1263,28 +1266,33 @@ static void _long_gcsweep(KrkInstance * self) {
 
 KrkValue krk_int_from_float(double val);
 
-KRK_Method(long,__init__) {
-	METHOD_TAKES_AT_MOST(1);
+KRK_StaticMethod(long,__new__) {
+	FUNCTION_TAKES_AT_MOST(2);
+	/* Some less likely scenarios */
 	if (argc < 2) {
-		make_long(0,self);
+		return make_long(0);
 	} else if (IS_INTEGER(argv[1])) {
-		make_long(AS_INTEGER(argv[1]),self);
+		return make_long(AS_INTEGER(argv[1]));
 	} else if (IS_BOOLEAN(argv[1])) {
-		make_long(AS_BOOLEAN(argv[1]),self);
+		return make_long(AS_BOOLEAN(argv[1]));
+	} else if (IS_FLOATING(argv[1])) {
+		return krk_int_from_float(AS_FLOATING(argv[1]));
 	} else if (IS_STRING(argv[1])) {
 		/* XXX This should probably work like int(...) does and default to base 10... and take a base at all... */
+		struct BigInt * self = (struct BigInt*)krk_newInstance(KRK_BASE_CLASS(long));
+		krk_push(OBJECT_VAL(self));
 		if (krk_long_parse_string(AS_CSTRING(argv[1]),self->value,0,AS_STRING(argv[1])->length)) {
 			return krk_runtimeError(vm.exceptions->valueError, "invalid literal for long() with base 0: %R", argv[1]);
 		}
+		return krk_pop();
 	} else if (IS_long(argv[1])) {
+		struct BigInt * self = (struct BigInt*)krk_newInstance(KRK_BASE_CLASS(long));
+		krk_push(OBJECT_VAL(self));
 		krk_long_init_copy(self->value,AS_long(argv[1])->value);
-	} else if (IS_FLOATING(argv[1])) {
-		return krk_int_from_float(AS_FLOATING(argv[1]));
+		return krk_pop();
 	} else {
 		return krk_runtimeError(vm.exceptions->typeError, "%s() argument must be a string or a number, not '%T'", "int", argv[1]);
 	}
-	/* our value should be set */
-	return argv[0];
 }
 
 /**
@@ -2012,8 +2020,10 @@ KRK_Method(int,to_bytes) {
 }
 
 #undef BIND_METHOD
+#undef BIND_STATICMETHOD
 /* These class names conflict with C types, so we need to cheat a bit */
 #define BIND_METHOD(klass,method) do { krk_defineNative(& _ ## klass->methods, #method, _ ## klass ## _ ## method); } while (0)
+#define BIND_STATICMETHOD(klass,method) do { krk_defineNativeStaticMethod(& _ ## klass->methods, #method, _ ## klass ## _ ## method); } while (0)
 #define BIND_TRIPLET(klass,name) \
 	BIND_METHOD(klass,__ ## name ## __); \
 	BIND_METHOD(klass,__r ## name ## __); \
@@ -2025,7 +2035,7 @@ void _createAndBind_longClass(void) {
 	_long->allocSize = sizeof(struct BigInt);
 	_long->_ongcsweep = _long_gcsweep;
 
-	BIND_METHOD(long,__init__);
+	BIND_STATICMETHOD(long,__new__);
 	BIND_METHOD(long,__str__);
 	BIND_METHOD(long,__eq__);
 	BIND_METHOD(long,__hash__);
