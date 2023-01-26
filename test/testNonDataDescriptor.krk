@@ -1,0 +1,14 @@
+class NonDataDescriptor:
+    def __get__(self, obj, objtype=None):
+        return 42
+
+class Foo:
+    a = NonDataDescriptor()
+
+def test(F):
+    print(F.a)
+    F.a = 7
+    print(F.a)
+
+test(Foo())
+

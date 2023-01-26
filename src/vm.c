@@ -1688,7 +1688,7 @@ static int valueGetMethod(KrkString * name) {
 	/* Class descriptors */
 	if (_class) {
 		KrkClass * valtype = krk_getType(method);
-		if (valtype->_descget) {
+		if (valtype->_descget && valtype->_descset) {
 			krk_push(method);
 			krk_push(this);
 			krk_push(OBJECT_VAL(myClass));
@@ -1736,6 +1736,14 @@ static int valueGetMethod(KrkString * name) {
 				goto found_method;
 			}
 		} else {
+			KrkClass * valtype = krk_getType(method);
+			if (valtype->_descget) {
+				krk_push(method);
+				krk_push(this);
+				krk_push(OBJECT_VAL(myClass));
+				value = krk_callDirect(valtype->_descget, 3);
+				goto found;
+			}
 			value = method;
 		}
 		goto found;
