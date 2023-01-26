@@ -1,0 +1,15 @@
+class Foo:
+    def __init_subclass__(cls,**kwds):
+        print('Foo subclass',cls,'with args',kwds)
+
+class Bar(Foo):
+    pass
+
+class Baz(Foo,foo=42):
+    pass
+
+class Qux(Bar):
+    pass
+
+class Florp(Bar,abc=123):
+    pass

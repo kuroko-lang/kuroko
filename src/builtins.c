@@ -199,6 +199,11 @@ KRK_Method(object,__init__) {
 	return NONE_VAL();
 }
 
+KRK_StaticMethod(object,__init_subclass__) {
+	if (!krk_parseArgs(".", (const char*[]){NULL}, NULL)) return NONE_VAL();
+	return NONE_VAL();
+}
+
 
 /**
  * object.__str__() / object.__repr__()
@@ -1345,6 +1350,7 @@ void _createAndBind_builtins(void) {
 	BIND_STATICMETHOD(object,__setattr__);
 	BIND_STATICMETHOD(object,__new__);
 	BIND_METHOD(object,__init__);
+	BIND_CLASSMETHOD(object,__init_subclass__);
 	krk_defineNative(&object->methods, "__repr__", FUNC_NAME(object,__str__));
 	krk_finalizeClass(object);
 	KRK_DOC(object,

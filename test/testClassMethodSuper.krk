@@ -1,0 +1,19 @@
+class Foo():
+    @classmethod
+    def cm(cls):
+        print(f"{cls=}")
+
+class Bar(Foo):
+    pass
+
+class Baz(Foo):
+    @classmethod
+    def cm(cls):
+        print("(Baz)")
+        super().cm()
+
+
+Bar.cm()
+Bar().cm()
+Baz.cm()
+Baz().cm()

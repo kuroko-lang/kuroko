@@ -1,4 +1,4 @@
-['__class__', '__dir__', '__doc__', '__eq__', '__format__', '__hash__', '__init__', '__new__', '__repr__', '__setattr__', '__str__', 'longList', 'ofAttributes', 'onThatObject', 'thatWeWantToSet']
+['__class__', '__dir__', '__doc__', '__eq__', '__format__', '__hash__', '__init__', '__init_subclass__', '__new__', '__repr__', '__setattr__', '__str__', 'longList', 'ofAttributes', 'onThatObject', 'thatWeWantToSet']
 1
 2
 3

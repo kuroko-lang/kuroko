@@ -1,0 +1,4 @@
+Foo subclass <class '__main__.Bar'> with args {}
+Foo subclass <class '__main__.Baz'> with args {'foo': 42}
+Foo subclass <class '__main__.Qux'> with args {}
+Foo subclass <class '__main__.Florp'> with args {'abc': 123}

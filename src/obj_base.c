@@ -58,7 +58,7 @@ KRK_StaticMethod(type,__new__) {
 	KrkClass * base;
 	KrkDict * nspace;
 
-	if (!krk_parseArgs("O!O!O!O!",
+	if (!krk_parseArgs("O!O!O!O!~",
 		(const char*[]){"cls","name","base","namespace"},
 		vm.baseClasses->typeClass, &metaclass,
 		vm.baseClasses->strClass, &name,
@@ -95,6 +95,22 @@ KRK_StaticMethod(type,__new__) {
 
 	krk_finalizeClass(_class);
 	_callSetName(_class);
+
+	/* Call super().__init_subclass__ */
+	extern int krk_bindMethodSuper(KrkClass * originalClass, KrkString * name, KrkClass * realClass);
+	krk_push(NONE_VAL());
+	if (!krk_bindMethodSuper(base,S("__init_subclass__"),_class)) {
+		krk_pop(); /* none */
+	} else {
+		if (hasKw) {
+			krk_push(KWARGS_VAL(KWARGS_DICT));
+			krk_push(argv[argc]);
+			krk_push(KWARGS_VAL(1));
+			krk_callStack(3);
+		} else {
+			krk_callStack(0);
+		}
+	}
 
 	return krk_pop();
 }

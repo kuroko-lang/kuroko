@@ -100,7 +100,7 @@ static inline KrkNative * krk_defineNativeStaticMethod(KrkTable * table, const c
 }
 #define BIND_STATICMETHOD(klass,method) krk_defineNativeStaticMethod(&klass->methods, #method, _ ## klass ## _ ## method)
 
-static inline KrkNative * krk_deifneNativeClassMethod(KrkTable * table, const char * name, NativeFn function) {
+static inline KrkNative * krk_defineNativeClassMethod(KrkTable * table, const char * name, NativeFn function) {
 	KrkNative * out = krk_defineNative(table,name,function);
 	out->obj.flags |= KRK_OBJ_FLAGS_FUNCTION_IS_CLASS_METHOD;
 	return out;
