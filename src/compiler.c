@@ -54,10 +54,10 @@
  * token to be parsed, and can be examined with @ref check.
  */
 typedef struct {
-	KrkToken current;              /**< Token to be parsed. */
-	KrkToken previous;             /**< Last token matched, consumed, or advanced over. */
-	char hadError;                 /**< Flag indicating if the parser encountered an error. */
-	unsigned int eatingWhitespace; /**< Depth of whitespace-ignoring parse functions. */
+	KrkToken current;              /**< @brief Token to be parsed. */
+	KrkToken previous;             /**< @brief Last token matched, consumed, or advanced over. */
+	char hadError;                 /**< @brief Flag indicating if the parser encountered an error. */
+	unsigned int eatingWhitespace; /**< @brief Depth of whitespace-ignoring parse functions. */
 } Parser;
 
 /**
@@ -123,9 +123,9 @@ typedef void (*ParseInfixFn)(struct GlobalState *, int, struct RewindState *);
  * are for the infix parsing.
  */
 typedef struct {
-	ParsePrefixFn prefix;  /**< Parse function to call when this token appears at the start of an expression. */
-	ParseInfixFn infix;    /**< Parse function to call when this token appears after an expression. */
-	Precedence precedence; /**< Precedence ordering for Pratt parsing, @ref Precedence */
+	ParsePrefixFn prefix;  /**< @brief Parse function to call when this token appears at the start of an expression. */
+	ParseInfixFn infix;    /**< @brief Parse function to call when this token appears after an expression. */
+	Precedence precedence; /**< @brief Precedence ordering for Pratt parsing, @ref Precedence */
 } ParseRule;
 
 /**
@@ -136,9 +136,9 @@ typedef struct {
  * in the compiler's locals array.
  */
 typedef struct {
-	KrkToken name;   /**< Token that provided the name for this variable. */
-	ssize_t depth;   /**< Stack depth, or -1 if uninitialized. */
-	char isCaptured; /**< Flag indicating if the variable is captured by a closure. */
+	KrkToken name;   /**< @brief Token that provided the name for this variable. */
+	ssize_t depth;   /**< @brief Stack depth, or -1 if uninitialized. */
+	char isCaptured; /**< @brief Flag indicating if the variable is captured by a closure. */
 } Local;
 
 /**
@@ -147,9 +147,9 @@ typedef struct {
  * Tracks references to local variables from enclosing scopes.
  */
 typedef struct {
-	size_t index;    /**< Enclosing local index or upvalue index. */
-	char   isLocal;  /**< Flag indicating if @ref index is a local or upvalue index. */
-	KrkToken name;
+	size_t index;    /**< @brief Enclosing local index or upvalue index. */
+	char   isLocal;  /**< @brief Flag indicating if @ref index is a local or upvalue index. */
+	KrkToken name;   /**< @brief Name for direct lookup. Mainly for non-automatically-populated upvalue cells. */
 } Upvalue;
 
 /**
@@ -179,16 +179,16 @@ typedef enum {
  * will be the index of an identifier constant.
  */
 struct IndexWithNext {
-	size_t ind;                   /**< Index of an identifier constant. */
-	struct IndexWithNext * next;  /**< Linked list next pointer. */
+	size_t ind;                   /**< @brief Index of an identifier constant. */
+	struct IndexWithNext * next;  /**< @brief Linked list next pointer. */
 };
 
 /**
  * @brief Tracks 'break' and 'continue' statements.
  */
 struct LoopExit {
-	int offset;     /**< Offset of the jump expression to patch. */
-	KrkToken token; /**< Token for this exit statement, so its location can be printed in an error message. */
+	int offset;     /**< @brief Offset of the jump expression to patch. */
+	KrkToken token; /**< @brief Token for this exit statement, so its location can be printed in an error message. */
 };
 
 /**
@@ -198,34 +198,34 @@ struct LoopExit {
  * own codeobject, locals, type, scopes, etc.
  */
 typedef struct Compiler {
-	struct Compiler * enclosing;       /**< Enclosing function compiler, or NULL for a module. */
-	KrkCodeObject * codeobject;        /**< Bytecode emitter */
-	FunctionType type;                 /**< Type of function being compiled. */
-	size_t scopeDepth;                 /**< Depth of nested scope blocks. */
-	size_t localCount;                 /**< Total number of local variables. */
-	size_t localsSpace;                /**< Space in the locals array. */
-	Local  * locals;                   /**< Array of local variable references. */
-	size_t upvaluesSpace;              /**< Space in the upvalues array. */
-	Upvalue * upvalues;                /**< Array of upvalue references. Count is stored in the codeobject. */
+	struct Compiler * enclosing;       /**< @brief Enclosing function compiler, or NULL for a module. */
+	KrkCodeObject * codeobject;        /**< @brief Bytecode emitter */
+	FunctionType type;                 /**< @brief Type of function being compiled. */
+	size_t scopeDepth;                 /**< @brief Depth of nested scope blocks. */
+	size_t localCount;                 /**< @brief Total number of local variables. */
+	size_t localsSpace;                /**< @brief Space in the locals array. */
+	Local  * locals;                   /**< @brief Array of local variable references. */
+	size_t upvaluesSpace;              /**< @brief Space in the upvalues array. */
+	Upvalue * upvalues;                /**< @brief Array of upvalue references. Count is stored in the codeobject. */
 
-	size_t loopLocalCount;             /**< Tracks how many locals to pop off the stack when exiting a loop. */
-	size_t breakCount;                 /**< Number of break statements. */
-	size_t breakSpace;                 /**< Space in breaks array. */
-	struct LoopExit * breaks;          /**< Array of loop exit instruction indices for break statements. */
-	size_t continueCount;              /**< Number of continue statements. */
-	size_t continueSpace;              /**< Space in continues array. */
-	struct LoopExit * continues;       /**< Array of loop exit instruction indices for continue statements. */
+	size_t loopLocalCount;             /**< @brief Tracks how many locals to pop off the stack when exiting a loop. */
+	size_t breakCount;                 /**< @brief Number of break statements. */
+	size_t breakSpace;                 /**< @brief Space in breaks array. */
+	struct LoopExit * breaks;          /**< @brief Array of loop exit instruction indices for break statements. */
+	size_t continueCount;              /**< @brief Number of continue statements. */
+	size_t continueSpace;              /**< @brief Space in continues array. */
+	struct LoopExit * continues;       /**< @brief Array of loop exit instruction indices for continue statements. */
 
-	size_t localNameCapacity;          /**< How much space is available in the codeobject's local names table. */
+	size_t localNameCapacity;          /**< @brief How much space is available in the codeobject's local names table. */
 
-	struct IndexWithNext * properties; /**< Linked list of class property constant indices. */
-	struct Compiler * enclosed;        /**< Subcompiler we are enclosing, need for type annotation compilation. */
-	size_t annotationCount;            /**< Number of type annotations found while compiling function signature. */
+	struct IndexWithNext * properties; /**< @brief Linked list of class property constant indices. */
+	struct Compiler * enclosed;        /**< @brief Subcompiler we are enclosing, need for type annotation compilation. */
+	size_t annotationCount;            /**< @brief Number of type annotations found while compiling function signature. */
 
-	int delSatisfied;                  /**< Flag indicating if a 'del' target has been completed. */
+	int delSatisfied;                  /**< @brief Flag indicating if a 'del' target has been completed. */
 
-	size_t optionsFlags;               /**< Special __options__ imports; similar to __future__ in Python */
-	int unnamedArgs;
+	size_t optionsFlags;               /**< @brief Special __options__ imports; similar to __future__ in Python */
+	int unnamedArgs;                   /**< @brief Number of positional arguments that will not be assignable through keywords */
 } Compiler;
 
 #define OPTIONS_FLAG_COMPILE_TIME_BUILTINS    (1 << 0)
@@ -239,9 +239,9 @@ typedef struct Compiler {
  * and nested class definitions.
  */
 typedef struct ClassCompiler {
-	struct ClassCompiler * enclosing; /**< Enclosing class scope. */
-	KrkToken name;                    /**< Name of the current class. */
-	int hasAnnotations;               /**< Flag indicating if an annotation dictionary has been attached to this class. */
+	struct ClassCompiler * enclosing; /**< @brief Enclosing class scope. */
+	KrkToken name;                    /**< @brief Name of the current class. */
+	int hasAnnotations;               /**< @brief Flag indicating if an annotation dictionary has been attached to this class. */
 } ClassCompiler;
 
 /**
@@ -257,9 +257,9 @@ typedef struct ClassCompiler {
  * so that we don't keep around duplicate constants or debug info.
  */
 typedef struct ChunkRecorder {
-	size_t count;      /**< Offset into the bytecode */
-	size_t lines;      /**< Offset into the line map */
-	size_t constants;  /**< Number of constants in the constants table */
+	size_t count;      /**< @brief Offset into the bytecode */
+	size_t lines;      /**< @brief Offset into the line map */
+	size_t constants;  /**< @brief Number of constants in the constants table */
 } ChunkRecorder;
 
 /**
@@ -268,17 +268,17 @@ typedef struct ChunkRecorder {
  * Used to rewind the parser for ternary and comma expressions.
  */
 typedef struct RewindState {
-	ChunkRecorder before;     /**< Bytecode and constant table output offsets. */
-	KrkScanner    oldScanner; /**< Scanner cursor state. */
-	Parser        oldParser;  /**< Previous/current tokens. */
+	ChunkRecorder before;     /**< @brief Bytecode and constant table output offsets. */
+	KrkScanner    oldScanner; /**< @brief Scanner cursor state. */
+	Parser        oldParser;  /**< @brief Previous/current tokens. */
 } RewindState;
 
 typedef struct GlobalState {
-	KrkInstance inst;
-	Parser parser;
-	KrkScanner scanner;
-	Compiler * current;
-	ClassCompiler * currentClass;
+	KrkInstance inst;             /**< @protected @brief Base instance */
+	Parser parser;                /**< @brief Parser state */
+	KrkScanner scanner;           /**< @brief Scanner state */
+	Compiler * current;           /**< @brief Current compiler (in-progress code object) state */
+	ClassCompiler * currentClass; /**< @brief Current in-progress class definition (or NULL) */
 } GlobalState;
 
 static void _GlobalState_gcscan(KrkInstance * _self) {

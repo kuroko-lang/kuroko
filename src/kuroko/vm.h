@@ -596,16 +596,34 @@ extern int krk_isInstanceOf(KrkValue obj, const KrkClass * type);
  * @memberof KrkClass
  *
  * Performs attribute lookup from the class @p _class for @p name.
- * If @p name is not a valid method, the binding fails.
+ * If @p name is not a valid member, the binding fails.
  * If @p name is a valid method, the method will be retrieved and
  * bound to the instance on the top of the stack, replacing it
  * with a @ref BoundMethod object.
+ * If @p name is not a method, the unbound attribute is returned.
+ * If @p name is a descriptor, the @c %__get__ method is executed.
  *
  * @param _class Class object to resolve methods from.
  * @param name   String object with the name of the method to resolve.
  * @return 1 if the method has been bound, 0 if binding failed.
  */
 extern int krk_bindMethod(KrkClass * _class, KrkString * name);
+
+/**
+ * @brief Bind a method with super() semantics
+ * @memberof KrkClass
+ *
+ * @see krk_bindMethod
+ *
+ * Allows binding potential class methods with the correct class object while
+ * searching from a base class. Used by the @c super() mechanism.
+ *
+ * @param baseClass The superclass to begin searching from.
+ * @param name      The name of the member to look up.
+ * @param realClass The class to bind if a class method is found.
+ * @return 1 if a member has been found, 0 if binding fails.
+ */
+extern int krk_bindMethodSuper(KrkClass * baseClass, KrkString * name, KrkClass * realClass);
 
 /**
  * @brief Call a callable value in the current stack context.

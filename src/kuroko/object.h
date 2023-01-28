@@ -145,8 +145,8 @@ typedef struct {
 	KrkObj obj;                            /**< @protected @brief Base */
 	unsigned short requiredArgs;           /**< @brief Arity of required (non-default) arguments */
 	unsigned short keywordArgs;            /**< @brief Arity of keyword (default) arguments */
-	unsigned short potentialPositionals;
-	unsigned short totalArguments;
+	unsigned short potentialPositionals;   /**< @brief Precalculated positional arguments for complex argument processing */
+	unsigned short totalArguments;         /**< @brief Total argument cells we can fill in complex argument processing */
 	size_t upvalueCount;                   /**< @brief Number of upvalues this function collects as a closure */
 	KrkChunk chunk;                        /**< @brief Bytecode data */
 	KrkString * name;                      /**< @brief Name of the function */

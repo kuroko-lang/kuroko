@@ -97,7 +97,6 @@ KRK_StaticMethod(type,__new__) {
 	_callSetName(_class);
 
 	/* Call super().__init_subclass__ */
-	extern int krk_bindMethodSuper(KrkClass * originalClass, KrkString * name, KrkClass * realClass);
 	krk_push(NONE_VAL());
 	if (!krk_bindMethodSuper(base,S("__init_subclass__"),_class)) {
 		krk_pop(); /* none */
