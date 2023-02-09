@@ -397,12 +397,10 @@ static int krk_long_add(KrkLong * res, const KrkLong * a, const KrkLong * b) {
 				krk_long_set_sign(res,-1);
 				FINISH_OUTPUT(res);
 				return 0;
-			case 0:
-				krk_long_clear(res);
-				FINISH_OUTPUT(res);
-				return 0;
 		}
-		return 1;
+		krk_long_clear(res);
+		FINISH_OUTPUT(res);
+		return 0;
 	} else if (a->width > 0 && b->width < 0) {
 		switch (krk_long_compare_abs(a,b)) {
 			case -1:
@@ -415,13 +413,10 @@ static int krk_long_add(KrkLong * res, const KrkLong * a, const KrkLong * b) {
 				krk_long_set_sign(res,1);
 				FINISH_OUTPUT(res);
 				return 0;
-			case 0:
-				krk_long_clear(res);
-				FINISH_OUTPUT(res);
-				return 0;
 		}
+		krk_long_clear(res);
 		FINISH_OUTPUT(res);
-		return 1;
+		return 0;
 	}
 
 	/* sign must match for this, so take it from whichever */
