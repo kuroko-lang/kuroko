@@ -397,6 +397,10 @@ static int krk_long_add(KrkLong * res, const KrkLong * a, const KrkLong * b) {
 				krk_long_set_sign(res,-1);
 				FINISH_OUTPUT(res);
 				return 0;
+			case 0:
+				krk_long_clear(res);
+				FINISH_OUTPUT(res);
+				return 0;
 		}
 		return 1;
 	} else if (a->width > 0 && b->width < 0) {
@@ -409,6 +413,10 @@ static int krk_long_add(KrkLong * res, const KrkLong * a, const KrkLong * b) {
 			case 1:
 				_sub_big_small(res,a,b);
 				krk_long_set_sign(res,1);
+				FINISH_OUTPUT(res);
+				return 0;
+			case 0:
+				krk_long_clear(res);
 				FINISH_OUTPUT(res);
 				return 0;
 		}
