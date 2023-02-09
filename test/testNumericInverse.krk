@@ -1,0 +1,9 @@
+# I have no idea how this broke.
+
+
+let a = 925932958390268329583925832891583215321
+let b = -a
+
+assert a + b == 0
+assert b + a == 0
+assert a - b == a * 2
