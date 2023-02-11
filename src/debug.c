@@ -202,6 +202,8 @@ static void _closure_more(OPARGS, size_t constant) {
 					break;
 				}
 			}
+		} else if (isLocal & 4) {
+			fprintf(f, "classcell");
 		} else { fprintf(f, "upvalue<%d>", index); }
 		if (j + 1 != function->upvalueCount) fprintf(f, ", ");
 	}

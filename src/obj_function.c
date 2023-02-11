@@ -187,6 +187,22 @@ KRK_Method(function,__code__) {
 	return OBJECT_VAL(AS_CLOSURE(self)->function);
 }
 
+KRK_Method(function,__closure__) {
+	ATTRIBUTE_NOT_ASSIGNABLE();
+	if (!IS_CLOSURE(self)) {
+		return OBJECT_VAL(krk_newTuple(0));
+	}
+
+	size_t cnt = AS_CLOSURE(self)->upvalueCount;
+	KrkTuple * out = krk_newTuple(cnt);
+	krk_push(OBJECT_VAL(out));
+	for (size_t i = 0; i < cnt; ++i) {
+		out->values.values[out->values.count++] = OBJECT_VAL(AS_CLOSURE(self)->upvalues[i]);
+	}
+
+	return krk_pop();
+}
+
 #undef CURRENT_CTYPE
 #define CURRENT_CTYPE KrkCodeObject*
 
@@ -414,6 +430,7 @@ void _createAndBind_functionClass(void) {
 	BIND_PROP(function,__annotations__);
 	BIND_PROP(function,__code__);
 	BIND_PROP(function,__globals__);
+	BIND_PROP(function,__closure__);
 	krk_defineNative(&function->methods, "__repr__", FUNC_NAME(function,__str__));
 	krk_defineNative(&function->methods, "__class_getitem__", krk_GenericAlias)->obj.flags |= KRK_OBJ_FLAGS_FUNCTION_IS_CLASS_METHOD;
 	krk_finalizeClass(function);

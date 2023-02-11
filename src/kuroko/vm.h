@@ -146,6 +146,7 @@ struct BaseClasses {
 	KrkClass * ThreadClass;          /**< Threading.Thread */
 	KrkClass * LockClass;            /**< Threading.Lock */
 	KrkClass * CompilerStateClass;   /**< Compiler global state */
+	KrkClass * CellClass;            /**< Upvalue cell */
 };
 
 /**

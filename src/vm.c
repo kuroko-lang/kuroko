@@ -280,7 +280,7 @@ inline KrkClass * krk_getType(KrkValue of) {
 		[KRK_OBJ_CLOSURE]      = offsetof(struct BaseClasses, functionClass),
 		[KRK_OBJ_BOUND_METHOD] = offsetof(struct BaseClasses, methodClass),
 		[KRK_OBJ_STRING]       = offsetof(struct BaseClasses, strClass),
-		[KRK_OBJ_UPVALUE]      = offsetof(struct BaseClasses, objectClass),
+		[KRK_OBJ_UPVALUE]      = offsetof(struct BaseClasses, CellClass),
 		[KRK_OBJ_CLASS]        = offsetof(struct BaseClasses, typeClass),
 		[KRK_OBJ_TUPLE]        = offsetof(struct BaseClasses, tupleClass),
 		[KRK_OBJ_BYTES]        = offsetof(struct BaseClasses, bytesClass),

@@ -1336,6 +1336,53 @@ KRK_Function(__build_class__) {
 	return krk_pop();
 }
 
+#undef CURRENT_CTYPE
+#define CURRENT_CTYPE KrkUpvalue *
+#define IS_Cell(o) (krk_isObjType((o), KRK_OBJ_UPVALUE))
+#define AS_Cell(o) ((KrkUpvalue*)AS_OBJECT(o))
+
+KRK_StaticMethod(Cell,__new__) {
+	KrkClass * _class = NULL;
+	KrkValue contents = NONE_VAL();
+	if (!krk_parseArgs("O!|V", (const char*[]){"cls","contents"}, KRK_BASE_CLASS(type), &_class, &contents)) {
+		return NONE_VAL();
+	}
+	if (_class != KRK_BASE_CLASS(Cell)) {
+		return krk_runtimeError(vm.exceptions->typeError, "can not assemble new Cell from %R", OBJECT_VAL(_class));
+	}
+
+	KrkUpvalue * out = krk_newUpvalue(-1);
+	out->closed = contents;
+	return OBJECT_VAL(out);
+}
+
+#define UPVALUE_LOCATION(upvalue) (upvalue->location == -1 ? &upvalue->closed : &upvalue->owner->stack[upvalue->location])
+KRK_Method(Cell,__repr__) {
+	struct StringBuilder sb = {0};
+
+	KrkValue contents = *UPVALUE_LOCATION(self);
+
+	if (!krk_pushStringBuilderFormat(&sb,"<cell at %p: %T object", (void*)self, contents)) goto _error;
+	if (IS_OBJECT(contents)) {
+		if (!krk_pushStringBuilderFormat(&sb, " at %p>", (void*)AS_OBJECT(contents))) goto _error;
+	} else {
+		krk_pushStringBuilder(&sb,'>');
+	}
+
+	return krk_finishStringBuilder(&sb);
+
+_error:
+	krk_discardStringBuilder(&sb);
+	return NONE_VAL();
+}
+
+KRK_Method(Cell,cell_contents) {
+	if (argc > 1) {
+		*UPVALUE_LOCATION(self) = argv[1];
+	}
+	return *UPVALUE_LOCATION(self);
+}
+
 _noexport
 void _createAndBind_builtins(void) {
 	vm.baseClasses->objectClass = krk_newClass(S("object"), NULL);
@@ -1482,6 +1529,14 @@ void _createAndBind_builtins(void) {
 	BIND_METHOD(enumerate,__iter__);
 	BIND_METHOD(enumerate,__call__);
 	krk_finalizeClass(enumerate);
+
+	KrkClass * Cell = ADD_BASE_CLASS(KRK_BASE_CLASS(Cell), "Cell", object);
+	Cell->allocSize = 0;
+	Cell->obj.flags |= KRK_OBJ_FLAGS_NO_INHERIT;
+	BIND_STATICMETHOD(Cell,__new__);
+	BIND_METHOD(Cell,__repr__);
+	BIND_PROP(Cell,cell_contents);
+	krk_finalizeClass(Cell);
 
 	BUILTIN_FUNCTION("isinstance", FUNC_NAME(krk,isinstance),
 		"@brief Check if an object is an instance of a type.\n"
