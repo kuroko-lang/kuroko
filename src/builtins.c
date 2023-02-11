@@ -188,6 +188,14 @@ KRK_StaticMethod(object,__new__) {
 		return NONE_VAL();
 	}
 
+	KrkClass * _cls = _class;
+	while (_cls) {
+		if (_cls->_new && IS_NATIVE(OBJECT_VAL(_cls->_new)) && _cls->_new != KRK_BASE_CLASS(object)->_new) {
+			return krk_runtimeError(vm.exceptions->typeError, "object.__new__(%S) is not safe, use %S.__new__()", _class->name, _cls->name);
+		}
+		_cls = _cls->base;
+	}
+
 	if (_argc && _class->_init == vm.baseClasses->objectClass->_init) {
 		return krk_runtimeError(vm.exceptions->typeError, "%S() takes no arguments", _class->name);
 	}
