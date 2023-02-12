@@ -88,8 +88,15 @@ KRK_Method(object,__dir__) {
 }
 
 KRK_Method(object,__class__) {
-	if (argc > 1) return krk_runtimeError(vm.exceptions->typeError, "__class__ can not be assigned");
-	return OBJECT_VAL(krk_getType(self));
+	KrkClass * current = krk_getType(self);
+	if (argc > 1) {
+		if (!IS_CLASS(argv[1])) return krk_runtimeError(vm.exceptions->typeError, "'%T' object is not a class", argv[1]);
+		if (!IS_INSTANCE(argv[0]) || current->allocSize != sizeof(KrkInstance)) return krk_runtimeError(vm.exceptions->typeError, "'%T' object does not have modifiable type", argv[0]); /* TODO class? */
+		if (AS_CLASS(argv[1])->allocSize != sizeof(KrkInstance)) return krk_runtimeError(vm.exceptions->typeError, "'%S' type is not assignable", AS_CLASS(argv[1])->name);
+		AS_INSTANCE(argv[0])->_class = AS_CLASS(argv[1]);
+		current = AS_CLASS(argv[1]);
+	}
+	return OBJECT_VAL(current);
 }
 
 KRK_Method(object,__hash__) {
