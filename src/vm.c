@@ -869,6 +869,17 @@ int krk_isFalsey(KrkValue value) {
 	}
 	KrkClass * type = krk_getType(value);
 
+	if (type->_bool) {
+		krk_push(value);
+		KrkValue result = krk_callDirect(type->_bool,1);
+		if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) return 1;
+		if (!IS_BOOLEAN(result)) {
+			krk_runtimeError(vm.exceptions->typeError, "__bool__ should return bool, not %T", result);
+			return 1;
+		}
+		return !AS_INTEGER(result);
+	}
+
 	/* If it has a length, and that length is 0, it's Falsey */
 	if (type->_len) {
 		krk_push(value);

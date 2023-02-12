@@ -17,6 +17,7 @@ CACHED_METHOD(DESCGET,       "__get__",           _descget)
 CACHED_METHOD(DESCSET,       "__set__",           _descset)
 CACHED_METHOD(CLASSGETITEM,  "__class_getitem__", _classgetitem)
 CACHED_METHOD(HASH,          "__hash__",          _hash)
+CACHED_METHOD(BOOL,          "__bool__",          _bool)
 
 #define BINOPTRIO(name) \
     CACHED_METHOD(name, "__" #name "__", _ ## name) \

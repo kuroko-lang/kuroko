@@ -239,6 +239,7 @@ typedef struct KrkClass {
 	KrkObj * _setattr;
 	KrkObj * _format;
 	KrkObj * _new;
+	KrkObj * _bool;
 
 	size_t cacheIndex;
 } KrkClass;
