@@ -352,4 +352,4 @@ extern int krk_pushStringBuilderFormatV(struct StringBuilder * sb, const char * 
 extern int krk_pushStringBuilderFormat(struct StringBuilder * sb, const char * fmt, ...);
 extern KrkValue krk_stringFromFormat(const char * fmt, ...);
 extern int krk_long_to_int(KrkValue val, char size, void * out);
-
+extern int krk_isSubClass(const KrkClass * cls, const KrkClass * base);

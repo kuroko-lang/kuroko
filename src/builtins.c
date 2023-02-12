@@ -949,22 +949,14 @@ KRK_Function(isinstance) {
 	}
 }
 
-static int _isSubClass(KrkClass * cls, KrkClass * base) {
-	while (cls) {
-		if (cls == base) return 1;
-		cls = cls->base;
-	}
-	return 0;
-}
-
 KRK_Function(issubclass) {
 	FUNCTION_TAKES_EXACTLY(2);
 	CHECK_ARG(0,class,KrkClass*,cls);
 	if (IS_CLASS(argv[1])) {
-		return BOOLEAN_VAL(_isSubClass(cls, AS_CLASS(argv[1])));
+		return BOOLEAN_VAL(krk_isSubClass(cls, AS_CLASS(argv[1])));
 	} else if (IS_TUPLE(argv[1])) {
 		for (size_t i = 0; i < AS_TUPLE(argv[1])->values.count; ++i) {
-			if (IS_CLASS(AS_TUPLE(argv[1])->values.values[i]) && _isSubClass(cls, AS_CLASS(AS_TUPLE(argv[1])->values.values[i]))) {
+			if (IS_CLASS(AS_TUPLE(argv[1])->values.values[i]) && krk_isSubClass(cls, AS_CLASS(AS_TUPLE(argv[1])->values.values[i]))) {
 				return BOOLEAN_VAL(1);
 			}
 		}
@@ -1281,9 +1273,9 @@ KRK_Function(__build_class__) {
 
 	if (IS_CLASS(metaclass)) {
 		KrkClass * basemeta = base->_class ? base->_class : vm.baseClasses->typeClass;
-		if (_isSubClass(AS_CLASS(metaclass), basemeta)) {
+		if (krk_isSubClass(AS_CLASS(metaclass), basemeta)) {
 			/* good to go */
-		} else if (_isSubClass(basemeta, AS_CLASS(metaclass))) {
+		} else if (krk_isSubClass(basemeta, AS_CLASS(metaclass))) {
 			/* take the more derived one */
 			metaclass = OBJECT_VAL(basemeta);
 		} else {

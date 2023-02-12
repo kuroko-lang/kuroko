@@ -2063,7 +2063,7 @@ static inline void commonMethodInvoke(size_t methodOffset, int args, const char 
 	}
 }
 
-static int _isSubClass(KrkClass * cls, KrkClass * base) {
+int krk_isSubClass(const KrkClass * cls, const KrkClass * base) {
 	while (cls) {
 		if (cls == base) return 1;
 		cls = cls->base;
@@ -2738,7 +2738,7 @@ _finishReturn: (void)0;
 				KrkClass * obj_type;
 				KrkValue obj = krk_peek(0);
 
-				if (IS_CLASS(obj) && _isSubClass(AS_CLASS(obj),AS_CLASS(baseClass))) {
+				if (IS_CLASS(obj) && krk_isSubClass(AS_CLASS(obj),AS_CLASS(baseClass))) {
 					/* Class method call */
 					obj_type = AS_CLASS(obj);
 					krk_pop();
