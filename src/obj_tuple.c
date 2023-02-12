@@ -268,6 +268,7 @@ _noexport
 void _createAndBind_tupleClass(void) {
 	KrkClass * tuple = ADD_BASE_CLASS(vm.baseClasses->tupleClass, "tuple", vm.baseClasses->objectClass);
 	tuple->obj.flags |= KRK_OBJ_FLAGS_NO_INHERIT;
+	tuple->allocSize = 0;
 	BIND_STATICMETHOD(tuple,__new__);
 	BIND_METHOD(tuple,__repr__);
 	BIND_METHOD(tuple,__getitem__);

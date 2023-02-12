@@ -765,6 +765,7 @@ _noexport
 void _createAndBind_numericClasses(void) {
 	KrkClass * _int = ADD_BASE_CLASS(vm.baseClasses->intClass, "int", vm.baseClasses->objectClass);
 	_int->obj.flags |= KRK_OBJ_FLAGS_NO_INHERIT;
+	_int->allocSize = 0;
 	BIND_STATICMETHOD(int,__new__);
 	BIND_METHOD(int,__str__);
 	BIND_METHOD(int,__int__);
@@ -806,6 +807,7 @@ void _createAndBind_numericClasses(void) {
 
 	KrkClass * _float = ADD_BASE_CLASS(vm.baseClasses->floatClass, "float", vm.baseClasses->objectClass);
 	_float->obj.flags |= KRK_OBJ_FLAGS_NO_INHERIT;
+	_float->allocSize = 0;
 	BIND_STATICMETHOD(float,__new__);
 	BIND_METHOD(float,__int__);
 	BIND_METHOD(float,__float__);
@@ -838,6 +840,7 @@ void _createAndBind_numericClasses(void) {
 
 	KrkClass * _NoneType = ADD_BASE_CLASS(vm.baseClasses->noneTypeClass, "NoneType", vm.baseClasses->objectClass);
 	_NoneType->obj.flags |= KRK_OBJ_FLAGS_NO_INHERIT;
+	_NoneType->allocSize = 0;
 	BIND_STATICMETHOD(NoneType, __new__);
 	BIND_METHOD(NoneType, __str__);
 	BIND_METHOD(NoneType, __hash__);
@@ -847,6 +850,7 @@ void _createAndBind_numericClasses(void) {
 
 	KrkClass * _NotImplementedType = ADD_BASE_CLASS(vm.baseClasses->notImplClass, "NotImplementedType", vm.baseClasses->objectClass);
 	_NotImplementedType->obj.flags |= KRK_OBJ_FLAGS_NO_INHERIT;
+	_NotImplementedType->allocSize = 0;
 	BIND_STATICMETHOD(NotImplementedType, __new__);
 	BIND_METHOD(NotImplementedType, __str__);
 	BIND_METHOD(NotImplementedType, __hash__);

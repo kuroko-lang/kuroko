@@ -420,6 +420,7 @@ _noexport
 void _createAndBind_bytesClass(void) {
 	KrkClass * bytes = ADD_BASE_CLASS(vm.baseClasses->bytesClass, "bytes", vm.baseClasses->objectClass);
 	bytes->obj.flags |= KRK_OBJ_FLAGS_NO_INHERIT;
+	bytes->allocSize = 0;
 	KRK_DOC(BIND_STATICMETHOD(bytes,__new__),
 		"@brief An array of bytes.\n"
 		"@arguments iter=None\n\n"

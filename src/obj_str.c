@@ -1238,6 +1238,7 @@ _noexport
 void _createAndBind_strClass(void) {
 	KrkClass * str = ADD_BASE_CLASS(vm.baseClasses->strClass, "str", vm.baseClasses->objectClass);
 	str->obj.flags |= KRK_OBJ_FLAGS_NO_INHERIT;
+	str->allocSize = 0;
 	BIND_STATICMETHOD(str,__new__);
 	BIND_METHOD(str,__iter__);
 	BIND_METHOD(str,__ord__);
