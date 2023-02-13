@@ -58,7 +58,7 @@ int krk_parseVArgs(
 	}
 
 	/* Required args */
-	for (; *fmt; fmt++) {
+	while (*fmt) {
 		if (*fmt == '|') {
 			/**
 			 * @c | begins optional arguments - eg. default args. Every format option after
@@ -70,6 +70,7 @@ int krk_parseVArgs(
 				return 1;
 			}
 			required = 0;
+			fmt++;
 			continue;
 		}
 		if (*fmt == '*') {
@@ -88,6 +89,7 @@ int krk_parseVArgs(
 			*out_v = &argv[iarg];
 			iarg = argc;
 			required = 0;
+			fmt++;
 			continue;
 		}
 		if (*fmt == '$') {
@@ -103,6 +105,7 @@ int krk_parseVArgs(
 				return 1;
 			}
 			if (iarg < argc) break;
+			fmt++;
 			continue;
 		}
 		if (*fmt == '~') {
@@ -114,6 +117,7 @@ int krk_parseVArgs(
 			 * as for a @c **kwargs argument in a Kuroko function signature.
 			 */
 			acceptextrakws = 1;
+			fmt++;
 			continue;
 		}
 
@@ -141,7 +145,27 @@ int krk_parseVArgs(
 			goto _error;
 		}
 
-		switch (*fmt) {
+		char argtype = *fmt++;
+
+		if (*fmt == '?') {
+			/* "is present", useful for things where relying on a default isn't useful but you
+			 * still want to have all the type checking and automatic parsing. */
+			fmt++;
+			int * out = va_arg(args, int*);
+			*out = arg != KWARGS_VAL(0);
+		}
+
+		if (*fmt == '!') {
+			/* "of type", thrown an exception if the argument was present but was not
+			 * an instance of a given class. Originally just for @c O and @c V but
+			 * now available anywhere, though likely not useful for other types.
+			 * Maybe if you want @c p to only be a bool this could be useful? */
+			fmt++;
+			KrkClass * type = va_arg(args, KrkClass*);
+			if (!matchType(_method_name, type, arg)) goto _error;
+		}
+
+		switch (argtype) {
 			/**
 			 * @c O   Collect an object (with @c ! - of a given type) and place it in
 			 *        in the @c KrkObj** var arg. The object must be a heap object,
@@ -152,11 +176,6 @@ int krk_parseVArgs(
 			 *        before @c None can be evaluated).
 			 */
 			case 'O': {
-				if (fmt[1] == '!') {
-					fmt++;
-					KrkClass * type = va_arg(args, KrkClass*);
-					if (!matchType(_method_name, type, arg)) goto _error;
-				}
 				KrkObj ** out = va_arg(args, KrkObj**);
 				if (arg != KWARGS_VAL(0)) {
 					if (IS_NONE(arg)) {
@@ -181,11 +200,6 @@ int krk_parseVArgs(
 			 *        error message is less informative in this case.
 			 */
 			case 'V': {
-				if (fmt[1] == '!') {
-					fmt++;
-					KrkClass * type = va_arg(args, KrkClass*);
-					if (!matchType(_method_name, type, arg)) goto _error;
-				}
 				KrkValue * out = va_arg(args, KrkValue*);
 				if (arg != KWARGS_VAL(0)) {
 					*out = arg;
@@ -203,7 +217,7 @@ int krk_parseVArgs(
 			case 'z': {
 				char ** out = va_arg(args, char **);
 				size_t * size = NULL;
-				if (fmt[1] == '#') {
+				if (*fmt == '#') {
 					fmt++;
 					size = va_arg(args, size_t*);
 				}
@@ -228,7 +242,7 @@ int krk_parseVArgs(
 			case 's': {
 				char ** out = va_arg(args, char **);
 				size_t * size = NULL;
-				if (fmt[1] == '#') {
+				if (*fmt == '#') {
 					fmt++;
 					size = va_arg(args, size_t*);
 				}
@@ -328,7 +342,7 @@ int krk_parseVArgs(
 			}
 
 			default: {
-				krk_runtimeError(vm.exceptions->typeError, "unrecognized directive '%c' in format string", *fmt);
+				krk_runtimeError(vm.exceptions->typeError, "unrecognized directive '%c' in format string", argtype);
 				goto _error;
 			}
 		}
