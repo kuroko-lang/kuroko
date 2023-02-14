@@ -43,7 +43,7 @@ KRK_Method(socket,__init__) {
 	int type = SOCK_STREAM;
 	int proto = 0;
 
-	if (!krk_parseArgs(".|iii",
+	if (!krk_parseArgs(".|iii:socket",
 		(const char *[]){"family","type","proto"},
 		&family, &type, &proto)) {
 		return NONE_VAL();

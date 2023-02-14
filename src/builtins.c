@@ -1351,7 +1351,7 @@ KRK_Function(__build_class__) {
 KRK_StaticMethod(Cell,__new__) {
 	KrkClass * _class = NULL;
 	KrkValue contents = NONE_VAL();
-	if (!krk_parseArgs("O!|V", (const char*[]){"cls","contents"}, KRK_BASE_CLASS(type), &_class, &contents)) {
+	if (!krk_parseArgs("O!|V:Cell", (const char*[]){"cls","contents"}, KRK_BASE_CLASS(type), &_class, &contents)) {
 		return NONE_VAL();
 	}
 	if (_class != KRK_BASE_CLASS(Cell)) {

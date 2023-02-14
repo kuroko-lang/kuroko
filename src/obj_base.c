@@ -58,7 +58,7 @@ KRK_StaticMethod(type,__new__) {
 	KrkClass * base;
 	KrkDict * nspace;
 
-	if (!krk_parseArgs("O!O!O!O!~",
+	if (!krk_parseArgs("O!O!O!O!~:type",
 		(const char*[]){"cls","name","base","namespace"},
 		vm.baseClasses->typeClass, &metaclass,
 		vm.baseClasses->strClass, &name,

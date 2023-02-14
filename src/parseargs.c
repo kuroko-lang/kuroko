@@ -45,6 +45,11 @@ int krk_parseVArgs(
 	int required = 1;       /**< Parser state, whether required arguments are being collected */
 	int acceptextrakws = 0; /**< Whether extra keyword args should produce an error (0) or not (1) */
 
+	const char * maybeColon = strchr(fmt, ':');
+	if (maybeColon) {
+		_method_name = maybeColon + 1;
+	}
+
 	if (*fmt == '.') {
 		/**
 		 * If the format string starts with `.` then argument processing skips the first argument
@@ -59,6 +64,7 @@ int krk_parseVArgs(
 
 	/* Required args */
 	while (*fmt) {
+		if (*fmt == ':') break;
 		if (*fmt == '|') {
 			/**
 			 * @c | begins optional arguments - eg. default args. Every format option after
