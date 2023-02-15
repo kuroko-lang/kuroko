@@ -383,19 +383,19 @@ KRK_Method(method,__self__) {
 }
 
 KRK_Function(staticmethod) {
-	FUNCTION_TAKES_EXACTLY(1);
-	CHECK_ARG(0,CLOSURE,KrkClosure*,method);
-	method->obj.flags &= ~(KRK_OBJ_FLAGS_FUNCTION_MASK);
-	method->obj.flags |= KRK_OBJ_FLAGS_FUNCTION_IS_STATIC_METHOD;
-	return argv[0];
+	KrkObj* method;
+	if (!krk_parseArgs("O!", (const char*[]){"method"}, KRK_BASE_CLASS(function), &method)) return NONE_VAL();
+	method->flags &= ~(KRK_OBJ_FLAGS_FUNCTION_MASK);
+	method->flags |= KRK_OBJ_FLAGS_FUNCTION_IS_STATIC_METHOD;
+	return OBJECT_VAL(method);
 }
 
 KRK_Function(classmethod) {
-	FUNCTION_TAKES_EXACTLY(1);
-	CHECK_ARG(0,CLOSURE,KrkClosure*,method);
-	method->obj.flags &= ~(KRK_OBJ_FLAGS_FUNCTION_MASK);
-	method->obj.flags |= KRK_OBJ_FLAGS_FUNCTION_IS_CLASS_METHOD;
-	return argv[0];
+	KrkObj* method;
+	if (!krk_parseArgs("O!", (const char*[]){"method"}, KRK_BASE_CLASS(function), &method)) return NONE_VAL();
+	method->flags &= ~(KRK_OBJ_FLAGS_FUNCTION_MASK);
+	method->flags |= KRK_OBJ_FLAGS_FUNCTION_IS_CLASS_METHOD;
+	return OBJECT_VAL(method);
 }
 
 _noexport
