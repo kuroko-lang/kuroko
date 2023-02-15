@@ -1675,7 +1675,7 @@ int krk_bindMethodSuper(KrkClass * originalClass, KrkString * name, KrkClass * r
 		if (type->_descget) {
 			krk_push(method);
 			krk_swap(1);
-			krk_push(OBJECT_VAL(originalClass));
+			krk_push(OBJECT_VAL(realClass));
 			krk_push(krk_callDirect(type->_descget, 3));
 			return 1;
 		}
