@@ -294,6 +294,18 @@ KRK_Method(set,clear) {
 	return NONE_VAL();
 }
 
+KRK_Method(set,update) {
+	METHOD_TAKES_AT_MOST(1);
+	if (argc > 1) {
+		if (IS_set(argv[1])) {
+			krk_tableAddAll(&AS_set(argv[1])->entries, &self->entries);
+		} else {
+			if (krk_unpackIterable(argv[1], self, _set_init_callback)) return NONE_VAL();
+		}
+	}
+	return NONE_VAL();
+}
+
 FUNC_SIG(setiterator,__init__);
 
 KRK_Method(set,__iter__) {
@@ -378,6 +390,7 @@ void _createAndBind_setClass(void) {
 	KRK_DOC(BIND_METHOD(set,clear),
 		"@brief Empty the set.\n\n"
 		"Removes all elements from the set, in-place.");
+	BIND_METHOD(set,update);
 	krk_defineNative(&set->methods, "__str__", FUNC_NAME(set,__repr__));
 	krk_attachNamedValue(&set->methods, "__hash__", NONE_VAL());
 	krk_finalizeClass(set);
