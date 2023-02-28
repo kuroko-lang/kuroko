@@ -1979,6 +1979,9 @@ extern KrkValue krk_int_op_sub(krk_integer_type a, krk_integer_type b);
 extern FUNC_SIG(list,append);
 extern FUNC_SIG(dict,__setitem__);
 extern FUNC_SIG(set,add);
+extern FUNC_SIG(list,extend);
+extern FUNC_SIG(dict,update);
+extern FUNC_SIG(set,update);
 
 static inline void makeCollection(NativeFn func, size_t count) {
 	KrkValue collection = krk_callNativeOnStack(count, &krk_currentThread.stackTop[-count], 0, func);
@@ -2369,6 +2372,58 @@ _finishReturn: (void)0;
 					krk_runtimeError(vm.exceptions->typeError, "Can not annotate '%T'.", krk_peek(0));
 					goto _finishException;
 				}
+				break;
+			}
+
+			case OP_LIST_APPEND_TOP: {
+				KrkValue list = krk_peek(1);
+				FUNC_NAME(list,append)(2,(KrkValue[]){list,krk_peek(0)},0);
+				krk_pop();
+				break;
+			}
+			case OP_DICT_SET_TOP: {
+				KrkValue dict = krk_peek(2);
+				FUNC_NAME(dict,__setitem__)(3,(KrkValue[]){dict,krk_peek(1),krk_peek(0)},0);
+				krk_pop();
+				krk_pop();
+				break;
+			}
+			case OP_SET_ADD_TOP: {
+				KrkValue set = krk_peek(1);
+				FUNC_NAME(set,add)(2,(KrkValue[]){set,krk_peek(0)},0);
+				krk_pop();
+				break;
+			}
+
+			case OP_LIST_EXTEND_TOP: {
+				KrkValue list = krk_peek(1);
+				FUNC_NAME(list,extend)(2,(KrkValue[]){list,krk_peek(0)},0);
+				krk_pop();
+				break;
+			}
+			case OP_DICT_UPDATE_TOP: {
+				KrkValue dict = krk_peek(1);
+				FUNC_NAME(dict,update)(2,(KrkValue[]){dict,krk_peek(0)},0);
+				krk_pop();
+				break;
+			}
+			case OP_SET_UPDATE_TOP: {
+				KrkValue set = krk_peek(1);
+				FUNC_NAME(set,update)(2,(KrkValue[]){set,krk_peek(0)},0);
+				krk_pop();
+				break;
+			}
+
+			case OP_TUPLE_FROM_LIST: {
+				KrkValue list = krk_peek(0);
+				size_t count = AS_LIST(list)->count;
+				KrkValue tuple = OBJECT_VAL(krk_newTuple(count));
+				krk_push(tuple);
+				for (size_t i = 0; i < count; ++i) {
+					AS_TUPLE(tuple)->values.values[AS_TUPLE(tuple)->values.count++] = AS_LIST(list)->values[i];
+				}
+				krk_swap(1);
+				krk_pop();
 				break;
 			}
 
