@@ -3216,6 +3216,33 @@ static void comprehensionExpression(struct GlobalState * state, KrkScanner scann
 	emitBytes(OP_CALL, 0);
 }
 
+static void finishStarComma(struct GlobalState * state, size_t arg) {
+	EMIT_OPERAND_OP(OP_MAKE_LIST,arg);
+	parsePrecedence(state, PREC_BITOR);
+	emitByte(OP_LIST_EXTEND_TOP);
+
+	if (arg == 0 && !check(TOKEN_COMMA)) {
+		/* While we don't really need to, we disallow a lone @c *expr
+		 * or @c (*expr) without a trailing comma because Python does.
+		 * Catch that here specifically. */
+		error("* expression not valid here");
+		return;
+	}
+
+	while (match(TOKEN_COMMA)) {
+		if (!getRule(state->parser.current.type)->prefix) break;
+		if (match(TOKEN_ASTERISK)) {
+			parsePrecedence(state, PREC_BITOR);
+			emitByte(OP_LIST_EXTEND_TOP);
+		} else {
+			parsePrecedence(state, PREC_TERNARY);
+			emitByte(OP_LIST_APPEND_TOP);
+		}
+	}
+
+	emitByte(OP_TUPLE_FROM_LIST);
+}
+
 /**
  * @brief Parse the inside of a set of parens.
  *
@@ -3244,6 +3271,8 @@ static void parens(struct GlobalState * state, int exprType) {
 	if (check(TOKEN_RIGHT_PAREN)) {
 		/* Empty paren pair () is an empty tuple. */
 		emitBytes(OP_TUPLE,0);
+	} else if (match(TOKEN_ASTERISK)) {
+		finishStarComma(state, 0);
 	} else {
 		parsePrecedence(state, PREC_CAN_ASSIGN);
 		maybeValidAssignment = 1;
@@ -3259,6 +3288,10 @@ static void parens(struct GlobalState * state, int exprType) {
 			if (!check(TOKEN_RIGHT_PAREN)) {
 				/* (expr,) is a valid single-element tuple, so we need to check for that. */
 				do {
+					if (match(TOKEN_ASTERISK)) {
+						finishStarComma(state, argCount);
+						goto _done;
+					}
 					expression(state);
 					argCount++;
 				} while (match(TOKEN_COMMA) && !check(TOKEN_RIGHT_PAREN));
@@ -3267,6 +3300,7 @@ static void parens(struct GlobalState * state, int exprType) {
 		}
 	}
 
+_done:
 	stopEatingWhitespace();
 
 	if (!match(TOKEN_RIGHT_PAREN)) {
@@ -3309,6 +3343,27 @@ static void listInner(struct GlobalState * state, size_t arg) {
 	EMIT_OPERAND_OP(OP_LIST_APPEND, arg);
 }
 
+static void finishStarList(struct GlobalState * state, size_t arg) {
+	EMIT_OPERAND_OP(OP_MAKE_LIST, arg);
+
+	parsePrecedence(state, PREC_BITOR);
+	emitByte(OP_LIST_EXTEND_TOP);
+
+	while (match(TOKEN_COMMA) && !check(TOKEN_RIGHT_SQUARE)) {
+		if (match(TOKEN_ASTERISK)) {
+			parsePrecedence(state, PREC_BITOR);
+			emitByte(OP_LIST_EXTEND_TOP);
+		} else {
+			expression(state);
+			emitByte(OP_LIST_APPEND_TOP);
+		}
+	}
+
+	stopEatingWhitespace();
+
+	consume(TOKEN_RIGHT_SQUARE,"Expected ']' at end of list expression.");
+}
+
 /**
  * @brief Parse an expression beginning with a set of square brackets.
  *
@@ -3322,6 +3377,10 @@ static void list(struct GlobalState * state, int exprType) {
 	if (!check(TOKEN_RIGHT_SQUARE)) {
 		KrkScanner scannerBefore = krk_tellScanner(&state->scanner);
 		Parser  parserBefore = state->parser;
+		if (match(TOKEN_ASTERISK)) {
+			finishStarList(state, 0);
+			return;
+		}
 		expression(state);
 
 		if (match(TOKEN_FOR)) {
@@ -3333,6 +3392,10 @@ static void list(struct GlobalState * state, int exprType) {
 		} else {
 			size_t argCount = 1;
 			while (match(TOKEN_COMMA) && !check(TOKEN_RIGHT_SQUARE)) {
+				if (match(TOKEN_ASTERISK)) {
+					finishStarList(state, argCount);
+					return;
+				}
 				expression(state);
 				argCount++;
 			}
@@ -3366,6 +3429,48 @@ static void setInner(struct GlobalState * state, size_t arg) {
 	EMIT_OPERAND_OP(OP_SET_ADD, arg);
 }
 
+static void finishStarSet(struct GlobalState * state, size_t args) {
+	EMIT_OPERAND_OP(OP_MAKE_SET, args);
+
+	parsePrecedence(state, PREC_BITOR);
+	emitByte(OP_SET_UPDATE_TOP);
+
+	while (match(TOKEN_COMMA) && !check(TOKEN_RIGHT_BRACE)) {
+		if (match(TOKEN_ASTERISK)) {
+			parsePrecedence(state, PREC_BITOR);
+			emitByte(OP_SET_UPDATE_TOP);
+		} else {
+			expression(state);
+			emitByte(OP_SET_ADD_TOP);
+		}
+	}
+
+	stopEatingWhitespace();
+	consume(TOKEN_RIGHT_BRACE,"Expected '}' at end of dict expression.");
+}
+
+static void finishStarDict(struct GlobalState * state, size_t args) {
+	EMIT_OPERAND_OP(OP_MAKE_DICT, args);
+
+	parsePrecedence(state, PREC_BITOR);
+	emitByte(OP_DICT_UPDATE_TOP);
+
+	while (match(TOKEN_COMMA) && !check(TOKEN_RIGHT_BRACE)) {
+		if (match(TOKEN_POW)) {
+			parsePrecedence(state, PREC_BITOR);
+			emitByte(OP_DICT_UPDATE_TOP);
+		} else {
+			expression(state);
+			consume(TOKEN_COLON, "Expected ':' after dict key.");
+			expression(state);
+			emitByte(OP_DICT_SET_TOP);
+		}
+	}
+
+	stopEatingWhitespace();
+	consume(TOKEN_RIGHT_BRACE,"Expected '}' at end of dict expression.");
+}
+
 /**
  * @brief Parse an expression beginning with a curly brace.
  *
@@ -3386,11 +3491,23 @@ static void dict(struct GlobalState * state, int exprType) {
 		KrkScanner scannerBefore = krk_tellScanner(&state->scanner);
 		Parser  parserBefore = state->parser;
 
+		if (match(TOKEN_ASTERISK)) {
+			finishStarSet(state, 0);
+			return;
+		} else if (match(TOKEN_POW)) {
+			finishStarDict(state, 0);
+			return;
+		}
+
 		expression(state);
 		if (check(TOKEN_COMMA) || check(TOKEN_RIGHT_BRACE)) {
 			/* One expression, must be a set literal. */
 			size_t argCount = 1;
 			while (match(TOKEN_COMMA) && !check(TOKEN_RIGHT_BRACE)) {
+				if (match(TOKEN_ASTERISK)) {
+					finishStarSet(state, argCount);
+					return;
+				}
 				expression(state);
 				argCount++;
 			}
@@ -3418,6 +3535,10 @@ static void dict(struct GlobalState * state, int exprType) {
 				 */
 				size_t argCount = 2;
 				while (match(TOKEN_COMMA) && !check(TOKEN_RIGHT_BRACE)) {
+					if (match(TOKEN_POW)) {
+						finishStarDict(state, argCount);
+						return;
+					}
 					expression(state);
 					consume(TOKEN_COLON, "Expected ':' after dict key.");
 					expression(state);
@@ -3437,6 +3558,7 @@ static void dict(struct GlobalState * state, int exprType) {
 }
 
 static void ternary(struct GlobalState * state, int exprType, RewindState *rewind) {
+	Parser before = state->parser;
 	rewindChunk(currentChunk(), rewind->before);
 
 	parsePrecedence(state, PREC_OR);
@@ -3457,6 +3579,11 @@ static void ternary(struct GlobalState * state, int exprType, RewindState *rewin
 	state->parser = rewind->oldParser;
 	parsePrecedence(state, PREC_OR);
 	patchJump(elseJump);
+
+	if (!check(TOKEN_IF)) {
+		state->parser = before;
+		error("syntax error");
+	}
 
 	krk_rewindScanner(&state->scanner, outScanner);
 	state->parser = outParser;
@@ -3531,6 +3658,10 @@ static void comma(struct GlobalState * state, int exprType, RewindState *rewind)
 	size_t expressionCount = 1;
 	do {
 		if (!getRule(state->parser.current.type)->prefix) break;
+		if (match(TOKEN_ASTERISK)) {
+			finishStarComma(state, expressionCount);
+			return;
+		}
 		expressionCount++;
 		parsePrecedence(state, PREC_TERNARY);
 	} while (match(TOKEN_COMMA));
@@ -3540,6 +3671,10 @@ static void comma(struct GlobalState * state, int exprType, RewindState *rewind)
 	if (exprType == EXPR_CAN_ASSIGN && match(TOKEN_EQUAL)) {
 		complexAssignment(state, rewind->before, rewind->oldScanner, rewind->oldParser, expressionCount, 0);
 	}
+}
+
+static void pstar(struct GlobalState * state, int exprType) {
+	finishStarComma(state,0);
 }
 
 static void call(struct GlobalState * state, int exprType, RewindState *rewind) {
@@ -3664,6 +3799,11 @@ static void parsePrecedence(struct GlobalState * state, Precedence precedence) {
 
 	advance();
 	ParsePrefixFn prefixRule = getRule(state->parser.previous.type)->prefix;
+
+	/* Only allow *expr parsing where we would allow comma expressions,
+	 * otherwise pretend this prefix rule doesn't exist. */
+	if (prefixRule == pstar && precedence > PREC_COMMA) prefixRule = NULL;
+
 	if (prefixRule == NULL) {
 		switch (state->parser.previous.type) {
 			case TOKEN_RIGHT_BRACE:
@@ -3900,7 +4040,7 @@ ParseRule krk_parseRules[] = {
 	RULE(BANG,          unary,    NULL,     PREC_NONE),
 	RULE(SOLIDUS,       NULL,     binary,   PREC_TERM),
 	RULE(DOUBLE_SOLIDUS,NULL,     binary,   PREC_TERM),
-	RULE(ASTERISK,      NULL,     binary,   PREC_TERM),
+	RULE(ASTERISK,      pstar,    binary,   PREC_TERM),
 	RULE(MODULO,        NULL,     binary,   PREC_TERM),
 	RULE(AT,            NULL,     binary,   PREC_TERM),
 	RULE(POW,           NULL,     binary,   PREC_EXPONENT),
