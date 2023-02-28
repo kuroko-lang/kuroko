@@ -1983,6 +1983,35 @@ extern FUNC_SIG(list,extend);
 extern FUNC_SIG(dict,update);
 extern FUNC_SIG(set,update);
 
+struct ex_unpack {
+	KrkTuple * output;
+	unsigned char before;
+	unsigned char after;
+	KrkValue list;
+	size_t total;
+};
+
+static int _unpack_ex(void * context, const KrkValue * values, size_t count) {
+	struct ex_unpack * ctx = context;
+
+	KrkTuple * output = ctx->output;
+
+	for (size_t i = 0; i < count; ++i) {
+		if (ctx->total < ctx->before) {
+			output->values.values[output->values.count++] = values[i];
+		} else if (ctx->total >= ctx->before) {
+			if (ctx->total == ctx->before) {
+				output->values.values[output->values.count++] = ctx->list;
+			}
+			FUNC_NAME(list,append)(2,(KrkValue[]){ctx->list,values[i]},0);
+		}
+		ctx->total++;
+	}
+
+	return 0;
+}
+
+
 static inline void makeCollection(NativeFn func, size_t count) {
 	KrkValue collection = krk_callNativeOnStack(count, &krk_currentThread.stackTop[-count], 0, func);
 	if (count) {
@@ -3044,6 +3073,62 @@ _finishPopBlock:
 					frame->closure->function->keywordArgNames.values[OPERAND]);
 				break;
 			}
+
+			case OP_UNPACK_EX_LONG:
+				THREE_BYTE_OPERAND;
+			case OP_UNPACK_EX: {
+				ONE_BYTE_OPERAND;
+				unsigned char before = OPERAND >> 8;
+				unsigned char after = OPERAND;
+
+				KrkValue sequence = krk_peek(0);
+				KrkTuple * values = krk_newTuple(before + after + 1);
+				krk_push(OBJECT_VAL(values));
+				KrkValue list = krk_list_of(0,NULL,0);
+				krk_push(list);
+
+
+				struct ex_unpack _context = { values, before, after, list, 0 };
+				if (unlikely(krk_unpackIterable(sequence, &_context, _unpack_ex))) {
+					goto _finishException;
+				}
+
+				if (values->values.count < before) {
+					krk_runtimeError(vm.exceptions->typeError, "not enough values to unpack (expected at least %u, got %zu)",
+						before+after, values->values.count);
+					goto _finishException;
+				}
+
+				if (values->values.count == before) {
+					values->values.values[values->values.count++] = list;
+				}
+
+				if (AS_LIST(list)->count < after) {
+					krk_runtimeError(vm.exceptions->typeError, "not enough values to unpack (expected at least %u, got %zu)",
+						before+after, values->values.count - 1 + AS_LIST(list)->count);
+					goto _finishException;
+				}
+
+				if (after) {
+					size_t more = after;
+					while (more) {
+						values->values.values[before+more] = AS_LIST(list)->values[--AS_LIST(list)->count];
+						more--;
+					}
+					values->values.count += after;
+				}
+
+				/* We no longer need the sequence */
+				krk_pop(); /* list */
+				krk_swap(1);
+				krk_pop();
+				for (size_t i = 1; i < values->values.count; ++i) {
+					krk_push(values->values.values[i]);
+				}
+				krk_currentThread.stackTop[-(ssize_t)(before + after + 1)] = values->values.values[0];
+				break;
+			}
+
 
 			default:
 				__builtin_unreachable();

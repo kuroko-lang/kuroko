@@ -113,8 +113,7 @@ struct GlobalState;
  * parser functions. The argument passed is the @ref ExpressionType
  * to compile the expression as.
  */
-typedef void (*ParsePrefixFn)(struct GlobalState *, int);
-typedef void (*ParseInfixFn)(struct GlobalState *, int, struct RewindState *);
+typedef void (*ParseFn)(struct GlobalState *, int, struct RewindState *);
 
 /**
  * @brief Parse rule table entry.
@@ -123,8 +122,8 @@ typedef void (*ParseInfixFn)(struct GlobalState *, int, struct RewindState *);
  * are for the infix parsing.
  */
 typedef struct {
-	ParsePrefixFn prefix;  /**< @brief Parse function to call when this token appears at the start of an expression. */
-	ParseInfixFn infix;    /**< @brief Parse function to call when this token appears after an expression. */
+	ParseFn prefix;  /**< @brief Parse function to call when this token appears at the start of an expression. */
+	ParseFn infix;   /**< @brief Parse function to call when this token appears after an expression. */
 	Precedence precedence; /**< @brief Precedence ordering for Pratt parsing, @ref Precedence */
 } ParseRule;
 
@@ -424,10 +423,10 @@ static void statement(struct GlobalState * state);
 static void declaration(struct GlobalState * state);
 static KrkToken classDeclaration(struct GlobalState * state);
 static void declareVariable(struct GlobalState * state);
-static void string(struct GlobalState * state, int exprType);
+static void string(struct GlobalState * state, int exprType, RewindState *rewind);
 static KrkToken decorator(struct GlobalState * state, size_t level, FunctionType type);
-static void complexAssignment(struct GlobalState * state, ChunkRecorder before, KrkScanner oldScanner, Parser oldParser, size_t targetCount, int parenthesized);
-static void complexAssignmentTargets(struct GlobalState * state, KrkScanner oldScanner, Parser oldParser, size_t targetCount, int parenthesized);
+static void complexAssignment(struct GlobalState * state, ChunkRecorder before, KrkScanner oldScanner, Parser oldParser, size_t targetCount, int parenthesized, size_t argBefore, size_t argAfter);
+static void complexAssignmentTargets(struct GlobalState * state, KrkScanner oldScanner, Parser oldParser, size_t targetCount, int parenthesized, size_t argBefore, size_t argAfter);
 static int invalidTarget(struct GlobalState * state, int exprType, const char * description);
 static void call(struct GlobalState * state, int exprType, RewindState *rewind);
 
@@ -780,7 +779,7 @@ static void defineVariable(struct GlobalState * state, size_t global) {
 	EMIT_OPERAND_OP(OP_DEFINE_GLOBAL, global);
 }
 
-static void number(struct GlobalState * state, int exprType) {
+static void number(struct GlobalState * state, int exprType, RewindState *rewind) {
 	const char * start = state->parser.previous.start;
 	invalidTarget(state, exprType, "literal");
 
@@ -1137,7 +1136,7 @@ static void dot(struct GlobalState * state, int exprType, RewindState *rewind) {
 	}
 }
 
-static void literal(struct GlobalState * state, int exprType) {
+static void literal(struct GlobalState * state, int exprType, RewindState *rewind) {
 	invalidTarget(state, exprType, "literal");
 	switch (state->parser.previous.type) {
 		case TOKEN_FALSE: emitByte(OP_FALSE); break;
@@ -1314,7 +1313,7 @@ static void block(struct GlobalState * state, size_t indentation, const char * b
 			advance();
 			if (!strcmp(blockName,"def") && (match(TOKEN_STRING) || match(TOKEN_BIG_STRING))) {
 				size_t before = currentChunk()->count;
-				string(state, EXPR_NORMAL);
+				string(state, EXPR_NORMAL, NULL);
 				/* That wrote to the chunk, rewind it; this should only ever go back two bytes
 				 * because this should only happen as the first thing in a function definition,
 				 * and thus this _should_ be the first constant and thus opcode + one-byte operand
@@ -1714,7 +1713,7 @@ static KrkToken classDeclaration(struct GlobalState * state) {
 			}
 			advance();
 			if (match(TOKEN_STRING) || match(TOKEN_BIG_STRING)) {
-				string(state, EXPR_NORMAL);
+				string(state, EXPR_NORMAL, NULL);
 				KrkToken doc = syntheticToken("__doc__");
 				size_t ind = identifierConstant(state, &doc);
 				EMIT_OPERAND_OP(OP_SET_NAME, ind);
@@ -1762,7 +1761,7 @@ _pop_class:
 	return classCompiler.name;
 }
 
-static void lambda(struct GlobalState * state, int exprType) {
+static void lambda(struct GlobalState * state, int exprType, RewindState *rewind) {
 	Compiler lambdaCompiler;
 	state->parser.previous = syntheticToken("<lambda>");
 	initCompiler(state, &lambdaCompiler, TYPE_LAMBDA);
@@ -2630,7 +2629,7 @@ static void statement(struct GlobalState * state) {
 	}
 }
 
-static void yield(struct GlobalState * state, int exprType) {
+static void yield(struct GlobalState * state, int exprType, RewindState *rewind) {
 	if (state->current->type == TYPE_MODULE ||
 		state->current->type == TYPE_INIT ||
 		state->current->type == TYPE_CLASS) {
@@ -2657,7 +2656,7 @@ static void yield(struct GlobalState * state, int exprType) {
 	invalidTarget(state, exprType, "yield");
 }
 
-static void await(struct GlobalState * state, int exprType) {
+static void await(struct GlobalState * state, int exprType, RewindState *rewind) {
 	if (!isCoroutine(state->current->type)) {
 		error("'await' outside async function");
 		return;
@@ -2674,13 +2673,13 @@ static void await(struct GlobalState * state, int exprType) {
 	invalidTarget(state, exprType, "await");
 }
 
-static void unot_(struct GlobalState * state, int exprType) {
+static void unot_(struct GlobalState * state, int exprType, RewindState *rewind) {
 	parsePrecedence(state, PREC_NOT);
 	emitByte(OP_NOT);
 	invalidTarget(state, exprType, "operator");
 }
 
-static void unary(struct GlobalState * state, int exprType) {
+static void unary(struct GlobalState * state, int exprType, RewindState *rewind) {
 	KrkTokenType operatorType = state->parser.previous.type;
 	parsePrecedence(state, PREC_FACTOR);
 	invalidTarget(state, exprType, "operator");
@@ -2721,7 +2720,7 @@ static int _pushHex(struct GlobalState * state, int isBytes, struct StringBuilde
 	return 0;
 }
 
-static void string(struct GlobalState * state, int exprType) {
+static void string(struct GlobalState * state, int exprType, RewindState *rewind) {
 	struct StringBuilder sb = {0};
 #define PUSH_CHAR(c) krk_pushStringBuilder(&sb, c)
 #define PUSH_HEX(n, type) _pushHex(state, isBytes, &sb, c, end, n, type)
@@ -3044,7 +3043,7 @@ static void namedVariable(struct GlobalState * state, KrkToken name, int exprTyp
 }
 #undef DO_VARIABLE
 
-static void variable(struct GlobalState * state, int exprType) {
+static void variable(struct GlobalState * state, int exprType, RewindState *rewind) {
 	namedVariable(state, state->parser.previous, exprType);
 }
 
@@ -3052,7 +3051,7 @@ static int isClassOrStaticMethod(FunctionType type) {
 	return (type == TYPE_STATIC || type == TYPE_CLASSMETHOD);
 }
 
-static void super_(struct GlobalState * state, int exprType) {
+static void super_(struct GlobalState * state, int exprType, RewindState *rewind) {
 	consume(TOKEN_LEFT_PAREN, "Expected 'super' to be called.");
 
 	/* Argument time */
@@ -3216,7 +3215,9 @@ static void comprehensionExpression(struct GlobalState * state, KrkScanner scann
 	emitBytes(OP_CALL, 0);
 }
 
-static void finishStarComma(struct GlobalState * state, size_t arg) {
+static size_t finishStarComma(struct GlobalState * state, size_t arg, size_t * argBefore, size_t *argAfter) {
+	*argBefore = arg;
+	*argAfter = 1;
 	EMIT_OPERAND_OP(OP_MAKE_LIST,arg);
 	parsePrecedence(state, PREC_BITOR);
 	emitByte(OP_LIST_EXTEND_TOP);
@@ -3226,8 +3227,10 @@ static void finishStarComma(struct GlobalState * state, size_t arg) {
 		 * or @c (*expr) without a trailing comma because Python does.
 		 * Catch that here specifically. */
 		error("* expression not valid here");
-		return;
+		return 0;
 	}
+
+	arg++;
 
 	while (match(TOKEN_COMMA)) {
 		if (!getRule(state->parser.current.type)->prefix) break;
@@ -3237,10 +3240,14 @@ static void finishStarComma(struct GlobalState * state, size_t arg) {
 		} else {
 			parsePrecedence(state, PREC_TERNARY);
 			emitByte(OP_LIST_APPEND_TOP);
+			(*argAfter)++;
 		}
+		arg++;
 	}
 
+
 	emitByte(OP_TUPLE_FROM_LIST);
+	return arg;
 }
 
 /**
@@ -3250,7 +3257,7 @@ static void finishStarComma(struct GlobalState * state, size_t arg) {
  *
  * @param exprType Assignment target type.
  */
-static void parens(struct GlobalState * state, int exprType) {
+static void parens(struct GlobalState * state, int exprType, RewindState *rewind) {
 	/* Record parser state before processing contents. */
 	ChunkRecorder before = recordChunk(currentChunk());
 	KrkScanner scannerBefore = krk_tellScanner(&state->scanner);
@@ -3264,6 +3271,8 @@ static void parens(struct GlobalState * state, int exprType) {
 	int maybeValidAssignment = 0;
 
 	size_t argCount = 0;
+	size_t argAfter = 0;
+	size_t argBefore = 0;
 
 	/* Whitespace is ignored inside of parens */
 	startEatingWhitespace();
@@ -3272,7 +3281,8 @@ static void parens(struct GlobalState * state, int exprType) {
 		/* Empty paren pair () is an empty tuple. */
 		emitBytes(OP_TUPLE,0);
 	} else if (match(TOKEN_ASTERISK)) {
-		finishStarComma(state, 0);
+		argCount = finishStarComma(state, 0, &argBefore, &argAfter);
+		maybeValidAssignment = 1;
 	} else {
 		parsePrecedence(state, PREC_CAN_ASSIGN);
 		maybeValidAssignment = 1;
@@ -3289,7 +3299,7 @@ static void parens(struct GlobalState * state, int exprType) {
 				/* (expr,) is a valid single-element tuple, so we need to check for that. */
 				do {
 					if (match(TOKEN_ASTERISK)) {
-						finishStarComma(state, argCount);
+						argCount = finishStarComma(state, argCount, &argBefore, &argAfter);
 						goto _done;
 					}
 					expression(state);
@@ -3316,7 +3326,7 @@ _done:
 		} else if (!maybeValidAssignment) {
 			error("Can not assign to generator expression.");
 		} else {
-			complexAssignment(state, before, scannerBefore, parserBefore, argCount, 1);
+			complexAssignment(state, before, scannerBefore, parserBefore, argCount, 1, argBefore, argAfter);
 		}
 	} else if (exprType == EXPR_ASSIGN_TARGET && (check(TOKEN_EQUAL) || check(TOKEN_COMMA) || check(TOKEN_RIGHT_PAREN))) {
 		if (!argCount) {
@@ -3325,7 +3335,7 @@ _done:
 			error("Can not assign to generator expression.");
 		} else {
 			rewindChunk(currentChunk(), before);
-			complexAssignmentTargets(state, scannerBefore, parserBefore, argCount, 2);
+			complexAssignmentTargets(state, scannerBefore, parserBefore, argCount, 2, argBefore, argAfter);
 			if (!matchComplexEnd(state)) {
 				errorAtCurrent("Unexpected end of nested target list");
 			}
@@ -3369,7 +3379,7 @@ static void finishStarList(struct GlobalState * state, size_t arg) {
  *
  * Square brackets in this context are either a list literal or a list comprehension.
  */
-static void list(struct GlobalState * state, int exprType) {
+static void list(struct GlobalState * state, int exprType, RewindState *rewind) {
 	ChunkRecorder before = recordChunk(currentChunk());
 
 	startEatingWhitespace();
@@ -3482,7 +3492,7 @@ static void finishStarDict(struct GlobalState * state, size_t args) {
  * whether we set a colon after parsing the first inner
  * expression.
  */
-static void dict(struct GlobalState * state, int exprType) {
+static void dict(struct GlobalState * state, int exprType, RewindState *rewind) {
 	ChunkRecorder before = recordChunk(currentChunk());
 
 	startEatingWhitespace();
@@ -3589,13 +3599,19 @@ static void ternary(struct GlobalState * state, int exprType, RewindState *rewin
 	state->parser = outParser;
 }
 
-static void complexAssignmentTargets(struct GlobalState * state, KrkScanner oldScanner, Parser oldParser, size_t targetCount, int parenthesized) {
+static void complexAssignmentTargets(struct GlobalState * state, KrkScanner oldScanner, Parser oldParser, size_t targetCount, int parenthesized, size_t argBefore, size_t argAfter) {
 	emitBytes(OP_DUP, 0);
 
-	if (targetCount > 0) {
+	if (argAfter) {
+		if (argBefore > 255  || argAfter > 256) {
+			error("Too many assignment targets");
+			return;
+		}
+		EMIT_OPERAND_OP(OP_UNPACK_EX,((argBefore << 8) | (argAfter-1)));
+	} else {
 		EMIT_OPERAND_OP(OP_UNPACK,targetCount);
-		EMIT_OPERAND_OP(OP_REVERSE,targetCount);
 	}
+	EMIT_OPERAND_OP(OP_REVERSE,targetCount);
 
 	/* Rewind */
 	krk_rewindScanner(&state->scanner, oldScanner);
@@ -3603,8 +3619,16 @@ static void complexAssignmentTargets(struct GlobalState * state, KrkScanner oldS
 
 	/* Parse assignment targets */
 	size_t checkTargetCount = 0;
+	int seenStar = 0;
 	do {
 		checkTargetCount++;
+		if (match(TOKEN_ASTERISK)) {
+			if (seenStar) {
+				errorAtCurrent("multiple *expr in assignment");
+				return;
+			}
+			seenStar = 1;
+		}
 		parsePrecedence(state, PREC_MUST_ASSIGN);
 		emitByte(OP_POP);
 
@@ -3638,7 +3662,7 @@ _errorAtCurrent:
 	errorAtCurrent("Invalid complex assignment target");
 }
 
-static void complexAssignment(struct GlobalState * state, ChunkRecorder before, KrkScanner oldScanner, Parser oldParser, size_t targetCount, int parenthesized) {
+static void complexAssignment(struct GlobalState * state, ChunkRecorder before, KrkScanner oldScanner, Parser oldParser, size_t targetCount, int parenthesized, size_t argBefore, size_t argAfter) {
 
 	rewindChunk(currentChunk(), before);
 	parsePrecedence(state, PREC_ASSIGNMENT);
@@ -3647,7 +3671,7 @@ static void complexAssignment(struct GlobalState * state, ChunkRecorder before, 
 	KrkScanner outScanner = krk_tellScanner(&state->scanner);
 	Parser outParser = state->parser;
 
-	complexAssignmentTargets(state, oldScanner,oldParser,targetCount,parenthesized);
+	complexAssignmentTargets(state, oldScanner,oldParser,targetCount,parenthesized, argBefore, argAfter);
 
 	/* Restore end state */
 	krk_rewindScanner(&state->scanner, outScanner);
@@ -3656,10 +3680,13 @@ static void complexAssignment(struct GlobalState * state, ChunkRecorder before, 
 
 static void comma(struct GlobalState * state, int exprType, RewindState *rewind) {
 	size_t expressionCount = 1;
+	size_t argBefore = 0;
+	size_t argAfter = 0;
 	do {
 		if (!getRule(state->parser.current.type)->prefix) break;
 		if (match(TOKEN_ASTERISK)) {
-			finishStarComma(state, expressionCount);
+			expressionCount = finishStarComma(state, expressionCount, &argBefore, &argAfter);
+			goto _maybeassign;
 			return;
 		}
 		expressionCount++;
@@ -3668,13 +3695,19 @@ static void comma(struct GlobalState * state, int exprType, RewindState *rewind)
 
 	EMIT_OPERAND_OP(OP_TUPLE,expressionCount);
 
+_maybeassign: (void)0;
 	if (exprType == EXPR_CAN_ASSIGN && match(TOKEN_EQUAL)) {
-		complexAssignment(state, rewind->before, rewind->oldScanner, rewind->oldParser, expressionCount, 0);
+		complexAssignment(state, rewind->before, rewind->oldScanner, rewind->oldParser, expressionCount, 0, argBefore, argAfter);
 	}
 }
 
-static void pstar(struct GlobalState * state, int exprType) {
-	finishStarComma(state,0);
+static void pstar(struct GlobalState * state, int exprType, RewindState *rewind) {
+	size_t argBefore = 0;
+	size_t argAfter = 0;
+	size_t totalArgs = finishStarComma(state,0, &argBefore, &argAfter);
+	if (exprType == EXPR_CAN_ASSIGN && match(TOKEN_EQUAL)) {
+		complexAssignment(state, rewind->before, rewind->oldScanner, rewind->oldParser, totalArgs, 0, argBefore, argAfter);
+	}
 }
 
 static void call(struct GlobalState * state, int exprType, RewindState *rewind) {
@@ -3798,7 +3831,7 @@ static void parsePrecedence(struct GlobalState * state, Precedence precedence) {
 	RewindState rewind = {recordChunk(currentChunk()), krk_tellScanner(&state->scanner), state->parser};
 
 	advance();
-	ParsePrefixFn prefixRule = getRule(state->parser.previous.type)->prefix;
+	ParseFn prefixRule = getRule(state->parser.previous.type)->prefix;
 
 	/* Only allow *expr parsing where we would allow comma expressions,
 	 * otherwise pretend this prefix rule doesn't exist. */
@@ -3829,7 +3862,7 @@ static void parsePrecedence(struct GlobalState * state, Precedence precedence) {
 	if (precedence <= PREC_ASSIGNMENT || precedence == PREC_CAN_ASSIGN) exprType = EXPR_CAN_ASSIGN;
 	if (precedence == PREC_MUST_ASSIGN) exprType = EXPR_ASSIGN_TARGET;
 	if (precedence == PREC_DEL_TARGET) exprType = EXPR_DEL_TARGET;
-	prefixRule(state, exprType);
+	prefixRule(state, exprType, &rewind);
 	while (precedence <= getRule(state->parser.current.type)->precedence) {
 		if (state->parser.hadError) {
 			skipToEnd();
@@ -3839,7 +3872,7 @@ static void parsePrecedence(struct GlobalState * state, Precedence precedence) {
 		if (exprType == EXPR_ASSIGN_TARGET && (state->parser.previous.type == TOKEN_COMMA ||
 			state->parser.previous.type == TOKEN_EQUAL)) break;
 		advance();
-		ParseInfixFn infixRule = getRule(state->parser.previous.type)->infix;
+		ParseFn infixRule = getRule(state->parser.previous.type)->infix;
 		infixRule(state, exprType, &rewind);
 	}
 
@@ -3872,7 +3905,7 @@ static int maybeSingleExpression(struct GlobalState * state) {
 			state->parser = rewind.oldParser;
 			advance();
 			/* Parse the string. */
-			string(state, EXPR_NORMAL);
+			string(state, EXPR_NORMAL, NULL);
 			/* If we did see end of input, it's a simple string expression. */
 			if (isEof) return 1;
 			/* Otherwise, it's a docstring, and there's more code following it.
