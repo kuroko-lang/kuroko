@@ -21,6 +21,10 @@ KRKMODS  = $(wildcard modules/*.krk modules/*/*.krk modules/*/*/*.krk)
 
 all: ${TARGET} ${MODULES} ${TOOLS} ${GENMODS}
 
+ifneq ($(shell tools/can-floor-without-libm.sh $(CC)),yes)
+  LDLIBS += -lm
+endif
+
 ifeq (,$(findstring mingw,$(CC)))
   CFLAGS  += -pthread
   LDLIBS  += -ldl -lpthread
