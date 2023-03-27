@@ -309,8 +309,14 @@ int krk_parseVArgs(
 				float * out = va_arg(args, float*);
 				if (arg != KWARGS_VAL(0)) {
 					if (!IS_FLOATING(arg)) {
-						TYPE_ERROR(float,arg);
-						goto _error;
+						KrkClass * type = krk_getType(arg);
+						krk_push(arg);
+						if (!krk_bindMethod(type, S("__float__"))) {
+							krk_pop();
+							TYPE_ERROR(float,arg);
+							goto _error;
+						}
+						arg = krk_callStack(0);
 					}
 					*out = AS_FLOATING(arg);
 				}
@@ -324,8 +330,14 @@ int krk_parseVArgs(
 				double * out = va_arg(args, double*);
 				if (arg != KWARGS_VAL(0)) {
 					if (!IS_FLOATING(arg)) {
-						TYPE_ERROR(float,arg);
-						goto _error;
+						KrkClass * type = krk_getType(arg);
+						krk_push(arg);
+						if (!krk_bindMethod(type, S("__float__"))) {
+							krk_pop();
+							TYPE_ERROR(float,arg);
+							goto _error;
+						}
+						arg = krk_callStack(0);
 					}
 					*out = AS_FLOATING(arg);
 				}
