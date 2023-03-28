@@ -38,11 +38,13 @@
 	return NONE_VAL(); \
 }
 
+extern KrkValue krk_int_from_float(double val);
+
 #define MATH_DELEGATE(func) \
 static KrkValue _math_ ## func(int argc, const KrkValue argv[], int hasKw) { \
 	ONE_ARGUMENT(func) \
 	if (IS_FLOATING(argv[0])) { \
-		return INTEGER_VAL(func(AS_FLOATING(argv[0]))); \
+		return krk_int_from_float(func(AS_FLOATING(argv[0]))); \
 	} else if (IS_INTEGER(argv[0])) { \
 		return argv[0]; /* no op */ \
 	} else { \
