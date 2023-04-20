@@ -17,27 +17,46 @@
 extern KrkValue krk_int_from_float(double val);
 
 KRK_StaticMethod(int,__new__) {
-	METHOD_TAKES_AT_MOST(2);
-	if (argc < 2) return INTEGER_VAL(0);
-	if (IS_BOOLEAN(argv[1])) return INTEGER_VAL(AS_INTEGER(argv[1]));
-	if (IS_INTEGER(argv[1])) return argv[1];
-	if (IS_STRING(argv[1])) {
-		krk_integer_type _base = 10;
-		if (argc > 2) {
-			CHECK_ARG(2,int,krk_integer_type,base);
-			_base = base;
-		}
-		if (unlikely(_base < 0 || _base == 1 || _base > 36)) return krk_runtimeError(vm.exceptions->valueError, "base must be 0 or between 2 and 36");
-		KrkValue result = krk_parse_int(AS_CSTRING(argv[1]), AS_STRING(argv[1])->length, _base);
+	KrkObj *cls;
+	int has_x = 0;
+	KrkValue x = NONE_VAL();
+	int has_base = 0;
+	int base = 10;
+
+	if (!krk_parseArgs("O|V?i?:int", (const char*[]){"cls","x","base"},
+		&cls, &has_x, &x, &has_base, &base)) return NONE_VAL();
+
+	if (has_base && (base < 2 || base > 36) && base != 0) {
+		return krk_runtimeError(vm.exceptions->valueError, "base must be 0 or between 2 and 36");
+	}
+
+	if (!has_x && has_base) {
+		return krk_runtimeError(vm.exceptions->typeError, "missing str argument");
+	}
+
+	if (!has_x) {
+		return INTEGER_VAL(0);
+	}
+
+	if (has_base && !IS_STRING(x)) {
+		return krk_runtimeError(vm.exceptions->typeError, "can not convert non-str with explicit base");
+	}
+
+	if (IS_STRING(x)) {
+		KrkValue result = krk_parse_int(AS_CSTRING(x), AS_STRING(x)->length, base);
 		if (IS_NONE(result)) {
 			return krk_runtimeError(vm.exceptions->valueError,
-				"invalid literal for int() with base %zd: %R", (ssize_t)_base, argv[1]);
+				"invalid literal for int() with base %zd: %R", (ssize_t)base, x);
 		}
 		return result;
 	}
-	if (IS_FLOATING(argv[1])) return krk_int_from_float(AS_FLOATING(argv[1]));
-	if (IS_BOOLEAN(argv[1])) return INTEGER_VAL(AS_BOOLEAN(argv[1]));
-	return krk_runtimeError(vm.exceptions->typeError, "%s() argument must be a string or a number, not '%T'", "int", argv[1]);
+
+	if (IS_BOOLEAN(x)) return INTEGER_VAL(AS_INTEGER(x));
+	if (IS_INTEGER(x)) return x;
+	if (krk_isInstanceOf(x, KRK_BASE_CLASS(long))) return x;
+	if (IS_FLOATING(x)) return krk_int_from_float(AS_FLOATING(x));
+	if (IS_BOOLEAN(x)) return INTEGER_VAL(AS_BOOLEAN(x));
+	return krk_runtimeError(vm.exceptions->typeError, "%s() argument must be a string or a number, not '%T'", "int", x);
 }
 
 KRK_Method(int,__str__) {
