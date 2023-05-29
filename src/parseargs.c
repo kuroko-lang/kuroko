@@ -302,6 +302,7 @@ int krk_parseVArgs(
 				break;
 			}
 
+#ifndef KRK_NO_FLOAT
 			/**
 			 * @c f   Accept a Kuroko float as C float.
 			 */
@@ -343,6 +344,12 @@ int krk_parseVArgs(
 				}
 				break;
 			}
+#else
+			case 'f':
+			case 'd':
+				krk_runtimeError(vm.exceptions->typeError, "no float support");
+				goto _error;
+#endif
 
 			/**
 			 * @c p   Accept any value and examine its truthiness, returning an @c int.

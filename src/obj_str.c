@@ -101,7 +101,11 @@ KRK_Method(str,__int__) {
 /* str.__float__() */
 KRK_Method(str,__float__) {
 	METHOD_TAKES_NONE();
+#ifndef KRK_NO_FLOAT
 	return FLOATING_VAL(strtod(AS_CSTRING(argv[0]),NULL));
+#else
+	return krk_runtimeError(vm.exceptions->valueError, "no float support");
+#endif
 }
 
 KRK_Method(str,__getitem__) {

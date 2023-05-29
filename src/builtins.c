@@ -1217,9 +1217,11 @@ KRK_Function(abs) {
 	if (IS_INTEGER(argv[0])) {
 		krk_integer_type i = AS_INTEGER(argv[0]);
 		return INTEGER_VAL(i >= 0 ? i : -i);
+#ifndef KRK_NO_FLOAT
 	} else if (IS_FLOATING(argv[0])) {
 		double i = AS_FLOATING(argv[0]);
 		return FLOATING_VAL(i >= 0 ? i : -i);
+#endif
 	} else {
 		trySlowMethod(OBJECT_VAL(S("__abs__")));
 		return krk_runtimeError(vm.exceptions->typeError, "bad operand type for 'abs()': '%T'", argv[0]);

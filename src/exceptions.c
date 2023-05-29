@@ -273,7 +273,7 @@ static void dumpInnerException(KrkValue exception, int depth) {
 					lineNo,
 					(function->name ? function->name->chars : "(unnamed)"));
 
-#ifndef NO_SOURCE_IN_TRACEBACK
+#ifndef KRK_NO_SOURCE_IN_TRACEBACK
 			/* Try to open the file */
 			if (function->chunk.filename) {
 				FILE * f = fopen(function->chunk.filename->chars, "r");

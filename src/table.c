@@ -9,7 +9,7 @@
 #include <kuroko/threads.h>
 #include <kuroko/util.h>
 
-#define TABLE_MAX_LOAD 0.75
+#define TABLE_MAX_LOAD 3 / 4
 
 void krk_initTable(KrkTable * table) {
 	table->count = 0;
@@ -38,8 +38,12 @@ inline int krk_hashValue(KrkValue value, uint32_t *hashOut) {
 			}
 			break;
 		default:
+#ifndef KRK_NO_FLOAT
 			*hashOut = (uint32_t)AS_FLOATING(value);
 			return 0;
+#else
+			break;
+#endif
 	}
 	KrkClass * type = krk_getType(value);
 	if (type && type->_hash) {

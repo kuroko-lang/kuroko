@@ -864,7 +864,9 @@ int krk_isFalsey(KrkValue value) {
 			break;
 		}
 		default:
+#ifndef KRK_NO_FLOAT
 			if (IS_FLOATING(value)) return !AS_FLOATING(value);
+#endif
 			break;
 	}
 	KrkClass * type = krk_getType(value);
@@ -2994,7 +2996,7 @@ _finishPopBlock:
 			case OP_REVERSE: {
 				ONE_BYTE_OPERAND;
 				krk_push(NONE_VAL()); /* Storage space */
-				for (ssize_t i = 0; i < OPERAND / 2; ++i) {
+				for (ssize_t i = 0; i < (ssize_t)OPERAND / 2; ++i) {
 					krk_currentThread.stackTop[-1] = krk_currentThread.stackTop[-i-2];
 					krk_currentThread.stackTop[-i-2] = krk_currentThread.stackTop[-(OPERAND-i)-1];
 					krk_currentThread.stackTop[-(OPERAND-i)-1] = krk_currentThread.stackTop[-1];
@@ -3046,7 +3048,7 @@ _finishPopBlock:
 
 				struct StringBuilder sb = {0};
 
-				for (ssize_t i = 0; i < OPERAND; ++i) {
+				for (ssize_t i = 0; i < (ssize_t)OPERAND; ++i) {
 					KrkValue s = krk_currentThread.stackTop[-(ssize_t)OPERAND+i];
 					if (unlikely(!IS_STRING(s))) {
 						discardStringBuilder(&sb);
@@ -3056,7 +3058,7 @@ _finishPopBlock:
 					pushStringBuilderStr(&sb, (char*)AS_STRING(s)->chars, AS_STRING(s)->length);
 				}
 
-				for (ssize_t i = 0; i < OPERAND; ++i) {
+				for (ssize_t i = 0; i < (ssize_t)OPERAND; ++i) {
 					krk_pop();
 				}
 

@@ -1298,6 +1298,7 @@ KRK_StaticMethod(long,__new__) {
 	}
 }
 
+#ifndef KRK_NO_FLOAT
 /**
  * Float conversions.
  *
@@ -1389,6 +1390,7 @@ KRK_Method(long,__rtruediv__) {
 	else return NOTIMPL_VAL();
 	return _krk_long_truediv(tmp,self->value);
 }
+#endif
 
 #define PRINTER(name,base,prefix) \
 	KRK_Method(long,__ ## name ## __) { \
@@ -1473,8 +1475,13 @@ KRK_Method(long,__int__) {
 	}
 
 #define BASIC_BIN_OP(a,b) BASIC_BIN_OP_FLOATS(a,b,,)
+#ifndef KRK_NO_FLOAT
 #define FLOAT_A(op) else if (IS_FLOATING(argv[1])) return FLOATING_VAL(krk_long_get_double(self->value) op AS_FLOATING(argv[1]));
 #define FLOAT_B(op) else if (IS_FLOATING(argv[1])) return FLOATING_VAL(AS_FLOATING(argv[1]) op krk_long_get_double(self->value));
+#else
+#define FLOAT_A(op) else if (IS_FLOATING(argv[1])) return krk_runtimeError(vm.exceptions->valueError, "no float support");
+#define FLOAT_B(op) else if (IS_FLOATING(argv[1])) return krk_runtimeError(vm.exceptions->valueError, "no float support");
+#endif
 #define BASIC_BIN_OP_FLOAT(a,b,op) BASIC_BIN_OP_FLOATS(a,b,FLOAT_A(op),FLOAT_B(op))
 
 BASIC_BIN_OP_FLOAT(add,krk_long_add,+)
@@ -1583,12 +1590,18 @@ BASIC_BIN_OP(mod,_krk_long_mod)
 BASIC_BIN_OP(floordiv,_krk_long_div)
 BASIC_BIN_OP(pow,_krk_long_pow)
 
+#ifndef KRK_NO_FLOAT
+#define KRK_FLOAT_COMPARE(comp) else if (IS_FLOATING(argv[1])) return BOOLEAN_VAL(krk_long_get_double(self->value) comp AS_FLOATING(argv[1]));
+#else
+#define KRK_FLOAT_COMPARE(comp)
+#endif
+
 #define COMPARE_OP(name, comp) \
 	KRK_Method(long,__ ## name ## __) { \
 		krk_long tmp; \
 		if (IS_long(argv[1])) krk_long_init_copy(tmp, AS_long(argv[1])->value); \
 		else if (IS_INTEGER(argv[1])) krk_long_init_si(tmp, AS_INTEGER(argv[1])); \
-		else if (IS_FLOATING(argv[1])) return BOOLEAN_VAL(krk_long_get_double(self->value) comp AS_FLOATING(argv[1])); \
+		KRK_FLOAT_COMPARE(comp) \
 		else return NOTIMPL_VAL(); \
 		int cmp = krk_long_compare(self->value,tmp); \
 		krk_long_clear(tmp); \
@@ -2047,7 +2060,6 @@ void _createAndBind_longClass(void) {
 	BIND_METHOD(long,__bin__);
 	BIND_METHOD(long,__int__);
 	BIND_METHOD(long,__len__);
-	BIND_METHOD(long,__float__);
 	BIND_METHOD(long,__pos__);
 	krk_defineNative(&_long->methods,"__repr__", FUNC_NAME(long,__str__));
 
@@ -2060,9 +2072,13 @@ void _createAndBind_longClass(void) {
 	BIND_TRIPLET(long,lshift);
 	BIND_TRIPLET(long,rshift);
 	BIND_TRIPLET(long,mod);
-	BIND_TRIPLET(long,truediv);
 	BIND_TRIPLET(long,floordiv);
 	BIND_TRIPLET(long,pow);
+
+#ifndef KRK_NO_FLOAT
+	BIND_METHOD(long,__float__);
+	BIND_TRIPLET(long,truediv);
+#endif
 
 	BIND_METHOD(long,__lt__);
 	BIND_METHOD(long,__gt__);
