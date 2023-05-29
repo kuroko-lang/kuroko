@@ -358,7 +358,7 @@ struct DictValues {
  */
 struct KrkModule {
 	KrkInstance inst;
-#ifndef STATIC_ONLY
+#ifndef KRK_STATIC_ONLY
 	dlRefType libHandle;
 #endif
 };

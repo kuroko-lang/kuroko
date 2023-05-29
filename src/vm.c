@@ -1267,7 +1267,7 @@ int krk_loadModule(KrkString * path, KrkValue * moduleOut, KrkString * runAs, Kr
 			goto _normalFile;
 		}
 
-#ifndef STATIC_ONLY
+#ifndef KRK_STATIC_ONLY
 		/* Try .../path.so */
 		krk_pop();
 		krk_push(AS_LIST(modulePaths)->values[i]);
@@ -1330,7 +1330,7 @@ int krk_loadModule(KrkString * path, KrkValue * moduleOut, KrkString * runAs, Kr
 		krk_push(*moduleOut);
 		return 1;
 
-#ifndef STATIC_ONLY
+#ifndef KRK_STATIC_ONLY
 	_sharedObject: (void)0;
 
 		dlRefType dlRef = dlOpen(fileName);

@@ -1250,7 +1250,7 @@ KRK_Function(format) {
 }
 
 static void module_sweep(KrkInstance * inst) {
-#ifndef STATIC_ONLY
+#ifndef KRK_STATIC_ONLY
 	struct KrkModule * module = (struct KrkModule*)inst;
 	if (module->libHandle) {
 		dlClose(module->libHandle);

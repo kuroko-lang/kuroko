@@ -12,7 +12,7 @@ typedef int64_t krk_integer_type;
 
 #ifndef _WIN32
 # define PATH_SEP "/"
-# ifndef STATIC_ONLY
+# ifndef KRK_STATIC_ONLY
 #  include <dlfcn.h>
 #  define dlRefType void *
 #  define dlSymType void *
@@ -23,7 +23,7 @@ typedef int64_t krk_integer_type;
 #else
 # include <windows.h>
 # define PATH_SEP "\\"
-# ifndef STATIC_ONLY
+# ifndef KRK_STATIC_ONLY
 #  define dlRefType HINSTANCE
 #  define dlSymType FARPROC
 #  define dlOpen(fileName) LoadLibraryA(fileName)
