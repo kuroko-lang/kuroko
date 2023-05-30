@@ -590,8 +590,10 @@ KRK_Method(str,__mod__) {
 
 				if (IS_INTEGER(arg)) {
 					krk_push(INTEGER_VAL(AS_INTEGER(arg)));
+#ifndef KRK_NO_FLOAT
 				} else if (IS_FLOATING(arg)) {
 					krk_push(INTEGER_VAL(AS_FLOATING(arg)));
+#endif
 				} else {
 					krk_runtimeError(vm.exceptions->typeError, "%%i format: a number is required, not '%T'", arg);
 					goto _exception;
