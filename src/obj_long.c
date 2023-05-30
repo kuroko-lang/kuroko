@@ -1267,7 +1267,9 @@ static void _long_gcsweep(KrkInstance * self) {
 	krk_long_clear(((struct BigInt*)self)->value);
 }
 
+#ifndef KRK_NO_FLOAT
 KrkValue krk_int_from_float(double val);
+#endif
 
 KRK_StaticMethod(long,__new__) {
 	FUNCTION_TAKES_AT_MOST(2);
@@ -1278,8 +1280,10 @@ KRK_StaticMethod(long,__new__) {
 		return make_long(AS_INTEGER(argv[1]));
 	} else if (IS_BOOLEAN(argv[1])) {
 		return make_long(AS_BOOLEAN(argv[1]));
+#ifndef KRK_NO_FLOAT
 	} else if (IS_FLOATING(argv[1])) {
 		return krk_int_from_float(AS_FLOATING(argv[1]));
+#endif
 	} else if (IS_STRING(argv[1])) {
 		/* XXX This should probably work like int(...) does and default to base 10... and take a base at all... */
 		struct BigInt * self = (struct BigInt*)krk_newInstance(KRK_BASE_CLASS(long));
@@ -1917,6 +1921,7 @@ KRK_Method(long,_get_digit) {
 	return INTEGER_VAL(_self->digits[index]);
 }
 
+#ifndef KRK_NO_FLOAT
 KrkValue krk_int_from_float(double val) {
 	union { double asDbl; uint64_t asInt; } u = {val};
 
@@ -1943,6 +1948,7 @@ KrkValue krk_int_from_float(double val) {
 	krk_long_set_sign(&_value, sign == 1 ? -1 : 1);
 	return make_long_obj(&_value);
 }
+#endif
 
 /**
  * @brief Convert an int or long to a C integer.
