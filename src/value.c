@@ -84,7 +84,9 @@ void krk_printValueSafe(FILE * f, KrkValue printable) {
 				break;
 			}
 			default:
+#ifndef KRK_NO_FLOAT
 				if (IS_FLOATING(printable)) fprintf(f, "%.16g", AS_FLOATING(printable));
+#endif
 				break;
 		}
 	} else if (IS_STRING(printable)) {
