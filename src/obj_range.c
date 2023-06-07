@@ -79,6 +79,22 @@ KRK_Method(range,__iter__) {
 	return OBJECT_VAL(output);
 }
 
+KRK_Method(range,__contains__) {
+	int i;
+	if (!krk_parseArgs(".i", (const char*[]){"i"}, &i)) return NONE_VAL();
+	if (self->step == 1) return BOOLEAN_VAL(i >= self->min && i < self->max);
+	if (self->step == -1) return BOOLEAN_VAL(i <= self->min && i > self->max);
+	if (self->step > 0) {
+		if (i >= self->max || i < self->min) return BOOLEAN_VAL(0);
+		if ((i - self->min) % self->step) return BOOLEAN_VAL(0);
+		return BOOLEAN_VAL(1);
+	} else {
+		if (i <= self->max || i > self->min) return BOOLEAN_VAL(0);
+		if ((i - self->min) % -self->step) return BOOLEAN_VAL(0);
+		return BOOLEAN_VAL(1);
+	}
+}
+
 #undef CURRENT_CTYPE
 #define CURRENT_CTYPE struct RangeIterator *
 
@@ -117,6 +133,7 @@ void _createAndBind_rangeClass(void) {
 		"With three arguments, a @p step may also be included.");
 	BIND_METHOD(range,__iter__);
 	BIND_METHOD(range,__repr__);
+	BIND_METHOD(range,__contains__);
 	KRK_DOC(range, "@brief Iterable object that produces sequential numeric values.");
 	krk_finalizeClass(range);
 
