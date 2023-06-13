@@ -203,7 +203,7 @@ KRK_StaticMethod(object,__new__) {
 		_cls = _cls->base;
 	}
 
-	if (_argc && _class->_init == vm.baseClasses->objectClass->_init) {
+	if (_class->_init == vm.baseClasses->objectClass->_init && (_argc || (hasKw && AS_DICT(argv[argc])->count))) {
 		return krk_runtimeError(vm.exceptions->typeError, "%S() takes no arguments", _class->name);
 	}
 
