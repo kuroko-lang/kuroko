@@ -2744,6 +2744,7 @@ _finishReturn: (void)0;
 					krk_push(OBJECT_VAL(name));
 					krk_addObjects();
 					if (!krk_doRecursiveModuleLoad(AS_STRING(krk_peek(0)))) {
+						krk_currentThread.flags &= ~KRK_THREAD_HAS_EXCEPTION;
 						krk_runtimeError(vm.exceptions->importError, "Can not import '%S' from '%S'", name, AS_STRING(moduleName));
 						goto _finishException;
 					}
