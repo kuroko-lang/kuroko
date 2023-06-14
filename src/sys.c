@@ -179,6 +179,28 @@ KRK_Function(inspect_value) {
 	return OBJECT_VAL(krk_newBytes(sizeof(KrkValue),(uint8_t*)&argv[0]));
 }
 
+KRK_Function(members) {
+	KrkValue val;
+	if (!krk_parseArgs("V", (const char*[]){"obj"}, &val)) return NONE_VAL();
+
+	KrkValue myDict = krk_dict_of(0,NULL,0);
+	krk_push(myDict);
+
+	KrkTable * src = NULL;
+
+	if (IS_INSTANCE(val) || IS_CLASS(val)) {
+		src = &AS_INSTANCE(val)->fields;
+	} else if (IS_CLOSURE(val)) {
+		src = &AS_CLOSURE(val)->fields;
+	}
+
+	if (src) {
+		krk_tableAddAll(src, AS_DICT(myDict));
+	}
+
+	return krk_pop();
+}
+
 void krk_module_init_kuroko(void) {
 	/**
 	 * kuroko = module()
@@ -226,6 +248,8 @@ void krk_module_init_kuroko(void) {
 		"Removes a module from the module table. It is not necessarily garbage collected if other references to it exist.");
 	KRK_DOC(BIND_FUNC(vm.system,inspect_value),
 		"Obtain the memory representation of a stack value.");
+	KRK_DOC(BIND_FUNC(vm.system,members),
+		"Obtain a copy of a dict of the direct members of an object.");
 	krk_attachNamedObject(&vm.system->fields, "module", (KrkObj*)vm.baseClasses->moduleClass);
 	krk_attachNamedObject(&vm.system->fields, "path_sep", (KrkObj*)S(PATH_SEP));
 	KrkValue module_paths = krk_list_of(0,NULL,0);
