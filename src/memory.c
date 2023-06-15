@@ -269,7 +269,7 @@ static void freeObject(KrkObj * object) {
 	}
 }
 
-void krk_freeObjects() {
+void krk_freeObjects(void) {
 	KrkObj * object = vm.objects;
 	KrkObj * other = NULL;
 
