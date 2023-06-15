@@ -14,6 +14,9 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 #endif
+#ifdef AF_UNIX
+#include <sys/un.h>
+#endif
 #include <errno.h>
 
 #include <kuroko/vm.h>
@@ -113,7 +116,7 @@ static int socket_parse_address(struct socket * self, KrkValue address, struct s
 			return 1;
 		}
 		if (!IS_str(addr->values.values[0])) {
-			krk_runtimeError(vm.exceptions->typeError, "Address should be int, not '%T'", addr->values.values[0]);
+			krk_runtimeError(vm.exceptions->typeError, "Address should be str, not '%T'", addr->values.values[0]);
 			return 1;
 		}
 		if (!IS_int(addr->values.values[1])) {
@@ -162,6 +165,87 @@ static int socket_parse_address(struct socket * self, KrkValue address, struct s
 
 			return 0;
 		}
+#ifdef AF_INET6
+	} else if (self->family == AF_INET6) {
+		/* Should be 2-tuple */
+		if (!IS_tuple(address)) {
+			krk_runtimeError(vm.exceptions->typeError, "Expected 2-tuple, not '%T'", address);
+			return 1;
+		}
+		KrkTuple * addr = AS_TUPLE(address);
+		if (addr->values.count != 2) {
+			krk_runtimeError(vm.exceptions->typeError, "Expected 2-tuple, not '%T'", address);
+			return 1;
+		}
+		if (!IS_str(addr->values.values[0])) {
+			krk_runtimeError(vm.exceptions->typeError, "Address should be str, not '%T'", addr->values.values[0]);
+			return 1;
+		}
+		if (!IS_int(addr->values.values[1])) {
+			krk_runtimeError(vm.exceptions->typeError, "Port should be int, not '%T'", addr->values.values[1]);
+			return 1;
+		}
+
+		if (!AS_STRING(addr->values.values[0])->length) {
+			struct sockaddr_in6 * sin = (struct sockaddr_in6*)sock_addr;
+			*sock_size = sizeof(struct sockaddr_in6);
+			sin->sin6_family = AF_INET6;
+			sin->sin6_port = htons(AS_int(addr->values.values[1]));
+			sin->sin6_addr = in6addr_any;
+			return 0;
+		} else {
+			struct addrinfo *result;
+			struct addrinfo *res;
+			int error = getaddrinfo(AS_CSTRING(addr->values.values[0]), NULL, NULL, &result);
+			if (error != 0) {
+				krk_runtimeError(SocketError, "getaddrinfo() returned error: %d", error);
+				return 1;
+			}
+
+			int found = 0;
+			res = result;
+			while (res) {
+				if (res->ai_family == AF_INET6) {
+					found = 1;
+					*sock_size = res->ai_addrlen;
+					memcpy(sock_addr, res->ai_addr, *sock_size);
+					break;
+				}
+				res = res->ai_next;
+			}
+
+			freeaddrinfo(result);
+
+			if (!found) {
+				krk_runtimeError(SocketError, "no suitable address");
+				return 1;
+			}
+
+			struct sockaddr_in6 * sin = (struct sockaddr_in6*)sock_addr;
+			sin->sin6_family = AF_INET6;
+			sin->sin6_port = htons(AS_int(addr->values.values[1]));
+
+			return 0;
+		}
+#endif
+#ifdef AF_UNIX
+	} else if (self->family == AF_UNIX) {
+		if (!IS_str(address)) {
+			krk_runtimeError(vm.exceptions->typeError, "Address should be str, not '%T'", address);
+			return 1;
+		}
+
+		if (AS_STRING(address)->length > 107) {
+			krk_runtimeError(vm.exceptions->valueError, "Address is too long");
+			return 1;
+		}
+
+		struct sockaddr_un * sun = (struct sockaddr_un*)sock_addr;
+		*sock_size = sizeof(struct sockaddr_un);
+		sun->sun_family = AF_UNIX;
+		memcpy(sun->sun_path, AS_CSTRING(address), AS_STRING(address)->length + 1);
+		return 0;
+#endif
 	} else {
 		krk_runtimeError(vm.exceptions->notImplementedError, "Not implemented.");
 		return 1;
@@ -257,10 +341,11 @@ KRK_Method(socket,accept) {
 	outTuple->values.count = 1;
 	krk_pop();
 
-	KrkTuple * addrTuple = krk_newTuple(2); /* TODO: Other formats */
-	krk_push(OBJECT_VAL(addrTuple));
 
 	if (self->family == AF_INET) {
+		KrkTuple * addrTuple = krk_newTuple(2); /* TODO: Other formats */
+		krk_push(OBJECT_VAL(addrTuple));
+
 		char hostname[NI_MAXHOST] = "";
 		getnameinfo((struct sockaddr*)&addr, addrlen, hostname, NI_MAXHOST, NULL, 0, NI_NUMERICHOST);
 
@@ -268,6 +353,24 @@ KRK_Method(socket,accept) {
 		addrTuple->values.count = 1;
 		addrTuple->values.values[1] = INTEGER_VAL(htons(((struct sockaddr_in*)&addr)->sin_port));
 		addrTuple->values.count = 2;
+#ifdef AF_INET6
+	} else if (self->family == AF_INET6) {
+		KrkTuple * addrTuple = krk_newTuple(2); /* TODO: Other formats */
+		krk_push(OBJECT_VAL(addrTuple));
+
+		char hostname[NI_MAXHOST] = "";
+		getnameinfo((struct sockaddr*)&addr, addrlen, hostname, NI_MAXHOST, NULL, 0, NI_NUMERICHOST);
+
+		addrTuple->values.values[0] = OBJECT_VAL(krk_copyString(hostname,strlen(hostname)));
+		addrTuple->values.count = 1;
+		addrTuple->values.values[1] = INTEGER_VAL(htons(((struct sockaddr_in6*)&addr)->sin6_port));
+		addrTuple->values.count = 2;
+#endif
+#ifdef AF_UNIX
+	} else if (self->family == AF_UNIX) {
+		/* ignore remote path because it's meaningless? */
+		krk_push(OBJECT_VAL(S("")));
+#endif
 	} else {
 		krk_push(NONE_VAL());
 	}
