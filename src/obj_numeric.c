@@ -751,6 +751,17 @@ KRK_Method(bool,__str__) {
 	return OBJECT_VAL((self ? S("True") : S("False")));
 }
 
+KRK_Method(bool,__format__) {
+	METHOD_TAKES_EXACTLY(1);
+	CHECK_ARG(1,str,KrkString*,format_spec);
+
+	if (!format_spec->length) {
+		return FUNC_NAME(bool,__str__)(argc,argv,hasKw);
+	} else {
+		return FUNC_NAME(int,__format__)(argc,argv,hasKw);
+	}
+}
+
 KRK_StaticMethod(NoneType,__new__) {
 	if (argc > 1) return krk_runtimeError(vm.exceptions->argumentError, "%s takes no arguments", "NoneType");
 	return NONE_VAL();
@@ -879,6 +890,7 @@ void _createAndBind_numericClasses(void) {
 	_bool->obj.flags |= KRK_OBJ_FLAGS_NO_INHERIT;
 	BIND_STATICMETHOD(bool,__new__);
 	BIND_METHOD(bool,__str__);
+	BIND_METHOD(bool,__format__);
 	krk_defineNative(&_bool->methods, "__repr__", FUNC_NAME(bool,__str__));
 	krk_finalizeClass(_bool);
 	KRK_DOC(_bool, "Returns False if the argument is 'falsey', otherwise True.");
