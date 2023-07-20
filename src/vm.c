@@ -1343,7 +1343,7 @@ int krk_loadModule(KrkString * path, KrkValue * moduleOut, KrkString * runAs, Kr
 
 		const char * start = path->chars;
 		for (const char * c = start; *c; c++) {
-			if (*c == '.') start = c + 1;
+			if (*c == '/') start = c + 1;
 		}
 
 		krk_push(OBJECT_VAL(S("krk_module_onload_")));
