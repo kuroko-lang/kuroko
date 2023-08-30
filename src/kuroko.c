@@ -468,9 +468,9 @@ static int debuggerHook(KrkCallFrame * frame) {
 					krk_pop();
 					/* Call the compiled expression with no args. */
 					krk_push(krk_callStack(0));
-					fprintf(stderr, "\033[1;30m=> ");
+					fprintf(stderr, "=> ");
 					krk_printValue(stderr, krk_peek(0));
-					fprintf(stderr, "\033[0m\n");
+					fprintf(stderr, "\n");
 					krk_pop();
 				}
 				if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) {
@@ -1169,7 +1169,7 @@ _finishArgs:
 				if (!IS_NONE(result)) {
 					krk_attachNamedValue(&vm.builtins->fields, "_", result);
 					KrkClass * type = krk_getType(result);
-					const char * formatStr = " \033[1;90m=> %s\033[0m\n";
+					const char * formatStr = " => %s\n";
 					if (type->_reprer) {
 						krk_push(result);
 						result = krk_callDirect(type->_reprer, 1);
@@ -1178,7 +1178,7 @@ _finishArgs:
 						result = krk_callDirect(type->_tostr, 1);
 					}
 					if (!IS_STRING(result)) {
-						fprintf(stdout, " \033[1;91m=> Unable to produce representation for value.\033[0m\n");
+						fprintf(stdout, " => Unable to produce representation for value.\n");
 					} else {
 						fprintf(stdout, formatStr, AS_CSTRING(result));
 					}
