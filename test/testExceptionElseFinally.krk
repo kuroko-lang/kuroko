@@ -1,0 +1,13 @@
+for i in range(3):
+    try:
+        print('hello world')
+        if i == 1:
+            break
+    except ValueError:
+        print('value error')
+    else:
+        print('no error')
+    finally:
+        print('and done')
+
+print('finished')

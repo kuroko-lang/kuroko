@@ -1,0 +1,9 @@
+try:
+    try:
+        raise ValueError()
+    else:
+        print("oh no (else should not run)")
+    finally:
+        print('finally')
+except ValueError:
+    print("value error caught in outer")

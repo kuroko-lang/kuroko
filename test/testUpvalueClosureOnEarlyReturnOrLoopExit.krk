@@ -1,0 +1,23 @@
+let closures = []
+for i in range(3):
+    let a
+    try:
+        a = 'bad'
+        closures.append(lambda: print(a))
+        continue
+    finally:
+        a = f'good {i}'
+
+def foo():
+    let a
+    try:
+        a = 'bad'
+        closures.append(lambda: print(a))
+        return
+    finally:
+        a = 'good'
+
+foo()
+
+for i in closures:
+    i()

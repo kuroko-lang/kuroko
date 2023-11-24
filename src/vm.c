@@ -1131,7 +1131,8 @@ static int handleException(void) {
 		stackOffset >= exitSlot &&
 		!IS_HANDLER_TYPE(krk_currentThread.stack[stackOffset], OP_PUSH_TRY) &&
 		!IS_HANDLER_TYPE(krk_currentThread.stack[stackOffset], OP_PUSH_WITH) &&
-		!IS_HANDLER_TYPE(krk_currentThread.stack[stackOffset], OP_FILTER_EXCEPT)
+		!IS_HANDLER_TYPE(krk_currentThread.stack[stackOffset], OP_FILTER_EXCEPT) &&
+		!IS_HANDLER_TYPE(krk_currentThread.stack[stackOffset], OP_RAISE)
 		; stackOffset--);
 	if (stackOffset < exitSlot) {
 		if (exitSlot == 0) {
@@ -2161,6 +2162,7 @@ _resumeHook: (void)0;
 				KrkClass * type = krk_getType(contextManager);
 				krk_push(contextManager);
 				if (AS_HANDLER_TYPE(handler) == OP_RAISE) {
+					krk_currentThread.stackTop[-2] = HANDLER_VAL(OP_CLEANUP_WITH,AS_HANDLER_TARGET(krk_peek(1)));
 					krk_push(OBJECT_VAL(krk_getType(exceptionObject)));
 					krk_push(exceptionObject);
 					KrkValue tracebackEntries = NONE_VAL();
@@ -2193,7 +2195,6 @@ _resumeHook: (void)0;
 			case OP_RETURN: {
 _finishReturn: (void)0;
 				KrkValue result = krk_pop();
-				closeUpvalues(frame->slots);
 				/* See if this frame had a thing */
 				int stackOffset;
 				for (stackOffset = (int)(krk_currentThread.stackTop - krk_currentThread.stack - 1);
@@ -2203,12 +2204,14 @@ _finishReturn: (void)0;
 					!IS_HANDLER_TYPE(krk_currentThread.stack[stackOffset],OP_FILTER_EXCEPT)
 					; stackOffset--);
 				if (stackOffset >= (int)frame->slots) {
+					closeUpvalues(stackOffset);
 					krk_currentThread.stackTop = &krk_currentThread.stack[stackOffset + 1];
 					frame->ip = frame->closure->function->chunk.code + AS_HANDLER_TARGET(krk_peek(0));
 					krk_currentThread.stackTop[-1] = HANDLER_VAL(OP_RETURN,AS_HANDLER_TARGET(krk_peek(0)));
 					krk_currentThread.stackTop[-2] = result;
 					break;
 				}
+				closeUpvalues(frame->slots);
 				FRAME_OUT(frame);
 				krk_currentThread.frameCount--;
 				if (krk_currentThread.frameCount == 0) {
@@ -2311,33 +2314,6 @@ _finishReturn: (void)0;
 			case OP_SWAP:
 				krk_swap(1);
 				break;
-			case OP_FILTER_EXCEPT: {
-				int isMatch = 0;
-				if (AS_HANDLER_TYPE(krk_peek(1)) == OP_RETURN) {
-					isMatch = 0;
-				} else if (AS_HANDLER_TYPE(krk_peek(1)) == OP_END_FINALLY) {
-					isMatch = 0;
-				} else if (AS_HANDLER_TYPE(krk_peek(1)) == OP_EXIT_LOOP) {
-					isMatch = 0;
-				} else if (IS_CLASS(krk_peek(0)) && krk_isInstanceOf(krk_peek(2), AS_CLASS(krk_peek(0)))) {
-					isMatch = 1;
-				} else if (IS_TUPLE(krk_peek(0))) {
-					for (size_t i = 0; i < AS_TUPLE(krk_peek(0))->values.count; ++i) {
-						if (IS_CLASS(AS_TUPLE(krk_peek(0))->values.values[i]) && krk_isInstanceOf(krk_peek(2), AS_CLASS(AS_TUPLE(krk_peek(0))->values.values[i]))) {
-							isMatch = 1;
-							break;
-						}
-					}
-				} else if (IS_NONE(krk_peek(0))) {
-					isMatch = !IS_NONE(krk_peek(2));
-				}
-				if (isMatch) {
-					krk_currentThread.stackTop[-2] = HANDLER_VAL(OP_FILTER_EXCEPT,AS_HANDLER_TARGET(krk_peek(1)));
-				}
-				krk_pop();
-				krk_push(BOOLEAN_VAL(isMatch));
-				break;
-			}
 			case OP_TRY_ELSE: {
 				if (IS_HANDLER(krk_peek(0))) {
 					krk_currentThread.stackTop[-1] = HANDLER_VAL(OP_FILTER_EXCEPT,AS_HANDLER_TARGET(krk_peek(0)));
@@ -2571,6 +2547,43 @@ _finishReturn: (void)0;
 			case OP_TEST_ARG: {
 				TWO_BYTE_OPERAND;
 				if (krk_pop() != KWARGS_VAL(0)) frame->ip += OPERAND;
+				break;
+			}
+			case OP_FILTER_EXCEPT: {
+				TWO_BYTE_OPERAND;
+				/* "Pop exception to match with and jump if not a match" */
+				int isMatch = 0;
+				if (IS_CLASS(krk_peek(0)) && krk_isInstanceOf(krk_peek(2), AS_CLASS(krk_peek(0)))) {
+					isMatch = 1;
+				} else if (IS_TUPLE(krk_peek(0))) {
+					for (size_t i = 0; i < AS_TUPLE(krk_peek(0))->values.count; ++i) {
+						if (IS_CLASS(AS_TUPLE(krk_peek(0))->values.values[i]) && krk_isInstanceOf(krk_peek(2), AS_CLASS(AS_TUPLE(krk_peek(0))->values.values[i]))) {
+							isMatch = 1;
+							break;
+						}
+					}
+				} else if (IS_NONE(krk_peek(0))) {
+					isMatch = !IS_NONE(krk_peek(2));
+				}
+				if (isMatch) {
+					/* If exception matched, set handler state. */
+					krk_currentThread.stackTop[-2] = HANDLER_VAL(OP_FILTER_EXCEPT,AS_HANDLER_TARGET(krk_peek(1)));
+				} else {
+					/* If exception did not match, jump to next 'except' or 'finally' */
+					frame->ip += OPERAND;
+				}
+				krk_pop();
+				break;
+			}
+			case OP_ENTER_EXCEPT: {
+				TWO_BYTE_OPERAND;
+				switch (AS_HANDLER_TYPE(krk_peek(0))) {
+					case OP_RETURN:
+					case OP_END_FINALLY:
+					case OP_EXIT_LOOP:
+						frame->ip += OPERAND;
+						break;
+				}
 				break;
 			}
 
@@ -2897,8 +2910,7 @@ _finishReturn: (void)0;
 				THREE_BYTE_OPERAND;
 			case OP_EXIT_LOOP: {
 				ONE_BYTE_OPERAND;
-_finishPopBlock:
-				closeUpvalues(frame->slots + OPERAND);
+_finishPopBlock: (void)0;
 				int stackOffset;
 				for (stackOffset = (int)(krk_currentThread.stackTop - krk_currentThread.stack - 1);
 					stackOffset >= (int)(frame->slots + OPERAND) && 
@@ -2909,11 +2921,14 @@ _finishPopBlock:
 
 				/* Do the handler. */
 				if (stackOffset >= (int)(frame->slots + OPERAND)) {
+					closeUpvalues(stackOffset);
 					uint16_t popTarget = (frame->ip - frame->closure->function->chunk.code);
 					krk_currentThread.stackTop = &krk_currentThread.stack[stackOffset + 1];
 					frame->ip = frame->closure->function->chunk.code + AS_HANDLER_TARGET(krk_peek(0));
 					krk_currentThread.stackTop[-1] = HANDLER_VAL(OP_EXIT_LOOP, popTarget);
 					krk_currentThread.stackTop[-2] = INTEGER_VAL(OPERAND);
+				} else {
+					closeUpvalues(frame->slots + OPERAND);
 				}
 
 				/* Continue normally */
@@ -3145,10 +3160,14 @@ _finishException:
 				frame = &krk_currentThread.frames[krk_currentThread.frameCount - 1];
 				frame->ip = frame->closure->function->chunk.code + AS_HANDLER_TARGET(krk_peek(0));
 				/* Stick the exception into the exception slot */
-				if (AS_HANDLER_TYPE(krk_currentThread.stackTop[-1])== OP_FILTER_EXCEPT) {
-					krk_currentThread.stackTop[-1] = HANDLER_VAL(OP_END_FINALLY,AS_HANDLER_TARGET(krk_peek(0)));
-				} else {
-					krk_currentThread.stackTop[-1] = HANDLER_VAL(OP_RAISE,AS_HANDLER_TARGET(krk_peek(0)));
+				switch (AS_HANDLER_TYPE(krk_currentThread.stackTop[-1])) {
+					case OP_RAISE:
+					case OP_FILTER_EXCEPT:
+						krk_currentThread.stackTop[-1] = HANDLER_VAL(OP_END_FINALLY,AS_HANDLER_TARGET(krk_peek(0)));
+						break;
+					default:
+						krk_currentThread.stackTop[-1] = HANDLER_VAL(OP_RAISE,AS_HANDLER_TARGET(krk_peek(0)));
+						break;
 				}
 				krk_currentThread.stackTop[-2] = krk_currentThread.currentException;
 				krk_currentThread.currentException = NONE_VAL();

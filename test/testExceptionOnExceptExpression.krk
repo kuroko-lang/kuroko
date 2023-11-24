@@ -1,0 +1,14 @@
+try:
+    try:
+        print('hello world')
+        raise ValueError()
+    except 1/0:
+        print("oh no")
+    except ValueError:
+        print("value error")
+    finally:
+        print('this is the finally')
+except ZeroDivisionError:
+    print('caught the zero div error')
+
+print('done')

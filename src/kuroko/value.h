@@ -219,7 +219,7 @@ static inline uintptr_t _krk_sanitize(uintptr_t input) {
 #define INTEGER_VAL(value)  ((KrkValue)(((uint64_t)(value) & KRK_VAL_MASK_LOW) | KRK_VAL_MASK_INTEGER))
 #define KWARGS_VAL(value)   ((KrkValue)((uint32_t)(value) | KRK_VAL_MASK_KWARGS))
 #define OBJECT_VAL(value)   ((KrkValue)((_krk_sanitize((uintptr_t)(value)) & KRK_VAL_MASK_LOW) | KRK_VAL_MASK_OBJECT))
-#define HANDLER_VAL(ty,ta)  ((KrkValue)((uint32_t)((((uint16_t)ty) << 16) | ((uint16_t)ta)) | KRK_VAL_MASK_HANDLER))
+#define HANDLER_VAL(ty,ta)  ((KrkValue)((uint64_t)((((uint64_t)ty) << 32) | ((uint32_t)ta)) | KRK_VAL_MASK_HANDLER))
 #define FLOATING_VAL(value) (((KrkValueDbl){.dbl = (value)}).val)
 
 #define KRK_VAL_TYPE(value) ((value) >> 48)
@@ -230,7 +230,7 @@ static inline uintptr_t _krk_sanitize(uintptr_t input) {
 #define AS_BOOLEAN(value) AS_INTEGER(value)
 
 #define AS_NOTIMPL(value)   ((krk_integer_type)((value) & KRK_VAL_MASK_LOW))
-#define AS_HANDLER(value)   ((uint32_t)((value) & KRK_VAL_MASK_LOW))
+#define AS_HANDLER(value)   ((uint64_t)((value) & KRK_VAL_MASK_LOW))
 #define AS_OBJECT(value)    ((KrkObj*)(uintptr_t)(((value) & KRK_VAL_MASK_LOW) | KRK_HEAP_TAG))
 #define AS_FLOATING(value)  (((KrkValueDbl){.val = (value)}).dbl)
 
@@ -249,8 +249,8 @@ static inline uintptr_t _krk_sanitize(uintptr_t input) {
 /* ... and as we said above, if any of the MASK_NAN bits are unset, it's a float. */
 #define IS_FLOATING(value)  (((value) & KRK_VAL_MASK_NAN) != KRK_VAL_MASK_NAN)
 
-#define AS_HANDLER_TYPE(value)    (AS_HANDLER(value) >> 16)
-#define AS_HANDLER_TARGET(value)  (AS_HANDLER(value) & 0xFFFF)
+#define AS_HANDLER_TYPE(value)    (AS_HANDLER(value) >> 32)
+#define AS_HANDLER_TARGET(value)  (AS_HANDLER(value) & 0xFFFFFFFF)
 #define IS_HANDLER_TYPE(value,type) (IS_HANDLER(value) && AS_HANDLER_TYPE(value) == type)
 
 #define KWARGS_SINGLE (INT32_MAX)

@@ -2254,12 +2254,17 @@ static void tryStatement(struct GlobalState * state) {
 
 	if (state->parser.hadError) return;
 
-#define EXIT_JUMP_MAX 32
-	int exitJumps = 1;
+#define EXIT_JUMP_MAX 64
+	int exitJumps = 2;
 	int exitJumpOffsets[EXIT_JUMP_MAX] = {0};
 
+	/* Jump possibly to `else` */
 	exitJumpOffsets[0] = emitJump(OP_JUMP);
+
+	/* Except entry point; ENTER_EXCEPT jumps to `finally` or continues to
+	 * first `except` expression test; may end up redundant if there is only an 'else'. */
 	patchJump(tryJump);
+	exitJumpOffsets[1] = emitJump(OP_ENTER_EXCEPT);
 
 	int firstJump = 0;
 	int nextJump = -1;
@@ -2275,7 +2280,6 @@ _anotherExcept:
 		if (exitJumps && !firstJump && match(TOKEN_EXCEPT)) {
 			if (nextJump != -1) {
 				patchJump(nextJump);
-				emitByte(OP_POP);
 			}
 			/* Match filter expression (should be class or tuple) */
 			if (!check(TOKEN_COLON) && !check(TOKEN_AS)) {
@@ -2283,8 +2287,7 @@ _anotherExcept:
 			} else {
 				emitByte(OP_NONE);
 			}
-			emitByte(OP_FILTER_EXCEPT);
-			nextJump = emitJump(OP_JUMP_IF_FALSE_OR_POP);
+			nextJump = emitJump(OP_FILTER_EXCEPT);
 
 			/* Match 'as' to rename exception */
 			if (match(TOKEN_AS)) {
@@ -2336,9 +2339,7 @@ _anotherExcept:
 			emitByte(OP_BEGIN_FINALLY);
 			exitJumps = 0;
 			if (nextJump != -1) {
-				emitByte(OP_NONE);
 				patchJump(nextJump);
-				emitByte(OP_POP);
 			}
 			beginScope(state);
 			block(state,blockWidth,"finally");
@@ -2363,9 +2364,7 @@ _anotherExcept:
 
 	if (nextJump >= 0) {
 		emitByte(OP_BEGIN_FINALLY);
-		emitByte(OP_NONE);
 		patchJump(nextJump);
-		emitByte(OP_POP);
 		emitByte(OP_END_FINALLY);
 	}
 
