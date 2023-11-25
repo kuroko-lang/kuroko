@@ -7,10 +7,10 @@ if True:
 
 try:
     let a, b = range(3)
-except:
+except as exception:
     print(repr(exception))
 
 try:
     let a, b, c, d = range(3)
-except:
+except as exception:
     print(repr(exception))

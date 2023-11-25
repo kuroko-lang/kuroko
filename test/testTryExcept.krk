@@ -21,9 +21,9 @@ try:
     try:
         print("This is the inner level")
         raise "This is the exception"
-    except:
+    except as exception:
         print("This is the inner handler.")
         raise exception
-except:
+except as exception:
     print("This is the outer handler.")
     print(exception)

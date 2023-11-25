@@ -26,5 +26,5 @@ last(1,2,7,3)
 last(1,2,test="thing")
 try:
     last(1,2,'c','d',7,8,extra='foo')
-except:
+except as exception:
     print(exception.arg)

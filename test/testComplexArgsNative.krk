@@ -9,5 +9,5 @@ print("{a} {b} {c}".format(**{'a': 1, 'b': "apples", 'c': object}))
 
 try:
     print("{a} {b} {c}".format(a=True,**{'a': 1, 'b': "apples", 'c': object}))
-except:
+except as exception:
     print(exception.arg)

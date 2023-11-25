@@ -7,7 +7,7 @@ for k,v in [(1,2),(3,4),(5,6)]:
 try:
     for k,v,z in [(1,2,7),(3,4,8),(5,6)]:
         print(k,v,z)
-except:
+except as exception:
     print(exception.__class__.__name__)
 # 1 2 7
 # 3 4 8
@@ -16,7 +16,7 @@ except:
 try:
     for k,v in [1,2,3]:
         print("type error")
-except:
+except as exception:
     print(exception.__class__.__name__)
 # TypeError
 

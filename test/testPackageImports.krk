@@ -8,7 +8,7 @@ def testTop():
     printPackage(foo)
     try:
         print(foo.bar, "Fail")
-    except:
+    except as exception:
         print(repr(exception)) # AttributeError
 
 def testCaching():
@@ -33,7 +33,7 @@ def testFromImport():
     print(baz.qux)
     try:
         print(foo, "Fail")
-    except:
+    except as exception:
         print(repr(exception))
 
 def testRenames():
@@ -42,17 +42,17 @@ def testRenames():
     print(blah.qux)
     try:
         print(foo, "Fail")
-    except:
+    except as exception:
         print(repr(exception))
     from foo.bar.baz import qux as thing
     print(thing)
     try:
         print(qux, "Fail")
-    except:
+    except as exception:
         print(repr(exception))
     try:
         print(foo.bar, "Fail")
-    except:
+    except as exception:
         print(repr(exception))
 
 if __name__ == '__main__':

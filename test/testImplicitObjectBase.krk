@@ -4,7 +4,7 @@ class Bar(object):
 
 try:
     let b = Bar()
-except:
+except as exception:
     print(exception.arg)
 
 class Foo():
@@ -13,6 +13,6 @@ class Foo():
 
 try:
     let f = Foo()
-except:
+except as exception:
     print(exception.arg)
 

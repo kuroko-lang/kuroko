@@ -8,7 +8,7 @@ class Foo():
 # This doesn't work because amethod is unbound and needs an instance.
 try:
     Foo.amethod()
-except:
+except as exception:
     print(exception.arg)
 # This works
 Foo.amethod(Foo())

@@ -2,7 +2,7 @@ def doTheThing(excp):
     try:
         try:
             raise excp
-        except (TypeError, ValueError):
+        except (TypeError, ValueError) as exception:
             print("Caught a", repr(exception))
             for i in exception.traceback:
                 let func, instr = i

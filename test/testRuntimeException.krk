@@ -2,7 +2,7 @@ import time
 
 try:
     time.sleep()
-except:
+except as exception:
     print("oh no! " + exception.arg)
 
 print("Back from try/except")
