@@ -2290,22 +2290,23 @@ _anotherExcept:
 			nextJump = emitJump(OP_FILTER_EXCEPT);
 
 			/* Match 'as' to rename exception */
+			size_t nameInd = 0;
 			if (match(TOKEN_AS)) {
 				consume(TOKEN_IDENTIFIER, "Expected identifier after 'as'.");
 				state->current->locals[exceptionObject].name = state->parser.previous;
+				/* `renameLocal` only introduces names for scoped debugging */
+				nameInd = renameLocal(state, exceptionObject, state->parser.previous);
 			} else {
-				/* XXX Should we remove this now? */
-				state->current->locals[exceptionObject].name = syntheticToken("exception");
+				state->current->locals[exceptionObject].name = syntheticToken("");
 			}
-
-			size_t nameInd = renameLocal(state, exceptionObject, state->current->locals[exceptionObject].name);
 
 			consume(TOKEN_COLON, "Expected ':' after 'except'.");
 			beginScope(state);
 			block(state,blockWidth,"except");
 			endScope(state);
 
-			state->current->codeobject->localNames[nameInd].deathday = (size_t)currentChunk()->count;
+			/* Remove scoped name */
+			if (nameInd) state->current->codeobject->localNames[nameInd].deathday = (size_t)currentChunk()->count;
 
 			if (exitJumps < EXIT_JUMP_MAX) {
 				exitJumpOffsets[exitJumps++] = emitJump(OP_JUMP);
