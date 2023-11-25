@@ -1132,7 +1132,8 @@ static int handleException(void) {
 		!IS_HANDLER_TYPE(krk_currentThread.stack[stackOffset], OP_PUSH_TRY) &&
 		!IS_HANDLER_TYPE(krk_currentThread.stack[stackOffset], OP_PUSH_WITH) &&
 		!IS_HANDLER_TYPE(krk_currentThread.stack[stackOffset], OP_FILTER_EXCEPT) &&
-		!IS_HANDLER_TYPE(krk_currentThread.stack[stackOffset], OP_RAISE)
+		!IS_HANDLER_TYPE(krk_currentThread.stack[stackOffset], OP_RAISE) &&
+		!IS_HANDLER_TYPE(krk_currentThread.stack[stackOffset], OP_END_FINALLY)
 		; stackOffset--);
 	if (stackOffset < exitSlot) {
 		if (exitSlot == 0) {
@@ -2322,10 +2323,16 @@ _finishReturn: (void)0;
 			}
 			case OP_BEGIN_FINALLY: {
 				if (IS_HANDLER(krk_peek(0))) {
-					if (AS_HANDLER_TYPE(krk_peek(0)) == OP_PUSH_TRY) {
-						krk_currentThread.stackTop[-1] = HANDLER_VAL(OP_BEGIN_FINALLY,AS_HANDLER_TARGET(krk_peek(0)));
-					} else if (AS_HANDLER_TYPE(krk_peek(0)) == OP_FILTER_EXCEPT) {
-						krk_currentThread.stackTop[-1] = HANDLER_VAL(OP_BEGIN_FINALLY,AS_HANDLER_TARGET(krk_peek(0)));
+					switch (AS_HANDLER_TYPE(krk_peek(0))) {
+						/* We either entered the @c finally without an exception, or the exception was handled by an @c except */
+						case OP_PUSH_TRY:
+						case OP_FILTER_EXCEPT:
+							krk_currentThread.stackTop[-1] = HANDLER_VAL(OP_BEGIN_FINALLY,AS_HANDLER_TARGET(krk_peek(0)));
+							break;
+						/* We entered the @c finally without handling an exception. */
+						case OP_RAISE:
+							krk_currentThread.stackTop[-1] = HANDLER_VAL(OP_END_FINALLY,AS_HANDLER_TARGET(krk_peek(0)));
+							break;
 					}
 				}
 				break;
@@ -2583,6 +2590,12 @@ _finishReturn: (void)0;
 					case OP_EXIT_LOOP:
 						frame->ip += OPERAND;
 						break;
+					case OP_RAISE_FROM:
+						/* Exception happened while in @c finally */
+						krk_pop(); /* handler */
+						krk_currentThread.currentException = krk_pop();
+						krk_currentThread.flags |= KRK_THREAD_HAS_EXCEPTION;
+						goto _finishException;
 				}
 				break;
 			}
@@ -3161,10 +3174,17 @@ _finishException:
 				frame->ip = frame->closure->function->chunk.code + AS_HANDLER_TARGET(krk_peek(0));
 				/* Stick the exception into the exception slot */
 				switch (AS_HANDLER_TYPE(krk_currentThread.stackTop[-1])) {
+					/* An exception happened while handling an exception */
 					case OP_RAISE:
 					case OP_FILTER_EXCEPT:
 						krk_currentThread.stackTop[-1] = HANDLER_VAL(OP_END_FINALLY,AS_HANDLER_TARGET(krk_peek(0)));
 						break;
+					/* An exception happened while already in the @c finally block from handling
+					 * another exception. Bail. */
+					case OP_END_FINALLY:
+						krk_currentThread.stackTop[-1] = HANDLER_VAL(OP_RAISE_FROM,AS_HANDLER_TARGET(krk_peek(0)));
+						break;
+					/* First exception in this chain. */
 					default:
 						krk_currentThread.stackTop[-1] = HANDLER_VAL(OP_RAISE,AS_HANDLER_TARGET(krk_peek(0)));
 						break;

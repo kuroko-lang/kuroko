@@ -2320,6 +2320,7 @@ _anotherExcept:
 			patchJump(exitJumpOffsets[0]);
 			firstJump = 1;
 			emitByte(OP_TRY_ELSE);
+			state->current->locals[exceptionObject].name = syntheticToken("");
 			beginScope(state);
 			block(state, blockWidth, "else");
 			endScope(state);
@@ -2335,17 +2336,16 @@ _anotherExcept:
 			for (int i = firstJump; i < exitJumps; ++i) {
 				patchJump(exitJumpOffsets[i]);
 			}
-			size_t nameInd = renameLocal(state, exceptionObject, syntheticToken("__tmp"));
-			emitByte(OP_BEGIN_FINALLY);
-			exitJumps = 0;
 			if (nextJump != -1) {
 				patchJump(nextJump);
 			}
+			emitByte(OP_BEGIN_FINALLY);
+			exitJumps = 0;
+			state->current->locals[exceptionObject].name = syntheticToken("");
 			beginScope(state);
 			block(state,blockWidth,"finally");
 			endScope(state);
 			nextJump = -2;
-			state->current->codeobject->localNames[nameInd].deathday = (size_t)currentChunk()->count;
 			emitByte(OP_END_FINALLY);
 		} else if (!check(TOKEN_EOL) && !check(TOKEN_EOF)) {
 			krk_ungetToken(&state->scanner, state->parser.current);
@@ -2363,8 +2363,8 @@ _anotherExcept:
 	}
 
 	if (nextJump >= 0) {
-		emitByte(OP_BEGIN_FINALLY);
 		patchJump(nextJump);
+		emitByte(OP_BEGIN_FINALLY);
 		emitByte(OP_END_FINALLY);
 	}
 

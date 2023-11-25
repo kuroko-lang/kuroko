@@ -1,0 +1,13 @@
+try:
+    try:
+        print('try')
+        raise ValueError()
+    except 1/0:
+        print('bad: except body')
+    finally:
+        print(inner_error)
+        print('bad: after inner error')
+except BaseException as e:
+    while e:
+        print(repr(e))
+        e = e.__context__

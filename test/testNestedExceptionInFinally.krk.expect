@@ -1,0 +1,4 @@
+try
+NameError("Undefined variable 'inner_error'.")
+ZeroDivisionError('integer division by zero')
+ValueError()
