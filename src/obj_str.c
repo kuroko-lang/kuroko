@@ -825,17 +825,47 @@ KRK_Method(str,index) {
 }
 
 KRK_Method(str,startswith) {
-	METHOD_TAKES_EXACTLY(1); /* I know the Python versions of these take optional start, end... */
-	CHECK_ARG(1,str,KrkString*,prefix);
-	return BOOLEAN_VAL(substringMatch(self->chars,self->length,prefix->chars,prefix->length));
+	KrkString * substr;
+	int start = 0;
+	int end = self->codesLength;
+	if (!krk_parseArgs(".O!|ii",(const char*[]){"prefix","start","end"}, KRK_BASE_CLASS(str), &substr, &start, &end)) {
+		return NONE_VAL();
+	}
+
+	WRAP_INDEX(start);
+	WRAP_INDEX(end);
+
+	krk_unicodeString(self);
+	krk_unicodeString(substr);
+
+	if (end < start || (size_t)(end - start) < substr->codesLength) return BOOLEAN_VAL(0);
+
+	for (size_t i = 0; i < substr->codesLength; ++i) {
+		if (KRK_STRING_FAST(self, start + i) != KRK_STRING_FAST(substr,i)) return BOOLEAN_VAL(0);
+	}
+	return BOOLEAN_VAL(1);
 }
 
 KRK_Method(str,endswith) {
-	METHOD_TAKES_EXACTLY(1); /* I know the Python versions of these take optional start, end... */
-	CHECK_ARG(1,str,KrkString*,suffix);
-	if (suffix->length > self->length) return BOOLEAN_VAL(0);
-	return BOOLEAN_VAL(substringMatch(self->chars + (self->length - suffix->length),
-		suffix->length, suffix->chars, suffix->length));
+	KrkString * substr;
+	int start = 0;
+	int end = self->codesLength;
+	if (!krk_parseArgs(".O!|ii",(const char*[]){"suffix","start","end"}, KRK_BASE_CLASS(str), &substr, &start, &end)) {
+		return NONE_VAL();
+	}
+
+	WRAP_INDEX(start);
+	WRAP_INDEX(end);
+
+	krk_unicodeString(self);
+	krk_unicodeString(substr);
+
+	if (end < start || (size_t)(end - start) < substr->codesLength) return BOOLEAN_VAL(0);
+
+	for (size_t i = 0; i < substr->codesLength; ++i) {
+		if (KRK_STRING_FAST(self, (end - i - 1)) != KRK_STRING_FAST(substr,(substr->codesLength - i - 1))) return BOOLEAN_VAL(0);
+	}
+	return BOOLEAN_VAL(1);
 }
 
 /**
