@@ -1,0 +1,18 @@
+def decorate(func):
+    def _inner(a):
+        print('in')
+        a = func(a)
+        print('out')
+        return a
+    return _inner
+
+def foo():
+    @decorate
+    def bar(a):
+        if a <= 0:
+            return 0
+        return bar(a-1)
+
+    bar(2)
+
+foo()

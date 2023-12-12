@@ -1847,6 +1847,10 @@ static KrkToken decorator(struct GlobalState * state, size_t level, FunctionType
 		if (identifiersEqual(&at_classmethod, &state->parser.current)) type = TYPE_CLASSMETHOD;
 	}
 
+	if (level == 0 && inType == TYPE_FUNCTION && state->current->scopeDepth != 0) {
+		emitByte(OP_NONE);
+	}
+
 	expression(state);
 
 	consume(TOKEN_EOL, "Expected end of line after decorator.");
@@ -1863,6 +1867,10 @@ static KrkToken decorator(struct GlobalState * state, size_t level, FunctionType
 		if (type == TYPE_METHOD && funcName.length == 8 && !memcmp(funcName.start,"__init__",8)) {
 			type = TYPE_INIT;
 		}
+		if (type == TYPE_FUNCTION && state->current->scopeDepth > 0) {
+			declareVariable(state);
+			markInitialized(state);
+		}
 		function(state, type, blockWidth);
 	} else if (match(TOKEN_ASYNC)) {
 		if (!match(TOKEN_DEF)) {
@@ -1871,6 +1879,10 @@ static KrkToken decorator(struct GlobalState * state, size_t level, FunctionType
 		}
 		consume(TOKEN_IDENTIFIER, "Expected coroutine name after 'def'.");
 		funcName = state->parser.previous;
+		if (type == TYPE_FUNCTION && state->current->scopeDepth > 0) {
+			declareVariable(state);
+			markInitialized(state);
+		}
 		function(state, type == TYPE_METHOD ? TYPE_COROUTINE_METHOD : TYPE_COROUTINE, blockWidth);
 	} else if (check(TOKEN_AT)) {
 		funcName = decorator(state, level+1, type);
@@ -1889,10 +1901,12 @@ static KrkToken decorator(struct GlobalState * state, size_t level, FunctionType
 
 	if (level == 0) {
 		if (inType == TYPE_FUNCTION) {
-			state->parser.previous = funcName;
-			declareVariable(state);
-			size_t ind = (state->current->scopeDepth > 0) ? 0 : identifierConstant(state, &funcName);
-			defineVariable(state, ind);
+			if (state->current->scopeDepth == 0) {
+				size_t ind = identifierConstant(state, &funcName);
+				defineVariable(state, ind);
+			} else {
+				emitByte(OP_SWAP_POP);
+			}
 		} else {
 			size_t ind = identifierConstant(state, &funcName);
 			rememberClassProperty(state, ind);
