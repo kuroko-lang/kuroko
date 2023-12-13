@@ -23,6 +23,9 @@
 /* Did you know this is actually specified to not exist in a header? */
 extern char ** environ;
 
+static KrkClass * os_Environ;
+static KrkClass * os_stat_result;
+
 #define DO_KEY(key) krk_attachNamedObject(AS_DICT(result), #key, (KrkObj*)krk_copyString(buf. key, strlen(buf .key)))
 #define S_KEY(key,val) krk_attachNamedObject(AS_DICT(result), #key, (KrkObj*)val);
 
@@ -89,7 +92,7 @@ KRK_Function(uname) {
 #endif
 
 #define AS_Environ(o) (AS_INSTANCE(o))
-#define IS_Environ(o) (krk_isInstanceOf(o,KRK_BASE_CLASS(Environ)))
+#define IS_Environ(o) (krk_isInstanceOf(o,os_Environ))
 #define CURRENT_CTYPE KrkInstance*
 
 static int _setVar(KrkString * key, KrkString * val) {
@@ -141,7 +144,7 @@ KRK_Method(Environ,__delitem__) {
 
 static void _loadEnviron(KrkInstance * module) {
 	/* Create a new class to subclass `dict` */
-	KrkClass * Environ = krk_makeClass(module, &KRK_BASE_CLASS(Environ), "_Environ", vm.baseClasses->dictClass);
+	KrkClass * Environ = krk_makeClass(module, &os_Environ, "_Environ", vm.baseClasses->dictClass);
 	krk_attachNamedObject(&module->fields, "_Environ", (KrkObj*)Environ);
 
 	/* Add our set method that should also call dict's set method */
@@ -553,7 +556,7 @@ KRK_Function(stat) {
 	if (result == -1) {
 		return krk_runtimeError(KRK_EXC(OSError), "%s", strerror(errno));
 	}
-	KrkInstance * out = krk_newInstance(KRK_BASE_CLASS(stat_result));
+	KrkInstance * out = krk_newInstance(os_stat_result);
 	krk_push(OBJECT_VAL(out));
 
 	SET(st_dev);
@@ -571,7 +574,7 @@ KRK_Function(stat) {
 }
 #undef SET
 
-#define IS_stat_result(o) (krk_isInstanceOf(o,KRK_BASE_CLASS(stat_result)))
+#define IS_stat_result(o) (krk_isInstanceOf(o,os_stat_result))
 #define AS_stat_result(o) AS_INSTANCE(o)
 #define CURRENT_NAME  self
 
@@ -614,49 +617,10 @@ KRK_Method(stat_result,__repr__) {
 	return krk_pop();
 }
 
-KRK_Function(S_ISBLK) {
-	int mode;
-	if (!krk_parseArgs("i",(const char*[]){"mode"},&mode)) return NONE_VAL();
-	return INTEGER_VAL(S_ISBLK(mode));
-}
-KRK_Function(S_ISCHR) {
-	int mode;
-	if (!krk_parseArgs("i",(const char*[]){"mode"},&mode)) return NONE_VAL();
-	return INTEGER_VAL(S_ISCHR(mode));
-}
-KRK_Function(S_ISDIR) {
-	int mode;
-	if (!krk_parseArgs("i",(const char*[]){"mode"},&mode)) return NONE_VAL();
-	return INTEGER_VAL(S_ISDIR(mode));
-}
-KRK_Function(S_ISFIFO) {
-	int mode;
-	if (!krk_parseArgs("i",(const char*[]){"mode"},&mode)) return NONE_VAL();
-	return INTEGER_VAL(S_ISFIFO(mode));
-}
-KRK_Function(S_ISREG) {
-	int mode;
-	if (!krk_parseArgs("i",(const char*[]){"mode"},&mode)) return NONE_VAL();
-	return INTEGER_VAL(S_ISREG(mode));
-}
-#ifndef _WIN32
-KRK_Function(S_ISLNK) {
-	int mode;
-	if (!krk_parseArgs("i",(const char*[]){"mode"},&mode)) return NONE_VAL();
-	return INTEGER_VAL(S_ISLNK(mode));
-}
-KRK_Function(S_ISSOCK) {
-	int mode;
-	if (!krk_parseArgs("i",(const char*[]){"mode"},&mode)) return NONE_VAL();
-	return INTEGER_VAL(S_ISSOCK(mode));
-}
-#endif
-
-void krk_module_init_os(void) {
+KrkValue krk_module_onload_os(void) {
 	KrkInstance * module = krk_newInstance(vm.baseClasses->moduleClass);
-	krk_attachNamedObject(&vm.modules, "os", (KrkObj*)module);
-	krk_attachNamedObject(&module->fields, "__name__", (KrkObj*)S("os"));
-	krk_attachNamedValue(&module->fields, "__file__", NONE_VAL());
+	krk_push(OBJECT_VAL(module));
+
 	KRK_DOC(module, "@brief Provides access to low-level system operations.");
 
 #ifdef _WIN32
@@ -869,7 +833,7 @@ void krk_module_init_os(void) {
 	_loadEnviron(module);
 
 	/* Nothing special */
-	KrkClass * stat_result = krk_makeClass(module, &KRK_BASE_CLASS(stat_result), "stat_result", vm.baseClasses->objectClass);
+	KrkClass * stat_result = krk_makeClass(module, &os_stat_result, "stat_result", vm.baseClasses->objectClass);
 	BIND_METHOD(stat_result,__repr__);
 	krk_finalizeClass(stat_result);
 
@@ -878,22 +842,7 @@ void krk_module_init_os(void) {
 		"@arguments path\n\n"
 		"Runs the @c stat system call on @p path. Returns a @ref stat_result.\n");
 
-	module = krk_newInstance(vm.baseClasses->moduleClass);
-	krk_attachNamedObject(&vm.modules, "stat", (KrkObj*)module);
-	krk_attachNamedObject(&module->fields, "__name__", (KrkObj*)S("stat"));
-	krk_attachNamedValue(&module->fields, "__file__", NONE_VAL());
-	KRK_DOC(module,
-		"@brief Functions to check results from @ref stat calls.");
-
-	BIND_FUNC(module,S_ISBLK);
-	BIND_FUNC(module,S_ISCHR);
-	BIND_FUNC(module,S_ISDIR);
-	BIND_FUNC(module,S_ISFIFO);
-	BIND_FUNC(module,S_ISREG);
-#ifndef _WIN32
-	BIND_FUNC(module,S_ISLNK);
-	BIND_FUNC(module,S_ISSOCK);
-#endif
+	return krk_pop();
 }
 
 

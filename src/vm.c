@@ -969,8 +969,6 @@ void krk_initVM(int flags) {
 #ifndef KRK_NO_SYSTEM_MODULES
 		krk_module_init_kuroko();
 		krk_module_init_gc();
-		krk_module_init_time();
-		krk_module_init_os();
 		krk_module_init_fileio();
 #endif
 #ifndef KRK_DISABLE_DEBUG
