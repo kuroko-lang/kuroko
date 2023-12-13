@@ -19,7 +19,7 @@
  * @def KRK_CALL_FRAMES_MAX
  * @brief Maximum depth of the call stack in managed-code function calls.
  */
-#define KRK_CALL_FRAMES_MAX 64
+#define KRK_CALL_FRAMES_MAX 1000
 
 /**
  * @def KRK_THREAD_SCRATCH_SIZE
