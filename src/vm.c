@@ -968,7 +968,6 @@ void krk_initVM(int flags) {
 	if (!(vm.globalFlags & KRK_GLOBAL_NO_DEFAULT_MODULES)) {
 #ifndef KRK_NO_SYSTEM_MODULES
 		krk_module_init_kuroko();
-		krk_module_init_fileio();
 #endif
 #ifndef KRK_DISABLE_THREADS
 		krk_module_init_threading();

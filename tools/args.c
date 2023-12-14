@@ -95,51 +95,6 @@ KRK_Function(demofunc4) {
 	return NONE_VAL();
 }
 
-struct File {
-	KrkInstance inst;
-	FILE * filePtr;
-};
-
-KRK_Function(print) {
-	int argcount = 0;
-	const KrkValue * args = NULL;
-	const char * sep = " ";
-	size_t sep_len = 1;
-	const char * end = "\n";
-	size_t end_len = 1;
-	KrkValue file = NONE_VAL();
-	int flush = 0;
-
-	if (!krk_parseArgs(
-		"*s#s#V!p",
-		(const char *[]){"sep","end","file","flush"},
-		&argcount, &args,
-		&sep, &sep_len, &end, &end_len,
-		KRK_BASE_CLASS(File), &file,
-		&flush)) {
-		return NONE_VAL();
-	}
-
-	FILE * out = file == NONE_VAL() ? stdout : ((struct File*)AS_INSTANCE(file))->filePtr;
-	if (!out) return krk_runtimeError(vm.exceptions->ioError, "file is closed");
-
-	for (int i = 0; i < argcount; ++i) {
-		krk_printValue(out, args[i]);
-		if (unlikely(krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION)) return NONE_VAL();
-		if (i + 1 != argcount) {
-			fwrite(sep,1,sep_len,out);
-		}
-	}
-
-	fwrite(end,1,end_len,out);
-
-	if (flush) {
-		fflush(out);
-	}
-
-	return NONE_VAL();
-}
-
 KRK_Function(takeschars) {
 	int a = 0, b = 0, c = 0;
 
@@ -181,7 +136,6 @@ int main(int argc, char * argv[]) {
 	BIND_FUNC(krk_currentThread.module, demofunc2);
 	BIND_FUNC(krk_currentThread.module, demofunc3);
 	BIND_FUNC(krk_currentThread.module, demofunc4);
-	BIND_FUNC(krk_currentThread.module, print);
 	BIND_FUNC(krk_currentThread.module, takeschars);
 	BIND_FUNC(krk_currentThread.module, parseints);
 	BIND_FUNC(krk_currentThread.module, parsefloats);

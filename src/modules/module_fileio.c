@@ -14,6 +14,11 @@
 #include <kuroko/memory.h>
 #include <kuroko/util.h>
 
+
+static KrkClass * fileio_File;
+static KrkClass * fileio_BinaryFile;
+static KrkClass * fileio_Directory;
+
 /**
  * @brief Object for a C `FILE*` stream.
  * @extends KrkInstance
@@ -24,10 +29,10 @@ struct File {
 	int unowned;
 };
 
-#define IS_File(o) (krk_isInstanceOf(o, KRK_BASE_CLASS(File)))
+#define IS_File(o) (krk_isInstanceOf(o, fileio_File))
 #define AS_File(o) ((struct File*)AS_OBJECT(o))
 
-#define IS_BinaryFile(o) (krk_isInstanceOf(o, KRK_BASE_CLASS(BinaryFile)))
+#define IS_BinaryFile(o) (krk_isInstanceOf(o, fileio_BinaryFile))
 #define AS_BinaryFile(o) ((struct File*)AS_OBJECT(o))
 
 /**
@@ -39,7 +44,7 @@ struct Directory {
 	DIR * dirPtr;
 };
 
-#define IS_Directory(o) (krk_isInstanceOf(o, KRK_BASE_CLASS(Directory)))
+#define IS_Directory(o) (krk_isInstanceOf(o, fileio_Directory))
 #define AS_Directory(o) ((struct Directory*)AS_OBJECT(o))
 
 #define CURRENT_CTYPE struct File *
@@ -77,7 +82,7 @@ KRK_Function(open) {
 	if (!file) return krk_runtimeError(vm.exceptions->ioError, "open: failed to open file; system returned: %s", strerror(errno));
 
 	/* Now let's build an object to hold it */
-	KrkInstance * fileObject = krk_newInstance(isBinary ? KRK_BASE_CLASS(BinaryFile) : KRK_BASE_CLASS(File));
+	KrkInstance * fileObject = krk_newInstance(isBinary ? fileio_BinaryFile : fileio_File);
 	krk_push(OBJECT_VAL(fileObject));
 
 	/* Let's put the filename in there somewhere... */
@@ -259,7 +264,7 @@ KRK_Method(File,__exit__) {
 }
 
 static void makeFileInstance(KrkInstance * module, const char name[], FILE * file, const char mode[]) {
-	KrkInstance * fileObject = krk_newInstance(KRK_BASE_CLASS(File));
+	KrkInstance * fileObject = krk_newInstance(fileio_File);
 	krk_push(OBJECT_VAL(fileObject));
 	KrkValue filename = OBJECT_VAL(krk_copyString(name,strlen(name)));
 	krk_push(filename);
@@ -433,7 +438,7 @@ KRK_Function(opendir) {
 	DIR * dir = opendir(path->chars);
 	if (!dir) return krk_runtimeError(vm.exceptions->ioError, "opendir: %s", strerror(errno));
 
-	struct Directory * dirObj = (void *)krk_newInstance(KRK_BASE_CLASS(Directory));
+	struct Directory * dirObj = (void *)krk_newInstance(fileio_Directory);
 	krk_push(OBJECT_VAL(dirObj));
 
 	krk_attachNamedValue(&dirObj->inst.fields, "path", OBJECT_VAL(path));
@@ -489,11 +494,10 @@ KRK_Method(Directory,__exit__) {
 	return FUNC_NAME(Directory,close)(1,argv,0);
 }
 
-void krk_module_init_fileio(void) {
+KrkValue krk_module_onload_fileio(KrkString * runAs) {
 	KrkInstance * module = krk_newInstance(vm.baseClasses->moduleClass);
-	krk_attachNamedObject(&vm.modules, "fileio", (KrkObj*)module);
-	krk_attachNamedObject(&module->fields, "__name__", (KrkObj*)S("fileio"));
-	krk_attachNamedValue(&module->fields, "__file__", NONE_VAL());
+	krk_push(OBJECT_VAL(module));
+
 	KRK_DOC(module,
 		"@brief Provides access to C <stdio> buffered file I/O functions.\n\n"
 		"The @c fileio module provides classes and functions for reading "
@@ -502,7 +506,7 @@ void krk_module_init_fileio(void) {
 	);
 
 	/* Define a class to represent files. (Should this be a helper method?) */
-	KrkClass * File = krk_makeClass(module, &KRK_BASE_CLASS(File), "File", KRK_BASE_CLASS(object));
+	KrkClass * File = krk_makeClass(module, &fileio_File, "File", KRK_BASE_CLASS(object));
 	KRK_DOC(File,"Interface to a buffered file stream.");
 	File->allocSize = sizeof(struct File);
 	File->_ongcsweep = _file_sweep;
@@ -527,7 +531,7 @@ void krk_module_init_fileio(void) {
 	krk_defineNative(&File->methods, "__repr__", FUNC_NAME(File,__str__));
 	krk_finalizeClass(File);
 
-	KrkClass * BinaryFile = krk_makeClass(module, &KRK_BASE_CLASS(BinaryFile), "BinaryFile", File);
+	KrkClass * BinaryFile = krk_makeClass(module, &fileio_BinaryFile, "BinaryFile", File);
 	KRK_DOC(BinaryFile,
 		"Equivalent to @ref File but using @ref bytes instead of string @ref str."
 	);
@@ -537,7 +541,7 @@ void krk_module_init_fileio(void) {
 	BIND_METHOD(BinaryFile,write);
 	krk_finalizeClass(BinaryFile);
 
-	KrkClass * Directory = krk_makeClass(module, &KRK_BASE_CLASS(Directory), "Directory", KRK_BASE_CLASS(object));
+	KrkClass * Directory = krk_makeClass(module, &fileio_Directory, "Directory", KRK_BASE_CLASS(object));
 	KRK_DOC(Directory,
 		"Represents an opened file system directory."
 	);
@@ -567,4 +571,6 @@ void krk_module_init_fileio(void) {
 		"@arguments path\n\n"
 		"Opens the directory at @p path and returns a @ref Directory object. If @p path could not be opened or is not "
 		"a directory, @ref IOError will be raised.");
+
+	return krk_pop();
 }
