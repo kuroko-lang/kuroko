@@ -262,7 +262,7 @@ def processModules(modules):
             let superclass = cls.__base__.__name__ if cls.__base__ else ''
             let formatted = f'<i>class</i> <b>{name}</b>({superclass})'
             print('\\methodstart{' + name + ',' + formatted + ',h3,' + classType + '}')
-            if '__doc__' in dir(cls) and isinstance(cls.__doc__,str):
+            if '__doc__' in dir(cls) and isinstance(cls.__doc__,str) and (cls is object or cls is cls.__base__ or cls.__doc__ is not cls.__base__.__doc__):
                 print('<p>' + cls.__doc__ + '</p>')
             let seen = []
             let methods = []
