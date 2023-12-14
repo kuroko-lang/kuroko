@@ -113,6 +113,7 @@ extern void krk_freeValueArray(KrkValueArray * array);
 /**
  * @brief Print a string representation of a value.
  * @memberof KrkValue
+ * @deprecated Will be removed soon.
  *
  * Print a string representation of 'value' to the stream 'f'.
  * For primitives, performs appropriate formatting. For objects,

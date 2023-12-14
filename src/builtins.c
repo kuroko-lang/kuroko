@@ -811,42 +811,81 @@ KRK_Function(max) {
 }
 
 KRK_Function(print) {
-	KrkValue sepVal;
-	KrkValue endVal;
-	char * sep = " "; size_t sepLen = 1;
-	char * end = "\n"; size_t endLen = 1;
-	if (hasKw) {
-		if (krk_tableGet(AS_DICT(argv[argc]), OBJECT_VAL(S("sep")), &sepVal)) {
-			if (!IS_STRING(sepVal)) return krk_runtimeError(vm.exceptions->typeError, "'%s' should be a string, not '%T'", "sep", sepVal);
-			sep = AS_CSTRING(sepVal);
-			sepLen = AS_STRING(sepVal)->length;
-		}
-		if (krk_tableGet(AS_DICT(argv[argc]), OBJECT_VAL(S("end")), &endVal)) {
-			if (!IS_STRING(endVal)) return krk_runtimeError(vm.exceptions->typeError, "'%s' should be a string, not '%T'", "end", endVal);
-			end = AS_CSTRING(endVal);
-			endLen = AS_STRING(endVal)->length;
-		}
+	char * sep = NULL;
+	char * end = NULL;
+	size_t sepLen = 0;
+	size_t endLen = 0;
+	int remArgc;
+	const KrkValue * remArgv;
+	KrkValue file = NONE_VAL();
+	int flush = 0;
+
+	if (!krk_parseArgs("*z#z#Vp", (const char*[]){"sep","end","file","flush"},
+		&remArgc, &remArgv,
+		&sep, &sepLen, &end, &endLen,
+		&file, &flush)) {
+		return NONE_VAL();
 	}
-	if (!argc) {
-		for (size_t j = 0; j < endLen; ++j) {
-			fputc(end[j], stdout);
+
+	/* Set default separator and end if not provided or set to None. */
+	if (!sep) { sep = " "; sepLen = 1; }
+	if (!end) { end = "\n"; endLen = 1; }
+
+	for (int i = 0; i < remArgc; ++i) {
+
+		/* If printing through a file object, get its @c write method */
+		if (!IS_NONE(file)) {
+			krk_push(krk_valueGetAttribute(file, "write"));
+			if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) return NONE_VAL();
 		}
-	}
-	for (int i = 0; i < argc; ++i) {
-		KrkValue printable = argv[i];
-		if (IS_STRING(printable)) { /* krk_printValue runs repr */
-			/* Make sure we handle nil bits correctly. */
-			for (size_t j = 0; j < AS_STRING(printable)->length; ++j) {
-				fputc(AS_CSTRING(printable)[j], stdout);
+
+		/* Convert the argument to a printable form, first by trying __str__, then __repr__ */
+		KrkValue printable = remArgv[i];
+		krk_push(printable);
+		if (!IS_STRING(printable)) {
+			KrkClass * type = krk_getType(printable);
+			if (type->_tostr) {
+				krk_push((printable = krk_callDirect(type->_tostr, 1)));
+			} else if (type->_reprer) {
+				krk_push((printable = krk_callDirect(type->_reprer, 1)));
+			}
+			if (!IS_STRING(printable)) return krk_runtimeError(vm.exceptions->typeError, "__str__ returned non-string (type %T)", printable);
+		}
+
+		if (!IS_NONE(file)) {
+			/* Call @c write */
+			krk_callStack(1);
+			if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) return NONE_VAL();
+
+			/* Print separator */
+			if (i + 1 < remArgc) {
+				krk_push(krk_valueGetAttribute(file, "write"));
+				krk_push(OBJECT_VAL(krk_copyString(sep,sepLen)));
+				krk_callStack(1);
+				if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) return NONE_VAL();
 			}
 		} else {
-			krk_printValue(stdout, printable);
-			if (unlikely(krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION)) return NONE_VAL();
+			fwrite(AS_CSTRING(printable), AS_STRING(printable)->length, 1, stdout);
+			krk_pop();
+			if (i + 1 < remArgc) fwrite(sep, sepLen, 1, stdout);
 		}
-		char * thingToPrint = (i == argc - 1) ? end : sep;
-		for (size_t j = 0; j < ((i == argc - 1) ? endLen : sepLen); ++j) {
-			fputc(thingToPrint[j], stdout);
+	}
+
+	if (!IS_NONE(file)) {
+		/* Print end */
+		krk_push(krk_valueGetAttribute(file, "write"));
+		krk_push(OBJECT_VAL(krk_copyString(end,endLen)));
+		krk_callStack(1);
+		if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) return NONE_VAL();
+
+		/* Maybe flush */
+		if (flush) {
+			krk_push(krk_valueGetAttribute(file, "flush"));
+			krk_callStack(0);
 		}
+	}else {
+		fwrite(end, endLen, 1, stdout);
+		if (flush) fflush(stdout);
 	}
 
 	return NONE_VAL();
@@ -1584,7 +1623,7 @@ void _createAndBind_builtins(void) {
 		"@c repr strings should convey all information needed to recreate the object, if this is possible.");
 	BUILTIN_FUNCTION("print", FUNC_NAME(krk,print),
 		"@brief Print text to the standard output.\n"
-		"@arguments *args,sep=' ',end='\\n'\n\n"
+		"@arguments *args,sep=' ',end='\\n',file=None,flush=False\n\n"
 		"Prints the string representation of each argument to the standard output. "
 		"The keyword argument @p sep specifies the string to print between values. "
 		"The keyword argument @p end specifies the string to print after all of the values have been printed.");
