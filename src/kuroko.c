@@ -744,16 +744,6 @@ static int compileFile(char * argv[], int flags, char * fileName) {
 	return func == NULL;
 }
 
-#ifdef BUNDLE_LIBS
-#define BUNDLED(name) do { \
-	extern KrkValue krk_module_onload_ ## name (); \
-	KrkValue moduleOut = krk_module_onload_ ## name (); \
-	krk_attachNamedValue(&vm.modules, # name, moduleOut); \
-	krk_attachNamedObject(&AS_INSTANCE(moduleOut)->fields, "__name__", (KrkObj*)krk_copyString(#name, sizeof(#name)-1)); \
-	krk_attachNamedValue(&AS_INSTANCE(moduleOut)->fields, "__file__", NONE_VAL()); \
-} while (0)
-#endif
-
 int main(int argc, char * argv[]) {
 #ifdef _WIN32
 	SetConsoleOutputCP(65001);
@@ -885,11 +875,17 @@ _finishArgs:
 	/* Bind interrupt signal */
 	bindSignalHandlers();
 
-#ifdef BUNDLE_LIBS
-	/* Add any other modules you want to include that are normally built as shared objects. */
-	BUNDLED(math);
-	BUNDLED(socket);
-	BUNDLED(timeit);
+#ifdef KRK_BUNDLE_LIBS
+	/* Define KRK_BUNDLE_LIBS like "BUNDLE(os);BUNDLE(math);", etc. */
+#define BUNDLED(name) do { \
+	extern KrkValue krk_module_onload_ ## name (KrkString*); \
+	KrkValue moduleOut = krk_module_onload_ ## name (NULL); \
+	krk_attachNamedValue(&vm.modules, # name, moduleOut); \
+	krk_attachNamedObject(&AS_INSTANCE(moduleOut)->fields, "__name__", (KrkObj*)krk_copyString(#name, sizeof(#name)-1)); \
+	krk_attachNamedValue(&AS_INSTANCE(moduleOut)->fields, "__file__", NONE_VAL()); \
+} while (0)
+	KRK_BUNDLE_LIBS
+#undef BUNDLED
 #endif
 
 	KrkValue result = INTEGER_VAL(0);
