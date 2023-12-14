@@ -40,7 +40,7 @@ KRK_Function(S_ISSOCK) {
 }
 #endif
 
-KrkValue krk_module_onload_stat(void) {
+KrkValue krk_module_onload_stat(KrkString * runAs) {
 	KrkInstance * module = krk_newInstance(vm.baseClasses->moduleClass);
 	krk_push(OBJECT_VAL(module));
 

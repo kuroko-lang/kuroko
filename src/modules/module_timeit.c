@@ -35,7 +35,7 @@ KRK_Function(timeit) {
 	return FLOATING_VAL(after-before);
 }
 
-KrkValue krk_module_onload_timeit(void) {
+KrkValue krk_module_onload_timeit(KrkString * runAs) {
 	KrkInstance * module = krk_newInstance(vm.baseClasses->moduleClass);
 	krk_push(OBJECT_VAL(module));
 

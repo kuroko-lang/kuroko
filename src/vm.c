@@ -971,13 +971,14 @@ void krk_initVM(int flags) {
 		krk_module_init_gc();
 		krk_module_init_fileio();
 #endif
-#ifndef KRK_DISABLE_DEBUG
-		krk_module_init_dis();
-#endif
 #ifndef KRK_DISABLE_THREADS
 		krk_module_init_threading();
 #endif
 	}
+
+#ifndef KRK_DISABLE_DEBUG
+	krk_debug_init();
+#endif
 
 
 	/* The VM is now ready to start executing code. */

@@ -17,7 +17,7 @@ KRK_Function(wcwidth) {
 	return INTEGER_VAL(wcwidth(codepoint));
 }
 
-KrkValue krk_module_onload_wcwidth(void) {
+KrkValue krk_module_onload_wcwidth(KrkString * runAs) {
 	KrkInstance * module = krk_newInstance(vm.baseClasses->moduleClass);
 	krk_push(OBJECT_VAL(module));
 	KRK_DOC(module, "Character widths.");

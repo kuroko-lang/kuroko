@@ -148,7 +148,7 @@ MATH_IS(isnan)
 
 #define bind(name) krk_defineNative(&module->fields, #name, _math_ ## name)
 
-KrkValue krk_module_onload_math(void) {
+KrkValue krk_module_onload_math(KrkString * runAs) {
 	KrkInstance * module = krk_newInstance(vm.baseClasses->moduleClass);
 	krk_push(OBJECT_VAL(module));
 

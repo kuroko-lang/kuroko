@@ -207,6 +207,11 @@ extern int krk_debug_examineBreakpoint(int breakIndex, KrkCodeObject ** funcOut,
 extern void krk_debug_dumpStack(FILE * f, KrkCallFrame * frame);
 
 /**
+ * @brief Initialize debugger state. Call exactly once per VM.
+ */
+extern void krk_debug_init(void);
+
+/**
  * @def KRK_BREAKPOINT_NORMAL
  *
  * This breakpoint should fire once and then remain in the table

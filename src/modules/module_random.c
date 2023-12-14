@@ -58,7 +58,7 @@ KRK_Function(seed) {
 	return NONE_VAL();
 }
 
-KrkValue krk_module_onload_random(void) {
+KrkValue krk_module_onload_random(KrkString * runAs) {
 	KrkInstance * module = krk_newInstance(vm.baseClasses->moduleClass);
 	krk_push(OBJECT_VAL(module));
 

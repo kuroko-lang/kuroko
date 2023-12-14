@@ -617,7 +617,7 @@ KRK_Method(stat_result,__repr__) {
 	return krk_pop();
 }
 
-KrkValue krk_module_onload_os(void) {
+KrkValue krk_module_onload_os(KrkString * runAs) {
 	KrkInstance * module = krk_newInstance(vm.baseClasses->moduleClass);
 	krk_push(OBJECT_VAL(module));
 

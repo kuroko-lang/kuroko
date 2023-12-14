@@ -38,7 +38,7 @@ KRK_Function(time) {
 	return FLOATING_VAL(out);
 }
 
-KrkValue krk_module_onload_time(void) {
+KrkValue krk_module_onload_time(KrkString * runAs) {
 	KrkInstance * module = krk_newInstance(vm.baseClasses->moduleClass);
 	krk_push(OBJECT_VAL(module));
 	KRK_DOC(module, "@brief Provides timekeeping functions.");

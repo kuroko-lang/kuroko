@@ -67,3 +67,28 @@ struct ParsedFormatSpec {
  * This is the "sdbm" hash. I've been using it in various places for many years,
  * and this specific version apparently traces to gawk. */
 #define krk_hash_advance(hash,c) do { hash = (int)(c) + (hash << 6) + (hash << 16) - hash; } while (0)
+
+#ifndef KRK_DISABLE_DEBUG
+#include <kuroko/debug.h>
+struct BreakpointEntry {
+	KrkCodeObject * inFunction;
+	size_t offset;
+	int flags;
+	uint8_t originalOpcode;
+};
+
+#define MAX_BREAKPOINTS 32
+struct DebuggerState {
+	int breakpointsCount;
+	KrkDebugCallback debuggerHook;
+
+	/* XXX This was previously thread-local; it probably should still be
+	 *     specific to an individual thread... but we don't really do
+	 *     much thread debugging, so... */
+	int repeatStack_top;
+	int repeatStack_bottom;
+	int thisWasForced;
+
+	struct BreakpointEntry breakpoints[MAX_BREAKPOINTS];
+};
+#endif

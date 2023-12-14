@@ -513,7 +513,7 @@ KRK_Method(socket,proto) {
 	return INTEGER_VAL(self->proto);
 }
 
-KrkValue krk_module_onload_socket(void) {
+KrkValue krk_module_onload_socket(KrkString * runAs) {
 	KrkInstance * module = krk_newInstance(vm.baseClasses->moduleClass);
 	krk_push(OBJECT_VAL(module));
 
