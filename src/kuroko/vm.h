@@ -136,17 +136,15 @@ struct BaseClasses {
 	KrkClass * enumerateClass;       /**< Yield pairs of indexes and values from an iterator. */
 	KrkClass * HelperClass;          /**< Class implementation of 'help' object */
 	KrkClass * LicenseReaderClass;   /**< Class implementation of 'license' object */
-	KrkClass * FileClass;            /**< os.File */
-	KrkClass * BinaryFileClass;      /**< os.BinaryFile */
-	KrkClass * DirectoryClass;       /**< os.Directory */
-	KrkClass * stat_resultClass;     /**< stat.stat_result */
-	KrkClass * EnvironClass;         /**< os._Environ */
+	KrkClass * FileClass;            /**< fileio.File */
+	KrkClass * BinaryFileClass;      /**< fileio.BinaryFile */
+	KrkClass * DirectoryClass;       /**< fileio.Directory */
+	KrkClass * CompilerStateClass;   /**< Compiler global state */
+	KrkClass * CellClass;            /**< Upvalue cell */
 	KrkClass * setClass;             /**< Unordered hashset */
 	KrkClass * setiteratorClass;     /**< Iterator over values in a set */
 	KrkClass * ThreadClass;          /**< Threading.Thread */
 	KrkClass * LockClass;            /**< Threading.Lock */
-	KrkClass * CompilerStateClass;   /**< Compiler global state */
-	KrkClass * CellClass;            /**< Upvalue cell */
 };
 
 /**
