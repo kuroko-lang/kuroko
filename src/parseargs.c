@@ -1,28 +1,35 @@
+/**
+ * @brief Function argument parser.
+ *
+ * Provides a simple interface for parsing arguments passed to native functions.
+ *
+ * This is similar to CPython's PyArg_ParseTupleAndKeywords, and many of the options
+ * work the same way (though with some exceptions). With the utilities provided here,
+ * C bindings can parse positional and keyword arguments, with automatic type checking
+ * and conversion to C types.
+ */
 #include <kuroko/vm.h>
 #include <kuroko/util.h>
 
 /**
- * For use with @c ! formats, collects a @c KrkClass* and compares if the arg
- * is set. As a special case, the type may be @c NULL in which case failure is
- * guaranteed; this allows the standard library to reference potentially
- * uninitialized types (like fileio.File which may be uninitialized if the
- * module is not loaded, but may still need to be referenced as a potential
- * type in a function like @c print ).
+ * @brief Format a TypeError exception for an argument.
+ *
+ * @param _method_name Method name from parseVArgs, after possibly modification by `:`
+ * @param expected     Description of expected type; generally a type name, but maybe something like "str of length 1".
+ * @param arg          The value passed that failed the type check.
+ * @param argName      Name of the argument. If NULL or zero-length, argument name is not included in the description.
  */
-static int matchType(const char * _method_name, KrkClass * type, KrkValue arg) {
-	if (arg != KWARGS_VAL(0) && !krk_isInstanceOf(arg, type)) {
-		krk_runtimeError(vm.exceptions->typeError, "%s() expects %s, not '%T'",
-			_method_name, type ? type->name->chars : "unknown type", arg);
-		return 0;
-	}
-	return 1;
+__attribute__((cold))
+static void raise_TypeError(const char * _method_name, const char * expected, KrkValue arg, const char * argName) {
+	krk_runtimeError(vm.exceptions->typeError,
+		"%s()%s%s expects %s, not '%T'",
+		_method_name, (argName && *argName) ? " argument " : "", (argName && *argName) ? argName : "",
+		expected, arg);
 }
 
 /**
  * @brief Validate and parse arguments to a function similar to how managed
  *        function arguments are handled.
- *
- * This attempts to emulate CPythons' PyArg_ParseTupleAndKeywords.
  *
  * This works like a fancy scanf. We accept the original argument specification
  * (argc,argv,hasKw), a format string, an array of argument names, and then var
@@ -47,6 +54,11 @@ int krk_parseVArgs(
 
 	const char * maybeColon = strchr(fmt, ':');
 	if (maybeColon) {
+		/**
+		 * If the format string has a ':' it is taken as the start of an alternative method name
+		 * to include in error messages. This may be useful when calling the macro version of
+		 * @c krk_parseArgs in a @c __new__ or @c __init__ method.
+		 */
 		_method_name = maybeColon + 1;
 	}
 
@@ -168,7 +180,10 @@ int krk_parseVArgs(
 			 * Maybe if you want @c p to only be a bool this could be useful? */
 			fmt++;
 			KrkClass * type = va_arg(args, KrkClass*);
-			if (!matchType(_method_name, type, arg)) goto _error;
+			if (arg != KWARGS_VAL(0) && !krk_isInstanceOf(arg, type)) {
+				raise_TypeError(_method_name, type ? type->name->chars : "unknown type", arg, names[oarg]);
+				goto _error;
+			}
 		}
 
 		switch (argtype) {
@@ -187,7 +202,7 @@ int krk_parseVArgs(
 					if (IS_NONE(arg)) {
 						*out = NULL;
 					} else if (!IS_OBJECT(arg)) {
-						TYPE_ERROR(heap object,arg);
+						raise_TypeError(_method_name, "heap object", arg, names[oarg]);
 						goto _error;
 					} else {
 						*out = AS_OBJECT(arg);
@@ -235,7 +250,7 @@ int krk_parseVArgs(
 						*out = AS_CSTRING(arg);
 						if (size) *size = AS_STRING(arg)->length;
 					} else {
-						TYPE_ERROR(str or None,arg);
+						raise_TypeError(_method_name, "str or None", arg, names[oarg]);
 						goto _error;
 					}
 				}
@@ -257,7 +272,7 @@ int krk_parseVArgs(
 						*out = AS_CSTRING(arg);
 						if (size) *size = AS_STRING(arg)->length;
 					} else {
-						TYPE_ERROR(str,arg);
+						raise_TypeError(_method_name, "str", arg, names[oarg]);
 						goto _error;
 					}
 				}
@@ -294,7 +309,7 @@ int krk_parseVArgs(
 				int * out = va_arg(args, int*);
 				if (arg != KWARGS_VAL(0)) {
 					if (!IS_STRING(arg) || AS_STRING(arg)->codesLength != 1) {
-						TYPE_ERROR(str of length 1,arg);
+						raise_TypeError(_method_name, "str of length 1", arg, names[oarg]);
 						goto _error;
 					}
 					*out = krk_unicodeCodepoint(AS_STRING(arg),0);
@@ -314,7 +329,7 @@ int krk_parseVArgs(
 						krk_push(arg);
 						if (!krk_bindMethod(type, S("__float__"))) {
 							krk_pop();
-							TYPE_ERROR(float,arg);
+							raise_TypeError(_method_name, "float", arg, names[oarg]);
 							goto _error;
 						}
 						arg = krk_callStack(0);
@@ -335,7 +350,7 @@ int krk_parseVArgs(
 						krk_push(arg);
 						if (!krk_bindMethod(type, S("__float__"))) {
 							krk_pop();
-							TYPE_ERROR(float,arg);
+							raise_TypeError(_method_name, "float", arg, names[oarg]);
 							goto _error;
 						}
 						arg = krk_callStack(0);
