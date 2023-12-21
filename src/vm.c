@@ -1317,11 +1317,12 @@ int krk_loadModule(KrkString * path, KrkValue * moduleOut, KrkString * runAs, Kr
 		krk_runfile(fileName,fileName);
 		*moduleOut = OBJECT_VAL(krk_currentThread.module);
 		krk_currentThread.module = enclosing;
-		if (!IS_OBJECT(*moduleOut)) {
+		if (!IS_OBJECT(*moduleOut) || (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION)) {
 			if (!(krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION)) {
 				krk_runtimeError(vm.exceptions->importError,
 					"Failed to load module '%S' from '%s'", runAs, fileName);
 			}
+			krk_tableDelete(&vm.modules, OBJECT_VAL(runAs));
 			return 0;
 		}
 
