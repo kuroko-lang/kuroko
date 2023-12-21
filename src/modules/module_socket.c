@@ -513,10 +513,7 @@ KRK_Method(socket,proto) {
 	return INTEGER_VAL(self->proto);
 }
 
-KrkValue krk_module_onload_socket(KrkString * runAs) {
-	KrkInstance * module = krk_newInstance(vm.baseClasses->moduleClass);
-	krk_push(OBJECT_VAL(module));
-
+KRK_Module(socket) {
 	KRK_DOC(module, "Lightweight wrapper around the standard Berkeley sockets interface.");
 
 	KrkClass * socket = krk_makeClass(module, &SocketClass, "socket", vm.baseClasses->objectClass);
@@ -623,6 +620,4 @@ KrkValue krk_module_onload_socket(KrkString * runAs) {
 	krk_makeClass(module, &SocketError, "SocketError", vm.exceptions->baseException);
 	KRK_DOC(SocketError, "Raised on faults from socket functions.");
 	krk_finalizeClass(SocketError);
-
-	return krk_pop();
 }

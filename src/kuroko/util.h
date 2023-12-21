@@ -353,3 +353,18 @@ extern int krk_pushStringBuilderFormat(struct StringBuilder * sb, const char * f
 extern KrkValue krk_stringFromFormat(const char * fmt, ...);
 extern int krk_long_to_int(KrkValue val, char size, void * out);
 extern int krk_isSubClass(const KrkClass * cls, const KrkClass * base);
+
+#define KRK_Module_internal_name(name) \
+	_krk_module_onload_ ## name
+#define KRK_Module_internal_sig(name) \
+	static inline void KRK_Module_internal_name(name) (KrkInstance * module, KrkString * runAs)
+#define KRK_Module(name) \
+	KRK_Module_internal_sig(name); \
+	KrkValue krk_module_onload_ ## name (KrkString * runAs) { \
+		KrkInstance * module = krk_newInstance(KRK_BASE_CLASS(module)); \
+		krk_push(OBJECT_VAL(module)); \
+		krk_attachNamedObject(&module->fields, "__name__", (KrkObj*)runAs); \
+		KRK_Module_internal_name(name)(module, runAs); \
+		return krk_pop(); \
+	} \
+	KRK_Module_internal_sig(name)

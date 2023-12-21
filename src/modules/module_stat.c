@@ -40,10 +40,7 @@ KRK_Function(S_ISSOCK) {
 }
 #endif
 
-KrkValue krk_module_onload_stat(KrkString * runAs) {
-	KrkInstance * module = krk_newInstance(vm.baseClasses->moduleClass);
-	krk_push(OBJECT_VAL(module));
-
+KRK_Module(stat) {
 	KRK_DOC(module, "@brief Functions to check results from @ref stat calls.");
 
 	BIND_FUNC(module,S_ISBLK);
@@ -55,8 +52,6 @@ KrkValue krk_module_onload_stat(KrkString * runAs) {
 	BIND_FUNC(module,S_ISLNK);
 	BIND_FUNC(module,S_ISSOCK);
 #endif
-
-	return krk_pop();
 }
 
 

@@ -232,11 +232,8 @@ KRK_Function(examine) {
 
 #endif
 
-KrkValue krk_module_onload_dis(KrkString * runAs) {
+KRK_Module(dis) {
 #ifndef KRK_DISABLE_DEBUG
-	KrkInstance * module = krk_newInstance(vm.baseClasses->moduleClass);
-	krk_push(OBJECT_VAL(module));
-
 	KRK_DOC(module,
 		"@brief Provides tools for disassembling bytecode.\n\n"
 		"### Code Disassembly in Kuroko\n\n"
@@ -341,9 +338,7 @@ KrkValue krk_module_onload_dis(KrkString * runAs) {
 			"_dis"
 		);
 	}
-
-	return krk_pop();
 #else
-	return krk_runtimeError(vm.exceptions->notImplementedError, "debugger support is disabled");
+	krk_runtimeError(vm.exceptions->notImplementedError, "debugger support is disabled");
 #endif
 }

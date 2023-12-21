@@ -58,16 +58,11 @@ KRK_Function(seed) {
 	return NONE_VAL();
 }
 
-KrkValue krk_module_onload_random(KrkString * runAs) {
-	KrkInstance * module = krk_newInstance(vm.baseClasses->moduleClass);
-	krk_push(OBJECT_VAL(module));
-
+KRK_Module(random) {
 	KRK_DOC(module, "Functions for generating pseudo-random numbers.");
 
 	BIND_FUNC(module, random);
 	BIND_FUNC(module, seed);
 
 	FUNC_NAME(krk,seed)(0,NULL,0);
-
-	return krk_pop();
 }

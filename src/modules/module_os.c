@@ -617,10 +617,7 @@ KRK_Method(stat_result,__repr__) {
 	return krk_pop();
 }
 
-KrkValue krk_module_onload_os(KrkString * runAs) {
-	KrkInstance * module = krk_newInstance(vm.baseClasses->moduleClass);
-	krk_push(OBJECT_VAL(module));
-
+KRK_Module(os) {
 	KRK_DOC(module, "@brief Provides access to low-level system operations.");
 
 #ifdef _WIN32
@@ -841,8 +838,6 @@ KrkValue krk_module_onload_os(KrkString * runAs) {
 		"@brief Get the status of a file\n"
 		"@arguments path\n\n"
 		"Runs the @c stat system call on @p path. Returns a @ref stat_result.\n");
-
-	return krk_pop();
 }
 
 

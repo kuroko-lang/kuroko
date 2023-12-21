@@ -38,9 +38,7 @@ KRK_Function(time) {
 	return FLOATING_VAL(out);
 }
 
-KrkValue krk_module_onload_time(KrkString * runAs) {
-	KrkInstance * module = krk_newInstance(vm.baseClasses->moduleClass);
-	krk_push(OBJECT_VAL(module));
+KRK_Module(time) {
 	KRK_DOC(module, "@brief Provides timekeeping functions.");
 	KRK_DOC(BIND_FUNC(module,sleep), "@brief Pause execution of the current thread.\n"
 		"@arguments secs\n\n"
@@ -50,6 +48,5 @@ KrkValue krk_module_onload_time(KrkString * runAs) {
 		"Returns a @ref float representation of the number of seconds since the platform's epoch date. "
 		"On POSIX platforms, this is the number of seconds since 1 January 1970. "
 		"The precision of the return value is platform-dependent.");
-	return krk_pop();
 }
 

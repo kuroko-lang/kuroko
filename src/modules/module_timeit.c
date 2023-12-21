@@ -35,14 +35,8 @@ KRK_Function(timeit) {
 	return FLOATING_VAL(after-before);
 }
 
-KrkValue krk_module_onload_timeit(KrkString * runAs) {
-	KrkInstance * module = krk_newInstance(vm.baseClasses->moduleClass);
-	krk_push(OBJECT_VAL(module));
-
+KRK_Module(timeit) {
 	KRK_DOC(module, "@brief Run functions very quickly without loop overhead from the interpreter.");
 
 	BIND_FUNC(module,timeit);
-
-	krk_pop();
-	return OBJECT_VAL(module);
 }

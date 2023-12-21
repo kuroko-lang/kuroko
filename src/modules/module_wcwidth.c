@@ -17,16 +17,12 @@ KRK_Function(wcwidth) {
 	return INTEGER_VAL(wcwidth(codepoint));
 }
 
-KrkValue krk_module_onload_wcwidth(KrkString * runAs) {
-	KrkInstance * module = krk_newInstance(vm.baseClasses->moduleClass);
-	krk_push(OBJECT_VAL(module));
+KRK_Module(wcwidth) {
 	KRK_DOC(module, "Character widths.");
 	BIND_FUNC(module, wcwidth);
 
 #ifndef _WIN32
 	setlocale(LC_ALL, "");
 #endif
-
-	return krk_pop();
 }
 

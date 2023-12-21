@@ -494,10 +494,7 @@ KRK_Method(Directory,__exit__) {
 	return FUNC_NAME(Directory,close)(1,argv,0);
 }
 
-KrkValue krk_module_onload_fileio(KrkString * runAs) {
-	KrkInstance * module = krk_newInstance(vm.baseClasses->moduleClass);
-	krk_push(OBJECT_VAL(module));
-
+KRK_Module(fileio) {
 	KRK_DOC(module,
 		"@brief Provides access to C <stdio> buffered file I/O functions.\n\n"
 		"The @c fileio module provides classes and functions for reading "
@@ -571,6 +568,4 @@ KrkValue krk_module_onload_fileio(KrkString * runAs) {
 		"@arguments path\n\n"
 		"Opens the directory at @p path and returns a @ref Directory object. If @p path could not be opened or is not "
 		"a directory, @ref IOError will be raised.");
-
-	return krk_pop();
 }

@@ -148,10 +148,7 @@ MATH_IS(isnan)
 
 #define bind(name) krk_defineNative(&module->fields, #name, _math_ ## name)
 
-KrkValue krk_module_onload_math(KrkString * runAs) {
-	KrkInstance * module = krk_newInstance(vm.baseClasses->moduleClass);
-	krk_push(OBJECT_VAL(module));
-
+KRK_Module(math) {
 	KRK_DOC(module, "@brief Provides access to floating-point mathematical functions from the system `libm`.");
 	KRK_DOC(bind(ceil),
 		"@brief Returns the smallest integer value not less than the input.\n"
@@ -271,7 +268,4 @@ KrkValue krk_module_onload_math(KrkString * runAs) {
 	krk_attachNamedValue(&module->fields, "e",   FLOATING_VAL(M_E));
 	krk_attachNamedValue(&module->fields, "inf", FLOATING_VAL(INFINITY));
 	krk_attachNamedValue(&module->fields, "nan", FLOATING_VAL(NAN));
-
-	krk_pop();
-	return OBJECT_VAL(module);
 }
