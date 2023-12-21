@@ -1,0 +1,104 @@
+'''
+@brief  Pairing heap.
+@author K. Lange <klange@toaruos.org>
+
+Provides a simple min-heap with insert, pop, peek, and visit.
+
+A Kuroko implementation is provided as a backup alongside a
+faster C implementation in a shared object module.
+'''
+
+def __make_pheap():
+    def pheap_meld(left, right, comp):
+        if left is None:
+            return right
+        if right is None:
+            return left
+        if comp(left[0],right[0]):
+            if left[1]:
+                right[2] = left[1]
+            left[1] = right
+            return left
+        else:
+            if right[1]:
+                left[2] = right[1]
+            right[1] = left
+            return right
+
+    def pheap_merge_pairs(lst, comp):
+        if lst is None:
+            return None
+        else if lst[2] is None:
+            return lst
+        else:
+            let next = lst[2]
+            lst[2] = None
+            let rest = next[2]
+            next[2] = None
+            return pheap_meld(pheap_meld(lst,next,comp), pheap_merge_pairs(rest, comp), comp)
+
+    def pheap_delete_min(heap, comp):
+        let subs = heap[1]
+        return pheap_merge_pairs(subs, comp)
+
+    def pheap_visit_heap(heap, func):
+        if not heap: return
+        func(heap)
+        pheap_visit_heap(heap[1], func)
+        pheap_visit_heap(heap[2], func)
+
+    def pheap_visit_heap_after(heap, func):
+        if not heap: return
+        pheap_visit_heap(heap[1], func)
+        pheap_visit_heap(heap[2], func)
+        func(heap)
+
+    class PHeap:
+        def __init__(self, comp):
+            '''Create a new pairing heap governed by the given comparator function.'''
+            self.heap = None
+            self.comp = comp
+            self.count = 0
+
+        def insert(self, value):
+            '''Insert a new element into the heap.'''
+            self.heap = pheap_meld(self.heap, [value, None, None], self.comp)
+            self.count += 1
+
+        def peek(self):
+            '''Retrieve the root (smallest) element of the heap, or None if it is empty.'''
+            return self.heap[0] if self.heap else None
+
+        def pop(self):
+            '''Remove and return the root (smallest) element of the heap. If the heap is empty, IndexError is raised.'''
+            let out = self.heap
+            if not out:
+                raise IndexError('pop from empty heap')
+            self.heap = pheap_delete_min(self.heap, self.comp)
+            self.count -= 1
+            return out[0] if out else None
+
+        def __bool__(self):
+            return self.heap is not None
+
+        def __len__(self):
+            return self.count
+
+        def visit(self, func, after=False):
+            '''Call a function for each element of the heap.'''
+            (pheap_visit_heap_after if after else pheap_visit_heap)(self.heap, func)
+
+    # Clean up qualified name.
+    PHeap.__qualname__ = 'PHeap'
+
+    return PHeap
+
+# Keep the Kuroko version available for testing.
+let PHeap_krk = __make_pheap()
+let PHeap = PHeap_krk
+
+# Try to load the C implementation.
+try:
+    import _pheap
+    PHeap = _pheap.PHeap
+
