@@ -100,15 +100,23 @@ class Pair():
 let modules = [
     # Integrated stuff
     'builtins',
-    'os',
     'kuroko',
-    'math',
     'threading',
+
+    # C modules
+    'os',
+    'math',
     'gc',
     'dis',
     'fileio',
     'time',
     'socket',
+    'stat',
+    'timeit',
+    '_pheap',
+    'pheap',
+    'random',
+    'wcwidth',
 
     # Stuff from modules/
     'json',
