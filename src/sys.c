@@ -201,6 +201,16 @@ KRK_Function(members) {
 	return krk_pop();
 }
 
+KRK_Function(set_recursion_depth) {
+	unsigned int maxdepth;
+	if (!krk_parseArgs("I",(const char*[]){"maxdepth"},&maxdepth)) return NONE_VAL();
+	if (krk_currentThread.exitOnFrame != 0) {
+		return krk_runtimeError(vm.exceptions->valueError, "Can not change recursion depth in this context.");
+	}
+	krk_setMaximumRecursionDepth(maxdepth);
+	return NONE_VAL();
+}
+
 void krk_module_init_kuroko(void) {
 	/**
 	 * kuroko = module()
@@ -250,6 +260,8 @@ void krk_module_init_kuroko(void) {
 		"Obtain the memory representation of a stack value.");
 	KRK_DOC(BIND_FUNC(vm.system,members),
 		"Obtain a copy of a dict of the direct members of an object.");
+	KRK_DOC(BIND_FUNC(vm.system,set_recursion_depth),
+		"Change the maximum recursion depth of the current thread if possible.");
 	krk_attachNamedObject(&vm.system->fields, "module", (KrkObj*)vm.baseClasses->moduleClass);
 	krk_attachNamedObject(&vm.system->fields, "path_sep", (KrkObj*)S(PATH_SEP));
 	KrkValue module_paths = krk_list_of(0,NULL,0);

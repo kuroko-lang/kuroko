@@ -606,7 +606,7 @@ _finishKwarg:
 		return 2;
 	}
 
-	if (unlikely(krk_currentThread.frameCount == vm.maximumCallDepth)) {
+	if (unlikely(krk_currentThread.frameCount == (size_t)krk_currentThread.maximumCallDepth)) {
 		krk_runtimeError(vm.exceptions->baseException, "maximum recursion depth exceeded");
 		goto _errorAfterKeywords;
 	}
@@ -892,13 +892,8 @@ int krk_isFalsey(KrkValue value) {
 }
 
 void krk_setMaximumRecursionDepth(size_t maxDepth) {
-	vm.maximumCallDepth = maxDepth;
-
-	KrkThreadState * thread = vm.threads;
-	while (thread) {
-		thread->frames = realloc(thread->frames, maxDepth * sizeof(KrkCallFrame));
-		thread = thread->next;
-	}
+	krk_currentThread.maximumCallDepth = maxDepth;
+	krk_currentThread.frames = realloc(krk_currentThread.frames, maxDepth * sizeof(KrkCallFrame));
 }
 
 void krk_initVM(int flags) {
@@ -907,11 +902,11 @@ void krk_initVM(int flags) {
 #endif
 
 	vm.globalFlags = flags & 0xFF00;
-	vm.maximumCallDepth = KRK_CALL_FRAMES_MAX;
 
 	/* Reset current thread */
 	krk_resetStack();
-	krk_currentThread.frames   = calloc(vm.maximumCallDepth,sizeof(KrkCallFrame));
+	krk_currentThread.maximumCallDepth = KRK_CALL_FRAMES_MAX;
+	krk_currentThread.frames   = calloc(krk_currentThread.maximumCallDepth,sizeof(KrkCallFrame));
 	krk_currentThread.flags    = flags & 0x00FF;
 	krk_currentThread.module   = NULL;
 	vm.threads = &krk_currentThread;

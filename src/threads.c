@@ -36,6 +36,7 @@ struct Thread {
 	pid_t  tid;
 	unsigned int    started:1;
 	unsigned int    alive:1;
+	unsigned int maxrec;
 };
 
 /**
@@ -61,11 +62,13 @@ KRK_Function(current_thread) {
 
 static volatile int _threadLock = 0;
 static void * _startthread(void * _threadObj) {
+	struct Thread * self = _threadObj;
 #if defined(__APPLE__) && defined(__aarch64__)
 	krk_forceThreadData();
 #endif
 	memset(&krk_currentThread, 0, sizeof(KrkThreadState));
-	krk_currentThread.frames = calloc(vm.maximumCallDepth,sizeof(KrkCallFrame));
+	krk_currentThread.maximumCallDepth = self->maxrec;
+	krk_currentThread.frames = calloc(krk_currentThread.maximumCallDepth,sizeof(KrkCallFrame));
 	vm.globalFlags |= KRK_GLOBAL_THREADS;
 	_obtain_lock(_threadLock);
 	if (vm.threads->next) {
@@ -75,7 +78,6 @@ static void * _startthread(void * _threadObj) {
 	_release_lock(_threadLock);
 
 	/* Get our run function */
-	struct Thread * self = _threadObj;
 	self->threadState = &krk_currentThread;
 	self->tid = gettid();
 
@@ -126,13 +128,15 @@ KRK_Method(Thread,join) {
 }
 
 KRK_Method(Thread,start) {
-	METHOD_TAKES_NONE();
+	unsigned int maxrec = krk_currentThread.maximumCallDepth;
+	if (!krk_parseArgs(".|I", (const char*[]){"maxrec"}, &maxrec)) return NONE_VAL();
 
 	if (self->started)
 		return krk_runtimeError(KRK_EXC(ThreadError), "Thread has already been started.");
 
 	self->started = 1;
 	self->alive   = 1;
+	self->maxrec  = maxrec;
 	pthread_create(&self->nativeRef, NULL, _startthread, (void*)self);
 
 	return argv[0];
