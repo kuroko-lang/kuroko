@@ -4,8 +4,8 @@
 #include <kuroko/util.h>
 
 #define KRK_VERSION_MAJOR  1
-#define KRK_VERSION_MINOR  4
-#define KRK_VERSION_PATCH  1
+#define KRK_VERSION_MINOR  5
+#define KRK_VERSION_PATCH  0
 #define KRK_VERSION_LEVEL  0xa
 #define KRK_VERSION_SERIAL 0x0
 
