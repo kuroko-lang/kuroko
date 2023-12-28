@@ -14,18 +14,37 @@
 /**
  * @brief Format a TypeError exception for an argument.
  *
- * @param _method_name Method name from parseVArgs, after possibly modification by `:`
+ * @param method_name  Method name from parseVArgs, after possibly modification by `:`
  * @param expected     Description of expected type; generally a type name, but maybe something like "str of length 1".
  * @param arg          The value passed that failed the type check.
  * @param argName      Name of the argument. If NULL or zero-length, argument name is not included in the description.
  */
 __attribute__((cold))
-static void raise_TypeError(const char * _method_name, const char * expected, KrkValue arg, const char * argName) {
+static void raise_TypeError(const char * method_name, const char * expected, KrkValue arg, const char * argName) {
 	krk_runtimeError(vm.exceptions->typeError,
 		"%s()%s%s expects %s, not '%T'",
-		_method_name, (argName && *argName) ? " argument " : "", (argName && *argName) ? argName : "",
+		method_name, (argName && *argName) ? " argument " : "", (argName && *argName) ? argName : "",
 		expected, arg);
 }
+
+/**
+ * @brief Get the method name to use for an error message.
+ * 
+ * If the format string has a ':' it is taken as the start of an alternative method name
+ * to include in error messages. This may be useful when calling the macro version of
+ * @c krk_parseArgs in a @c __new__ or @c __init__ method.
+ *
+ * @param method_name Original method name passed to krk_parseArgs.
+ * @param fmt         Pointer to somewhere in the format string up to the colon.
+ */
+__attribute__((cold))
+static const char * methodName(const char * method_name, const char * fmt) {
+	const char * maybeColon = strchr(fmt, ':');
+	return maybeColon ? maybeColon + 1 : method_name;
+}
+
+/* Just to avoid repeating ourselves... */
+#define _method_name (methodName(orig_method_name, fmt))
 
 /**
  * @brief Validate and parse arguments to a function similar to how managed
@@ -44,23 +63,13 @@ static void raise_TypeError(const char * _method_name, const char * expected, Kr
  * @returns 1 on success, 0 on error.
  */
 int krk_parseVArgs(
-		const char * _method_name,
+		const char * orig_method_name,
 		int argc, const KrkValue argv[], int hasKw,
 		const char * fmt, const char ** names, va_list args) {
 	int iarg = 0;           /**< Index into positional input arguments */
 	int oarg = 0;           /**< Index into names array */
 	int required = 1;       /**< Parser state, whether required arguments are being collected */
 	int acceptextrakws = 0; /**< Whether extra keyword args should produce an error (0) or not (1) */
-
-	const char * maybeColon = strchr(fmt, ':');
-	if (maybeColon) {
-		/**
-		 * If the format string has a ':' it is taken as the start of an alternative method name
-		 * to include in error messages. This may be useful when calling the macro version of
-		 * @c krk_parseArgs in a @c __new__ or @c __init__ method.
-		 */
-		_method_name = maybeColon + 1;
-	}
 
 	if (*fmt == '.') {
 		/**
@@ -431,12 +440,12 @@ _error:
  * @brief Variable argument version of @c krk_parseVArgs.
  */
 int krk_parseArgs_impl(
-		const char * _method_name,
+		const char * method_name,
 		int argc, const KrkValue argv[], int hasKw,
 		const char * format, const char ** names, ...) {
 	va_list args;
 	va_start(args, names);
-	int result = krk_parseVArgs(_method_name,argc,argv,hasKw,format,names,args);
+	int result = krk_parseVArgs(method_name,argc,argv,hasKw,format,names,args);
 	va_end(args);
 	return result;
 }
