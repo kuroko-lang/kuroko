@@ -29,7 +29,7 @@ static void raise_TypeError(const char * method_name, const char * expected, Krk
 
 /**
  * @brief Get the method name to use for an error message.
- * 
+ *
  * If the format string has a ':' it is taken as the start of an alternative method name
  * to include in error messages. This may be useful when calling the macro version of
  * @c krk_parseArgs in a @c __new__ or @c __init__ method.
@@ -45,6 +45,26 @@ static const char * methodName(const char * method_name, const char * fmt) {
 
 /* Just to avoid repeating ourselves... */
 #define _method_name (methodName(orig_method_name, fmt))
+
+/**
+ * @brief Extract arguments from kwargs dict, but keep references to them.
+ *
+ * Searches for @p argName in the @p kwargs dict. If found, extracts the value
+ * into @p out and stores a reference to it in @p refList and then deletes
+ * the original entry from @p kwargs.
+ *
+ * @param kwargs  Original keyword args dictionary, which will be mutated.
+ * @param argName Argument name to search for.
+ * @param out     Slot to place argument value in.
+ * @param refList List to store references for garbage collection.
+ * @returns Non-zero if the argument was not found.
+ */
+static int extractKwArg(KrkTable * kwargs, KrkString * argName, KrkValue * out, KrkValueArray * refList) {
+	if (!krk_tableGet_fast(kwargs, argName, out)) return 1;
+	krk_writeValueArray(refList, *out);
+	krk_tableDeleteExact(kwargs, OBJECT_VAL(argName));
+	return 0;
+}
 
 /**
  * @brief Validate and parse arguments to a function similar to how managed
@@ -148,24 +168,18 @@ int krk_parseVArgs(
 			continue;
 		}
 
-		int wasPositional = 0;
 		KrkValue arg = KWARGS_VAL(0);
-#define ARG_NAME (krk_copyString(names[oarg],strlen(names[oarg])))
 
 		if (iarg < argc) {
 			/* Positional arguments are pretty straightforward. */
 			arg = argv[iarg];
 			iarg++;
-			wasPositional = 1;
-		} else if ((required && !hasKw) || (hasKw && !krk_tableGet_fast(AS_DICT(argv[argc]), ARG_NAME, &arg) && required)) {
+		} else if ((required && !hasKw) || (hasKw && extractKwArg(AS_DICT(argv[argc]), krk_copyString(names[oarg],strlen(names[oarg])), &arg, AS_LIST(argv[argc+1])) && required)) {
 			/* If keyword argument lookup failed and this is not an optional argument, raise an exception. */
 			krk_runtimeError(vm.exceptions->typeError, "%s() missing required positional argument: '%s'",
 				_method_name, names[oarg]);
 			goto _error;
 		}
-
-		/* If this was a keyword argument, remove it from the kwargs table. */
-		if (hasKw && !wasPositional) krk_tableDeleteExact(AS_DICT(argv[argc]), OBJECT_VAL(ARG_NAME));
 
 		char argtype = *fmt++;
 

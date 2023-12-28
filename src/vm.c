@@ -686,12 +686,17 @@ static inline int _callNative(KrkNative* callee, int argCount, int returnDepth) 
 		/* Write the dict into the list */
 		krk_writeValueArray(AS_LIST(myList), myDict);
 
+		/* Also add a list for storing references that get removed from the kwargs dict during mutation. */
+		KrkValue refList = krk_list_of(0,NULL,0);
+		krk_push(refList);
+		krk_writeValueArray(AS_LIST(myList), refList);
+
 		/* Reduce the stack to just the list */
 		krk_currentThread.stack[stackOffsetAfterCall] = myList;
 		krk_currentThread.stackTop = &krk_currentThread.stack[stackOffsetAfterCall+1];
 
 		/* Call with list as arguments */
-		result = native(AS_LIST(myList)->count-1, AS_LIST(myList)->values, 1);
+		result = native(AS_LIST(myList)->count-2, AS_LIST(myList)->values, 1);
 	} else {
 		result = krk_callNativeOnStack(argCount, krk_currentThread.stackTop - argCount, 0, native);
 	}
