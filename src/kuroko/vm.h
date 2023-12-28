@@ -991,33 +991,6 @@ extern int krk_delAttribute(KrkString * name);
 extern void krk_module_init_kuroko(void);
 
 /**
- * @brief Initialize the built-in 'gc' module.
- */
-extern void krk_module_init_gc(void);
-
-/**
- * @brief Initialize the built-in 'time' module.
- */
-extern void krk_module_init_time(void);
-
-/**
- * @brief Initialize the built-in 'os' module.
- */
-extern void krk_module_init_os(void);
-
-/**
- * @brief Initialize the built-in 'fileio' module.
- */
-extern void krk_module_init_fileio(void);
-
-/**
- * @brief Initialize the built-in 'dis' module.
- *
- * Not available if KRK_DISABLE_DEBUG is set.
- */
-extern void krk_module_init_dis(void);
-
-/**
  * @brief Initialize the built-in 'threading' module.
  *
  * Not available if KRK_DISABLE_THREADS is set.
