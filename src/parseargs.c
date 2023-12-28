@@ -141,27 +141,22 @@ int krk_parseVArgs(
 
 		int wasPositional = 0;
 		KrkValue arg = KWARGS_VAL(0);
-		krk_push(OBJECT_VAL(krk_copyString(names[oarg],strlen(names[oarg]))));
+#define ARG_NAME (krk_copyString(names[oarg],strlen(names[oarg])))
 
 		if (iarg < argc) {
 			/* Positional arguments are pretty straightforward. */
 			arg = argv[iarg];
 			iarg++;
 			wasPositional = 1;
-		} else if ((required && !hasKw) || (hasKw && !krk_tableGet_fast(AS_DICT(argv[argc]), AS_STRING(krk_peek(0)), &arg) && required)) {
+		} else if ((required && !hasKw) || (hasKw && !krk_tableGet_fast(AS_DICT(argv[argc]), ARG_NAME, &arg) && required)) {
 			/* If keyword argument lookup failed and this is not an optional argument, raise an exception. */
-			krk_runtimeError(vm.exceptions->typeError, "%s() missing required positional argument: '%S'",
-				_method_name, AS_STRING(krk_peek(0)));
+			krk_runtimeError(vm.exceptions->typeError, "%s() missing required positional argument: '%s'",
+				_method_name, names[oarg]);
 			goto _error;
 		}
 
-		if (hasKw && krk_tableDelete(AS_DICT(argv[argc]), krk_peek(0)) && wasPositional) {
-			/* We remove all arguments from kwargs. If we got this argument from a positional argument,
-			 * and it was found during deletion, we raise a multiple-defs exception. */
-			krk_runtimeError(vm.exceptions->typeError, "%s() got multiple values for argument '%S'",
-				_method_name, AS_STRING(krk_peek(0)));
-			goto _error;
-		}
+		/* If this was a keyword argument, remove it from the kwargs table. */
+		if (hasKw && !wasPositional) krk_tableDeleteExact(AS_DICT(argv[argc]), OBJECT_VAL(ARG_NAME));
 
 		char argtype = *fmt++;
 
@@ -387,7 +382,6 @@ int krk_parseVArgs(
 			}
 		}
 
-		krk_pop();
 		oarg++;
 	}
 
@@ -411,6 +405,15 @@ int krk_parseVArgs(
 		for (size_t i = 0; i < AS_DICT(argv[argc])->capacity; ++i) {
 			KrkTableEntry * entry = &AS_DICT(argv[argc])->entries[i];
 			if (IS_STRING(entry->key)) {
+				/* See if this was the name of an argument, which means it was already provided as a positional argument. */
+				for (const char ** name = names; *name; ++name) {
+					if (**name && !strcmp(*name, AS_CSTRING(entry->key))) {
+						krk_runtimeError(vm.exceptions->typeError, "%s() got multiple values for argument '%s'",
+							_method_name, *name);
+						return 0;
+					}
+				}
+				/* Otherwise just say it was unexpected. */
 				krk_runtimeError(vm.exceptions->typeError, "%s() got an unexpected keyword argument '%S'",
 					_method_name, AS_STRING(entry->key));
 				return 0;
@@ -421,7 +424,6 @@ int krk_parseVArgs(
 	return 1;
 
 _error:
-	krk_pop(); /* name of argument with error */
 	return 0;
 }
 
