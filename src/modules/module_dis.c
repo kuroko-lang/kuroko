@@ -12,31 +12,34 @@
 #ifndef KRK_DISABLE_DEBUG
 
 KRK_Function(enablebreakpoint) {
-	CHECK_ARG(0,int,krk_integer_type,breakIndex);
+	int breakIndex;
+	if (!krk_parseArgs("i",(const char*[]){"breakpoint"}, &breakIndex)) return NONE_VAL();
 	if (krk_debug_enableBreakpoint(breakIndex))
 		return krk_runtimeError(vm.exceptions->indexError, "invalid breakpoint id");
 	return NONE_VAL();
 }
 
 KRK_Function(disablebreakpoint) {
-	CHECK_ARG(0,int,krk_integer_type,breakIndex);
+	int breakIndex;
+	if (!krk_parseArgs("i",(const char*[]){"breakpoint"}, &breakIndex)) return NONE_VAL();
 	if (krk_debug_disableBreakpoint(breakIndex))
 		return krk_runtimeError(vm.exceptions->indexError, "invalid breakpoint id");
 	return NONE_VAL();
 }
 
 KRK_Function(delbreakpoint) {
-	CHECK_ARG(0,int,krk_integer_type,breakIndex);
+	int breakIndex;
+	if (!krk_parseArgs("i",(const char*[]){"breakpoint"}, &breakIndex)) return NONE_VAL();
 	if (krk_debug_removeBreakpoint(breakIndex))
 		return krk_runtimeError(vm.exceptions->indexError, "invalid breakpoint id");
 	return NONE_VAL();
 }
 
 KRK_Function(addbreakpoint) {
-	FUNCTION_TAKES_EXACTLY(2);
-	CHECK_ARG(1,int,krk_integer_type,lineNo);
-
+	KrkValue func;
+	int lineNo;
 	int flags = KRK_BREAKPOINT_NORMAL;
+	if (!krk_parseArgs("Vi|i",(const char*[]){"func","lineno","flags"}, &func, &lineNo, &flags)) return NONE_VAL();
 
 	if (hasKw) {
 		KrkValue flagsValue = NONE_VAL();
@@ -48,18 +51,18 @@ KRK_Function(addbreakpoint) {
 	}
 
 	int result;
-	if (IS_STRING(argv[0])) {
-		result = krk_debug_addBreakpointFileLine(AS_STRING(argv[0]), lineNo, flags);
+	if (IS_STRING(func)) {
+		result = krk_debug_addBreakpointFileLine(AS_STRING(func), lineNo, flags);
 	} else {
 		KrkCodeObject * target = NULL;
-		if (IS_CLOSURE(argv[0])) {
-			target = AS_CLOSURE(argv[0])->function;
-		} else if (IS_BOUND_METHOD(argv[0]) && IS_CLOSURE(OBJECT_VAL(AS_BOUND_METHOD(argv[0])->method))) {
-			target = AS_CLOSURE(OBJECT_VAL(AS_BOUND_METHOD(argv[0])->method))->function;
-		} else if (IS_codeobject(argv[0])) {
-			target = AS_codeobject(argv[0]);
+		if (IS_CLOSURE(func)) {
+			target = AS_CLOSURE(func)->function;
+		} else if (IS_BOUND_METHOD(func) && IS_CLOSURE(OBJECT_VAL(AS_BOUND_METHOD(func)->method))) {
+			target = AS_CLOSURE(OBJECT_VAL(AS_BOUND_METHOD(func)->method))->function;
+		} else if (IS_codeobject(func)) {
+			target = AS_codeobject(func);
 		} else {
-			return TYPE_ERROR(function or method or filename,argv[0]);
+			return TYPE_ERROR(function or method or filename,func);
 		}
 		/* Figure out what instruction this should be on */
 		size_t last = 0;
@@ -85,55 +88,51 @@ KRK_Function(addbreakpoint) {
  * dis.dis(object)
  */
 KRK_Function(dis) {
-	FUNCTION_TAKES_EXACTLY(1);
+	KrkValue funcVal;
+	if (!krk_parseArgs("V",(const char*[]){"func"},&funcVal)) return NONE_VAL();
 
-	if (IS_CLOSURE(argv[0])) {
-		KrkCodeObject * func = AS_CLOSURE(argv[0])->function;
+	if (IS_CLOSURE(funcVal)) {
+		KrkCodeObject * func = AS_CLOSURE(funcVal)->function;
 		krk_disassembleCodeObject(stdout, func, func->name ? func->name->chars : "<unnamed>");
-	} else if (IS_codeobject(argv[0])) {
-		krk_disassembleCodeObject(stdout, AS_codeobject(argv[0]), AS_codeobject(argv[0])->name ? AS_codeobject(argv[0])->name->chars : "<unnamed>");
-	} else if (IS_BOUND_METHOD(argv[0])) {
-		if (AS_BOUND_METHOD(argv[0])->method->type == KRK_OBJ_CLOSURE) {
-			KrkCodeObject * func = ((KrkClosure*)AS_BOUND_METHOD(argv[0])->method)->function;
+	} else if (IS_codeobject(funcVal)) {
+		krk_disassembleCodeObject(stdout, AS_codeobject(funcVal), AS_codeobject(funcVal)->name ? AS_codeobject(funcVal)->name->chars : "<unnamed>");
+	} else if (IS_BOUND_METHOD(funcVal)) {
+		if (AS_BOUND_METHOD(funcVal)->method->type == KRK_OBJ_CLOSURE) {
+			KrkCodeObject * func = ((KrkClosure*)AS_BOUND_METHOD(funcVal)->method)->function;
 			const char * methodName = func->name ? func->name->chars : "<unnamed>";
-			const char * typeName = IS_CLASS(AS_BOUND_METHOD(argv[0])->receiver) ? AS_CLASS(AS_BOUND_METHOD(argv[0])->receiver)->name->chars : krk_typeName(AS_BOUND_METHOD(argv[0])->receiver);
+			const char * typeName = IS_CLASS(AS_BOUND_METHOD(funcVal)->receiver) ? AS_CLASS(AS_BOUND_METHOD(funcVal)->receiver)->name->chars : krk_typeName(AS_BOUND_METHOD(funcVal)->receiver);
 			size_t allocSize = strlen(methodName) + strlen(typeName) + 2;
 			char * tmp = malloc(allocSize);
 			snprintf(tmp, allocSize, "%s.%s", typeName, methodName);
 			krk_disassembleCodeObject(stdout, func, tmp);
 			free(tmp);
 		} else {
-			krk_runtimeError(vm.exceptions->typeError, "Can not disassemble built-in method of '%T'", AS_BOUND_METHOD(argv[0])->receiver);
+			krk_runtimeError(vm.exceptions->typeError, "Can not disassemble built-in method of '%T'", AS_BOUND_METHOD(funcVal)->receiver);
 		}
-	} else if (IS_CLASS(argv[0])) {
+	} else if (IS_CLASS(funcVal)) {
 		KrkValue code;
-		if (krk_tableGet(&AS_CLASS(argv[0])->methods, OBJECT_VAL(S("__func__")), &code) && IS_CLOSURE(code)) {
+		if (krk_tableGet(&AS_CLASS(funcVal)->methods, OBJECT_VAL(S("__func__")), &code) && IS_CLOSURE(code)) {
 			KrkCodeObject * func = AS_CLOSURE(code)->function;
-			krk_disassembleCodeObject(stdout, func, AS_CLASS(argv[0])->name->chars);
+			krk_disassembleCodeObject(stdout, func, AS_CLASS(funcVal)->name->chars);
 		}
 		/* TODO Methods! */
 	} else {
-		krk_runtimeError(vm.exceptions->typeError, "Don't know how to disassemble '%T'", argv[0]);
+		krk_runtimeError(vm.exceptions->typeError, "Don't know how to disassemble '%T'", funcVal);
 	}
 
 	return NONE_VAL();
 }
 
 KRK_Function(build) {
-	FUNCTION_TAKES_AT_LEAST(1);
-	FUNCTION_TAKES_AT_MOST(2);
-	CHECK_ARG(0,str,KrkString*,code);
+	char * code;
 	char * fileName = "<source>";
-	if (argc > 1) {
-		CHECK_ARG(1,str,KrkString*,filename);
-		fileName = filename->chars;
-	}
+	if (!krk_parseArgs("s|s", (const char*[]){"code","filename"}, &code, &fileName)) return NONE_VAL();
 
 	/* Unset module */
 	krk_push(OBJECT_VAL(krk_currentThread.module));
 	KrkInstance * module = krk_currentThread.module;
 	krk_currentThread.module = NULL;
-	KrkCodeObject * c = krk_compile(code->chars,fileName);
+	KrkCodeObject * c = krk_compile(code,fileName);
 	krk_currentThread.module = module;
 	krk_pop();
 	if (c) return OBJECT_VAL(c);
@@ -215,8 +214,8 @@ static KrkValue _examineInternal(KrkCodeObject* func) {
 	return krk_pop();
 }
 KRK_Function(examine) {
-	FUNCTION_TAKES_EXACTLY(1);
-	CHECK_ARG(0,codeobject,KrkCodeObject*,func);
+	KrkCodeObject * func;
+	if (!krk_parseArgs("O!",(const char*[]){"func"}, KRK_BASE_CLASS(codeobject), &func)) return NONE_VAL();
 	return _examineInternal(func);
 }
 
@@ -314,7 +313,6 @@ KRK_Module(dis) {
 		krk_startModule("_dis");
 		krk_interpret(
 			"import dis\n"
-			"print(dir(dis))\n"
 			"def disrec(code, seen):\n"
 			"    let next = [code]\n"
 			"    while next:\n"
