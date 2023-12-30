@@ -429,10 +429,10 @@ int krk_parseVArgs(
 			KrkTableEntry * entry = &AS_DICT(argv[argc])->entries[i];
 			if (IS_STRING(entry->key)) {
 				/* See if this was the name of an argument, which means it was already provided as a positional argument. */
-				for (const char ** name = names; *name; ++name) {
-					if (**name && !strcmp(*name, AS_CSTRING(entry->key))) {
+				for (int j = 0; j < oarg; ++j) {
+					if (*names[j] && strlen(names[j]) == AS_STRING(entry->key)->length && !strcmp(names[j], AS_CSTRING(entry->key))) {
 						krk_runtimeError(vm.exceptions->typeError, "%s() got multiple values for argument '%s'",
-							_method_name, *name);
+							_method_name, names[j]);
 						return 0;
 					}
 				}
