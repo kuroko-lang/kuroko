@@ -73,6 +73,7 @@ KRK_Function(getsizeof) {
 			mySize += sizeof(uint8_t) * self->chunk.capacity;
 			mySize += sizeof(KrkLineMap) * self->chunk.linesCapacity;
 			mySize += sizeof(KrkValue) * self->chunk.constants.capacity;
+			mySize += sizeof(KrkExpressionsMap) * self->expressionsCapacity;
 			/* requiredArgNames */
 			mySize += sizeof(KrkValue) * self->positionalArgNames.capacity;
 			/* keywordArgNames */

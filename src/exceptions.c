@@ -288,12 +288,27 @@ static void dumpInnerException(KrkValue exception, int depth) {
 						}
 						if (line == lineNo) {
 							fprintf(stderr,"    ");
-							while (c == ' ') c = fgetc(f);
+							unsigned short j = 1;
+							while (c == ' ' || c == '\t') {
+								c = fgetc(f);
+								j++;
+							}
 							do {
 								fputc(c, stderr);
 								c = fgetc(f);
 							} while (!feof(f) && c > 0 && c != '\n');
 							fprintf(stderr, "\n");
+#ifndef KRK_DISABLE_DEBUG
+							uint8_t start, midStart, midEnd, end;
+							if (krk_debug_expressionUnderline(function, &start, &midStart, &midEnd, &end, instruction)) {
+								fprintf(stderr,"    ");
+								for (; j < start; ++j) fprintf(stderr," ");
+								for (; j < midStart; ++j) fprintf(stderr,"~");
+								for (; j < midEnd; ++j) fprintf(stderr, "^");
+								for (; j < end; ++j) fprintf(stderr,"~");
+								fprintf(stderr,"\n");
+							}
+#endif
 							break;
 						}
 					} while (!feof(f));

@@ -259,6 +259,7 @@ typedef struct ChunkRecorder {
 	size_t count;      /**< @brief Offset into the bytecode */
 	size_t lines;      /**< @brief Offset into the line map */
 	size_t constants;  /**< @brief Number of constants in the constants table */
+	size_t expressions;/**< @brief Number of expression mapping entries */
 } ChunkRecorder;
 
 /**
@@ -336,15 +337,18 @@ _exit:
 	return writer;
 }
 
+#define codeobject_from_chunk_pointer(ptr) ((KrkCodeObject*)((char *)(ptr) - offsetof(KrkCodeObject, chunk)))
 static ChunkRecorder recordChunk(KrkChunk * in) {
-	return (ChunkRecorder){in->count, in->linesCount, in->constants.count};
+	return (ChunkRecorder){in->count, in->linesCount, in->constants.count, codeobject_from_chunk_pointer(in)->expressionsCount};
 }
 
 static void rewindChunk(KrkChunk * out, ChunkRecorder from) {
 	out->count = from.count;
 	out->linesCount = from.lines;
 	out->constants.count = from.constants;
+	codeobject_from_chunk_pointer(out)->expressionsCount = from.expressions;
 }
+#undef codeobject_from_chunk_pointer
 
 static size_t renameLocal(struct GlobalState * state, size_t ind, KrkToken name);
 
@@ -572,12 +576,24 @@ static KrkCodeObject * endCompiler(struct GlobalState * state) {
 			function->localNames[i].deathday = currentChunk()->count;
 		}
 	}
-	function->localNames = GROW_ARRAY(KrkLocalEntry, function->localNames, \
+	function->localNames = GROW_ARRAY(KrkLocalEntry, function->localNames,
 		state->current->localNameCapacity, function->localNameCount); /* Shorten this down for runtime */
 
 	if (state->current->continueCount) { state->parser.previous = state->current->continues[0].token; error("continue without loop"); }
 	if (state->current->breakCount) { state->parser.previous = state->current->breaks[0].token; error("break without loop"); }
 	emitReturn(state);
+
+	/* Reduce the size of dynamic arrays to their fixed sizes. */
+	function->chunk.lines = GROW_ARRAY(KrkLineMap, function->chunk.lines,
+		function->chunk.linesCapacity, function->chunk.linesCount);
+	function->chunk.linesCapacity = function->chunk.linesCount;
+	function->chunk.code = GROW_ARRAY(uint8_t, function->chunk.code,
+		function->chunk.capacity, function->chunk.count);
+	function->chunk.capacity = function->chunk.count;
+
+	function->expressions = GROW_ARRAY(KrkExpressionsMap, function->expressions,
+		function->expressionsCapacity, function->expressionsCount);
+	function->expressionsCapacity = function->expressionsCount;
 
 	/* Attach contants for arguments */
 	for (int i = 0; i < function->potentialPositionals; ++i) {
@@ -821,10 +837,49 @@ static void _patchJump(struct GlobalState * state, int offset) {
 
 #define patchJump(o) _patchJump(state,o)
 
-static void compareChained(struct GlobalState * state, int inner) {
+/**
+ * @brief Add expression debug information.
+ *
+ * This allows us to print tracebacks with underlined expressions,
+ * implementing Python's PEP 657. We store information on the
+ * left and right sides of binary expressions and the "main" token
+ * of the expression (the binary operator, usually).
+ *
+ * This should be called immediately after the relevant opcode is
+ * emitted. The mapping applies to only a single opcode, so it should
+ * be the one that is going to cause an exception to be raised - be
+ * particularly careful not emit this after an @c OP_NOT if it comes
+ * after a more relevant opcode.
+ *
+ * If the token mechanism here doesn't provide sufficient flexibility,
+ * artificial tokens can be created to set up the spans.
+ */
+static void writeExpressionLocation(KrkToken * before, KrkToken * after, KrkToken * current, struct GlobalState * state) {
+#ifndef KRK_DISABLE_DEBUG
+	/* We can only support the display of underlines when the whole expression is on one line. */
+	if (after->linePtr != before->linePtr) return;
+	if (after->line != state->parser.previous.line) return;
+
+	/* For the sake of runtime storage, we only store this debug information
+	 * when it fits within the first 256 characters of a line, so we can
+	 * use uint8_ts to store these. */
+	if (before->col > 255 || current->col > 255 ||
+	    (current->col + current->literalWidth) > 255 ||
+	    (after->col + after->literalWidth) > 255) return;
+
+	krk_debug_addExpression(state->current->codeobject,
+		before->col, current->col,
+		current->col + current->literalWidth,
+		after->col + after->literalWidth);
+#endif
+}
+
+static void compareChained(struct GlobalState * state, int inner, KrkToken * preceding) {
 	KrkTokenType operatorType = state->parser.previous.type;
 	if (operatorType == TOKEN_NOT) consume(TOKEN_IN, "'in' must follow infix 'not'");
 	int invert = (operatorType == TOKEN_IS && match(TOKEN_NOT));
+	KrkToken this = state->parser.previous;
+	KrkToken next = state->parser.current;
 
 	ParseRule * rule = getRule(operatorType);
 	parsePrecedence(state, (Precedence)(rule->precedence + 1));
@@ -835,25 +890,28 @@ static void compareChained(struct GlobalState * state, int inner) {
 	}
 
 	switch (operatorType) {
-		case TOKEN_BANG_EQUAL:    emitBytes(OP_EQUAL, OP_NOT); break;
+		case TOKEN_BANG_EQUAL:    emitByte(OP_EQUAL); invert = 1; break;
 		case TOKEN_EQUAL_EQUAL:   emitByte(OP_EQUAL); break;
 		case TOKEN_GREATER:       emitByte(OP_GREATER); break;
 		case TOKEN_GREATER_EQUAL: emitByte(OP_GREATER_EQUAL); break;
 		case TOKEN_LESS:          emitByte(OP_LESS); break;
 		case TOKEN_LESS_EQUAL:    emitByte(OP_LESS_EQUAL); break;
 
-		case TOKEN_IS: emitByte(OP_IS); if (invert) emitByte(OP_NOT); break;
+		case TOKEN_IS: emitByte(OP_IS); break;
 
 		case TOKEN_IN: emitByte(OP_INVOKE_CONTAINS); break;
-		case TOKEN_NOT: emitBytes(OP_INVOKE_CONTAINS, OP_NOT); break;
+		case TOKEN_NOT: emitByte(OP_INVOKE_CONTAINS); invert = 1; break;
 
 		default: error("Invalid binary comparison operator?"); break;
 	}
 
+	writeExpressionLocation(preceding, &state->parser.previous, &this, state);
+	if (invert) emitByte(OP_NOT);
+
 	if (getRule(state->parser.current.type)->precedence == PREC_COMPARISON) {
 		size_t exitJump = emitJump(OP_JUMP_IF_FALSE_OR_POP);
 		advance();
-		compareChained(state, 1);
+		compareChained(state, 1, &next);
 		patchJump(exitJump);
 		if (getRule(state->parser.current.type)->precedence != PREC_COMPARISON) {
 			if (!inner) {
@@ -867,13 +925,14 @@ static void compareChained(struct GlobalState * state, int inner) {
 }
 
 static void compare(struct GlobalState * state, int exprType, RewindState *rewind) {
-	compareChained(state, 0);
+	compareChained(state, 0, &rewind->oldParser.current);
 	invalidTarget(state, exprType, "operator");
 }
 
 static void binary(struct GlobalState * state, int exprType, RewindState *rewind) {
 	KrkTokenType operatorType = state->parser.previous.type;
 	ParseRule * rule = getRule(operatorType);
+	KrkToken this = state->parser.previous;
 	parsePrecedence(state, (Precedence)(rule->precedence + (rule->precedence != PREC_EXPONENT)));
 	invalidTarget(state, exprType, "operator");
 
@@ -895,6 +954,7 @@ static void binary(struct GlobalState * state, int exprType, RewindState *rewind
 		case TOKEN_AT:       emitByte(OP_MATMUL); break;
 		default: return;
 	}
+	writeExpressionLocation(&rewind->oldParser.current, &state->parser.previous, &this, state);
 }
 
 static int matchAssignment(struct GlobalState * state) {
@@ -931,6 +991,7 @@ static int invalidTarget(struct GlobalState * state, int exprType, const char * 
 
 static void assignmentValue(struct GlobalState * state) {
 	KrkTokenType type = state->parser.previous.type;
+	KrkToken left = state->parser.previous;
 	if (type == TOKEN_PLUS_PLUS || type == TOKEN_MINUS_MINUS) {
 		emitConstant(INTEGER_VAL(1));
 	} else {
@@ -959,6 +1020,7 @@ static void assignmentValue(struct GlobalState * state) {
 			error("Unexpected operand in assignment");
 			break;
 	}
+	writeExpressionLocation(&left,&state->parser.previous,&left,state);
 }
 
 static void expression(struct GlobalState * state) {
@@ -1001,6 +1063,9 @@ static void sliceExpression(struct GlobalState * state) {
 
 static void getitem(struct GlobalState * state, int exprType, RewindState *rewind) {
 
+	KrkToken *left = &rewind->oldParser.current;
+	KrkToken this  = state->parser.previous;
+
 	sliceExpression(state);
 
 	if (match(TOKEN_COMMA)) {
@@ -1019,6 +1084,7 @@ static void getitem(struct GlobalState * state, int exprType, RewindState *rewin
 		if (matchComplexEnd(state)) {
 			EMIT_OPERAND_OP(OP_DUP, 2);
 			emitByte(OP_INVOKE_SETTER);
+			writeExpressionLocation(left,&state->parser.current,&this,state);
 			emitByte(OP_POP);
 			return;
 		}
@@ -1027,16 +1093,21 @@ static void getitem(struct GlobalState * state, int exprType, RewindState *rewin
 	if (exprType == EXPR_CAN_ASSIGN && match(TOKEN_EQUAL)) {
 		parsePrecedence(state, PREC_ASSIGNMENT);
 		emitByte(OP_INVOKE_SETTER);
+		writeExpressionLocation(left,&state->parser.previous,&this,state);
 	} else if (exprType == EXPR_CAN_ASSIGN && matchAssignment(state)) {
 		emitBytes(OP_DUP, 1); /* o e o */
 		emitBytes(OP_DUP, 1); /* o e o e */
 		emitByte(OP_INVOKE_GETTER); /* o e v */
+		writeExpressionLocation(left,&state->parser.previous,&this,state);
 		assignmentValue(state); /* o e v a */
 		emitByte(OP_INVOKE_SETTER); /* r */
+		writeExpressionLocation(left,&state->parser.previous,&this,state);
 	} else if (exprType == EXPR_DEL_TARGET && checkEndOfDel(state)) {
 		emitByte(OP_INVOKE_DELETE);
+		writeExpressionLocation(left,&state->parser.previous,&this,state);
 	} else {
 		emitByte(OP_INVOKE_GETTER);
+		writeExpressionLocation(left,&state->parser.previous,&this,state);
 	}
 }
 
@@ -1111,12 +1182,15 @@ static void dot(struct GlobalState * state, int exprType, RewindState *rewind) {
 		attributeUnpack(state, exprType);
 		return;
 	}
+	KrkToken name = state->parser.current;
+	KrkToken this = state->parser.previous;
 	consume(TOKEN_IDENTIFIER, "Expected property name");
 	size_t ind = identifierConstant(state, &state->parser.previous);
 	if (exprType == EXPR_ASSIGN_TARGET) {
 		if (matchComplexEnd(state)) {
 			EMIT_OPERAND_OP(OP_DUP, 1);
 			EMIT_OPERAND_OP(OP_SET_PROPERTY, ind);
+			writeExpressionLocation(&rewind->oldParser.current, &state->parser.previous, &name, state);
 			emitByte(OP_POP);
 			return;
 		}
@@ -1125,18 +1199,24 @@ static void dot(struct GlobalState * state, int exprType, RewindState *rewind) {
 	if (exprType == EXPR_CAN_ASSIGN && match(TOKEN_EQUAL)) {
 		parsePrecedence(state, PREC_ASSIGNMENT);
 		EMIT_OPERAND_OP(OP_SET_PROPERTY, ind);
+		writeExpressionLocation(&rewind->oldParser.current, &state->parser.previous, &name, state);
 	} else if (exprType == EXPR_CAN_ASSIGN && matchAssignment(state)) {
 		emitBytes(OP_DUP, 0); /* Duplicate the object */
 		EMIT_OPERAND_OP(OP_GET_PROPERTY, ind);
+		writeExpressionLocation(&rewind->oldParser.current, &name, &this, state);
 		assignmentValue(state);
 		EMIT_OPERAND_OP(OP_SET_PROPERTY, ind);
+		writeExpressionLocation(&rewind->oldParser.current, &state->parser.previous, &name, state);
 	} else if (exprType == EXPR_DEL_TARGET && checkEndOfDel(state)) {
 		EMIT_OPERAND_OP(OP_DEL_PROPERTY, ind);
+		writeExpressionLocation(&rewind->oldParser.current, &name, &this, state);
 	} else if (match(TOKEN_LEFT_PAREN)) {
 		EMIT_OPERAND_OP(OP_GET_METHOD, ind);
-		call(state, EXPR_METHOD_CALL,NULL);
+		writeExpressionLocation(&rewind->oldParser.current, &name, &this, state);
+		call(state, EXPR_METHOD_CALL, rewind);
 	} else {
 		EMIT_OPERAND_OP(OP_GET_PROPERTY, ind);
+		writeExpressionLocation(&rewind->oldParser.current, &name, &this, state);
 	}
 }
 
@@ -3729,6 +3809,8 @@ static void pstar(struct GlobalState * state, int exprType, RewindState *rewind)
 }
 
 static void call(struct GlobalState * state, int exprType, RewindState *rewind) {
+	KrkToken left = rewind ? rewind->oldParser.current : state->parser.previous;
+	KrkToken this = state->parser.previous;
 	startEatingWhitespace();
 	size_t argCount = 0, specialArgs = 0, keywordArgs = 0, seenKeywordUnpacking = 0;
 	if (!check(TOKEN_RIGHT_PAREN)) {
@@ -3827,6 +3909,7 @@ static void call(struct GlobalState * state, int exprType, RewindState *rewind) 
 	} else {
 		EMIT_OPERAND_OP(OP_CALL, argCount);
 	}
+	writeExpressionLocation(&left,&state->parser.previous,&this,state);
 
 	invalidTarget(state, exprType, "function call");
 }

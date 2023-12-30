@@ -238,4 +238,37 @@ extern void krk_debug_init(void);
 #define KRK_DEBUGGER_RAISE     3
 #define KRK_DEBUGGER_QUIT      4
 
+/**
+ * @brief Add an expression mapping to the bytecode chunk.
+ * @memberof KrkCodeObject
+ *
+ * Associates a span of columns representing an expression with the
+ * current opcode offset. Used to supply debug information displayed
+ * in tracebacks with tildes and carets.
+ *
+ * @param codeobject Codeobject containing the instruction.
+ * @param start      First column, 1-indexed, of tildes, left side of expression.
+ * @param midStart   First column, 1-indexed, of carets, main token of expression.
+ * @param midEnd     Last column, 1-indexed, of carets, main token of expression.
+ * @param end        Last column, 1-indexed, of tildes, right side of expression.
+ */
+extern void krk_debug_addExpression(KrkCodeObject * codeobject, uint8_t start, uint8_t midStart, uint8_t midEnd, uint8_t end);
+
+/**
+ * @brief Extract expression mapping from chunk.
+ * @memberof KrkCodeObject
+ *
+ * Searches the debug information for the requested instruction to find
+ * an expression mapping and extracts the column values for underlining.
+ *
+ * @param codeobject  Codeobject containing the instruction.
+ * @param start       First column, 1-indexed, of tildes, left side of expression.
+ * @param midStart    First column, 1-indexed, of carets, main token of expression.
+ * @param midEnd      Last column, 1-indexed, of carets, main token of expression.
+ * @param end         Last column, 1-indexed, of tildes, right side of expression.
+ * @param instruction Offset of the last byte of an opcode, as is stored in a traceback entry.
+ * @returns Non-zero if a mapping was found.
+ */
+extern int krk_debug_expressionUnderline(const KrkCodeObject * codeobject, uint8_t * start, uint8_t * midStart, uint8_t * endStart, uint8_t * end, size_t instruction);
+
 #endif

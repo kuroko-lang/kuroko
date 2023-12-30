@@ -303,6 +303,10 @@ KRK_Method(codeobject,__args__) {
 	return OBJECT_VAL(tuple);
 }
 
+KRK_Method(codeobject,__file__) {
+	ATTRIBUTE_NOT_ASSIGNABLE();
+	return self->chunk.filename ? OBJECT_VAL(self->chunk.filename) : OBJECT_VAL(S(""));
+}
 
 #undef CURRENT_CTYPE
 #define CURRENT_CTYPE KrkBoundMethod*
@@ -415,6 +419,7 @@ void _createAndBind_functionClass(void) {
 	BIND_PROP(codeobject,co_posonlyargcount);
 	BIND_PROP(codeobject,__locals__);
 	BIND_PROP(codeobject,__args__);
+	BIND_PROP(codeobject,__file__);
 	krk_defineNative(&codeobject->methods, "__repr__", FUNC_NAME(codeobject,__str__));
 	krk_finalizeClass(codeobject);
 

@@ -533,4 +533,40 @@ void krk_debug_init(void) {
 	vm.dbgState->repeatStack_bottom = -1;
 }
 
+void krk_debug_addExpression(KrkCodeObject * codeobject, uint8_t start, uint8_t midStart, uint8_t midEnd, uint8_t end) {
+	/* Traceback entries point to the last byte of an opcode, due to the way instruction fetch
+	 * advances the instruction pointer past all of the constituent operands of an opcode; as
+	 * such, our map is based on these last bytes and we need to look at the byte preceding
+	 * the current count when adding new entries. */
+	size_t offset = codeobject->chunk.count - 1;
+
+	/* We can feasibly support offsets larger than UINT32_MAX on 64-bit platforms, though this
+	 * should never really happen. Just in case, avoid messing up our table with bad values. */
+	if (offset > UINT32_MAX) return;
+
+	if (codeobject->expressionsCapacity < codeobject->expressionsCount + 1) {
+		size_t old = codeobject->expressionsCapacity;
+		codeobject->expressionsCapacity = GROW_CAPACITY(old);
+		codeobject->expressions = GROW_ARRAY(KrkExpressionsMap, codeobject->expressions, old, codeobject->expressionsCapacity);
+	}
+
+	codeobject->expressions[codeobject->expressionsCount] = (KrkExpressionsMap){offset,start,midStart,midEnd,end};
+	codeobject->expressionsCount++;
+}
+
+int krk_debug_expressionUnderline(const KrkCodeObject* codeobject, uint8_t* start, uint8_t* midStart, uint8_t* midEnd, uint8_t* end, size_t instruction) {
+	/* We could do binary search here, but as we only print these when an exception 'escapes',
+	 * it's not really worth the optimization over a linear search per line in the traceback. */
+	for (size_t i = 0; i < codeobject->expressionsCount; ++i) {
+		if (codeobject->expressions[i].bytecodeOffset == instruction) {
+			*start = codeobject->expressions[i].start;
+			*midStart = codeobject->expressions[i].midStart;
+			*midEnd = codeobject->expressions[i].midEnd;
+			*end = codeobject->expressions[i].end;
+			return 1;
+		}
+	}
+	return 0;
+}
+
 #endif

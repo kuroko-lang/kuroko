@@ -133,6 +133,19 @@ typedef struct {
 	KrkString * name; /**< @brief Name of the local */
 } KrkLocalEntry;
 
+/**
+ * @brief Map entry of opcode offsets to expressions spans.
+ *
+ * Used for printing tracebacks with underlined expressions.
+ */
+typedef struct {
+	uint32_t bytecodeOffset;
+	uint8_t start;
+	uint8_t midStart;
+	uint8_t midEnd;
+	uint8_t end;
+} KrkExpressionsMap;
+
 struct KrkInstance;
 
 /**
@@ -157,6 +170,9 @@ typedef struct {
 	size_t localNameCount;                 /**< @brief Number of entries in @ref localNames */
 	KrkLocalEntry * localNames;            /**< @brief Stores the names of local variables used in the function, for debugging */
 	KrkString * qualname;                  /**< @brief The dotted name of the function */
+	size_t expressionsCapacity;            /**< @brief Capacity of @ref expressions */
+	size_t expressionsCount;               /**< @brief Number of entries in @ref expressions */
+	KrkExpressionsMap * expressions;       /**< @brief Mapping of bytecode offsets to expression spans for debugging */
 } KrkCodeObject;
 
 
