@@ -75,18 +75,6 @@
 #define FUNC_NAME(klass, name) _ ## klass ## _ ## name
 #define FUNC_SIG(klass, name) _noexport KrkValue FUNC_NAME(klass,name) (int argc, const KrkValue argv[], int hasKw)
 
-/* These forms are deprecated. */
-#define KRK_METHOD(klass, name, ...) FUNC_SIG(klass, name) { \
-	static __attribute__ ((unused)) const char* _method_name = # name; \
-	CHECK_ARG(0,klass,CURRENT_CTYPE,CURRENT_NAME); \
-	__VA_ARGS__ \
-	return NONE_VAL(); }
-
-#define KRK_FUNC(name,...) static KrkValue _krk_ ## name (int argc, const KrkValue argv[], int hasKw) { \
-	static __attribute__ ((unused)) const char* _method_name = # name; \
-	__VA_ARGS__ \
-	return NONE_VAL(); }
-
 /* This assumes you have a KrkInstance called `module` in the current scope. */
 #define MAKE_CLASS(klass) do { krk_makeClass(module,&klass,#klass,vm.baseClasses->objectClass); klass ->allocSize = sizeof(struct klass); } while (0)
 #define BIND_METHOD(klass,method) krk_defineNative(&klass->methods, #method, _ ## klass ## _ ## method)
