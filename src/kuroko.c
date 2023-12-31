@@ -128,6 +128,23 @@ KRK_Function(input) {
 	return readLine(prompt, promptwidth, syntax);
 }
 
+static void printResult(FILE * file, KrkValue result) {
+	KrkClass * type = krk_getType(result);
+	const char * formatStr = " \033[1;90m=> %s\033[0m\n";
+	if (type->_reprer) {
+		krk_push(result);
+		result = krk_callDirect(type->_reprer, 1);
+	} else if (type->_tostr) {
+		krk_push(result);
+		result = krk_callDirect(type->_tostr, 1);
+	}
+	if (!IS_STRING(result)) {
+		fprintf(file, " \033[1;91m=> Unable to produce representation for value.\033[0m\n");
+	} else {
+		fprintf(file, formatStr, AS_CSTRING(result));
+	}
+}
+
 #ifndef NO_RLINE
 /**
  * Given an object, find a property with the same name as a scanner token.
@@ -468,9 +485,7 @@ static int debuggerHook(KrkCallFrame * frame) {
 					krk_pop();
 					/* Call the compiled expression with no args. */
 					krk_push(krk_callStack(0));
-					fprintf(stderr, "\033[1;30m=> ");
-					krk_printValue(stderr, krk_peek(0));
-					fprintf(stderr, "\033[0m\n");
+					printResult(stderr, krk_peek(0));
 					krk_pop();
 				}
 				if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) {
@@ -1164,20 +1179,7 @@ _finishArgs:
 				KrkValue result = krk_interpret(allData, "<stdin>");
 				if (!IS_NONE(result)) {
 					krk_attachNamedValue(&vm.builtins->fields, "_", result);
-					KrkClass * type = krk_getType(result);
-					const char * formatStr = " \033[1;90m=> %s\033[0m\n";
-					if (type->_reprer) {
-						krk_push(result);
-						result = krk_callDirect(type->_reprer, 1);
-					} else if (type->_tostr) {
-						krk_push(result);
-						result = krk_callDirect(type->_tostr, 1);
-					}
-					if (!IS_STRING(result)) {
-						fprintf(stdout, " \033[1;91m=> Unable to produce representation for value.\033[0m\n");
-					} else {
-						fprintf(stdout, formatStr, AS_CSTRING(result));
-					}
+					printResult(stdout, result);
 				}
 				krk_resetStack();
 				free(allData);

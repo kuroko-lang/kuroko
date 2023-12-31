@@ -271,4 +271,22 @@ extern void krk_debug_addExpression(KrkCodeObject * codeobject, uint8_t start, u
  */
 extern int krk_debug_expressionUnderline(const KrkCodeObject * codeobject, uint8_t * start, uint8_t * midStart, uint8_t * endStart, uint8_t * end, size_t instruction);
 
+/**
+ * @brief Print a value without calling the VM.
+ * @memberof KrkValue
+ *
+ * Print a string representation of 'value' to the stream 'f',
+ * avoiding calls to managed code by using simplified representations
+ * where necessary. This is intended for use in debugging code, such
+ * as during disassembly, or when printing values in an untrusted context.
+ *
+ * @note This function will truncate long strings and print them in a form
+ *       closer to the 'repr()' representation, with escaped bytes, rather
+ *       than directly printing them to the stream.
+ *
+ * @param f     Stream to write to.
+ * @param value Value to display.
+ */
+extern void krk_printValueSafe(FILE * f, KrkValue value);
+
 #endif

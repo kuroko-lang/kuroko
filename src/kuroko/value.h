@@ -111,43 +111,6 @@ extern void krk_writeValueArray(KrkValueArray * array, KrkValue value);
 extern void krk_freeValueArray(KrkValueArray * array);
 
 /**
- * @brief Print a string representation of a value.
- * @memberof KrkValue
- * @deprecated Will be removed soon.
- *
- * Print a string representation of 'value' to the stream 'f'.
- * For primitives, performs appropriate formatting. For objects,
- * this will call __str__ on the object's representative type.
- * If the type does not have a __str__ method, __repr__ will be
- * tried before falling back to krk_typeName to directly print
- * the name of the class with no information on the value.
- *
- * This function provides the backend for the print() built-in.
- *
- * @param f     Stream to write to.
- * @param value Value to display.
- */
-extern void krk_printValue(FILE * f, KrkValue value);
-
-/**
- * @brief Print a value without calling the VM.
- * @memberof KrkValue
- *
- * Print a string representation of 'value' to the stream 'f',
- * avoiding calls to managed code by using simplified representations
- * where necessary. This is intended for use in debugging code, such
- * as during disassembly, or when printing values in an untrusted context.
- *
- * @note This function will truncate long strings and print them in a form
- *       closer to the 'repr()' representation, with escaped bytes, rather
- *       than directly printing them to the stream.
- *
- * @param f     Stream to write to.
- * @param value Value to display.
- */
-extern void krk_printValueSafe(FILE * f, KrkValue value);
-
-/**
  * @brief Compare two values for equality.
  * @memberof KrkValue
  *
