@@ -229,6 +229,38 @@ KRK_Function(examine) {
 #undef EXPAND_ARGS_MORE
 #undef FORMAT_VALUE_MORE
 
+KRK_Function(ip_to_expression) {
+	KrkValue func;
+	size_t ip;
+
+	if (!krk_parseArgs("VN",(const char*[]){"func","ip"}, &func, &ip)) return NONE_VAL();
+
+	KrkCodeObject * actual;
+
+	if (IS_CLOSURE(func)) actual = AS_CLOSURE(func)->function;
+	else if (IS_codeobject(func)) actual = AS_codeobject(func);
+	else if (IS_BOUND_METHOD(func) && IS_CLOSURE(OBJECT_VAL(AS_BOUND_METHOD(func)->method))) actual = ((KrkClosure*)AS_BOUND_METHOD(func)->method)->function;
+	else return krk_runtimeError(vm.exceptions->typeError, "func must be a managed function, method, or codeobject, not '%T'", func);
+
+	int lineNo = krk_lineNumber(&actual->chunk, ip);
+	uint8_t start, midStart, midEnd, end;
+
+	if (krk_debug_expressionUnderline(actual, &start, &midStart, &midEnd, &end, ip)) {
+		KrkTuple * out = krk_newTuple(5);
+		krk_push(OBJECT_VAL(out));
+
+		out->values.values[out->values.count++] = INTEGER_VAL(lineNo);
+		out->values.values[out->values.count++] = INTEGER_VAL(start);
+		out->values.values[out->values.count++] = INTEGER_VAL(midStart);
+		out->values.values[out->values.count++] = INTEGER_VAL(midEnd);
+		out->values.values[out->values.count++] = INTEGER_VAL(end);
+
+		return krk_pop();
+	}
+
+	return NONE_VAL();
+}
+
 #endif
 
 KRK_Module(dis) {
@@ -290,6 +322,11 @@ KRK_Module(dis) {
 		"@arguments handle\n\n"
 		"Disable the breakpoint specified by @p handle. May raise @ref IndexError if "
 		"@p handle is not a valid breakpoint handle.");
+
+	KRK_DOC(BIND_FUNC(module, ip_to_expression),
+		"@brief Map an IP in a codeobject or function to an expression span.\n"
+		"@arguments func,ip\n\n"
+		"For various reasons, the instruction pointer @p ip must be the last byte of an opcode.");
 
 	krk_attachNamedValue(&module->fields, "BREAKPOINT_ONCE", INTEGER_VAL(KRK_BREAKPOINT_ONCE));
 	krk_attachNamedValue(&module->fields, "BREAKPOINT_REPEAT", INTEGER_VAL(KRK_BREAKPOINT_REPEAT));
