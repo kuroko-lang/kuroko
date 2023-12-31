@@ -2113,7 +2113,7 @@ static KrkValue run(void) {
 
 	while (1) {
 		if (unlikely(krk_currentThread.flags & (KRK_THREAD_ENABLE_TRACING | KRK_THREAD_SINGLE_STEP | KRK_THREAD_SIGNALLED))) {
-#ifndef KRK_NO_TRACING
+#if !defined(KRK_NO_TRACING) && !defined(KRK_DISABLE_DEBUG)
 			if (krk_currentThread.flags & KRK_THREAD_ENABLE_TRACING) {
 				krk_debug_dumpStack(stderr, frame);
 				krk_disassembleInstruction(stderr, frame->closure->function,

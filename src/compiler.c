@@ -637,7 +637,7 @@ static KrkCodeObject * endCompiler(struct GlobalState * state) {
 
 	function->totalArguments = function->potentialPositionals + function->keywordArgs + !!(function->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_ARGS) + !!(function->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_COLLECTS_KWS);
 
-#ifndef KRK_NO_DISASSEMBLY
+#if !defined(KRK_NO_DISASSEMBLY) && !defined(KRK_DISABLE_DEBUG)
 	if ((krk_currentThread.flags & KRK_THREAD_ENABLE_DISASSEMBLY) && !state->parser.hadError) {
 		krk_disassembleCodeObject(stderr, function, function->name ? function->name->chars : "(module)");
 	}
