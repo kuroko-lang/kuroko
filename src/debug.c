@@ -12,6 +12,8 @@
 #ifndef KRK_DISABLE_DEBUG
 #define NOOP (void)0
 
+#pragma GCC optimize ("Os")
+
 #define STRING_DEBUG_TRUNCATE 50
 
 void krk_printValueSafe(FILE * f, KrkValue printable) {
