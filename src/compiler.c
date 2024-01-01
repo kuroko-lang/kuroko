@@ -1230,6 +1230,16 @@ static void literal(struct GlobalState * state, int exprType, RewindState *rewin
 	}
 }
 
+static void ellipsis(struct GlobalState * state, int exprType, RewindState *rewind) {
+	invalidTarget(state, exprType, "literal");
+	KrkValue value;
+	if (!krk_tableGet_fast(&vm.builtins->fields, S("Ellipsis"), &value)) {
+		error("internal compiler error");
+		return;
+	}
+	emitConstant(value);
+}
+
 static void typeHintLocal(struct GlobalState * state) {
 	state->current->enclosing->enclosed = state->current;
 	state->current = state->current->enclosing;
@@ -2588,8 +2598,8 @@ static void fromImportStatement(struct GlobalState * state) {
 		return;
 	}
 
-	while (match(TOKEN_DOT)) {
-		leadingDots++;
+	while (match(TOKEN_DOT) || match(TOKEN_ELLIPSIS)) {
+		leadingDots += state->parser.previous.length;
 	}
 
 	importModule(state, &startOfName, leadingDots);
@@ -4204,6 +4214,7 @@ ParseRule krk_parseRules[] = {
 	RULE(FALSE,         literal,  NULL,     PREC_NONE),
 	RULE(NONE,          literal,  NULL,     PREC_NONE),
 	RULE(TRUE,          literal,  NULL,     PREC_NONE),
+	RULE(ELLIPSIS,      ellipsis, NULL,     PREC_NONE),
 	RULE(YIELD,         yield,    NULL,     PREC_NONE),
 	RULE(AWAIT,         await,    NULL,     PREC_NONE),
 	RULE(LAMBDA,        lambda,   NULL,     PREC_NONE),

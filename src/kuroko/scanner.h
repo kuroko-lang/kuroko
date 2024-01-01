@@ -111,6 +111,8 @@ typedef enum {
 	TOKEN_RETRY,
 	TOKEN_ERROR,
 	TOKEN_EOF,
+
+	TOKEN_ELLIPSIS, /* ... */
 } KrkTokenType;
 
 /**

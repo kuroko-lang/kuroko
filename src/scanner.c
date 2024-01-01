@@ -349,9 +349,9 @@ KrkToken krk_scanToken(KrkScanner * scanner) {
 		case '[': return makeToken(scanner, TOKEN_LEFT_SQUARE);
 		case ']': return makeToken(scanner, TOKEN_RIGHT_SQUARE);
 		case ',': return makeToken(scanner, TOKEN_COMMA);
-		case '.': return makeToken(scanner, TOKEN_DOT);
 		case ';': return makeToken(scanner, TOKEN_SEMICOLON);
 		case '~': return makeToken(scanner, TOKEN_TILDE);
+		case '.': return makeToken(scanner, peek(scanner) == '.' ? (peekNext(scanner,1) == '.' ? (advance(scanner), advance(scanner), TOKEN_ELLIPSIS) : TOKEN_DOT) : TOKEN_DOT);
 
 		case ':': return makeToken(scanner, match(scanner, '=') ? TOKEN_WALRUS        : TOKEN_COLON);
 		case '!': return makeToken(scanner, match(scanner, '=') ? TOKEN_BANG_EQUAL    : TOKEN_BANG);

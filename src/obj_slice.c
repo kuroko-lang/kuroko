@@ -166,9 +166,30 @@ KRK_Method(slice,step) {
 	return self->step;
 }
 
+#undef CURRENT_CTYPE
+#define CURRENT_CTYPE KrkInstance *
+#define IS_ellipsis(o) (krk_isInstanceOf(o,KRK_BASE_CLASS(ellipsis)))
+#define AS_ellipsis(o) ((KrkInstance*)AS_INSTANCE(o))
+
+KRK_StaticMethod(ellipsis,__new__) {
+	KrkClass * _class = NULL;
+	if (!krk_parseArgs("O!", (const char*[]){"cls"}, KRK_BASE_CLASS(type), &_class)) return NONE_VAL();
+	if (!krk_isSubClass(_class, KRK_BASE_CLASS(ellipsis))) {
+		return krk_runtimeError(vm.exceptions->typeError, "%S is not a subclass of %S", _class->name, KRK_BASE_CLASS(ellipsis)->name);
+	}
+
+	KrkValue out;
+	if (!krk_tableGet_fast(&vm.builtins->fields, S("Ellipsis"), &out)) return krk_runtimeError(vm.exceptions->typeError, "Ellipsis is missing");
+	return out;
+}
+
+KRK_Method(ellipsis,__repr__) {
+	return OBJECT_VAL(S("Ellipsis"));
+}
+
 _noexport
 void _createAndBind_sliceClass(void) {
-	KrkClass * slice = ADD_BASE_CLASS(vm.baseClasses->sliceClass, "slice", vm.baseClasses->objectClass);
+	KrkClass * slice = ADD_BASE_CLASS(KRK_BASE_CLASS(slice), "slice", KRK_BASE_CLASS(object));
 	slice->allocSize = sizeof(struct KrkSlice);
 	slice->_ongcscan = _slice_gcscan;
 	slice->obj.flags |= KRK_OBJ_FLAGS_NO_INHERIT;
@@ -179,4 +200,12 @@ void _createAndBind_sliceClass(void) {
 	BIND_PROP(slice,step);
 	krk_attachNamedValue(&slice->methods, "__hash__", NONE_VAL());
 	krk_finalizeClass(slice);
+
+	KrkClass * ellipsis = ADD_BASE_CLASS(KRK_BASE_CLASS(ellipsis), "ellipsis", KRK_BASE_CLASS(object));
+	krk_attachNamedObject(&vm.builtins->fields, "Ellipsis", (KrkObj*)krk_newInstance(ellipsis));
+	ellipsis->obj.flags |= KRK_OBJ_FLAGS_NO_INHERIT;
+	BIND_STATICMETHOD(ellipsis,__new__);
+	BIND_METHOD(ellipsis,__repr__);
+	krk_finalizeClass(ellipsis);
+
 }
