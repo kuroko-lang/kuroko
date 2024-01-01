@@ -391,7 +391,6 @@ void _createAndBind_setClass(void) {
 		"@brief Empty the set.\n\n"
 		"Removes all elements from the set, in-place.");
 	BIND_METHOD(set,update);
-	krk_defineNative(&set->methods, "__str__", FUNC_NAME(set,__repr__));
 	krk_attachNamedValue(&set->methods, "__hash__", NONE_VAL());
 	krk_finalizeClass(set);
 

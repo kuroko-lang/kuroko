@@ -1404,7 +1404,7 @@ KRK_Method(long,__rtruediv__) {
 		return OBJECT_VAL(krk_takeStringVetted(rev,size,size,KRK_OBJ_FLAGS_STRING_ASCII,hash)); \
 	}
 
-PRINTER(str,10,"")
+PRINTER(repr,10,"")
 PRINTER(hex,16,"x0")
 PRINTER(oct,8,"o0")
 PRINTER(bin,2,"b0")
@@ -2058,7 +2058,7 @@ void _createAndBind_longClass(void) {
 	_long->_ongcsweep = _long_gcsweep;
 
 	BIND_STATICMETHOD(long,__new__);
-	BIND_METHOD(long,__str__);
+	BIND_METHOD(long,__repr__);
 	BIND_METHOD(long,__eq__);
 	BIND_METHOD(long,__hash__);
 	BIND_METHOD(long,__hex__);
@@ -2067,7 +2067,6 @@ void _createAndBind_longClass(void) {
 	BIND_METHOD(long,__int__);
 	BIND_METHOD(long,__len__);
 	BIND_METHOD(long,__pos__);
-	krk_defineNative(&_long->methods,"__repr__", FUNC_NAME(long,__str__));
 
 	BIND_TRIPLET(long,add);
 	BIND_TRIPLET(long,sub);

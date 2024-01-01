@@ -570,7 +570,6 @@ KRK_Module(socket) {
 	BIND_PROP(socket,type);
 	BIND_PROP(socket,proto);
 
-	krk_defineNative(&socket->methods,"__str__", FUNC_NAME(socket,__repr__));
 	krk_finalizeClass(SocketClass);
 
 	BIND_FUNC(module, htons);

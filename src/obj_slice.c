@@ -177,7 +177,6 @@ void _createAndBind_sliceClass(void) {
 	BIND_PROP(slice,start);
 	BIND_PROP(slice,end);
 	BIND_PROP(slice,step);
-	krk_defineNative(&slice->methods, "__str__", FUNC_NAME(slice,__repr__));
 	krk_attachNamedValue(&slice->methods, "__hash__", NONE_VAL());
 	krk_finalizeClass(slice);
 }

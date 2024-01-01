@@ -98,7 +98,7 @@ KRK_Function(open) {
 
 #define BLOCK_SIZE 1024
 
-KRK_Method(File,__str__) {
+KRK_Method(File,__repr__) {
 	METHOD_TAKES_NONE();
 	KrkValue filename;
 	KrkValue modestr;
@@ -520,12 +520,11 @@ KRK_Module(fileio) {
 		"Writes the contents of @p data to the stream.");
 	KRK_DOC(BIND_METHOD(File,close), "@brief Close the stream and flush any remaining buffered writes.");
 	KRK_DOC(BIND_METHOD(File,flush), "@brief Flush unbuffered writes to the stream.");
-	BIND_METHOD(File,__str__);
+	BIND_METHOD(File,__repr__);
 	KRK_DOC(BIND_METHOD(File,__init__), "@bsnote{%File objects can not be initialized using this constructor. "
 		"Use the <a class=\"el\" href=\"#open\">open()</a> function instead.}");
 	BIND_METHOD(File,__enter__);
 	BIND_METHOD(File,__exit__);
-	krk_defineNative(&File->methods, "__repr__", FUNC_NAME(File,__str__));
 	krk_finalizeClass(File);
 
 	KrkClass * BinaryFile = krk_makeClass(module, &fileio_BinaryFile, "BinaryFile", File);

@@ -135,7 +135,7 @@ KRK_Method(type,__file__) {
 	return self->filename ? OBJECT_VAL(self->filename) : NONE_VAL();
 }
 
-KRK_Method(type,__str__) {
+KRK_Method(type,__repr__) {
 	/* Determine if this class has a module */
 	KrkValue module = NONE_VAL();
 	krk_tableGet(&self->methods, OBJECT_VAL(S("__module__")), &module);
@@ -234,12 +234,11 @@ void _createAndBind_type(void) {
 	BIND_PROP(type,__file__);
 	BIND_PROP(type,__name__);
 
-	BIND_METHOD(type,__str__);
+	BIND_METHOD(type,__repr__);
 	BIND_METHOD(type,__subclasses__);
 	BIND_METHOD(type,__getitem__);
 	BIND_METHOD(type,__call__);
 	BIND_STATICMETHOD(type,__new__);
-	krk_defineNative(&type->methods,"__repr__",FUNC_NAME(type,__str__));
 
 	krk_finalizeClass(type);
 	KRK_DOC(type, "Obtain the object representation of the class of an object.");

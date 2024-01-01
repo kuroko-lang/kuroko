@@ -640,7 +640,6 @@ void _createAndBind_listClass(void) {
 		"@brief Sort the contents of a list.\n\n"
 		"Performs an in-place sort of the elements in the list, returning @c None as a gentle reminder "
 		"that the sort is in-place. If a sorted copy is desired, use @ref sorted instead.");
-	krk_defineNative(&list->methods, "__str__", FUNC_NAME(list,__repr__));
 	krk_defineNative(&list->methods, "__class_getitem__", krk_GenericAlias)->obj.flags |= KRK_OBJ_FLAGS_FUNCTION_IS_CLASS_METHOD;
 	krk_attachNamedValue(&list->methods, "__hash__", NONE_VAL());
 	krk_finalizeClass(list);

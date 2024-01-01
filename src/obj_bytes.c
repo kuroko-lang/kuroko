@@ -436,7 +436,6 @@ void _createAndBind_bytesClass(void) {
 	BIND_METHOD(bytes,__hash__);
 	BIND_METHOD(bytes,decode);
 	BIND_METHOD(bytes,join);
-	krk_defineNative(&bytes->methods,"__str__",FUNC_NAME(bytes,__repr__)); /* alias */
 	krk_finalizeClass(bytes);
 
 	KrkClass * bytesiterator = ADD_BASE_CLASS(vm.baseClasses->bytesiteratorClass, "bytesiterator", vm.baseClasses->objectClass);
@@ -461,6 +460,5 @@ void _createAndBind_bytesClass(void) {
 	BIND_METHOD(bytearray,__eq__);
 	BIND_METHOD(bytearray,__iter__);
 	BIND_METHOD(bytearray,decode);
-	krk_defineNative(&bytearray->methods,"__str__",FUNC_NAME(bytearray,__repr__)); /* alias */
 	krk_finalizeClass(bytearray);
 }

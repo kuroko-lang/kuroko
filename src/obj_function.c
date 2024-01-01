@@ -137,7 +137,7 @@ KRK_Method(function,_ip_to_line) {
 	return INTEGER_VAL(line);
 }
 
-KRK_Method(function,__str__) {
+KRK_Method(function,__repr__) {
 	METHOD_TAKES_NONE();
 
 	/* Do we have a qualified name? */
@@ -215,7 +215,7 @@ KRK_Method(codeobject,__name__) {
 	return self->name ? OBJECT_VAL(self->name) : OBJECT_VAL(S(""));
 }
 
-KRK_Method(codeobject,__str__) {
+KRK_Method(codeobject,__repr__) {
 	METHOD_TAKES_NONE();
 	KrkValue s = FUNC_NAME(codeobject,__name__)(1,argv,0);
 	if (!IS_STRING(s)) return NONE_VAL();
@@ -334,7 +334,7 @@ KRK_Method(method,_ip_to_line) {
 	return IS_function(OBJECT_VAL(self->method)) ? FUNC_NAME(function,_ip_to_line)(2,(KrkValue[]){OBJECT_VAL(self->method),argv[1]},0) : OBJECT_VAL(S("?"));
 }
 
-KRK_Method(method,__str__) {
+KRK_Method(method,__repr__) {
 	METHOD_TAKES_NONE();
 	KrkValue s = FUNC_NAME(method,__qualname__)(1,argv,0);
 	if (!IS_STRING(s)) s = FUNC_NAME(method,__name__)(1,argv,0);
@@ -408,7 +408,7 @@ void _createAndBind_functionClass(void) {
 	codeobject->obj.flags |= KRK_OBJ_FLAGS_NO_INHERIT;
 	codeobject->allocSize =  0;
 	BIND_STATICMETHOD(codeobject,__new__);
-	BIND_METHOD(codeobject,__str__);
+	BIND_METHOD(codeobject,__repr__);
 	BIND_METHOD(codeobject,_ip_to_line);
 	BIND_PROP(codeobject,__constants__);
 	BIND_PROP(codeobject,__name__);
@@ -420,14 +420,13 @@ void _createAndBind_functionClass(void) {
 	BIND_PROP(codeobject,__locals__);
 	BIND_PROP(codeobject,__args__);
 	BIND_PROP(codeobject,__file__);
-	krk_defineNative(&codeobject->methods, "__repr__", FUNC_NAME(codeobject,__str__));
 	krk_finalizeClass(codeobject);
 
 	KrkClass * function = ADD_BASE_CLASS(vm.baseClasses->functionClass, "function", vm.baseClasses->objectClass);
 	function->obj.flags |= KRK_OBJ_FLAGS_NO_INHERIT;
 	function->allocSize =  0;
 	BIND_STATICMETHOD(function,__new__);
-	BIND_METHOD(function,__str__);
+	BIND_METHOD(function,__repr__);
 	BIND_METHOD(function,_ip_to_line);
 	BIND_PROP(function,__doc__);
 	BIND_PROP(function,__name__);
@@ -438,7 +437,6 @@ void _createAndBind_functionClass(void) {
 	BIND_PROP(function,__code__);
 	BIND_PROP(function,__globals__);
 	BIND_PROP(function,__closure__);
-	krk_defineNative(&function->methods, "__repr__", FUNC_NAME(function,__str__));
 	krk_defineNative(&function->methods, "__class_getitem__", krk_GenericAlias)->obj.flags |= KRK_OBJ_FLAGS_FUNCTION_IS_CLASS_METHOD;
 	krk_finalizeClass(function);
 
@@ -446,7 +444,7 @@ void _createAndBind_functionClass(void) {
 	method->obj.flags |= KRK_OBJ_FLAGS_NO_INHERIT;
 	method->allocSize =  0;
 	BIND_STATICMETHOD(method,__new__);
-	BIND_METHOD(method,__str__);
+	BIND_METHOD(method,__repr__);
 	BIND_METHOD(method,_ip_to_line);
 	BIND_PROP(method,__doc__);
 	BIND_PROP(method,__name__);
@@ -457,7 +455,6 @@ void _createAndBind_functionClass(void) {
 	BIND_PROP(method,__self__);
 	BIND_PROP(method,__func__);
 	BIND_PROP(method,__code__);
-	krk_defineNative(&method->methods, "__repr__", FUNC_NAME(method,__str__));
 	krk_finalizeClass(method);
 
 	BUILTIN_FUNCTION("staticmethod", FUNC_NAME(krk,staticmethod), "A static method does not take an implicit self or cls argument.");

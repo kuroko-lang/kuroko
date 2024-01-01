@@ -233,7 +233,7 @@ KRK_StaticMethod(object,__init_subclass__) {
  * all types should have a string representation available through
  * those methods.
  */
-KRK_Method(object,__str__) {
+KRK_Method(object,__repr__) {
 	KrkClass * type = krk_getType(self);
 
 	KrkValue module = NONE_VAL();
@@ -260,6 +260,13 @@ KRK_Method(object,__str__) {
 _error:
 	krk_discardStringBuilder(&sb);
 	return NONE_VAL();
+}
+
+KRK_Method(object,__str__) {
+	KrkClass * type = krk_getType(self);
+	if (unlikely(!type->_reprer)) return krk_runtimeError(vm.exceptions->typeError, "object is not representable");
+	krk_push(self);
+	return krk_callDirect(type->_reprer, 1);
 }
 
 KRK_Method(object,__format__) {
@@ -1439,6 +1446,7 @@ void _createAndBind_builtins(void) {
 	KrkClass * object = vm.baseClasses->objectClass;
 	BIND_METHOD(object,__dir__);
 	BIND_METHOD(object,__str__);
+	BIND_METHOD(object,__repr__);
 	BIND_METHOD(object,__hash__);
 	BIND_METHOD(object,__eq__);
 	BIND_METHOD(object,__format__);
@@ -1446,7 +1454,6 @@ void _createAndBind_builtins(void) {
 	BIND_STATICMETHOD(object,__new__);
 	BIND_METHOD(object,__init__);
 	BIND_CLASSMETHOD(object,__init_subclass__);
-	krk_defineNative(&object->methods, "__repr__", FUNC_NAME(object,__str__));
 	krk_finalizeClass(object);
 	KRK_DOC(object,
 		"@brief Base class for all types.\n\n"
@@ -1463,7 +1470,6 @@ void _createAndBind_builtins(void) {
 	krk_push(OBJECT_VAL(module));
 
 	BIND_METHOD(module,__repr__);
-	krk_defineNative(&module->methods, "__str__", FUNC_NAME(module,__repr__));
 	krk_finalizeClass(module);
 	KRK_DOC(module, "Type of imported modules and packages.");
 

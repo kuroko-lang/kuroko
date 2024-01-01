@@ -272,6 +272,5 @@ void _createAndBind_generatorClass(void) {
 	BIND_METHOD(generator,__finish__);
 	BIND_METHOD(generator,send);
 	BIND_PROP(generator,gi_running);
-	krk_defineNative(&generator->methods, "__str__", FUNC_NAME(generator,__repr__));
 	krk_finalizeClass(generator);
 }

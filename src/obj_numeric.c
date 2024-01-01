@@ -61,7 +61,7 @@ KRK_StaticMethod(int,__new__) {
 	return krk_runtimeError(vm.exceptions->typeError, "%s() argument must be a string or a number, not '%T'", "int", x);
 }
 
-KRK_Method(int,__str__) {
+KRK_Method(int,__repr__) {
 	char tmp[100];
 	size_t l = snprintf(tmp, 100, PRIkrk_int, self);
 	return OBJECT_VAL(krk_copyString(tmp, l));
@@ -628,7 +628,7 @@ static int isDigits(const char * c) {
 	return 1;
 }
 
-KRK_Method(float,__str__) {
+KRK_Method(float,__repr__) {
 	char tmp[100];
 	size_t l = snprintf(tmp, 97, "%.16g", self);
 	if (!strstr(tmp,".") && isDigits(tmp)) {
@@ -747,7 +747,7 @@ KRK_StaticMethod(bool,__new__) {
 	return BOOLEAN_VAL(!krk_isFalsey(argv[1]));
 }
 
-KRK_Method(bool,__str__) {
+KRK_Method(bool,__repr__) {
 	return OBJECT_VAL((self ? S("True") : S("False")));
 }
 
@@ -756,7 +756,7 @@ KRK_Method(bool,__format__) {
 	CHECK_ARG(1,str,KrkString*,format_spec);
 
 	if (!format_spec->length) {
-		return FUNC_NAME(bool,__str__)(argc,argv,hasKw);
+		return FUNC_NAME(bool,__repr__)(argc,argv,hasKw);
 	} else {
 		return FUNC_NAME(int,__format__)(argc,argv,hasKw);
 	}
@@ -767,7 +767,7 @@ KRK_StaticMethod(NoneType,__new__) {
 	return NONE_VAL();
 }
 
-KRK_Method(NoneType,__str__) {
+KRK_Method(NoneType,__repr__) {
 	return OBJECT_VAL(S("None"));
 }
 
@@ -789,7 +789,7 @@ KRK_StaticMethod(NotImplementedType,__new__) {
 	return NOTIMPL_VAL();
 }
 
-KRK_Method(NotImplementedType,__str__) {
+KRK_Method(NotImplementedType,__repr__) {
 	return OBJECT_VAL(S("NotImplemented"));
 }
 
@@ -818,7 +818,7 @@ void _createAndBind_numericClasses(void) {
 	_int->obj.flags |= KRK_OBJ_FLAGS_NO_INHERIT;
 	_int->allocSize = 0;
 	BIND_STATICMETHOD(int,__new__);
-	BIND_METHOD(int,__str__);
+	BIND_METHOD(int,__repr__);
 	BIND_METHOD(int,__int__);
 	BIND_METHOD(int,__chr__);
 	BIND_METHOD(int,__eq__);
@@ -855,7 +855,6 @@ void _createAndBind_numericClasses(void) {
 	BIND_METHOD(int,__abs__);
 	BIND_METHOD(int,__pos__);
 
-	krk_defineNative(&_int->methods, "__repr__", FUNC_NAME(int,__str__));
 	krk_finalizeClass(_int);
 	KRK_DOC(_int, "Convert a number or string type to an integer representation.");
 
@@ -866,7 +865,7 @@ void _createAndBind_numericClasses(void) {
 	BIND_STATICMETHOD(float,__new__);
 	BIND_METHOD(float,__int__);
 	BIND_METHOD(float,__float__);
-	BIND_METHOD(float,__str__);
+	BIND_METHOD(float,__repr__);
 	BIND_METHOD(float,__eq__);
 	BIND_METHOD(float,__hash__);
 	BIND_TRIPLET(float,add);
@@ -881,7 +880,6 @@ void _createAndBind_numericClasses(void) {
 	BIND_METHOD(float,__neg__);
 	BIND_METHOD(float,__abs__);
 	BIND_METHOD(float,__pos__);
-	krk_defineNative(&_float->methods, "__repr__", FUNC_NAME(float,__str__));
 #endif
 	krk_finalizeClass(_float);
 	KRK_DOC(_float, "Convert a number or string type to a float representation.");
@@ -889,9 +887,8 @@ void _createAndBind_numericClasses(void) {
 	KrkClass * _bool = ADD_BASE_CLASS(vm.baseClasses->boolClass, "bool", vm.baseClasses->intClass);
 	_bool->obj.flags |= KRK_OBJ_FLAGS_NO_INHERIT;
 	BIND_STATICMETHOD(bool,__new__);
-	BIND_METHOD(bool,__str__);
+	BIND_METHOD(bool,__repr__);
 	BIND_METHOD(bool,__format__);
-	krk_defineNative(&_bool->methods, "__repr__", FUNC_NAME(bool,__str__));
 	krk_finalizeClass(_bool);
 	KRK_DOC(_bool, "Returns False if the argument is 'falsey', otherwise True.");
 
@@ -899,20 +896,18 @@ void _createAndBind_numericClasses(void) {
 	_NoneType->obj.flags |= KRK_OBJ_FLAGS_NO_INHERIT;
 	_NoneType->allocSize = 0;
 	BIND_STATICMETHOD(NoneType, __new__);
-	BIND_METHOD(NoneType, __str__);
+	BIND_METHOD(NoneType, __repr__);
 	BIND_METHOD(NoneType, __hash__);
 	BIND_METHOD(NoneType, __eq__);
-	krk_defineNative(&_NoneType->methods, "__repr__", FUNC_NAME(NoneType,__str__));
 	krk_finalizeClass(_NoneType);
 
 	KrkClass * _NotImplementedType = ADD_BASE_CLASS(vm.baseClasses->notImplClass, "NotImplementedType", vm.baseClasses->objectClass);
 	_NotImplementedType->obj.flags |= KRK_OBJ_FLAGS_NO_INHERIT;
 	_NotImplementedType->allocSize = 0;
 	BIND_STATICMETHOD(NotImplementedType, __new__);
-	BIND_METHOD(NotImplementedType, __str__);
+	BIND_METHOD(NotImplementedType, __repr__);
 	BIND_METHOD(NotImplementedType, __hash__);
 	BIND_METHOD(NotImplementedType, __eq__);
-	krk_defineNative(&_NotImplementedType->methods, "__repr__", FUNC_NAME(NotImplementedType,__str__));
 	krk_finalizeClass(_NotImplementedType);
 
 	krk_attachNamedValue(&vm.builtins->fields, "NotImplemented", NOTIMPL_VAL());
