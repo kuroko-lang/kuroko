@@ -55,6 +55,7 @@ NativeFn ListIndex;
 KrkValue SeenFunctions;
 KrkValue UnseenFunctions;
 KrkValue StringTable;
+KrkValue Ellipsis;
 
 static void _initListFunctions(void) {
 	KrkValue _list_pop;
@@ -69,6 +70,8 @@ static void _initListFunctions(void) {
 	ListAppend = AS_NATIVE(_list_append)->function;
 	ListContains = AS_NATIVE(_list_contains)->function;
 	ListIndex = AS_NATIVE(_list_index)->function;
+
+	krk_tableGet_fast(&vm.builtins->fields, S("Ellipsis"), &Ellipsis);
 }
 
 static void findInterpreter(char * argv[]) {
@@ -315,6 +318,10 @@ static int doSecondPass(FILE * out) {
 							WRITE_FUNCTION(AS_codeobject(*val));
 							break;
 						default:
+							if (*val == Ellipsis) {
+								fwrite("e",1,1,out);
+								break;
+							}
 							fprintf(stderr,
 								"Invalid object found in constants table,"
 								"this marashal format can not store '%s'\n",
@@ -438,6 +445,9 @@ static KrkValue valueFromConstant(int i, FILE * inFile) {
 		}
 		case 'k': {
 			return KWARGS_VAL(0);
+		}
+		case 'e': {
+			return Ellipsis;
 		}
 		default: {
 			fprintf(stderr, "Unknown type '%c'.\n", c);
