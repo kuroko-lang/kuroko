@@ -1,0 +1,54 @@
+foo()
+~~~^~
+return "string" + 42
+       ~~~~~~~~~^~~~
+return bar() * 4
+       ~~~^~
+return bar() * 4
+       ~~~~~~^~~
+print(foo['bar']['baz']['qux']['etc'])
+      ~~~^~~~~~~
+print(foo['bar']['baz']['qux']['etc'])
+      ~~~~~~~~~~^~~~~~~
+print(foo['bar']['baz']['qux']['etc'])
+      ~~~~~~~~~~~~~~~~~^~~~~~~
+print(foo['bar']['baz']['qux']['etc'])
+      ~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~
+print(foo['bar']['baz']['qux']['etc'])
+~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+os.system(42)
+~~^~~~~~~
+os.system(42)
+~~~~~~~~~^~~~
+let a = object()
+        ~~~~~~^~
+a.name = '42'
+~~^^^^~~~~~~~
+let c = object()
+        ~~~~~~^~
+c.name = '42'
+~~^^^^~~~~~~~
+print(a.name, b.name, c.name)
+      ~^~~~~
+print(a.name, b.name, c.name)
+              ~^~~~~
+print(a.name, b.name, c.name)
+                      ~^~~~~
+print(a.name, b.name, c.name)
+~~~~~^~~~~~~~~~~~~~~~~~~~~~~~
+let c = Confabulator()
+        ~~~~~~~~~~~~^~
+let x = (a + b) @ (c + d)
+         ~~^~~
+let x = (a + b) @ (c + d)
+                   ~~^~~
+let x = (a + b) @ (c + d)
+        ~~~~~~~~^~~~~~~~~
+Thing('a') == Thing()
+~~~~~^~~~~
+Thing('a') == Thing()
+              ~~~~~^~
+Thing('a') == Thing()
+~~~~~~~~~~~^^~~~~~~~~
+raise ValueError("oh no")
+      ~~~~~~~~~~^~~~~~~~~

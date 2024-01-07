@@ -1,0 +1,98 @@
+import dis
+import fileio
+
+from collections import deque
+
+def test_a():
+    def bar():
+        return "string" + 42
+    def foo():
+        return bar() * 4
+    foo()
+
+def test_b():
+    let foo = {
+        'bar': {
+            'baz': None
+        }
+    }
+
+    print(foo['bar']['baz']['qux']['etc'])
+
+def test_c():
+    import os
+    os.system(42)
+
+def test_d():
+    let a = object()
+    a.name = '42'
+    let b = None
+    let c = object()
+    c.name = '42'
+    print(a.name, b.name, c.name)
+
+def test_e():
+    let a = 1
+    let b = 2
+    class Confabulator:
+        def __add__(self,other):
+            return NotImplemented
+    let c = Confabulator()
+    let d = 4
+
+    let x = (a + b) @ (c + d)
+
+def test_f():
+    class Thing:
+        def __init__(self, required):
+            pass
+        def __eq__(self, other):
+            raise ValueError("oh no")
+
+    Thing('a') == Thing()
+
+def disrec(code, seen):
+    let next = deque()
+    next.append(code)
+    while next:
+        let co = next.popleft()
+        seen.add(co)
+        let offset = 0
+        for inst,size,operand in dis.examine(co):
+            let expr = dis.ip_to_expression(co, offset + size - 1)
+            if expr is not None:
+                let lineNo, start, midStart, midEnd, end = expr
+                if co.__file__:
+                    let j = 1
+                    with fileio.open(co.__file__,'r') as f:
+                        let line = f.readlines()[lineNo-1].rstrip()
+                        let i = 0
+                        while i < len(line):
+                            if line[i] not in ' \t': break
+                            j++
+                            i++
+                        while i < len(line):
+                            print(line[i],end='')
+                            i++
+                        print()
+                    while j < start:
+                        print(' ',end='')
+                        j++
+                    while j < midStart:
+                        print('~',end='')
+                        j++
+                    while j < midEnd:
+                        print('^',end='')
+                        j++
+                    while j < end:
+                        print('~',end='')
+                        j++
+                    print()
+            if isinstance(operand,codeobject) and operand not in seen:
+                next.append(operand)
+            offset += size
+
+for func_name in dir():
+    if func_name.startswith('test_'):
+        disrec(globals()[func_name].__code__,set())
+
