@@ -21,7 +21,7 @@ KRKMODS  = $(wildcard modules/*.krk modules/*/*.krk modules/*/*/*.krk)
 
 all: ${TARGET} ${MODULES} ${TOOLS} ${GENMODS}
 
-ifneq ($(shell tools/can-floor-without-libm.sh "$(CC) $(CFLAGS)"),yes)
+ifneq ($(shell tools/can-floor-without-libm.sh "$(CC) $(filter-out -g,$(CFLAGS))"),yes)
   LDLIBS += -lm
 endif
 
