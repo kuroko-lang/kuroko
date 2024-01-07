@@ -247,7 +247,7 @@ void krk_finalizeClass(KrkClass * _class) {
 		*entry->method = NULL;
 		KrkClass * _base = _class;
 		while (_base) {
-			if (krk_tableGet(&_base->methods, vm.specialMethodNames[entry->index], &tmp)) break;
+			if (krk_tableGet_fast(&_base->methods, AS_STRING(vm.specialMethodNames[entry->index]), &tmp)) break;
 			_base = _base->base;
 		}
 		if (_base && (IS_CLOSURE(tmp) || IS_NATIVE(tmp)) && (!(AS_OBJECT(tmp)->flags & KRK_OBJ_FLAGS_FUNCTION_IS_STATIC_METHOD) || entry->index == METHOD_NEW)) {
@@ -258,6 +258,10 @@ void krk_finalizeClass(KrkClass * _class) {
 	if (_class->base && _class->_eq != _class->base->_eq) {
 		if (_class->_hash == _class->base->_hash) {
 			_class->_hash = NULL;
+			KrkValue _unused;
+			if (!krk_tableGet_fast(&_class->methods, AS_STRING(vm.specialMethodNames[METHOD_HASH]), &_unused)) {
+				krk_tableSet(&_class->methods, OBJECT_VAL(vm.specialMethodNames[METHOD_HASH]), NONE_VAL());
+			}
 		}
 	}
 
