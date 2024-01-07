@@ -185,31 +185,42 @@ KRK_Method(type,__call__) {
 		return krk_runtimeError(vm.exceptions->typeError, "%S() can not be built", self->name);
 	}
 
-	/* Push args */
-	int argCount = argc;
-	for (int i = 0; i < argc; ++i) {
-		krk_push(argv[i]);
+	KrkValue result;
+	if (self->_new->type == KRK_OBJ_NATIVE) {
+		/* Fast call to native __new__ function. */
+		result = ((KrkNative*)self->_new)->function(argc,argv,hasKw);
+	} else {
+		/* Slow call: Put arguments back on the stack with kwargs call format */
+		int argCount = argc;
+		for (int i = 0; i < argc; ++i) {
+			krk_push(argv[i]);
+		}
+
+		if (hasKw) {
+			argCount += 3;
+			krk_push(KWARGS_VAL(KWARGS_DICT));
+			krk_push(argv[argc]);
+			krk_push(KWARGS_VAL(1));
+		}
+
+		result = krk_callDirect(self->_new, argCount);
 	}
 
-	if (hasKw) {
-		argCount += 3;
-		krk_push(KWARGS_VAL(KWARGS_DICT));
-		krk_push(argv[argc]);
-		krk_push(KWARGS_VAL(1));
-	}
-
-	krk_push(krk_callDirect(self->_new, argCount));
-
-	/* Exception here */
+	/* If an exception happened in __new__, don't try to call __init__ even if the conditions would be right. */
 	if (unlikely(krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION)) return NONE_VAL();
 
-	if (krk_isInstanceOf(krk_peek(0), self) && likely(self->_init != NULL)) {
-		krk_push(krk_peek(0));
+	if (self->_init != KRK_BASE_CLASS(object)->_init && self->_init != NULL && krk_isInstanceOf(result, self)) {
+		/* Because we have to swap the class for the instance here, we can't do a fast call even
+		 * if __init__ is a native function, so we're stuck with the slow approach... */
+		krk_push(result); /* once for safe keeping */
+		krk_push(result); /* once as an argument */
+		int argCount = argc;
 		for (int i = 0; i < argc - 1; ++i) {
 			krk_push(argv[i+1]);
 		}
 
 		if (hasKw) {
+			argCount += 3;
 			krk_push(KWARGS_VAL(KWARGS_DICT));
 			krk_push(argv[argc]);
 			krk_push(KWARGS_VAL(1));
@@ -220,9 +231,10 @@ KRK_Method(type,__call__) {
 			fprintf(stderr, "Warning: Non-None result returned from %s.__init__\n",
 				self->name->chars);
 		}
+		return krk_pop();
 	}
 
-	return krk_pop();
+	return result;
 }
 
 _noexport
