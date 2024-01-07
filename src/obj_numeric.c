@@ -23,7 +23,13 @@ KRK_StaticMethod(int,__new__) {
 	int has_base = 0;
 	int base = 10;
 
-	if (!krk_parseArgs("O|V?i?:int", (const char*[]){"cls","x","base"},
+	/* Most common case */
+	if (!hasKw && argc == 2) {
+		x = argv[1];
+		goto _just_x;
+	}
+
+	if (!krk_parseArgs("O|V?i?:int", (const char*[]){"","","base"},
 		&cls, &has_x, &x, &has_base, &base)) return NONE_VAL();
 
 	if (has_base && (base < 2 || base > 36) && base != 0) {
@@ -42,6 +48,13 @@ KRK_StaticMethod(int,__new__) {
 		return krk_runtimeError(vm.exceptions->typeError, "can not convert non-str with explicit base");
 	}
 
+_just_x:
+
+	if (IS_INTEGER(x)) return INTEGER_VAL(AS_INTEGER(x));
+#ifndef KRK_NO_FLOAT
+	if (IS_FLOATING(x)) return krk_int_from_float(AS_FLOATING(x));
+#endif
+
 	if (IS_STRING(x)) {
 		KrkValue result = krk_parse_int(AS_CSTRING(x), AS_STRING(x)->length, base);
 		if (IS_NONE(result)) {
@@ -51,13 +64,7 @@ KRK_StaticMethod(int,__new__) {
 		return result;
 	}
 
-	if (IS_BOOLEAN(x)) return INTEGER_VAL(AS_INTEGER(x));
-	if (IS_INTEGER(x)) return x;
 	if (krk_isInstanceOf(x, KRK_BASE_CLASS(long))) return x;
-#ifndef KRK_NO_FLOAT
-	if (IS_FLOATING(x)) return krk_int_from_float(AS_FLOATING(x));
-#endif
-	if (IS_BOOLEAN(x)) return INTEGER_VAL(AS_BOOLEAN(x));
 	return krk_runtimeError(vm.exceptions->typeError, "%s() argument must be a string or a number, not '%T'", "int", x);
 }
 
