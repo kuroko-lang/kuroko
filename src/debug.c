@@ -12,7 +12,9 @@
 #ifndef KRK_DISABLE_DEBUG
 #define NOOP (void)0
 
+#if defined(__GNUC__) && !defined(__llvm__) && !defined(__INTEL_COMPILER)
 #pragma GCC optimize ("Os")
+#endif
 
 #define STRING_DEBUG_TRUNCATE 50
 
