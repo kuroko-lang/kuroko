@@ -938,7 +938,7 @@ _finishArgs:
 	 * This is where we provide @c input in particular.
 	 */
 	KRK_DOC(BIND_FUNC(vm.builtins,input), "@brief Read a line of input.\n"
-		"@arguments [prompt], promptwidth=None, syntax=None\n\n"
+		"@arguments prompt='',promptwidth=0,syntax=None\n\n"
 		"Read a line of input from @c stdin. If the @c rline library is available, "
 		"it will be used to gather input. Input reading stops on end-of file or when "
 		"a read ends with a line feed, which will be removed from the returned string. "
@@ -1001,12 +1001,11 @@ _finishArgs:
 		 * This module won't be imported by default, but it's still in
 		 * the modules list, so we can look for it there.
 		 */
-		KrkValue systemModule;
-		if (krk_tableGet(&vm.modules, OBJECT_VAL(krk_copyString("kuroko",6)), &systemModule)) {
+		if (vm.system) {
 			KrkValue version, buildenv, builddate;
-			krk_tableGet(&AS_INSTANCE(systemModule)->fields, OBJECT_VAL(krk_copyString("version",7)), &version);
-			krk_tableGet(&AS_INSTANCE(systemModule)->fields, OBJECT_VAL(krk_copyString("buildenv",8)), &buildenv);
-			krk_tableGet(&AS_INSTANCE(systemModule)->fields, OBJECT_VAL(krk_copyString("builddate",9)), &builddate);
+			krk_tableGet_fast(&vm.system->fields, S("version"), &version);
+			krk_tableGet_fast(&vm.system->fields, S("buildenv"), &buildenv);
+			krk_tableGet_fast(&vm.system->fields, S("builddate"), &builddate);
 
 			fprintf(stdout, "Kuroko %s (%s) with %s\n",
 				AS_CSTRING(version), AS_CSTRING(builddate), AS_CSTRING(buildenv));
