@@ -9,7 +9,6 @@
 #include <stdarg.h>
 #include <time.h>
 #include <sys/types.h>
-#include <sys/time.h>
 #include "kuroko.h"
 #include "value.h"
 #include "table.h"
