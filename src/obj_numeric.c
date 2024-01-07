@@ -617,7 +617,7 @@ KRK_StaticMethod(float,__new__) {
 	return krk_runtimeError(vm.exceptions->typeError, "%s() argument must be a string or a number, not '%T'", "float", argv[1]);
 }
 
-KRK_Method(float,__int__) { return INTEGER_VAL(self); }
+KRK_Method(float,__int__) { return krk_int_from_float(self); }
 KRK_Method(float,__float__) { return argv[0]; }
 
 static int isDigits(const char * c) {

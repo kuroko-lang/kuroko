@@ -1931,6 +1931,7 @@ KrkValue krk_int_from_float(double val) {
 
 	if (exponent < 0) return INTEGER_VAL(0);
 	if (exponent == 1024) return krk_runtimeError(vm.exceptions->valueError, "can not convert float %s to int", man ? "Nan" : "infinity");
+	if (exponent < 47) return INTEGER_VAL(val);
 
 	KrkLong _value;
 	krk_long_init_si(&_value, 0x10000000000000 | man);
