@@ -4090,7 +4090,7 @@ void _createAndBind_compilerClass(void) {
  * @return A compiled code object, or NULL on error.
  * @exception SyntaxError if @p src could not be compiled.
  */
-KrkCodeObject * krk_compile(const char * src, char * fileName) {
+KrkCodeObject * krk_compile(const char * src, const char * fileName) {
 	struct GlobalState * state = (void*)krk_newInstance(KRK_BASE_CLASS(CompilerState));
 	krk_push(OBJECT_VAL(state));
 

@@ -316,7 +316,7 @@ extern void krk_resetStack(void);
  *         indicate @c KRK_THREAD_HAS_EXCEPTION and @c krk_currentThread.currentException
  *         should contain the raised exception value.
  */
-extern KrkValue krk_interpret(const char * src, char * fromFile);
+extern KrkValue krk_interpret(const char * src, const char * fromFile);
 
 /**
  * @brief Load and run a source file and return when execution completes.
@@ -330,7 +330,7 @@ extern KrkValue krk_interpret(const char * src, char * fromFile);
  * @return As with @c krk_interpret, an object representing the newly created module,
  *         or the final return value of the VM execution.
  */
-extern KrkValue krk_runfile(const char * fileName, char * fromFile);
+extern KrkValue krk_runfile(const char * fileName, const char * fromFile);
 
 /**
  * @brief Push a stack value.

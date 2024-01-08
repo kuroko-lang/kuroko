@@ -3229,7 +3229,7 @@ KrkInstance * krk_startModule(const char * name) {
 	return module;
 }
 
-KrkValue krk_interpret(const char * src, char * fromFile) {
+KrkValue krk_interpret(const char * src, const char * fromFile) {
 	KrkCodeObject * function = krk_compile(src, fromFile);
 	if (!function) {
 		if (!krk_currentThread.frameCount) handleException();
@@ -3246,7 +3246,7 @@ KrkValue krk_interpret(const char * src, char * fromFile) {
 }
 
 #ifndef KRK_NO_FILESYSTEM
-KrkValue krk_runfile(const char * fileName, char * fromFile) {
+KrkValue krk_runfile(const char * fileName, const char * fromFile) {
 	FILE * f = fopen(fileName,"r");
 	if (!f) {
 		fprintf(stderr, "%s: could not open file '%s': %s\n", "kuroko", fileName, strerror(errno));
