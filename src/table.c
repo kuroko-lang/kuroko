@@ -54,7 +54,7 @@ inline int krk_hashValue(KrkValue value, uint32_t *hashOut) {
 		return 0;
 	}
 	if (IS_CLASS(value)) {
-		*hashOut = INTEGER_VAL((int)(intptr_t)AS_OBJECT(value));
+		*hashOut = (uint32_t)((int)(intptr_t)AS_OBJECT(value));
 		return 0;
 	}
 _unhashable:

@@ -383,7 +383,7 @@ KRK_Method(method,__func__) {
 
 KRK_Method(method,__self__) {
 	ATTRIBUTE_NOT_ASSIGNABLE();
-	return OBJECT_VAL(self->receiver);
+	return self->receiver;
 }
 
 KRK_Function(staticmethod) {

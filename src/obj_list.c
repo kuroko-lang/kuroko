@@ -306,7 +306,7 @@ KRK_Method(list,__delitem__) {
 	METHOD_TAKES_EXACTLY(1);
 
 	if (IS_INTEGER(argv[1])) {
-		FUNC_NAME(list,pop)(2,(KrkValue[]){argv[0],INTEGER_VAL(argv[1])},0);
+		FUNC_NAME(list,pop)(2,(KrkValue[]){argv[0],argv[1]},0);
 	} else if (IS_slice(argv[1])) {
 		KRK_SLICER(argv[1],self->values.count) {
 			return NONE_VAL();

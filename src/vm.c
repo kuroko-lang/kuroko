@@ -259,7 +259,7 @@ void krk_finalizeClass(KrkClass * _class) {
 			_class->_hash = NULL;
 			KrkValue v;
 			if (!krk_tableGet_fast(&_class->methods, AS_STRING(vm.specialMethodNames[METHOD_HASH]), &v)) {
-				krk_tableSet(&_class->methods, OBJECT_VAL(vm.specialMethodNames[METHOD_HASH]), NONE_VAL());
+				krk_tableSet(&_class->methods, vm.specialMethodNames[METHOD_HASH], NONE_VAL());
 			}
 		}
 	}
@@ -1516,7 +1516,7 @@ int krk_importModule(KrkString * name, KrkString * runAs) {
 			pushStringBuilderStr(&sb, &name->chars[dots], name->length - dots);
 		}
 
-		krk_push(OBJECT_VAL(finishStringBuilder(&sb)));
+		krk_push(finishStringBuilder(&sb));
 
 		/* Now to try to import the fully qualified module path */
 		if (krk_importModule(AS_STRING(krk_peek(0)), AS_STRING(krk_peek(0)))) {
