@@ -177,8 +177,8 @@ static inline uintptr_t _krk_sanitize(uintptr_t input) {
 #define KRK_HEAP_TAG 0
 #endif
 
-#define NONE_VAL(value)     ((KrkValue)(KRK_VAL_MASK_LOW | KRK_VAL_MASK_NONE))
-#define NOTIMPL_VAL(value)  ((KrkValue)(KRK_VAL_MASK_LOW | KRK_VAL_MASK_NOTIMPL))
+#define NONE_VAL()          ((KrkValue)(KRK_VAL_MASK_LOW | KRK_VAL_MASK_NONE))
+#define NOTIMPL_VAL()       ((KrkValue)(KRK_VAL_MASK_LOW | KRK_VAL_MASK_NOTIMPL))
 #define BOOLEAN_VAL(value)  ((KrkValue)(((uint64_t)(value) & KRK_VAL_MASK_LOW) | KRK_VAL_MASK_BOOLEAN))
 #define INTEGER_VAL(value)  ((KrkValue)(((uint64_t)(value) & KRK_VAL_MASK_LOW) | KRK_VAL_MASK_INTEGER))
 #define KWARGS_VAL(value)   ((KrkValue)((uint32_t)(value) | KRK_VAL_MASK_KWARGS))
