@@ -21,8 +21,8 @@ static void addLine(KrkChunk * chunk, size_t line) {
 	if (chunk->linesCount && chunk->lines[chunk->linesCount-1].line == line) return;
 	if (chunk->linesCapacity < chunk->linesCount + 1) {
 		int old = chunk->linesCapacity;
-		chunk->linesCapacity = GROW_CAPACITY(old);
-		chunk->lines = GROW_ARRAY(KrkLineMap, chunk->lines, old, chunk->linesCapacity);
+		chunk->linesCapacity = KRK_GROW_CAPACITY(old);
+		chunk->lines = KRK_GROW_ARRAY(KrkLineMap, chunk->lines, old, chunk->linesCapacity);
 	}
 	chunk->lines[chunk->linesCount] = (KrkLineMap){chunk->count, line};
 	chunk->linesCount++;
@@ -31,8 +31,8 @@ static void addLine(KrkChunk * chunk, size_t line) {
 void krk_writeChunk(KrkChunk * chunk, uint8_t byte, size_t line) {
 	if (chunk->capacity < chunk->count + 1) {
 		int old = chunk->capacity;
-		chunk->capacity = GROW_CAPACITY(old);
-		chunk->code = GROW_ARRAY(uint8_t, chunk->code, old, chunk->capacity);
+		chunk->capacity = KRK_GROW_CAPACITY(old);
+		chunk->code = KRK_GROW_ARRAY(uint8_t, chunk->code, old, chunk->capacity);
 	}
 
 	chunk->code[chunk->count] = byte;
@@ -41,8 +41,8 @@ void krk_writeChunk(KrkChunk * chunk, uint8_t byte, size_t line) {
 }
 
 void krk_freeChunk(KrkChunk * chunk) {
-	FREE_ARRAY(uint8_t, chunk->code, chunk->capacity);
-	FREE_ARRAY(KrkLineMap, chunk->lines, chunk->linesCapacity);
+	KRK_FREE_ARRAY(uint8_t, chunk->code, chunk->capacity);
+	KRK_FREE_ARRAY(KrkLineMap, chunk->lines, chunk->linesCapacity);
 	krk_freeValueArray(&chunk->constants);
 	krk_initChunk(chunk);
 }

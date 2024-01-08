@@ -18,7 +18,7 @@ void krk_initTable(KrkTable * table) {
 }
 
 void krk_freeTable(KrkTable * table) {
-	FREE_ARRAY(KrkTableEntry, table->entries, table->capacity);
+	KRK_FREE_ARRAY(KrkTableEntry, table->entries, table->capacity);
 	krk_initTable(table);
 }
 
@@ -121,7 +121,7 @@ void krk_tableAdjustCapacity(KrkTable * table, size_t capacity) {
 		capacity = (1UL << powerOfTwoCapacity);
 	}
 
-	KrkTableEntry * entries = ALLOCATE(KrkTableEntry, capacity);
+	KrkTableEntry * entries = KRK_ALLOCATE(KrkTableEntry, capacity);
 	for (size_t i = 0; i < capacity; ++i) {
 		entries[i].key = KWARGS_VAL(0);
 		entries[i].value = KWARGS_VAL(0);
@@ -137,14 +137,14 @@ void krk_tableAdjustCapacity(KrkTable * table, size_t capacity) {
 		table->count++;
 	}
 
-	FREE_ARRAY(KrkTableEntry, table->entries, table->capacity);
+	KRK_FREE_ARRAY(KrkTableEntry, table->entries, table->capacity);
 	table->entries = entries;
 	table->capacity = capacity;
 }
 
 int krk_tableSet(KrkTable * table, KrkValue key, KrkValue value) {
 	if (table->count + 1 > table->capacity * TABLE_MAX_LOAD) {
-		size_t capacity = GROW_CAPACITY(table->capacity);
+		size_t capacity = KRK_GROW_CAPACITY(table->capacity);
 		krk_tableAdjustCapacity(table, capacity);
 	}
 	KrkTableEntry * entry = krk_findEntry(table->entries, table->capacity, key);

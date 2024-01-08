@@ -362,7 +362,7 @@ static void initCompiler(struct GlobalState * state, Compiler * compiler, Functi
 	compiler->codeobject = krk_newCodeObject();
 	compiler->localCount = 0;
 	compiler->localsSpace = 8;
-	compiler->locals = GROW_ARRAY(Local,NULL,0,8);
+	compiler->locals = KRK_GROW_ARRAY(Local,NULL,0,8);
 	compiler->upvaluesSpace = 0;
 	compiler->upvalues = NULL;
 	compiler->breakCount = 0;
@@ -576,7 +576,7 @@ static KrkCodeObject * endCompiler(struct GlobalState * state) {
 			function->localNames[i].deathday = currentChunk()->count;
 		}
 	}
-	function->localNames = GROW_ARRAY(KrkLocalEntry, function->localNames,
+	function->localNames = KRK_GROW_ARRAY(KrkLocalEntry, function->localNames,
 		state->current->localNameCapacity, function->localNameCount); /* Shorten this down for runtime */
 
 	if (state->current->continueCount) { state->parser.previous = state->current->continues[0].token; error("continue without loop"); }
@@ -584,14 +584,14 @@ static KrkCodeObject * endCompiler(struct GlobalState * state) {
 	emitReturn(state);
 
 	/* Reduce the size of dynamic arrays to their fixed sizes. */
-	function->chunk.lines = GROW_ARRAY(KrkLineMap, function->chunk.lines,
+	function->chunk.lines = KRK_GROW_ARRAY(KrkLineMap, function->chunk.lines,
 		function->chunk.linesCapacity, function->chunk.linesCount);
 	function->chunk.linesCapacity = function->chunk.linesCount;
-	function->chunk.code = GROW_ARRAY(uint8_t, function->chunk.code,
+	function->chunk.code = KRK_GROW_ARRAY(uint8_t, function->chunk.code,
 		function->chunk.capacity, function->chunk.count);
 	function->chunk.capacity = function->chunk.count;
 
-	function->expressions = GROW_ARRAY(KrkExpressionsMap, function->expressions,
+	function->expressions = KRK_GROW_ARRAY(KrkExpressionsMap, function->expressions,
 		function->expressionsCapacity, function->expressionsCount);
 	function->expressionsCapacity = function->expressionsCount;
 
@@ -648,10 +648,10 @@ static KrkCodeObject * endCompiler(struct GlobalState * state) {
 }
 
 static void freeCompiler(Compiler * compiler) {
-	FREE_ARRAY(Local,compiler->locals, compiler->localsSpace);
-	FREE_ARRAY(Upvalue,compiler->upvalues, compiler->upvaluesSpace);
-	FREE_ARRAY(struct LoopExit,compiler->breaks, compiler->breakSpace);
-	FREE_ARRAY(struct LoopExit,compiler->continues, compiler->continueSpace);
+	KRK_FREE_ARRAY(Local,compiler->locals, compiler->localsSpace);
+	KRK_FREE_ARRAY(Upvalue,compiler->upvalues, compiler->upvaluesSpace);
+	KRK_FREE_ARRAY(struct LoopExit,compiler->breaks, compiler->breakSpace);
+	KRK_FREE_ARRAY(struct LoopExit,compiler->continues, compiler->continueSpace);
 
 	while (compiler->properties) {
 		void * tmp = compiler->properties;
@@ -714,8 +714,8 @@ static ssize_t resolveLocal(struct GlobalState * state, Compiler * compiler, Krk
 static size_t renameLocal(struct GlobalState * state, size_t ind, KrkToken name) {
 	if (state->current->codeobject->localNameCount + 1 > state->current->localNameCapacity) {
 		size_t old = state->current->localNameCapacity;
-		state->current->localNameCapacity = GROW_CAPACITY(old);
-		state->current->codeobject->localNames = GROW_ARRAY(KrkLocalEntry, state->current->codeobject->localNames, old, state->current->localNameCapacity);
+		state->current->localNameCapacity = KRK_GROW_CAPACITY(old);
+		state->current->codeobject->localNames = KRK_GROW_ARRAY(KrkLocalEntry, state->current->codeobject->localNames, old, state->current->localNameCapacity);
 	}
 	state->current->codeobject->localNames[state->current->codeobject->localNameCount].id = ind;
 	state->current->codeobject->localNames[state->current->codeobject->localNameCount].birthday = currentChunk()->count;
@@ -727,8 +727,8 @@ static size_t renameLocal(struct GlobalState * state, size_t ind, KrkToken name)
 static size_t addLocal(struct GlobalState * state, KrkToken name) {
 	if (state->current->localCount + 1 > state->current->localsSpace) {
 		size_t old = state->current->localsSpace;
-		state->current->localsSpace = GROW_CAPACITY(old);
-		state->current->locals = GROW_ARRAY(Local,state->current->locals,old,state->current->localsSpace);
+		state->current->localsSpace = KRK_GROW_CAPACITY(old);
+		state->current->locals = KRK_GROW_ARRAY(Local,state->current->locals,old,state->current->localsSpace);
 	}
 	size_t out = state->current->localCount;
 	Local * local = &state->current->locals[state->current->localCount++];
@@ -1115,13 +1115,13 @@ static void attributeUnpack(struct GlobalState * state, int exprType) {
 	startEatingWhitespace();
 	size_t argCount = 0;
 	size_t argSpace = 1;
-	ssize_t * args  = GROW_ARRAY(ssize_t,NULL,0,1);
+	ssize_t * args  = KRK_GROW_ARRAY(ssize_t,NULL,0,1);
 
 	do {
 		if (argSpace < argCount + 1) {
 			size_t old = argSpace;
-			argSpace = GROW_CAPACITY(old);
-			args = GROW_ARRAY(ssize_t,args,old,argSpace);
+			argSpace = KRK_GROW_CAPACITY(old);
+			args = KRK_GROW_ARRAY(ssize_t,args,old,argSpace);
 		}
 		consume(TOKEN_IDENTIFIER, "Expected attribute name");
 		size_t ind = identifierConstant(state, &state->parser.previous);
@@ -1173,7 +1173,7 @@ static void attributeUnpack(struct GlobalState * state, int exprType) {
 	}
 
 _dotDone:
-	FREE_ARRAY(ssize_t,args,argSpace);
+	KRK_FREE_ARRAY(ssize_t,args,argSpace);
 	return;
 }
 
@@ -1253,13 +1253,13 @@ static void typeHintLocal(struct GlobalState * state) {
 static void letDeclaration(struct GlobalState * state) {
 	size_t argCount = 0;
 	size_t argSpace = 1;
-	ssize_t * args  = GROW_ARRAY(ssize_t,NULL,0,1);
+	ssize_t * args  = KRK_GROW_ARRAY(ssize_t,NULL,0,1);
 
 	do {
 		if (argSpace < argCount + 1) {
 			size_t old = argSpace;
-			argSpace = GROW_CAPACITY(old);
-			args = GROW_ARRAY(ssize_t,args,old,argSpace);
+			argSpace = KRK_GROW_CAPACITY(old);
+			args = KRK_GROW_ARRAY(ssize_t,args,old,argSpace);
 		}
 		ssize_t ind = parseVariable(state, "Expected variable name.");
 		if (state->parser.hadError) goto _letDone;
@@ -1319,7 +1319,7 @@ static void letDeclaration(struct GlobalState * state) {
 	}
 
 _letDone:
-	FREE_ARRAY(ssize_t,args,argSpace);
+	KRK_FREE_ARRAY(ssize_t,args,argSpace);
 	return;
 }
 
@@ -2142,8 +2142,8 @@ static void patchBreaks(struct GlobalState * state, int loopStart) {
 static void breakStatement(struct GlobalState * state) {
 	if (state->current->breakSpace < state->current->breakCount + 1) {
 		size_t old = state->current->breakSpace;
-		state->current->breakSpace = GROW_CAPACITY(old);
-		state->current->breaks = GROW_ARRAY(struct LoopExit,state->current->breaks,old,state->current->breakSpace);
+		state->current->breakSpace = KRK_GROW_CAPACITY(old);
+		state->current->breaks = KRK_GROW_ARRAY(struct LoopExit,state->current->breaks,old,state->current->breakSpace);
 	}
 
 	if (state->current->loopLocalCount != state->current->localCount) {
@@ -2156,8 +2156,8 @@ static void breakStatement(struct GlobalState * state) {
 static void continueStatement(struct GlobalState * state) {
 	if (state->current->continueSpace < state->current->continueCount + 1) {
 		size_t old = state->current->continueSpace;
-		state->current->continueSpace = GROW_CAPACITY(old);
-		state->current->continues = GROW_ARRAY(struct LoopExit,state->current->continues,old,state->current->continueSpace);
+		state->current->continueSpace = KRK_GROW_CAPACITY(old);
+		state->current->continues = KRK_GROW_ARRAY(struct LoopExit,state->current->continues,old,state->current->continueSpace);
 	}
 
 	if (state->current->loopLocalCount != state->current->localCount) {
@@ -3054,8 +3054,8 @@ static size_t addUpvalue(struct GlobalState * state, Compiler * compiler, ssize_
 	}
 	if (upvalueCount + 1 > compiler->upvaluesSpace) {
 		size_t old = compiler->upvaluesSpace;
-		compiler->upvaluesSpace = GROW_CAPACITY(old);
-		compiler->upvalues = GROW_ARRAY(Upvalue,compiler->upvalues,old,compiler->upvaluesSpace);
+		compiler->upvaluesSpace = KRK_GROW_CAPACITY(old);
+		compiler->upvalues = KRK_GROW_ARRAY(Upvalue,compiler->upvalues,old,compiler->upvaluesSpace);
 	}
 	compiler->upvalues[upvalueCount].isLocal = isLocal;
 	compiler->upvalues[upvalueCount].index = index;

@@ -224,9 +224,9 @@ typedef struct KrkVM {
 #define KRK_GLOBAL_NO_DEFAULT_MODULES  (1 << 14)
 
 #ifndef KRK_DISABLE_THREADS
-#  define threadLocal __thread
+#  define krk_threadLocal __thread
 #else
-#  define threadLocal
+#  define krk_threadLocal
 #endif
 
 /**
@@ -247,7 +247,7 @@ inline KrkThreadState * _macos_currentThread(void) {
 #elif !defined(KRK_DISABLE_THREADS) && ((defined(_WIN32) && !defined(KRKINLIB)) || defined(KRK_MEDIOCRE_TLS))
 #define krk_currentThread (*krk_getCurrentThread())
 #else
-extern threadLocal KrkThreadState krk_currentThread;
+extern krk_threadLocal KrkThreadState krk_currentThread;
 #endif
 
 /**

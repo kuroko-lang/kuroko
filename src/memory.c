@@ -7,6 +7,8 @@
 
 #include "private.h"
 
+#define FREE_OBJECT(t,p) krk_reallocate(p,sizeof(t),0)
+
 #if defined(KRK_EXTENSIVE_MEMORY_DEBUGGING)
 /**
  * Extensive Memory Debugging
@@ -18,7 +20,7 @@
  * the sizes of objects by both using the appropriate macros and by
  * ensuring the right sizes are passed to those macros. This is a very
  * easy thing to get wrong - allocate with @c malloc but free with the
- * @c FREE_ARRAY macros, for example, and the memory tracking now has
+ * @c KRK_FREE_ARRAY macros, for example, and the memory tracking now has
  * a net negative, which may lead to underflowing. Use the right macros,
  * but mix up sizes between allocation and deallocation, and we may have
  * a "leak" of bytes and garbage collection may happen more often than
@@ -202,9 +204,9 @@ static void freeObject(KrkObj * object) {
 	switch (object->type) {
 		case KRK_OBJ_STRING: {
 			KrkString * string = (KrkString*)object;
-			FREE_ARRAY(char, string->chars, string->length + 1);
+			KRK_FREE_ARRAY(char, string->chars, string->length + 1);
 			if (string->codes && string->codes != string->chars) free(string->codes);
-			FREE(KrkString, object);
+			FREE_OBJECT(KrkString, object);
 			break;
 		}
 		case KRK_OBJ_CODEOBJECT: {
@@ -212,25 +214,25 @@ static void freeObject(KrkObj * object) {
 			krk_freeChunk(&function->chunk);
 			krk_freeValueArray(&function->positionalArgNames);
 			krk_freeValueArray(&function->keywordArgNames);
-			FREE_ARRAY(KrkLocalEntry, function->localNames, function->localNameCount);
-			FREE_ARRAY(KrkExpressionsMap, function->expressions, function->expressionsCapacity);
+			KRK_FREE_ARRAY(KrkLocalEntry, function->localNames, function->localNameCount);
+			KRK_FREE_ARRAY(KrkExpressionsMap, function->expressions, function->expressionsCapacity);
 			function->localNameCount = 0;
-			FREE(KrkCodeObject, object);
+			FREE_OBJECT(KrkCodeObject, object);
 			break;
 		}
 		case KRK_OBJ_NATIVE: {
-			FREE(KrkNative, object);
+			FREE_OBJECT(KrkNative, object);
 			break;
 		}
 		case KRK_OBJ_CLOSURE: {
 			KrkClosure * closure = (KrkClosure*)object;
-			FREE_ARRAY(KrkUpvalue*,closure->upvalues,closure->upvalueCount);
+			KRK_FREE_ARRAY(KrkUpvalue*,closure->upvalues,closure->upvalueCount);
 			krk_freeTable(&closure->fields);
-			FREE(KrkClosure, object);
+			FREE_OBJECT(KrkClosure, object);
 			break;
 		}
 		case KRK_OBJ_UPVALUE: {
-			FREE(KrkUpvalue, object);
+			FREE_OBJECT(KrkUpvalue, object);
 			break;
 		}
 		case KRK_OBJ_CLASS: {
@@ -240,7 +242,7 @@ static void freeObject(KrkObj * object) {
 			if (_class->base) {
 				krk_tableDeleteExact(&_class->base->subclasses, OBJECT_VAL(object));
 			}
-			FREE(KrkClass, object);
+			FREE_OBJECT(KrkClass, object);
 			break;
 		}
 		case KRK_OBJ_INSTANCE: {
@@ -253,18 +255,18 @@ static void freeObject(KrkObj * object) {
 			break;
 		}
 		case KRK_OBJ_BOUND_METHOD:
-			FREE(KrkBoundMethod, object);
+			FREE_OBJECT(KrkBoundMethod, object);
 			break;
 		case KRK_OBJ_TUPLE: {
 			KrkTuple * tuple = (KrkTuple*)object;
 			krk_freeValueArray(&tuple->values);
-			FREE(KrkTuple, object);
+			FREE_OBJECT(KrkTuple, object);
 			break;
 		}
 		case KRK_OBJ_BYTES: {
 			KrkBytes * bytes = (KrkBytes*)object;
-			FREE_ARRAY(uint8_t, bytes->bytes, bytes->length);
-			FREE(KrkBytes, bytes);
+			KRK_FREE_ARRAY(uint8_t, bytes->bytes, bytes->length);
+			FREE_OBJECT(KrkBytes, bytes);
 			break;
 		}
 	}
@@ -320,7 +322,7 @@ void krk_markObject(KrkObj * object) {
 	object->flags |= KRK_OBJ_FLAGS_IS_MARKED;
 
 	if (vm.grayCapacity < vm.grayCount + 1) {
-		vm.grayCapacity = GROW_CAPACITY(vm.grayCapacity);
+		vm.grayCapacity = KRK_GROW_CAPACITY(vm.grayCapacity);
 		vm.grayStack = realloc(vm.grayStack, sizeof(KrkObj*) * vm.grayCapacity);
 		if (!vm.grayStack) exit(1);
 	}

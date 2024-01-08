@@ -133,14 +133,14 @@ void krk_resetStack(void) {
 void krk_growStack(void) {
 	size_t old = krk_currentThread.stackSize;
 	size_t old_offset = krk_currentThread.stackTop - krk_currentThread.stack;
-	size_t newsize = GROW_CAPACITY(old);
+	size_t newsize = KRK_GROW_CAPACITY(old);
 	if (krk_currentThread.flags & KRK_THREAD_DEFER_STACK_FREE) {
-		KrkValue * newStack = GROW_ARRAY(KrkValue, NULL, 0, newsize);
+		KrkValue * newStack = KRK_GROW_ARRAY(KrkValue, NULL, 0, newsize);
 		memcpy(newStack, krk_currentThread.stack, sizeof(KrkValue) * old);
 		krk_currentThread.stack = newStack;
 		krk_currentThread.flags &= ~(KRK_THREAD_DEFER_STACK_FREE);
 	} else {
-		krk_currentThread.stack = GROW_ARRAY(KrkValue, krk_currentThread.stack, old, newsize);
+		krk_currentThread.stack = KRK_GROW_ARRAY(KrkValue, krk_currentThread.stack, old, newsize);
 	}
 	krk_currentThread.stackSize = newsize;
 	krk_currentThread.stackTop = krk_currentThread.stack + old_offset;
@@ -368,8 +368,8 @@ static int _unpack_args(void * context, const KrkValue * values, size_t count) {
 	KrkValueArray * positionals = context;
 	if (positionals->count + count > positionals->capacity) {
 		size_t old = positionals->capacity;
-		positionals->capacity = (count == 1) ? GROW_CAPACITY(old) : (positionals->count + count);
-		positionals->values = GROW_ARRAY(KrkValue, positionals->values, old, positionals->capacity);
+		positionals->capacity = (count == 1) ? KRK_GROW_CAPACITY(old) : (positionals->count + count);
+		positionals->values = KRK_GROW_ARRAY(KrkValue, positionals->values, old, positionals->capacity);
 	}
 
 	for (size_t i = 0; i < count; ++i) {
@@ -654,7 +654,7 @@ inline KrkValue krk_callNativeOnStack(size_t argCount, const KrkValue *stackArgs
 	KrkValue result = native(argCount, stackArgs, hasKw);
 
 	if (unlikely(krk_currentThread.stack != stackBefore)) {
-		FREE_ARRAY(KrkValue, stackBefore, sizeBefore);
+		KRK_FREE_ARRAY(KrkValue, stackBefore, sizeBefore);
 	}
 
 	krk_currentThread.flags &= ~(KRK_THREAD_DEFER_STACK_FREE);
@@ -1004,11 +1004,11 @@ void krk_freeVM(void) {
 	while (krk_currentThread.next) {
 		KrkThreadState * thread = krk_currentThread.next;
 		krk_currentThread.next = thread->next;
-		FREE_ARRAY(size_t, thread->stack, thread->stackSize);
+		KRK_FREE_ARRAY(size_t, thread->stack, thread->stackSize);
 		free(thread->frames);
 	}
 
-	FREE_ARRAY(size_t, krk_currentThread.stack, krk_currentThread.stackSize);
+	KRK_FREE_ARRAY(size_t, krk_currentThread.stack, krk_currentThread.stackSize);
 	memset(&krk_vm,0,sizeof(krk_vm));
 	free(krk_currentThread.frames);
 	memset(&krk_currentThread,0,sizeof(KrkThreadState));
@@ -1233,7 +1233,7 @@ int krk_loadModule(KrkString * path, KrkValue * moduleOut, KrkString * runAs, Kr
 		/* Try .../path/__init__.krk */
 		krk_push(OBJECT_VAL(path));
 		krk_addObjects();
-		krk_push(OBJECT_VAL(S(PATH_SEP "__init__.krk")));
+		krk_push(OBJECT_VAL(S(KRK_PATH_SEP "__init__.krk")));
 		krk_addObjects();
 		fileName = AS_CSTRING(krk_peek(0));
 		if (stat(fileName,&statbuf) == 0) {
@@ -1243,7 +1243,7 @@ int krk_loadModule(KrkString * path, KrkValue * moduleOut, KrkString * runAs, Kr
 
 				/* Convert back to .-formatted */
 				krk_push(krk_valueGetAttribute(OBJECT_VAL(path), "replace"));
-				krk_push(OBJECT_VAL(S(PATH_SEP)));
+				krk_push(OBJECT_VAL(S(KRK_PATH_SEP)));
 				krk_push(OBJECT_VAL(S(".")));
 				krk_push(krk_callStack(2));
 				KrkValue packageName = krk_peek(0);
@@ -1337,7 +1337,7 @@ int krk_loadModule(KrkString * path, KrkValue * moduleOut, KrkString * runAs, Kr
 #ifndef KRK_STATIC_ONLY
 	_sharedObject: (void)0;
 
-		dlRefType dlRef = dlOpen(fileName);
+		krk_dlRefType dlRef = krk_dlOpen(fileName);
 		if (!dlRef) {
 			*moduleOut = NONE_VAL();
 			krk_runtimeError(vm.exceptions->importError,
@@ -1357,11 +1357,11 @@ int krk_loadModule(KrkString * path, KrkValue * moduleOut, KrkString * runAs, Kr
 		char * handlerName = AS_CSTRING(krk_peek(0));
 
 		KrkValue (*moduleOnLoad)(KrkString * name);
-		dlSymType out = dlSym(dlRef, handlerName);
+		krk_dlSymType out = krk_dlSym(dlRef, handlerName);
 		memcpy(&moduleOnLoad,&out,sizeof(out));
 
 		if (!moduleOnLoad) {
-			dlClose(dlRef);
+			krk_dlClose(dlRef);
 			*moduleOut = NONE_VAL();
 			krk_runtimeError(vm.exceptions->importError,
 				"Failed to run module initialization method '%s' from shared object '%s'",
@@ -1373,7 +1373,7 @@ int krk_loadModule(KrkString * path, KrkValue * moduleOut, KrkString * runAs, Kr
 
 		*moduleOut = moduleOnLoad(runAs);
 		if (!krk_isInstanceOf(*moduleOut, vm.baseClasses->moduleClass)) {
-			dlClose(dlRef);
+			krk_dlClose(dlRef);
 			krk_runtimeError(vm.exceptions->importError,
 				"Failed to load module '%S' from '%s'", runAs, fileName);
 			return 0;
@@ -1403,7 +1403,7 @@ int krk_loadModule(KrkString * path, KrkValue * moduleOut, KrkString * runAs, Kr
 	if (runAs == S("__main__")) {
 		/* Then let's use 'path' instead, and replace all the /'s with .'s... */
 		krk_push(krk_valueGetAttribute(OBJECT_VAL(path), "replace"));
-		krk_push(OBJECT_VAL(S(PATH_SEP)));
+		krk_push(OBJECT_VAL(S(KRK_PATH_SEP)));
 		krk_push(OBJECT_VAL(S(".")));
 		krk_push(krk_callStack(2));
 	} else {
@@ -1597,7 +1597,7 @@ int krk_importModule(KrkString * name, KrkString * runAs) {
 			krk_currentThread.stack[argBase-1] = krk_pop();
 			/* Now concatenate forward slash... */
 			krk_push(krk_currentThread.stack[argBase+1]); /* Slash path */
-			krk_push(OBJECT_VAL(S(PATH_SEP)));
+			krk_push(OBJECT_VAL(S(KRK_PATH_SEP)));
 			krk_addObjects();
 			krk_currentThread.stack[argBase+1] = krk_pop();
 			/* And now for the dot... */

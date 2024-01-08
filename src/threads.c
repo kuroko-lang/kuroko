@@ -4,6 +4,7 @@
 
 #ifndef KRK_DISABLE_THREADS
 #include <kuroko/util.h>
+#include <kuroko/threads.h>
 
 #include <unistd.h>
 #include <pthread.h>
@@ -106,7 +107,7 @@ static void * _startthread(void * _threadObj) {
 	}
 	_release_lock(_threadLock);
 
-	FREE_ARRAY(size_t, krk_currentThread.stack, krk_currentThread.stackSize);
+	KRK_FREE_ARRAY(size_t, krk_currentThread.stack, krk_currentThread.stackSize);
 	free(krk_currentThread.frames);
 
 	return NULL;

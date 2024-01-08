@@ -12,7 +12,6 @@
 #include <stdlib.h>
 #include "kuroko.h"
 #include "value.h"
-#include "threads.h"
 
 /**
  * @brief One (key,value) pair in a table.

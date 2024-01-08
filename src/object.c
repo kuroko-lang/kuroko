@@ -7,6 +7,7 @@
 #include <kuroko/value.h>
 #include <kuroko/vm.h>
 #include <kuroko/table.h>
+#include <kuroko/threads.h>
 
 #include "private.h"
 
@@ -207,7 +208,7 @@ KrkString * krk_takeString(char * chars, size_t length) {
 	_obtain_lock(_stringLock);
 	KrkString * interned = krk_tableFindString(&vm.strings, chars, length, hash);
 	if (interned != NULL) {
-		free(chars); /* This string isn't owned by us yet, so free, not FREE_ARRAY */
+		free(chars); /* This string isn't owned by us yet, so free, not KRK_FREE_ARRAY */
 		_release_lock(_stringLock);
 		return interned;
 	}
@@ -226,7 +227,7 @@ KrkString * krk_copyString(const char * chars, size_t length) {
 		_release_lock(_stringLock);
 		return interned;
 	}
-	char * heapChars = ALLOCATE(char, length + 1);
+	char * heapChars = KRK_ALLOCATE(char, length + 1);
 	memcpy(heapChars, chars ? chars : "", length);
 	heapChars[length] = '\0';
 	KrkString * result = allocateString(heapChars, length, hash);
@@ -239,7 +240,7 @@ KrkString * krk_takeStringVetted(char * chars, size_t length, size_t codesLength
 	_obtain_lock(_stringLock);
 	KrkString * interned = krk_tableFindString(&vm.strings, chars, length, hash);
 	if (interned != NULL) {
-		FREE_ARRAY(char, chars, length + 1);
+		KRK_FREE_ARRAY(char, chars, length + 1);
 		_release_lock(_stringLock);
 		return interned;
 	}
@@ -284,7 +285,7 @@ KrkNative * krk_newNative(NativeFn function, const char * name, int type) {
 }
 
 KrkClosure * krk_newClosure(KrkCodeObject * function, KrkValue globals) {
-	KrkUpvalue ** upvalues = ALLOCATE(KrkUpvalue*, function->upvalueCount);
+	KrkUpvalue ** upvalues = KRK_ALLOCATE(KrkUpvalue*, function->upvalueCount);
 	for (size_t i = 0; i < function->upvalueCount; ++i) {
 		upvalues[i] = NULL;
 	}
@@ -355,7 +356,7 @@ KrkTuple * krk_newTuple(size_t length) {
 	krk_initValueArray(&tuple->values);
 	krk_push(OBJECT_VAL(tuple));
 	tuple->values.capacity = length;
-	tuple->values.values = GROW_ARRAY(KrkValue,NULL,0,length);
+	tuple->values.values = KRK_GROW_ARRAY(KrkValue,NULL,0,length);
 	krk_pop();
 	return tuple;
 }
@@ -365,7 +366,7 @@ KrkBytes * krk_newBytes(size_t length, uint8_t * source) {
 	bytes->length = length;
 	bytes->bytes  = NULL;
 	krk_push(OBJECT_VAL(bytes));
-	bytes->bytes  = ALLOCATE(uint8_t, length);
+	bytes->bytes  = KRK_ALLOCATE(uint8_t, length);
 	bytes->obj.hash = -1;
 	if (source) {
 		memcpy(bytes->bytes, source, length);

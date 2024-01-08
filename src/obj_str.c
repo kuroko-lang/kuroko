@@ -56,7 +56,7 @@ KRK_Method(str,__add__) {
 	bl = them->length;
 
 	size_t length = al + bl;
-	char * chars = ALLOCATE(char, length + 1);
+	char * chars = KRK_ALLOCATE(char, length + 1);
 	memcpy(chars, a, al);
 	memcpy(chars + al, b, bl);
 	chars[length] = '\0';
@@ -1080,8 +1080,8 @@ _corrupt:
 void krk_pushStringBuilder(struct StringBuilder * sb, char c) {
 	if (sb->capacity < sb->length + 1) {
 		size_t old = sb->capacity;
-		sb->capacity = GROW_CAPACITY(old);
-		sb->bytes = GROW_ARRAY(char, sb->bytes, old, sb->capacity);
+		sb->capacity = KRK_GROW_CAPACITY(old);
+		sb->bytes = KRK_GROW_ARRAY(char, sb->bytes, old, sb->capacity);
 	}
 	sb->bytes[sb->length++] = c;
 }
@@ -1091,9 +1091,9 @@ void krk_pushStringBuilderStr(struct StringBuilder * sb, const char *str, size_t
 		size_t prevcap = sb->capacity;
 		while (sb->capacity < sb->length + len) {
 			size_t old = sb->capacity;
-			sb->capacity = GROW_CAPACITY(old);
+			sb->capacity = KRK_GROW_CAPACITY(old);
 		}
-		sb->bytes = GROW_ARRAY(char, sb->bytes, prevcap, sb->capacity);
+		sb->bytes = KRK_GROW_ARRAY(char, sb->bytes, prevcap, sb->capacity);
 	}
 	for (size_t i = 0; i < len; ++i) {
 		sb->bytes[sb->length++] = *(str++);
@@ -1101,7 +1101,7 @@ void krk_pushStringBuilderStr(struct StringBuilder * sb, const char *str, size_t
 }
 
 static void _freeStringBuilder(struct StringBuilder * sb) {
-	FREE_ARRAY(char,sb->bytes, sb->capacity);
+	KRK_FREE_ARRAY(char,sb->bytes, sb->capacity);
 	sb->bytes = NULL;
 	sb->length = 0;
 	sb->capacity = 0;

@@ -649,8 +649,8 @@ void krk_debug_addExpression(KrkCodeObject * codeobject, uint8_t start, uint8_t 
 
 	if (codeobject->expressionsCapacity < codeobject->expressionsCount + 1) {
 		size_t old = codeobject->expressionsCapacity;
-		codeobject->expressionsCapacity = GROW_CAPACITY(old);
-		codeobject->expressions = GROW_ARRAY(KrkExpressionsMap, codeobject->expressions, old, codeobject->expressionsCapacity);
+		codeobject->expressionsCapacity = KRK_GROW_CAPACITY(old);
+		codeobject->expressions = KRK_GROW_ARRAY(KrkExpressionsMap, codeobject->expressions, old, codeobject->expressionsCapacity);
 	}
 
 	codeobject->expressions[codeobject->expressionsCount] = (KrkExpressionsMap){offset,start,midStart,midEnd,end};

@@ -1299,7 +1299,7 @@ static void module_sweep(KrkInstance * inst) {
 #ifndef KRK_STATIC_ONLY
 	struct KrkModule * module = (struct KrkModule*)inst;
 	if (module->libHandle) {
-		dlClose(module->libHandle);
+		krk_dlClose(module->libHandle);
 	}
 #endif
 }

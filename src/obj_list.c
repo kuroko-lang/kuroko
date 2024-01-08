@@ -34,7 +34,7 @@ KrkValue krk_list_of(int argc, const KrkValue argv[], int hasKw) {
 
 	if (argc) {
 		AS_LIST(outList)->capacity = argc;
-		AS_LIST(outList)->values = GROW_ARRAY(KrkValue, AS_LIST(outList)->values, 0, argc);
+		AS_LIST(outList)->values = KRK_GROW_ARRAY(KrkValue, AS_LIST(outList)->values, 0, argc);
 		memcpy(AS_LIST(outList)->values, argv, sizeof(KrkValue) * argc);
 		AS_LIST(outList)->count = argc;
 	}
@@ -162,8 +162,8 @@ static int _list_extend_callback(void * context, const KrkValue * values, size_t
 	KrkValueArray * positionals = context;
 	if (positionals->count + count > positionals->capacity) {
 		size_t old = positionals->capacity;
-		positionals->capacity = (count == 1) ? GROW_CAPACITY(old) : (positionals->count + count);
-		positionals->values = GROW_ARRAY(KrkValue, positionals->values, old, positionals->capacity);
+		positionals->capacity = (count == 1) ? KRK_GROW_CAPACITY(old) : (positionals->count + count);
+		positionals->values = KRK_GROW_ARRAY(KrkValue, positionals->values, old, positionals->capacity);
 	}
 
 	for (size_t i = 0; i < count; ++i) {

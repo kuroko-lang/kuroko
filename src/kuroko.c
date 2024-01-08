@@ -1016,7 +1016,7 @@ _finishArgs:
 		while (!exitRepl) {
 			size_t lineCapacity = 8;
 			size_t lineCount = 0;
-			char ** lines = ALLOCATE(char *, lineCapacity);
+			char ** lines = KRK_ALLOCATE(char *, lineCapacity);
 			size_t totalData = 0;
 			int valid = 1;
 			char * allData = NULL;
@@ -1102,8 +1102,8 @@ _finishArgs:
 				if (lineCapacity < lineCount + 1) {
 					/* If we need more space, grow as needed... */
 					size_t old = lineCapacity;
-					lineCapacity = GROW_CAPACITY(old);
-					lines = GROW_ARRAY(char *,lines,old,lineCapacity);
+					lineCapacity = KRK_GROW_CAPACITY(old);
+					lines = KRK_GROW_ARRAY(char *,lines,old,lineCapacity);
 				}
 
 				int i = lineCount++;
@@ -1172,7 +1172,7 @@ _finishArgs:
 #endif
 				free(lines[i]);
 			}
-			FREE_ARRAY(char *, lines, lineCapacity);
+			KRK_FREE_ARRAY(char *, lines, lineCapacity);
 
 			if (valid) {
 				KrkValue result = krk_interpret(allData, "<stdin>");

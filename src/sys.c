@@ -272,7 +272,7 @@ void krk_module_init_kuroko(void) {
 	KRK_DOC(BIND_FUNC(vm.system,get_recursion_depth),
 		"Examine the maximum recursion depth of the current thread.");
 	krk_attachNamedObject(&vm.system->fields, "module", (KrkObj*)vm.baseClasses->moduleClass);
-	krk_attachNamedObject(&vm.system->fields, "path_sep", (KrkObj*)S(PATH_SEP));
+	krk_attachNamedObject(&vm.system->fields, "path_sep", (KrkObj*)S(KRK_PATH_SEP));
 	KrkValue module_paths = krk_list_of(0,NULL,0);
 	krk_attachNamedValue(&vm.system->fields, "module_paths", module_paths);
 	krk_writeValueArray(AS_LIST(module_paths), OBJECT_VAL(S("./")));

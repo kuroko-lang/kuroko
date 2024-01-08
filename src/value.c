@@ -17,8 +17,8 @@ void krk_initValueArray(KrkValueArray * array) {
 void krk_writeValueArray(KrkValueArray * array, KrkValue value) {
 	if (array->capacity < array->count + 1) {
 		int old = array->capacity;
-		array->capacity = GROW_CAPACITY(old);
-		array->values = GROW_ARRAY(KrkValue, array->values, old, array->capacity);
+		array->capacity = KRK_GROW_CAPACITY(old);
+		array->values = KRK_GROW_ARRAY(KrkValue, array->values, old, array->capacity);
 	}
 
 	array->values[array->count] = value;
@@ -26,7 +26,7 @@ void krk_writeValueArray(KrkValueArray * array, KrkValue value) {
 }
 
 void krk_freeValueArray(KrkValueArray * array) {
-	FREE_ARRAY(KrkValue, array->values, array->capacity);
+	KRK_FREE_ARRAY(KrkValue, array->values, array->capacity);
 	krk_initValueArray(array);
 }
 
