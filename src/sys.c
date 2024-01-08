@@ -23,6 +23,10 @@
 # define KRK_BUILD_COMPILER "GCC " __VERSION__
 #elif (defined(__clang__))
 # define KRK_BUILD_COMPILER "clang " __clang_version__
+#elif (defined(_MSC_VER) && !defined(__clang__))
+# define KRK_ARG_STR(str) #str
+# define KRK_ARG_LOL(s) KRK_ARG_STR(s)
+# define KRK_BUILD_COMPILER "msvc " KRK_ARG_LOL(_MSC_FULL_VER)
 #else
 # define KRK_BUILD_COMPILER ""
 #endif

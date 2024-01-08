@@ -32,3 +32,17 @@ typedef int64_t krk_integer_type;
 # endif
 #endif
 
+#if defined(_MSC_VER) && !defined(__clang__)
+#define KRK_NO_DOCUMENTATION 1
+#define KRK_NO_GC_TRACING 1
+#define KRK_NO_CALLGRIND 1
+typedef intptr_t ssize_t;
+#pragma warning(disable : 4146) /* unary minus on unsigned */
+#pragma warning(disable : 4996) /* sterror */
+#pragma warning(disable : 4267) /* conversions to smaller types... */
+#pragma warning(disable : 4244) /* conversions to smaller types... */
+#include <math.h>
+#define __builtin_floor floor
+#define __builtin_unreachable abort
+#define __builtin_expect(cond,expected) (cond)
+#endif

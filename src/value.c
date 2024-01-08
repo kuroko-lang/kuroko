@@ -99,7 +99,7 @@ static inline int _krk_diff_type_equivalence(uint16_t val_a, uint16_t val_b, Krk
 	return _krk_method_equivalence(a,b);
 }
 
-__attribute__((hot))
+_hot
 int krk_valuesSameOrEqual(KrkValue a, KrkValue b) {
 	if (a == b) return 1;
 	uint16_t val_a = KRK_VAL_TYPE(a);
@@ -109,7 +109,7 @@ int krk_valuesSameOrEqual(KrkValue a, KrkValue b) {
 		: _krk_diff_type_equivalence(val_a, val_b, a, b);
 }
 
-__attribute__((hot))
+_hot
 int krk_valuesEqual(KrkValue a, KrkValue b) {
 	uint16_t val_a = KRK_VAL_TYPE(a);
 	uint16_t val_b = KRK_VAL_TYPE(b);

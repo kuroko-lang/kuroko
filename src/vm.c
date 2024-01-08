@@ -2,7 +2,6 @@
 #include <limits.h>
 #include <stdarg.h>
 #include <string.h>
-#include <unistd.h>
 #include <errno.h>
 #include <sys/stat.h>
 
@@ -224,7 +223,7 @@ KrkClass * krk_makeClass(KrkInstance * module, KrkClass ** _class, const char * 
  *
  * For a class built by managed code, called by type.__new__
  */
-__attribute__((nonnull))
+_nonnull
 void krk_finalizeClass(KrkClass * _class) {
 	KrkValue tmp;
 
@@ -258,8 +257,8 @@ void krk_finalizeClass(KrkClass * _class) {
 	if (_class->base && _class->_eq != _class->base->_eq) {
 		if (_class->_hash == _class->base->_hash) {
 			_class->_hash = NULL;
-			KrkValue _unused;
-			if (!krk_tableGet_fast(&_class->methods, AS_STRING(vm.specialMethodNames[METHOD_HASH]), &_unused)) {
+			KrkValue v;
+			if (!krk_tableGet_fast(&_class->methods, AS_STRING(vm.specialMethodNames[METHOD_HASH]), &v)) {
 				krk_tableSet(&_class->methods, OBJECT_VAL(vm.specialMethodNames[METHOD_HASH]), NONE_VAL());
 			}
 		}
@@ -2146,7 +2145,7 @@ _resumeHook: (void)0;
 		unsigned int OPERAND = 0;
 
 /* Only GCC lets us put these on empty statements; just hope clang doesn't start complaining */
-#ifndef __clang__
+#if defined(__GNUC__) && !defined(__clang__)
 # define FALLTHROUGH __attribute__((fallthrough));
 #else
 # define FALLTHROUGH

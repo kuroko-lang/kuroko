@@ -521,7 +521,7 @@ KRK_Method(listiterator,__init__) {
 }
 
 FUNC_SIG(listiterator,__call__) {
-	static __attribute__ ((unused)) const char* _method_name = "__call__";
+	static _unused const char* _method_name = "__call__";
 	if (unlikely((argc != 1))) goto _bad;
 	if (unlikely(!IS_OBJECT(argv[0]))) goto _bad;
 	if (unlikely(AS_INSTANCE(argv[0])->_class != vm.baseClasses->listiteratorClass)) goto _bad;

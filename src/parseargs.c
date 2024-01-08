@@ -19,7 +19,7 @@
  * @param arg          The value passed that failed the type check.
  * @param argName      Name of the argument. If NULL or zero-length, argument name is not included in the description.
  */
-__attribute__((cold))
+_cold
 static void raise_TypeError(const char * method_name, const char * expected, KrkValue arg, const char * argName) {
 	krk_runtimeError(vm.exceptions->typeError,
 		"%s()%s%s expects %s, not '%T'",
@@ -37,7 +37,7 @@ static void raise_TypeError(const char * method_name, const char * expected, Krk
  * @param method_name Original method name passed to krk_parseArgs.
  * @param fmt         Pointer to somewhere in the format string up to the colon.
  */
-__attribute__((cold))
+_cold
 static const char * methodName(const char * method_name, const char * fmt) {
 	const char * maybeColon = strchr(fmt, ':');
 	return maybeColon ? maybeColon + 1 : method_name;

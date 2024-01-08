@@ -105,7 +105,7 @@ KrkTableEntry * krk_findEntryExact(KrkTableEntry * entries, size_t capacity, Krk
 	}
 }
 
-#ifdef __TINYC__
+#if defined(__TINYC__) || (defined(_MSC_VER) && !defined(__clang__))
 int __builtin_clz(unsigned int x) {
 	int i = 31;
 	while (!(x & (1 << i)) && i >= 0) i--;

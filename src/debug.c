@@ -198,8 +198,8 @@ static int isJumpTarget(KrkCodeObject * func, size_t startPoint) {
 	size_t offset = 0;
 
 #define SIMPLE(opc) case opc: size = 1; break;
-#define CONSTANT(opc,more) case opc: { size_t constant __attribute__((unused)) = chunk->code[offset + 1]; size = 2; more; break; } \
-	case opc ## _LONG: { size_t constant __attribute__((unused)) = (chunk->code[offset + 1] << 16) | \
+#define CONSTANT(opc,more) case opc: { size_t constant _unused = chunk->code[offset + 1]; size = 2; more; break; } \
+	case opc ## _LONG: { size_t constant _unused = (chunk->code[offset + 1] << 16) | \
 	(chunk->code[offset + 2] << 8) | (chunk->code[offset + 3]); size = 4; more; break; }
 #define OPERANDB(opc,more) case opc: { size = 2; more; break; }
 #define OPERAND(opc,more) OPERANDB(opc,more) \

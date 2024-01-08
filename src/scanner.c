@@ -5,6 +5,7 @@
 #include <errno.h>
 #include <sys/types.h>
 
+#include <kuroko/kuroko.h>
 #include <kuroko/scanner.h>
 
 KrkScanner krk_initScanner(const char * src) {

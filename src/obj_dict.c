@@ -153,8 +153,8 @@ KRK_Method(dict,__len__) {
 
 KRK_Method(dict,__contains__) {
 	METHOD_TAKES_EXACTLY(1);
-	KrkValue _unused;
-	return BOOLEAN_VAL(krk_tableGet(&self->entries, argv[1], &_unused));
+	KrkValue v;
+	return BOOLEAN_VAL(krk_tableGet(&self->entries, argv[1], &v));
 }
 
 KRK_Method(dict,capacity) {

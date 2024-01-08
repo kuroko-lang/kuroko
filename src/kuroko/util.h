@@ -33,6 +33,30 @@
 #define _noexport
 #endif
 
+#if __has_attribute(unused)
+# define _unused __attribute__((unused))
+#else
+# define _unused
+#endif
+
+#if __has_attribute(hot)
+# define _hot __attribute__((hot))
+#else
+# define _hot
+#endif
+
+#if __has_attribute(cold)
+# define _cold __attribute__((cold))
+#else
+# define _cold
+#endif
+
+#if __has_attribute(nonnull)
+# define _nonnull __attribute__((nonnull))
+#else
+# define _nonnull
+#endif
+
 #define ADD_BASE_CLASS(obj, name, baseClass) krk_makeClass(vm.builtins, &obj, name, baseClass)
 
 #define ATTRIBUTE_NOT_ASSIGNABLE() do { if (unlikely(argc != 1)) return krk_runtimeError(vm.exceptions->attributeError, "'%T' object has no attribute '%s'", \
@@ -70,7 +94,7 @@
 #define CHECK_ARG(i, type, ctype, name) \
 	if (unlikely(argc < (i+1))) return NOT_ENOUGH_ARGS(name); \
 	if (unlikely(!IS_ ## type (argv[i]))) return TYPE_ERROR(type,argv[i]); \
-	ctype name __attribute__((unused)) = AS_ ## type (argv[i])
+	ctype name _unused = AS_ ## type (argv[i])
 
 #define FUNC_NAME(klass, name) _ ## klass ## _ ## name
 #define FUNC_SIG(klass, name) _noexport KrkValue FUNC_NAME(klass,name) (int argc, const KrkValue argv[], int hasKw)

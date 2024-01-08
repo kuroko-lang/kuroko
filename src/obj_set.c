@@ -63,8 +63,8 @@ KRK_Method(set,__init__) {
 
 KRK_Method(set,__contains__) {
 	METHOD_TAKES_EXACTLY(1);
-	KrkValue _unused;
-	return BOOLEAN_VAL(krk_tableGet(&self->entries, argv[1], &_unused));
+	KrkValue v;
+	return BOOLEAN_VAL(krk_tableGet(&self->entries, argv[1], &v));
 }
 
 KRK_Method(set,__repr__) {
@@ -198,11 +198,11 @@ KRK_Method(set,__eq__) {
 	if (self->entries.count != them->entries.count)
 		return BOOLEAN_VAL(0);
 
-	KrkValue _unused;
+	KrkValue v;
 
 	for (unsigned int i = 0; i < self->entries.capacity; ++i) {
 		if (IS_KWARGS(self->entries.entries[i].key)) continue;
-		if (!krk_tableGet(&them->entries, self->entries.entries[i].key, &_unused)) return BOOLEAN_VAL(0);
+		if (!krk_tableGet(&them->entries, self->entries.entries[i].key, &v)) return BOOLEAN_VAL(0);
 	}
 
 	return BOOLEAN_VAL(1);
@@ -216,10 +216,10 @@ KRK_Method(set,__lt__) {
 	struct Set * them = AS_set(argv[1]);
 	if (self->entries.count == them->entries.count)
 		return BOOLEAN_VAL(0);
-	KrkValue _unused;
+	KrkValue v;
 	for (unsigned int i = 0; i < self->entries.capacity; ++i) {
 		if (IS_KWARGS(self->entries.entries[i].key)) continue;
-		if (!krk_tableGet(&them->entries, self->entries.entries[i].key, &_unused)) return BOOLEAN_VAL(0);
+		if (!krk_tableGet(&them->entries, self->entries.entries[i].key, &v)) return BOOLEAN_VAL(0);
 	}
 	return BOOLEAN_VAL(1);
 }
@@ -230,10 +230,10 @@ KRK_Method(set,__le__) {
 	if (!IS_set(argv[1]))
 		return NOTIMPL_VAL();
 	struct Set * them = AS_set(argv[1]);
-	KrkValue _unused;
+	KrkValue v;
 	for (unsigned int i = 0; i < self->entries.capacity; ++i) {
 		if (IS_KWARGS(self->entries.entries[i].key)) continue;
-		if (!krk_tableGet(&them->entries, self->entries.entries[i].key, &_unused)) return BOOLEAN_VAL(0);
+		if (!krk_tableGet(&them->entries, self->entries.entries[i].key, &v)) return BOOLEAN_VAL(0);
 	}
 	return BOOLEAN_VAL(1);
 }
@@ -246,10 +246,10 @@ KRK_Method(set,__gt__) {
 	struct Set * them = AS_set(argv[1]);
 	if (self->entries.count == them->entries.count)
 		return BOOLEAN_VAL(0);
-	KrkValue _unused;
+	KrkValue v;
 	for (unsigned int i = 0; i < them->entries.capacity; ++i) {
 		if (IS_KWARGS(them->entries.entries[i].key)) continue;
-		if (!krk_tableGet(&self->entries, them->entries.entries[i].key, &_unused)) return BOOLEAN_VAL(0);
+		if (!krk_tableGet(&self->entries, them->entries.entries[i].key, &v)) return BOOLEAN_VAL(0);
 	}
 	return BOOLEAN_VAL(1);
 }
@@ -259,10 +259,10 @@ KRK_Method(set,__ge__) {
 	if (!IS_set(argv[1]))
 		return NOTIMPL_VAL();
 	struct Set * them = AS_set(argv[1]);
-	KrkValue _unused;
+	KrkValue v;
 	for (unsigned int i = 0; i < them->entries.capacity; ++i) {
 		if (IS_KWARGS(them->entries.entries[i].key)) continue;
-		if (!krk_tableGet(&self->entries, them->entries.entries[i].key, &_unused)) return BOOLEAN_VAL(0);
+		if (!krk_tableGet(&self->entries, them->entries.entries[i].key, &v)) return BOOLEAN_VAL(0);
 	}
 	return BOOLEAN_VAL(1);
 }
