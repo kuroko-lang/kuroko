@@ -304,6 +304,7 @@ KRK_Method(bytearray,__init__) {
 		self->actual = OBJECT_VAL(krk_newBytes(AS_BYTES(argv[1])->length, AS_BYTES(argv[1])->bytes));
 	} else if (IS_INTEGER(argv[1])) {
 		self->actual = OBJECT_VAL(krk_newBytes(AS_INTEGER(argv[1]),NULL));
+		memset(AS_BYTES(self->actual)->bytes, 0, AS_BYTES(self->actual)->length);
 	} else {
 		return krk_runtimeError(vm.exceptions->valueError, "expected bytes");
 	}
