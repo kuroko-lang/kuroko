@@ -1497,20 +1497,47 @@ BASIC_BIN_OP(and,krk_long_and)
 
 static void _krk_long_lshift(krk_long out, krk_long val, krk_long shift) {
 	if (krk_long_sign(shift) < 0) { krk_runtimeError(vm.exceptions->valueError, "negative shift count"); return; }
-	krk_long multiplier;
-	krk_long_init_si(multiplier,0);
-	krk_long_bit_set(multiplier, krk_long_medium(shift));
-	krk_long_mul(out,val,multiplier);
-	krk_long_clear(multiplier);
+	if (krk_long_sign(shift) == 0) {
+		krk_long_clear(out);
+		krk_long_init_copy(out,val);
+		return;
+	}
+
+	int64_t amount = krk_long_medium(shift);
+	int64_t count = _bits_in(val);
+	krk_long_clear(out);
+	if (count == 0) return;
+
+	for (int64_t i = count - 1; i >= 0; i--) {
+		if (_bit_is_set(val,i)) krk_long_bit_set(out,i + amount);
+	}
+
+	if (krk_long_sign(val) < 0) krk_long_set_sign(out,-1);
 }
 
 static void _krk_long_rshift(krk_long out, krk_long val, krk_long shift) {
 	if (krk_long_sign(shift) < 0) { krk_runtimeError(vm.exceptions->valueError, "negative shift count"); return; }
-	krk_long multiplier, garbage;
-	krk_long_init_many(multiplier,garbage,NULL);
-	krk_long_bit_set(multiplier, krk_long_medium(shift));
-	krk_long_div_rem(out,garbage,val,multiplier);
-	krk_long_clear_many(multiplier,garbage,NULL);
+	if (krk_long_sign(shift) == 0) {
+		krk_long_clear(out);
+		krk_long_init_copy(out,val);
+		return;
+	}
+
+	int64_t amount = krk_long_medium(shift);
+	int64_t count = _bits_in(val);
+	krk_long_clear(out);
+	if (count == 0) return;
+
+	for (int64_t i = count - 1; i >= amount; i--) {
+		if (_bit_is_set(val,i)) krk_long_bit_set(out,i - amount);
+	}
+
+	if (krk_long_sign(val) < 0) {
+		KrkLong one;
+		krk_long_init_si(&one, 1);
+		krk_long_add(out,out,&one);
+		krk_long_set_sign(out,-1);
+	}
 }
 
 static void _krk_long_mod(krk_long out, krk_long a, krk_long b) {
