@@ -1404,7 +1404,6 @@ KRK_Method(long,__rtruediv__) {
 		return OBJECT_VAL(krk_takeStringVetted(rev,size,size,KRK_OBJ_FLAGS_STRING_ASCII,hash)); \
 	}
 
-PRINTER(repr,10,"")
 PRINTER(hex,16,"x0")
 PRINTER(oct,8,"o0")
 PRINTER(bin,2,"b0")
@@ -1946,6 +1945,379 @@ KRK_Method(long,_get_digit) {
 	}
 
 	return INTEGER_VAL(_self->digits[index]);
+}
+
+/**
+ * Huge decimals for fast conversion.
+ *
+ * This is a lightweight implementation of decimal-based bigints that only supports
+ * addition, inplace subtraction, and multiplication (via Karatsuba). With this, we
+ * can much more quickly produce decimal conversions of (binary) longs.
+ */
+typedef uint32_t digit_t;
+#define DEC_DIGIT_SIZE sizeof(digit_t)
+#define DEC_DIGIT_CNT  9
+#define DEC_DIGIT_MAX 1000000000
+
+/**
+ * Adds @c a and @c b to create a new results.
+ */
+static digit_t * dec_add(const digit_t * a, size_t awidth, const digit_t * b, size_t bwidth, size_t * outwidth) {
+	*outwidth = (awidth > bwidth ? awidth : bwidth) + 1;
+	digit_t * out = calloc(*outwidth, DEC_DIGIT_SIZE);
+	int64_t carry = 0;
+	for (size_t i  = 0; i < *outwidth - 1; ++i) {
+		digit_t n = ((i < awidth) ? a[i] : 0) + ((i < bwidth) ? b[i] : 0) + carry;
+		out[i] = n % DEC_DIGIT_MAX;
+		carry = (n >= DEC_DIGIT_MAX);
+	}
+	if (carry) {
+		out[*outwidth-1] = 1;
+	} else {
+		*outwidth -= 1;
+	}
+
+	if (*outwidth == 0) {
+		*outwidth = 1;
+		out[0] = 0;
+	}
+
+	return out;
+}
+
+/**
+ * Subtracts a smaller @c b from a larger @c a in-place.
+ */
+static void dec_isub(digit_t * a, size_t awidth, const digit_t * b, size_t bwidth) {
+	int64_t carry = 0;
+	for (size_t i = 0; i < awidth; ++i) {
+		int64_t a_digit = (int64_t)((i < awidth) ? a[i] : 0) - carry;
+		int64_t b_digit = (int64_t)((i < bwidth) ? b[i] : 0);
+		if (a_digit < b_digit) {
+			a_digit += DEC_DIGIT_MAX;
+			carry = 1;
+		} else {
+			carry = 0;
+		}
+		a[i] = (a_digit - b_digit) % DEC_DIGIT_MAX;
+	}
+}
+
+/**
+ * Decimal left shift. Multiply a by 1000000000^amount and return a new result value.
+ */
+static digit_t * dec_shift(const digit_t * a, size_t awidth, size_t amount, size_t * outwidth) {
+	if (awidth == 1 && a[0] == 0) {
+		*outwidth = 1;
+		return calloc(1,DEC_DIGIT_SIZE);
+	}
+	*outwidth = awidth + amount;
+	digit_t * out = calloc(*outwidth,DEC_DIGIT_SIZE);
+
+	for (size_t i = 0; i < awidth; ++i) {
+		out[i+amount] = a[i];
+	}
+
+	return out;
+}
+
+/**
+ * Multiply a by b and return a new result value.
+ *
+ * Uses the Karatsuba algorithm for larger values; degrades to brute-force
+ * chalkboard multiplication for smaller values.
+ */
+static digit_t * dec_mul(const digit_t * a, size_t a_width, const digit_t * b, size_t b_width, size_t * outwidth) {
+	/* We want a to be bigger than b */
+	if (a_width < b_width) {
+		const digit_t * t = a;
+		a = b;
+		b = t;
+		size_t tmp = a_width;
+		a_width = b_width;
+		b_width = tmp;
+	}
+
+	*outwidth = a_width + b_width;
+
+	/* Degenerate case where a or b is 0: return 0 */
+	if ((a_width == 1 && a[0] == 0) || (b_width == 1 && b[0] == 0)) {
+		*outwidth = 1;
+		return calloc(1,DEC_DIGIT_SIZE);
+	}
+
+	/* Degenerate case where a is 1, return b */
+	if (a_width == 1 && a[0] == 1) {
+		*outwidth = b_width;
+		digit_t * out = malloc(*outwidth * DEC_DIGIT_SIZE);
+		memcpy(out, b, *outwidth * DEC_DIGIT_SIZE);
+		return out;
+	}
+
+	/* Degenerate case where b is 1, return a */
+	if (b_width == 1 && b[0] == 1) {
+		*outwidth = a_width;
+		digit_t * out = malloc(*outwidth * DEC_DIGIT_SIZE);
+		memcpy(out, a, *outwidth * DEC_DIGIT_SIZE);
+		return out;
+	}
+
+	if (b_width < 50) {
+		/* Fallback brute-force multiplication */
+		digit_t * out = calloc(*outwidth,DEC_DIGIT_SIZE);
+		for (size_t i = 0; i < b_width; ++i) {
+			digit_t bdigit = (i < b_width) ? b[i] : 0;
+			int64_t carry = 0;
+			for (size_t j = 0; j < a_width; ++j) {
+				digit_t adigit = (j < a_width) ? a[j] : 0;
+				uint64_t t = carry + (int64_t)adigit * (int64_t)bdigit + out[i+j];
+				carry = t / DEC_DIGIT_MAX;
+				out[i+j] = t % DEC_DIGIT_MAX;
+			}
+			out[i+a_width] = carry;
+		}
+		while (*outwidth > 1 && out[(*outwidth)-1] == 0) (*outwidth)--;
+		return out;
+	} else {
+		size_t m2  = a_width / 2;
+
+		/* Split a into its high and low halves */
+		const digit_t * low1  = a;
+		size_t    low1_width = (m2 <= a_width) ? m2 : a_width;
+		while (low1_width > 1 && low1[low1_width-1] == 0) low1_width--;
+		digit_t   a_zero = 0;
+		const digit_t * high1 = (m2 <= a_width) ? (a + m2) : &a_zero;
+		size_t    high1_width = (m2 <= a_width) ? (a_width - m2) : 1;
+
+		/* Split b into its high and low halves */
+		const digit_t * low2  = b;
+		size_t    low2_width = (m2 <= b_width) ? m2 : b_width;
+		while (low2_width > 1 && low2[low2_width-1] == 0) low2_width--;
+		digit_t   b_zero = 0;
+		const digit_t * high2 = (m2 <= b_width) ? (b + m2) : &b_zero;
+		size_t    high2_width = (m2 <= b_width) ? (b_width - m2) : 1;
+
+		size_t z0_width, z1_width, z2_width;
+
+		/* z0 = low1 * low2; z2 = high1 * high2 */
+		digit_t * z0 = dec_mul(low1, low1_width, low2, low2_width, &z0_width);
+		digit_t * z2 = dec_mul(high1, high1_width, high2, high2_width, &z2_width);
+
+		/* z1 = (low1 + high1) * (low2 + high2) */
+		size_t sleft_width, sright_width;
+		digit_t * sleft  = dec_add(low1, low1_width, high1, high1_width, &sleft_width);
+		digit_t * sright = dec_add(low2, low2_width, high2, high2_width, &sright_width);
+		digit_t * z1 = dec_mul(sleft, sleft_width, sright, sright_width, &z1_width);
+		free(sleft);
+		free(sright);
+
+		/* Store (z1 - z2 - z0) into z1 */
+		dec_isub(z1, z1_width, z2, z2_width);
+		dec_isub(z1, z1_width, z0, z0_width);
+
+		/* Calculate (z1 - z2 - z0) * 10 ^ m2 */
+		size_t m2_shift_width;
+		digit_t * m2_shift = dec_shift(z1, z1_width, m2, &m2_shift_width);
+		free(z1);
+
+		/* Add z0 to that */
+		size_t add_width;
+		digit_t * add = dec_add(m2_shift, m2_shift_width, z0, z0_width, &add_width);
+		free(m2_shift);
+		free(z0);
+
+		/* Then calculate z2 * 10 ^ (m2 * 2) */
+		size_t m2_2_width;
+		digit_t * m2_2 = dec_shift(z2, z2_width, m2 * 2, &m2_2_width);
+		free(z2);
+
+		/* And add everything up */
+		size_t result_width;
+		digit_t * result = dec_add(m2_2, m2_2_width, add, add_width, &result_width);
+		free(m2_2);
+		free(add);
+
+		*outwidth = result_width;
+		return result;
+	}
+}
+
+/**
+ * @brief Raise 2 to the wth power, as a huge decimal.
+ *
+ * Creates a decimal representation of 2 raised to the requested power.
+ *
+ * If @p w is very small (eg. 2**w would fit in one decimal digit), then
+ * we can create this value directly. Otherwise, we recursively break
+ * down @p w into smaller values and build huge decimals out of them
+ * through repeated multiplication.
+ *
+ * An older prototype of this used a cache, which did save some time,
+ * but not a whole lot in the long run, and this implementation is
+ * considerably simpler without the cache.
+ *
+ * @param w Power to raise 2 to, as a KrkLong.
+ * @param sizeOut Resulting size of the huge decimal.
+ * @returns A huge decimal representing 2 ** w.
+ */
+static digit_t * dec_two_raised(KrkLong * w, size_t * sizeOut) {
+	if (w->width == 0 || (w->width == 1 && w->digits[0] <= 29)) {
+		*sizeOut = 1;
+		digit_t * out = malloc(DEC_DIGIT_SIZE);
+		out[0] = 1 << (w->width == 0 ? 0 : w->digits[0]);
+		return out;
+	} else {
+		/* w2 = w >> 1 */
+		KrkLong w2;
+		KrkLong one;
+		krk_long_init_si(&w2, 0);
+		krk_long_init_si(&one, 1);
+		_krk_long_rshift(&w2, w, &one);
+
+		/* t = Decimal(1 << w2) */
+		size_t tSize;
+		digit_t * t = dec_two_raised(&w2, &tSize);
+
+		if ((w->digits[0] & 1) == 0) {
+			/* Result = t * t */
+			krk_long_clear_many(&one, &w2, NULL);
+			digit_t * result = dec_mul(t, tSize, t, tSize, sizeOut);
+			free(t);
+			return result;
+		} else {
+			/* wmw2 = w - w2 */
+			KrkLong wmw2;
+			krk_long_init_si(&wmw2, 0);
+			krk_long_sub(&wmw2, w, &w2);
+			krk_long_clear_many(&one, &w2, NULL);
+
+			/* right = 1 << wmw2 */
+			size_t rightSize;
+			digit_t * right = dec_two_raised(&wmw2, &rightSize);
+			krk_long_clear(&wmw2);
+
+			/* result = t * right */
+			digit_t * result = dec_mul(t, tSize, right, rightSize, sizeOut);
+			free(t);
+			free(right);
+			return result;
+		}
+	}
+}
+
+/**
+ * @brief Convert a KrkLong to a series of huge decimal digits.
+ *
+ * Takes a KrkLong @p n of bitwidth @p w and converts it into an array of
+ * @c digit_t huge decimal digits, storing the size in @p sizeOut.
+ *
+ * @param n KrkLong to convert.
+ * @param w Bitwidth of @p n as a KrkLong.
+ * @param sizeOut Resulting size of the huge decimal.
+ * @returns Huge decimal of equivalent value.
+ */
+static digit_t * long_to_dec_inner(KrkLong * n, KrkLong * w, size_t * sizeOut) {
+	if (n->width == 0) {
+		*sizeOut = 1;
+		return calloc(1,DEC_DIGIT_SIZE);
+	}
+	if (w->width == 1 && w->digits[0] <= 29) {
+		*sizeOut = 1;
+		digit_t * out = malloc(DEC_DIGIT_SIZE);
+		out[0] = n->digits[0];
+		return out;
+	}
+
+	size_t aSize, bSize, cSize;
+	digit_t * a, * b, * c;
+	KrkLong w2, hi, lo, tmp;
+	krk_long_init_many(&w2, &hi, &lo, &tmp, NULL);
+	KrkLong one;
+	krk_long_init_si(&one, 1);
+	/* w2 = w >> 1 */
+	_krk_long_rshift(&w2, w, &one);
+	/* hi = n >> w2 */
+	_krk_long_rshift(&hi, n, &w2);
+	/* tmp = hi >> w2 */
+	_krk_long_lshift(&tmp, &hi, &w2);
+	/* lo = n - (hi >> w2) */
+	krk_long_sub(&lo, n, &tmp);
+	krk_long_clear_many(&one, &tmp, NULL);
+	/* tmp = w - w2 */
+	krk_long_sub(&tmp, w, &w2);
+	/* a = Dec(hi) */
+	a = long_to_dec_inner(&hi, &tmp, &aSize);
+	krk_long_clear_many(&hi, &tmp, NULL);
+	/* b = Dec(1 << w2) */
+	b = dec_two_raised(&w2, &bSize);
+	/* c = a * b */
+	c = dec_mul(a, aSize, b, bSize, &cSize);
+	free(a);
+	free(b);
+	/* a = Dec(lo) */
+	a = long_to_dec_inner(&lo, &w2, &aSize);
+	krk_long_clear_many(&lo,&w2,NULL);
+	/* result = a + c */
+	digit_t * result = dec_add(a, aSize, c, cSize, sizeOut);
+	free(a);
+	free(c);
+	return result;
+}
+
+KRK_Method(long,__repr__) {
+	/* For rather small values (10 was chosen arbitrarily), use the older approach */
+	if (self->value->width >= -10 && self->value->width < 10) {
+		size_t size;
+		uint32_t hash;
+		char * rev = krk_long_to_str(self->value, 10, "", &size, &hash);
+		return OBJECT_VAL(krk_takeStringVetted(rev,size,size,KRK_OBJ_FLAGS_STRING_ASCII,hash));
+	}
+
+	/* We can only do this on positive values, but we can re-use the digits
+	 * of the current number while processing, since longs are generally
+	 * not mutable by any other operations. */
+	KrkLong abs = *self->value;
+	int inv = (krk_long_sign(&abs) == -1);
+	krk_long_set_sign(&abs, 1);
+
+	/* Calculate bit width for halving */
+	size_t bits = _bits_in(&abs);
+	KrkLong w;
+	krk_long_init_ui(&w, bits);
+
+	/* Convert to big decimal digits */
+	size_t size;
+	digit_t * digits = long_to_dec_inner(&abs, &w, &size);
+
+	/* We don't need to clear abs since its digits are our digits, but
+	 * we need to clean up w even if it is pretty small... */
+	krk_long_clear(&w);
+
+	/* Count number of leading zeros */
+	int leading = 0;
+	for (size_t j = 0, div = DEC_DIGIT_MAX/10; j < DEC_DIGIT_CNT; j++, div/=10) {
+		if (((digits[size-1] / div) % 10)) break;
+		leading += 1;
+	}
+
+	/* Allocate spcae for output */
+	char * out = malloc(size * DEC_DIGIT_CNT + 1 - leading + inv);
+	char * writer = out;
+
+	/* Write negative sign if original value was negative. */
+	if (inv) *(writer++) = '-';
+
+	/* Collect digits */
+	for (size_t i = 0; i < size; ++i) {
+		for (size_t j = 0, div = DEC_DIGIT_MAX/10; j < DEC_DIGIT_CNT; j++, div/=10) {
+			if (leading) { leading--; continue; }
+			*(writer++) = ((digits[size-i-1] / div) % 10) + '0';
+		}
+	}
+	*writer = '\0';
+
+	free(digits);
+	return OBJECT_VAL(krk_takeString(out, writer - out));
 }
 
 #ifndef KRK_NO_FLOAT
