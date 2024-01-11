@@ -84,6 +84,10 @@ ifdef KRK_HEAP_TAG_BYTE
   CFLAGS += -DKRK_HEAP_TAG_BYTE=${KRK_HEAP_TAG_BYTE}
 endif
 
+ifdef KRK_NO_NAN_BOXING
+  CFLAGS += -DKRK_NO_NAN_BOXING=1
+endif
+
 ifdef KRK_BUNDLE_LIBS
   KRK_BUNDLE_LIBS_CFLAG=$(patsubst %,BUNDLED(%);,${KRK_BUNDLE_LIBS})
   KRK_BUNDLE_LIBS_BOBJS=$(patsubst %,src/modules/module_%.o,${KRK_BUNDLE_LIBS})

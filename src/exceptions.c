@@ -476,7 +476,7 @@ KrkValue krk_runtimeError(KrkClass * type, const char * fmt, ...) {
 	/* Allocate an exception object of the requested type. */
 	KrkInstance * exceptionObject = krk_newInstance(type);
 	krk_push(OBJECT_VAL(exceptionObject));
-	krk_attachNamedValue(&exceptionObject->fields, "arg", msg == KWARGS_VAL(0) ? finishStringBuilder(&sb) : msg);
+	krk_attachNamedValue(&exceptionObject->fields, "arg", krk_valuesSame(msg,KWARGS_VAL(0)) ? finishStringBuilder(&sb) : msg);
 	krk_attachNamedValue(&exceptionObject->fields, "__cause__", NONE_VAL());
 	krk_attachNamedValue(&exceptionObject->fields, "__context__", NONE_VAL());
 	krk_pop();

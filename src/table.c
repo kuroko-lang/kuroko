@@ -72,9 +72,9 @@ KrkTableEntry * krk_findEntry(KrkTableEntry * entries, size_t capacity, KrkValue
 	KrkTableEntry * tombstone = NULL;
 	for (;;) {
 		KrkTableEntry * entry = &entries[index];
-		if (entry->key == KWARGS_VAL(0)) {
+		if (krk_valuesSame(entry->key, KWARGS_VAL(0))) {
 			return tombstone != NULL ? tombstone : entry;
-		} else if (entry->key == KWARGS_VAL(1)) {
+		} else if (krk_valuesSame(entry->key, KWARGS_VAL(1))) {
 			if (tombstone == entry) return tombstone;
 			if (tombstone == NULL) tombstone = entry;
 		} else if (krk_valuesSameOrEqual(entry->key, key)) {
@@ -93,9 +93,9 @@ KrkTableEntry * krk_findEntryExact(KrkTableEntry * entries, size_t capacity, Krk
 	KrkTableEntry * tombstone = NULL;
 	for (;;) {
 		KrkTableEntry * entry = &entries[index];
-		if (entry->key == KWARGS_VAL(0)) {
+		if (krk_valuesSame(entry->key, KWARGS_VAL(0))) {
 			return tombstone != NULL ? tombstone : entry;
-		} else if (entry->key == KWARGS_VAL(1)) {
+		} else if (krk_valuesSame(entry->key, KWARGS_VAL(1))) {
 			if (tombstone == entry) return tombstone;
 			if (tombstone == NULL) tombstone = entry;
 		} else if (krk_valuesSame(entry->key, key)) {
@@ -192,12 +192,12 @@ int krk_tableGet_fast(KrkTable * table, KrkString * str, KrkValue * value) {
 	KrkTableEntry * tombstone = NULL;
 	for (;;) {
 		KrkTableEntry * entry = &table->entries[index];
-		if (entry->key == KWARGS_VAL(0)) {
+		if (krk_valuesSame(entry->key, KWARGS_VAL(0))) {
 			return 0;
-		} else if (entry->key == KWARGS_VAL(1)) {
+		} else if (krk_valuesSame(entry->key, KWARGS_VAL(1))) {
 			if (tombstone == entry) return 0;
 			if (tombstone == NULL) tombstone = entry;
-		} else if (entry->key == OBJECT_VAL(str)) {
+		} else if (krk_valuesSame(entry->key, OBJECT_VAL(str))) {
 			*value = entry->value;
 			return 1;
 		}
@@ -236,9 +236,9 @@ KrkString * krk_tableFindString(KrkTable * table, const char * chars, size_t len
 	KrkTableEntry * tombstone = NULL;
 	for (;;) {
 		KrkTableEntry * entry = &table->entries[index];
-		if (entry->key == KWARGS_VAL(0)) {
+		if (krk_valuesSame(entry->key, KWARGS_VAL(0))) {
 			return NULL;
-		} else if (entry->key == KWARGS_VAL(1)) {
+		} else if (krk_valuesSame(entry->key, KWARGS_VAL(1))) {
 			if (tombstone == entry) return NULL;
 			if (tombstone == NULL) tombstone = entry;
 		} else if (AS_STRING(entry->key)->length == length &&

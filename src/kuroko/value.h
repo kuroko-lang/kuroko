@@ -7,6 +7,7 @@
 #include <string.h>
 #include "kuroko.h"
 
+#ifndef KRK_NO_NAN_BOXING
 /**
  * @brief Tag enum for basic value types.
  *
@@ -23,28 +24,6 @@ typedef enum {
 	KRK_VAL_NOTIMPL  = 0x7FFE,
 } KrkValueType;
 
-/*
- * The following poorly-named macros define bit patterns for identifying
- * various boxed types.
- *
- * Boxing is done by first setting all of the bits of MASK_NAN. If all of
- * these bits are set, a value is not a float. If any of them are not set,
- * then a value is a float - and possibly a real NaN.
- *
- * Three other bits - one before and two after the MASK_NAN bits - determine
- * what type the value actually is. KWARGS sets none of the identifying bits,
- * NONE sets all of them.
- */
-#define KRK_VAL_MASK_BOOLEAN ((uint64_t)0xFFFC000000000000) /* 1..1100 */
-#define KRK_VAL_MASK_INTEGER ((uint64_t)0xFFFD000000000000) /* 1..1101 */
-#define KRK_VAL_MASK_HANDLER ((uint64_t)0xFFFE000000000000) /* 1..1110 */
-#define KRK_VAL_MASK_NONE    ((uint64_t)0xFFFF000000000000) /* 1..1111 */
-#define KRK_VAL_MASK_KWARGS  ((uint64_t)0x7FFC000000000000) /* 0..1100 */
-#define KRK_VAL_MASK_OBJECT  ((uint64_t)0x7FFD000000000000) /* 0..1101 */
-#define KRK_VAL_MASK_NOTIMPL ((uint64_t)0x7FFE000000000000) /* 0..1110 */
-#define KRK_VAL_MASK_NAN     ((uint64_t)0x7FFC000000000000)
-#define KRK_VAL_MASK_LOW     ((uint64_t)0x0000FFFFFFFFFFFF)
-
 /**
  * @struct KrkValue
  * @brief Stack reference or primative value.
@@ -60,6 +39,32 @@ typedef enum {
  * the various primitive types.
  */
 typedef uint64_t KrkValue;
+
+#define _krk_valuesSame(a,b) (a == b)
+
+#else
+/*
+ * Tagged union, but without the union fun.
+ */
+typedef enum {
+	KRK_VAL_NONE     = 0,
+	KRK_VAL_INTEGER  = 1,
+	KRK_VAL_BOOLEAN  = 2,
+	KRK_VAL_HANDLER  = 4,
+	KRK_VAL_KWARGS   = 8,
+	KRK_VAL_OBJECT   = 16,
+	KRK_VAL_NOTIMPL  = 32,
+	KRK_VAL_FLOATING = 64,
+} KrkValueType;
+
+typedef struct {
+	uint64_t tag;
+	uint64_t val;
+} KrkValue;
+
+#define _krk_valuesSame(a,b) (memcmp(&(a),&(b),sizeof(KrkValue)) == 0)
+
+#endif
 
 /**
  * @brief Flexible vector of stack references.
@@ -133,7 +138,7 @@ extern int krk_valuesEqual(KrkValue a, KrkValue b);
  *
  * @return 1 if values represent the same object or value, 0 otherwise.
  */
-extern int krk_valuesSame(KrkValue a, KrkValue b);
+static inline int krk_valuesSame(KrkValue a, KrkValue b) { return _krk_valuesSame(a,b); }
 
 /**
  * @brief Compare two values by identity, then by equality.
@@ -147,10 +152,34 @@ extern int krk_valuesSameOrEqual(KrkValue a, KrkValue b);
 
 extern KrkValue krk_parse_int(const char * start, size_t width, unsigned int base);
 
+#ifndef KRK_NO_NAN_BOXING
+
 typedef union {
 	KrkValue val;
 	double   dbl;
 } KrkValueDbl;
+
+/*
+ * The following poorly-named macros define bit patterns for identifying
+ * various boxed types.
+ *
+ * Boxing is done by first setting all of the bits of MASK_NAN. If all of
+ * these bits are set, a value is not a float. If any of them are not set,
+ * then a value is a float - and possibly a real NaN.
+ *
+ * Three other bits - one before and two after the MASK_NAN bits - determine
+ * what type the value actually is. KWARGS sets none of the identifying bits,
+ * NONE sets all of them.
+ */
+#define KRK_VAL_MASK_BOOLEAN ((uint64_t)0xFFFC000000000000) /* 1..1100 */
+#define KRK_VAL_MASK_INTEGER ((uint64_t)0xFFFD000000000000) /* 1..1101 */
+#define KRK_VAL_MASK_HANDLER ((uint64_t)0xFFFE000000000000) /* 1..1110 */
+#define KRK_VAL_MASK_NONE    ((uint64_t)0xFFFF000000000000) /* 1..1111 */
+#define KRK_VAL_MASK_KWARGS  ((uint64_t)0x7FFC000000000000) /* 0..1100 */
+#define KRK_VAL_MASK_OBJECT  ((uint64_t)0x7FFD000000000000) /* 0..1101 */
+#define KRK_VAL_MASK_NOTIMPL ((uint64_t)0x7FFE000000000000) /* 0..1110 */
+#define KRK_VAL_MASK_NAN     ((uint64_t)0x7FFC000000000000)
+#define KRK_VAL_MASK_LOW     ((uint64_t)0x0000FFFFFFFFFFFF)
 
 #ifdef KRK_SANITIZE_OBJECT_POINTERS
 /**
@@ -212,6 +241,47 @@ static inline uintptr_t _krk_sanitize(uintptr_t input) {
 #define IS_NOTIMPL(value)   (((value) >> 48L) == (KRK_VAL_MASK_NOTIMPL >> 48L))
 /* ... and as we said above, if any of the MASK_NAN bits are unset, it's a float. */
 #define IS_FLOATING(value)  (((value) & KRK_VAL_MASK_NAN) != KRK_VAL_MASK_NAN)
+
+#else
+
+typedef union {
+	uint64_t val;
+	double   dbl;
+} KrkValueDbl;
+
+#define NONE_VAL()          ((KrkValue){KRK_VAL_NONE,-1})
+#define NOTIMPL_VAL()       ((KrkValue){KRK_VAL_NOTIMPL,0})
+#define BOOLEAN_VAL(value)  ((KrkValue){KRK_VAL_BOOLEAN,!!(value)})
+#define INTEGER_VAL(value)  ((KrkValue){KRK_VAL_INTEGER,((uint64_t)(value)) & 0xFFFFffffFFFFULL})
+#define KWARGS_VAL(value)   ((KrkValue){KRK_VAL_KWARGS,((uint32_t)(value))})
+#define OBJECT_VAL(value)   ((KrkValue){KRK_VAL_OBJECT,((uintptr_t)(value))})
+#define HANDLER_VAL(ty,ta)  ((KrkValue){KRK_VAL_HANDLER,((uint64_t)((((uint64_t)ty) << 32) | ((uint32_t)ta)))})
+#define FLOATING_VAL(value) ((KrkValue){KRK_VAL_FLOATING,(((KrkValueDbl){.dbl = (value)}).val)})
+
+#define KRK_VAL_TYPE(value) ((value).tag)
+
+#define KRK_VAL_MASK_NONE    ((uint64_t)0xFFFF000000000000)
+#define KRK_VAL_MASK_LOW     ((uint64_t)0x0000FFFFFFFFFFFF)
+#define KRK_IX(value)  ((uint64_t)((value).val & KRK_VAL_MASK_LOW))
+#define KRK_SX(value)  ((uint64_t)((value).val & 0x800000000000))
+#define AS_INTEGER(value) ((krk_integer_type)(KRK_SX(value) ? (KRK_IX(value) | KRK_VAL_MASK_NONE) : (KRK_IX(value))))
+#define AS_BOOLEAN(value) AS_INTEGER(value)
+
+#define AS_HANDLER(value)   ((uint64_t)((value)).val)
+#define AS_OBJECT(value)    ((KrkObj*)((uintptr_t)((value).val)))
+#define AS_FLOATING(value)  (((KrkValueDbl){.val = ((value)).val}).dbl)
+
+#define IS_INTEGER(value)   (!!(((value)).tag & (KRK_VAL_INTEGER|KRK_VAL_BOOLEAN)))
+#define IS_BOOLEAN(value)   (((value)).tag == KRK_VAL_BOOLEAN)
+#define IS_NONE(value)      (((value)).tag == KRK_VAL_NONE)
+#define IS_HANDLER(value)   (((value)).tag == KRK_VAL_HANDLER)
+#define IS_OBJECT(value)    (((value)).tag == KRK_VAL_OBJECT)
+#define IS_KWARGS(value)    (((value)).tag == KRK_VAL_KWARGS)
+#define IS_NOTIMPL(value)   (((value)).tag == KRK_VAL_NOTIMPL)
+#define IS_FLOATING(value)  (((value)).tag == KRK_VAL_FLOATING)
+
+#endif
+
 
 #define AS_HANDLER_TYPE(value)    (AS_HANDLER(value) >> 32)
 #define AS_HANDLER_TARGET(value)  (AS_HANDLER(value) & 0xFFFFFFFF)

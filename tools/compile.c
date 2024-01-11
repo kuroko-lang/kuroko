@@ -318,7 +318,7 @@ static int doSecondPass(FILE * out) {
 							WRITE_FUNCTION(AS_codeobject(*val));
 							break;
 						default:
-							if (*val == Ellipsis) {
+							if (krk_valuesSame(*val,Ellipsis)) {
 								fwrite("e",1,1,out);
 								break;
 							}

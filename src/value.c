@@ -30,13 +30,6 @@ void krk_freeValueArray(KrkValueArray * array) {
 	krk_initValueArray(array);
 }
 
-/**
- * Identity really should be the simple...
- */
-int krk_valuesSame(KrkValue a, KrkValue b) {
-	return a == b;
-}
-
 static inline int _krk_method_equivalence(KrkValue a, KrkValue b) {
 	KrkClass * type = krk_getType(a);
 	if (likely(type && type->_eq)) {
@@ -69,7 +62,7 @@ static inline int _krk_same_type_equivalence(uint16_t valtype, KrkValue a, KrkVa
 		case KRK_VAL_NOTIMPL:
 		case KRK_VAL_KWARGS:
 		case KRK_VAL_HANDLER:
-			return a == b;
+			return krk_valuesSame(a,b);
 		case KRK_VAL_OBJECT:
 		default:
 			return _krk_method_equivalence(a,b);
@@ -101,7 +94,7 @@ static inline int _krk_diff_type_equivalence(uint16_t val_a, uint16_t val_b, Krk
 
 _hot
 int krk_valuesSameOrEqual(KrkValue a, KrkValue b) {
-	if (a == b) return 1;
+	if (krk_valuesSame(a,b)) return 1;
 	uint16_t val_a = KRK_VAL_TYPE(a);
 	uint16_t val_b = KRK_VAL_TYPE(b);
 	return (val_a == val_b)

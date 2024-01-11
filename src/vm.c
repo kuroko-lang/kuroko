@@ -1652,7 +1652,7 @@ static void clearCache(KrkClass * type) {
 		type->cacheIndex = 0;
 		for (size_t i = 0; i < type->subclasses.capacity; ++i) {
 			KrkTableEntry * entry = &type->subclasses.entries[i];
-			if (entry->key == KWARGS_VAL(0)) continue;
+			if (krk_valuesSame(entry->key, KWARGS_VAL(0))) continue;
 			clearCache(AS_CLASS(entry->key));
 		}
 	}
@@ -2448,13 +2448,13 @@ _finishReturn: (void)0;
 			 */
 			case OP_JUMP_IF_FALSE_OR_POP: {
 				TWO_BYTE_OPERAND;
-				if (krk_peek(0) == BOOLEAN_VAL(0) || krk_isFalsey(krk_peek(0))) frame->ip += OPERAND;
+				if (krk_valuesSame(krk_peek(0), BOOLEAN_VAL(0)) || krk_isFalsey(krk_peek(0))) frame->ip += OPERAND;
 				else krk_pop();
 				break;
 			}
 			case OP_POP_JUMP_IF_FALSE: {
 				TWO_BYTE_OPERAND;
-				if (krk_peek(0) == BOOLEAN_VAL(0) || krk_isFalsey(krk_peek(0))) frame->ip += OPERAND;
+				if (krk_valuesSame(krk_peek(0), BOOLEAN_VAL(0)) || krk_isFalsey(krk_peek(0))) frame->ip += OPERAND;
 				krk_pop();
 				break;
 			}
@@ -2542,7 +2542,7 @@ _finishReturn: (void)0;
 				krk_push(iter);
 				krk_push(krk_callStack(0));
 				/* krk_valuesSame() */
-				if (iter == krk_peek(0)) frame->ip += OPERAND;
+				if (krk_valuesSame(iter, krk_peek(0))) frame->ip += OPERAND;
 				break;
 			}
 			case OP_LOOP_ITER: {
@@ -2550,12 +2550,12 @@ _finishReturn: (void)0;
 				KrkValue iter = krk_peek(0);
 				krk_push(iter);
 				krk_push(krk_callStack(0));
-				if (iter != krk_peek(0)) frame->ip -= OPERAND;
+				if (!krk_valuesSame(iter, krk_peek(0))) frame->ip -= OPERAND;
 				break;
 			}
 			case OP_TEST_ARG: {
 				TWO_BYTE_OPERAND;
-				if (krk_pop() != KWARGS_VAL(0)) frame->ip += OPERAND;
+				if (!krk_valuesSame(krk_pop(), KWARGS_VAL(0))) frame->ip += OPERAND;
 				break;
 			}
 			case OP_FILTER_EXCEPT: {

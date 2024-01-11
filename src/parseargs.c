@@ -188,7 +188,7 @@ int krk_parseVArgs(
 			 * still want to have all the type checking and automatic parsing. */
 			fmt++;
 			int * out = va_arg(args, int*);
-			*out = arg != KWARGS_VAL(0);
+			*out = !krk_valuesSame(arg, KWARGS_VAL(0));
 		}
 
 		if (*fmt == '!') {
@@ -198,7 +198,7 @@ int krk_parseVArgs(
 			 * Maybe if you want @c p to only be a bool this could be useful? */
 			fmt++;
 			KrkClass * type = va_arg(args, KrkClass*);
-			if (arg != KWARGS_VAL(0) && !krk_isInstanceOf(arg, type)) {
+			if (!krk_valuesSame(arg, KWARGS_VAL(0)) && !krk_isInstanceOf(arg, type)) {
 				raise_TypeError(_method_name, type ? type->name->chars : "unknown type", arg, names[oarg]);
 				goto _error;
 			}
@@ -216,7 +216,7 @@ int krk_parseVArgs(
 			 */
 			case 'O': {
 				KrkObj ** out = va_arg(args, KrkObj**);
-				if (arg != KWARGS_VAL(0)) {
+				if (!krk_valuesSame(arg, KWARGS_VAL(0))) {
 					if (IS_NONE(arg)) {
 						*out = NULL;
 					} else if (!IS_OBJECT(arg)) {
@@ -240,7 +240,7 @@ int krk_parseVArgs(
 			 */
 			case 'V': {
 				KrkValue * out = va_arg(args, KrkValue*);
-				if (arg != KWARGS_VAL(0)) {
+				if (!krk_valuesSame(arg, KWARGS_VAL(0))) {
 					*out = arg;
 				}
 				break;
@@ -260,8 +260,8 @@ int krk_parseVArgs(
 					fmt++;
 					size = va_arg(args, size_t*);
 				}
-				if (arg != KWARGS_VAL(0)) {
-					if (arg == NONE_VAL()) {
+				if (!krk_valuesSame(arg, KWARGS_VAL(0))) {
+					if (IS_NONE(arg)) {
 						*out = NULL;
 						if (size) *size = 0;
 					} else if (IS_STRING(arg)) {
@@ -285,7 +285,7 @@ int krk_parseVArgs(
 					fmt++;
 					size = va_arg(args, size_t*);
 				}
-				if (arg != KWARGS_VAL(0)) {
+				if (!krk_valuesSame(arg, KWARGS_VAL(0))) {
 					if (IS_STRING(arg)) {
 						*out = AS_CSTRING(arg);
 						if (size) *size = AS_STRING(arg)->length;
@@ -306,7 +306,7 @@ int krk_parseVArgs(
 			 *      both for future compatibility and to make intent clear, but have no
 			 *      functional difference at this point.
 			 */
-#define NUMERIC(c,type) case c: { type * out = va_arg(args, type*); if (arg != KWARGS_VAL(0)) { if (!krk_long_to_int(arg, sizeof(type), out)) goto _error; } break; }
+#define NUMERIC(c,type) case c: { type * out = va_arg(args, type*); if (!krk_valuesSame(arg, KWARGS_VAL(0))) { if (!krk_long_to_int(arg, sizeof(type), out)) goto _error; } break; }
 			NUMERIC('b',unsigned char)
 			NUMERIC('h',short)
 			NUMERIC('H',unsigned short)
@@ -325,7 +325,7 @@ int krk_parseVArgs(
 			 */
 			case 'C': {
 				int * out = va_arg(args, int*);
-				if (arg != KWARGS_VAL(0)) {
+				if (!krk_valuesSame(arg, KWARGS_VAL(0))) {
 					if (!IS_STRING(arg) || AS_STRING(arg)->codesLength != 1) {
 						raise_TypeError(_method_name, "str of length 1", arg, names[oarg]);
 						goto _error;
@@ -341,7 +341,7 @@ int krk_parseVArgs(
 			 */
 			case 'f': {
 				float * out = va_arg(args, float*);
-				if (arg != KWARGS_VAL(0)) {
+				if (!krk_valuesSame(arg, KWARGS_VAL(0))) {
 					if (!IS_FLOATING(arg)) {
 						KrkClass * type = krk_getType(arg);
 						krk_push(arg);
@@ -362,7 +362,7 @@ int krk_parseVArgs(
 			 */
 			case 'd': {
 				double * out = va_arg(args, double*);
-				if (arg != KWARGS_VAL(0)) {
+				if (!krk_valuesSame(arg, KWARGS_VAL(0))) {
 					if (!IS_FLOATING(arg)) {
 						KrkClass * type = krk_getType(arg);
 						krk_push(arg);
@@ -392,7 +392,7 @@ int krk_parseVArgs(
 			 */
 			case 'p': {
 				int * out = va_arg(args, int*);
-				if (arg != KWARGS_VAL(0)) {
+				if (!krk_valuesSame(arg, KWARGS_VAL(0))) {
 					*out = !krk_isFalsey(arg);
 					if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) goto _error;
 				}
