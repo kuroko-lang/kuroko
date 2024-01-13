@@ -1494,40 +1494,42 @@ BASIC_BIN_OP(or, krk_long_or)
 BASIC_BIN_OP(xor,krk_long_xor)
 BASIC_BIN_OP(and,krk_long_and)
 
-static void _krk_long_lshift(krk_long out, krk_long val, krk_long shift) {
-	if (krk_long_sign(shift) < 0) { krk_runtimeError(vm.exceptions->valueError, "negative shift count"); return; }
-	if (krk_long_sign(shift) == 0) {
+static void _krk_long_lshift_z(krk_long out, krk_long val, size_t amount) {
+	if (amount == 0) {
 		krk_long_clear(out);
 		krk_long_init_copy(out,val);
 		return;
 	}
 
-	int64_t amount = krk_long_medium(shift);
 	int64_t count = _bits_in(val);
 	krk_long_clear(out);
 	if (count == 0) return;
 
-	for (int64_t i = count - 1; i >= 0; i--) {
-		if (_bit_is_set(val,i)) krk_long_bit_set(out,i + amount);
+	for (size_t i = count; i > 0; i--) {
+		if (_bit_is_set(val,i - 1)) krk_long_bit_set(out,i - 1 + amount);
 	}
 
 	if (krk_long_sign(val) < 0) krk_long_set_sign(out,-1);
 }
 
-static void _krk_long_rshift(krk_long out, krk_long val, krk_long shift) {
+static void _krk_long_lshift(krk_long out, krk_long val, krk_long shift) {
 	if (krk_long_sign(shift) < 0) { krk_runtimeError(vm.exceptions->valueError, "negative shift count"); return; }
-	if (krk_long_sign(shift) == 0) {
+	int64_t amount = krk_long_medium(shift);
+	_krk_long_lshift_z(out,val,amount);
+}
+
+static void _krk_long_rshift_z(krk_long out, krk_long val, size_t amount) {
+	if (amount == 0) {
 		krk_long_clear(out);
 		krk_long_init_copy(out,val);
 		return;
 	}
 
-	int64_t amount = krk_long_medium(shift);
 	int64_t count = _bits_in(val);
 	krk_long_clear(out);
 	if (count == 0) return;
 
-	for (int64_t i = count - 1; i >= amount; i--) {
+	for (size_t i = count - 1; i >= amount; i--) {
 		if (_bit_is_set(val,i)) krk_long_bit_set(out,i - amount);
 	}
 
@@ -1537,6 +1539,12 @@ static void _krk_long_rshift(krk_long out, krk_long val, krk_long shift) {
 		krk_long_add(out,out,&one);
 		krk_long_set_sign(out,-1);
 	}
+}
+
+static void _krk_long_rshift(krk_long out, krk_long val, krk_long shift) {
+	if (krk_long_sign(shift) < 0) { krk_runtimeError(vm.exceptions->valueError, "negative shift count"); return; }
+	int64_t amount = krk_long_medium(shift);
+	_krk_long_rshift_z(out, val, amount);
 }
 
 static void _krk_long_mod(krk_long out, krk_long a, krk_long b) {
@@ -2156,45 +2164,36 @@ static digit_t * dec_mul(const digit_t * a, size_t a_width, const digit_t * b, s
  * but not a whole lot in the long run, and this implementation is
  * considerably simpler without the cache.
  *
- * @param w Power to raise 2 to, as a KrkLong.
+ * @param w Power to raise 2 to.
  * @param sizeOut Resulting size of the huge decimal.
  * @returns A huge decimal representing 2 ** w.
  */
-static digit_t * dec_two_raised(KrkLong * w, size_t * sizeOut) {
-	if (w->width == 0 || (w->width == 1 && w->digits[0] <= 29)) {
+static digit_t * dec_two_raised(size_t w, size_t * sizeOut) {
+	if (w <= 29) {
 		*sizeOut = 1;
 		digit_t * out = malloc(DEC_DIGIT_SIZE);
-		out[0] = 1 << (w->width == 0 ? 0 : w->digits[0]);
+		out[0] = 1 << w;
 		return out;
 	} else {
 		/* w2 = w >> 1 */
-		KrkLong w2;
-		KrkLong one;
-		krk_long_init_si(&w2, 0);
-		krk_long_init_si(&one, 1);
-		_krk_long_rshift(&w2, w, &one);
+		size_t w2 = w >> 1;
 
 		/* t = Decimal(1 << w2) */
 		size_t tSize;
-		digit_t * t = dec_two_raised(&w2, &tSize);
+		digit_t * t = dec_two_raised(w2, &tSize);
 
-		if ((w->digits[0] & 1) == 0) {
+		if ((w & 1) == 0) {
 			/* Result = t * t */
-			krk_long_clear_many(&one, &w2, NULL);
 			digit_t * result = dec_mul(t, tSize, t, tSize, sizeOut);
 			free(t);
 			return result;
 		} else {
 			/* wmw2 = w - w2 */
-			KrkLong wmw2;
-			krk_long_init_si(&wmw2, 0);
-			krk_long_sub(&wmw2, w, &w2);
-			krk_long_clear_many(&one, &w2, NULL);
+			size_t wmw2 = w - w2;
 
 			/* right = 1 << wmw2 */
 			size_t rightSize;
-			digit_t * right = dec_two_raised(&wmw2, &rightSize);
-			krk_long_clear(&wmw2);
+			digit_t * right = dec_two_raised(wmw2, &rightSize);
 
 			/* result = t * right */
 			digit_t * result = dec_mul(t, tSize, right, rightSize, sizeOut);
@@ -2212,16 +2211,16 @@ static digit_t * dec_two_raised(KrkLong * w, size_t * sizeOut) {
  * @c digit_t huge decimal digits, storing the size in @p sizeOut.
  *
  * @param n KrkLong to convert.
- * @param w Bitwidth of @p n as a KrkLong.
+ * @param w Bitwidth of @p n.
  * @param sizeOut Resulting size of the huge decimal.
  * @returns Huge decimal of equivalent value.
  */
-static digit_t * long_to_dec_inner(KrkLong * n, KrkLong * w, size_t * sizeOut) {
+static digit_t * long_to_dec_inner(KrkLong * n, size_t w, size_t * sizeOut) {
 	if (n->width == 0) {
 		*sizeOut = 1;
 		return calloc(1,DEC_DIGIT_SIZE);
 	}
-	if (w->width == 1 && w->digits[0] <= 29) {
+	if (w <= 29) {
 		*sizeOut = 1;
 		digit_t * out = malloc(DEC_DIGIT_SIZE);
 		out[0] = n->digits[0];
@@ -2230,33 +2229,29 @@ static digit_t * long_to_dec_inner(KrkLong * n, KrkLong * w, size_t * sizeOut) {
 
 	size_t aSize, bSize, cSize;
 	digit_t * a, * b, * c;
-	KrkLong w2, hi, lo, tmp;
-	krk_long_init_many(&w2, &hi, &lo, &tmp, NULL);
-	KrkLong one;
-	krk_long_init_si(&one, 1);
+	KrkLong hi, lo, tmp;
+	krk_long_init_many(&hi, &lo, &tmp, NULL);
 	/* w2 = w >> 1 */
-	_krk_long_rshift(&w2, w, &one);
+	size_t w2 = w >> 1;
 	/* hi = n >> w2 */
-	_krk_long_rshift(&hi, n, &w2);
-	/* tmp = hi >> w2 */
-	_krk_long_lshift(&tmp, &hi, &w2);
-	/* lo = n - (hi >> w2) */
+	_krk_long_rshift_z(&hi, n, w2);
+	/* tmp = hi << w2 */
+	_krk_long_lshift_z(&tmp, &hi, w2);
+	/* lo = n - (hi << w2) */
 	krk_long_sub(&lo, n, &tmp);
-	krk_long_clear_many(&one, &tmp, NULL);
-	/* tmp = w - w2 */
-	krk_long_sub(&tmp, w, &w2);
+	krk_long_clear_many(&tmp, NULL);
 	/* a = Dec(hi) */
-	a = long_to_dec_inner(&hi, &tmp, &aSize);
-	krk_long_clear_many(&hi, &tmp, NULL);
+	a = long_to_dec_inner(&hi, w - w2, &aSize);
+	krk_long_clear_many(&hi, NULL);
 	/* b = Dec(1 << w2) */
-	b = dec_two_raised(&w2, &bSize);
+	b = dec_two_raised(w2, &bSize);
 	/* c = a * b */
 	c = dec_mul(a, aSize, b, bSize, &cSize);
 	free(a);
 	free(b);
 	/* a = Dec(lo) */
-	a = long_to_dec_inner(&lo, &w2, &aSize);
-	krk_long_clear_many(&lo,&w2,NULL);
+	a = long_to_dec_inner(&lo, w2, &aSize);
+	krk_long_clear_many(&lo,NULL);
 	/* result = a + c */
 	digit_t * result = dec_add(a, aSize, c, cSize, sizeOut);
 	free(a);
@@ -2281,17 +2276,11 @@ KRK_Method(long,__repr__) {
 	krk_long_set_sign(&abs, 1);
 
 	/* Calculate bit width for halving */
-	size_t bits = _bits_in(&abs);
-	KrkLong w;
-	krk_long_init_ui(&w, bits);
+	size_t w = _bits_in(&abs);
 
 	/* Convert to big decimal digits */
 	size_t size;
-	digit_t * digits = long_to_dec_inner(&abs, &w, &size);
-
-	/* We don't need to clear abs since its digits are our digits, but
-	 * we need to clean up w even if it is pretty small... */
-	krk_long_clear(&w);
+	digit_t * digits = long_to_dec_inner(&abs, w, &size);
 
 	/* Count number of leading zeros */
 	int leading = 0;
@@ -2300,7 +2289,7 @@ KRK_Method(long,__repr__) {
 		leading += 1;
 	}
 
-	/* Allocate spcae for output */
+	/* Allocate space for output */
 	char * out = malloc(size * DEC_DIGIT_CNT + 1 - leading + inv);
 	char * writer = out;
 
