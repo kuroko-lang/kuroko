@@ -1721,7 +1721,7 @@ static int formatLongCallback(void * a, int base, int *more) {
 static char * krk_long_to_decimal_str(const KrkLong * value, size_t * len);
 static fmtCallback prepLongCallback(void * a, int base) {
 	struct _private * val = a;
-	if (base != 10 || (val->val->width >= 10 && val->val->width < 10)) {
+	if (base != 10 || (val->val->width > -10 && val->val->width < 10)) {
 		uint32_t hash = 0;
 		val->asStr = krk_long_to_str(val->val, base, "", &val->len, &hash);
 	} else {
@@ -2303,7 +2303,7 @@ KRK_Method(long,__repr__) {
 	/* For rather small values (10 was chosen arbitrarily), use the older approach */
 	size_t len;
 
-	if (self->value->width >= -10 && self->value->width < 10) {
+	if (self->value->width > -10 && self->value->width < 10) {
 		uint32_t hash;
 		char * rev = krk_long_to_str(self->value, 10, "", &len, &hash);
 		return OBJECT_VAL(krk_takeStringVetted(rev,len,len,KRK_OBJ_FLAGS_STRING_ASCII,hash));
