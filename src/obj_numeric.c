@@ -243,7 +243,7 @@ KrkValue krk_doFormatString(const char * typeName, KrkString * format_spec, int 
 	if ((!positive || opts.sign == '+') && width > 1) width--;
 
 	int digits = 0;
-	int sepcount = opts.sep == ',' ? 3 : 4;
+	int sepcount = (opts.sep == ',' || base == 10) ? 3 : 4;
 	int more = 0;
 
 	if (prepCallback) callback = prepCallback(abs, base);
