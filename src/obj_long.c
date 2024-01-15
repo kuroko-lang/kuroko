@@ -1691,58 +1691,51 @@ typedef int (*fmtCallback)(void *, int, int *);
 KrkValue krk_doFormatString(const char * typeName, KrkString * format_spec, int positive, void * abs, fmtCallback callback, fmtCallback (*prepCallback)(void*,int));
 
 struct _private {
-	KrkLong val;
-	uint64_t buf;
-	ssize_t  ind;
-	uint32_t cnt;
-	uint32_t bits;
+	KrkLong * val;
+	char * asStr;
+	char * next;
+	size_t len;
 };
 
-static int formatLongCallback_decimal(void * a, int base, int *more) {
+static int formatLongCallback(void * a, int base, int *more) {
 	struct _private * val = a;
-	uint32_t result = _div_inplace(&val->val, base);
-	*more = krk_long_sign(&val->val);
-	return result;
-}
 
-static int formatLongCallback_binary(void * a, int base, int *more) {
-	struct _private * val = a;
-	if (val->ind < val->val.width && val->cnt < val->bits) {
-		val->buf |= (uint64_t)val->val.digits[val->ind] << (uint64_t)val->cnt;
-		val->ind++;
-		val->cnt += DIGIT_SHIFT;
+	if (val->next) {
+		char c = *val->next;
+		int out = 0;
+		if (c >= '0' && c <= '9') out = c - '0';
+		else if (c >= 'a' && c <= 'f') out = c - 'a' + 10;
+		if (val->next == val->asStr || *(--val->next) == '-') {
+			val->next = NULL;
+			*more = 0;
+		} else {
+			*more = 1;
+		}
+		return out;
 	}
 
-	uint32_t out = val->buf & ((1 << val->bits) - 1);
-	val->cnt -= val->bits;
-	val->buf >>= val->bits;
-	*more = val->buf || val->ind < val->val.width;
-	return out;
+	*more = 0;
+	return 0;
 }
 
+static char * krk_long_to_decimal_str(const KrkLong * value, size_t * len);
 static fmtCallback prepLongCallback(void * a, int base) {
 	struct _private * val = a;
-	switch (base) {
-		case 2: val->bits = 1; break;
-		case 4: val->bits = 2; break;
-		case 8: val->bits = 3; break;
-		case 16:val->bits = 4; break;
-		default: return formatLongCallback_decimal;
+	if (base != 10 || (val->val->width >= 10 && val->val->width < 10)) {
+		uint32_t hash = 0;
+		val->asStr = krk_long_to_str(val->val, base, "", &val->len, &hash);
+	} else {
+		val->asStr = krk_long_to_decimal_str(val->val, &val->len);
 	}
-	return formatLongCallback_binary;
+	val->next = &val->asStr[val->len-1];
+	return formatLongCallback;
 }
 
 KRK_Method(long,__format__) {
 	METHOD_TAKES_EXACTLY(1);
 	CHECK_ARG(1,str,KrkString*,format_spec);
 
-	struct _private tmp;
-	krk_long_init_copy(&tmp.val, self->value);
-	krk_long_set_sign(&tmp.val, 1);
-
-	tmp.buf = 0;
-	tmp.ind = 0;
-	tmp.cnt = 0;
+	struct _private tmp = { self->value, NULL, NULL, 0 };
 
 	KrkValue result = krk_doFormatString("long",format_spec,
 		krk_long_sign(self->value) >= 0,
@@ -1750,7 +1743,10 @@ KRK_Method(long,__format__) {
 		NULL,
 		prepLongCallback);
 
-	krk_long_clear(&tmp.val);
+	if (tmp.asStr) {
+		free(tmp.asStr);
+	}
+
 	return result;
 }
 
@@ -2259,19 +2255,11 @@ static digit_t * long_to_dec_inner(KrkLong * n, size_t w, size_t * sizeOut) {
 	return result;
 }
 
-KRK_Method(long,__repr__) {
-	/* For rather small values (10 was chosen arbitrarily), use the older approach */
-	if (self->value->width >= -10 && self->value->width < 10) {
-		size_t size;
-		uint32_t hash;
-		char * rev = krk_long_to_str(self->value, 10, "", &size, &hash);
-		return OBJECT_VAL(krk_takeStringVetted(rev,size,size,KRK_OBJ_FLAGS_STRING_ASCII,hash));
-	}
-
+static char * krk_long_to_decimal_str(const KrkLong * value, size_t * len) {
 	/* We can only do this on positive values, but we can re-use the digits
 	 * of the current number while processing, since longs are generally
 	 * not mutable by any other operations. */
-	KrkLong abs = *self->value;
+	KrkLong abs = *value;
 	int inv = (krk_long_sign(&abs) == -1);
 	krk_long_set_sign(&abs, 1);
 
@@ -2306,7 +2294,23 @@ KRK_Method(long,__repr__) {
 	*writer = '\0';
 
 	free(digits);
-	return OBJECT_VAL(krk_takeString(out, writer - out));
+	*len = writer - out;
+
+	return out;
+}
+
+KRK_Method(long,__repr__) {
+	/* For rather small values (10 was chosen arbitrarily), use the older approach */
+	size_t len;
+
+	if (self->value->width >= -10 && self->value->width < 10) {
+		uint32_t hash;
+		char * rev = krk_long_to_str(self->value, 10, "", &len, &hash);
+		return OBJECT_VAL(krk_takeStringVetted(rev,len,len,KRK_OBJ_FLAGS_STRING_ASCII,hash));
+	}
+
+	char * out = krk_long_to_decimal_str(self->value, &len);
+	return OBJECT_VAL(krk_takeString(out, len));
 }
 
 #ifndef KRK_NO_FLOAT
