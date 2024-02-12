@@ -323,7 +323,7 @@ static int doSecondPass(FILE * out) {
 								break;
 							}
 							fprintf(stderr,
-								"Invalid object found in constants table,"
+								"Invalid object found in constants table, "
 								"this marashal format can not store '%s'\n",
 								krk_typeName(*val));
 							return 1;
@@ -341,7 +341,7 @@ static int doSecondPass(FILE * out) {
 						break;
 					}
 					fprintf(stderr,
-						"Invalid value found in constants table,"
+						"Invalid value found in constants table, "
 						"this marashal format can not store '%s'\n",
 						krk_typeName(*val));
 					return 1;
