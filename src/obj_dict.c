@@ -342,7 +342,7 @@ KRK_Method(dictitems,__iter__) {
 
 KRK_Method(dictitems,__call__) {
 	do {
-		if (self->i >= AS_DICT(self->dict)->capacity) return argv[0];
+		if (self->i >= AS_DICT(self->dict)->used) return argv[0];
 		if (!IS_KWARGS(AS_DICT(self->dict)->entries[self->i].key)) {
 			KrkTuple * outValue = krk_newTuple(2);
 			krk_push(OBJECT_VAL(outValue));
@@ -364,7 +364,7 @@ KRK_Method(dictitems,__repr__) {
 	pushStringBuilderStr(&sb,"dictitems([",11);
 
 	size_t c = 0;
-	size_t len = AS_DICT(self->dict)->capacity;
+	size_t len = AS_DICT(self->dict)->used;
 	for (size_t i = 0; i < len; ++i) {
 		KrkTableEntry * entry = &AS_DICT(self->dict)->entries[i];
 		if (IS_KWARGS(entry->key)) continue;
@@ -427,7 +427,7 @@ KRK_Method(dictkeys,__iter__) {
 KRK_Method(dictkeys,__call__) {
 	METHOD_TAKES_NONE();
 	do {
-		if (self->i >= AS_DICT(self->dict)->capacity) return argv[0];
+		if (self->i >= AS_DICT(self->dict)->used) return argv[0];
 		if (!IS_KWARGS(AS_DICT(self->dict)->entries[self->i].key)) {
 			krk_push(AS_DICT(self->dict)->entries[self->i].key);
 			self->i++;
@@ -445,7 +445,7 @@ KRK_Method(dictkeys,__repr__) {
 	pushStringBuilderStr(&sb,"dictkeys([",10);
 
 	size_t c = 0;
-	size_t len = AS_DICT(self->dict)->capacity;
+	size_t len = AS_DICT(self->dict)->used;
 	for (size_t i = 0; i < len; ++i) {
 		KrkTableEntry * entry = &AS_DICT(self->dict)->entries[i];
 		if (IS_KWARGS(entry->key)) continue;
@@ -493,7 +493,7 @@ KRK_Method(dictvalues,__iter__) {
 KRK_Method(dictvalues,__call__) {
 	METHOD_TAKES_NONE();
 	do {
-		if (self->i >= AS_DICT(self->dict)->capacity) return argv[0];
+		if (self->i >= AS_DICT(self->dict)->used) return argv[0];
 		if (!IS_KWARGS(AS_DICT(self->dict)->entries[self->i].key)) {
 			krk_push(AS_DICT(self->dict)->entries[self->i].value);
 			self->i++;
@@ -511,7 +511,7 @@ KRK_Method(dictvalues,__repr__) {
 	pushStringBuilderStr(&sb,"dictvalues([",12);
 
 	size_t c = 0;
-	size_t len = AS_DICT(self->dict)->capacity;
+	size_t len = AS_DICT(self->dict)->used;
 	for (size_t i = 0; i < len; ++i) {
 		KrkTableEntry * entry = &AS_DICT(self->dict)->entries[i];
 		if (IS_KWARGS(entry->key)) continue;

@@ -316,7 +316,7 @@ KRK_Function(dir) {
 
 		/* Put all the keys from the globals table in it */
 		KrkTable * globals = krk_currentThread.frames[krk_currentThread.frameCount-1].globals;
-		for (size_t i = 0; i < globals->capacity; ++i) {
+		for (size_t i = 0; i < globals->used; ++i) {
 			KrkTableEntry * entry = &globals->entries[i];
 			if (IS_KWARGS(entry->key)) continue;
 			krk_writeValueArray(AS_LIST(myList), entry->key);
@@ -390,7 +390,7 @@ int krk_unpackIterable(KrkValue iterable, void * context, int callback(void *, c
 	} else if (IS_list(iterable)) {
 		if (callback(context, AS_LIST(iterable)->values, AS_LIST(iterable)->count)) return 1;
 	} else if (IS_dict(iterable)) {
-		for (size_t i = 0; i < AS_DICT(iterable)->capacity; ++i) {
+		for (size_t i = 0; i < AS_DICT(iterable)->used; ++i) {
 			if (!IS_KWARGS(AS_DICT(iterable)->entries[i].key)) {
 				if (callback(context, &AS_DICT(iterable)->entries[i].key, 1)) return 1;
 			}

@@ -439,7 +439,7 @@ static size_t sweep(void) {
 }
 
 void krk_markTable(KrkTable * table) {
-	for (size_t i = 0; i < table->capacity; ++i) {
+	for (size_t i = 0; i < table->used; ++i) {
 		KrkTableEntry * entry = &table->entries[i];
 		krk_markValue(entry->key);
 		krk_markValue(entry->value);
@@ -447,7 +447,7 @@ void krk_markTable(KrkTable * table) {
 }
 
 static void tableRemoveWhite(KrkTable * table) {
-	for (size_t i = 0; i < table->capacity; ++i) {
+	for (size_t i = 0; i < table->used; ++i) {
 		KrkTableEntry * entry = &table->entries[i];
 		if (IS_OBJECT(entry->key) && !((AS_OBJECT(entry->key))->flags & KRK_OBJ_FLAGS_IS_MARKED)) {
 			krk_tableDeleteExact(table, entry->key);

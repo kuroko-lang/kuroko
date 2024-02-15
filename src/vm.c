@@ -402,7 +402,7 @@ int krk_processComplexArguments(int argCount, KrkValueArray * positionals, KrkTa
 					krk_runtimeError(vm.exceptions->typeError, "%s(): **expression value is not a dict.", name);
 					return 0;
 				}
-				for (size_t i = 0; i < AS_DICT(value)->capacity; ++i) {
+				for (size_t i = 0; i < AS_DICT(value)->used; ++i) {
 					KrkTableEntry * entry = &AS_DICT(value)->entries[i];
 					if (!IS_KWARGS(entry->key)) {
 						if (!IS_STRING(entry->key)) {
@@ -516,7 +516,7 @@ static inline int _callManaged(KrkClosure * closure, int argCount, int returnDep
 		krk_currentThread.scratchSpace[0] = NONE_VAL();
 
 		/* Now place keyword arguments */
-		for (size_t i = 0; i < keywords->capacity; ++i) {
+		for (size_t i = 0; i < keywords->used; ++i) {
 			KrkTableEntry * entry = &keywords->entries[i];
 			if (!IS_KWARGS(entry->key)) {
 				KrkValue name = entry->key;
