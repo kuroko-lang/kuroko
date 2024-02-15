@@ -153,21 +153,6 @@ extern int krk_tableDelete(KrkTable * table, KrkValue key);
 extern int krk_tableDeleteExact(KrkTable * table, KrkValue key);
 
 /**
- * @brief Internal table scan function.
- * @memberof KrkTable
- *
- * Scans through the the entry array 'entries' to find the appropriate entry
- * for 'key', return a pointer to the entry, which may be or may not have
- * an associated pair.
- *
- * @param entries  Table entry array to scan.
- * @param capacity Size of the table entry array, in entries.
- * @param key      Key to locate.
- * @return A pointer to the entry for 'key'.
- */
-extern KrkTableEntry * krk_findEntry(KrkTableEntry * entries, size_t capacity, KrkValue key);
-
-/**
  * @brief Calculate the hash for a value.
  * @memberof KrkValue
  *
