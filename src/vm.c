@@ -2263,7 +2263,7 @@ _finishReturn: (void)0;
 			case OP_TRUE:  krk_push(BOOLEAN_VAL(1)); break;
 			case OP_FALSE: krk_push(BOOLEAN_VAL(0)); break;
 			case OP_UNSET: krk_push(KWARGS_VAL(0)); break;
-			case OP_NOT:   krk_currentThread.stackTop[-1] = BOOLEAN_VAL(krk_isFalsey(krk_peek(0))); break;
+			case OP_NOT:   krk_push(BOOLEAN_VAL(krk_isFalsey(krk_peek(0)))); /* fallthrough */
 			case OP_SWAP_POP: krk_swap(1); /* fallthrough */
 			case OP_POP:   krk_pop(); break;
 
