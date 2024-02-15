@@ -1790,10 +1790,12 @@ static int valueGetProperty(KrkString * name) {
 			krk_currentThread.stackTop[-2] = krk_currentThread.stackTop[-1];
 			krk_currentThread.stackTop--;
 			return 1;
-		case 1:
-			krk_currentThread.stackTop[-2] = OBJECT_VAL(krk_newBoundMethod(krk_currentThread.stackTop[-2], AS_OBJECT(krk_currentThread.stackTop[-1])));
+		case 1: {
+			KrkValue o = OBJECT_VAL(krk_newBoundMethod(krk_currentThread.stackTop[-2], AS_OBJECT(krk_currentThread.stackTop[-1])));
+			krk_currentThread.stackTop[-2] = o;
 			krk_currentThread.stackTop--;
 			return 1;
+		}
 		default:
 			return 0;
 	}
@@ -1911,16 +1913,19 @@ static int valueSetProperty(KrkString * name) {
 		return 1;
 	}
 	if (IS_INSTANCE(owner)) {
-		krk_currentThread.stackTop[-1] = setAttr_wrapper(owner,type,&AS_INSTANCE(owner)->fields, name, value);
+		KrkValue o = setAttr_wrapper(owner,type,&AS_INSTANCE(owner)->fields, name, value);
+		krk_currentThread.stackTop[-1] = o;
 	} else if (IS_CLASS(owner)) {
-		krk_currentThread.stackTop[-1] = setAttr_wrapper(owner,type,&AS_CLASS(owner)->methods, name, value);
+		KrkValue o = setAttr_wrapper(owner,type,&AS_CLASS(owner)->methods, name, value);
+		krk_currentThread.stackTop[-1] = o;
 		if (name->length > 1 && name->chars[0] == '_' && name->chars[1] == '_') {
 			krk_finalizeClass(AS_CLASS(owner));
 		} else {
 			clearCache(AS_CLASS(owner));
 		}
 	} else if (IS_CLOSURE(owner)) {
-		krk_currentThread.stackTop[-1] = setAttr_wrapper(owner,type,&AS_CLOSURE(owner)->fields, name, value);
+		KrkValue o = setAttr_wrapper(owner,type,&AS_CLOSURE(owner)->fields, name, value);
+		krk_currentThread.stackTop[-1] = o;
 	} else {
 		if (_setDescriptor(owner,type,name,value)) {
 			krk_swap(1);
