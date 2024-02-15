@@ -10,6 +10,7 @@
  */
 
 #include <stdlib.h>
+#include <sys/types.h>
 #include "kuroko.h"
 #include "value.h"
 
