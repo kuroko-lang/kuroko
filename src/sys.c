@@ -105,13 +105,13 @@ KRK_Function(getsizeof) {
 		case KRK_OBJ_CLASS: {
 			KrkClass * self = AS_CLASS(argv[0]);
 			mySize += sizeof(KrkClass);
-			mySize += sizeof(KrkTableEntry) * self->methods.capacity;
-			mySize += sizeof(KrkTableEntry) * self->subclasses.capacity;
+			mySize += (sizeof(KrkTableEntry) + sizeof(ssize_t)) * self->methods.capacity;
+			mySize += (sizeof(KrkTableEntry) + sizeof(ssize_t)) * self->subclasses.capacity;
 			break;
 		}
 		case KRK_OBJ_INSTANCE: {
 			KrkInstance * self = AS_INSTANCE(argv[0]);
-			mySize += sizeof(KrkTableEntry) * self->fields.capacity;
+			mySize += (sizeof(KrkTableEntry) + sizeof(ssize_t)) * self->fields.capacity;
 			KrkClass * type = krk_getType(argv[0]);
 			mySize += type->allocSize; /* All instance types have an allocSize set */
 
@@ -119,7 +119,7 @@ KRK_Function(getsizeof) {
 			if (krk_isInstanceOf(argv[0], vm.baseClasses->listClass)) {
 				mySize += sizeof(KrkValue) * AS_LIST(argv[0])->capacity;
 			} else if (krk_isInstanceOf(argv[0], vm.baseClasses->dictClass)) {
-				mySize += sizeof(KrkTableEntry) * AS_DICT(argv[0])->capacity;
+				mySize += (sizeof(KrkTableEntry) + sizeof(ssize_t)) * AS_DICT(argv[0])->capacity;
 			}
 			break;
 		}
