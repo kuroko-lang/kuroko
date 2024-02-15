@@ -4,6 +4,14 @@
 #include <kuroko/memory.h>
 #include <kuroko/util.h>
 
+#if defined(__TINYC__) || (defined(_MSC_VER) && !defined(__clang__))
+int __builtin_clz(unsigned int x) {
+	int i = 31;
+	while (!(x & (1 << i)) && i >= 0) i--;
+	return 31-i;
+}
+#endif
+
 /**
  * Exposed method called to produce dictionaries from `{expr: expr, ...}` sequences in managed code.
  * Expects arguments as `key,value,key,value`...
@@ -13,9 +21,15 @@ KrkValue krk_dict_of(int argc, const KrkValue argv[], int hasKw) {
 	KrkInstance * outDict = krk_newInstance(vm.baseClasses->dictClass);
 	krk_push(OBJECT_VAL(outDict));
 	krk_initTable(&((KrkDict*)outDict)->entries);
-	krk_tableAdjustCapacity(&((KrkDict*)outDict)->entries, argc);
-	for (int ind = 0; ind < argc; ind += 2) {
-		krk_tableSet(&((KrkDict*)outDict)->entries, argv[ind], argv[ind+1]);
+	if (argc) {
+		size_t capacity = argc;
+		size_t powerOfTwoCapacity = __builtin_clz(1) - __builtin_clz(capacity);
+		if ((1UL << powerOfTwoCapacity) != capacity) powerOfTwoCapacity++;
+		capacity = (1UL << powerOfTwoCapacity);
+		krk_tableAdjustCapacity(&((KrkDict*)outDict)->entries, capacity);
+		for (int ind = 0; ind < argc; ind += 2) {
+			krk_tableSet(&((KrkDict*)outDict)->entries, argv[ind], argv[ind+1]);
+		}
 	}
 	return krk_pop();
 }
