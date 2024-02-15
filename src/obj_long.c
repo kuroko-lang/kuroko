@@ -1538,6 +1538,7 @@ static void _krk_long_rshift_z(krk_long out, krk_long val, size_t amount) {
 		krk_long_init_si(&one, 1);
 		krk_long_add(out,out,&one);
 		krk_long_set_sign(out,-1);
+		krk_long_clear(&one);
 	}
 }
 
