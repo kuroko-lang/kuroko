@@ -25,9 +25,11 @@ typedef struct {
  * @brief Simple hash table of arbitrary keys to values.
  */
 typedef struct {
-	size_t count;
-	size_t capacity;
-	KrkTableEntry * entries;
+	size_t count;            /**< Number of actual items in the dict. */
+	size_t capacity;         /**< Size (in items) of each of the entries/indexes arrays */
+	size_t used;             /**< Next insertion index in the entries array */
+	KrkTableEntry * entries; /**< Key-value pairs, in insertion order (with KWARGS_VAL(0) gaps) */
+	ssize_t * indexes;       /**< Actual hash map: indexes into the key-value pairs. */
 } KrkTable;
 
 /**

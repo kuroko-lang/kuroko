@@ -1,5 +1,5 @@
 Positionals: [1, 2, 3, 'a', 'b']
-Keywords: {'biz': 42, 'foo': 'bar'}
+Keywords: {'foo': 'bar', 'biz': 42}
 hi
 Positionals: []
 Keywords: {}

@@ -1,4 +1,23 @@
-#include <stdio.h>
+/**
+ * @file table.c
+ * @brief Ordered hash map.
+ *
+ * The original table implementation was derived from CLox. CLox's
+ * tables only supported string keys, but we support arbitrary values,
+ * so long as they are hashable.
+ *
+ * This implementation maintains the same general API, but take its
+ * inspiration from CPython to keep insertion order. The "entries"
+ * table is still an array of key-value pairs, but no longer tracks
+ * the hash lookup for the map. Instead, the entries array keeps
+ * a strict insertion ordering, with deleted entries replaced with
+ * sentinel values representing gaps. A separate "indexes" table
+ * maps hash slots to their associated key-value pairs, or to -1
+ * or -2 to represent unused and tombstone slots, respectively.
+ *
+ * When resizing a table, the entries array is rewritten and gaps
+ * are removed. Simultaneously, the new index entries are populated.
+ */
 #include <string.h>
 #include <kuroko/kuroko.h>
 #include <kuroko/object.h>
@@ -14,11 +33,14 @@
 void krk_initTable(KrkTable * table) {
 	table->count = 0;
 	table->capacity = 0;
+	table->used = 0;
 	table->entries = NULL;
+	table->indexes = NULL;
 }
 
 void krk_freeTable(KrkTable * table) {
 	KRK_FREE_ARRAY(KrkTableEntry, table->entries, table->capacity);
+	KRK_FREE_ARRAY(ssize_t, table->indexes, table->capacity);
 	krk_initTable(table);
 }
 
@@ -63,106 +85,94 @@ _unhashable:
 	return 1;
 }
 
-KrkTableEntry * krk_findEntry(KrkTableEntry * entries, size_t capacity, KrkValue key) {
+static inline ssize_t krk_tableIndexKeyC(const KrkTableEntry * entries, const ssize_t * indexes, size_t capacity, KrkValue key, int (*comparator)(KrkValue,KrkValue)) {
 	uint32_t index;
-	if (krk_hashValue(key, &index)) {
-		return NULL;
-	}
-	index &= (capacity-1);
-	KrkTableEntry * tombstone = NULL;
+	if (krk_hashValue(key, &index)) return -1;
+	index &= (capacity - 1);
+
+	ssize_t tombstone = -1;
 	for (;;) {
-		KrkTableEntry * entry = &entries[index];
-		if (krk_valuesSame(entry->key, KWARGS_VAL(0))) {
-			return tombstone != NULL ? tombstone : entry;
-		} else if (krk_valuesSame(entry->key, KWARGS_VAL(1))) {
-			if (tombstone == entry) return tombstone;
-			if (tombstone == NULL) tombstone = entry;
-		} else if (krk_valuesSameOrEqual(entry->key, key)) {
-			return entry;
+		if (indexes[index] == -1) {
+			return tombstone != -1 ? tombstone : index;
+		} else if (indexes[index] == -2) {
+			if (tombstone == index) return tombstone;
+			if (tombstone == -1) tombstone = index;
+		} else if (comparator(entries[indexes[index]].key, key)) {
+			return index;
 		}
-		index = (index + 1) & (capacity-1);
+		index = (index + 1) & (capacity - 1);
 	}
 }
 
-KrkTableEntry * krk_findEntryExact(KrkTableEntry * entries, size_t capacity, KrkValue key) {
-	uint32_t index;
-	if (krk_hashValue(key, &index)) {
-		return NULL;
-	}
-	index &= (capacity-1);
-	KrkTableEntry * tombstone = NULL;
-	for (;;) {
-		KrkTableEntry * entry = &entries[index];
-		if (krk_valuesSame(entry->key, KWARGS_VAL(0))) {
-			return tombstone != NULL ? tombstone : entry;
-		} else if (krk_valuesSame(entry->key, KWARGS_VAL(1))) {
-			if (tombstone == entry) return tombstone;
-			if (tombstone == NULL) tombstone = entry;
-		} else if (krk_valuesSame(entry->key, key)) {
-			return entry;
-		}
-		index = (index + 1) & (capacity-1);
-	}
+static ssize_t krk_tableIndexKey(const KrkTableEntry * entries, const ssize_t * indexes, size_t capacity, KrkValue key) {
+	return krk_tableIndexKeyC(entries,indexes,capacity,key,krk_valuesSameOrEqual);
 }
 
-#if defined(__TINYC__) || (defined(_MSC_VER) && !defined(__clang__))
-int __builtin_clz(unsigned int x) {
-	int i = 31;
-	while (!(x & (1 << i)) && i >= 0) i--;
-	return 31-i;
+static ssize_t krk_tableIndexKeyExact(const KrkTableEntry * entries, const ssize_t * indexes, size_t capacity, KrkValue key) {
+	return krk_tableIndexKeyC(entries,indexes,capacity,key,krk_valuesSame);
 }
-#endif
 
 void krk_tableAdjustCapacity(KrkTable * table, size_t capacity) {
-	if (capacity) {
-		/* Fast power-of-two calculation */
-		size_t powerOfTwoCapacity = __builtin_clz(1) - __builtin_clz(capacity);
-		if ((1UL << powerOfTwoCapacity) != capacity) powerOfTwoCapacity++;
-		capacity = (1UL << powerOfTwoCapacity);
-	}
-
-	KrkTableEntry * entries = KRK_ALLOCATE(KrkTableEntry, capacity);
+	KrkTableEntry * nentries = KRK_ALLOCATE(KrkTableEntry, capacity);
+	ssize_t * nindexes = KRK_ALLOCATE(ssize_t, capacity);
 	for (size_t i = 0; i < capacity; ++i) {
-		entries[i].key = KWARGS_VAL(0);
-		entries[i].value = KWARGS_VAL(0);
+		nindexes[i] = -1;
+		nentries[i].key = KWARGS_VAL(0);
+		nentries[i].value = KWARGS_VAL(0);
 	}
 
-	table->count = 0;
-	for (size_t i = 0; i < table->capacity; ++i) {
-		KrkTableEntry * entry = &table->entries[i];
-		if (IS_KWARGS(entry->key)) continue;
-		KrkTableEntry * dest = krk_findEntry(entries, capacity, entry->key);
-		dest->key = entry->key;
-		dest->value = entry->value;
-		table->count++;
+	/* Fill in used entries */
+	const KrkTableEntry * e = table->entries;
+	for (size_t i = 0; i < table->count; ++i) {
+		while (IS_KWARGS(e->key)) e++;
+		memcpy(&nentries[i], e, sizeof(KrkTableEntry));
+		ssize_t indexkey = krk_tableIndexKey(nentries,nindexes,capacity, e->key);
+		nindexes[indexkey] = i;
+		e++;
 	}
 
-	KRK_FREE_ARRAY(KrkTableEntry, table->entries, table->capacity);
-	table->entries = entries;
+	/* Swap before freeing */
+	KrkTableEntry * oldEntries = table->entries;
+	table->entries = nentries;
+	KRK_FREE_ARRAY(KrkTableEntry, oldEntries, table->capacity);
+
+	ssize_t * oldIndexes = table->indexes;
+	table->indexes = nindexes;
+	KRK_FREE_ARRAY(ssize_t, oldIndexes, table->capacity);
+
+	/* Update table with new capacity and used count */
 	table->capacity = capacity;
+	table->used = table->count;
 }
 
 int krk_tableSet(KrkTable * table, KrkValue key, KrkValue value) {
-	if (table->count + 1 > table->capacity * TABLE_MAX_LOAD) {
+	if (table->used + 1 > table->capacity * TABLE_MAX_LOAD) {
 		size_t capacity = KRK_GROW_CAPACITY(table->capacity);
 		krk_tableAdjustCapacity(table, capacity);
 	}
-	KrkTableEntry * entry = krk_findEntry(table->entries, table->capacity, key);
-	if (!entry) return 0;
-	int isNewKey = IS_KWARGS(entry->key);
-	if (isNewKey) table->count++;
-	entry->key = key;
+
+	ssize_t index = krk_tableIndexKey(table->entries, table->indexes, table->capacity, key);
+	if (index < 0) return 0;
+	KrkTableEntry * entry;
+	int isNew = table->indexes[index] < 0;
+	if (isNew) {
+		table->indexes[index] = table->used;
+		entry = &table->entries[table->used];
+		entry->key = key;
+		table->used++;
+		table->count++;
+	} else {
+		entry = &table->entries[table->indexes[index]];
+	}
 	entry->value = value;
-	return isNewKey;
+	return isNew;
 }
 
 int krk_tableSetIfExists(KrkTable * table, KrkValue key, KrkValue value) {
 	if (table->count == 0) return 0;
-	KrkTableEntry * entry = krk_findEntry(table->entries, table->capacity, key);
-	if (!entry) return 0;
-	if (IS_KWARGS(entry->key)) return 0; /* Not found */
-	entry->key = key;
-	entry->value = value;
+	ssize_t index = krk_tableIndexKey(table->entries, table->indexes, table->capacity, key);
+	if (index < 0 || table->indexes[index] < 0) return 0;
+	table->entries[table->indexes[index]].value = value;
 	return 1;
 }
 
@@ -177,75 +187,69 @@ void krk_tableAddAll(KrkTable * from, KrkTable * to) {
 
 int krk_tableGet(KrkTable * table, KrkValue key, KrkValue * value) {
 	if (table->count == 0) return 0;
-	KrkTableEntry * entry = krk_findEntry(table->entries, table->capacity, key);
-	if (!entry || IS_KWARGS(entry->key)) {
-		return 0;
-	} else {
-		*value = entry->value;
-		return 1;
-	}
+	ssize_t index = krk_tableIndexKey(table->entries, table->indexes, table->capacity, key);
+	if (index < 0 || table->indexes[index] < 0) return 0;
+	*value = table->entries[table->indexes[index]].value;
+	return 1;
 }
 
 int krk_tableGet_fast(KrkTable * table, KrkString * str, KrkValue * value) {
-	if (unlikely(table->count == 0)) return 0;
+	if (table->count == 0) return 0;
 	uint32_t index = str->obj.hash & (table->capacity-1);
-	KrkTableEntry * tombstone = NULL;
+
+	ssize_t tombstone = -1;
 	for (;;) {
-		KrkTableEntry * entry = &table->entries[index];
-		if (krk_valuesSame(entry->key, KWARGS_VAL(0))) {
+		if (table->indexes[index] == -1) {
 			return 0;
-		} else if (krk_valuesSame(entry->key, KWARGS_VAL(1))) {
-			if (tombstone == entry) return 0;
-			if (tombstone == NULL) tombstone = entry;
-		} else if (krk_valuesSame(entry->key, OBJECT_VAL(str))) {
-			*value = entry->value;
+		} else if (table->indexes[index] == -2) {
+			if (tombstone == index) return 0;
+			if (tombstone == -1) tombstone = index;
+		} else if (krk_valuesSame(table->entries[table->indexes[index]].key, OBJECT_VAL(str))) {
+			*value = table->entries[table->indexes[index]].value;
 			return 1;
 		}
-		index = (index + 1) & (table->capacity-1);
+		index = (index + 1) & (table->capacity - 1);
 	}
 }
 
 int krk_tableDelete(KrkTable * table, KrkValue key) {
 	if (table->count == 0) return 0;
-	KrkTableEntry * entry = krk_findEntry(table->entries, table->capacity, key);
-	if (!entry || IS_KWARGS(entry->key)) {
-		return 0;
-	}
+	ssize_t index = krk_tableIndexKey(table->entries, table->indexes, table->capacity, key);
+	if (index < 0 || table->indexes[index] < 0) return 0;
 	table->count--;
-	entry->key = KWARGS_VAL(1);
-	entry->value = KWARGS_VAL(0);
+	table->entries[table->indexes[index]].key = KWARGS_VAL(0);
+	table->entries[table->indexes[index]].value = KWARGS_VAL(0);
+	table->indexes[index] = -2;
 	return 1;
 }
 
 int krk_tableDeleteExact(KrkTable * table, KrkValue key) {
 	if (table->count == 0) return 0;
-	KrkTableEntry * entry = krk_findEntryExact(table->entries, table->capacity, key);
-	if (!entry || IS_KWARGS(entry->key)) {
-		return 0;
-	}
+	ssize_t index = krk_tableIndexKeyExact(table->entries, table->indexes, table->capacity, key);
+	if (index < 0 || table->indexes[index] < 0) return 0;
 	table->count--;
-	entry->key = KWARGS_VAL(1);
-	entry->value = KWARGS_VAL(0);
+	table->entries[table->indexes[index]].key = KWARGS_VAL(0);
+	table->entries[table->indexes[index]].value = KWARGS_VAL(0);
+	table->indexes[index] = -2;
 	return 1;
 }
 
 KrkString * krk_tableFindString(KrkTable * table, const char * chars, size_t length, uint32_t hash) {
 	if (table->count == 0) return NULL;
+	uint32_t index = hash & (table->capacity - 1);
 
-	uint32_t index = hash & (table->capacity-1);
-	KrkTableEntry * tombstone = NULL;
+	ssize_t tombstone = -1;
 	for (;;) {
-		KrkTableEntry * entry = &table->entries[index];
-		if (krk_valuesSame(entry->key, KWARGS_VAL(0))) {
+		if (table->indexes[index] == -1) {
 			return NULL;
-		} else if (krk_valuesSame(entry->key, KWARGS_VAL(1))) {
-			if (tombstone == entry) return NULL;
-			if (tombstone == NULL) tombstone = entry;
-		} else if (AS_STRING(entry->key)->length == length &&
-		           AS_OBJECT(entry->key)->hash == hash &&
-		           memcmp(AS_STRING(entry->key)->chars, chars, length) == 0) {
-			return AS_STRING(entry->key);
+		} else if (table->indexes[index] == -2) {
+			if (tombstone == index) return NULL;
+			if (tombstone == -1) tombstone = index;
+		} else if (AS_STRING(table->entries[table->indexes[index]].key)->length == length &&
+		           AS_OBJECT(table->entries[table->indexes[index]].key)->hash == hash &&
+		           memcmp(AS_STRING(table->entries[table->indexes[index]].key)->chars, chars, length) == 0) {
+			return AS_STRING(table->entries[table->indexes[index]].key);
 		}
-		index = (index + 1) & (table->capacity-1);
+		index = (index + 1) & (table->capacity - 1);
 	}
 }
