@@ -2382,6 +2382,13 @@ int krk_long_to_int(KrkValue val, char size, void * out) {
 				accum ^= 0xFFFFffffFFFFffff;
 			}
 		}
+#ifndef KRK_NO_FLOAT
+	} else if (IS_FLOATING(val)) {
+		krk_push(krk_int_from_float(AS_FLOATING(val)));
+		int res = krk_long_to_int(krk_peek(0), size, out);
+		krk_pop();
+		return res;
+#endif
 	} else {
 		krk_runtimeError(vm.exceptions->typeError, "expected %s, not '%T'", "int", val);
 		return 0;
