@@ -1355,21 +1355,74 @@ KRK_Method(long,__float__) {
 	return FLOATING_VAL(krk_long_get_double(self->value));
 }
 
-static KrkValue _krk_long_truediv(KrkLong * top, KrkLong * bottom) {
-	if (bottom->width == 0) return krk_runtimeError(vm.exceptions->valueError, "float division by zero");
+static KrkValue _krk_long_truediv(KrkLong * _top, KrkLong * _bottom) {
+	if (_bottom->width == 0) return krk_runtimeError(vm.exceptions->valueError, "float division by zero");
+	if (_top->width == 0) return FLOATING_VAL(0);
 
-	KrkLong quot, rem;
-	krk_long_init_many(&quot, &rem, NULL);
+	KrkLong rem, top, bottom;
+	krk_long_init_si(&rem, 0);
+	krk_long_init_copy(&top, _top);
+	krk_long_init_copy(&bottom, _bottom);
 
-	/* Perform division */
-	krk_long_div_rem(&quot, &rem, top, bottom);
+	/* Take sign from original inputs */
+	int negative = (krk_long_sign(&top) < 0) != (krk_long_sign(&bottom) < 0);
 
-	/* Convert to floats */
-	double quot_float = krk_long_get_double(&quot);
-	double rem_float  = krk_long_get_double(&rem);
-	double div_float  = krk_long_get_double(bottom);
+	/* And then make top and bottom absolute */
+	krk_long_set_sign(&top, 1);
+	krk_long_set_sign(&bottom, 1);
 
-	return FLOATING_VAL(quot_float + (rem_float / div_float));
+	/* Final outputs that go into the floats */
+	uint64_t quot = 0;
+	long long exp = 0;
+
+#define NEEDED_BITS 53
+	int bits_wanted = NEEDED_BITS;
+	size_t bits = _bits_in(&top);
+	for (ssize_t i = 0; bits_wanted >= 0; ++i) {
+		ssize_t _i = bits - i - 1;
+		_lshift_one(&rem);
+		_bit_set_zero(&rem, (_i >= 0 ? _bit_is_set(&top, _i) : 0));
+		if (krk_long_compare(&rem,&bottom) >= 0) {
+			if (bits_wanted == NEEDED_BITS) {
+				exp = 1023 + (bits - i - 1);
+			}
+			_sub_big_small(&rem,&rem,&bottom);
+			quot |= (1ULL << bits_wanted);
+			bits_wanted--;
+		} else if (bits_wanted != NEEDED_BITS) {
+			bits_wanted -= 1;
+		}
+	}
+#undef NEEDED_BITS
+
+	krk_long_clear_many(&rem, &top, &bottom, NULL);
+
+	/* Handle rounding? This is probably wrong. */
+	quot = (quot + 1) >> 1;
+	if (exp > 2046) {
+		/* Saturated maximum, but not infinity */
+		quot = 0x1fffffffffffffULL;
+		exp = 2046;
+	} else if (exp < 1 && exp >= -52) {
+		/* Subnormals */
+		quot >>= -exp+1;
+		quot |= 0x10000000000000ULL;
+		exp = 0;
+	} else if (exp < -52) {
+		/* Beyond subnormal, truncate to zero */
+		quot = 0x10000000000000ULL;
+		exp = 0;
+	}
+
+	/* Apply sign */
+	if (negative) exp |= 2048;
+
+	/* Mash bits together to form double */
+	quot ^= 1ULL << 52;
+	quot |= exp << 52;
+	union { double d; uint64_t u; } val = {.u = quot};
+
+	return FLOATING_VAL(val.d);
 }
 
 static KrkValue checked_float_div(double top, double bottom) {
