@@ -5,6 +5,7 @@
  * or executes scripts from the argument list.
  */
 #define _DEFAULT_SOURCE
+#include <locale.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -759,6 +760,26 @@ static int compileFile(char * argv[], int flags, char * fileName) {
 	return func == NULL;
 }
 
+void initializeLocale(void) {
+	char *myLocale;
+#ifndef _WIN32
+	myLocale = setlocale(LC_ALL, "");
+	if (myLocale != NULL) {
+		struct lconv *lc = localeconv();
+		char *decimalPoint = lc->decimal_point;
+		if (decimalPoint) {
+			if (strcmp(decimalPoint, ".") != 0) {
+				myLocale = setlocale(LC_ALL, "C.UTF-8");
+			}
+		}
+	} else {
+		myLocale = setlocale(LC_ALL, "C.UTF-8");
+	}
+#else
+	myLocale = setlocale(LC_ALL, "C.UTF-8");
+#endif
+}
+
 int main(int argc, char * argv[]) {
 #ifdef _WIN32
 	SetConsoleOutputCP(65001);
@@ -770,6 +791,7 @@ int main(int argc, char * argv[]) {
 	int inspectAfter = 0;
 	int opt;
 	int maxDepth = -1;
+	initializeLocale();
 	while ((opt = getopt(argc, argv, "+:c:C:dgGim:rR:tTMSV-:")) != -1) {
 		switch (opt) {
 			case 'c':

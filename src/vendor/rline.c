@@ -21,7 +21,6 @@
 #include <string.h>
 #include <wchar.h>
 #include <unistd.h>
-#include <locale.h>
 #include <signal.h>
 #ifndef _WIN32
 #include <termios.h>
@@ -2429,13 +2428,6 @@ static int read_line(void) {
  * Read a line of text with interactive editing.
  */
 int rline(char * buffer, int buf_size) {
-#ifndef _WIN32
-	setlocale(LC_ALL, "");
-	/* If the requested locale doesn't use . as a radix point, fall back to C to not break float parsing. */
-	if (strtod("0.5",NULL) != 0.5) setlocale(LC_ALL, "C.UTF-8");
-#else
-	setlocale(LC_ALL, "C.UTF-8");
-#endif
 	get_initial_termios();
 	set_unbuffered();
 	get_size();
