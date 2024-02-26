@@ -2011,15 +2011,14 @@ static int handle_escape(int * this_buf, int * timeout, int c) {
 #ifndef _WIN32
 static unsigned int _INTR, _EOF;
 static struct termios old;
-static void get_initial_termios(void) {
+static void set_unbuffered(void) {
 	tcgetattr(STDOUT_FILENO, &old);
 	_INTR = old.c_cc[VINTR];
 	_EOF  = old.c_cc[VEOF];
-}
-static void set_unbuffered(void) {
 	struct termios new = old;
 	new.c_lflag &= (~ICANON & ~ECHO & ~ISIG);
 	tcsetattr(STDOUT_FILENO, TCSAFLUSH, &new);
+	if (wcwidth(0x3042) != 2) setlocale(LC_CTYPE, "");
 }
 
 static void set_buffered(void) {
@@ -2028,12 +2027,11 @@ static void set_buffered(void) {
 #else
 static unsigned int _INTR = 3;
 static unsigned int _EOF  = 4;
-static void get_initial_termios(void) {
-}
 static void set_unbuffered(void) {
 	/* Disables line input, echo, ^C processing, and a few others. */
 	SetConsoleMode(GetStdHandle(STD_INPUT_HANDLE), ENABLE_VIRTUAL_TERMINAL_INPUT);
 	SetConsoleMode(GetStdHandle(STD_OUTPUT_HANDLE), ENABLE_PROCESSED_OUTPUT | ENABLE_VIRTUAL_TERMINAL_PROCESSING | ENABLE_WRAP_AT_EOL_OUTPUT);
+	setlocale(LC_CTYPE, "C.UTF-8");
 }
 static void set_buffered(void) {
 	/* These are the defaults */
@@ -2429,14 +2427,6 @@ static int read_line(void) {
  * Read a line of text with interactive editing.
  */
 int rline(char * buffer, int buf_size) {
-#ifndef _WIN32
-	setlocale(LC_ALL, "");
-	/* If the requested locale doesn't use . as a radix point, fall back to C to not break float parsing. */
-	if (strtod("0.5",NULL) != 0.5) setlocale(LC_ALL, "C.UTF-8");
-#else
-	setlocale(LC_ALL, "C.UTF-8");
-#endif
-	get_initial_termios();
 	set_unbuffered();
 	get_size();
 
