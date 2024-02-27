@@ -2399,6 +2399,300 @@ KrkValue krk_int_from_float(double val) {
 	krk_long_set_sign(&_value, sign == 1 ? -1 : 1);
 	return make_long_obj(&_value);
 }
+
+KrkValue krk_double_to_string(double a, int exact, unsigned int digits, char formatter, int plus) {
+	union { double d; uint64_t u; } val = {.d = a};
+
+	/* Extract sign, mantissa, exponent from double, and handle special cases. */
+	int sign = (val.u >> 63ULL) ? 1 : 0;
+	int64_t m = val.u & 0x000fffffffffffffULL;
+	int64_t e = ((val.u >> 52ULL) & 0x7FF) - 0x3FF;
+	if (e == 1024) {
+		if (m) return OBJECT_VAL(S("nan"));
+		if (sign) return OBJECT_VAL(S("-inf"));
+		return OBJECT_VAL(S("inf"));
+	}
+	if (e == -1023 && m == 0) return OBJECT_VAL(S("0.0"));
+
+	/* We need to cache the decimal versions of each necessary division of 10⁵⁵, if we've not seen them before. */
+	KrkValue float_decimal_parts = NONE_VAL();
+	if (!krk_tableGet_fast(&vm.baseClasses->floatClass->methods, S("__decimals__"), &float_decimal_parts)) {
+		krk_push(OBJECT_VAL(krk_newTuple(53)));
+		float_decimal_parts = krk_peek(0);
+
+		KrkLong d;
+		krk_long_parse_string("10000000000000000000000000000000000000000000000000000000", &d, 10, 56);
+
+		for (int i = 0; i < 53; ++i) {
+			AS_TUPLE(float_decimal_parts)->values.values[AS_TUPLE(float_decimal_parts)->values.count++] = make_long_obj(&d);
+			if (i != 52) {
+				KrkLong o;
+				krk_long_init_si(&o,0);
+				_krk_long_rshift_z(&o,&d,1);
+				d = o;
+			}
+		}
+
+		/* Attach to float class. */
+		krk_attachNamedValue(&vm.baseClasses->floatClass->methods, "__decimals__", float_decimal_parts);
+		krk_pop();
+	}
+
+	/* Given that a double takes the form 2ⁿ × m, where either 1.0 ≤ m < 2.0 or
+	 * (for subnormals) 0 < m < 1.0, generate a decimal representation of m as the
+	 * numerator in a fraction with 10⁵⁵ as the denominator. For example, the
+	 * value 123.456 is represented as:
+	 *     2⁶ × 1.9290000000000000479616346638067625463008880615234375
+	 * So we want to have the value:
+	 *           19290000000000000479616346638067625463008880615234375
+	 * The number of decimal digits needed for this is always the same. We'll then
+	 * take that value and apply the base-2 exponent multiplication through shifting
+	 * to get the equivalent multiplier for a base-10 exponent. */
+	KrkLong c;
+	if (e == -1023) {
+		/* For subnormal values, the implicit 1 disappears and the actual exponent value
+		 * is -1022, so instead of initializing our counter to have the leading 1, we start
+		 * with just 0. */
+		krk_long_init_si(&c,0);
+		e = -1022;
+	} else {
+		/* Otherwise, our decimal representation of the multiplier will start with a 1, so
+		 * start us off with 10⁵⁵ from above. */
+		krk_long_init_copy(&c, AS_long(AS_TUPLE(float_decimal_parts)->values.values[0])->value);
+	}
+
+	/* We add up the decimal values for each bit in the mantissa from large to small. */
+	for (int i = 0; i < 52; ++i) {
+		if (m & (1ULL << (51 - i))) {
+			krk_long_add(&c,&c, AS_long(AS_TUPLE(float_decimal_parts)->values.values[i+1])->value);
+		}
+	}
+
+	/* At this point, we know that we have 55 decimal digits to the right of the radix point;
+	 * this represents the base-10 exponent of our denominator. We want to maintain an exact
+	 * value for m after turning the base-2 exponent into a base-10 exponent, so if our
+	 * original base-2 exponent is negative, we might need to add more 0s to the end of
+	 * both the top and bottom of the fraction - we'll add to b to account for that. */
+	int b = 55;
+
+	if (e < 0) {
+		KrkLong f;
+		/* Repeatedly multiply to increase number of decimal digits by 31, until the resulting
+		 * binary representation has enough trailing 0 bits we can shift away the negative
+		 * exponent and still have an exact decimal representation. */
+		krk_long_parse_string("10000000000000000000000000000000", &f, 10, 32);
+		while (1) {
+			ssize_t i = 0;
+			while (!_bit_is_set(&c,i)) i++;
+			if (i >= -e) break;
+			krk_long_mul(&c,&c,&f);
+			b += 31;
+		}
+		krk_long_clear(&f);
+	}
+
+	/* Now, finally, shifting our numerator left or right based on the base-2 exponent
+	 * gives us our base-10 equivalent multiplier, multipled by a large power of ten. */
+	if (e) {
+		KrkLong o;
+		krk_long_init_si(&o,0);
+		if (e < 0) {
+			_krk_long_rshift_z(&o,&c,-e);
+		} else {
+			_krk_long_lshift_z(&o,&c,e);
+		}
+		krk_long_clear(&c);
+		c = o;
+	}
+
+	/* At this point, c is the numerator in a fraction with 10^b as the denominator, and
+	 * that fraction represents our multiplier in the expression "10^n × m". "n" can be
+	 * determined based on the number of decimal digits in c and the size of b. We no
+	 * longer need our bigints, we want to deal entirely in decimal - so we'll convert
+	 * to a decimal string. */
+	size_t len = 0;
+	char * str = krk_long_to_decimal_str(&c, &len);
+	krk_long_clear(&c);
+	unsigned int odigits = digits;
+
+	/* At this point, we want to round the answer to fit a more reasonable number of
+	 * digits. We have the exact value, in decimal, in string form - so we can do
+	 * some truncation and look at the values we are truncating away to determine if
+	 * we should round up (add one and propogate until the carry disappears), or keep
+	 * the truncated value. */
+	if (!exact) {
+		/* Figure out how many significant digits we actually have, excluding any
+		 * trailing 0s which will get stripped away later anyway. */
+		size_t actual = len;
+		while (actual > 1 && str[actual-1] == '0') actual--;
+
+		if (formatter == 'f') {
+			if (b > (int)len && b - len <= digits) {
+				/* Make sure we round? */
+				digits -= b - len;
+			} else if (b > (int)len && b - len > digits) {
+				/* Going to be zero, just return that. */
+				actual = 0;
+				len = 0;
+				b = digits;
+			} else if (b < (int)len) {
+				/* Need to account for the whole digits */
+				digits += len - b;
+			}
+		}
+
+		/* Round the result to just 16 or 17 decimal digits, rounding to even. If
+		 * the actual number of digits was already smaller than that, do nothing. */
+		if (actual > digits) {
+			int carry = 0;
+			if (str[digits] == '5' && ((digits ? str[digits-1] : 0) % 2 == 0)) {
+				/* Because our decimal representation is exact, we can be sure that
+				 * this correctly rounds halfway to even because we know all of the
+				 * digits after the truncated 5 are zero or non-zero. */
+				int all_zeros = 1;
+				for (size_t j = actual - 1; j > digits; j--) {
+					if (str[j] != '0') {
+						all_zeros = 0;
+						break;
+					}
+				}
+				carry = all_zeros ? 0 : 1;
+			} else if (str[digits] >= '5') {
+				/* In other cases, round up if necessary. */
+				carry = 1;
+			}
+			size_t i = digits;
+			while (i && carry) {
+				/* Propogate carry */
+				if (str[i-1] - '0' + carry > 9) {
+					str[i-1] = '0';
+					carry = 1;
+				} else {
+					str[i-1] += carry;
+					carry = 0;
+				}
+				i--;
+			}
+			/* Reduce the number of digits behind the radix point by the number of
+			 * digits we truncated away, and update the length to the actual length. */
+			b -= (int)len - digits;
+			len = digits;
+			if (carry && i == 0) {
+				/* Carry results in new digit on left, push all the relevant stuff over. */
+				for (size_t j = 0; j < digits; ++j) {
+					str[j+1] = str[j];
+				}
+				/* The new digit is always going to be 1. */
+				str[0] = '1';
+				/* Adjust length of resulting valid string; b remains the same, as we
+				 * did not remove any trailing digits at this point. */
+				len++;
+			}
+		}
+	}
+
+	/* Now we're going to split up the decimal string into the whole part and the
+	 * fractional part. The whole part, p, is either a prefix of the decimal string,
+	 * or is "0" if there is no whole part. */
+	char * p = "0";
+	size_t plen = 1;
+	if (b < 0) {
+		p = str;
+		plen = len;
+	} else if (b < (int)len) {
+		p = str;
+		plen = len - b;
+	}
+
+	/* The fractional part, s, consists of the rest of the digits. */
+	char * s = str;
+	size_t slen = len;
+	int extra_zeros = b - slen;
+	if (b < 0) {
+		s = "0";
+		slen = 1;
+		extra_zeros = -b;
+	} else if (b < (int)len) {
+		s = str + len - b;
+		slen = b;
+		extra_zeros = 0;
+	}
+
+	/* Now we can remove all of the trailing zeros from s. If s is
+	 * all zeros, we should keep one...  */
+	while (slen > 1 && s[slen-1] == '0') slen--;
+	if (!slen) {
+		s = "0";
+		slen = 1;
+	}
+
+	/* Now we can take our truncated value and format it to a final output. */
+	struct StringBuilder sb = {0};
+
+	/* First the negative sign. */
+	if (sign) krk_pushStringBuilder(&sb, '-');
+	else if (plus) krk_pushStringBuilder(&sb, '+');
+
+	if (formatter != 'f' && plen == 1 && *p == '0' && extra_zeros >= 4) {
+		/* Whole part is 0, fractional part has enough leading zeros to switch
+		 * to exponential notation. Strip leading zeros from fractional part,
+		 * print first digit, then if there are more digits, print dot and
+		 * the remaining digit. Finally, print the exponent. */
+		while (slen > 1 && *s == '0') slen--, s++;
+		krk_pushStringBuilder(&sb, s[0]);
+		if (slen > 1) {
+			krk_pushStringBuilder(&sb, '.');
+			krk_pushStringBuilderStr(&sb, s+1,slen-1);
+		}
+		krk_pushStringBuilderFormat(&sb,"e-%s%d",(extra_zeros+1)<10?"0":"",extra_zeros+1);
+	} else if (formatter != 'f' && plen + extra_zeros > digits) {
+		/* Whole part is long; switch to exponential notation. Print leading
+		 * non-zero digit of whole part, strip all trailing zeros from s,
+		 * then extra, then p itself, and if there's still non-zero digits
+		 * then print a dot, then the digits from p, then the extra zeros,
+		 * then the digits from s. Finally, print the exponent.
+		 */
+		int iplen = plen + extra_zeros - 1;
+		krk_pushStringBuilder(&sb,p[0]);
+		while (slen && s[slen-1] == '0') slen--; /* All trailing 0s from s, even if it is just 0 */
+		if (slen == 0) extra_zeros = 0; /* If s is now empty, skip all of the extra zeros */
+		if (slen == 0 && extra_zeros == 0) { /* There that then results in no digits, strip trailing 0s from p */
+			while (plen > 1 && p[plen-1] == '0') plen--;
+		}
+		if (plen + extra_zeros + slen > 1) { /* If there are still digits left to print, print them */
+			krk_pushStringBuilder(&sb, '.');
+			krk_pushStringBuilderStr(&sb, p+1,plen-1); /* First from p */
+			while (extra_zeros) { /* Then from extra zeros */
+				krk_pushStringBuilder(&sb,'0');
+				extra_zeros--;
+			}
+			krk_pushStringBuilderStr(&sb, s, slen); /* Then from s */
+		}
+		krk_pushStringBuilderFormat(&sb,"e+%s%d",iplen<10?"0":"",iplen);
+	} else {
+		/* Whole part and fractional part are within range to use normal notation.
+		 * First print all of the whole digits, then a dot. If there are no digits
+		 * from s and the extra zeros, force a zero to be printed, otherwise print
+		 * those remaining digits.
+		 */
+		krk_pushStringBuilderStr(&sb, p, plen);
+		krk_pushStringBuilder(&sb, '.');
+		if (slen == 1 && *s == '0') extra_zeros = 0;
+		if (slen + extra_zeros) {
+			for (int i = 0; i < extra_zeros; i++) {
+				krk_pushStringBuilder(&sb,'0');
+			}
+			krk_pushStringBuilderStr(&sb, s, slen);
+		}
+		/* Ensure we end with either .0 or some additional number of zeros for the 'f' formatter. */
+		for (unsigned int i = extra_zeros + slen; i < ((formatter == 'f') ? odigits : 1); i++) {
+			krk_pushStringBuilder(&sb, '0');
+		}
+	}
+
+	free(str);
+	return krk_finishStringBuilder(&sb);
+}
 #endif
 
 /**

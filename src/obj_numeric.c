@@ -627,21 +627,45 @@ KRK_StaticMethod(float,__new__) {
 KRK_Method(float,__int__) { return krk_int_from_float(self); }
 KRK_Method(float,__float__) { return argv[0]; }
 
-static int isDigits(const char * c) {
-	while (*c) {
-		if (*c != '-' && (*c < '0' || *c > '9')) return 0;
-		c++;
-	}
-	return 1;
+extern KrkValue krk_double_to_string(double,int,unsigned int,char,int);
+KRK_Method(float,__repr__) {
+	return krk_double_to_string(self,0,16,'g',0);
 }
 
-KRK_Method(float,__repr__) {
-	char tmp[100];
-	size_t l = snprintf(tmp, 97, "%.16g", self);
-	if (!strstr(tmp,".") && isDigits(tmp)) {
-		l = snprintf(tmp,100,"%.16g.0",self);
+KRK_Method(float,__format__) {
+	char * format_spec;
+	size_t format_spec_length;
+	if (!krk_parseArgs(".s#", (const char*[]){"format_spec"}, &format_spec, &format_spec_length)) return NONE_VAL();
+
+	struct ParsedFormatSpec opts = {0};
+	const char * spec = krk_parseCommonFormatSpec(&opts, format_spec, format_spec_length);
+	if (!spec) return NONE_VAL();
+
+	char formatter = 'g';
+	int digits = 16;
+
+	switch (*spec) {
+		case 0:
+		case 'g':
+			/* defaults */
+			break;
+
+		case 'f':
+			digits = 6;
+			formatter = 'f';
+			break;
+
+		default:
+			return krk_runtimeError(vm.exceptions->valueError,
+				"Unknown format code '%c' for object of type '%s'",
+				*spec,
+				"float");
 	}
-	return OBJECT_VAL(krk_copyString(tmp, l));
+
+	if (opts.align || opts.alt || opts.width || opts.sep) return krk_runtimeError(vm.exceptions->valueError, "unsupported option for float");
+	if (opts.hasPrecision) digits = opts.prec;
+
+	return krk_double_to_string(self, 0, digits, formatter, opts.sign == '+');
 }
 
 KRK_Method(float,__eq__) {
@@ -887,6 +911,7 @@ void _createAndBind_numericClasses(void) {
 	BIND_METHOD(float,__neg__);
 	BIND_METHOD(float,__abs__);
 	BIND_METHOD(float,__pos__);
+	BIND_METHOD(float,__format__);
 #endif
 	krk_finalizeClass(_float);
 	KRK_DOC(_float, "Convert a number or string type to a float representation.");
