@@ -1436,7 +1436,9 @@ KRK_Method(long,__truediv__) {
 	else if (IS_INTEGER(argv[1])) krk_long_init_si(tmp, AS_INTEGER(argv[1]));
 	else if (IS_FLOATING(argv[1])) return checked_float_div(krk_long_get_double(self->value), AS_FLOATING(argv[1]));
 	else return NOTIMPL_VAL();
-	return _krk_long_truediv(self->value,tmp);
+	KrkValue result = _krk_long_truediv(self->value,tmp);
+	krk_long_clear(tmp);
+	return result;
 }
 
 KRK_Method(long,__rtruediv__) {
@@ -1445,7 +1447,9 @@ KRK_Method(long,__rtruediv__) {
 	else if (IS_INTEGER(argv[1])) krk_long_init_si(tmp, AS_INTEGER(argv[1]));
 	else if (IS_FLOATING(argv[1])) return checked_float_div(AS_FLOATING(argv[1]), krk_long_get_double(self->value));
 	else return NOTIMPL_VAL();
-	return _krk_long_truediv(tmp,self->value);
+	KrkValue result = _krk_long_truediv(tmp,self->value);
+	krk_long_clear(tmp);
+	return result;
 }
 #endif
 
