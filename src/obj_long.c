@@ -2417,7 +2417,7 @@ KrkValue krk_double_to_string(double a, int exact, unsigned int digits, char for
 	/* We need to cache the decimal versions of each necessary division of 10⁵⁵, if we've not seen them before. */
 	KrkValue float_decimal_parts = NONE_VAL();
 	if (!krk_tableGet_fast(&vm.baseClasses->floatClass->methods, S("__decimals__"), &float_decimal_parts)) {
-		krk_push(OBJECT_VAL(krk_newTuple(53)));
+		krk_push(OBJECT_VAL(krk_newTuple(54)));
 		float_decimal_parts = krk_peek(0);
 
 		KrkLong d;
@@ -2432,6 +2432,10 @@ KrkValue krk_double_to_string(double a, int exact, unsigned int digits, char for
 				d = o;
 			}
 		}
+
+		KrkLong f;
+		krk_long_parse_string("10000000000000000000000000000000", &f, 10, 32);
+		AS_TUPLE(float_decimal_parts)->values.values[AS_TUPLE(float_decimal_parts)->values.count++] = make_long_obj(&f);
 
 		/* Attach to float class. */
 		krk_attachNamedValue(&vm.baseClasses->floatClass->methods, "__decimals__", float_decimal_parts);
@@ -2476,19 +2480,16 @@ KrkValue krk_double_to_string(double a, int exact, unsigned int digits, char for
 	int b = 55;
 
 	if (e < 0) {
-		KrkLong f;
 		/* Repeatedly multiply to increase number of decimal digits by 31, until the resulting
 		 * binary representation has enough trailing 0 bits we can shift away the negative
 		 * exponent and still have an exact decimal representation. */
-		krk_long_parse_string("10000000000000000000000000000000", &f, 10, 32);
 		while (1) {
 			ssize_t i = 0;
 			while (!_bit_is_set(&c,i)) i++;
 			if (i >= -e) break;
-			krk_long_mul(&c,&c,&f);
+			krk_long_mul(&c,&c,AS_long(AS_TUPLE(float_decimal_parts)->values.values[53])->value);
 			b += 31;
 		}
-		krk_long_clear(&f);
 	}
 
 	/* Now, finally, shifting our numerator left or right based on the base-2 exponent
