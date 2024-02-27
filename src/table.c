@@ -126,7 +126,7 @@ void krk_tableAdjustCapacity(KrkTable * table, size_t capacity) {
 	for (size_t i = 0; i < table->count; ++i) {
 		while (IS_KWARGS(e->key)) e++;
 		memcpy(&nentries[i], e, sizeof(KrkTableEntry));
-		ssize_t indexkey = krk_tableIndexKey(nentries,nindexes,capacity, e->key);
+		ssize_t indexkey = krk_tableIndexKeyExact(nentries,nindexes,capacity, e->key);
 		nindexes[indexkey] = i;
 		e++;
 	}
