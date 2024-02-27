@@ -172,6 +172,8 @@ uint32_t krk_unicodeCodepoint(KrkString * string, size_t index) {
 	}
 }
 
+extern int krk_tableSetExact(KrkTable * table, KrkValue key, KrkValue value);
+
 static KrkString * allocateString(char * chars, size_t length, uint32_t hash) {
 	size_t codesLength = 0;
 	int type = checkString(chars,length,&codesLength);
@@ -187,7 +189,7 @@ static KrkString * allocateString(char * chars, size_t length, uint32_t hash) {
 	string->codes = NULL;
 	if (type == KRK_OBJ_FLAGS_STRING_ASCII) string->codes = string->chars;
 	krk_push(OBJECT_VAL(string));
-	krk_tableSet(&vm.strings, OBJECT_VAL(string), NONE_VAL());
+	krk_tableSetExact(&vm.strings, OBJECT_VAL(string), NONE_VAL());
 	krk_pop();
 	_release_lock(_stringLock);
 	return string;
@@ -253,7 +255,7 @@ KrkString * krk_takeStringVetted(char * chars, size_t length, size_t codesLength
 	string->codes = NULL;
 	if (type == KRK_OBJ_FLAGS_STRING_ASCII) string->codes = string->chars;
 	krk_push(OBJECT_VAL(string));
-	krk_tableSet(&vm.strings, OBJECT_VAL(string), NONE_VAL());
+	krk_tableSetExact(&vm.strings, OBJECT_VAL(string), NONE_VAL());
 	krk_pop();
 	_release_lock(_stringLock);
 	return string;

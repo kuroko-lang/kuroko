@@ -168,6 +168,29 @@ int krk_tableSet(KrkTable * table, KrkValue key, KrkValue value) {
 	return isNew;
 }
 
+int krk_tableSetExact(KrkTable * table, KrkValue key, KrkValue value) {
+	if (table->used + 1 > table->capacity * TABLE_MAX_LOAD) {
+		size_t capacity = KRK_GROW_CAPACITY(table->capacity);
+		krk_tableAdjustCapacity(table, capacity);
+	}
+
+	ssize_t index = krk_tableIndexKeyExact(table->entries, table->indexes, table->capacity, key);
+	if (index < 0) return 0;
+	KrkTableEntry * entry;
+	int isNew = table->indexes[index] < 0;
+	if (isNew) {
+		table->indexes[index] = table->used;
+		entry = &table->entries[table->used];
+		entry->key = key;
+		table->used++;
+		table->count++;
+	} else {
+		entry = &table->entries[table->indexes[index]];
+	}
+	entry->value = value;
+	return isNew;
+}
+
 int krk_tableSetIfExists(KrkTable * table, KrkValue key, KrkValue value) {
 	if (table->count == 0) return 0;
 	ssize_t index = krk_tableIndexKey(table->entries, table->indexes, table->capacity, key);
