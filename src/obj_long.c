@@ -2414,14 +2414,14 @@ KrkValue krk_double_to_string(double a, int exact, unsigned int digits, char for
 	}
 	if (e == -1023 && m == 0) return OBJECT_VAL(S("0.0"));
 
-	/* We need to cache the decimal versions of each necessary division of 10⁵⁵, if we've not seen them before. */
+	/* We need to cache the decimal versions of each necessary division of 10⁵², if we've not seen them before. */
 	KrkValue float_decimal_parts = NONE_VAL();
 	if (!krk_tableGet_fast(&vm.baseClasses->floatClass->methods, S("__decimals__"), &float_decimal_parts)) {
 		krk_push(OBJECT_VAL(krk_newTuple(54)));
 		float_decimal_parts = krk_peek(0);
 
 		KrkLong d;
-		krk_long_parse_string("10000000000000000000000000000000000000000000000000000000", &d, 10, 56);
+		krk_long_parse_string("10000000000000000000000000000000000000000000000000000", &d, 10, 53);
 
 		for (int i = 0; i < 53; ++i) {
 			AS_TUPLE(float_decimal_parts)->values.values[AS_TUPLE(float_decimal_parts)->values.count++] = make_long_obj(&d);
@@ -2433,6 +2433,8 @@ KrkValue krk_double_to_string(double a, int exact, unsigned int digits, char for
 			}
 		}
 
+		/* We use 10^31 to add additional digits to ensure right shifting does not result
+		 * in dropped bits when converting the base-2 exponent to base-10. */
 		KrkLong f;
 		krk_long_parse_string("10000000000000000000000000000000", &f, 10, 32);
 		AS_TUPLE(float_decimal_parts)->values.values[AS_TUPLE(float_decimal_parts)->values.count++] = make_long_obj(&f);
@@ -2444,7 +2446,7 @@ KrkValue krk_double_to_string(double a, int exact, unsigned int digits, char for
 
 	/* Given that a double takes the form 2ⁿ × m, where either 1.0 ≤ m < 2.0 or
 	 * (for subnormals) 0 < m < 1.0, generate a decimal representation of m as the
-	 * numerator in a fraction with 10⁵⁵ as the denominator. For example, the
+	 * numerator in a fraction with 10⁵² as the denominator. For example, the
 	 * value 123.456 is represented as:
 	 *     2⁶ × 1.9290000000000000479616346638067625463008880615234375
 	 * So we want to have the value:
@@ -2461,7 +2463,7 @@ KrkValue krk_double_to_string(double a, int exact, unsigned int digits, char for
 		e = -1022;
 	} else {
 		/* Otherwise, our decimal representation of the multiplier will start with a 1, so
-		 * start us off with 10⁵⁵ from above. */
+		 * start us off with 10⁵² from above. */
 		krk_long_init_copy(&c, AS_long(AS_TUPLE(float_decimal_parts)->values.values[0])->value);
 	}
 
@@ -2472,12 +2474,12 @@ KrkValue krk_double_to_string(double a, int exact, unsigned int digits, char for
 		}
 	}
 
-	/* At this point, we know that we have 55 decimal digits to the right of the radix point;
+	/* At this point, we know that we have 52 decimal digits to the right of the radix point;
 	 * this represents the base-10 exponent of our denominator. We want to maintain an exact
 	 * value for m after turning the base-2 exponent into a base-10 exponent, so if our
 	 * original base-2 exponent is negative, we might need to add more 0s to the end of
 	 * both the top and bottom of the fraction - we'll add to b to account for that. */
-	int b = 55;
+	int b = 52;
 
 	if (e < 0) {
 		/* Repeatedly multiply to increase number of decimal digits by 31, until the resulting
