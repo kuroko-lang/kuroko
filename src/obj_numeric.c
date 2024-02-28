@@ -627,9 +627,9 @@ KRK_StaticMethod(float,__new__) {
 KRK_Method(float,__int__) { return krk_int_from_float(self); }
 KRK_Method(float,__float__) { return argv[0]; }
 
-extern KrkValue krk_double_to_string(double,int,unsigned int,char,int,int);
+extern KrkValue krk_double_to_string(double,unsigned int,char,int,int);
 KRK_Method(float,__repr__) {
-	return krk_double_to_string(self,0,16,' ',0,0);
+	return krk_double_to_string(self,16,' ',0,0);
 }
 
 KRK_Method(float,__format__) {
@@ -675,7 +675,7 @@ KRK_Method(float,__format__) {
 	if (opts.hasPrecision) digits = opts.prec;
 	if (!opts.align) opts.align = '>';
 
-	KrkValue result = krk_double_to_string(self, 0, digits, formatter, opts.sign == '+', forcedigits);
+	KrkValue result = krk_double_to_string(self, digits, formatter, opts.sign == '+', forcedigits);
 	if (!IS_STRING(result) || !opts.width) return result;
 
 	krk_push(result);

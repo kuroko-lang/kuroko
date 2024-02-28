@@ -2455,7 +2455,7 @@ static size_t round_to(char * str, size_t len, size_t actual, size_t digits) {
  *
  *
  */
-KrkValue krk_double_to_string(double a, int exact, unsigned int digits, char formatter, int plus, int forcedigits) {
+KrkValue krk_double_to_string(double a, unsigned int digits, char formatter, int plus, int forcedigits) {
 	union { double d; uint64_t u; } val = {.d = a};
 
 	int noexp = (formatter | 0x20) == 'f';
