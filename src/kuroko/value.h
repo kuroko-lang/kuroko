@@ -151,6 +151,7 @@ static inline int krk_valuesSame(KrkValue a, KrkValue b) { return _krk_valuesSam
 extern int krk_valuesSameOrEqual(KrkValue a, KrkValue b);
 
 extern KrkValue krk_parse_int(const char * start, size_t width, unsigned int base);
+extern KrkValue krk_parse_float(const char* start, size_t width);
 
 #ifndef KRK_NO_NAN_BOXING
 

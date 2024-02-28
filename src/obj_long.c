@@ -2741,6 +2741,117 @@ KrkValue krk_double_to_string(double a, unsigned int digits, char formatter, int
 	free(str);
 	return krk_finishStringBuilder(&sb);
 }
+
+KrkValue krk_parse_float(const char * s, size_t l) {
+	size_t c = 0;
+	int sign = 1;
+	size_t ps = 0, pe = 0, ss = 0, se = 0, es = 0, ee = 0;
+
+	union Float { double d; uint64_t i; };
+
+	if (s[c] == '-') {
+		sign = -1;
+		c++;
+		ps = 1;
+	}
+
+	if (c + 3 == l) {
+		if (((s[c+0] | 0x20) == 'n') && ((s[c+1] | 0x20) == 'a') && ((s[c+2] | 0x20) == 'n')) {
+			return FLOATING_VAL(((union Float){.i=0x7ff0000000000001ULL}).d);
+		}
+		if (((s[c+0] | 0x20) == 'i') && ((s[c+1] | 0x20) == 'n') && ((s[c+2] | 0x20) == 'f')) {
+			return FLOATING_VAL(((union Float){.i=0x7ff0000000000000ULL}).d * sign);
+		}
+	}
+
+	while (c < l && ((s[c] >= '0' && s[c] <= '9') || s[c] == '_')) c++;
+	pe = c;
+
+	if (c < l && s[c] == '.') {
+		c++;
+		ss = c;
+		while (c < l && s[c] >= '0' && s[c] <= '9') c++;
+		se = c;
+	}
+
+	if (c < l && (s[c] == 'e' || s[c] == 'E')) {
+		c++;
+		es = c;
+		if (c < l && s[c] == '-') c++;
+		else if (c < l && s[c] == '+') { c++; es++; }
+		while (c < l && s[c] >= '0' && s[c] <= '9') c++;
+		ee = c;
+	}
+
+	if (c != l) return krk_runtimeError(vm.exceptions->valueError, "invalid literal for float");
+
+	struct StringBuilder sb = {0};
+	for (size_t i = ps; i < pe; ++i) {
+		if (!sb.length && s[i] == '0') continue;
+		if (s[i] == '_') continue;
+		krk_pushStringBuilder(&sb,s[i]);
+	}
+	for (size_t i = ss; i < se; ++i) {
+		if (!sb.length && s[i] == '0') continue;
+		krk_pushStringBuilder(&sb,s[i]);
+	}
+
+	const char * m = sb.bytes;
+	size_t m_len = sb.length;
+	if (!sb.length) {
+		m = "0";
+		m_len = 1;
+	}
+
+	KrkLong m_l;
+	krk_long_parse_string(m,&m_l,10,m_len);
+	krk_discardStringBuilder(&sb);
+	krk_long_set_sign(&m_l,sign);
+
+	const char * e = (es != ee) ? &s[es] : "0";
+	size_t e_len = (es != ee) ? (ee-es) : 1;
+
+	KrkLong e_l;
+	krk_long_parse_string(e,&e_l,10,e_len);
+
+	if (e_l.width > 1) {
+		krk_long_clear_many(&m_l,&e_l,NULL);
+		return FLOATING_VAL(((union Float){.i=0x7ff0000000000000ULL}).d * sign);
+	} else if (e_l.width < -1) {
+		krk_long_clear_many(&m_l,&e_l,NULL);
+		return FLOATING_VAL(0.0);
+	}
+
+	int64_t exp = krk_long_medium(&e_l);
+	ssize_t digits = (se - ss) - exp;
+
+	if (digits > 0) {
+		KrkLong ten_digits, digits_el;
+		krk_long_init_si(&ten_digits, 10);
+		krk_long_init_si(&digits_el, digits);
+		_krk_long_pow(&ten_digits,&ten_digits,&digits_el);
+		KrkValue v = _krk_long_truediv(&m_l, &ten_digits);
+		krk_long_clear_many(&digits_el,&m_l,&e_l,&ten_digits, NULL);
+		return v;
+	} else if (digits < 0) {
+		KrkLong ten_digits, digits_el, one;
+		krk_long_init_si(&ten_digits, 10);
+		krk_long_init_si(&digits_el, -digits);
+		krk_long_init_si(&one, 1);
+		_krk_long_pow(&ten_digits,&ten_digits,&digits_el);
+		krk_long_mul(&m_l,&m_l,&ten_digits);
+		KrkValue v = _krk_long_truediv(&m_l, &one);
+		krk_long_clear_many(&digits_el,&m_l,&e_l,&ten_digits,&one,NULL);
+		return v;
+	} else {
+		KrkLong one;
+		krk_long_init_si(&one, 1);
+		KrkValue v = _krk_long_truediv(&m_l, &one);
+		krk_long_clear_many(&m_l,&e_l,&one,NULL);
+		return v;
+	}
+}
+
 #endif
 
 /**
