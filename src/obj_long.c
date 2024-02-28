@@ -2400,19 +2400,100 @@ KrkValue krk_int_from_float(double val) {
 	return make_long_obj(&_value);
 }
 
-KrkValue krk_double_to_string(double a, int exact, unsigned int digits, char formatter, int plus) {
+#include <assert.h>
+
+static size_t round_to(char * str, size_t len, size_t actual, size_t digits) {
+	/* Round the result to just 16 or 17 decimal digits, rounding to even. If
+	 * the actual number of digits was already smaller than that, do nothing. */
+	if (actual > digits) {
+		int carry = 0;
+		if (str[digits] == '5' && ((digits ? str[digits-1] : 0) % 2 == 0)) {
+			/* Because our decimal representation is exact, we can be sure that
+			 * this correctly rounds halfway to even because we know all of the
+			 * digits after the truncated 5 are zero or non-zero. */
+			int all_zeros = 1;
+			for (size_t j = actual - 1; j > digits; j--) {
+				if (str[j] != '0') {
+					all_zeros = 0;
+					break;
+				}
+			}
+			carry = all_zeros ? 0 : 1;
+		} else if (str[digits] >= '5') {
+			/* In other cases, round up if necessary. */
+			carry = 1;
+		}
+		size_t i = digits;
+		while (i && carry) {
+			/* Propogate carry */
+			if (str[i-1] - '0' + carry > 9) {
+				str[i-1] = '0';
+				carry = 1;
+			} else {
+				str[i-1] += carry;
+				carry = 0;
+			}
+			i--;
+		}
+		if (carry && i == 0) {
+			/* Carry results in new digit on left, push all the relevant stuff over. */
+			for (size_t j = 0; j < digits; ++j) {
+				str[j+1] = str[j];
+			}
+			/* The new digit is always going to be 1. */
+			str[0] = '1';
+			/* Adjust length of resulting valid string; b remains the same, as we
+			 * did not remove any trailing digits at this point. */
+			return 1;
+		}
+	}
+	return 0;
+}
+
+/**
+ * @brief Convert a double to a KrkString.
+ *
+ *
+ */
+KrkValue krk_double_to_string(double a, int exact, unsigned int digits, char formatter, int plus, int forcedigits) {
 	union { double d; uint64_t u; } val = {.d = a};
+
+	int noexp = (formatter | 0x20) == 'f';
+	int alwaysexp = (formatter | 0x20) == 'e';
+	int caps = !(formatter & 0x20);
+	char expch = caps ? 'E' : 'e';
 
 	/* Extract sign, mantissa, exponent from double, and handle special cases. */
 	int sign = (val.u >> 63ULL) ? 1 : 0;
 	int64_t m = val.u & 0x000fffffffffffffULL;
 	int64_t e = ((val.u >> 52ULL) & 0x7FF) - 0x3FF;
 	if (e == 1024) {
-		if (m) return OBJECT_VAL(S("nan"));
-		if (sign) return OBJECT_VAL(S("-inf"));
-		return OBJECT_VAL(S("inf"));
+		struct StringBuilder sb = {0};
+		if (sign && !m) krk_pushStringBuilder(&sb, '-');
+		else if (plus) krk_pushStringBuilder(&sb, '+');
+		if (m) krk_pushStringBuilderStr(&sb, caps ? "NAN" : "nan", 3);
+		else krk_pushStringBuilderStr(&sb, caps ? "INF" : "inf", 3);
+		return krk_finishStringBuilder(&sb);
 	}
-	if (e == -1023 && m == 0) return OBJECT_VAL(S("0.0"));
+	if (e == -1023 && m == 0) {
+		struct StringBuilder sb = {0};
+		if (sign) krk_pushStringBuilder(&sb, '-');
+		else if (plus) krk_pushStringBuilder(&sb,'+');
+		krk_pushStringBuilder(&sb, '0');
+		/* For f/F and e/E, always fill in digits? */
+		if (digits && forcedigits) {
+			krk_pushStringBuilder(&sb, '.');
+			for (unsigned int i = 0; i < digits - ((!noexp && !alwaysexp) ? 1 : 0); ++i) {
+				krk_pushStringBuilder(&sb, '0');
+			}
+		}
+		/* Include exponent for e/E */
+		if (alwaysexp) {
+			krk_pushStringBuilder(&sb, expch);
+			krk_pushStringBuilderStr(&sb, "+00", 3);
+		}
+		return krk_finishStringBuilder(&sb);
+	}
 
 	/* We need to cache the decimal versions of each necessary division of 10⁵², if we've not seen them before. */
 	KrkValue float_decimal_parts = NONE_VAL();
@@ -2516,181 +2597,97 @@ KrkValue krk_double_to_string(double a, int exact, unsigned int digits, char for
 	size_t len = 0;
 	char * str = krk_long_to_decimal_str(&c, &len);
 	krk_long_clear(&c);
-	unsigned int odigits = digits;
 
-	/* At this point, we want to round the answer to fit a more reasonable number of
-	 * digits. We have the exact value, in decimal, in string form - so we can do
-	 * some truncation and look at the values we are truncating away to determine if
-	 * we should round up (add one and propogate until the carry disappears), or keep
-	 * the truncated value. */
-	if (!exact) {
-		/* Figure out how many significant digits we actually have, excluding any
-		 * trailing 0s which will get stripped away later anyway. */
-		size_t actual = len;
-		while (actual > 1 && str[actual-1] == '0') actual--;
+	/* Significant digits */
+	size_t actual = len;
+	while (actual > 1 && str[actual-1] == '0') actual--;
 
-		if (formatter == 'f') {
-			if (b > (int)len && b - len <= digits) {
-				/* Make sure we round? */
-				digits -= b - len;
-			} else if (b > (int)len && b - len > digits) {
-				/* Going to be zero, just return that. */
-				actual = 0;
-				len = 0;
-				b = digits;
-			} else if (b < (int)len) {
-				/* Need to account for the whole digits */
-				digits += len - b;
-			}
-		}
+	int ten_exponent = (int)len - b - 1;                       /* n of e±n */
+	int print_exponent = 0;                                    /* print e±n */
+	int whole_digits = ((int)len >= b) ? ten_exponent + 1 : 0; /* digits before radix point */
+	int missing_digits = (b >= (int)len) ? b - (int)len : 0;   /* digits after radix point not in actual */
+	int trailing_zeros = 0;                                    /* zeros after actual */
 
-		/* Round the result to just 16 or 17 decimal digits, rounding to even. If
-		 * the actual number of digits was already smaller than that, do nothing. */
-		if (actual > digits) {
-			int carry = 0;
-			if (str[digits] == '5' && ((digits ? str[digits-1] : 0) % 2 == 0)) {
-				/* Because our decimal representation is exact, we can be sure that
-				 * this correctly rounds halfway to even because we know all of the
-				 * digits after the truncated 5 are zero or non-zero. */
-				int all_zeros = 1;
-				for (size_t j = actual - 1; j > digits; j--) {
-					if (str[j] != '0') {
-						all_zeros = 0;
-						break;
-					}
-				}
-				carry = all_zeros ? 0 : 1;
-			} else if (str[digits] >= '5') {
-				/* In other cases, round up if necessary. */
-				carry = 1;
-			}
-			size_t i = digits;
-			while (i && carry) {
-				/* Propogate carry */
-				if (str[i-1] - '0' + carry > 9) {
-					str[i-1] = '0';
-					carry = 1;
-				} else {
-					str[i-1] += carry;
-					carry = 0;
-				}
-				i--;
-			}
-			/* Reduce the number of digits behind the radix point by the number of
-			 * digits we truncated away, and update the length to the actual length. */
-			b -= (int)len - digits;
-			len = digits;
-			if (carry && i == 0) {
-				/* Carry results in new digit on left, push all the relevant stuff over. */
-				for (size_t j = 0; j < digits; ++j) {
-					str[j+1] = str[j];
-				}
-				/* The new digit is always going to be 1. */
-				str[0] = '1';
-				/* Adjust length of resulting valid string; b remains the same, as we
-				 * did not remove any trailing digits at this point. */
-				len++;
-			}
-		}
-	}
-
-	/* Now we're going to split up the decimal string into the whole part and the
-	 * fractional part. The whole part, p, is either a prefix of the decimal string,
-	 * or is "0" if there is no whole part. */
-	char * p = "0";
-	size_t plen = 1;
-	if (b < 0) {
-		p = str;
-		plen = len;
-	} else if (b < (int)len) {
-		p = str;
-		plen = len - b;
-	}
-
-	/* The fractional part, s, consists of the rest of the digits. */
-	char * s = str;
-	size_t slen = len;
-	int extra_zeros = b - slen;
-	if (b < 0) {
-		s = "0";
-		slen = 1;
-		extra_zeros = -b;
-	} else if (b < (int)len) {
-		s = str + len - b;
-		slen = b;
-		extra_zeros = 0;
-	}
-
-	/* Now we can remove all of the trailing zeros from s. If s is
-	 * all zeros, we should keep one...  */
-	while (slen > 1 && s[slen-1] == '0') slen--;
-	if (!slen) {
-		s = "0";
-		slen = 1;
-	}
-
-	/* Now we can take our truncated value and format it to a final output. */
 	struct StringBuilder sb = {0};
 
-	/* First the negative sign. */
 	if (sign) krk_pushStringBuilder(&sb, '-');
 	else if (plus) krk_pushStringBuilder(&sb, '+');
 
-	if (formatter != 'f' && plen == 1 && *p == '0' && extra_zeros >= 4) {
-		/* Whole part is 0, fractional part has enough leading zeros to switch
-		 * to exponential notation. Strip leading zeros from fractional part,
-		 * print first digit, then if there are more digits, print dot and
-		 * the remaining digit. Finally, print the exponent. */
-		while (slen > 1 && *s == '0') slen--, s++;
-		krk_pushStringBuilder(&sb, s[0]);
-		if (slen > 1) {
-			krk_pushStringBuilder(&sb, '.');
-			krk_pushStringBuilderStr(&sb, s+1,slen-1);
-		}
-		krk_pushStringBuilderFormat(&sb,"e-%s%d",(extra_zeros+1)<10?"0":"",extra_zeros+1);
-	} else if (formatter != 'f' && plen + extra_zeros > digits) {
-		/* Whole part is long; switch to exponential notation. Print leading
-		 * non-zero digit of whole part, strip all trailing zeros from s,
-		 * then extra, then p itself, and if there's still non-zero digits
-		 * then print a dot, then the digits from p, then the extra zeros,
-		 * then the digits from s. Finally, print the exponent.
-		 */
-		int iplen = plen + extra_zeros - 1;
-		krk_pushStringBuilder(&sb,p[0]);
-		while (slen && s[slen-1] == '0') slen--; /* All trailing 0s from s, even if it is just 0 */
-		if (slen == 0) extra_zeros = 0; /* If s is now empty, skip all of the extra zeros */
-		if (slen == 0 && extra_zeros == 0) { /* There that then results in no digits, strip trailing 0s from p */
-			while (plen > 1 && p[plen-1] == '0') plen--;
-		}
-		if (plen + extra_zeros + slen > 1) { /* If there are still digits left to print, print them */
-			krk_pushStringBuilder(&sb, '.');
-			krk_pushStringBuilderStr(&sb, p+1,plen-1); /* First from p */
-			while (extra_zeros) { /* Then from extra zeros */
-				krk_pushStringBuilder(&sb,'0');
-				extra_zeros--;
+	if (!alwaysexp && !noexp) {
+		/* g/G formatter - rounding is for total digits displayed */
+		if (digits == 0) digits = 1; /* treat precision of 0 as 1 */
+		if (actual > digits) {
+			/* There are more digits than we need to show, so round */
+			int overflowed = round_to(str, len, actual, digits);
+			if (overflowed) {
+				/* If we overflowed, our exponent increases */
+				ten_exponent += 1;
+				if (ten_exponent) whole_digits++;
 			}
-			krk_pushStringBuilderStr(&sb, s, slen); /* Then from s */
+			/* We are going to use exactly the number of digits we have */
+			actual = digits;
+		} else {
+			/* Only add extra zeros if needed */
+			trailing_zeros = digits - actual;
 		}
-		krk_pushStringBuilderFormat(&sb,"e+%s%d",iplen<10?"0":"",iplen);
-	} else {
-		/* Whole part and fractional part are within range to use normal notation.
-		 * First print all of the whole digits, then a dot. If there are no digits
-		 * from s and the extra zeros, force a zero to be printed, otherwise print
-		 * those remaining digits.
-		 */
-		krk_pushStringBuilderStr(&sb, p, plen);
-		krk_pushStringBuilder(&sb, '.');
-		if (slen == 1 && *s == '0') extra_zeros = 0;
-		if (slen + extra_zeros) {
-			for (int i = 0; i < extra_zeros; i++) {
-				krk_pushStringBuilder(&sb,'0');
-			}
-			krk_pushStringBuilderStr(&sb, s, slen);
+
+		/* Take any trailing zeros from the number and transfer them into
+		 * "trailing zeros" so we can remove them if we aren't forcing them. */
+		while (actual > 1 && str[actual-1] == '0') {
+			actual--;
+			trailing_zeros++;
 		}
-		/* Ensure we end with either .0 or some additional number of zeros for the 'f' formatter. */
-		for (unsigned int i = extra_zeros + slen; i < ((formatter == 'f') ? odigits : 1); i++) {
-			krk_pushStringBuilder(&sb, '0');
+
+		/* For small numbers, or very big numbers, switch to exponent notation. */
+		if (ten_exponent < -4 || ten_exponent >= (int)digits) {
+			print_exponent = 1;
+			whole_digits = 1;
+			missing_digits = 0;
 		}
+	} else if (noexp) {
+		/* f/F - always use fixed point; determine how to round appropriately */
+		if (missing_digits > (int)digits) {
+			actual = whole_digits;
+			missing_digits = digits;
+		} else if (missing_digits && missing_digits + actual > digits) {
+			/* Small number but we have digits on or before the rounding point */
+			if (round_to(str, len, actual, digits - missing_digits)) missing_digits--;
+			actual = digits - missing_digits;
+		} else if (!missing_digits && actual - whole_digits > digits) {
+			/* Number with no missing digits but still space for rounding */
+			if (round_to(str, len, actual, digits + whole_digits)) whole_digits++;
+			actual = digits + whole_digits;
+		} else if (actual == (size_t)whole_digits) {
+			/* Number with no significant fractional part */
+			missing_digits = digits;
+		} else {
+			/* Number with possibly not enough digits */
+			trailing_zeros = digits - (actual + missing_digits);
+		}
+	} else if (alwaysexp) {
+		if (actual > digits) {
+			if (round_to(str, len, actual, digits + 1)) ten_exponent += 1;
+			actual = digits + 1;
+		} else {
+			trailing_zeros = digits + 1 - actual;
+		}
+		print_exponent = 1;
+		whole_digits = 1;
+		missing_digits = 0;
+	}
+
+	if (!whole_digits) krk_pushStringBuilder(&sb,'0');
+	else krk_pushStringBuilderStr(&sb,str,whole_digits);
+	if (forcedigits || actual > (size_t)whole_digits) krk_pushStringBuilder(&sb, '.');
+	if (missing_digits) for (int i = 0; i < missing_digits; ++i) krk_pushStringBuilder(&sb, '0');
+	if (actual > (size_t)whole_digits) krk_pushStringBuilderStr(&sb, str + whole_digits, actual - whole_digits);
+	if (forcedigits) for (int i = 0; i < trailing_zeros; ++i) krk_pushStringBuilder(&sb, '0');
+
+	if (print_exponent) {
+		char expsign = ten_exponent < 0 ? '-' : '+';
+		int abs_ten_exponent = ten_exponent < 0 ? -ten_exponent : ten_exponent;
+		krk_pushStringBuilderFormat(&sb, "%c%c%s%d",
+			expch, expsign, abs_ten_exponent < 10 ? "0" : "", abs_ten_exponent);
 	}
 
 	free(str);

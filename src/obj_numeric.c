@@ -627,9 +627,9 @@ KRK_StaticMethod(float,__new__) {
 KRK_Method(float,__int__) { return krk_int_from_float(self); }
 KRK_Method(float,__float__) { return argv[0]; }
 
-extern KrkValue krk_double_to_string(double,int,unsigned int,char,int);
+extern KrkValue krk_double_to_string(double,int,unsigned int,char,int,int);
 KRK_Method(float,__repr__) {
-	return krk_double_to_string(self,0,16,'g',0);
+	return krk_double_to_string(self,0,16,'g',0,0);
 }
 
 KRK_Method(float,__format__) {
@@ -643,6 +643,7 @@ KRK_Method(float,__format__) {
 
 	char formatter = 'g';
 	int digits = 16;
+	int forcedigits = opts.alt;
 
 	switch (*spec) {
 		case 0:
@@ -650,9 +651,17 @@ KRK_Method(float,__format__) {
 			/* defaults */
 			break;
 
+		case 'G':
+			formatter = 'G';
+			break;
+
 		case 'f':
+		case 'F':
+		case 'e':
+		case 'E':
 			digits = 6;
-			formatter = 'f';
+			formatter = *spec;
+			forcedigits = 1;
 			break;
 
 		default:
@@ -662,11 +671,11 @@ KRK_Method(float,__format__) {
 				"float");
 	}
 
-	if (opts.alt || opts.sep) return krk_runtimeError(vm.exceptions->valueError, "unsupported option for float");
+	if (opts.sep) return krk_runtimeError(vm.exceptions->valueError, "unsupported option for float");
 	if (opts.hasPrecision) digits = opts.prec;
 	if (!opts.align) opts.align = '>';
 
-	KrkValue result = krk_double_to_string(self, 0, digits, formatter, opts.sign == '+');
+	KrkValue result = krk_double_to_string(self, 0, digits, formatter, opts.sign == '+', forcedigits);
 	if (!IS_STRING(result) || !opts.width) return result;
 
 	krk_push(result);
