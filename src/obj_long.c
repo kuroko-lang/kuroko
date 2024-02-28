@@ -1562,8 +1562,24 @@ static void _krk_long_lshift_z(krk_long out, krk_long val, size_t amount) {
 	krk_long_clear(out);
 	if (count == 0) return;
 
-	for (size_t i = count; i > 0; i--) {
-		if (_bit_is_set(val,i - 1)) krk_long_bit_set(out,i - 1 + amount);
+	size_t offset = amount % 31;
+	size_t cycles = amount / 31;
+	ssize_t w = val->width < 0 ? -val->width : val->width;
+	krk_long_bit_set(out, count - 1 + amount);
+
+	if (!offset) {
+		for (ssize_t i = 0; i < w; ++i) {
+			out->digits[i+cycles] = val->digits[i];
+		}
+	} else {
+		uint32_t shift_in = 0;
+		for (ssize_t i = 0; i < w; ++i) {
+			out->digits[i+cycles] = ((val->digits[i] << offset) & DIGIT_MAX) | shift_in;
+			shift_in = (val->digits[i] >> (31 - offset)) & DIGIT_MAX;
+		}
+		if (shift_in) {
+			out->digits[w+cycles] = shift_in;
+		}
 	}
 
 	if (krk_long_sign(val) < 0) krk_long_set_sign(out,-1);
@@ -1586,8 +1602,26 @@ static void _krk_long_rshift_z(krk_long out, krk_long val, size_t amount) {
 	krk_long_clear(out);
 	if (count == 0) return;
 
-	for (size_t i = count - 1; i >= amount; i--) {
-		if (_bit_is_set(val,i)) krk_long_bit_set(out,i - amount);
+	if (amount < (size_t)count) {
+		size_t offset = amount % 31;
+		size_t cycles = amount / 31;
+		ssize_t w = val->width < 0 ? -val->width : val->width;
+		krk_long_bit_set(out, count - 1 - amount);
+
+		if (!offset) {
+			for (ssize_t i = cycles; i < w; ++i) {
+				out->digits[i-cycles] = val->digits[i];
+			}
+		} else {
+			out->digits[0] = (val->digits[cycles] >> offset) & DIGIT_MAX;
+			for (size_t i = 1; i < (size_t)out->width; ++i) {
+				out->digits[i-1] |= (val->digits[i+cycles] << (31 - offset)) & DIGIT_MAX;
+				out->digits[i] = (val->digits[i+cycles] >> offset) & DIGIT_MAX;
+			}
+			if (out->width+cycles < (size_t)w) {
+				out->digits[out->width-1] |= (val->digits[out->width+cycles] << (31 - offset)) & DIGIT_MAX;
+			}
+		}
 	}
 
 	if (krk_long_sign(val) < 0) {
