@@ -1395,10 +1395,20 @@ static KrkValue _krk_long_truediv(KrkLong * _top, KrkLong * _bottom) {
 	}
 #undef NEEDED_BITS
 
+	if (exp < 1) quot >>= -exp + 1;
+	if ((quot & 1) && !(quot & 2)) {
+		if (rem.width != 0) quot += 2;
+	} else if (quot & 1) quot += 2;
+	quot &= ~1;
+	if (exp < 1) quot <<= -exp + 1;
+	if (quot & (1ULL << 54)) {
+		exp++;
+		quot = (1ULL << 53);
+	}
+
 	krk_long_clear_many(&rem, &top, &bottom, NULL);
 
-	/* Handle rounding? This is probably wrong. */
-	quot = (quot + 1) >> 1;
+	quot >>= 1;
 	if (exp > 2046) {
 		/* Saturated maximum, but not infinity */
 		quot = 0x1fffffffffffffULL;
