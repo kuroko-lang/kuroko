@@ -629,7 +629,7 @@ KRK_Method(float,__float__) { return argv[0]; }
 
 extern KrkValue krk_double_to_string(double,int,unsigned int,char,int,int);
 KRK_Method(float,__repr__) {
-	return krk_double_to_string(self,0,16,'g',0,0);
+	return krk_double_to_string(self,0,16,' ',0,0);
 }
 
 KRK_Method(float,__format__) {

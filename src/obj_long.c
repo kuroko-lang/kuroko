@@ -2481,9 +2481,9 @@ KrkValue krk_double_to_string(double a, int exact, unsigned int digits, char for
 		else if (plus) krk_pushStringBuilder(&sb,'+');
 		krk_pushStringBuilder(&sb, '0');
 		/* For f/F and e/E, always fill in digits? */
-		if (digits && forcedigits) {
+		if (digits && (forcedigits || formatter == ' ')) {
 			krk_pushStringBuilder(&sb, '.');
-			for (unsigned int i = 0; i < digits - ((!noexp && !alwaysexp) ? 1 : 0); ++i) {
+			for (unsigned int i = 0; i < ((formatter == ' ') ? 1 : (digits - ((!noexp && !alwaysexp) ? 1 : 0))); ++i) {
 				krk_pushStringBuilder(&sb, '0');
 			}
 		}
@@ -2643,6 +2643,10 @@ KrkValue krk_double_to_string(double a, int exact, unsigned int digits, char for
 			print_exponent = 1;
 			whole_digits = 1;
 			missing_digits = 0;
+			if (!forcedigits) trailing_zeros = 0;
+		} else if (!forcedigits) {
+			if (formatter == ' ' && actual <= (size_t)whole_digits) trailing_zeros = 1;
+			else trailing_zeros = 0;
 		}
 	} else if (noexp) {
 		/* f/F - always use fixed point; determine how to round appropriately */
@@ -2678,10 +2682,10 @@ KrkValue krk_double_to_string(double a, int exact, unsigned int digits, char for
 
 	if (!whole_digits) krk_pushStringBuilder(&sb,'0');
 	else krk_pushStringBuilderStr(&sb,str,whole_digits);
-	if (forcedigits || actual > (size_t)whole_digits) krk_pushStringBuilder(&sb, '.');
+	if (forcedigits || actual > (size_t)whole_digits || trailing_zeros) krk_pushStringBuilder(&sb, '.');
 	if (missing_digits) for (int i = 0; i < missing_digits; ++i) krk_pushStringBuilder(&sb, '0');
 	if (actual > (size_t)whole_digits) krk_pushStringBuilderStr(&sb, str + whole_digits, actual - whole_digits);
-	if (forcedigits) for (int i = 0; i < trailing_zeros; ++i) krk_pushStringBuilder(&sb, '0');
+	for (int i = 0; i < trailing_zeros; ++i) krk_pushStringBuilder(&sb, '0');
 
 	if (print_exponent) {
 		char expsign = ten_exponent < 0 ? '-' : '+';
