@@ -180,6 +180,12 @@ static KrkToken number(KrkScanner * scanner, char c) {
 		while (isDigit(peek(scanner))) advance(scanner);
 	}
 
+	if (peek(scanner) == 'e' || peek(scanner) == 'E') {
+		advance(scanner);
+		if (peek(scanner) == '+' || peek(scanner) == '-') advance(scanner);
+		while (isDigit(peek(scanner))) advance(scanner);
+	}
+
 	return makeToken(scanner, TOKEN_NUMBER);
 }
 

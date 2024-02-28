@@ -672,6 +672,11 @@ static int paint_krk_numeral(struct syntax_state * state) {
 			paint(1, FLAG_NUMERAL);
 			while (isdigit(charat())) paint(1, FLAG_NUMERAL);
 		}
+		if (charat() == 'e' || charat() == 'E') {
+			paint(1, FLAG_NUMERAL);
+			if (charat() == '-' || charat() == '+') paint(1, FLAG_NUMERAL);
+			while (isdigit(charat())) paint(1, FLAG_NUMERAL);
+		}
 	}
 	return 0;
 }

@@ -800,7 +800,8 @@ static void number(struct GlobalState * state, int exprType, RewindState *rewind
 	invalidTarget(state, exprType, "literal");
 
 	for (size_t j = 0; j < state->parser.previous.length; ++j) {
-		if (state->parser.previous.start[j] == '.') {
+		if (start[j] == 'x' || start[j] == 'X') break;
+		if (start[j] == '.' || start[j] == 'e' || start[j] == 'E') {
 #ifndef KRK_NO_FLOAT
 			emitConstant(krk_parse_float(start, state->parser.previous.length));
 #else
