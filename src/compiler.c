@@ -802,8 +802,7 @@ static void number(struct GlobalState * state, int exprType, RewindState *rewind
 	for (size_t j = 0; j < state->parser.previous.length; ++j) {
 		if (state->parser.previous.start[j] == '.') {
 #ifndef KRK_NO_FLOAT
-			double value = strtod(start, NULL);
-			emitConstant(FLOATING_VAL(value));
+			emitConstant(krk_parse_float(start, state->parser.previous.length));
 #else
 			error("no float support");
 #endif
