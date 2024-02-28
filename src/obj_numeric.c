@@ -662,10 +662,47 @@ KRK_Method(float,__format__) {
 				"float");
 	}
 
-	if (opts.align || opts.alt || opts.width || opts.sep) return krk_runtimeError(vm.exceptions->valueError, "unsupported option for float");
+	if (opts.alt || opts.sep) return krk_runtimeError(vm.exceptions->valueError, "unsupported option for float");
 	if (opts.hasPrecision) digits = opts.prec;
+	if (!opts.align) opts.align = '>';
 
-	return krk_double_to_string(self, 0, digits, formatter, opts.sign == '+');
+	KrkValue result = krk_double_to_string(self, 0, digits, formatter, opts.sign == '+');
+	if (!IS_STRING(result) || !opts.width) return result;
+
+	krk_push(result);
+
+	/* Calculate how much padding we need to add. */
+	size_t avail = (size_t)opts.width > AS_STRING(result)->length ? (size_t)opts.width - AS_STRING(result)->length : 0;
+
+	/* If there's no available space for padding, just return the string we already have. */
+	if (!avail) return krk_pop();
+
+	struct StringBuilder sb = {0};
+	size_t before = 0;
+	size_t after = 0;
+	int hassign = 0;
+	if (opts.align == '<') {
+		after = avail;
+	} else if (opts.align == '>') {
+		before = avail;
+	} else if (opts.align == '^') {
+		after = avail / 2;
+		before = avail - after;
+	} else if (opts.align == '=') {
+		before = avail;
+		if (avail && AS_STRING(result)->length && (AS_CSTRING(result)[0] == '-' || AS_CSTRING(result)[0] == '+')) {
+			krk_pushStringBuilder(&sb, AS_CSTRING(result)[0]);
+			hassign = 1;
+		}
+	}
+
+	/* Fill in padding with a new string builder. */
+	for (size_t i = 0; i < before; ++i) krk_pushStringBuilderStr(&sb, opts.fill, opts.fillSize);
+	krk_pushStringBuilderStr(&sb, AS_CSTRING(result) + hassign, AS_STRING(result)->length - hassign);
+	for (size_t i = 0; i < after; ++i) krk_pushStringBuilderStr(&sb, opts.fill, opts.fillSize);
+
+	krk_pop();
+	return krk_finishStringBuilder(&sb);
 }
 
 KRK_Method(float,__eq__) {
