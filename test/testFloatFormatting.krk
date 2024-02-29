@@ -1,0 +1,38 @@
+import math
+
+def print_values(values):
+    for v in values:
+        # Avoiding doing just 'v' as we want this test to work in Python and Kuroko with identical results
+        # and Python will try to reduce the number of digits to the minimum required for disambiguity, which
+        # we don't currently support.
+        print(v.__format__('.16g'),v.__format__('f'),v.__format__('e'),v.__format__('#.16g'),v.__format__('+.4g'))
+
+print_values([
+    float('75.5834073120020679681'),
+    float('75.5834073120020679681e-7'),
+    float('75.5834073120020679681e-24'),
+    float('75.5834073120020679681e80'),
+    float('75.5834073120020679681e300'),
+    float('75.0'),
+    float('0.005'),
+    float('0.0005'),
+    float('0.5'),
+    float('0.01'),
+    float('0.25'),
+    float('0.25')/2,
+    float('0.25')/4,
+    float('0.25')/8,
+    float('0.25')/16,
+    float('0.25')/2048,
+    float('0.25')/4096,
+    float('10000000253263163212.0'),
+    (10**60)/1,
+    float('20000000000000000'),
+    0.0,
+    -0.0,
+    math.inf,
+    -math.inf,
+    math.nan,
+    -math.nan,
+    float('123.45'),
+])
