@@ -838,7 +838,7 @@ static int64_t krk_long_medium(KrkLong * num) {
 
 	if (num->width < 0) {
 		uint64_t val = num->digits[0];
-		if (num->width < 1) {
+		if (num->width < -1) {
 			val |= (num->digits[1]) << 31;
 		}
 		return -val;
