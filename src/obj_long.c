@@ -1461,6 +1461,67 @@ KRK_Method(long,__rtruediv__) {
 	krk_long_clear(tmp);
 	return result;
 }
+
+static void _krk_long_pow(krk_long out, krk_long a, krk_long b);
+static KrkValue make_long_obj(KrkLong * val);
+
+/**
+ * @brief Raise a to the b power.
+ *
+ * Handles the case where b is negative, returning a double.
+ */
+static KrkValue _krk_long_pow_internal(krk_long a, krk_long b) {
+	krk_long tmp;
+	krk_long_init_si(tmp,0);
+	if (krk_long_sign(b) < 0) {
+		/* Implement negative exponent by converting to
+		 * 1 / (a ** -b) */
+		krk_long ex;
+		krk_long_init_si(ex,0);
+		krk_long_init_copy(ex,b);
+		krk_long_set_sign(ex,1);
+		_krk_long_pow(tmp,a,ex);
+		krk_long_clear(ex);
+		krk_long_init_si(ex,1);
+		KrkValue result = _krk_long_truediv(ex,tmp);
+		krk_long_clear(ex);
+		krk_long_clear(tmp);
+		return result;
+	}
+
+	_krk_long_pow(tmp,a,b);
+	return make_long_obj(tmp);
+}
+
+KRK_Method(long,__pow__) {
+	krk_long tmp;
+	if (IS_long(argv[1])) krk_long_init_copy(tmp, AS_long(argv[1])->value);
+	else if (IS_INTEGER(argv[1])) krk_long_init_si(tmp, AS_INTEGER(argv[1]));
+	else return NOTIMPL_VAL();
+	KrkValue result = _krk_long_pow_internal(self->value,tmp);
+	krk_long_clear(tmp);
+	return result;
+}
+
+KRK_Method(long,__rpow__) {
+	krk_long tmp;
+	if (IS_long(argv[1])) krk_long_init_copy(tmp, AS_long(argv[1])->value);
+	else if (IS_INTEGER(argv[1])) krk_long_init_si(tmp, AS_INTEGER(argv[1]));
+	else return NOTIMPL_VAL();
+	KrkValue result = _krk_long_pow_internal(tmp,self->value);
+	krk_long_clear(tmp);
+	return result;
+}
+
+_noexport
+KrkValue krk_long_coerced_pow(krk_integer_type a, krk_integer_type b) {
+	krk_long tmp_a, tmp_b;
+	krk_long_init_si(tmp_a, a);
+	krk_long_init_si(tmp_b, b);
+	KrkValue result = _krk_long_pow_internal(tmp_a,tmp_b);
+	krk_long_clear_many(tmp_a, tmp_b, NULL);
+	return result;
+}
 #endif
 
 #define PRINTER(name,base,prefix) \
@@ -1728,7 +1789,6 @@ BASIC_BIN_OP(lshift,_krk_long_lshift)
 BASIC_BIN_OP(rshift,_krk_long_rshift)
 BASIC_BIN_OP(mod,_krk_long_mod)
 BASIC_BIN_OP(floordiv,_krk_long_div)
-BASIC_BIN_OP(pow,_krk_long_pow)
 
 #ifndef KRK_NO_FLOAT
 #define KRK_FLOAT_COMPARE(comp) else if (IS_FLOATING(argv[1])) return BOOLEAN_VAL(krk_long_get_double(self->value) comp AS_FLOATING(argv[1]));
