@@ -2497,7 +2497,23 @@ static size_t round_to(char * str, size_t len, size_t actual, size_t digits) {
 /**
  * @brief Convert a double to a KrkString.
  *
+ * We approach the problem of string conversion by converting the mantissa of the
+ * double to a bigint. We then treat that bigint as part of a fraction with a large
+ * power-of-ten denominator, and then apply the 2^n portion represented by the
+ * exponent of the double. For n<0, we will increase the magnitude of the fraction
+ * by multiplying the top and bottom repeatedly by 10^31, so that the multiplication
+ * (actually a right shift) by the 2^n part does not lose any bits. The result of
+ * all of this is an exact representation of the numerator of "x" in "x * 10^y = m * 2^n"
+ * with a denominator that remains a large power-of-ten. We can then perform decimal
+ * string conversion on this, round the decimal result as needed, and piece together
+ * the digits to form a whole, fractional, and exponential part.
  *
+ * @param a           Double value to convert.
+ * @param digits      Desired precision, meaning varies between e/f and g.
+ * @param formatter   printf-style formatter character: eEfFgG or ' '
+ * @param plus        Whether to force a sign character when value is positive.
+ * @param forcedigits Force trailing zeros, particularly in 'g' formatters.
+ * @returns A KrkValue representing the string.
  */
 KrkValue krk_double_to_string(double a, unsigned int digits, char formatter, int plus, int forcedigits) {
 	union { double d; uint64_t u; } val = {.d = a};
@@ -2742,31 +2758,53 @@ KrkValue krk_double_to_string(double a, unsigned int digits, char formatter, int
 	return krk_finishStringBuilder(&sb);
 }
 
+/**
+ * @brief Parse a string into a float.
+ *
+ * The approach we take here is to collect all of the digits left of the exponent
+ * (if present), convert them to a big int disregarding the radix point, then
+ * multiply or divide that by an appropriate power of ten based on the exponent
+ * and location of the radix point. The division step uses are @c long.__truediv__
+ * to get accurate conversions of fractions to floats.
+ *
+ * May raise exceptions if parsing fails, either here or in integer parsing.
+ *
+ * @param s String to parse.
+ * @param l Length of string to parse.
+ * @returns A Kuroko float value, or None on exceptin.
+ */
 KrkValue krk_parse_float(const char * s, size_t l) {
 	size_t c = 0;
 	int sign = 1;
-	size_t ps = 0, pe = 0, ss = 0, se = 0, es = 0, ee = 0;
+	size_t ps = 0, pe = 0, ss = 0, se = 0, es = 0, ee = 0, e_ex = 0;
 
 	union Float { double d; uint64_t i; };
 
+	/* Collect a leading sign. */
 	if (s[c] == '-') {
 		sign = -1;
 		c++;
 		ps = 1;
+	} else if (s[c] == '+') {
+		c++;
+		ps = 1;
 	}
 
+	/* Case-insensitive check for stringy floats: nan, inf */
 	if (c + 3 == l) {
 		if (((s[c+0] | 0x20) == 'n') && ((s[c+1] | 0x20) == 'a') && ((s[c+2] | 0x20) == 'n')) {
-			return FLOATING_VAL(((union Float){.i=0x7ff0000000000001ULL}).d);
+			return FLOATING_VAL(((union Float){.i=0x7ff0000000000001ULL}).d); /* nan */
 		}
 		if (((s[c+0] | 0x20) == 'i') && ((s[c+1] | 0x20) == 'n') && ((s[c+2] | 0x20) == 'f')) {
-			return FLOATING_VAL(((union Float){.i=0x7ff0000000000000ULL}).d * sign);
+			return FLOATING_VAL(((union Float){.i=0x7ff0000000000000ULL}).d * sign); /* inf */
 		}
 	}
 
+	/* Collect digits or separators before a radix point. */
 	while (c < l && ((s[c] >= '0' && s[c] <= '9') || s[c] == '_')) c++;
 	pe = c;
 
+	/* If we are now at a radix point, collect it and then collect digits after the radix point. */
 	if (c < l && s[c] == '.') {
 		c++;
 		ss = c;
@@ -2774,17 +2812,37 @@ KrkValue krk_parse_float(const char * s, size_t l) {
 		se = c;
 	}
 
+	/* If we're still not at the end, we expect an exponent. */
 	if (c < l && (s[c] == 'e' || s[c] == 'E')) {
 		c++;
 		es = c;
+		/* The exponent can have an optional sign character, which we'll
+		 * include in the string if it is - and ignore if it is + */
 		if (c < l && s[c] == '-') c++;
 		else if (c < l && s[c] == '+') { c++; es++; }
+
+		/* Digits of exponent */
 		while (c < l && s[c] >= '0' && s[c] <= '9') c++;
 		ee = c;
 	}
 
+	/* If we're not at the end here, we have invalid characters. */
 	if (c != l) return krk_runtimeError(vm.exceptions->valueError, "invalid literal for float");
 
+	/* We can reduce the work we need to do later if we account for leading 0s in are
+	 * number here. First strip all of the leading zeros from the whole part; if that
+	 * results in no whole part, then continue stripping zeros from the fractional part,
+	 * but be sure to record how many we're removing so we can account for the difference. */
+	while (ps != pe && s[ps] == '0') ps++;
+	if (ps == pe) {
+		while (ss != se && s[ss] == '0') {
+			e_ex++;
+			ss++;
+		}
+	}
+
+	/* Pack up all the digits from whole and fractional parts into a string so we can parse
+	 * it with our faster decimal string parsing tools. */
 	struct StringBuilder sb = {0};
 	for (size_t i = ps; i < pe; ++i) {
 		if (!sb.length && s[i] == '0') continue;
@@ -2796,6 +2854,8 @@ KrkValue krk_parse_float(const char * s, size_t l) {
 		krk_pushStringBuilder(&sb,s[i]);
 	}
 
+	/* If that results in an empty string (because we stripped all of the zeros, and it was
+	 * only zeros), then replace it with "0" or the parser will be unhappy. */
 	const char * m = sb.bytes;
 	size_t m_len = sb.length;
 	if (!sb.length) {
@@ -2803,29 +2863,52 @@ KrkValue krk_parse_float(const char * s, size_t l) {
 		m_len = 1;
 	}
 
+	/* Now parse it. We call this resulting value "m" because it's the numerator of the
+	 * mantissa fraction of a decimal float, if that makes any sense. */
 	KrkLong m_l;
 	krk_long_parse_string(m,&m_l,10,m_len);
 	krk_discardStringBuilder(&sb);
+
+	/* We didn't include the leading - in our string to parse, so we still want to apply
+	 * the sign to the resulting big int. */
 	krk_long_set_sign(&m_l,sign);
 
+	/* Handle an exponent component if one exists, or assume 0 otherwise. */
 	const char * e = (es != ee) ? &s[es] : "0";
 	size_t e_len = (es != ee) ? (ee-es) : 1;
 
+	/* And parse that into a big int */
 	KrkLong e_l;
 	krk_long_parse_string(e,&e_l,10,e_len);
 
+	/* We don't actually want to deal with big ints in the exponent, so assume
+	 * they are going to overflow without even bothering to check to the part
+	 * before them. Overflow to signed infinity or zero. */
 	if (e_l.width > 1) {
 		krk_long_clear_many(&m_l,&e_l,NULL);
-		return FLOATING_VAL(((union Float){.i=0x7ff0000000000000ULL}).d * sign);
+		return FLOATING_VAL(((union Float){.i=0x7ff0000000000000ULL}).d * sign); /* inf */
 	} else if (e_l.width < -1) {
 		krk_long_clear_many(&m_l,&e_l,NULL);
-		return FLOATING_VAL(0.0);
+		return FLOATING_VAL(0.0 * sign);
 	}
 
+	/* Extract the big int exponent back into a normal integer */
 	int64_t exp = krk_long_medium(&e_l);
-	ssize_t digits = (se - ss) - exp;
+	ssize_t digits = (se - ss + e_ex) - exp;
+
+	/* Now do a more accurate check of overflowing exponents before continuing,
+	 * to avoid very costly math to get the answer from truediv. */
+	if (exp + (ssize_t)(pe - ps) - (ssize_t)e_ex > 309) {
+		krk_long_clear_many(&m_l,&e_l,NULL);
+		return FLOATING_VAL(((union Float){.i=0x7ff0000000000000ULL}).d * sign); /* inf */
+	} else if (exp + (ssize_t)(pe - ps) - (ssize_t)e_ex < -324) {
+		krk_long_clear_many(&m_l,&e_l,NULL);
+		return FLOATING_VAL(0.0 * sign);
+	}
 
 	if (digits > 0) {
+		/* If digits > 0, exponent is effectively negative. Calculate the result as:
+		 *    m / (10 ** digits)   */
 		KrkLong ten_digits, digits_el;
 		krk_long_init_si(&ten_digits, 10);
 		krk_long_init_si(&digits_el, digits);
@@ -2834,6 +2917,8 @@ KrkValue krk_parse_float(const char * s, size_t l) {
 		krk_long_clear_many(&digits_el,&m_l,&e_l,&ten_digits, NULL);
 		return v;
 	} else if (digits < 0) {
+		/* If digits < 0, exponent is effectively positive. Calculate the result as:
+		 *    (m * (10 ** -digits)) / 1   */
 		KrkLong ten_digits, digits_el, one;
 		krk_long_init_si(&ten_digits, 10);
 		krk_long_init_si(&digits_el, -digits);
@@ -2844,6 +2929,8 @@ KrkValue krk_parse_float(const char * s, size_t l) {
 		krk_long_clear_many(&digits_el,&m_l,&e_l,&ten_digits,&one,NULL);
 		return v;
 	} else {
+		/* If digits == 0, exponent is 0, we have only a whole component in m, so
+		 * we only need to do (m / 1) */
 		KrkLong one;
 		krk_long_init_si(&one, 1);
 		KrkValue v = _krk_long_truediv(&m_l, &one);
@@ -2851,7 +2938,6 @@ KrkValue krk_parse_float(const char * s, size_t l) {
 		return v;
 	}
 }
-
 #endif
 
 /**
