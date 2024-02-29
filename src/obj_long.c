@@ -2998,6 +2998,90 @@ KrkValue krk_parse_float(const char * s, size_t l) {
 		return v;
 	}
 }
+
+/**
+ * @brief Convert a double to a tuple of two longs.
+ *
+ * Turns a floating-point value into a tuple representing a
+ * ratio of two integers that is equivalent.
+ *
+ * @param d Value to convert.
+ * @returns tuple(numerator,denominator)
+ */
+KrkValue krk_float_to_fraction(double d) {
+	uint64_t x = ((union Float { double d; uint64_t i; }){.d=d}).i;
+
+	uint64_t m = x & 0x000fffffffffffffULL;
+	uint64_t e = ((x >> 52) & 0x7FF);
+
+	if (e) {
+		/* If not subnormal, include hidden bit 53 */
+		m |= (1ULL << 52);
+	} else if (m) {
+		/* If subnormal and not zero, increase e to correct value */
+		e++;
+	}
+
+	krk_long a, b;
+
+	/* NaN or Inf */
+	if (e == 0x7FF) return krk_runtimeError(vm.exceptions->valueError, "unrepresentable");
+	if (e == 0) {
+		/* Python doesn't set a sign to represent this, so we won't either. */
+		krk_long_init_ui(a, 0);
+		krk_long_init_ui(b, 1);
+		goto _finish;
+	}
+
+	krk_long_init_ui(a, m);
+	krk_long_init_ui(b, (1ULL << 52));
+
+	/* Generate the numerator and denominator of the complete fraction */
+	if (e > 0x3FF) {
+		krk_long tmp;
+		krk_long_init_ui(tmp, 0);
+		_krk_long_lshift_z(tmp,a,e-0x3FF);
+		krk_long_clear(a);
+		memcpy(&a,&tmp,sizeof(krk_long));
+	} else if (e < 0x3FF) {
+		krk_long tmp;
+		krk_long_init_ui(tmp, 0);
+		_krk_long_lshift_z(tmp,b,0x3FF-e);
+		krk_long_clear(b);
+		memcpy(&b,&tmp,sizeof(krk_long));
+	}
+
+	/* Slowly reduce the fraction to something reasonable;
+	 * given that one or the other of the top or bottom is
+	 * unshifted, we should be doing this at most ~50 times
+	 * so it doesn't really matter much; we _could_ count
+	 * the common trailing zero bits first and do one shift... */
+	while (!_bit_is_set(a,0) && !_bit_is_set(b,0)) {
+		krk_long tmpa, tmpb;
+		krk_long_init_ui(tmpa, 0);
+		krk_long_init_ui(tmpb, 0);
+
+		_krk_long_rshift_z(tmpa, a, 1);
+		_krk_long_rshift_z(tmpb, b, 1);
+
+		krk_long_clear(a);
+		krk_long_clear(b);
+
+		memcpy(&a,&tmpa,sizeof(krk_long));
+		memcpy(&b,&tmpb,sizeof(krk_long));
+	}
+
+	/* Set sign of a to match sign of float */
+	krk_long_set_sign(a, d < 0 ? -1 : 1);
+
+	/* Stuff it in a tuple */
+_finish: (void)0;
+	KrkTuple * mtuple = krk_newTuple(2);
+	krk_push(OBJECT_VAL(mtuple));
+	mtuple->values.values[mtuple->values.count++] = make_long_obj(a);
+	mtuple->values.values[mtuple->values.count++] = make_long_obj(b);
+	return krk_pop();
+}
 #endif
 
 /**

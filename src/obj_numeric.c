@@ -813,6 +813,11 @@ KRK_Method(float,__rfloordiv__) {
 KRK_Method(float,__pos__) {
 	return argv[0];
 }
+
+extern KrkValue krk_float_to_fraction(double d);
+KRK_Method(float,as_integer_ratio) {
+	return krk_float_to_fraction(self);
+}
 #endif
 
 #undef CURRENT_CTYPE
@@ -958,6 +963,7 @@ void _createAndBind_numericClasses(void) {
 	BIND_METHOD(float,__abs__);
 	BIND_METHOD(float,__pos__);
 	BIND_METHOD(float,__format__);
+	BIND_METHOD(float,as_integer_ratio);
 #endif
 	krk_finalizeClass(_float);
 	KRK_DOC(_float, "Convert a number or string type to a float representation.");
