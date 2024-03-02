@@ -41,15 +41,6 @@ KRK_Function(addbreakpoint) {
 	int flags = KRK_BREAKPOINT_NORMAL;
 	if (!krk_parseArgs("Vi|i",(const char*[]){"func","lineno","flags"}, &func, &lineNo, &flags)) return NONE_VAL();
 
-	if (hasKw) {
-		KrkValue flagsValue = NONE_VAL();
-		if (krk_tableGet(AS_DICT(argv[argc]), OBJECT_VAL(S("flags")), &flagsValue)) {
-			if (!IS_INTEGER(flagsValue))
-				return TYPE_ERROR(int,flagsValue);
-			flags = AS_INTEGER(flagsValue);
-		}
-	}
-
 	int result;
 	if (IS_STRING(func)) {
 		result = krk_debug_addBreakpointFileLine(AS_STRING(func), lineNo, flags);

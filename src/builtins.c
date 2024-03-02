@@ -684,18 +684,18 @@ KRK_Method(filter,__call__) {
 #define IS_enumerate(o) (krk_isInstanceOf(o,KRK_BASE_CLASS(enumerate)))
 #define AS_enumerate(o) (AS_INSTANCE(o))
 KRK_Method(enumerate,__init__) {
-	METHOD_TAKES_EXACTLY(1);
+	KrkValue iterator;
 	KrkValue start = INTEGER_VAL(0);
-	if (hasKw) krk_tableGet(AS_DICT(argv[argc]), OBJECT_VAL(S("start")), &start);
+	if (!krk_parseArgs(".V|V", (const char*[]){"iterable","start"}, &iterator, &start)) return NONE_VAL();
 
 	krk_attachNamedValue(&self->fields, "_counter", start);
 
 	/* Attach iterator */
-	KrkClass * type = krk_getType(argv[1]);
+	KrkClass * type = krk_getType(iterator);
 	if (!type->_iter) {
-		return krk_runtimeError(vm.exceptions->typeError, "'%T' object is not iterable", argv[1]);
+		return krk_runtimeError(vm.exceptions->typeError, "'%T' object is not iterable", iterator);
 	}
-	krk_push(argv[1]);
+	krk_push(iterator);
 	KrkValue asIter = krk_callDirect(type->_iter, 1);
 	if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) return NONE_VAL();
 	krk_attachNamedValue(&self->fields, "_iterator", asIter);
@@ -757,13 +757,11 @@ static int _sum_callback(void * context, const KrkValue * values, size_t count) 
 }
 
 KRK_Function(sum) {
-	FUNCTION_TAKES_AT_LEAST(1);
+	KrkValue iterable;
 	KrkValue base = INTEGER_VAL(0);
-	if (hasKw) {
-		krk_tableGet(AS_DICT(argv[argc]), OBJECT_VAL(S("start")), &base);
-	}
+	if (!krk_parseArgs("V|$V", (const char*[]){"iterable","start"}, &iterable, &base)) return NONE_VAL();
 	struct SimpleContext context = { base };
-	if (krk_unpackIterable(argv[0], &context, _sum_callback)) return NONE_VAL();
+	if (krk_unpackIterable(iterable, &context, _sum_callback)) return NONE_VAL();
 	return context.base;
 }
 
