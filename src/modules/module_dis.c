@@ -111,7 +111,7 @@ KRK_Function(dis) {
 		}
 	} else if (IS_CLASS(funcVal)) {
 		KrkValue code;
-		if (krk_tableGet(&AS_CLASS(funcVal)->methods, OBJECT_VAL(S("__func__")), &code) && IS_CLOSURE(code)) {
+		if (krk_tableGet(&AS_CLASS(funcVal)->methods, vm.specialMethodNames[METHOD_FUNC], &code) && IS_CLOSURE(code)) {
 			KrkCodeObject * func = AS_CLOSURE(code)->function;
 			krk_disassembleCodeObject(stdout, func, AS_CLASS(funcVal)->name->chars);
 		}

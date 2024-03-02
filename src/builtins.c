@@ -363,19 +363,19 @@ KRK_Function(chr) {
 
 KRK_Function(hex) {
 	FUNCTION_TAKES_EXACTLY(1);
-	trySlowMethod(OBJECT_VAL(S("__hex__")));
+	trySlowMethod(vm.specialMethodNames[METHOD_HEX]);
 	return TYPE_ERROR(int,argv[0]);
 }
 
 KRK_Function(oct) {
 	FUNCTION_TAKES_EXACTLY(1);
-	trySlowMethod(OBJECT_VAL(S("__oct__")));
+	trySlowMethod(vm.specialMethodNames[METHOD_OCT]);
 	return TYPE_ERROR(int,argv[0]);
 }
 
 KRK_Function(bin) {
 	FUNCTION_TAKES_EXACTLY(1);
-	trySlowMethod(OBJECT_VAL(S("__bin__")));
+	trySlowMethod(vm.specialMethodNames[METHOD_BIN]);
 	return TYPE_ERROR(int,argv[0]);
 }
 
@@ -1269,7 +1269,7 @@ KRK_Function(abs) {
 		return FLOATING_VAL(i >= 0 ? i : -i);
 #endif
 	} else {
-		trySlowMethod(OBJECT_VAL(S("__abs__")));
+		trySlowMethod(vm.specialMethodNames[METHOD_ABS]);
 		return krk_runtimeError(vm.exceptions->typeError, "bad operand type for 'abs()': '%T'", argv[0]);
 	}
 }
