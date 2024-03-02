@@ -428,12 +428,7 @@ KRK_Method(list,reverse) {
 	return NONE_VAL();
 }
 
-static int _list_sorter(const void * _a, const void * _b) {
-	KrkValue a = *(KrkValue*)_a;
-	KrkValue b = *(KrkValue*)_b;
-
-	/* Avoid actually calling the sort function if there's an active exception */
-	if (unlikely(krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION)) return -1;
+static int _list_sorter(KrkValue a, KrkValue b) {
 	KrkValue ltComp = krk_operator_lt(a,b);
 	if (IS_NONE(ltComp) || (IS_BOOLEAN(ltComp) && AS_BOOLEAN(ltComp))) return -1;
 	KrkValue gtComp = krk_operator_gt(a,b);
@@ -441,11 +436,69 @@ static int _list_sorter(const void * _a, const void * _b) {
 	return 0;
 }
 
+static void list_swap(KrkList *list, size_t i, size_t j) {
+	krk_push(list->values.values[i]);
+	list->values.values[i] = list->values.values[j];
+	list->values.values[j] = krk_pop();
+}
+
+static int partition(KrkList *list, KrkValue key, int reverse, ssize_t lo, ssize_t hi, ssize_t *lt, ssize_t *gt) {
+	/* Create key from pivot */
+	if (!IS_NONE(key)) krk_push(key);
+	krk_push(list->values.values[(lo+hi)/2]);
+	if (!IS_NONE(key)) krk_push(krk_callStack(1));
+
+	ssize_t _lt = lo;
+	ssize_t _eq = lo;
+	ssize_t _gt = hi;
+
+	while (_eq <= _gt) {
+		if (!IS_NONE(key)) krk_push(key);
+		krk_push(list->values.values[_eq]);
+		if (!IS_NONE(key)) krk_push(krk_callStack(1));
+
+		int res = _list_sorter(krk_peek(reverse),krk_peek(1-reverse));
+		if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) return 1;
+
+		if (res < 0) {
+			list_swap(list,_eq,_lt);
+			_lt++;
+			_eq++;
+		} else if (res > 0) {
+			list_swap(list,_eq,_gt);
+			_gt--;
+		} else {
+			_eq++;
+		}
+
+		krk_pop();
+	}
+
+	krk_pop(); /* Pop pivot key. */
+
+	*lt = _lt;
+	*gt = _gt;
+	return 0;
+}
+
+static void quicksort(KrkList * list, KrkValue key, int reverse, ssize_t lo, ssize_t hi) {
+	if (lo >= 0 && lo < hi) {
+		ssize_t lt, gt;
+		if (partition(list, key, reverse, lo, hi, &lt, &gt)) return;
+		quicksort(list, key, reverse, lo, lt - 1);
+		quicksort(list, key, reverse, gt + 1, hi);
+	}
+}
+
 KRK_Method(list,sort) {
-	METHOD_TAKES_NONE();
+	KrkValue key = NONE_VAL();
+	int reverse = 0;
+	if (!krk_parseArgs(".|$Vp", (const char*[]){"key","reverse"}, &key, &reverse)) return NONE_VAL();
+
+	if (self->values.count < 2) return NONE_VAL();
 
 	pthread_rwlock_wrlock(&self->rwlock);
-	qsort(self->values.values, self->values.count, sizeof(KrkValue), _list_sorter);
+	quicksort(self, key, reverse, 0, self->values.count - 1);
 	pthread_rwlock_unlock(&self->rwlock);
 
 	return NONE_VAL();
