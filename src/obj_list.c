@@ -544,18 +544,18 @@ _bad:
 	goto _maybeGood;
 }
 
-static KrkValue _sorted(int argc, const KrkValue argv[], int hasKw) {
-	if (argc != 1) return krk_runtimeError(vm.exceptions->argumentError,"%s() takes %s %d argument%s (%d given)","sorted","exactly",1,"",argc);
+KRK_Function(sorted) {
+	if (argc < 1) return krk_runtimeError(vm.exceptions->argumentError,"%s() takes %s %d argument%s (%d given)","sorted","at least",1,"",argc);
 	KrkValue listOut = krk_list_of(0,NULL,0);
 	krk_push(listOut);
 	FUNC_NAME(list,extend)(2,(KrkValue[]){listOut,argv[0]},0);
 	if (!IS_NONE(krk_currentThread.currentException)) return NONE_VAL();
-	FUNC_NAME(list,sort)(1,&listOut,0);
+	FUNC_NAME(list,sort)(hasKw ? 2 : 1,(KrkValue[]){listOut,hasKw ? argv[1] : NONE_VAL(), hasKw ? argv[2] : NONE_VAL()},hasKw);
 	if (!IS_NONE(krk_currentThread.currentException)) return NONE_VAL();
 	return krk_pop();
 }
 
-static KrkValue _reversed(int argc, const KrkValue argv[], int hasKw) {
+KRK_Function(reversed) {
 	/* FIXME The Python reversed() function produces an iterator and only works for things with indexing or a __reversed__ method;
 	 *       Building a list and reversing it like we do here is not correct! */
 	if (argc != 1) return krk_runtimeError(vm.exceptions->argumentError,"%s() takes %s %d argument%s (%d given)","reversed","exactly",1,"",argc);
@@ -645,11 +645,11 @@ void _createAndBind_listClass(void) {
 	krk_finalizeClass(list);
 	KRK_DOC(list, "Mutable sequence of arbitrary values.");
 
-	BUILTIN_FUNCTION("sorted", _sorted,
+	BUILTIN_FUNCTION("sorted", FUNC_NAME(krk,sorted),
 		"@brief Return a sorted representation of an iterable.\n"
 		"@arguments iterable\n\n"
 		"Creates a new, sorted list from the elements of @p iterable.");
-	BUILTIN_FUNCTION("reversed", _reversed,
+	BUILTIN_FUNCTION("reversed", FUNC_NAME(krk,reversed),
 		"@brief Return a reversed representation of an iterable.\n"
 		"@arguments iterable\n\n"
 		"Creates a new, reversed list from the elements of @p iterable.");
