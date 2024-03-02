@@ -69,7 +69,7 @@ KRK_Method(set,__contains__) {
 
 KRK_Method(set,__repr__) {
 	METHOD_TAKES_NONE();
-	if (((KrkObj*)self)->flags & KRK_OBJ_FLAGS_IN_REPR) return OBJECT_VAL("{...}");
+	if (((KrkObj*)self)->flags & KRK_OBJ_FLAGS_IN_REPR) return OBJECT_VAL(S("{...}"));
 	if (!self->entries.capacity) return OBJECT_VAL(S("set()"));
 	((KrkObj*)self)->flags |= KRK_OBJ_FLAGS_IN_REPR;
 	struct StringBuilder sb = {0};

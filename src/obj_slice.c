@@ -118,7 +118,7 @@ KRK_Method(slice,__init__) {
 
 KRK_Method(slice,__repr__) {
 	METHOD_TAKES_NONE();
-	if (((KrkObj*)self)->flags & KRK_OBJ_FLAGS_IN_REPR) return OBJECT_VAL("slice(...)");
+	if (((KrkObj*)self)->flags & KRK_OBJ_FLAGS_IN_REPR) return OBJECT_VAL(S("slice(...)"));
 	((KrkObj*)self)->flags |= KRK_OBJ_FLAGS_IN_REPR;
 	struct StringBuilder sb = {0};
 	pushStringBuilderStr(&sb,"slice(",6);
