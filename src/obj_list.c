@@ -437,9 +437,10 @@ static int _list_sorter(KrkValue a, KrkValue b) {
 }
 
 static void list_swap(KrkList *list, size_t i, size_t j) {
-	krk_push(list->values.values[i]);
+	krk_currentThread.scratchSpace[0] = list->values.values[i];
 	list->values.values[i] = list->values.values[j];
-	list->values.values[j] = krk_pop();
+	list->values.values[j] = krk_currentThread.scratchSpace[0];
+	krk_currentThread.scratchSpace[0] = NONE_VAL();
 }
 
 static int partition(KrkList *list, KrkValue key, int reverse, ssize_t lo, ssize_t hi, ssize_t *lt, ssize_t *gt) {
