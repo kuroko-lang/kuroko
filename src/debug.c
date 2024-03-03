@@ -197,6 +197,8 @@ static int isJumpTarget(KrkCodeObject * func, size_t startPoint) {
 	KrkChunk * chunk = &func->chunk;
 	size_t offset = 0;
 
+	if (IS_NONE(func->jumpTargets)) {
+		func->jumpTargets = krk_dict_of(0,NULL,0);
 #define SIMPLE(opc) case opc: size = 1; break;
 #define CONSTANT(opc,more) case opc: { size_t constant _unused = chunk->code[offset + 1]; size = 2; more; break; } \
 	case opc ## _LONG: { size_t constant _unused = (chunk->code[offset + 1] << 16) | \
@@ -205,7 +207,7 @@ static int isJumpTarget(KrkCodeObject * func, size_t startPoint) {
 #define OPERAND(opc,more) OPERANDB(opc,more) \
 	case opc ## _LONG: { size = 4; more; break; }
 #define JUMP(opc,sign) case opc: { uint16_t jump = (chunk->code[offset + 1] << 8) | (chunk->code[offset + 2]); \
-	if ((size_t)(offset + 3 sign jump) == startPoint) return 1; \
+	krk_tableSet(AS_DICT(func->jumpTargets), INTEGER_VAL((size_t)(offset + 3 sign jump)), BOOLEAN_VAL(1)); \
 	size = 3; break; }
 #define CLOSURE_MORE \
 	KrkCodeObject * function = AS_codeobject(chunk->constants.values[constant]); \
@@ -228,7 +230,6 @@ static int isJumpTarget(KrkCodeObject * func, size_t startPoint) {
 		}
 		offset += size;
 	}
-	return 0;
 #undef SIMPLE
 #undef OPERANDB
 #undef OPERAND
@@ -238,6 +239,12 @@ static int isJumpTarget(KrkCodeObject * func, size_t startPoint) {
 #undef LOCAL_MORE
 #undef EXPAND_ARGS_MORE
 #undef FORMAT_VALUE_MORE
+	}
+
+	if (!IS_dict(func->jumpTargets)) return 0;
+	KrkValue garbage;
+	if (krk_tableGet(AS_DICT(func->jumpTargets), INTEGER_VAL(startPoint), &garbage)) return 1;
+	return 0;
 }
 
 #define OPARGS FILE * f, const char * fullName, size_t * size, size_t * offset, KrkCodeObject * func, KrkChunk * chunk

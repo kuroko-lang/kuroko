@@ -133,6 +133,7 @@ src/debug.o: src/opcodes.h
 src/value.o: src/opcodes.h
 src/vm.o: src/opcodes.h
 src/exceptions.o: src/opcodes.h
+modules/dis.so: src/opcodes.h
 
 
 %.o: %.c ${HEADERS}

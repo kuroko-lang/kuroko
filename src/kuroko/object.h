@@ -173,6 +173,7 @@ typedef struct {
 	size_t expressionsCapacity;            /**< @brief Capacity of @ref expressions */
 	size_t expressionsCount;               /**< @brief Number of entries in @ref expressions */
 	KrkExpressionsMap * expressions;       /**< @brief Mapping of bytecode offsets to expression spans for debugging */
+	KrkValue jumpTargets;                  /**< @brief Possibly a set of jump targets... */
 } KrkCodeObject;
 
 

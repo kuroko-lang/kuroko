@@ -274,6 +274,7 @@ KrkCodeObject * krk_newCodeObject(void) {
 	krk_initValueArray(&codeobject->positionalArgNames);
 	krk_initValueArray(&codeobject->keywordArgNames);
 	krk_initChunk(&codeobject->chunk);
+	codeobject->jumpTargets = NONE_VAL();
 	return codeobject;
 }
 

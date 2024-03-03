@@ -365,6 +365,7 @@ static void blackenObject(KrkObj * object) {
 			for (size_t i = 0; i < function->localNameCount; ++i) {
 				krk_markObject((KrkObj*)function->localNames[i].name);
 			}
+			krk_markValue(function->jumpTargets);
 			break;
 		}
 		case KRK_OBJ_UPVALUE:
