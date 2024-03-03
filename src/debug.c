@@ -209,6 +209,8 @@ static int isJumpTarget(KrkCodeObject * func, size_t startPoint) {
 #define JUMP(opc,sign) case opc: { uint16_t jump = (chunk->code[offset + 1] << 8) | (chunk->code[offset + 2]); \
 	krk_tableSet(AS_DICT(func->jumpTargets), INTEGER_VAL((size_t)(offset + 3 sign jump)), BOOLEAN_VAL(1)); \
 	size = 3; break; }
+#define COMPLICATED(opc,more) case opc: size = 1; more; break;
+#define OVERLONG_JUMP_MORE size += 2
 #define CLOSURE_MORE \
 	KrkCodeObject * function = AS_codeobject(chunk->constants.values[constant]); \
 	for (size_t j = 0; j < function->upvalueCount; ++j) { \
@@ -235,6 +237,8 @@ static int isJumpTarget(KrkCodeObject * func, size_t startPoint) {
 #undef OPERAND
 #undef CONSTANT
 #undef JUMP
+#undef COMPLICATED
+#undef OVERLONG_JUMP_MORE
 #undef CLOSURE_MORE
 #undef LOCAL_MORE
 #undef EXPAND_ARGS_MORE
@@ -284,6 +288,41 @@ static void _jump(OPARGS, int sign) {
 	*size = 3;
 }
 
+static void _complicated(OPARGS, void (*more)(OPARGS)) {
+	_print_opcode(OPARG_VALS);
+	if (more) more(OPARG_VALS);
+	else *size = 1;
+}
+
+#define SIMPLE(opc)
+#define JUMP(opc,sign) case opc: fprintf(f, "(%s, to %zu)", opcodeClean(#opc), *offset + 3 sign current_jump); return;
+#define OPERAND(opc,more)
+#define CONSTANT(opc,more)
+#define COMPLICATED(opc,more)
+static void _overlong_jump_more(OPARGS) {
+	size_t current_jump = (chunk->code[*offset + 1] << 8) | (chunk->code[*offset + 2]);
+	*size = 3;
+
+	/* Now look it up */
+	for (size_t i = 0; i < func->overlongJumpsCount; ++i) {
+		if (*offset + 1 == (size_t)func->overlongJumps[i].instructionOffset) {
+			current_jump |= ((size_t)func->overlongJumps[i].intendedTarget << 16);
+			switch (func->overlongJumps[i].originalOpcode) {
+#include "opcodes.h"
+				default: break;
+			}
+		}
+	}
+
+	fprintf(f,"(invalid destination)");
+}
+#undef SIMPLE
+#undef OPERAND
+#undef CONSTANT
+#undef JUMP
+#undef COMPLICATED
+
+
 #undef NOOP
 #define NOOP (NULL)
 #define SIMPLE(opc) case opc: _simple(f,#opc,&size,&offset,func,chunk); break;
@@ -292,6 +331,9 @@ static void _jump(OPARGS, int sign) {
 #define OPERAND(opc,more) case opc: _operand(f,#opc,&size,&offset,func,chunk,0,more); break; \
 	case opc ## _LONG: _operand(f,#opc "_LONG",&size,&offset,func,chunk,1,more); break;
 #define JUMP(opc,sign) case opc: _jump(f,#opc,&size,&offset,func,chunk,sign 1); break;
+#define COMPLICATED(opc,more) case opc: _complicated(f,#opc,&size,&offset,func,chunk,more); break;
+
+#define OVERLONG_JUMP_MORE _overlong_jump_more
 
 #define CLOSURE_MORE _closure_more
 
@@ -401,6 +443,8 @@ size_t krk_disassembleInstruction(FILE * f, KrkCodeObject * func, size_t offset)
 #undef OPERAND
 #undef CONSTANT
 #undef JUMP
+#undef COMPLICATED
+#undef OVERLONG_JUMP_MORE
 #undef CLOSURE_MORE
 #undef LOCAL_MORE
 #undef EXPAND_ARGS_MORE

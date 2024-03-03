@@ -140,6 +140,8 @@ KRK_Function(build) {
 	(chunk->code[offset + 2] << 8) | (chunk->code[offset + 3]); size = 4; more; break; }
 #define JUMP(opc,sign) case opc: { jump = 0 sign ((chunk->code[offset + 1] << 8) | (chunk->code[offset + 2])); \
 	size = 3; break; }
+#define COMPLICATED(opc,more) case opc: size = 1; more; break;
+#define OVERLONG_JUMP_MORE size = 3; jump = (chunk->code[offset + 1] << 8) | (chunk->code[offset + 2])
 #define CLOSURE_MORE \
 	KrkCodeObject * function = AS_codeobject(chunk->constants.values[constant]); \
 	size_t baseOffset = offset; \
@@ -215,6 +217,8 @@ KRK_Function(examine) {
 #undef OPERAND
 #undef CONSTANT
 #undef JUMP
+#undef COMPLICATED
+#undef OVERLONG_JUMP_MORE
 #undef CLOSURE_MORE
 #undef LOCAL_MORE
 #undef EXPAND_ARGS_MORE
@@ -327,12 +331,14 @@ KRK_Module(dis) {
 #define CONSTANT(opc,more) OPCODE(opc) OPCODE(opc ## _LONG)
 #define OPERAND(opc,more) OPCODE(opc) OPCODE(opc ## _LONG)
 #define JUMP(opc,sign) OPCODE(opc)
+#define COMPLICATED(opc,more) OPCODE(opc)
 #include "opcodes.h"
 #undef SIMPLE
 #undef OPERANDB
 #undef OPERAND
 #undef CONSTANT
 #undef JUMP
+#undef COMPLICATED
 
 	if (runAs && !strcmp(runAs->chars,"__main__")) {
 		/* Force `dis` into the module table early */

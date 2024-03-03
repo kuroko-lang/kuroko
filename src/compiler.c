@@ -827,9 +827,43 @@ static int _emitJump(struct GlobalState * state, uint8_t opcode) {
 }
 #define emitJump(o) _emitJump(state,o)
 
+/**
+ * @brief Emit over-long jump target.
+ *
+ * Our jump instructions take only two bytes as operands, as that typically suffices
+ * for storing the appropriate forward or backwards offset, without needing to waste
+ * lots of bytes for small jumps, or recalculate everything to expand a jump to
+ * fit a larger offset. If we *do* get a jump offset that is too big to fit in our
+ * available operand space, we replace the whole instruction with one that fetches
+ * the desired target, slowly, from a table attached to the codeobject, alongside
+ * the original instruction opcode.
+ */
+static void _emitOverlongJump(struct GlobalState * state, int offset, int jump) {
+	KrkCodeObject * co = state->current->codeobject;
+	size_t i = 0;
+	while (i < co->overlongJumpsCount && co->overlongJumps[i].instructionOffset != (uint32_t)offset) i++;
+	if (i == co->overlongJumpsCount) {
+		/* Not an existing overlong jump, need to make a new one. */
+		if (co->overlongJumpsCount + 1 > co->overlongJumpsCapacity) {
+			size_t old = co->overlongJumpsCapacity;
+			co->overlongJumpsCapacity = KRK_GROW_CAPACITY(old);
+			co->overlongJumps = KRK_GROW_ARRAY(KrkOverlongJump,co->overlongJumps,old,co->overlongJumpsCapacity);
+		}
+		co->overlongJumps[i].instructionOffset = offset;
+		co->overlongJumps[i].originalOpcode = currentChunk()->code[offset-1];
+		co->overlongJumpsCount++;
+		currentChunk()->code[offset-1] = OP_OVERLONG_JUMP;
+	}
+	/* Update jump target */
+	co->overlongJumps[i].intendedTarget = jump >> 16;
+}
+
 static void _patchJump(struct GlobalState * state, int offset) {
 	int jump = currentChunk()->count - offset - 2;
-	if (jump > 0xFFFF) error("Jump offset is too large for opcode.");
+
+	if (jump > 0xFFFF) {
+		_emitOverlongJump(state, offset, jump);
+	}
 
 	currentChunk()->code[offset] = (jump >> 8) & 0xFF;
 	currentChunk()->code[offset + 1] =  (jump) & 0xFF;
@@ -2019,7 +2053,9 @@ static void emitLoop(struct GlobalState * state, int loopStart, uint8_t loopType
 	emitByte(loopType);
 
 	int offset = currentChunk()->count - loopStart + ((loopType == OP_LOOP_ITER) ? -1 : 2);
-	if (offset > 0xFFFF) error("Loop jump offset is too large for opcode.");
+	if (offset > 0xFFFF) {
+		_emitOverlongJump(state, currentChunk()->count, offset);
+	}
 	emitBytes(offset >> 8, offset);
 
 	/* Patch break statements */

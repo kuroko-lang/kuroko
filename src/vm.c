@@ -2156,10 +2156,11 @@ _resumeHook: (void)0;
 # define FALLTHROUGH
 #endif
 
-#define TWO_BYTE_OPERAND { OPERAND = (frame->ip[0] << 8) | frame->ip[1]; frame->ip += 2; }
+#define TWO_BYTE_OPERAND { OPERAND = OPERAND | (frame->ip[0] << 8) | frame->ip[1]; frame->ip += 2; }
 #define THREE_BYTE_OPERAND { OPERAND = (frame->ip[0] << 16) | (frame->ip[1] << 8); frame->ip += 2; } FALLTHROUGH
 #define ONE_BYTE_OPERAND { OPERAND = (OPERAND & ~0xFF) | READ_BYTE(); }
 
+_switchEntry: (void)0;
 		switch (opcode) {
 			case OP_CLEANUP_WITH: {
 				/* Top of stack is a HANDLER that should have had something loaded into it if it was still valid */
@@ -2446,6 +2447,21 @@ _finishReturn: (void)0;
 				krk_swap(1);
 				krk_pop();
 				break;
+			}
+
+			case OP_OVERLONG_JUMP: {
+				/* Overlong jumps replace 2-byte operand jump instructions with a zero-operand instruction that
+				 * slowly scans through a dumb table to find the intended jump target and opcode. */
+				for (size_t i = 0; i < frame->closure->function->overlongJumpsCount; ++i) {
+					if (frame->closure->function->overlongJumps[i].instructionOffset ==
+						(size_t)((char*)frame->ip - (char*)frame->closure->function->chunk.code)) {
+						OPERAND = (int)frame->closure->function->overlongJumps[i].intendedTarget << 16;
+						opcode  = frame->closure->function->overlongJumps[i].originalOpcode;
+						goto _switchEntry;
+					}
+				}
+				krk_runtimeError(vm.exceptions->valueError, "bad jump");
+				goto _finishException;
 			}
 
 			/*

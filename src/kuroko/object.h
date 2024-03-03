@@ -148,6 +148,12 @@ typedef struct {
 
 struct KrkInstance;
 
+typedef struct {
+	uint32_t instructionOffset;   /**< @brief Instruction (operand offset) this jump target applies to */
+	uint16_t intendedTarget;      /**< @brief High bytes of the intended target. */
+	uint8_t  originalOpcode;      /**< @brief Original jump opcode to execute. */
+} KrkOverlongJump;
+
 /**
  * @brief Code object.
  * @extends KrkObj
@@ -174,6 +180,9 @@ typedef struct {
 	size_t expressionsCount;               /**< @brief Number of entries in @ref expressions */
 	KrkExpressionsMap * expressions;       /**< @brief Mapping of bytecode offsets to expression spans for debugging */
 	KrkValue jumpTargets;                  /**< @brief Possibly a set of jump targets... */
+	KrkOverlongJump * overlongJumps;       /**< @brief Pessimal overlong jump container */
+	size_t overlongJumpsCapacity;          /**< @brief Number of possible entries in pessimal jump table */
+	size_t overlongJumpsCount;             /**< @brief Number of entries in pessimal jump table */
 } KrkCodeObject;
 
 

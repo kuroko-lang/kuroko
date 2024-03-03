@@ -25,16 +25,20 @@ typedef enum {
 #define CONSTANT(opc,more)  OPCODE(opc) OPCODE(opc ## _LONG)
 #define OPERAND(opc,more)   OPCODE(opc) OPCODE(opc ## _LONG)
 #define JUMP(opc,sign)      OPCODE(opc)
+#define COMPLICATED(opc,more) OPCODE(opc)
 #define CLOSURE_MORE
 #define EXPAND_ARGS_MORE
 #define FORMAT_VALUE_MORE
 #define LOCAL_MORE
+#define OVERLONG_JUMP_MORE
 #include "opcodes.h"
 #undef SIMPLE
 #undef OPERANDB
 #undef OPERAND
 #undef CONSTANT
 #undef JUMP
+#undef COMPLICATED
+#undef OVERLONG_JUMP_MORE
 #undef CLOSURE_MORE
 #undef LOCAL_MORE
 #undef EXPAND_ARGS_MORE

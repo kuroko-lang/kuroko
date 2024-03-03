@@ -216,6 +216,7 @@ static void freeObject(KrkObj * object) {
 			krk_freeValueArray(&function->keywordArgNames);
 			KRK_FREE_ARRAY(KrkLocalEntry, function->localNames, function->localNameCount);
 			KRK_FREE_ARRAY(KrkExpressionsMap, function->expressions, function->expressionsCapacity);
+			KRK_FREE_ARRAY(KrkOverlongJump, function->overlongJumps, function->overlongJumpsCapacity);
 			function->localNameCount = 0;
 			FREE_OBJECT(KrkCodeObject, object);
 			break;
