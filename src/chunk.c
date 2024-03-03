@@ -73,11 +73,29 @@ size_t krk_writeConstant(KrkChunk * chunk, KrkValue value, size_t line) {
 }
 
 size_t krk_lineNumber(KrkChunk * chunk, size_t offset) {
-	size_t line = 0;
-	for (size_t i = 0; i < chunk->linesCount; ++i) {
-		if (chunk->lines[i].startOffset > offset) break;
-		line = chunk->lines[i].line;
+
+	size_t lo = 0;
+	size_t hi = chunk->linesCount;
+
+	while (lo != hi) {
+		if (hi - lo < 10) {
+			size_t line = 0;
+			for (size_t i = lo; i < hi; ++i) {
+				if (chunk->lines[i].startOffset > offset) break;
+				line = chunk->lines[i].line;
+			}
+			return line;
+		}
+
+		size_t mp = lo + (hi - lo) / 2;
+
+		if (chunk->lines[mp].startOffset > offset) {
+			hi = mp;
+		} else {
+			lo = mp;
+		}
 	}
-	return line;
+
+	return 0;
 }
 
