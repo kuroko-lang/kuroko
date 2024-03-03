@@ -462,7 +462,7 @@ static inline int _callManaged(KrkClosure * closure, int argCount, int returnDep
 		/* Store scratch while we adjust; we can not make calls while using these scratch
 		 * registers as they may be clobbered by a nested call to _callManaged. */
 		krk_currentThread.scratchSpace[0] = myList;
-		krk_currentThread.scratchSpace[1] = myList;
+		krk_currentThread.scratchSpace[1] = myDict;
 
 		/* Pop three things, including the kwargs count */
 		krk_pop(); /* dict */
