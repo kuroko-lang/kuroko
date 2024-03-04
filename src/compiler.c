@@ -2132,9 +2132,6 @@ static void ifStatement(struct GlobalState * state) {
 
 	if (state->parser.hadError) return;
 
-	int elseJump = emitJump(OP_JUMP);
-	patchJump(thenJump);
-
 	/* See if we have a matching else block */
 	if (blockWidth == 0 || (check(TOKEN_INDENTATION) && (state->parser.current.length == blockWidth))) {
 		/* This is complicated */
@@ -2144,6 +2141,8 @@ static void ifStatement(struct GlobalState * state) {
 			advance();
 		}
 		if (match(TOKEN_ELSE) || check(TOKEN_ELIF)) {
+			int elseJump = emitJump(OP_JUMP);
+			patchJump(thenJump);
 			if (state->parser.current.type == TOKEN_ELIF || check(TOKEN_IF)) {
 				state->parser.previous = myPrevious;
 				ifStatement(state); /* Keep nesting */
@@ -2153,6 +2152,8 @@ static void ifStatement(struct GlobalState * state) {
 				block(state,blockWidth,"else");
 				endScope(state);
 			}
+			patchJump(elseJump);
+			return;
 		} else if (!check(TOKEN_EOF) && !check(TOKEN_EOL)) {
 			if (blockWidth) {
 				krk_ungetToken(&state->scanner, state->parser.current);
@@ -2164,7 +2165,7 @@ static void ifStatement(struct GlobalState * state) {
 		}
 	}
 
-	patchJump(elseJump);
+	patchJump(thenJump);
 }
 
 static void patchBreaks(struct GlobalState * state, int loopStart) {
