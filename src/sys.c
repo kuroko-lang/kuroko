@@ -84,6 +84,8 @@ KRK_Function(getsizeof) {
 			mySize += sizeof(KrkValue) * self->keywordArgNames.capacity;
 			/* Locals array */
 			mySize += sizeof(KrkLocalEntry) * self->localNameCount;
+			/* Overlong jumps */
+			mySize += sizeof(KrkOverlongJump) * self->overlongJumpsCapacity;
 			break;
 		}
 		case KRK_OBJ_NATIVE: {
