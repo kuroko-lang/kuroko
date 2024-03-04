@@ -6,7 +6,7 @@ LDFLAGS += -L.
 TARGET   = kuroko
 OBJS     = $(patsubst %.c, %.o, $(filter-out src/kuroko.c,$(sort $(wildcard src/*.c))))
 SOOBJS   = $(patsubst %.o, %.lo, $(OBJS))
-MODULES  = $(patsubst src/modules/module_%.c, modules/%.so, $(sort $(wildcard src/modules/module_*.c)))
+MODULES  = $(filter-out $(patsubst %, modules/%, $(EXCLUDED_MODULES)), $(patsubst src/modules/module_%.c, modules/%.so, $(sort $(wildcard src/modules/module_*.c))))
 HEADERS  = $(wildcard src/kuroko/*.h)
 TOOLS    = $(patsubst tools/%.c, krk-%, $(sort $(wildcard tools/*.c)))
 GENMODS  = modules/codecs/sbencs.krk modules/codecs/dbdata.krk
@@ -19,7 +19,7 @@ VERSION  = $(shell ./kuroko --version | sed 's/.* //')
 SONAME   = libkuroko-$(VERSION).so
 KRKMODS  = $(wildcard modules/*.krk modules/*/*.krk modules/*/*/*.krk)
 
-all: ${TARGET} ${MODULES} ${TOOLS} ${GENMODS}
+all: ${TARGET} ${TOOLS} ${GENMODS}
 
 ifneq ($(shell tools/can-floor-without-libm.sh "$(CC) $(filter-out -g,$(CFLAGS))"),yes)
   LDLIBS += -lm
@@ -37,6 +37,7 @@ ifeq (,$(findstring mingw,$(CC)))
   endif
 else
   CFLAGS  += -Wno-format -static-libgcc -pthread
+  EXCLUDED_MODULES = fcntl.so
   ${SOOBJS}: CFLAGS += -DKRKINLIB
   BIN_OBJS =
   LIBRARY = libkuroko.dll
@@ -45,6 +46,7 @@ else
   MODLIBS += -lkuroko
   modules/socket.so: MODLIBS += -lws2_32
 endif
+all: ${MODULES}
 
 ifdef KRK_DISABLE_DOCS
   CFLAGS += -DKRK_NO_DOCUMENTATION -Wno-unused-value

@@ -123,6 +123,7 @@ let modules = [
     'collections',
     'string',
     'callgrind',
+    'fcntl',
 
     # Other stuff
     'tools.gendoc',
