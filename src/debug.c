@@ -193,6 +193,21 @@ static inline const char * opcodeClean(const char * opc) {
 	return &opc[3];
 }
 
+static void _overlong_jump(KrkCodeObject * func, size_t offset, size_t operand) {
+	for (size_t i = 0; i < func->overlongJumpsCount; ++i) {
+		if (func->overlongJumps[i].instructionOffset == offset) {
+			operand |= (int)func->overlongJumps[i].intendedTarget << 16;
+			size_t target = offset + 2 + operand;
+			if (func->overlongJumps[i].originalOpcode == OP_LOOP ||
+				func->overlongJumps[i].originalOpcode == OP_LOOP_ITER) {
+				target = offset + 2 - operand;
+			}
+			krk_tableSet(AS_DICT(func->jumpTargets), INTEGER_VAL(target), BOOLEAN_VAL(1));
+			return;
+		}
+	}
+}
+
 static int isJumpTarget(KrkCodeObject * func, size_t startPoint) {
 	KrkChunk * chunk = &func->chunk;
 	size_t offset = 0;
@@ -210,7 +225,7 @@ static int isJumpTarget(KrkCodeObject * func, size_t startPoint) {
 	krk_tableSet(AS_DICT(func->jumpTargets), INTEGER_VAL((size_t)(offset + 3 sign jump)), BOOLEAN_VAL(1)); \
 	size = 3; break; }
 #define COMPLICATED(opc,more) case opc: size = 1; more; break;
-#define OVERLONG_JUMP_MORE size += 2
+#define OVERLONG_JUMP_MORE size += 2; _overlong_jump(func, offset+1, (chunk->code[offset + 1] << 8) | (chunk->code[offset + 2]))
 #define CLOSURE_MORE \
 	KrkCodeObject * function = AS_codeobject(chunk->constants.values[constant]); \
 	for (size_t j = 0; j < function->upvalueCount; ++j) { \
