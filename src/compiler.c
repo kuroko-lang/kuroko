@@ -1863,17 +1863,18 @@ _pop_class:
 	state->currentClass = state->currentClass->enclosing;
 	KrkCodeObject * makeclass = endCompiler(state);
 	size_t indFunc = krk_addConstant(currentChunk(), OBJECT_VAL(makeclass));
-	EMIT_OPERAND_OP(OP_CLOSURE, indFunc);
-	doUpvalues(state, &subcompiler, makeclass);
-	freeCompiler(&subcompiler);
 
 	RewindState afterFunction = {recordChunk(currentChunk()), krk_tellScanner(&state->scanner), state->parser};
 
 	size_t nameInd = nonidentifierTokenConstant(state, &classNameToken);
-	EMIT_OPERAND_OP(OP_CONSTANT, nameInd);
 
 	krk_rewindScanner(&state->scanner, parameters.oldScanner);
 	state->parser = parameters.oldParser;
+
+	EMIT_OPERAND_OP(OP_CLOSURE, indFunc);
+	doUpvalues(state, &subcompiler, makeclass);
+	freeCompiler(&subcompiler);
+	EMIT_OPERAND_OP(OP_CONSTANT, nameInd);
 
 	if (match(TOKEN_LEFT_PAREN)) {
 		call(state, EXPR_CLASS_PARAMETERS, NULL);
