@@ -1786,9 +1786,7 @@ static KrkToken classDeclaration(struct GlobalState * state) {
 
 	consume(TOKEN_IDENTIFIER, "Expected class name after 'class'.");
 
-	KrkToken buildClass = syntheticToken("__build_class__");
-	size_t ind = identifierConstant(state, &buildClass);
-	EMIT_OPERAND_OP(OP_GET_GLOBAL, ind);
+	emitByte(OP_PUSH_BUILD_CLASS);
 
 	Compiler subcompiler;
 	initCompiler(state, &subcompiler, TYPE_CLASS);

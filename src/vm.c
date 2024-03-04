@@ -2464,6 +2464,13 @@ _finishReturn: (void)0;
 				goto _finishException;
 			}
 
+			case OP_PUSH_BUILD_CLASS: {
+				KrkValue build_class = NONE_VAL();
+				krk_tableGet_fast(&vm.builtins->fields, AS_STRING(vm.specialMethodNames[METHOD_BLDCLS]), &build_class);
+				krk_push(build_class);
+				break;
+			}
+
 			/*
 			 * Two-byte operands
 			 */
