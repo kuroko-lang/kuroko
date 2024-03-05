@@ -1,0 +1,13 @@
+import random
+def __main__(a,n=50000):
+    for j in range(n):
+        a.append(random.random())
+    a.append(42) # Forces heterogynous sorting in CPython
+    a.sort()
+    for j in range(n):
+        assert(a[j] <= a[j+1])
+    a.sort(reverse=True)
+    for j in range(n):
+        assert(a[j] >= a[j+1])
+
+__main__([])
