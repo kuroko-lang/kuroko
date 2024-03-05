@@ -1131,9 +1131,7 @@ int krk_pushStringBuilderFormatV(struct StringBuilder * sb, const char * fmt, va
 		}
 
 		/* Bail on exception */
-		if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) {
-			return 0;
-		}
+		if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) break;
 
 		++f;
 
@@ -1225,6 +1223,8 @@ int krk_pushStringBuilderFormatV(struct StringBuilder * sb, const char * fmt, va
 					krk_push(res);
 					if (IS_STRING(res)) {
 						pushStringBuilderStr(sb, AS_CSTRING(res), AS_STRING(res)->length);
+					} else if (!(krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION)) {
+						krk_runtimeError(vm.exceptions->typeError, "__repr__ returned non-string (type %T)", res);
 					}
 					krk_pop();
 				}
@@ -1249,6 +1249,7 @@ int krk_pushStringBuilderFormatV(struct StringBuilder * sb, const char * fmt, va
 		}
 	}
 
+	if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) return 0;
 	return 1;
 }
 
