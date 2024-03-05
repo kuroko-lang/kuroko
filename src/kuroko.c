@@ -38,6 +38,7 @@
 static int enableRline = 1;
 static int exitRepl = 0;
 static int pasteEnabled = 0;
+static int noColor = 0;
 
 KRK_Function(exit) {
 	FUNCTION_TAKES_NONE();
@@ -130,7 +131,7 @@ KRK_Function(input) {
 
 static void printResult(FILE * file, KrkValue result) {
 	struct StringBuilder sb = {0};
-	if (!krk_pushStringBuilderFormat(&sb, " \033[1;90m=> %R\033[0m\n", result)) {
+	if (!krk_pushStringBuilderFormat(&sb, noColor ? " => %R\n" : " \033[1;90m=> %R\033[0m\n", result)) {
 		krk_dumpTraceback();
 	} else {
 		fwrite(sb.bytes,1,sb.length,file);
@@ -898,11 +899,11 @@ _finishArgs:
 
 	KrkValue result = INTEGER_VAL(0);
 
-	char * _KUROKOPATH = getenv("KUROKOPATH");
+	char * env_KUROKOPATH = getenv("KUROKOPATH");
 
-	if (_KUROKOPATH) {
+	if (env_KUROKOPATH) {
 		/* Build a path by splitting */
-		krk_push(OBJECT_VAL(krk_copyString(_KUROKOPATH,strlen(_KUROKOPATH))));
+		krk_push(OBJECT_VAL(krk_copyString(env_KUROKOPATH,strlen(env_KUROKOPATH))));
 		krk_push(OBJECT_VAL(S(":")));
 
 		/* Split into list */
@@ -925,6 +926,10 @@ _finishArgs:
 		krk_pop();
 		krk_pop(); /* list */
 	}
+
+	char * env_NO_COLOR = getenv("NO_COLOR");
+
+	if (env_NO_COLOR && *env_NO_COLOR) noColor = 1;
 
 	/**
 	 * Add general builtins that aren't part of the core VM.
