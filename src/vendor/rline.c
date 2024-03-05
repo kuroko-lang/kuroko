@@ -363,19 +363,19 @@ static void recalculate_tabs(line_t * line) {
  */
 static const char * COLOR_FG        = "@9";
 static const char * COLOR_BG        = "@9";
-static const char * COLOR_ALT_FG    = "@5";
+static const char * COLOR_ALT_FG    = "@9";
 static const char * COLOR_ALT_BG    = "@9";
-static const char * COLOR_KEYWORD   = "@4";
-static const char * COLOR_STRING    = "@2";
-static const char * COLOR_COMMENT   = "@5";
-static const char * COLOR_TYPE      = "@3";
-static const char * COLOR_PRAGMA    = "@1";
-static const char * COLOR_NUMERAL   = "@1";
-static const char * COLOR_RED       = "@1";
-static const char * COLOR_GREEN     = "@2";
-static const char * COLOR_ESCAPE    = "@2";
-static const char * COLOR_SEARCH_FG = "@0";
-static const char * COLOR_SEARCH_BG = "@3";
+static const char * COLOR_KEYWORD   = "@9";
+static const char * COLOR_STRING    = "@9";
+static const char * COLOR_COMMENT   = "@9";
+static const char * COLOR_TYPE      = "@9";
+static const char * COLOR_PRAGMA    = "@9";
+static const char * COLOR_NUMERAL   = "@9";
+static const char * COLOR_RED       = "@9";
+static const char * COLOR_GREEN     = "@9";
+static const char * COLOR_ESCAPE    = "@9";
+static const char * COLOR_SEARCH_FG = "@9";
+static const char * COLOR_SEARCH_BG = "@9";
 static const char * COLOR_ERROR_FG  = "@9";
 static const char * COLOR_ERROR_BG  = "@9";
 static const char * COLOR_BOLD      = "@9";
@@ -2439,8 +2439,12 @@ int rline(char * buffer, int buf_size) {
 	offset = 0;
 	buf_size_max = buf_size;
 
+	char * noColor = getenv("NO_COLOR");
 	char * theme = getenv("RLINE_THEME");
-	if (theme && !strcmp(theme,"sunsmoke")) { /* TODO bring back theme tables */
+	if ((noColor && *noColor) || (theme && !strcmp(theme,"none"))) {
+		/* If NO_COLOR is set, or RLINE_THEME=none, set no theme.
+		 * The default colors are all @9. */
+	} else if (theme && !strcmp(theme,"sunsmoke")) {
 		rline_exp_load_colorscheme_sunsmoke();
 	} else {
 		rline_exp_load_colorscheme_default();
