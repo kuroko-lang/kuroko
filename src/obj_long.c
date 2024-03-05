@@ -1942,34 +1942,15 @@ KRK_Method(long,bit_length) {
 
 static KrkValue long_to_bytes(KrkLong * val, size_t argc, const KrkValue argv[], int hasKw) {
 	static const char _method_name[] = "to_bytes";
-	/**
-	 * @fn to_bytes(length: int, byteorder: str, *, signed: bool = False) -> bytes
-	 *
-	 * @param length    size of the bytes object to produce; restricted to an int; anything bigger
-	 *                  is probably going to cause trouble for repring a result anyway, so, whatever...
-	 * @param byteorder must be either 'little' or 'big'.
-	 * @param signed    needs to be a keyword arg because apparently that's how it is in Python...
-	 *                  If a negative value is passed without @c signed=True an error will be raised.
-	 */
-
-	CHECK_ARG(1,int,krk_integer_type,length);
-	CHECK_ARG(2,str,KrkString*,byteorder);
+	int length;
+	const char * byteorder;
 	int _signed = 0;
-	if (hasKw) {
-		KrkValue tmp;
-		if (krk_tableGet(AS_DICT(argv[argc]), OBJECT_VAL(S("signed")), &tmp)) {
-			_signed = !krk_isFalsey(tmp);
-		}
-	}
-
-	if (length < 0) {
-		return krk_runtimeError(vm.exceptions->valueError, "length must be non-negative");
-	}
-
+	if (!krk_parseArgs(".is|p", (const char*[]){"length","byteorder","signed"}, &length, &byteorder, &_signed)) return NONE_VAL();
+	if (length < 0) return krk_runtimeError(vm.exceptions->valueError, "length must be non-negative");
 	int order = 0;
-	if (!strcmp(byteorder->chars,"little")) {
+	if (!strcmp(byteorder,"little")) {
 		order = 1;
-	} else if (!strcmp(byteorder->chars,"big")) {
+	} else if (!strcmp(byteorder,"big")) {
 		order = -1;
 	} else {
 		return krk_runtimeError(vm.exceptions->valueError, "byteorder must be either 'little' or 'big'");
