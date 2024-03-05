@@ -1,0 +1,6 @@
+print('for i in range(5):')
+print(' if False:')
+for i in range(10000):
+    print('  print(i,i,i,i,i,i,i,i,i,i,i,i,i,i,i,i,i,i,i,i)')
+print(' print("yay",i)')
+print('print("lol")')
