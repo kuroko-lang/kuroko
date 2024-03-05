@@ -1,0 +1,21 @@
+class R:
+    def __init__(self, name, department, age):
+        self.name = name
+        self.department = department
+        self.age = age
+    def __repr__(self):
+        return f'Record({self.name},{self.department},{self.age})'
+
+def __main__(RS,ds,ages,names):
+    for i in range(50):
+        RS.append(R(names[i%5],ds[i%3],ages[i%17]))
+
+    print(RS)
+    RS.sort(key=lambda l: l.age)
+    print(RS)
+    RS.sort(key=lambda l: l.department)
+    print(RS)
+    RS.sort(key=lambda l: l.age, reverse=True)
+    print(RS)
+
+__main__([], ['Engineering', 'Sales', 'Management'], [n for n in range(30,47)], ['Bob','Dan','Eric','Sue','Tina'])
