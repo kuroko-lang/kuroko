@@ -416,79 +416,323 @@ KRK_Method(list,copy) {
 	return result;
 }
 
+/** @brief In-place reverse a value array. */
+static void reverse_values(KrkValue * values, size_t n) {
+	KrkValue * end = values + n - 1;
+	while (values < end) {
+		krk_currentThread.scratchSpace[0] = *values;
+		*values = *end;
+		*end = krk_currentThread.scratchSpace[0];
+		values++;
+		end--;
+	}
+	krk_currentThread.scratchSpace[0] = NONE_VAL();
+}
+
 KRK_Method(list,reverse) {
 	METHOD_TAKES_NONE();
 	pthread_rwlock_wrlock(&self->rwlock);
-	for (size_t i = 0; i < (self->values.count) / 2; i++) {
-		KrkValue tmp = self->values.values[i];
-		self->values.values[i] = self->values.values[self->values.count-i-1];
-		self->values.values[self->values.count-i-1] = tmp;
-	}
+	if (self->values.count > 1) reverse_values(self->values.values, self->values.count);
 	pthread_rwlock_unlock(&self->rwlock);
 	return NONE_VAL();
 }
 
+struct SortSlice {
+	KrkValue * keys;
+	KrkValue * values;
+};
+
+struct SliceAndPower {
+	struct SortSlice begin;
+	size_t power;
+};
+
+struct Run {
+	struct SortSlice start;
+	struct SortSlice end;
+	size_t power;
+};
+
+/** @brief s++ */
+static inline void slice_advance(struct SortSlice * slice) {
+	slice->keys++;
+	if (slice->values) slice->values++;
+}
+
+/** @brief s-- */
+static inline void slice_decrement(struct SortSlice * slice) {
+	slice->keys--;
+	if (slice->values) slice->values--;
+}
+
+
+/* @brief s + 1 */
+static struct SortSlice slice_next(struct SortSlice slice) {
+	return (struct SortSlice){slice.keys + 1, slice.values ? slice.values + 1 : NULL};
+}
+
+/** @brief s + n */
+static struct SortSlice slice_plus(struct SortSlice slice, ssize_t n) {
+	return (struct SortSlice){slice.keys + n, slice.values ? slice.values + n : NULL};
+}
+
+/** @brief Copy start-end to buffer */
+static void copy_slice(struct SortSlice start, struct SortSlice end, struct SortSlice buffer) {
+	while (start.keys != end.keys) {
+		*buffer.keys = *start.keys;
+		if (buffer.values) *buffer.values = *start.values;
+		slice_advance(&start);
+		slice_advance(&buffer);
+	}
+}
+
+/** @brief Very strictly a < b */
 static int _list_sorter(KrkValue a, KrkValue b) {
-	KrkValue ltComp = krk_operator_lt(a,b);
-	if (IS_NONE(ltComp) || (IS_BOOLEAN(ltComp) && AS_BOOLEAN(ltComp))) return -1;
-	KrkValue gtComp = krk_operator_gt(a,b);
-	if (IS_NONE(gtComp) || (IS_BOOLEAN(gtComp) && AS_BOOLEAN(gtComp))) return 1;
-	return 0;
+	KrkValue comp = krk_operator_lt(a,b);
+	return (IS_NONE(comp) || (IS_BOOLEAN(comp) && AS_BOOLEAN(comp)));
 }
 
-static void list_swap(KrkList *list, size_t i, size_t j) {
-	krk_currentThread.scratchSpace[0] = list->values.values[i];
-	list->values.values[i] = list->values.values[j];
-	list->values.values[j] = krk_currentThread.scratchSpace[0];
-	krk_currentThread.scratchSpace[0] = NONE_VAL();
+/** @brief While next is strictly < current, advance current */
+static struct SortSlice powersort_strictlyDecreasingPrefix(struct SortSlice begin, struct SortSlice end) {
+	while (begin.keys + 1 < end.keys && _list_sorter(*(begin.keys + 1), *begin.keys)) slice_advance(&begin);
+	return slice_next(begin);
 }
 
-static int partition(KrkList *list, KrkValue key, int reverse, ssize_t lo, ssize_t hi, ssize_t *lt, ssize_t *gt) {
-	/* Create key from pivot */
-	if (!IS_NONE(key)) krk_push(key);
-	krk_push(list->values.values[(lo+hi)/2]);
-	if (!IS_NONE(key)) krk_push(krk_callStack(1));
+/** @brief While next is greater than or equal to current, advance current */
+static struct SortSlice powersort_weaklyIncreasingPrefix(struct SortSlice begin, struct SortSlice end) {
+	while (begin.keys + 1 < end.keys && !_list_sorter(*(begin.keys + 1), *begin.keys)) slice_advance(&begin);
+	return slice_next(begin);
+}
 
-	ssize_t _lt = lo;
-	ssize_t _eq = lo;
-	ssize_t _gt = hi;
+/**
+ * @brief Extend a run to the right
+ *
+ * Returns a slice pointing at the end of the run after extended it to the right.
+ * The resulting run consists of strictly ordered (a <= b, b > a) entries. We also
+ * handle reverse runs by reversing them in-place.
+ *
+ * @param begin Start of run
+ * @param end   End of available input to scan; always end of list.
+ * @returns Slice pointing to end of run
+ */
+static struct SortSlice powersort_extend_and_reverse_right(struct SortSlice begin, struct SortSlice end) {
+	struct SortSlice j = begin;
+	if (j.keys == end.keys) return j;
+	if (j.keys + 1 == end.keys) return slice_next(j);
+	if (_list_sorter(*slice_next(j).keys, *j.keys)) {
+		/* If next is strictly less than current, begin a reversed chain; we already know
+		 * we can advance by one, so do that before continuing to save a comparison. */
+		j = powersort_strictlyDecreasingPrefix(slice_next(begin), end);
+		reverse_values(begin.keys, j.keys - begin.keys);
+		if (begin.values) reverse_values(begin.values, j.values - begin.values);
+	} else {
+		/* Weakly increasing means j+1 >= j; continue with that chain*/
+		j = powersort_weaklyIncreasingPrefix(slice_next(begin), end);
+	}
+	return j;
+}
 
-	while (_eq <= _gt) {
-		if (!IS_NONE(key)) krk_push(key);
-		krk_push(list->values.values[_eq]);
-		if (!IS_NONE(key)) krk_push(krk_callStack(1));
+#if defined(__TINYC__) || (defined(_MSC_VER) && !defined(__clang__))
+static int __builtin_clz(unsigned int x) {
+	int i = 31;
+	while (!(x & (1 << i)) && i >= 0) i--;
+	return 31-i;
+}
+#endif
 
-		int res = _list_sorter(krk_peek(reverse),krk_peek(1-reverse));
-		if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) return 1;
+/**
+ * @brief Calculate power.
+ *
+ * I'll be honest here, I don't really know what this does; it's from the reference impl.
+ * and described in the paper.
+ */
+static size_t powersort_power(size_t begin, size_t end, size_t beginA, size_t beginB, size_t endB) {
+	size_t n = end - begin;
+	unsigned long l2 = beginA + beginB - 2 * begin;
+	unsigned long r2 = beginB + endB - 2 * begin;
+	unsigned int a  = (unsigned int)((l2 << 30) / n);
+	unsigned int b =  (unsigned int)((r2 << 30) / n);
+	return __builtin_clz(a ^ b);
+}
 
-		if (res < 0) {
-			list_swap(list,_eq,_lt);
-			_lt++;
-			_eq++;
-		} else if (res > 0) {
-			list_swap(list,_eq,_gt);
-			_gt--;
-		} else {
-			_eq++;
+/**
+ * @brief Merge neighboring runs.
+ *
+ * Merges the neighboring, sorted runs [left, mid) and [mid, right) using the provided
+ * buffer space. Specifically, the smaller of the two runs is copied to the buffer, and
+ * then merging occurs in-place.
+ *
+ * @param left   Start of the first run
+ * @param mid    End of first run, start of second run
+ * @param right  End of second run
+ * @param buffer Scratch space
+ */
+static void powersort_merge(struct SortSlice left, struct SortSlice mid, struct SortSlice right, struct SortSlice buffer) {
+	size_t n1 = mid.keys - left.keys;
+	size_t n2 = right.keys - mid.keys;
+
+	if (n1 <= n2) {
+		copy_slice(left, mid, buffer);
+		struct SortSlice c1 = buffer, e1 = slice_plus(buffer, n1);
+		struct SortSlice c2 = mid, e2 = right, o = left;
+
+		while (c1.keys < e1.keys && c2.keys < e2.keys) {
+			if (!_list_sorter(*c2.keys, *c1.keys)) {
+				*o.keys = *c1.keys;
+				if (o.values) *o.values = *c1.values;
+				slice_advance(&c1);
+			} else {
+				*o.keys = *c2.keys;
+				if (o.values) *o.values = *c2.values;
+				slice_advance(&c2);
+			}
+			slice_advance(&o);
 		}
 
-		krk_pop();
+		while (c1.keys < e1.keys) {
+			*o.keys = *c1.keys;
+			if (o.values) *o.values = *c1.values;
+			slice_advance(&c1);
+			slice_advance(&o);
+		}
+	} else {
+		copy_slice(mid, right, buffer);
+
+		struct SortSlice c1 = slice_plus(mid, -1), s1 = left, o = slice_plus(right, -1);
+		struct SortSlice c2 = slice_plus(buffer, n2 - 1), s2 = buffer;
+
+		while (c1.keys >= s1.keys && c2.keys >= s2.keys) {
+			if (!_list_sorter(*c2.keys, *c1.keys)) {
+				*o.keys = *c2.keys;
+				if (o.values) *o.values = *c2.values;
+				slice_decrement(&c2);
+			} else {
+				*o.keys = *c1.keys;
+				if (o.values) *o.values = *c1.values;
+				slice_decrement(&c1);
+			}
+			slice_decrement(&o);
+		}
+
+		while (c2.keys >= s2.keys) {
+			*o.keys = *c2.keys;
+			if (o.values) *o.values = *c2.values;
+			slice_decrement(&c2);
+			slice_decrement(&o);
+		}
 	}
-
-	krk_pop(); /* Pop pivot key. */
-
-	*lt = _lt;
-	*gt = _gt;
-	return 0;
 }
 
-static void quicksort(KrkList * list, KrkValue key, int reverse, ssize_t lo, ssize_t hi) {
-	if (lo >= 0 && lo < hi) {
-		ssize_t lt, gt;
-		if (partition(list, key, reverse, lo, hi, &lt, &gt)) return;
-		quicksort(list, key, reverse, lo, lt - 1);
-		quicksort(list, key, reverse, gt + 1, hi);
+/**
+ * @brief Powersort - merge-sort sorted runs
+ *
+ * This is an implementation of Munro-Wild Powersort from the paper at:
+ * @ref https://www.wild-inter.net/publications/html/munro-wild-2018.pdf.html
+ *
+ * The reference implementation was also a helpful thing to study, and much
+ * of the iteration and merging is based on its use of C++ iterators:
+ * @ref https://github.com/sebawild/powersort
+ *
+ * There's no fancy extensions or improvements here, just the plain approach
+ * set out in the paper, which is probably good enough for us? That means no
+ * extending short runs to a minimum run length, no fancy node power calcs,
+ * just a short bit of extending and merging.
+ *
+ * If the key function raises an exception, no sorting will be attempted
+ * and the exception from the key function will be raised immediately.
+ *
+ * If the values to be sorted can not compare with __lt__, an exception
+ * should be thrown eventually, but the entire list may still be scanned
+ * and the resulting state is undefined.
+ *
+ * @param list    List to sort in-place.
+ * @param key     Key function, or None to sort values directly.
+ * @param reverse Sort direction, 0 for normal (a[0] <= b[0], etc.), 1 for reversed.
+ */
+static void powersort(KrkList * list, KrkValue key, int reverse) {
+	size_t n = list->values.count;
+	struct SortSlice slice = {list->values.values, NULL};
+
+	/* If there is a key function, create a separate array to store
+	 * the resulting key values; shove it in a tuple so we can keep
+	 * those key values from being garbage collected. */
+	if (!IS_NONE(key)) {
+		KrkTuple * _keys = krk_newTuple(n);
+		krk_push(OBJECT_VAL(_keys));
+		for (size_t i = 0; i < n; ++i) {
+			krk_push(key);
+			krk_push(list->values.values[i]);
+			_keys->values.values[i] = krk_callStack(1);
+			_keys->values.count++;
+
+			/* If the key function threw an exception, bail early. */
+			if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) goto _end_sort;
+		}
+
+		/* values are secondary, keys are what actually gets sorted */
+		slice.values = slice.keys;
+		slice.keys   = _keys->values.values;
 	}
+
+	/* We handle reverse sort by reversing, sorting normally, and then reversing again */
+	if (reverse) {
+		reverse_values(slice.keys, n);
+		if (slice.values) reverse_values(slice.values, n);
+	}
+
+	/* Supposedly the absolute maximum for this is strictly less than the number of bits
+	 * we can fit in a size_t, so 64 ought to cover us until someone tries porting Kuroko
+	 * to one of the 128-bit architectures, but even then I don't think we can handle
+	 * holding that many values in a list to begin with.
+	 *
+	 * stack[0] should always be empty. */
+	struct SliceAndPower stack[64] = {0};
+	int top = 0;
+
+	/* Buffer space for the merges. We shouldn't need anywhere close to this much space,
+	 * but best to be safe, and we're already allocating a bunch of space for key tuples */
+	KrkTuple * bufferSpace = krk_newTuple(slice.values ? (n * 2) : n);
+	krk_push(OBJECT_VAL(bufferSpace));
+	for (size_t i = 0; i < bufferSpace->values.capacity; ++i) bufferSpace->values.values[bufferSpace->values.count++] = NONE_VAL();
+	struct SortSlice buffer = {&bufferSpace->values.values[0], slice.values ? &bufferSpace->values.values[n] : NULL};
+
+	/* This just take the role of the C++ iterators in the reference implementaiton */
+	struct SortSlice begin = {slice.keys, slice.values};
+	struct SortSlice end   = {slice.keys + n, slice.values ? slice.values + n : NULL};
+
+	/* Our first run starts from the left and extends as far as it can. */
+	struct Run a = {begin, powersort_extend_and_reverse_right(begin,end), 0};
+
+	while (a.end.keys < end.keys) {
+		/* Our next run is whatever is after that, assuming the initial run isn't the whole list. */
+		struct Run b = {a.end, powersort_extend_and_reverse_right(a.end, end), 0};
+		/* I don't really understand the power part of powersort, but whatever. */
+		a.power = powersort_power(0, n, a.start.keys - begin.keys, b.start.keys - begin.keys, b.end.keys - begin.keys);
+
+		/* While the stack has things with higher power, merge them into a */
+		while (stack[top].power > a.power) {
+			struct SliceAndPower top_run = stack[top--];
+			powersort_merge(top_run.begin, a.start, a.end, buffer);
+			a.start = top_run.begin;
+		}
+		/* Put a on top of the stack, and then replace a with b */
+		stack[++top] = (struct SliceAndPower){a.start, a.power};
+		a = (struct Run){b.start, b.end, 0};
+	}
+
+	/* While there are things in the stack (excluding the empty 0 slot), merge them into the last a */
+	while (top > 0) {
+		struct SliceAndPower top_run = stack[top--];
+		powersort_merge(top_run.begin, a.start, end, buffer);
+		a.start = top_run.begin;
+	}
+
+	krk_pop(); /* tuple with buffer space */
+_end_sort:
+	if (!IS_NONE(key)) krk_pop(); /* keys tuple */
+
+	/* If we reversed at the start, reverse again now as the list is forward-sorted */
+	if (reverse) reverse_values(list->values.values, n);
 }
 
 KRK_Method(list,sort) {
@@ -499,7 +743,7 @@ KRK_Method(list,sort) {
 	if (self->values.count < 2) return NONE_VAL();
 
 	pthread_rwlock_wrlock(&self->rwlock);
-	quicksort(self, key, reverse, 0, self->values.count - 1);
+	powersort(self, key, reverse);
 	pthread_rwlock_unlock(&self->rwlock);
 
 	return NONE_VAL();
