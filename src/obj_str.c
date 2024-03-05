@@ -892,33 +892,35 @@ KRK_Method(str,__repr__) {
 	pushStringBuilder(&sb, quote);
 
 	for (char * c = AS_CSTRING(argv[0]); c < end; ++c) {
-		switch (*c) {
-			/* XXX: Other non-printables should probably be escaped as well. */
-			case '\\': pushStringBuilder(&sb,'\\'); pushStringBuilder(&sb,'\\'); break;
-			case '\'': if (quote == *c) { pushStringBuilder(&sb,'\\'); } pushStringBuilder(&sb,'\''); break;
-			case '\"': if (quote == *c) { pushStringBuilder(&sb,'\\'); } pushStringBuilder(&sb,'\"'); break;
-			case '\a': pushStringBuilder(&sb,'\\'); pushStringBuilder(&sb,'a'); break;
-			case '\b': pushStringBuilder(&sb,'\\'); pushStringBuilder(&sb,'b'); break;
-			case '\f': pushStringBuilder(&sb,'\\'); pushStringBuilder(&sb,'f'); break;
-			case '\n': pushStringBuilder(&sb,'\\'); pushStringBuilder(&sb,'n'); break;
-			case '\r': pushStringBuilder(&sb,'\\'); pushStringBuilder(&sb,'r'); break;
-			case '\t': pushStringBuilder(&sb,'\\'); pushStringBuilder(&sb,'t'); break;
-			case '\v': pushStringBuilder(&sb,'\\'); pushStringBuilder(&sb,'v'); break;
-			case 27:   pushStringBuilder(&sb,'\\'); pushStringBuilder(&sb,'['); break;
-			default: {
-				if ((unsigned char)*c < ' ' || (unsigned char)*c == 0x7F) {
-					pushStringBuilder(&sb,'\\');
-					pushStringBuilder(&sb,'x');
-					char hex[3];
-					snprintf(hex, 3, "%02x", (unsigned char)*c);
-					pushStringBuilder(&sb,hex[0]);
-					pushStringBuilder(&sb,hex[1]);
-				} else {
-					pushStringBuilder(&sb,*c);
-				}
-				break;
-			}
+		unsigned char ch = *c;
+		if (ch < ' ' || ch == 0x7F) {
+			pushStringBuilder(&sb,'\\');
+			pushStringBuilder(&sb,'x');
+			char hex[3];
+			snprintf(hex, 3, "%02x", (unsigned char)*c);
+			pushStringBuilder(&sb,hex[0]);
+			pushStringBuilder(&sb,hex[1]);
+			continue;
 		}
+
+		int addSlash = 0;
+		switch (ch) {
+			/* XXX: Other non-printables should probably be escaped as well. */
+			case '\'': addSlash = (quote == ch); ch = '\''; break;
+			case '\"': addSlash = (quote == ch); ch = '\"'; break;
+			case '\\': addSlash = 1; ch = '\\'; break;
+			case '\a': addSlash = 1; ch = 'a'; break;
+			case '\b': addSlash = 1; ch = 'b'; break;
+			case '\f': addSlash = 1; ch = 'f'; break;
+			case '\n': addSlash = 1; ch = 'n'; break;
+			case '\r': addSlash = 1; ch = 'r'; break;
+			case '\t': addSlash = 1; ch = 't'; break;
+			case '\v': addSlash = 1; ch = 'v'; break;
+			case 27:   addSlash = 1; ch = '['; break;
+			default: break;
+		}
+		if (addSlash) krk_pushStringBuilder(&sb,'\\');
+		krk_pushStringBuilder(&sb,ch);
 	}
 
 	pushStringBuilder(&sb, quote);
