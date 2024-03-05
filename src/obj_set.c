@@ -80,22 +80,19 @@ KRK_Method(set,__repr__) {
 	for (size_t i = 0; i < len; ++i) {
 		KrkTableEntry * entry = &self->entries.entries[i];
 		if (IS_KWARGS(entry->key)) continue;
-		if (c > 0) {
-			pushStringBuilderStr(&sb, ", ", 2);
-		}
+		if (c) pushStringBuilderStr(&sb, ", ", 2);
 		c++;
-
-		KrkClass * type = krk_getType(entry->key);
-		krk_push(entry->key);
-		KrkValue result = krk_callDirect(type->_reprer, 1);
-		if (IS_STRING(result)) {
-			pushStringBuilderStr(&sb, AS_CSTRING(result), AS_STRING(result)->length);
-		}
+		if (!krk_pushStringBuilderFormat(&sb, "%R", entry->key)) goto _error;
 	}
 
 	pushStringBuilder(&sb,'}');
 	((KrkObj*)self)->flags &= ~(KRK_OBJ_FLAGS_IN_REPR);
 	return finishStringBuilder(&sb);
+
+_error:
+	((KrkObj*)self)->flags &= ~(KRK_OBJ_FLAGS_IN_REPR);
+	krk_discardStringBuilder(&sb);
+	return NONE_VAL();
 }
 
 KRK_Method(set,__and__) {

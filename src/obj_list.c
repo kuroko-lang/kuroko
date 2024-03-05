@@ -138,15 +138,7 @@ KRK_Method(list,__repr__) {
 	pushStringBuilder(&sb, '[');
 	pthread_rwlock_rdlock(&self->rwlock);
 	for (size_t i = 0; i < self->values.count; ++i) {
-		/* repr(self[i]) */
-		KrkClass * type = krk_getType(self->values.values[i]);
-		krk_push(self->values.values[i]);
-		KrkValue result = krk_callDirect(type->_reprer, 1);
-
-		if (IS_STRING(result)) {
-			pushStringBuilderStr(&sb, AS_STRING(result)->chars, AS_STRING(result)->length);
-		}
-
+		if (!krk_pushStringBuilderFormat(&sb,"%R",self->values.values[i])) goto _error;
 		if (i + 1 < self->values.count) {
 			pushStringBuilderStr(&sb, ", ", 2);
 		}
@@ -156,6 +148,12 @@ KRK_Method(list,__repr__) {
 	pushStringBuilder(&sb,']');
 	((KrkObj*)self)->flags &= ~(KRK_OBJ_FLAGS_IN_REPR);
 	return finishStringBuilder(&sb);
+
+_error:
+	krk_discardStringBuilder(&sb);
+	pthread_rwlock_unlock(&self->rwlock);
+	((KrkObj*)self)->flags &= ~(KRK_OBJ_FLAGS_IN_REPR);
+	return NONE_VAL();
 }
 
 static int _list_extend_callback(void * context, const KrkValue * values, size_t count) {

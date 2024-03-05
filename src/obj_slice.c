@@ -122,33 +122,20 @@ KRK_Method(slice,__repr__) {
 	((KrkObj*)self)->flags |= KRK_OBJ_FLAGS_IN_REPR;
 	struct StringBuilder sb = {0};
 	pushStringBuilderStr(&sb,"slice(",6);
-
-	KrkClass * type;
-	KrkValue result;
-
 	/* start */
-	type = krk_getType(self->start);
-	krk_push(self->start);
-	result = krk_callDirect(type->_reprer, 1);
-	if (IS_STRING(result)) pushStringBuilderStr(&sb, AS_STRING(result)->chars, AS_STRING(result)->length);
+	if (!krk_pushStringBuilderFormat(&sb, "%R", self->start)) goto _error;
 	pushStringBuilderStr(&sb,", ",2);
-
-	/* end */
-	type = krk_getType(self->end);
-	krk_push(self->end);
-	result = krk_callDirect(type->_reprer, 1);
-	if (IS_STRING(result)) pushStringBuilderStr(&sb, AS_STRING(result)->chars, AS_STRING(result)->length);
+	if (!krk_pushStringBuilderFormat(&sb, "%R", self->end)) goto _error;
 	pushStringBuilderStr(&sb,", ",2);
-
-	/* step */
-	type = krk_getType(self->step);
-	krk_push(self->step);
-	result = krk_callDirect(type->_reprer, 1);
-	if (IS_STRING(result)) pushStringBuilderStr(&sb, AS_STRING(result)->chars, AS_STRING(result)->length);
-
+	if (!krk_pushStringBuilderFormat(&sb, "%R", self->step)) goto _error;
 	pushStringBuilder(&sb,')');
 	((KrkObj*)self)->flags &= ~(KRK_OBJ_FLAGS_IN_REPR);
 	return finishStringBuilder(&sb);
+
+_error:
+	((KrkObj*)self)->flags &= ~(KRK_OBJ_FLAGS_IN_REPR);
+	krk_discardStringBuilder(&sb);
+	return NONE_VAL();
 }
 
 KRK_Method(slice,start) {

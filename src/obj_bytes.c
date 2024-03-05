@@ -325,15 +325,10 @@ KRK_Method(bytearray,__repr__) {
 	METHOD_TAKES_NONE();
 	struct StringBuilder sb = {0};
 	pushStringBuilderStr(&sb, "bytearray(", 10);
-
-	krk_push(self->actual);
-	KrkValue repred_bytes = krk_callDirect(vm.baseClasses->bytesClass->_reprer, 1);
-	if (!IS_STRING(repred_bytes)) {
-		/* Invalid repr of bytes? */
-		discardStringBuilder(&sb);
+	if (!krk_pushStringBuilderFormat(&sb, "%R", self->actual)) {
+		krk_discardStringBuilder(&sb);
 		return NONE_VAL();
 	}
-	pushStringBuilderStr(&sb, AS_STRING(repred_bytes)->chars, AS_STRING(repred_bytes)->length);
 	pushStringBuilder(&sb,')');
 	return finishStringBuilder(&sb);
 }

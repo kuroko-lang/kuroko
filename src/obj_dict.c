@@ -188,35 +188,21 @@ KRK_Method(dict,__repr__) {
 	for (size_t i = 0; i < len; ++i) {
 		KrkTableEntry * entry = &self->entries.entries[i];
 		if (IS_KWARGS(entry->key)) continue;
-		if (c > 0) {
-			pushStringBuilderStr(&sb, ", ", 2);
-		}
+		if (c) pushStringBuilderStr(&sb, ", ", 2);
 		c++;
-
-		{
-			KrkClass * type = krk_getType(entry->key);
-			krk_push(entry->key);
-			KrkValue result = krk_callDirect(type->_reprer, 1);
-			if (IS_STRING(result)) {
-				pushStringBuilderStr(&sb, AS_CSTRING(result), AS_STRING(result)->length);
-			}
-		}
-
+		if (!krk_pushStringBuilderFormat(&sb, "%R", entry->key)) goto _error;
 		pushStringBuilderStr(&sb, ": ", 2);
-
-		{
-			KrkClass * type = krk_getType(entry->value);
-			krk_push(entry->value);
-			KrkValue result = krk_callDirect(type->_reprer, 1);
-			if (IS_STRING(result)) {
-				pushStringBuilderStr(&sb, AS_CSTRING(result), AS_STRING(result)->length);
-			}
-		}
+		if (!krk_pushStringBuilderFormat(&sb, "%R", entry->value)) goto _error;
 	}
 
 	pushStringBuilder(&sb,'}');
 	((KrkObj*)self)->flags &= ~(KRK_OBJ_FLAGS_IN_REPR);
 	return finishStringBuilder(&sb);
+
+_error:
+	((KrkObj*)self)->flags &= ~(KRK_OBJ_FLAGS_IN_REPR);
+	krk_discardStringBuilder(&sb);
+	return NONE_VAL();
 }
 
 KRK_Method(dict,copy) {
@@ -368,39 +354,23 @@ KRK_Method(dictitems,__repr__) {
 	for (size_t i = 0; i < len; ++i) {
 		KrkTableEntry * entry = &AS_DICT(self->dict)->entries[i];
 		if (IS_KWARGS(entry->key)) continue;
-		if (c > 0) {
-			pushStringBuilderStr(&sb, ", ", 2);
-		}
+		if (c) pushStringBuilderStr(&sb, ", ", 2);
 		c++;
-
 		pushStringBuilder(&sb,'(');
-
-		{
-			KrkClass * type = krk_getType(entry->key);
-			krk_push(entry->key);
-			KrkValue result = krk_callDirect(type->_reprer, 1);
-			if (IS_STRING(result)) {
-				pushStringBuilderStr(&sb, AS_CSTRING(result), AS_STRING(result)->length);
-			}
-		}
-
+		if (!krk_pushStringBuilderFormat(&sb, "%R", entry->key)) goto _error;
 		pushStringBuilderStr(&sb, ", ", 2);
-
-		{
-			KrkClass * type = krk_getType(entry->value);
-			krk_push(entry->value);
-			KrkValue result = krk_callDirect(type->_reprer, 1);
-			if (IS_STRING(result)) {
-				pushStringBuilderStr(&sb, AS_CSTRING(result), AS_STRING(result)->length);
-			}
-		}
-
+		if (!krk_pushStringBuilderFormat(&sb, "%R", entry->value)) goto _error;
 		pushStringBuilder(&sb,')');
 	}
 
 	pushStringBuilderStr(&sb,"])",2);
 	((KrkObj*)self)->flags &= ~(KRK_OBJ_FLAGS_IN_REPR);
 	return finishStringBuilder(&sb);
+
+_error:
+	((KrkObj*)self)->flags &= ~(KRK_OBJ_FLAGS_IN_REPR);
+	krk_discardStringBuilder(&sb);
+	return NONE_VAL();
 }
 
 #undef CURRENT_CTYPE
@@ -449,24 +419,19 @@ KRK_Method(dictkeys,__repr__) {
 	for (size_t i = 0; i < len; ++i) {
 		KrkTableEntry * entry = &AS_DICT(self->dict)->entries[i];
 		if (IS_KWARGS(entry->key)) continue;
-		if (c > 0) {
-			pushStringBuilderStr(&sb, ", ", 2);
-		}
+		if (c) pushStringBuilderStr(&sb, ", ", 2);
 		c++;
-
-		{
-			KrkClass * type = krk_getType(entry->key);
-			krk_push(entry->key);
-			KrkValue result = krk_callDirect(type->_reprer, 1);
-			if (IS_STRING(result)) {
-				pushStringBuilderStr(&sb, AS_CSTRING(result), AS_STRING(result)->length);
-			}
-		}
+		if (!krk_pushStringBuilderFormat(&sb, "%R", entry->key)) goto _error;
 	}
 
 	pushStringBuilderStr(&sb,"])",2);
 	((KrkObj*)self)->flags &= ~(KRK_OBJ_FLAGS_IN_REPR);
 	return finishStringBuilder(&sb);
+
+_error:
+	((KrkObj*)self)->flags &= ~(KRK_OBJ_FLAGS_IN_REPR);
+	krk_discardStringBuilder(&sb);
+	return NONE_VAL();
 }
 
 #undef CURRENT_CTYPE
@@ -515,24 +480,19 @@ KRK_Method(dictvalues,__repr__) {
 	for (size_t i = 0; i < len; ++i) {
 		KrkTableEntry * entry = &AS_DICT(self->dict)->entries[i];
 		if (IS_KWARGS(entry->key)) continue;
-		if (c > 0) {
-			pushStringBuilderStr(&sb, ", ", 2);
-		}
+		if (c) pushStringBuilderStr(&sb, ", ", 2);
 		c++;
-
-		{
-			KrkClass * type = krk_getType(entry->value);
-			krk_push(entry->value);
-			KrkValue result = krk_callDirect(type->_reprer, 1);
-			if (IS_STRING(result)) {
-				pushStringBuilderStr(&sb, AS_CSTRING(result), AS_STRING(result)->length);
-			}
-		}
+		if (!krk_pushStringBuilderFormat(&sb, "%R", entry->value)) goto _error;
 	}
 
 	pushStringBuilderStr(&sb,"])",2);
 	((KrkObj*)self)->flags &= ~(KRK_OBJ_FLAGS_IN_REPR);
 	return finishStringBuilder(&sb);
+
+_error:
+	((KrkObj*)self)->flags &= ~(KRK_OBJ_FLAGS_IN_REPR);
+	krk_discardStringBuilder(&sb);
+	return NONE_VAL();
 }
 
 _noexport

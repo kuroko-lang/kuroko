@@ -148,15 +148,8 @@ KRK_Method(tuple,__repr__) {
 	pushStringBuilder(&sb, '(');
 
 	for (size_t i = 0; i < self->values.count; ++i) {
-		KrkClass * type = krk_getType(self->values.values[i]);
-		krk_push(self->values.values[i]);
-		KrkValue result = krk_callDirect(type->_reprer, 1);
-		if (IS_STRING(result)) {
-			pushStringBuilderStr(&sb, AS_STRING(result)->chars, AS_STRING(result)->length);
-		}
-		if (i != self->values.count - 1) {
-			pushStringBuilderStr(&sb, ", ", 2);
-		}
+		if (i) pushStringBuilderStr(&sb, ", ", 2);
+		if (!krk_pushStringBuilderFormat(&sb, "%R", self->values.values[i])) goto _error;
 	}
 
 	if (self->values.count == 1) {
@@ -166,6 +159,11 @@ KRK_Method(tuple,__repr__) {
 	pushStringBuilder(&sb, ')');
 	((KrkObj*)self)->flags &= ~(KRK_OBJ_FLAGS_IN_REPR);
 	return finishStringBuilder(&sb);
+
+_error:
+	((KrkObj*)self)->flags &= ~(KRK_OBJ_FLAGS_IN_REPR);
+	krk_discardStringBuilder(&sb);
+	return NONE_VAL();
 }
 
 KRK_Method(tuple,__add__) {
