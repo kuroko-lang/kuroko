@@ -129,20 +129,13 @@ KRK_Function(input) {
 }
 
 static void printResult(FILE * file, KrkValue result) {
-	KrkClass * type = krk_getType(result);
-	const char * formatStr = " \033[1;90m=> %s\033[0m\n";
-	if (type->_reprer) {
-		krk_push(result);
-		result = krk_callDirect(type->_reprer, 1);
-	} else if (type->_tostr) {
-		krk_push(result);
-		result = krk_callDirect(type->_tostr, 1);
-	}
-	if (!IS_STRING(result)) {
-		fprintf(file, " \033[1;91m=> Unable to produce representation for value.\033[0m\n");
+	struct StringBuilder sb = {0};
+	if (!krk_pushStringBuilderFormat(&sb, " \033[1;90m=> %R\033[0m\n", result)) {
+		krk_dumpTraceback();
 	} else {
-		fprintf(file, formatStr, AS_CSTRING(result));
+		fwrite(sb.bytes,1,sb.length,file);
 	}
+	krk_discardStringBuilder(&sb);
 }
 
 #ifndef NO_RLINE
