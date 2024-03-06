@@ -893,16 +893,6 @@ KRK_Method(str,__repr__) {
 
 	for (char * c = AS_CSTRING(argv[0]); c < end; ++c) {
 		unsigned char ch = *c;
-		if (ch < ' ' || ch == 0x7F) {
-			pushStringBuilder(&sb,'\\');
-			pushStringBuilder(&sb,'x');
-			char hex[3];
-			snprintf(hex, 3, "%02x", (unsigned char)*c);
-			pushStringBuilder(&sb,hex[0]);
-			pushStringBuilder(&sb,hex[1]);
-			continue;
-		}
-
 		int addSlash = 0;
 		switch (ch) {
 			/* XXX: Other non-printables should probably be escaped as well. */
@@ -917,7 +907,17 @@ KRK_Method(str,__repr__) {
 			case '\t': addSlash = 1; ch = 't'; break;
 			case '\v': addSlash = 1; ch = 'v'; break;
 			case 27:   addSlash = 1; ch = '['; break;
-			default: break;
+			default:
+				if (ch < ' ' || ch == 0x7F) {
+					pushStringBuilder(&sb,'\\');
+					pushStringBuilder(&sb,'x');
+					char hex[3];
+					snprintf(hex, 3, "%02x", (unsigned char)*c);
+					pushStringBuilder(&sb,hex[0]);
+					pushStringBuilder(&sb,hex[1]);
+					continue;
+				}
+				break;
 		}
 		if (addSlash) krk_pushStringBuilder(&sb,'\\');
 		krk_pushStringBuilder(&sb,ch);
