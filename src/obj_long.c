@@ -2821,15 +2821,16 @@ KrkValue krk_parse_float(const char * s, size_t l) {
 
 	union Float { double d; uint64_t i; };
 
+	while (c < l && (s[c] == ' ' || s[c] == '\t' || s[c] == '\n' || s[c] == '\r')) c++;
+
 	/* Collect a leading sign. */
 	if (s[c] == '-') {
 		sign = -1;
 		c++;
-		ps = 1;
 	} else if (s[c] == '+') {
 		c++;
-		ps = 1;
 	}
+	ps = c;
 
 	/* Case-insensitive check for stringy floats: nan, inf */
 	if (c + 3 == l) {
@@ -2866,6 +2867,8 @@ KrkValue krk_parse_float(const char * s, size_t l) {
 		while (c < l && s[c] >= '0' && s[c] <= '9') c++;
 		ee = c;
 	}
+
+	while (c < l && (s[c] == ' ' || s[c] == '\t' || s[c] == '\n' || s[c] == '\r')) c++;
 
 	/* If we're not at the end here, we have invalid characters. */
 	if (c != l) return krk_runtimeError(vm.exceptions->valueError, "invalid literal for float");
