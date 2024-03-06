@@ -26,8 +26,22 @@ extern KrkValue krk_operator_add (KrkValue a, KrkValue b);
 extern KrkValue krk_operator_sub (KrkValue a, KrkValue b);
 
 static int usage(char * argv[]) {
-	fprintf(stderr, "usage: %s [FILE] [args...]\n", argv[0]);
+	fprintf(stderr, "usage: %s [-f LOG_FILE] [-q] FILE [args...]\n", argv[0]);
 	return 1;
+}
+
+static int help(char * argv[]) {
+	usage(argv);
+	fprintf(stderr,
+		"Generate callgrind-format trace files.\n"
+		"\n"
+		"Options:\n"
+		" -f LOG_FILE Output callgrind-format data to LOG_FILE.\n"
+		" -q          Do not print execution summary.\n"
+		"\n"
+		" --help      Show this help text.\n"
+		"\n");
+	return 0;
 }
 
 static KrkValue lineCache; /* {sourceCO: {line: count}} */
@@ -37,6 +51,7 @@ static KrkValue timeCache; /* {sourceCO: time} */
 static size_t lastFrameCount = 0;   /* Previously seen frame count, to track function entry/exit */
 static size_t instrCounter = 0;     /* Total counter of executed instructions */
 static size_t functionsEntered = 0; /* Number of function entries seen */
+static int    quiet = 0;
 
 /**
  * @brief Calculate time difference as string.
@@ -203,10 +218,13 @@ int main(int argc, char *argv[]) {
 	snprintf(outfile,1024,"callgrind.out.%d",getpid());
 
 	int opt;
-	while ((opt = getopt(argc, argv, "+:f:-:")) != -1) {
+	while ((opt = getopt(argc, argv, "+:f:q-:")) != -1) {
 		switch (opt) {
 			case 'f':
 				snprintf(outfile,1024,"%s", optarg);
+				break;
+			case 'q':
+				quiet = 1;
 				break;
 			case '?':
 				if (optopt != '-') {
@@ -217,6 +235,7 @@ int main(int argc, char *argv[]) {
 				/* fall through */
 			case '-':
 				if (!strcmp(optarg,"help")) {
+					return help(argv);
 				} else {
 					fprintf(stderr, "%s: unrecognized option: '--%s'\n", argv[0], optarg);
 					return 1;
@@ -245,14 +264,16 @@ int main(int argc, char *argv[]) {
 
 	if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) {
 		krk_currentThread.flags &= ~(KRK_THREAD_HAS_EXCEPTION);
-		fprintf(stderr, "== Executed ended by exception ==\n");
+		if (!quiet) fprintf(stderr, "== Executed ended by exception ==\n");
 	} else {
-		fprintf(stderr, "== Execution completed ==\n");
+		if (!quiet) fprintf(stderr, "== Execution completed ==\n");
 	}
 	krk_callgrind_debuggerHook(NULL);
 
-	fprintf(stderr, "%10zu total instruction%s\n", instrCounter, (instrCounter != 1) ? "s" : "");
-	fprintf(stderr, "%10zu function%s calls\n", functionsEntered, (functionsEntered != 1) ? "s" : "");
+	if (!quiet) {
+		fprintf(stderr, "%10zu total instruction%s\n", instrCounter, (instrCounter != 1) ? "s" : "");
+		fprintf(stderr, "%10zu function%s calls\n", functionsEntered, (functionsEntered != 1) ? "s" : "");
+	}
 
 	FILE * f = fopen(outfile,"w");
 	if (!f) {
