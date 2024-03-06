@@ -45,8 +45,6 @@ Halts execution and calls the debugger before every instruction.
 Prints a message each time the garbage collector is run.
 - `KRK_GLOBAL_ENABLE_STRESS_GC`  
 Causes the garbage collector to be called on every allocation (from the main thread).
-- `KRK_GLOBAL_CALLGRIND`  
-Generate tracing data. `vm.callgrindFile` must be set to a writable stream to store the intermediate data collected by the VM.
 - `KRK_GLOBAL_CLEAN_OUTPUT`  
 Disables automatic printing of uncaught exception tracebacks. Use `krk_dumpTraceback()` to print a traceback from the exception in the current thread to `stderr`.
 

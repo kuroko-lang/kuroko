@@ -7,7 +7,6 @@
  * for Kuroko, including initializing the VM and passing code to be interpreted.
  */
 #include <stdarg.h>
-#include <time.h>
 #include <sys/types.h>
 #include "kuroko.h"
 #include "value.h"
@@ -49,9 +48,6 @@ typedef struct {
 	size_t outSlots;      /**< Offset into the stack at which stackTop will be reset upon return */
 	KrkTable * globals;   /**< Pointer to the attribute table containing valud global vairables for this call */
 	KrkValue   globalsOwner; /**< Owner of the current globals context, to give to new closures. */
-#ifndef KRK_NO_CALLGRIND
-	struct timespec in_time;
-#endif
 } KrkCallFrame;
 
 /**
@@ -201,7 +197,6 @@ typedef struct KrkVM {
 	KrkObj** grayStack;               /**< Scan list */
 
 	KrkThreadState * threads;         /**< Invasive linked list of all VM threads. */
-	FILE * callgrindFile;             /**< File to write unprocessed callgrind data to. */
 	struct DebuggerState * dbgState;  /**< Opaque debugger state pointer. */
 } KrkVM;
 
@@ -218,7 +213,7 @@ typedef struct KrkVM {
 #define KRK_GLOBAL_ENABLE_STRESS_GC    (1 << 8)
 #define KRK_GLOBAL_GC_PAUSED           (1 << 9)
 #define KRK_GLOBAL_CLEAN_OUTPUT        (1 << 10)
-#define KRK_GLOBAL_CALLGRIND           (1 << 11)
+/* 11 is available again */
 #define KRK_GLOBAL_REPORT_GC_COLLECTS  (1 << 12)
 #define KRK_GLOBAL_THREADS             (1 << 13)
 #define KRK_GLOBAL_NO_DEFAULT_MODULES  (1 << 14)

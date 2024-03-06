@@ -66,44 +66,6 @@ void krk_forceThreadData(void) {
 #define krk_currentThread (*_macos_currentThread())
 #endif
 
-#if !defined(KRK_NO_TRACING) && !defined(__EMSCRIPTEN__) && !defined(KRK_NO_CALLGRIND)
-static void _frame_in(KrkCallFrame * frame) {
-	 clock_gettime(CLOCK_MONOTONIC, &frame->in_time);
-}
-static void _frame_out(KrkCallFrame * frame) {
-	if (frame->closure->function->obj.flags & KRK_OBJ_FLAGS_CODEOBJECT_IS_GENERATOR) return;
-
-	KrkCallFrame * caller = krk_currentThread.frameCount > 1 ? &krk_currentThread.frames[krk_currentThread.frameCount-2] : NULL;
-
-	struct timespec outTime, diff;
-
-	clock_gettime(CLOCK_MONOTONIC, &outTime);
-	diff.tv_sec  = outTime.tv_sec  - frame->in_time.tv_sec;
-	diff.tv_nsec = outTime.tv_nsec - frame->in_time.tv_nsec;
-
-	if (diff.tv_nsec < 0) {
-		diff.tv_sec--;
-		diff.tv_nsec += 1000000000L;
-	}
-
-	fprintf(vm.callgrindFile, "%s %s@%p %d %s %s@%p %d %lld.%.9ld\n",
-		caller ? (caller->closure->function->chunk.filename->chars) : "stdin",
-		caller ? (caller->closure->function->qualname ? caller->closure->function->qualname->chars : caller->closure->function->name->chars) : "(root)",
-		caller ? ((void*)caller->closure->function) : NULL,
-		caller ? ((int)krk_lineNumber(&caller->closure->function->chunk, caller->ip - caller->closure->function->chunk.code)) : 1,
-		frame->closure->function->chunk.filename->chars,
-		frame->closure->function->qualname ? frame->closure->function->qualname->chars : frame->closure->function->name->chars,
-		(void*)frame->closure->function,
-		(int)krk_lineNumber(&frame->closure->function->chunk, 0),
-		(long long)diff.tv_sec, diff.tv_nsec);
-}
-# define FRAME_IN(frame) if (unlikely(vm.globalFlags & KRK_GLOBAL_CALLGRIND)) { _frame_in(frame); }
-# define FRAME_OUT(frame) if (unlikely(vm.globalFlags & KRK_GLOBAL_CALLGRIND)) { _frame_out(frame); }
-#else
-# define FRAME_IN(frame)
-# define FRAME_OUT(frame)
-#endif
-
 /*
  * In some threading configurations, particular on Windows,
  * we can't have executables reference our thread-local thread
@@ -621,7 +583,6 @@ _finishKwarg:
 	frame->outSlots = frame->slots - returnDepth;
 	frame->globalsOwner = closure->globalsOwner;
 	frame->globals = closure->globalsTable;
-	FRAME_IN(frame);
 	return 1;
 
 _errorDuringPositionals:
@@ -2220,7 +2181,6 @@ _finishReturn: (void)0;
 					break;
 				}
 				closeUpvalues(frame->slots);
-				FRAME_OUT(frame);
 				krk_currentThread.frameCount--;
 				if (krk_currentThread.frameCount == 0) {
 					krk_pop();

@@ -122,7 +122,6 @@ let modules = [
     'json',
     'collections',
     'string',
-    'callgrind',
 
     # Other stuff
     'tools.gendoc',
