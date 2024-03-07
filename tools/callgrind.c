@@ -19,6 +19,7 @@
 #include <kuroko/vm.h>
 #include <kuroko/debug.h>
 #include <kuroko/util.h>
+#include "../src/opcode_enum.h"
 
 #include "common.h"
 
@@ -26,7 +27,7 @@ extern KrkValue krk_operator_add (KrkValue a, KrkValue b);
 extern KrkValue krk_operator_sub (KrkValue a, KrkValue b);
 
 static int usage(char * argv[]) {
-	fprintf(stderr, "usage: %s [-f LOG_FILE] [-q] FILE [args...]\n", argv[0]);
+	fprintf(stderr, "usage: %s [-f LOG_FILE] [-q] [-m] FILE [args...]\n", argv[0]);
 	return 1;
 }
 
@@ -38,6 +39,7 @@ static int help(char * argv[]) {
 		"Options:\n"
 		" -f LOG_FILE Output callgrind-format data to LOG_FILE.\n"
 		" -q          Do not print execution summary.\n"
+		" -m          Interpret first argument as a module name rather than a file.\n"
 		"\n"
 		" --help      Show this help text.\n"
 		"\n");
@@ -52,6 +54,7 @@ static size_t lastFrameCount = 0;   /* Previously seen frame count, to track fun
 static size_t instrCounter = 0;     /* Total counter of executed instructions */
 static size_t functionsEntered = 0; /* Number of function entries seen */
 static int    quiet = 0;
+static int    moduleAsMain = 0;
 
 /**
  * @brief Calculate time difference as string.
@@ -212,19 +215,30 @@ int krk_callgrind_debuggerHook(KrkCallFrame * frame) {
 	return KRK_DEBUGGER_STEP;
 }
 
+static void fprint_krk(FILE * f, const char * fmt, ...) {
+	va_list args;
+	va_start(args, fmt);
+	struct StringBuilder sb = {0};
+	krk_pushStringBuilderFormatV(&sb, fmt, args);
+	fwrite(sb.bytes, sb.length, 1, f);
+	krk_discardStringBuilder(&sb);
+}
 
 int main(int argc, char *argv[]) {
 	char outfile[1024];
 	snprintf(outfile,1024,"callgrind.out.%d",getpid());
 
 	int opt;
-	while ((opt = getopt(argc, argv, "+:f:q-:")) != -1) {
+	while ((opt = getopt(argc, argv, "+:f:qm-:")) != -1) {
 		switch (opt) {
 			case 'f':
 				snprintf(outfile,1024,"%s", optarg);
 				break;
 			case 'q':
 				quiet = 1;
+				break;
+			case 'm':
+				moduleAsMain = 1;
 				break;
 			case '?':
 				if (optopt != '-') {
@@ -249,9 +263,9 @@ int main(int argc, char *argv[]) {
 	findInterpreter(argv);
 	krk_initVM(KRK_THREAD_SINGLE_STEP);
 	krk_debug_registerCallback(krk_callgrind_debuggerHook);
-	addArgs(argc,argv);
+	KrkValue argList = addArgs(argc,argv);
 
-	krk_startModule("__main__");
+	krk_startModule("__callgrind__");
 
 	lineCache = krk_dict_of(0,NULL,0);
 	krk_attachNamedValue(&krk_currentThread.module->fields,"__line_cache__",lineCache);
@@ -260,7 +274,14 @@ int main(int argc, char *argv[]) {
 	timeCache = krk_dict_of(0,NULL,0);
 	krk_attachNamedValue(&krk_currentThread.module->fields,"__time_cache__",timeCache);
 
-	krk_runfile(argv[optind],argv[optind]);
+	if (moduleAsMain) {
+		krk_importModule(AS_STRING(AS_LIST(argList)->values[0]), S("__main__"));
+		if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) krk_dumpTraceback();
+		/* no need to reset here */
+	} else {
+		krk_startModule("__main__");
+		krk_runfile(argv[optind],argv[optind]);
+	}
 
 	if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) {
 		krk_currentThread.flags &= ~(KRK_THREAD_HAS_EXCEPTION);
@@ -285,7 +306,7 @@ int main(int argc, char *argv[]) {
 	fprintf(f,"creator: Kuroko\n");
 	fprintf(f,"positions: line\n");
 	fprintf(f,"events: instructions nanoseconds\n");
-	fprintf(f,"cmd: %s %s\n", argv[0], argv[optind]);
+	fprint_krk(f,"cmd: %R\n", argList);
 	fprintf(f,"summary: %zu ", instrCounter);
 	char tmp[50];
 	time_diff(frameMetadata[0].in_time, tmp);
@@ -305,18 +326,12 @@ int main(int argc, char *argv[]) {
 		krk_tableGet(AS_DICT(timeCache), OBJECT_VAL(function), &timeValue);
 		if (!IS_NONE(timeValue)) {
 			fprintf(f,"%zu ", (size_t)krk_lineNumber(&function->chunk, 0));
-			struct StringBuilder sb = {0};
-			krk_pushStringBuilderFormat(&sb, "0 %R\n", timeValue);
-			fprintf(f,"%.*s", (int)sb.length, sb.bytes);
-			krk_discardStringBuilder(&sb);
+			fprint_krk(f,"0 %R\n", timeValue);
 		}
 
 		for (size_t k = 0; k < AS_DICT(ndict)->used; ++k) {
 			if (IS_KWARGS(AS_DICT(ndict)->entries[k].key)) continue;
-			struct StringBuilder sb = {0};
-			krk_pushStringBuilderFormat(&sb, "%R %R 0\n", AS_DICT(ndict)->entries[k].key, AS_DICT(ndict)->entries[k].value);
-			fprintf(f,"%.*s", (int)sb.length, sb.bytes);
-			krk_discardStringBuilder(&sb);
+			fprint_krk(f,"%R %R 0\n", AS_DICT(ndict)->entries[k].key, AS_DICT(ndict)->entries[k].value);
 		}
 
 		KrkValue cdict = NONE_VAL();
@@ -334,11 +349,7 @@ int main(int argc, char *argv[]) {
 
 				fprintf(f,"cfi=%s\n", target->chunk.filename->chars);
 				fprintf(f,"cfn=%s@%p\n", target->qualname ? target->qualname->chars : target->name->chars, (void*)target);
-
-				struct StringBuilder sb = {0};
-				krk_pushStringBuilderFormat(&sb, "calls=%R %R\n%R %R %R\n", totalCalls, targetLine, sourceLine, totalCost, totalTime);
-				fprintf(f,"%.*s",(int)sb.length,sb.bytes);
-				krk_discardStringBuilder(&sb);
+				fprint_krk(f,"calls=%R %R\n%R %R %R\n", totalCalls, targetLine, sourceLine, totalCost, totalTime);
 			}
 		}
 	}
