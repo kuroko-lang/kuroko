@@ -942,10 +942,7 @@ _finishArgs:
 		"provide color highlighting of the input line.");
 
 	if (moduleAsMain) {
-		krk_push(OBJECT_VAL(krk_copyString("__main__",8)));
-		int out = !krk_importModule(
-			AS_STRING(AS_LIST(argList)->values[0]),
-			AS_STRING(krk_peek(0)));
+		int out = !krk_importModule(AS_STRING(AS_LIST(argList)->values[0]), S("__main__"));
 		if (krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION) {
 			krk_dumpTraceback();
 			krk_resetStack();
