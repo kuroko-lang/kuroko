@@ -1,3 +1,4 @@
+#include <time.h>
 #include <kuroko/vm.h>
 #include <kuroko/memory.h>
 #include <kuroko/object.h>
