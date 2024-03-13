@@ -846,7 +846,7 @@ KRK_Function(sorted) {
 	krk_push(listOut);
 	FUNC_NAME(list,extend)(2,(KrkValue[]){listOut,argv[0]},0);
 	if (!IS_NONE(krk_currentThread.currentException)) return NONE_VAL();
-	FUNC_NAME(list,sort)(hasKw ? 2 : 1,(KrkValue[]){listOut,hasKw ? argv[1] : NONE_VAL(), hasKw ? argv[2] : NONE_VAL()},hasKw);
+	FUNC_NAME(list,sort)(1,(KrkValue[]){listOut,hasKw ? argv[1] : NONE_VAL(), hasKw ? argv[2] : NONE_VAL()},hasKw);
 	if (!IS_NONE(krk_currentThread.currentException)) return NONE_VAL();
 	return krk_pop();
 }
