@@ -530,14 +530,6 @@ static struct SortSlice powersort_extend_and_reverse_right(struct SortSlice begi
 	return j;
 }
 
-#if defined(__TINYC__) || (defined(_MSC_VER) && !defined(__clang__))
-static int __builtin_clz(unsigned int x) {
-	int i = 31;
-	while (!(x & (1 << i)) && i >= 0) i--;
-	return 31-i;
-}
-#endif
-
 /**
  * @brief Calculate power.
  *
@@ -546,11 +538,23 @@ static int __builtin_clz(unsigned int x) {
  */
 static size_t powersort_power(size_t begin, size_t end, size_t beginA, size_t beginB, size_t endB) {
 	size_t n = end - begin;
-	unsigned long l2 = beginA + beginB - 2 * begin;
-	unsigned long r2 = beginB + endB - 2 * begin;
-	unsigned int a  = (unsigned int)((l2 << 30) / n);
-	unsigned int b =  (unsigned int)((r2 << 30) / n);
-	return __builtin_clz(a ^ b);
+	unsigned long l = beginA - begin + beginB - begin;
+	unsigned long r = beginB - begin + endB -  begin;
+	size_t common = 0;
+	int digitA = l >= n;
+	int digitB = r >= n;
+	while (digitA == digitB) {
+		common++;
+		if (digitA) {
+			l -= n;
+			r -= n;
+		}
+		l <<= 1;
+		r <<= 1;
+		digitA = l >= n;
+		digitB = r >= n;
+	}
+	return common + 1;
 }
 
 /**
