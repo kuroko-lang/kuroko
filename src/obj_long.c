@@ -2457,29 +2457,32 @@ KRK_Method(long,__repr__) {
 }
 
 #ifndef KRK_NO_FLOAT
-KrkValue krk_int_from_float(double val) {
-	union { double asDbl; uint64_t asInt; } u = {val};
+KrkValue krk_int_from_float(double a) {
+	union { double d; uint64_t u; } val = {.d = a};
 
-	int sign     = (u.asInt >> 63);
-	int exponent = ((u.asInt >> 52) & 0x7FF) - 0x3FF;
-	uint64_t man = (u.asInt & 0xfffffffffffffUL);
+	int sign  = (val.u >> 63ULL) ? 1 : 0;
+	int64_t m = val.u & 0x000fffffffffffffULL;
+	int64_t e = ((val.u >> 52ULL) & 0x7FF) - 0x3FF;
 
-	if (exponent < 0) return INTEGER_VAL(0);
-	if (exponent == 1024) return krk_runtimeError(vm.exceptions->valueError, "can not convert float %s to int", man ? "Nan" : "infinity");
-	if (exponent < 47) return INTEGER_VAL(val);
+	if (e < 0) return INTEGER_VAL(0);
+	if (e == 1024) return krk_runtimeError(vm.exceptions->valueError, "can not convert float %s to int", m ? "Nan" : "infinity");
+	if (e < 47) return INTEGER_VAL((int64_t)a);
 
-	KrkLong _value;
-	krk_long_init_si(&_value, 0x10000000000000 | man);
+	KrkLong _value, _tmp;
+	krk_long_init_si(&_value, 0x10000000000000ULL | m);
+	krk_long_init_si(&_tmp, 0);
 
-	KrkLong exp = {0};
-	if (exponent > 52) {
-		krk_long_init_si(&exp, exponent - 52);
-		_krk_long_lshift(&_value, &_value, &exp);
-	} else if (exponent < 52) {
-		krk_long_init_si(&exp, -(exponent - 52));
-		_krk_long_rshift(&_value, &_value, &exp);
+	if (e > 52) {
+		_krk_long_lshift_z(&_tmp, &_value, e - 52);
+		krk_long_clear(&_value);
+		_value = _tmp;
+	} else if (e < 52) {
+		_krk_long_rshift_z(&_tmp, &_value, 52 - e);
+		krk_long_clear(&_value);
+		_value = _tmp;
+	} else {
+		krk_long_clear(&_tmp);
 	}
-	krk_long_clear(&exp);
 
 	krk_long_set_sign(&_value, sign == 1 ? -1 : 1);
 	return make_long_obj(&_value);
