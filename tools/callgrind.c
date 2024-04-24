@@ -86,12 +86,17 @@ struct FrameMetadata {
 	struct timespec in_time;    /* Time of frame entry */
 };
 
-static struct FrameMetadata frameMetadata[KRK_CALL_FRAMES_MAX];
+static size_t maxFrameCount = KRK_CALL_FRAMES_MAX;
+static struct FrameMetadata * frameMetadata;
 
 int krk_callgrind_debuggerHook(KrkCallFrame * frame) {
 	instrCounter++;
 
 	if (krk_currentThread.frameCount != lastFrameCount) {
+		if (maxFrameCount != krk_currentThread.maximumCallDepth) {
+			frameMetadata = realloc(frameMetadata, sizeof(*frameMetadata) * krk_currentThread.maximumCallDepth);
+			maxFrameCount = krk_currentThread.maximumCallDepth;
+		}
 		if (krk_currentThread.frameCount > lastFrameCount) {
 			/* When we detect function entry, record details of the function being called
 			 * and what called in, and record the current time. */
@@ -262,6 +267,7 @@ int main(int argc, char *argv[]) {
 
 	findInterpreter(argv);
 	krk_initVM(KRK_THREAD_SINGLE_STEP);
+	frameMetadata = malloc(sizeof(*frameMetadata) * krk_currentThread.maximumCallDepth);
 	krk_debug_registerCallback(krk_callgrind_debuggerHook);
 	KrkValue argList = addArgs(argc,argv);
 
