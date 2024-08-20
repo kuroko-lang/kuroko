@@ -3240,17 +3240,34 @@ KrkValue krk_runfile(const char * fileName, const char * fromFile) {
 		return INTEGER_VAL(errno);
 	}
 
-	fseek(f, 0, SEEK_END);
-	size_t size = ftell(f);
-	fseek(f, 0, SEEK_SET);
+	char * buf;
 
-	char * buf = malloc(size+1);
-	if (fread(buf, 1, size, f) == 0 && size != 0) {
-		fprintf(stderr, "%s: could not read file '%s': %s\n", "kuroko", fileName, strerror(errno));
-		return INTEGER_VAL(errno);
+	if (fseek(f, 0, SEEK_END) < 0) {
+		struct StringBuilder sb = {0};
+		char tmp[1024];
+		while (!feof(f)) {
+			size_t r = fread(tmp, 1, 1024, f);
+			if (!r) {
+				krk_discardStringBuilder(&sb);
+				goto _on_fread_error;
+			}
+			krk_pushStringBuilderStr(&sb, tmp, r);
+		}
+		buf = sb.bytes;
+	} else {
+		size_t size = ftell(f);
+		fseek(f, 0, SEEK_SET);
+		buf = malloc(size+1);
+		if (fread(buf, 1, size, f) == 0 && size != 0) {
+			free(buf);
+			_on_fread_error:
+			fprintf(stderr, "%s: could not read file '%s': %s\n", "kuroko", fileName, strerror(errno));
+			return INTEGER_VAL(errno);
+		}
+		buf[size] = '\0';
 	}
+
 	fclose(f);
-	buf[size] = '\0';
 
 	KrkValue result = krk_interpret(buf, fromFile);
 	free(buf);
