@@ -1071,7 +1071,7 @@ KRK_Method(Helper,__call__) {
 }
 
 KRK_Method(LicenseReader,__repr__) {
-	return OBJECT_VAL(S("Copyright 2020-2022 K. Lange <klange@toaruos.org>. Type `license()` for more information."));
+	return OBJECT_VAL(S("Copyright 2020-2024 K. Lange <klange@toaruos.org>. Type `license()` for more information."));
 }
 
 KRK_Method(LicenseReader,__call__) {
