@@ -2556,10 +2556,12 @@ _freeImportName:
 }
 
 static void importStatement(struct GlobalState * state) {
+	KrkToken left = state->parser.previous;
 	do {
 		KrkToken firstName = state->parser.current;
 		KrkToken startOfName = {0};
 		size_t ind = importModule(state, &startOfName, 0);
+		writeExpressionLocation(&left,&state->parser.current,&firstName,state);
 		if (match(TOKEN_AS)) {
 			consume(TOKEN_IDENTIFIER, "Expected identifier after 'as'.");
 			ind = identifierConstant(state, &state->parser.previous);
