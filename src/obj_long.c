@@ -2761,11 +2761,11 @@ KrkValue krk_double_to_string(double a, unsigned int digits, char formatter, int
 			/* Small number but we have digits on or before the rounding point */
 			if (round_to(str, len, actual, digits - missing_digits)) missing_digits--;
 			actual = digits - missing_digits;
-		} else if (!missing_digits && actual - whole_digits > digits) {
+		} else if (!missing_digits && actual > whole_digits + digits) {
 			/* Number with no missing digits but still space for rounding */
 			if (round_to(str, len, actual, digits + whole_digits)) whole_digits++;
 			actual = digits + whole_digits;
-		} else if (actual == (size_t)whole_digits) {
+		} else if (actual <= (size_t)whole_digits) {
 			/* Number with no significant fractional part */
 			missing_digits = digits;
 		} else {
