@@ -2770,7 +2770,7 @@ KrkValue krk_double_to_string(double a, unsigned int digits, char formatter, int
 			missing_digits = digits;
 		} else {
 			/* Number with possibly not enough digits */
-			trailing_zeros = digits - (actual + missing_digits);
+			trailing_zeros = digits - (actual - whole_digits + missing_digits);
 		}
 	} else if (alwaysexp) {
 		if (actual > digits) {
