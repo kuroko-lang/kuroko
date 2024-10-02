@@ -661,7 +661,7 @@ KRK_Method(float,__format__) {
 		case 'E':
 			digits = 6;
 			formatter = *spec;
-			forcedigits = 1;
+			forcedigits = (opts.hasPrecision && opts.prec == 0) ? 0 : 1;
 			break;
 
 		default:
