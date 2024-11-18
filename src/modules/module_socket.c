@@ -318,7 +318,7 @@ KRK_Method(socket,listen) {
 
 KRK_Method(socket,accept) {
 	struct sockaddr_storage addr;
-	socklen_t addrlen;
+	socklen_t addrlen = sizeof(struct sockaddr_storage);
 
 	int result = accept(self->sockfd, (struct sockaddr*)&addr, &addrlen);
 
