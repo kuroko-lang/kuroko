@@ -533,15 +533,13 @@ KRK_Method(str,rstrip) {
 		if (!IS_STRING(argv[1])) { \
 			return NOTIMPL_VAL(); \
 		} \
-		KrkString *a = AS_STRING(argv[0]); \
-		KrkString *b = AS_STRING(argv[1]); \
-		krk_unicodeString(a); \
-		krk_unicodeString(b); \
-		size_t aLen = a->codesLength; \
-		size_t bLen = b->codesLength; \
+		size_t aLen = AS_STRING(argv[0])->length; \
+		size_t bLen = AS_STRING(argv[1])->length; \
+		const unsigned char * a = (const unsigned char*)AS_CSTRING(argv[0]); \
+		const unsigned char * b = (const unsigned char*)AS_CSTRING(argv[1]); \
 		for (size_t i = 0; i < ((aLen < bLen) ? aLen : bLen); i++) { \
-			if (KRK_STRING_FAST(a,i) lop KRK_STRING_FAST(b,i)) return BOOLEAN_VAL(1); \
-			if (KRK_STRING_FAST(a,i) iop KRK_STRING_FAST(b,i)) return BOOLEAN_VAL(0); \
+			if (a[i] lop b[i]) return BOOLEAN_VAL(1); \
+			if (a[i] iop b[i]) return BOOLEAN_VAL(0); \
 		} \
 		return BOOLEAN_VAL((aLen rop bLen)); \
 	}
