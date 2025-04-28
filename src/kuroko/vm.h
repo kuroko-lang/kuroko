@@ -235,9 +235,9 @@ extern void krk_forceThreadData(void);
 #pragma clang diagnostic ignored "-Wlanguage-extension-token"
 __attribute__((always_inline))
 inline KrkThreadState * _macos_currentThread(void) {
-	extern const uint64_t tls_desc[] asm("_krk_currentThread");
+	extern const uint32_t tls_desc[] asm("_krk_currentThread");
 	const uintptr_t * threadptr; asm ("mrs %0, TPIDRRO_EL0" : "=r"(threadptr));
-	return (KrkThreadState*)(threadptr[tls_desc[1]]+(uint32_t)tls_desc[2]);
+	return (KrkThreadState*)(threadptr[tls_desc[2]]+(uint32_t)tls_desc[3]);
 }
 #elif !defined(KRK_DISABLE_THREADS) && ((defined(_WIN32) && !defined(KRKINLIB)) || defined(KRK_MEDIOCRE_TLS))
 #define krk_currentThread (*krk_getCurrentThread())
