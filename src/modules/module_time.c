@@ -11,6 +11,18 @@
 #include <kuroko/object.h>
 #include <kuroko/util.h>
 
+#ifdef _WIN32
+static inline struct tm* localtime_r(const time_t* timer, struct tm* buf) {
+	localtime_s(buf,timer);
+	return buf;
+}
+
+static inline struct tm* gmtime_r(const time_t* timer, struct tm* buf) {
+	gmtime_s(buf,timer);
+	return buf;
+}
+#endif
+
 KRK_Function(sleep) {
 	FUNCTION_TAKES_EXACTLY(1);
 

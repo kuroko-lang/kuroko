@@ -9,6 +9,8 @@
 #ifdef _WIN32
 #include <winsock2.h>
 #include <ws2tcpip.h>
+/* AF_UNIX is defined but Unix socket support is generally missing in our mingw toolchain  */
+#undef AF_UNIX
 #else
 #include <sys/socket.h>
 #include <arpa/inet.h>
