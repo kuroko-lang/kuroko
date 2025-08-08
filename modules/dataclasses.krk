@@ -1,0 +1,107 @@
+'''
+@brief Dataclasses
+
+Provides an interface similar to the Python one.
+
+Dataclasses have specific fields, like structs or classes in other languages.
+
+The `@dataclass` decorator automatically creates an `__init__` method, as well
+as `__eq__` and `__repr__` and maybe other things in the future as more of the
+Python interface is implemented.
+
+This works through dynamic compilation, so it requires the `dis` module.
+'''
+import dis
+import kuroko
+
+# What's missing:
+#  - Frozen dataclasses and __hash__ implementation.
+#  - Ordering functions.
+#  - Default values, default factories.
+#  - Extending dataclasses
+#
+# What's implemented:
+#  - __init__ from annotated fields
+#  - __eq__ on annotated fields
+#  - __repr__ with annotated fields
+
+def _get_own_property(cls, name):
+    '''Get a property from a class, but not from its parent.'''
+    let prop = getattr(cls, name, None)
+    let pare = getattr(cls.__base__, name, None)
+    return prop if prop is not pare else None
+
+def _create_fn(name, body, args, globals):
+    '''Creates simple functions by concatenating lines.'''
+    let ns = '\n            '
+    let tmpl = f'''if True:
+        def {name}({",".join(args)}):
+            {ns.join(body)}
+        return {name}'''
+    let co = dis.build(tmpl)
+    let fn = function(co,(),globals)
+    return fn()
+
+def _cmp_fn(annotations, name, operator, globals):
+    let selfFields = [f'self.{x}' for x in annotations]
+    let otherFields = [f'other.{x}' for x in annotations]
+    return _create_fn(name,
+        [f'return NotImplemented if other.__class__ != self.__class__ else ({",".join(selfFields)}) {operator} ({",".join(otherFields)})'],
+        ['self','other'], globals)
+
+def _do_the_thing(cls, init, eq, repr, cmp):
+    '''Populates a dataclass's methods.'''
+
+    # Annotations are finally ordered (Kuroko 1.5+), so we can use them
+    # to get consistent field descriptions.
+    let annotations = _get_own_property(cls, '__annotations__')
+
+    # Ensure that the annotations we just grabbed are from the actual
+    # decorated class and not an ancestor.
+    # TODO: Support extended dataclasses...
+    if not annotations:
+        raise ValueError('no annotations')
+
+    # While not used now, we want the functions we make to share
+    # a globals context with the original class definition, which
+    # we can do by grabbing the module it was imported from.
+    let globals = kuroko.importmodule(cls.__module__)
+
+    # The __init__ function, for now, just assigns all of the
+    # data fields. TODO: Support defaults, optional arguments,
+    # keyword-only arguments, default factories, etc.
+    if init:
+        let initfn = _create_fn('__init__',
+            [f'self.{n} = {n}' for n in annotations],
+            ['self',*annotations], globals)
+        cls.__init__ = initfn
+
+    # Equality checks shove everything into tuples and then compare them.
+    if eq:
+        cls.__eq__ = _cmp_fn(annotations,'__eq__','==',globals)
+
+    # The __repr__ will return ClassName(a=1,b=2) and so on.
+    if repr:
+        let argExtracts = [x + '={self.' + x + '}' for x in annotations]
+        let reprfn = _create_fn('__repr__',
+            [f'return f"{cls.__name__}({",".join(argExtracts)})"'],
+            ['self'], globals)
+        cls.__repr__ = reprfn
+
+    # Build comparators using the same tuple logic as equality
+    if cmp:
+        cls.__lt__ = _cmp_fn(annotations,'__lt__','<',globals)
+        cls.__gt__ = _cmp_fn(annotations,'__gt__','>',globals)
+        cls.__le__ = _cmp_fn(annotations,'__le__','<=',globals)
+        cls.__ge__ = _cmp_fn(annotations,'__ge__','>=',globals)
+
+    return cls
+
+def dataclass(cls=None, /, *, init=True, eq=True, repr=True, cmp=False):
+    def _wrap(cls):
+        return _do_the_thing(cls,init,eq,repr,cmp)
+    # Allow bare '@dataclass'
+    if cls is None:
+        return _wrap
+    return _wrap(cls)
+
