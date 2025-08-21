@@ -184,43 +184,12 @@ KRK_Method(tuple,__add__) {
 	return krk_pop();
 }
 
-/**
- * @brief Iterator over the values in a tuple.
- * @extends KrkInstance
- */
-struct TupleIter {
-	KrkInstance inst;
-	KrkValue myTuple;
-	int i;
-};
-
-static KrkValue _tuple_iter_init(int argc, const KrkValue argv[], int hasKw) {
-	struct TupleIter * self = (struct TupleIter *)AS_OBJECT(argv[0]);
-	self->myTuple = argv[1];
-	self->i = 0;
-	return argv[0];
-}
-
-static void _tuple_iter_gcscan(KrkInstance * self) {
-	krk_markValue(((struct TupleIter*)self)->myTuple);
-}
-
-static KrkValue _tuple_iter_call(int argc, const KrkValue argv[], int hasKw) {
-	struct TupleIter * self = (struct TupleIter *)AS_OBJECT(argv[0]);
-	KrkValue t = self->myTuple; /* Tuple to iterate */
-	int i = self->i;
-	if (i >= (krk_integer_type)AS_TUPLE(t)->values.count) {
-		return argv[0];
-	} else {
-		self->i = i+1;
-		return AS_TUPLE(t)->values.values[i];
-	}
-}
+FUNC_SIG(tupleiterator,__init__);
 
 KRK_Method(tuple,__iter__) {
 	KrkInstance * output = krk_newInstance(vm.baseClasses->tupleiteratorClass);
 	krk_push(OBJECT_VAL(output));
-	_tuple_iter_init(2, (KrkValue[]){krk_peek(0), argv[0]}, 0);
+	FUNC_NAME(tupleiterator,__init__)(2, (KrkValue[]){krk_peek(0), argv[0]}, 0);
 	krk_pop();
 	return OBJECT_VAL(output);
 }
@@ -262,6 +231,46 @@ KRK_Method(tuple,__mul__) {
 	return krk_pop();
 }
 
+#undef CURRENT_CTYPE
+
+#define CURRENT_CTYPE struct TupleIterator *
+#define IS_tupleiterator(o) (likely(IS_INSTANCE(o) && AS_INSTANCE(o)->_class == vm.baseClasses->tupleiteratorClass) || krk_isInstanceOf(o,vm.baseClasses->tupleiteratorClass))
+#define AS_tupleiterator(o) (struct TupleIterator*)AS_OBJECT(o)
+
+/**
+ * @brief Iterator over the values in a tuple.
+ * @extends KrkInstance
+ */
+struct TupleIterator {
+	KrkInstance inst;
+	KrkValue myTuple;
+	int i;
+};
+
+KRK_Method(tupleiterator,__init__) {
+	METHOD_TAKES_EXACTLY(1);
+	CHECK_ARG(1,tuple,KrkTuple*,tuple);
+	self->myTuple = argv[1];
+	self->i = 0;
+	return NONE_VAL();
+}
+
+static void _tuple_iter_gcscan(KrkInstance * self) {
+	krk_markValue(((struct TupleIterator*)self)->myTuple);
+}
+
+KRK_Method(tupleiterator,__call__) {
+	KrkValue t = self->myTuple; /* Tuple to iterate */
+	int i = self->i;
+	if (i >= (krk_integer_type)AS_TUPLE(t)->values.count) {
+		return argv[0];
+	} else {
+		self->i = i+1;
+		return AS_TUPLE(t)->values.values[i];
+	}
+}
+
+
 _noexport
 void _createAndBind_tupleClass(void) {
 	KrkClass * tuple = ADD_BASE_CLASS(vm.baseClasses->tupleClass, "tuple", vm.baseClasses->objectClass);
@@ -283,11 +292,11 @@ void _createAndBind_tupleClass(void) {
 	BIND_METHOD(tuple,__mul__);
 	krk_finalizeClass(tuple);
 
-	ADD_BASE_CLASS(vm.baseClasses->tupleiteratorClass, "tupleiterator", vm.baseClasses->objectClass);
-	vm.baseClasses->tupleiteratorClass->allocSize = sizeof(struct TupleIter);
-	vm.baseClasses->tupleiteratorClass->_ongcscan = _tuple_iter_gcscan;
-	krk_defineNative(&vm.baseClasses->tupleiteratorClass->methods, "__init__", _tuple_iter_init);
-	krk_defineNative(&vm.baseClasses->tupleiteratorClass->methods, "__call__", _tuple_iter_call);
-	krk_finalizeClass(vm.baseClasses->tupleiteratorClass);
+	KrkClass * tupleiterator = ADD_BASE_CLASS(vm.baseClasses->tupleiteratorClass, "tupleiterator", vm.baseClasses->objectClass);
+	tupleiterator->allocSize = sizeof(struct TupleIterator);
+	tupleiterator->_ongcscan = _tuple_iter_gcscan;
+	BIND_METHOD(tupleiterator,__init__);
+	BIND_METHOD(tupleiterator,__call__);
+	krk_finalizeClass(tupleiterator);
 
 }
