@@ -46,7 +46,9 @@ KRK_StaticMethod(bytes,__new__) {
 		return OBJECT_VAL(krk_newBytes(AS_STRING(argv[1])->length, (uint8_t*)AS_CSTRING(argv[1])));
 	} else if (IS_INTEGER(argv[1])) {
 		if (AS_INTEGER(argv[1]) < 0) return krk_runtimeError(vm.exceptions->valueError, "negative count");
-		return OBJECT_VAL(krk_newBytes(AS_INTEGER(argv[1]),NULL));
+		krk_push(OBJECT_VAL(krk_newBytes(AS_INTEGER(argv[1]),NULL)));
+		memset(AS_BYTES(krk_peek(0))->bytes, 0, AS_INTEGER(argv[1]));
+		return krk_pop();
 	} else {
 		struct StringBuilder sb = {0};
 		if (krk_unpackIterable(argv[1], &sb, _bytes_callback)) return NONE_VAL();
