@@ -330,8 +330,9 @@ KRK_Function(dir) {
 
 KRK_Function(repr) {
 	FUNCTION_TAKES_EXACTLY(1);
-	/* Everything should have a __repr__ */
+	/* Everything should have a __repr__, but... */
 	KrkClass * type = krk_getType(argv[0]);
+	if (unlikely(!type->_reprer)) return krk_runtimeError(vm.exceptions->typeError, "object is not representable");
 	krk_push(argv[0]);
 	return krk_callDirect(type->_reprer, 1);
 }

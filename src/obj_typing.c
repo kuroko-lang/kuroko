@@ -42,6 +42,7 @@ static KrkValue typeToString(KrkValue val) {
 	} else {
 		/* Just repr it. */
 		KrkClass * type = krk_getType(val);
+		if (!type->_reprer) return NONE_VAL();
 		krk_push(val);
 		return krk_callDirect(type->_reprer, 1);
 	}
@@ -58,7 +59,7 @@ KRK_Function(__class_getitem__) {
 	pushStringBuilder(&sb,'[');
 
 	krk_push(typeToString(argv[1]));
-	pushStringBuilderStr(&sb, AS_CSTRING(krk_peek(0)), AS_STRING(krk_peek(0))->length);
+	if (IS_STRING(krk_peek(0))) pushStringBuilderStr(&sb, AS_CSTRING(krk_peek(0)), AS_STRING(krk_peek(0))->length);
 	krk_pop();
 	pushStringBuilder(&sb,']');
 	return finishStringBuilder(&sb);

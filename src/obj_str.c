@@ -618,6 +618,11 @@ KRK_Method(str,__mod__) {
 			}
 
 _doit:
+			if (!IS_STRING(krk_peek(0))) {
+				krk_runtimeError(vm.exceptions->typeError, "__str__ returned non-string (type %T)", krk_peek(0));
+				krk_pop();
+				goto _exception;
+			}
 			if (!backwards && width > AS_STRING(krk_peek(0))->codesLength) {
 				while (width > AS_STRING(krk_peek(0))->codesLength) {
 					pushStringBuilder(&sb, ' ');

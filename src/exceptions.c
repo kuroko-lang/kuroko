@@ -64,9 +64,14 @@ KRK_Method(BaseException,__repr__) {
 
 	if (krk_tableGet(&self->fields, OBJECT_VAL(S("arg")), &arg)) {
 		/* repr it */
-		krk_push(arg);
-		KrkValue repred = krk_callDirect(krk_getType(arg)->_reprer, 1);
-		pushStringBuilderStr(&sb, AS_CSTRING(repred), AS_STRING(repred)->length);
+		KrkClass * type = krk_getType(arg);
+		if (likely(!!type->_reprer)) {
+			krk_push(arg);
+			KrkValue repred = krk_callDirect(type->_reprer, 1);
+			if (IS_STRING(repred)) {
+				pushStringBuilderStr(&sb, AS_CSTRING(repred), AS_STRING(repred)->length);
+			}
+		}
 	}
 
 	pushStringBuilder(&sb, ')');
