@@ -3262,13 +3262,14 @@ KrkValue krk_runfile(const char * fileName, const char * fromFile) {
 		size_t size = ftell(f);
 		fseek(f, 0, SEEK_SET);
 		buf = malloc(size+1);
-		if (fread(buf, 1, size, f) == 0 && size != 0) {
+		size_t read_len = fread(buf, 1, size, f);
+		if (read_len == 0 && size != 0) {
 			free(buf);
 			_on_fread_error:
 			fprintf(stderr, "%s: could not read file '%s': %s\n", "kuroko", fileName, strerror(errno));
 			return INTEGER_VAL(errno);
 		}
-		buf[size] = '\0';
+		buf[read_len] = '\0';
 	}
 
 	fclose(f);
