@@ -1236,7 +1236,11 @@ int krk_loadModule(KrkString * path, KrkValue * moduleOut, KrkString * runAs, Kr
 		krk_push(AS_LIST(modulePaths)->values[i]);
 		krk_push(OBJECT_VAL(path));
 		krk_addObjects(); /* Concatenate path... */
-		krk_push(OBJECT_VAL(S(".so")));
+#ifdef _WIN32
+        krk_push(OBJECT_VAL(S(".dll")));
+#else
+        krk_push(OBJECT_VAL(S(".so")));
+#endif
 		krk_addObjects(); /* and file extension */
 		fileName = AS_CSTRING(krk_peek(0));
 		if (stat(fileName,&statbuf) == 0) {
