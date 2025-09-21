@@ -1,0 +1,716 @@
+"""
+https://tc39.es/proposal-temporal/
+"""
+
+import math, collections
+
+# https://tc39.es/ecma262/#sec-time-related-constants
+_HOURS_PER_DAY = 24
+_MINUTES_PER_HOUR = 60
+_SECONDS_PER_MINUTE = 60
+_MS_PER_SECOND = 1000
+_MS_PER_MINUTE = _MS_PER_SECOND * _SECONDS_PER_MINUTE
+_MS_PER_HOUR = _MS_PER_MINUTE * _MINUTES_PER_HOUR
+_MS_PER_DAY = _MS_PER_HOUR * _HOURS_PER_DAY
+
+# https://tc39.es/proposal-temporal/#sec-temporal-iso-date-records
+_ISODateRecord = collections.namedtuple("_ISODateRecord", ("year", "month", "day"))
+# https://tc39.es/proposal-temporal/#sec-temporal-time-records
+_TimeRecord = collections.namedtuple("_TimeRecord", ("days", "hour", "minute", "second", "millisecond", "microsecond", "nanosecond"))
+# https://tc39.es/proposal-temporal/#table-temporal-temporaltimelike-record-fields
+_TemporalTimeLikeRecord = collections.namedtuple("_TemporalTimeLikeRecord", ("hour", "minute", "second", "millisecond", "microsecond", "nanosecond"))
+# https://tc39.es/proposal-temporal/#sec-temporal-iso-date-time-records
+_ISODateTimeRecord = collections.namedtuple("_ISODateTimeRecord", ("iso_date", "time"))
+# https://tc39.es/proposal-temporal/#sec-temporal-date-duration-records
+_DateDurationRecord = collections.namedtuple("_DateDurationRecord", ("years", "months", "weeks", "days"))
+# https://tc39.es/proposal-temporal/#sec-temporal-partial-duration-records
+_PartialDurationRecord = collections.namedtuple("_PartialDurationRecord", ("years", "months", "weeks", "days", "hours", "minutes", "seconds", "milliseconds", "microseconds", "nanoseconds"))
+# https://tc39.es/proposal-temporal/#sec-temporal-internal-duration-records
+_InternalDurationRecord = collections.namedtuple("_InternalDurationRecord", ("date", "time"))
+# https://tc39.es/proposal-temporal/#sec-temporal-duration-nudge-result-records
+_DurationNudgeResultRecord = collections.namedtuple("_DurationNudgeResultRecord", ("duration", "nudged_epoch_ns", "did_expand_calendar_unit"))
+# https://tc39.es/proposal-temporal/#sec-temporal-iso-year-month-records
+_ISOYearMonthRecord = collections.namedtuple("_ISOYearMonthRecord", ("year", "month"))
+# https://tc39.es/proposal-temporal/#sec-temporal-calendar-date-records
+_CalendarDateRecord = collections.namedtuple("_CalendarDateRecord", ("era", "era_year", "year", "month", "month_code", "day", "day_of_week", "day_of_year", "week_of_year", "days_in_week", "days_in_month", "days_in_year", "months_in_year", "in_leap_year"))
+# https://tc39.es/proposal-temporal/#sec-temporal-calendar-fields-records
+_CalendarFieldsRecord = collections.namedtuple("_CalendarFieldsRecord", ("era", "era_year", "year", "month", "month_code", "day", "hour", "minute", "second", "millisecond", "microsecond", "nanosecond", "offset", "time_zone"))
+# https://tc39.es/proposal-temporal/#sec-temporal-iso-string-time-zone-parse-records
+_ISOStringTimeZoneParseRecord = collections.namedtuple("_ISOStringTimeZoneParseRecord", ("z", "offset_string", "time_zone_annotation"))
+# https://tc39.es/proposal-temporal/#sec-temporal-iso-date-time-parse-records
+_ISODateTimeParseRecord = collections.namedtuple("_ISODateTimeParseRecord", ("year", "month", "day", "time", "time_zone", "calendar"))
+# https://tc39.es/proposal-temporal/#sec-year-week-record-specification-type
+_YearWeekRecord = collections.namedtuple("_YearWeekRecord", ("year", "week"))
+# https://tc39.es/proposal-temporal/#sec-temporal-tosecondsstringprecisionrecord
+_SecondsStringPrecisionRecord = collections.namedtuple("_SecondsStringPrecisionRecord", ("precision", "unit", "increment"))
+
+def _proper_iso_date_to_epoch_days(year, month, date):
+    """
+    Differs from the following in numbering months normally (rather than from 0 to 11),
+    i.e. using "month of year" (1 through 12) rather than "month in year" (0 through 11).
+    
+    - https://tc39.es/proposal-temporal/#sec-isodatetoepochdays
+    - https://tc39.es/ecma262/#sec-makeday
+    """
+    let resolved_year = year + math.floor((month - 1) / 12)
+    let resolved_month = ((month - 1) % 12) + 1
+    let low_bound = 0
+    let step = 1
+    while _epoch_time_to_epoch_year(low_bound) > resolved_year:
+        low_bound -= step
+        step *= 2
+    if _epoch_time_to_epoch_year(low_bound) == resolved_year:
+        step = 1
+        while _epoch_time_to_month_of_year(low_bound) > resolved_month:
+            low_bound -= step
+            step *= 2
+        if _epoch_time_to_month_of_year(low_bound) == resolved_month:
+            step = 1
+            while _epoch_time_to_date(low_bound) > 1:
+                low_bound -= step
+                step *= 2
+    let high_bound = low_bound
+    step = 1
+    while _epoch_time_to_epoch_year(high_bound) < resolved_year:
+        high_bound += step
+        step *= 2
+    if _epoch_time_to_epoch_year(high_bound) == resolved_year:
+        step = 1
+        while _epoch_time_to_month_of_year(high_bound) < resolved_month:
+            high_bound += step
+            step *= 2
+    while (high_bound - low_bound) > 1:
+        let middle = (low_bound + high_bound) // 2
+        if _epoch_time_to_epoch_year(middle) > resolved_year:
+            high_bound = middle
+        else if _epoch_time_to_epoch_year(middle) < resolved_year:
+            low_bound = middle
+        else if _epoch_time_to_month_of_year(middle) > resolved_month:
+            high_bound = middle
+        else if _epoch_time_to_month_of_year(middle) < resolved_month:
+            low_bound = middle
+        else if _epoch_time_to_date(middle) > 1:
+            high_bound = middle
+        else:
+            low_bound = high_bound = middle
+    let t = low_bound if _epoch_time_to_date(low_bound) == 1 else high_bound
+    return _epoch_time_to_day_number(t) + date - 1
+
+def _epoch_days_to_epoch_ms(day, time):
+    """
+    - https://tc39.es/proposal-temporal/#sec-epochdaystoepochms
+    - https://tc39.es/ecma262/#sec-makedate
+    """
+    return (day * _MS_PER_DAY) + time
+
+def _epoch_time_to_day_number(t):
+    """
+    - https://tc39.es/proposal-temporal/#eqn-EpochTimeToDayNumber
+    - https://tc39.es/ecma262/#sec-day
+    """
+    return math.floor(t / _MS_PER_DAY)
+
+def _mathematical_days_in_year(y):
+    """
+    - https://tc39.es/proposal-temporal/#eqn-mathematicaldaysinyear
+    - https://tc39.es/ecma262/#sec-daysinyear
+    """
+    if y % 4:
+        return 365
+    else if y % 100:
+        return 366
+    else if y % 400:
+        return 365
+    else:
+        return 366
+
+def _epoch_day_number_for_year(y):
+    """
+    - https://tc39.es/proposal-temporal/#eqn-epochdaynumberforyear
+    - https://tc39.es/ecma262/#sec-dayfromyear
+    """
+    return 365 * (y - 1970) + math.floor((y - 1969) / 4.0) - math.floor((y - 1901) / 100.0) + math.floor((y - 1601) / 400.0)
+
+def _epoch_time_for_year(y):
+    """
+    - https://tc39.es/proposal-temporal/#eqn-epochtimeforyear
+    - https://tc39.es/ecma262/#sec-timefromyear
+    """
+    return _MS_PER_DAY * _epoch_day_number_for_year(y)
+
+def _epoch_time_to_epoch_year(t):
+    """
+    - https://tc39.es/proposal-temporal/#eqn-epochtimetoepochyear
+    - https://tc39.es/ecma262/#sec-yearfromtime
+    """
+    let low_bound = 0
+    let step = 1
+    while _epoch_time_for_year(low_bound) > t:
+        low_bound -= step
+        step *= 2
+    let high_bound = low_bound
+    step = 1
+    while _epoch_time_for_year(high_bound) <= t:
+        high_bound += step
+        step *= 2
+    while (high_bound - low_bound) > 1:
+        let middle = (low_bound + high_bound) // 2
+        if _epoch_time_for_year(middle) > t:
+            high_bound = middle
+        else:
+            low_bound = middle
+    return low_bound
+
+def _mathematical_in_leap_year(t):
+    """
+    - https://tc39.es/proposal-temporal/#eqn-mathematicalinleapyear
+    - https://tc39.es/ecma262/#sec-inleapyear
+    """
+    let epoch_year = _epoch_time_to_epoch_year(t)
+    return _mathematical_days_in_year(t) > 365
+
+def _epoch_time_to_month_of_year(t):
+    """
+    Differs from the following in numbering months normally (rather than from 0 to 11),
+    i.e. using "month of year" (1 through 12) rather than "month in year" (0 through 11).
+    
+    - https://tc39.es/proposal-temporal/#eqn-epochtimetomonthinyear
+    - https://tc39.es/ecma262/#sec-monthfromtime
+    """
+    let day_of_year = _epoch_time_to_day_of_year(t)
+    let in_leap_year = _mathematical_in_leap_year(t)
+    if day_of_year < 32:
+        return 1
+    else if day_of_year < (60 + in_leap_year):
+        return 2
+    else if day_of_year < (91 + in_leap_year):
+        return 3
+    else if day_of_year < (121 + in_leap_year):
+        return 4
+    else if day_of_year < (152 + in_leap_year):
+        return 5
+    else if day_of_year < (182 + in_leap_year):
+        return 6
+    else if day_of_year < (213 + in_leap_year):
+        return 7
+    else if day_of_year < (244 + in_leap_year):
+        return 8
+    else if day_of_year < (274 + in_leap_year):
+        return 9
+    else if day_of_year < (305 + in_leap_year):
+        return 10
+    else if day_of_year < (335 + in_leap_year):
+        return 11
+    else:
+        return 12
+
+def _epoch_time_to_day_of_year(t):
+    """
+    Differs from the following in using "day of year" (1 through 366)
+    rather than "day in/within year" (0 through 365).
+    
+    - https://tc39.es/proposal-temporal/#eqn-epochtimetodayinyear
+    - https://tc39.es/ecma262/#sec-daywithinyear
+    """
+    return _epoch_time_to_day_number(t) + 1 - _epoch_day_number_for_year(_epoch_time_to_epoch_year(t))
+
+def _epoch_time_to_date(t):
+    """
+    - https://tc39.es/proposal-temporal/#eqn-epochtimetodate
+    - https://tc39.es/ecma262/#sec-datefromtime
+    """
+    let in_leap_year = _mathematical_in_leap_year(t)
+    let month = _epoch_time_to_month_of_year(t)
+    let day_of_year = _epoch_time_to_day_of_year(t)
+    if month = 1:
+        return day_of_year
+    else if month = 2:
+        return day_of_year - 31
+    else if month = 3:
+        return day_of_year - 59 - in_leap_year
+    else if month = 4:
+        return day_of_year - 90 - in_leap_year
+    else if month = 5:
+        return day_of_year - 120 - in_leap_year
+    else if month = 6:
+        return day_of_year - 151 - in_leap_year
+    else if month = 7:
+        return day_of_year - 181 - in_leap_year
+    else if month = 8:
+        return day_of_year - 212 - in_leap_year
+    else if month = 9:
+        return day_of_year - 243 - in_leap_year
+    else if month = 10:
+        return day_of_year - 273 - in_leap_year
+    else if month = 11:
+        return day_of_year - 304 - in_leap_year
+    else:
+        return day_of_year - 334 - in_leap_year
+
+def _epoch_time_to_week_day(t):
+    """
+    - https://tc39.es/proposal-temporal/#eqn-epochtimetoweekday
+    - https://tc39.es/ecma262/#sec-weekday
+    """
+    return (_epoch_time_to_day_number(t) + 4) % 7
+
+def _negate_rounding_mode(rounding_mode):
+    """https://tc39.es/proposal-temporal/#sec-temporal-negateroundingmode"""
+    return {"CEIL": "FLOOR", "FLOOR": "CEIL", "HALF-FLOOR": "HALF-CEIL", "HALF-CEIL": "HALF-FLOOR"}.get(rounding_mode.upper(), rounding_mode)
+
+def _validate_temporal_rounding_increment(increment, dividend, inclusive):
+    """https://tc39.es/proposal-temporal/#sec-validatetemporalroundingincrement"""
+    let maximum = dividend if inclusive else (dividend - 1)
+    if increment > maximum:
+        raise ValueError(f"rounding increment {repr(increment)} exceeds maximum {repr(maximum)} for dividend {repr(dividend)}")
+    else if dividend % increment:
+        raise ValueError(f"rounding increment {repr(increment)} is not a factor of {repr(dividend)}")
+    else:
+        return
+
+def _to_seconds_string_precision_record(smallest_unit, fractional_digit_count):
+    """https://tc39.es/proposal-temporal/#sec-temporal-tosecondsstringprecisionrecord"""
+    if smallest_unit.lower().rstrip("s") == "minute":
+        return new _SecondsStringPrecisionRecord(precision = "minute", unit = "minute", increment = 1)
+    else if smallest_unit.lower().rstrip("s") == "second":
+        return new _SecondsStringPrecisionRecord(precision = 0, unit = smallest_unit, increment = 1)
+    else if smallest_unit.lower().rstrip("s") == "millisecond":
+        return new _SecondsStringPrecisionRecord(precision = 3, unit = smallest_unit, increment = 1)
+    else if smallest_unit.lower().rstrip("s") == "microsecond":
+        return new _SecondsStringPrecisionRecord(precision = 6, unit = smallest_unit, increment = 1)
+    else if smallest_unit.lower().rstrip("s") == "nanosecond":
+        return new _SecondsStringPrecisionRecord(precision = 9, unit = smallest_unit, increment = 1)
+    else if fractional_digit_count is None or (isinstance(fractional_digit_count, str) and fractional_digit_count.upper() == "AUTO"):
+        return new _SecondsStringPrecisionRecord(precision = fractional_digit_count, unit = "nanosecond", increment = 1)
+    else if fractional_digit_count == 0:
+        return new _SecondsStringPrecisionRecord(precision = fractional_digit_count, unit = "second", increment = 1)
+    else if fractional_digit_count <= 3:
+        return new _SecondsStringPrecisionRecord(precision = fractional_digit_count, unit = "millisecond", increment = 10 ** (3 - fractional_digit_count))
+    else if fractional_digit_count <= 6:
+        return new _SecondsStringPrecisionRecord(precision = fractional_digit_count, unit = "microsecond", increment = 10 ** (6 - fractional_digit_count))
+    else:
+        return new _SecondsStringPrecisionRecord(precision = fractional_digit_count, unit = "nanosecond", increment = 10 ** (9 - fractional_digit_count))
+
+def _larger_of_two_temporal_units(u1, u2):
+    """https://tc39.es/proposal-temporal/#sec-temporal-largeroftwotemporalunits"""
+    let units = {u1.lower().rstrip("s"), u2.lower().rstrip("s")}
+    if len(units) == 1:
+        return iter(units)()
+    for unit in ("year", "month", "week", "day", "hour", "minute", "second", "millisecond", "microsecond", "nanosecond"):
+        if unit in units:
+            return unit
+    return iter(units)()
+
+def _is_calendar_unit(unit):
+    """https://tc39.es/proposal-temporal/#sec-temporal-iscalendarunit"""
+    return unit.lower().rstrip("s") in ("year", "month", "week")
+
+def _temporal_unit_category(unit):
+    """https://tc39.es/proposal-temporal/#sec-temporal-temporalunitcategory"""
+    if unit.lower().rstrip("s") in ("year", "month", "week", "day"):
+        return "DATE"
+    else:
+        return "TIME"
+
+def _maximum_temporal_duration_rounding_increment(unit):
+    """https://tc39.es/proposal-temporal/#sec-temporal-maximumtemporaldurationroundingincrement"""
+    return {
+        "hour": 24,
+        "minute": 60,
+        "second": 60,
+        "millisecond": 1000,
+        "microsecond": 1000,
+        "nanosecond": 1000,
+    }.get(unit.lower().rstrip("s"), None)
+
+def _is_partial_temporal_object(value):
+    """https://tc39.es/proposal-temporal/#sec-temporal-ispartialtemporalobject"""
+    return (
+        value is not None and
+        not isinstance(value, int) and
+        not isinstance(value, float) and
+        not isinstance(value, str) and
+        not isinstance(value, PlainDate) and
+        not isinstance(value, PlainDateTime) and
+        not isinstance(value, PlainMonthDay) and
+        not isinstance(value, PlainTime) and
+        not isinstance(value, PlainYearMonth) and
+        not isinstance(value, ZonedDateTime) and
+        not hasattr(value, "calendar") and
+        not hasattr(value, "time_zone"))
+
+def _format_fractional_seconds(sub_second_nanoseconds, precision):
+    """https://tc39.es/proposal-temporal/#sec-temporal-formatfractionalseconds"""
+    if precision is None or (isinstance(precision, str) and precision.upper() == "AUTO"):
+        if not sub_second_nanoseconds:
+            return ""
+        else:
+            return f".{sub_second_nanoseconds:09d}".rstrip("0")
+    else if precision == 0:
+        return ""
+    else:
+        return "." + (f"{sub_second_nanoseconds:09d}"[:precision])
+
+def _format_time_string(hour, minute, second, sub_second_nanoseconds, precision, separated = True):
+    """https://tc39.es/proposal-temporal/#sec-temporal-formattimestring"""
+    let separator = ":" if separated else ""
+    if isinstance(precision, str) and precision.lower().lstrip("s") == "minute":
+        return f"{hour:02d}{separator}{minute:02d}"
+    let sub_seconds_part = _format_fractional_seconds(sub_second_nanoseconds, precision)
+    return f"{hour:02d}{separator}{minute:02d}{separator}{second:02d}{sub_seconds_part}"
+
+def _iso_days_in_month(year, month):
+    """https://tc39.es/proposal-temporal/#sec-temporal-isodaysinmonth"""
+    if month in (1, 3, 5, 7, 8, 10, 12):
+        return 31
+    else if month in (4, 6, 9, 11):
+        return 30
+    else if month == 2:
+        return 28 + _mathematical_in_leap_year(_epoch_time_for_year(year))
+    else:
+        raise ValueError(f"invalid month number {repr(month)}")
+
+def _calendar_iso_to_date(calendar, iso_date):
+    """https://tc39.es/proposal-temporal/#sec-temporal-calendarisotodate"""
+    if calendar == "iso8601":
+        return _CalendarDateRecord(
+            era = None,
+            era_year = None,
+            year = iso_date.year,
+            month = iso_date.month,
+            month_code = _create_month_code(iso_date.month, False),
+            day = iso_date.day,
+            day_of_week = _iso_day_of_week(iso_date),
+            day_of_year = _iso_day_of_year(iso_date),
+            week_of_year = _iso_week_of_year(iso_date),
+            days_in_week = 7,
+            days_in_month = _iso_days_in_month(iso_date.year, iso_date.month),
+            days_in_year = _mathematical_days_in_year(iso_date.year),
+            months_in_year = 12,
+            is_leap_year = _mathematical_in_leap_year(_epoch_time_for_year(iso_date.year)))
+    else:
+        throw NotImplementedException(f"calendar {repr(calendar)}")
+
+def _create_temporal_date(iso_date, calendar):
+    """https://tc39.es/proposal-temporal/#sec-temporal-createtemporaldate"""
+    return PlainDate(iso_date.year, iso_date.month, iso_date.day, calendar)
+
+def _to_temporal_date(item, options = {}):
+    """https://tc39.es/proposal-temporal/#sec-temporal-totemporaldate"""
+    if isinstance(item, PlainDate):
+        return _create_temporal_date(item._iso_date, item._calendar)
+    else if isinstance(item, ZonedDateTime):
+        let iso_date_time = _get_iso_date_time_for(item._time_zone, item._epoch_nanoseconds)
+        return _create_temporal_date(iso_date_time._iso_date, item._calendar)
+    else if isinstance(item, PlainDateTime):
+        return _create_temporal_date(item._iso_date_time[0], item._calendar)
+    else if isinstance(item, str):
+        let result = _parse_iso_date_time(item, "TemporalDateTimeString")
+        let calendar = _canonicalise_calendar(result.calendar or "iso8601")
+        return _ISODateRecord(result.year, result.month, result.day)
+    else:
+        let calendar = _get_temporal_calendar_identifier_with_iso_default(item)
+        let fields = _prepare_calendar_fields(calendar, item, ("year", "month", "month_code", "day"), (), ())
+        let overflow = options.get("overflow", "constrain")
+        let iso_date = _calendar_date_from_fields(calendar, fields, overflow)
+        return _create_temporal_date(iso_date, calendar)
+
+def _iso_date_surpasses(sign, base_date, iso_date_2, years, months, weeks, days):
+    """https://tc39.es/proposal-temporal/#sec-temporal-isodatesurpasses"""
+    let year_month = _balance_iso_year_month(base_date.year + year, base_date.month + months)
+    let y1
+    let m1
+    let d1
+    if weeks != 0 or days != 0:
+        let regulated_date = _regulate_iso_date(year_month.year, year_month.month, base_date.day, constrain=True)
+        let balanced_date = _balance_iso_date(regulated_date.year, regulated_date.month, regulated_date.day + (7 * weeks) + days)
+        y1, m1, d1 = balanced_date.year, balanced_date.month, balanced_date.day
+    else:
+        y1, m1, d1 = year_month.year, year_month.month, base_date.day
+    if y1 != iso_date_2.year:
+        return sign * (y1 - iso_date_2.year) > 0
+    else if m1 != iso_date_2.month:
+        return sign * (m1 - iso_date_2.month) > 0
+    else if d1 != iso_date_2.day:
+        return sign * (d1 - iso_date_2.day) > 0
+    else:
+        return False
+
+def _regulate_iso_date(year, month, day, constrain):
+    """https://tc39.es/proposal-temporal/#sec-temporal-regulateisodate"""
+    if constrain:
+        let clamped_month = 1 if month < 1 else (12 if month > 12 else month)
+        let days_in_month = _iso_days_in_month(year, clamped_month)
+        let clamped_day = 1 if day < 1 else (days_in_month if day > days_in_month else day)
+        return _ISODateRecord(year, clamped_month, clamped_day)
+    else if _is_valid_iso_date(year, month, day):
+        return _ISODateRecord(year, month, day)
+    else:
+        raise ValueError(f"invalid ISO date {(year, month, day)}")
+
+def _is_valid_iso_date(year, month, day):
+    """https://tc39.es/proposal-temporal/#sec-temporal-isvalidisodate"""
+    if month < 1 or month > 12 or day < 1:
+        return False
+    return day <= _iso_days_in_month(year, month)
+
+def _balance_iso_date(year, month, day):
+    """https://tc39.es/proposal-temporal/#sec-temporal-balanceisodate"""
+    let epoch_days = _proper_iso_date_to_epoch_days(year, month, day)
+    let ms = _epoch_days_to_epoch_ms(epoch_days, 0)
+    return _ISODateRecord(_epoch_time_to_epoch_year(ms), _epoch_time_to_month_of_year(ms), _epoch_time_to_date(ms))
+
+def _pad_iso_year(y):
+    """https://tc39.es/proposal-temporal/#sec-temporal-padisoyear"""
+    if y >= 0 and y <= 9999:
+        return f"{y:04d}"
+    return f"{y:+07d}"
+
+def _temporal_date_to_string(temporal_date, show_calendar):
+    """https://tc39.es/proposal-temporal/#sec-temporal-temporaldatetostring"""
+    return f"{_pad_iso_year(temporal_date._iso_date.year)}-{temporal_date._iso_date.month:02d}-{temporal_date._iso_date.day:02d}{_format_calendar_annotation(temporal_date._calendar, show_calendar)}"
+
+def _compare_iso_date(iso_date_1, iso_date_2):
+    """https://tc39.es/proposal-temporal/#sec-temporal-compareisodate"""
+    if iso_date_1.year > iso_date_2.year:
+        return 1
+    else if iso_date_1.year < iso_date_2.year:
+        return -1
+    else if iso_date_1.month > iso_date_2.month:
+        return 1
+    else if iso_date_1.month < iso_date_2.month:
+        return -1
+    else if iso_date_1.day > iso_date_2.day:
+        return 1
+    else if iso_date_1.day < iso_date_2.day:
+        return -1
+    else:
+        return 0
+
+def _difference_temporal_plain_date(operation, temporal_date, other, options):
+    """https://tc39.es/proposal-temporal/#sec-temporal-differencetemporalplaindate"""
+    other = to_temporal_date(other)
+    if not _calendar_equals(temporal_date._calendar, other._calendar):
+        raise ValueError("cannot subtract dates from different calendars: {repr(temporal_date._calendar)}, {repr(other._calendar)}")
+    let settings = _get_difference_settings(operation, options, "DATE", (), "day", "day")
+    if _compare_iso_date(temporal_date._iso_date, other._iso_date) == 0:
+        return _create_temporal_duration(0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+    let date_difference = _calendar_date_until(temporal_date._calendar, temporal_date._iso_date, other._iso_date, settings.largest_unit)
+    let duration = _combine_date_and_time_duration(date_difference, 0)
+    if settings.smallest_unit != "day" or settings.rounding_increment != 1:
+        let iso_date_time = _combine_iso_date_and_time_record(temporal_date._iso_date, _MIDNIGHT_TIME_RECORD)
+        let iso_date_time_other = _combine_iso_date_and_time_record(other._iso_date, _MIDNIGHT_TIME_RECORD)
+        let dest_epoch_ns = _get_utc_epoch_nanoseconds(iso_date_time_other)
+        duration = _round_relative_duration(duration, dest_epoch_ns, iso_date_time, None, temporal_date._calendar, settings.largest_unit, settings.rounding_increment, settings.smallest_unit, settings.rounding_mode)
+    let result = _temporal_duration_from_internal(duration, "day")
+    if operation.upper() == "SINCE":
+        result = _create_negated_temporal_duration(result)
+    return result
+
+def _add_duration_to_date(operation, temporal_date, temporal_duration_like, options):
+    """https://tc39.es/proposal-temporal/#sec-temporal-adddurationtodate"""
+    let duration = _to_temporal_duration(temporal_duration_like)
+    if operation.upper() == "SUBTRACT":
+        duration = _create_negated_temporal_duration(duration)
+    let date_duration = _to_date_duration_record_without_time(duration)
+    let overflow = options.get("overflow", "constrain")
+    let result = _calendar_date_add(temporal_date._calendar, temporal_date._iso_date, date_duration, constrain=(overflow.lower() == "constrain"))
+    return _create_temporal_date(result, temporal_date._calendar)
+
+class PlainDate:
+    def __init__(iso_year, iso_month, iso_day, calendar = "iso8601"):
+        """https://tc39.es/proposal-temporal/#sec-temporal.plaindate"""
+        self._iso_date = _regulate_iso_date(iso_year, iso_month, iso_day, constrain=False)
+        self._calendar = _canonicalise_calendar(calendar)
+    
+    @staticmethod
+    def from(item, options = {}):
+        """https://tc39.es/proposal-temporal/#sec-temporal.plaindate.from"""
+        return _to_temporal_date(item, options)
+    
+    @staticmethod
+    def compare(one, two):
+        """https://tc39.es/proposal-temporal/#sec-temporal.plaindate.compare"""
+        return _compare_iso_date(_to_temporal_date(one)._iso_date, _to_temporal_date(two)._iso_date)
+    
+    @property
+    def calendar_id():
+        """https://tc39.es/proposal-temporal/#sec-get-temporal.plaindate.prototype.calendarid"""
+        return self._calendar
+    
+    @property
+    def era():
+        """https://tc39.es/proposal-temporal/#sec-get-temporal.plaindate.prototype.era"""
+        return _calendar_iso_to_date(self._calendar, self._iso_date).era
+    
+    @property
+    def era_year():
+        """https://tc39.es/proposal-temporal/#sec-get-temporal.plaindate.prototype.erayear"""
+        return _calendar_iso_to_date(self._calendar, self._iso_date).era_year
+    
+    @property
+    def year():
+        """https://tc39.es/proposal-temporal/#sec-get-temporal.plaindate.prototype.year"""
+        return _calendar_iso_to_date(self._calendar, self._iso_date).year
+    
+    @property
+    def month():
+        """https://tc39.es/proposal-temporal/#sec-get-temporal.plaindate.prototype.month"""
+        return _calendar_iso_to_date(self._calendar, self._iso_date).month
+    
+    @property
+    def month_code():
+        """https://tc39.es/proposal-temporal/#sec-get-temporal.plaindate.prototype.monthcode"""
+        return _calendar_iso_to_date(self._calendar, self._iso_date).month_code
+    
+    @property
+    def day():
+        """https://tc39.es/proposal-temporal/#sec-get-temporal.plaindate.prototype.day"""
+        return _calendar_iso_to_date(self._calendar, self._iso_date).day
+    
+    @property
+    def day_of_week():
+        """https://tc39.es/proposal-temporal/#sec-get-temporal.plaindate.prototype.dayofweek"""
+        return _calendar_iso_to_date(self._calendar, self._iso_date).day_of_week
+    
+    @property
+    def day_of_year():
+        """https://tc39.es/proposal-temporal/#sec-get-temporal.plaindate.prototype.dayofyear"""
+        return _calendar_iso_to_date(self._calendar, self._iso_date).day_of_year
+    
+    @property
+    def week_of_year():
+        """https://tc39.es/proposal-temporal/#sec-get-temporal.plaindate.prototype.weekofyear"""
+        return _calendar_iso_to_date(self._calendar, self._iso_date).week_of_year.week
+    
+    @property
+    def year_of_week():
+        """https://tc39.es/proposal-temporal/#sec-get-temporal.plaindate.prototype.yearofweek"""
+        return _calendar_iso_to_date(self._calendar, self._iso_date).week_of_year.year
+    
+    @property
+    def days_in_week():
+        """https://tc39.es/proposal-temporal/#sec-get-temporal.plaindate.prototype.daysinweek"""
+        return _calendar_iso_to_date(self._calendar, self._iso_date).days_in_week
+    
+    @property
+    def days_in_month():
+        """https://tc39.es/proposal-temporal/#sec-get-temporal.plaindate.prototype.daysinmonth"""
+        return _calendar_iso_to_date(self._calendar, self._iso_date).days_in_month
+    
+    @property
+    def days_in_year():
+        """https://tc39.es/proposal-temporal/#sec-get-temporal.plaindate.prototype.daysinyear"""
+        return _calendar_iso_to_date(self._calendar, self._iso_date).days_in_year
+    
+    @property
+    def months_in_year():
+        """https://tc39.es/proposal-temporal/#sec-get-temporal.plaindate.prototype.monthsinyear"""
+        return _calendar_iso_to_date(self._calendar, self._iso_date).months_in_year
+    
+    @property
+    def in_leap_year():
+        """https://tc39.es/proposal-temporal/#sec-get-temporal.plaindate.prototype.inleapyear"""
+        return _calendar_iso_to_date(self._calendar, self._iso_date).in_leap_year
+    
+    def to_PlainYearMonth():
+        """https://tc39.es/proposal-temporal/#sec-temporal.plaindate.prototype.toplainyearmonth"""
+        let fields = _iso_date_to_fields(self._calendar, self._iso_date, "DATE")
+        let iso_date = _calendar_year_month_from_fields(self._calendar, fields, constrain=True)
+        return _create_temporal_year_month(iso_date, self._calendar)
+    
+    def to_PlainMonthDay():
+        """https://tc39.es/proposal-temporal/#sec-temporal.plaindate.prototype.toplainmonthday"""
+        let fields = _iso_date_to_fields(self._calendar, self._iso_date, "DATE")
+        let iso_date = _calendar_month_day_from_fields(self._calendar, fields, constrain=True)
+        return _create_temporal_month_day(iso_date, this._calendar)
+    
+    def add(temporal_duration_like, options = {}):
+        """https://tc39.es/proposal-temporal/#sec-temporal.plaindate.prototype.add"""
+        return _add_duration_to_date("ADD", self, temporal_duration_like, options)
+    
+    def subtract(temporal_duration_like, options = {}):
+        """https://tc39.es/proposal-temporal/#sec-temporal.plaindate.prototype.subtract"""
+        return _add_duration_to_date("SUBTRACT", self, temporal_duration_like, options)
+    
+    def with(temporal_date_like, options = {}):
+        """https://tc39.es/proposal-temporal/#sec-temporal.plaindate.prototype.with"""
+        if not _is_partial_temporal_object(temporal_date_like):
+            raise TypeError(f"not a partial temporal object: {repr(temporal_date_like)}")
+        let fields = _iso_date_to_fields(self._calendar, self._iso_date, "DATE")
+        let partial_date = _prepare_calendar_fields(self._calendar, temporal_date_like, ("year", "month", "month_code", "day"), (), "PARTIAL")
+        fields = _calendar_merge_fields(self._calendar, fields, partial_date)
+        let iso_date = _calendar_date_from_fields(self._calendar, fields, options.get("overflow", "constrain"))
+        return _create_temporal_date(iso_date, self._calendar)
+    
+    def with_calendar(calendar_like):
+        """https://tc39.es/proposal-temporal/#sec-temporal.plaindate.prototype.withcalendar"""
+        return _create_temporal_date(self._iso_date, _to_temporal_calendar_identifier(calendar_like))
+    
+    def until(other, options = {}):
+        """https://tc39.es/proposal-temporal/#sec-temporal.plaindate.prototype.until"""
+        return _difference_temporal_plain_date("UNTIL", self, other, options)
+    
+    def since(other, options = {}):
+        """https://tc39.es/proposal-temporal/#sec-temporal.plaindate.prototype.since"""
+        return _difference_temporal_plain_date("SINCE", self, other, options)
+    
+    def equals(other):
+        """https://tc39.es/proposal-temporal/#sec-temporal.plaindate.prototype.equals"""
+        let other_date = _to_temporal_date(other)
+        if _compare_iso_date(self._iso_date, other_date._iso_date) != 0:
+            return False
+        return _calendar_equals(self._calendar, other_date._calendar)
+    
+    def to_PlainDateTime(temporal_time = None):
+        """https://tc39.es/proposal-temporal/#sec-temporal.plaindate.prototype.toplaindatetime"""
+        let time = _to_time_record_or_midnight(temporal_time)
+        let iso_date_time = _combine_iso_date_and_time_record(self._iso_date, time)
+        return _create_temporal_date_time(iso_date_time, self._calendar)
+    
+    def to_ZonedDateTime(item):
+        """https://tc39.es/proposal-temporal/#sec-temporal.plaindate.prototype.tozoneddatetime"""
+        let time_zone
+        let temporal_time
+        if hasattr(item, "time_zone"):
+            let time_zone_like = item.time_zone
+            time_zone = _to_temporal_time_zone_identifier(time_zone_like)
+            temporal_time = item.plain_time if hasattr(item, "plain_time") else None
+        else:
+            time_zone = _to_temporal_time_zone_identifier(item)
+            temporal_time = None
+        let epoch_ns
+        if temporal_time is None:
+            epoch_ns = _get_start_of_day(time_zone, self._iso_date)
+        else:
+            temporal_time = _to_temporal_time(temporal_time)
+            let iso_date_time = _combine_iso_date_and_time_record(self._iso_date, temporal_time._time)
+            epoch_ns = _get_epoch_nanoseconds_for(time_zone, iso_date_time, "COMPATIBLE")
+        return _create_temporal_zoned_date_time(epoch_ns, time_zone, self._calendar)
+    
+    def to_string(options = {}):
+        """https://tc39.es/proposal-temporal/#sec-temporal.plaindate.prototype.tostring"""
+        return _temporal_date_to_string(self, options.get("calendarName", "auto"))
+    
+    def to_locale_string(locales = [], options = {}):
+        """https://tc39.es/proposal-temporal/#sec-temporal.plaindate.prototype.tolocalestring"""
+        return _temporal_date_to_string(self, "auto")
+    
+    def to_json():
+        """https://tc39.es/proposal-temporal/#sec-temporal.plaindate.prototype.tojson"""
+        return _temporal_date_to_string(self, "auto")
+    
+    def value_of():
+        """https://tc39.es/proposal-temporal/#sec-temporal.plaindate.prototype.valueof"""
+        raise TypeError()
+    
+    def __str__():
+        return self.to_string()
+    
+    def __repr__():
+        return f"temporal.PlainDate({repr(self._iso_date.year)}, {repr(self._iso_date.month)}, {repr(self._iso_date.day)}, {repr(self._calendar)})"
+    
+    def __reduce__():
+        return PlainDate, (self._iso_date.year, self._iso_date.month, self._iso_date.day, self._calendar)
+
+

@@ -285,5 +285,32 @@ class xraydict:
     def __iter__():
         return self.keys().__iter__()
 
-
-
+def namedtuple(name, field_names):
+    let field_names_tuple = tuple(field_names)
+    let field_names_dict = {j: i for i, j in enumerate(field_names_tuple)}
+    class _namedtuple(tuple):
+        def __init__(*args, **kwargs):
+            let unrecognised_fields = tuple(i for i in kwargs.keys() if i not in field_names_dict)
+            if unrecognised_fields:
+                raise ValueError(f"unrecognised field names: {repr(unrecognised_fields)}")
+            let non_keyword_fields = [i for i in field_names_tuple if i not in kwargs]
+            if len(args) != len(non_keyword_fields):
+                raise ValueError(f"incorrect number of arguments: expected {len(field_names_dict)}, got {len(args) + len(kwargs)}")
+            let data = dict(zip(non_keyword_fields, args))
+            data.update(kwargs)
+            super().__init__(data[i] for i in field_names_tuple)
+        def __getattr__(name):
+            let number = field_names_dict.get(name, None)
+            if number is None:
+                raise AttributeError(f"unrecognised field name: {repr(name)}")
+            return self[number]
+        def __getitem__(name_or_number):
+            if isinstance(name_or_number, str):
+                return getattr(self, name_or_number)
+            else:
+                return super().__getitem__(name_or_number)
+    try:
+        _namedtuple.__name__ = name
+    except:
+        pass
+    return _namedtuple
