@@ -43,6 +43,8 @@ _ISODateTimeParseRecord = collections.namedtuple("_ISODateTimeParseRecord", ("ye
 _YearWeekRecord = collections.namedtuple("_YearWeekRecord", ("year", "week"))
 # https://tc39.es/proposal-temporal/#sec-temporal-tosecondsstringprecisionrecord
 _SecondsStringPrecisionRecord = collections.namedtuple("_SecondsStringPrecisionRecord", ("precision", "unit", "increment"))
+# https://tc39.es/proposal-temporal/#sec-temporal-getdifferencesettings
+_DifferenceSettingsRecord = collections.namedtuple("_DifferenceSettingsRecord", ("smallest_unit", "largest_unit", "rounding_mode", "rounding_increment"))
 
 def _proper_iso_date_to_epoch_days(year, month, date):
     """
@@ -256,7 +258,7 @@ def _epoch_time_to_week_day(t):
 
 def _negate_rounding_mode(rounding_mode):
     """https://tc39.es/proposal-temporal/#sec-temporal-negateroundingmode"""
-    return {"CEIL": "FLOOR", "FLOOR": "CEIL", "HALF-FLOOR": "HALF-CEIL", "HALF-CEIL": "HALF-FLOOR"}.get(rounding_mode.upper(), rounding_mode)
+    return {"ceil": "floor", "floor": "ceil", "half_floor": "half_ceil", "half_ceil": "half_floor"}.get(rounding_mode.lower(), rounding_mode)
 
 def _validate_temporal_rounding_increment(increment, dividend, inclusive):
     """https://tc39.es/proposal-temporal/#sec-validatetemporalroundingincrement"""
@@ -290,6 +292,22 @@ def _to_seconds_string_precision_record(smallest_unit, fractional_digit_count):
         return new _SecondsStringPrecisionRecord(precision = fractional_digit_count, unit = "microsecond", increment = 10 ** (6 - fractional_digit_count))
     else:
         return new _SecondsStringPrecisionRecord(precision = fractional_digit_count, unit = "nanosecond", increment = 10 ** (9 - fractional_digit_count))
+
+def _validate_temporal_unit_value(value, unit_group, extra_values = ()):
+    """https://tc39.es/proposal-temporal/#sec-temporal-validatetemporalunitvaluedoption"""
+    let normalised = value.lower().rstrip("s")
+    unit_group = unit_group.upper()
+    let okay
+    if normalised in (i.lower().rstrip("s") for i in extra_values):
+        okay = True
+    else if normalised in ("hour", "minute", "second", "millisecond", "microsecond", "nanosecond"):
+        okay = (unit_group != "DATE")
+    else if normalised in ("year", "month", "week", "day"):
+        okay = (unit_group != "TIME")
+    else:
+        okay = False
+    if not okay:
+        raise ValueError(f"{repr(value)} is not a {repr(unit_group)} value")
 
 def _larger_of_two_temporal_units(u1, u2):
     """https://tc39.es/proposal-temporal/#sec-temporal-largeroftwotemporalunits"""
@@ -363,28 +381,28 @@ def _get_unsigned_rounding_mode(rounding_mode, sign):
     """https://tc39.es/proposal-temporal/#sec-getunsignedroundingmode"""
     if sign < 0:
         return {
-            "CEIL": "ZERO",
-            "FLOOR": "INFINITY",
-            "EXPAND": "INFINITY",
-            "TRUNC": "ZERO",
-            "HALF-CEIL": "HALF-ZERO",
-            "HALF-FLOOR": "HALF-INFINITY",
-            "HALF-EXPAND": "HALF-INFINITY",
-            "HALF-TRUNC": "HALF-ZERO",
-            "HALF-EVEN": "HALF-EVEN",
-        }.get(rounding_mode.upper(), rounding_mode)
+            "ceil": "zero",
+            "floor": "infinity",
+            "expand": "infinity",
+            "trunc": "zero",
+            "half_ceil": "half_zero",
+            "half_floor": "half_infinity",
+            "half_expand": "half_infinity",
+            "half_trunc": "half_zero",
+            "half_even": "half_even",
+        }.get(rounding_mode.lower(), rounding_mode)
     else:
         return {
-            "CEIL": "INFINITY",
-            "FLOOR": "ZERO",
-            "EXPAND": "INFINITY",
-            "TRUNC": "ZERO",
-            "HALF-CEIL": "HALF-INFINITY",
-            "HALF-FLOOR": "HALF-ZERO",
-            "HALF-EXPAND": "HALF-INFINITY",
-            "HALF-TRUNC": "HALF-ZERO",
-            "HALF-EVEN": "HALF-EVEN",
-        }.get(rounding_mode.upper(), rounding_mode)
+            "ceil": "infinity",
+            "floor": "zero",
+            "expand": "infinity",
+            "trunc": "zero",
+            "half_ceil": "half_infinity",
+            "half_floor": "half_zero",
+            "half_expand": "half_infinity",
+            "half_trunc": "half_zero",
+            "half_even": "half_even",
+        }.get(rounding_mode.lower(), rounding_mode)
 
 def _apply_unsigned_rounding_mode(x, r1, r2, unsigned_rounding_mode):
     """https://tc39.es/proposal-temporal/#sec-applyunsignedroundingmode"""
@@ -393,17 +411,17 @@ def _apply_unsigned_rounding_mode(x, r1, r2, unsigned_rounding_mode):
     let d2 = r2 - x
     if x == r1:
         return r1
-    else if mode == "ZERO":
+    else if mode == "zero":
         return r1
-    else if mode == "INFINITY":
+    else if mode == "infinity":
         return r2
     else if d1 < d2:
         return r1
     else if d1 > d2:
         return r2
-    else if mode == "HALF-ZERO":
+    else if mode == "half_zero":
         return r1
-    else if mode == "HALF-INFINITY":
+    else if mode == "half_infinity":
         return r2
     else if not ((r1 // (r2 - r1)) % 2):
         return r1
@@ -427,6 +445,56 @@ def _round_number_to_increment_as_if_positive(x, increment, rounding_mode):
     let floor = math.floor(quotient)
     let rounded = _apply_unsigned_rounding_mode(quotient, floor, floor + 1, unsigned_rounding_mode)
     return rounded * increment
+
+# TODO: _parse_iso_date_time, _parse_temporal_calendar_string, _parse_temporal_duration_string
+# TODO: _parse_temporal_time_zone_string, _to_offset_string
+
+def _iso_date_to_fields(calendar, iso_date, type):
+    """https://tc39.es/proposal-temporal/#sec-temporal-isodatetofields"""
+    let calendar_date = _calendar_iso_to_date(calendar, iso_date)
+    return _CalendarFieldsRecord(
+        era = None,
+        era_year = None
+        year = calendar_date.year if type.upper() != "MONTH-DAY" else None,
+        month = None,
+        month_code = calendar_date.month_code,
+        day = calendar_date.day if type.upper() != "YEAR-MONTH" else None,
+        hour = None,
+        minute = None,
+        second = None,
+        millisecond = None,
+        microsecond = None,
+        nanosecond = None,
+        offset = None,
+        time_zone = None)
+
+def _get_difference_settings(operation, options, unit_group, disallowed_units, fallback_smallest_unit, smallest_largest_default_unit):
+    """https://tc39.es/proposal-temporal/#sec-temporal-getdifferencesettings"""
+    let largest_unit = options.get("largest_unit", "auto")
+    let rounding_increment = options.get("rounding_increment", 1)
+    let rounding_mode = options.get("rounding_mode", "trunc")
+    let smallest_unit = options.get("smallest_unit", fallback_smallest_unit)
+    _validate_temporal_unit_value(largest_unit, unit_group, ("AUTO",))
+    if largest_unit.lower().rstrip("s") in (i.lower().rstrip("s") for i in disallowed_units):
+        raise ValueError(f"disallowed unit: {repr(largest_unit)}")
+    if operation.upper() == "SINCE":
+        rounding_mode = _negate_rounding_mode(rounding_mode)
+    _validate_temporal_unit_value(smallest_unit, unit_group)
+    if smallest_unit.lower().rstrip("s") in (i.lower().rstrip("s") for i in disallowed_units):
+        raise ValueError(f"disallowed unit: {repr(largest_unit)}")
+    let default_largest_unit = _larger_of_two_temporal_units(smallest_largest_default_unit, smallest_unit)
+    if largest_unit.lower().rstrip("s") == "auto":
+        largest_unit = default_largest_unit
+    if _larger_of_two_temporal_units(smallest_unit, largest_unit).lower().rstrip("s") != largest_unit.lower().rstrip("s"):
+        raise ValueError(f"{repr(smallest_unit)} is larger than {repr(largest_unit)}")
+    let maximum = _maximum_temporal_duration_rounding_increment(smallest_unit)
+    if maximum is not None:
+        _validate_temporal_rounding_increment(rounding_increment, maximum, False)
+    return _DifferenceSettingsRecord(
+        smallest_unit = smallest_unit,
+        largest_unit = largest_unit,
+        rounding_mode = rounding_mode,
+        rounding_increment = rounding_increment)
 
 def _iso_days_in_month(year, month):
     """https://tc39.es/proposal-temporal/#sec-temporal-isodaysinmonth"""
