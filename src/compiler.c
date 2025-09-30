@@ -2890,11 +2890,12 @@ static void string(struct GlobalState * state, int exprType, RewindState *rewind
 	int isBytes = (state->parser.previous.type == TOKEN_PREFIX_B);
 	int isFormat = (state->parser.previous.type == TOKEN_PREFIX_F);
 	int isRaw = (state->parser.previous.type == TOKEN_PREFIX_R);
+	int isTemplate = (state->parser.previous.type == TOKEN_PREFIX_T);
 
 	const char * lineBefore = krk_tellScanner(&state->scanner).linePtr;
 	size_t lineNo = krk_tellScanner(&state->scanner).line;
 
-	if ((isBytes || isFormat || isRaw) && !(match(TOKEN_STRING) || match(TOKEN_BIG_STRING))) {
+	if ((isBytes || isFormat || isRaw || isTemplate) && !(match(TOKEN_STRING) || match(TOKEN_BIG_STRING))) {
 		error("Expected string after prefix? (Internal error - scanner should not have produced this.)");
 		return;
 	}
@@ -2977,15 +2978,15 @@ static void string(struct GlobalState * state, int exprType, RewindState *rewind
 						}
 				}
 				c += 2;
-			} else if (isFormat && *c == '}') {
+			} else if ((isFormat || isTemplate) && *c == '}') {
 				if (c[1] != '}') {
-					error("single '}' not allowed in f-string");
+					error("single '}' not allowed in %s-string", isFormat ? "f" : "t");
 					goto _cleanupError;
 				}
 				PUSH_CHAR('}');
 				c += 2;
 				continue;
-			} else if (isFormat && *c == '{') {
+			} else if ((isFormat || isTemplate) && *c == '{') {
 				if (c[1] == '{') {
 					PUSH_CHAR('{');
 					c += 2;
@@ -3010,7 +3011,11 @@ static void string(struct GlobalState * state, int exprType, RewindState *rewind
 
 				int formatType = 0;
 
-				while (*c == ' ') c++;
+				if (isTemplate) {
+					emitConstant(OBJECT_VAL(krk_copyString(start,c-start)));
+				}
+
+				while (*c == ' ') c++; /* XXX This is redundant, surely? */
 				if (*c == '=') {
 					c++;
 					while (*c == ' ') c++;
@@ -3034,7 +3039,11 @@ static void string(struct GlobalState * state, int exprType, RewindState *rewind
 				}
 
 				if (*c == ':') {
-					/* TODO format specs */
+					/*
+					 * TODO This should actually be parsing from here to the first unopened closing brace
+					 *      as if it were an f-string, including parsing any interpolations. We've gone
+					 *      and mucked this up a bit too much to do this now, but, maybe eventually...
+					 */
 					const char * formatStart = c+1;
 					c++;
 					while (c < end && *c != '}') c++;
@@ -3047,7 +3056,11 @@ static void string(struct GlobalState * state, int exprType, RewindState *rewind
 					formatType |= FORMAT_OP_REPR;
 				}
 
-				EMIT_OPERAND_OP(OP_FORMAT_VALUE, formatType);
+				if (isFormat) {
+					EMIT_OPERAND_OP(OP_FORMAT_VALUE, formatType);
+				} else if (isTemplate) {
+					EMIT_OPERAND_OP(OP_TEMPLATE_VALUE, formatType);
+				}
 
 				if (*c != '}') {
 					error("Expected closing '}' after expression in f-string");
@@ -3070,6 +3083,10 @@ _nextStr:
 		(void)0;
 		isRaw = 0;
 		isFormat = 0;
+		if (!isTemplate && match(TOKEN_PREFIX_T)) {
+			error("can not mix templates with non-templates");
+			goto _cleanupError;
+		}
 		if (!isBytes) {
 			if (match(TOKEN_PREFIX_F)) {
 				isFormat = 1;
@@ -3077,7 +3094,7 @@ _nextStr:
 				isRaw = 1;
 			}
 		}
-	} while ((!isBytes || match(TOKEN_PREFIX_B)) && (match(TOKEN_STRING) || match(TOKEN_BIG_STRING)));
+	} while ((!isBytes || match(TOKEN_PREFIX_B)) && (!isTemplate || match(TOKEN_PREFIX_T)) && (match(TOKEN_STRING) || match(TOKEN_BIG_STRING)));
 	if (isBytes && (match(TOKEN_STRING) || match(TOKEN_BIG_STRING))) {
 		error("Can not mix bytes and string literals");
 		goto _cleanupError;
@@ -3086,11 +3103,17 @@ _nextStr:
 		emitConstant(krk_finishStringBuilderBytes(&sb));
 		return;
 	}
+	if (isTemplate && (match(TOKEN_STRING) || match(TOKEN_BIG_STRING))) {
+		error("can not mix templates with non-templates");
+		goto _cleanupError;
+	}
 	if (sb.length || !formatElements) {
 		emitConstant(krk_finishStringBuilder(&sb));
 		formatElements++;
 	}
-	if (formatElements != 1) {
+	if (isTemplate) {
+		EMIT_OPERAND_OP(OP_MAKE_TEMPLATE, formatElements);
+	} else if (formatElements != 1) {
 		EMIT_OPERAND_OP(OP_MAKE_STRING, formatElements);
 	}
 _cleanupError:
@@ -4262,6 +4285,7 @@ ParseRule krk_parseRules[] = {
 	RULE(PREFIX_B,      string,   NULL,     PREC_NONE),
 	RULE(PREFIX_F,      string,   NULL,     PREC_NONE),
 	RULE(PREFIX_R,      string,   NULL,     PREC_NONE),
+	RULE(PREFIX_T,      string,   NULL,     PREC_NONE),
 	RULE(NUMBER,        number,   NULL,     PREC_NONE),
 	RULE(AND,           NULL,     and_,     PREC_AND),
 	RULE(OR,            NULL,     or_,      PREC_OR),

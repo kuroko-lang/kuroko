@@ -1996,6 +1996,39 @@ static inline void makeCollection(NativeFn func, size_t count) {
 	}
 }
 
+static inline int doTemplateString(int options) {
+	/* Stack is val, origExpr, maybeEq, maybeFmt */
+	int isFmt = options & FORMAT_OP_FORMAT;
+	int isEqs = options & FORMAT_OP_EQ;
+
+	if (!isFmt) {
+		/* If there was no format string, add none */
+		krk_push(NONE_VAL());
+	}
+
+	if (isEqs) {
+		/* If there was an =, move the string expression to the bottom */
+		KrkValue val  = krk_currentThread.stackTop[-4];
+		KrkValue expr = krk_currentThread.stackTop[-3];
+		KrkValue eqs  = krk_currentThread.stackTop[-2];
+		krk_currentThread.stackTop[-4] = eqs;
+		krk_currentThread.stackTop[-3] = val;
+		krk_currentThread.stackTop[-2] = expr;
+	}
+
+	/* Now it's [eq=], val, expr, fmt */
+	if (options & FORMAT_OP_STR) {
+		krk_push(OBJECT_VAL(S("s")));
+	} else if (options & FORMAT_OP_REPR) {
+		krk_push(OBJECT_VAL(S("r")));
+	} else {
+		krk_push(NONE_VAL());
+	}
+	/* Except this should be a new Interpolation type */
+	makeCollection(krk_tuple_of,4); /* Tuple of value, expression string, format string, and conversion */
+	return 0;
+}
+
 static inline int doFormatString(int options) {
 	if (options & FORMAT_OP_FORMAT) {
 		krk_swap(1);
@@ -3197,6 +3230,22 @@ _finishPopBlock: (void)0;
 				}
 
 				krk_push(finishStringBuilder(&sb));
+				break;
+			}
+
+			case OP_TEMPLATE_VALUE_LONG:
+				THREE_BYTE_OPERAND;
+			case OP_TEMPLATE_VALUE: {
+				ONE_BYTE_OPERAND;
+				if (doTemplateString(OPERAND)) goto _finishException;
+				break;
+			}
+
+			case OP_MAKE_TEMPLATE_LONG:
+				THREE_BYTE_OPERAND;
+			case OP_MAKE_TEMPLATE: {
+				ONE_BYTE_OPERAND;
+				makeCollection(krk_tuple_of, OPERAND); /* except this should be a new Template type */
 				break;
 			}
 

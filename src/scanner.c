@@ -265,7 +265,10 @@ static KrkTokenType identifierType(KrkScanner * scanner) {
 		} else if (scanner->start[1] == '\'' || scanner->start[1] == '"') return TOKEN_PREFIX_R;
 		break;
 		case 's': return checkKeyword(1, "uper", TOKEN_SUPER);
-		case 't': return checkKeyword(1, "ry", TOKEN_TRY);
+		case 't': if (MORE(1)) switch(scanner->start[1]) {
+			case 'r': return checkKeyword(2, "y", TOKEN_TRY);
+		} else if (scanner->start[1] == '\'' || scanner->start[1] == '"') return TOKEN_PREFIX_T;
+		break;
 		case 'T': return checkKeyword(1, "rue", TOKEN_TRUE);
 		case 'w': if (MORE(1)) switch(scanner->start[1]) {
 			case 'h': return checkKeyword(2, "ile", TOKEN_WHILE);

@@ -290,6 +290,7 @@ void _createAndBind_tupleClass(void) {
 	BIND_METHOD(tuple,__hash__);
 	BIND_METHOD(tuple,__add__);
 	BIND_METHOD(tuple,__mul__);
+	krk_defineNative(&tuple->methods, "__class_getitem__", krk_GenericAlias)->obj.flags |= KRK_OBJ_FLAGS_FUNCTION_IS_CLASS_METHOD;
 	krk_finalizeClass(tuple);
 
 	KrkClass * tupleiterator = ADD_BASE_CLASS(vm.baseClasses->tupleiteratorClass, "tupleiterator", vm.baseClasses->objectClass);
