@@ -2074,6 +2074,116 @@ int krk_isSubClass(const KrkClass * cls, const KrkClass * base) {
 	return 0;
 }
 
+struct ImportStarUnpackContext {
+	KrkValue module;
+	KrkTable * globals;
+	const char * source;
+	int skip_underscores;
+};
+
+/**
+ * @brief Unpack callback for star import.
+ *
+ * Takes names from @c __all__ and copies their values from the module to the provided
+ * globals table, halting if any entry is found that is not a str or does not exist
+ * as a property in the source module.
+ */
+static int _import_star_unpack(void * context, const KrkValue * values, size_t count) {
+	struct ImportStarUnpackContext * ctx = context;
+	for (size_t i = 0; i < count; ++i) {
+		if (!IS_STRING(values[i])) {
+			/* If any of the members of __all__ (or the module properties) is not a str, bail. */
+			krk_runtimeError(vm.exceptions->typeError, "%s contains non-str '%T'", ctx->source, values[i]);
+			return 1;
+		}
+
+		/* When getting member names directly from the properties of the module,
+		 * skip names with leading underscores. */
+		if (ctx->skip_underscores && AS_STRING(values[i])->codesLength >= 1 && AS_STRING(values[i])->chars[0] == '_') continue;
+
+		krk_push(ctx->module);
+
+		if (!valueGetProperty((KrkString*)AS_OBJECT(values[i]))) {
+			/* If any of the members specified in __all__ does not exist in the module, that's an error. */
+			krk_runtimeError(vm.exceptions->attributeError, "module has no member '%S'", AS_OBJECT(values[i]));
+			return 1;
+		}
+
+		/* Now assign it to the globals */
+		krk_tableSet(ctx->globals, values[i], krk_peek(0));
+		krk_pop();
+	}
+
+	return 0;
+}
+
+/**
+ * @brief Import "all" the members of a module into the given globals table.
+ *
+ * If the module object at the top of the stack has an @c __all__ member, it
+ * is expected to be a list (we only support regular lists, not tuples, and not
+ * other kinds of iterables, to keep things simple) containing strings naming
+ * members of that same module object to then import.
+ *
+ * If there is no @c __all__ member, we assert that the object is an instance,
+ * as all module objects should be, and examine its members table directly, but
+ * we skip any member with a name beginning with an underscore, which skips
+ * "private" members and dunder members.
+ *
+ * @param globals Pointer to a globals table, eg. from the current frame.
+ * @returns 1 on success, 0 on failure.
+ */
+static int import_star(KrkTable * globals) {
+
+	/* Duplicate the module so we can cleanly do valueGetProperty */
+	krk_push(krk_peek(0));
+
+	struct ImportStarUnpackContext ctx = {
+		krk_peek(1),
+		globals,
+		"__all__",
+		0
+	};
+
+	/* Check for an __all__ */
+	if (!valueGetProperty(AS_STRING(vm.specialMethodNames[METHOD_ALL]))) {
+		/* If there is no __all__, TOS is still the duplicated module, so pop that. */
+		krk_pop();
+
+		/* If for some reason the module isn't actually an instance, bail here */
+		if (!IS_INSTANCE(krk_peek(0))) {
+			krk_runtimeError(vm.exceptions->importError, "module has no __all__ and is not an instance object");
+			return 0;
+		}
+
+		/* Loop through all of the entries in the members table for the module object */
+		KrkInstance * module = AS_INSTANCE(krk_peek(0));
+		ctx.source = "module";
+		ctx.skip_underscores = 1;
+		for (size_t i = 0; i < module->fields.capacity; ++i) {
+			if (!IS_KWARGS(module->fields.entries[i].key)) {
+				/* Re-use the unpack calback so the behavior is the same;
+				 * we can't easily pass the whole list of keys in one go,
+				 * so we check for gaps here and then call the callback
+				 * individually for each non-gap entry, which is the same
+				 * way unpackIterable would call it for a generator. */
+				if (_import_star_unpack(&ctx, &module->fields.entries[i].key, 1)) return 0;
+			}
+		}
+
+		krk_pop(); /* Module */
+		return 1;
+	}
+
+	/* Otherwise, we did find an __all__, and it replaces the copy of the module at TOS. */
+	if (krk_unpackIterable(krk_peek(0), &ctx, _import_star_unpack)) return 0;
+
+	krk_pop(); /* __all__ */
+	krk_pop(); /* module */
+
+	return 1;
+}
+
 /**
  * VM main loop.
  */
@@ -2428,6 +2538,11 @@ _finishReturn: (void)0;
 				KrkValue build_class = NONE_VAL();
 				krk_tableGet_fast(&vm.builtins->fields, AS_STRING(vm.specialMethodNames[METHOD_BLDCLS]), &build_class);
 				krk_push(build_class);
+				break;
+			}
+
+			case OP_IMPORT_STAR: {
+				if (!import_star(frame->globals)) goto _finishException;
 				break;
 			}
 

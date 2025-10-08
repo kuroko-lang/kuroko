@@ -2642,10 +2642,26 @@ static void fromImportStatement(struct GlobalState * state) {
 
 	importModule(state, &startOfName, leadingDots);
 	consume(TOKEN_IMPORT, "Expected 'import' after module name");
+
+	if (match(TOKEN_ASTERISK)) {
+		if (state->current->scopeDepth != 0) {
+			/* Even at module level, we can't allow a *-import in a local block scope
+			 * (eg. an 'if' block or similar) as local names are bound at compile time
+			 * and *-imports would only resolve names at runtime. */
+			error("*-import not allowed in non-global scope");
+			return;
+		}
+
+		/* IMPORT_STAR will pop the module object */
+		emitByte(OP_IMPORT_STAR);
+		return;
+	}
+
 	if (match(TOKEN_LEFT_PAREN)) {
 		expectCloseParen = 1;
 		startEatingWhitespace();
 	}
+
 	do {
 		consume(TOKEN_IDENTIFIER, "Expected member name");
 		size_t member = identifierConstant(state, &state->parser.previous);
