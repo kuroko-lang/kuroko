@@ -1083,6 +1083,292 @@ _corrupt:
 	return krk_runtimeError(vm.exceptions->typeError, "Corrupt str iterator: %s", errorStr);
 }
 
+struct TemplateClass {
+	KrkInstance inst;
+	KrkValue strings;
+	KrkValue interpolations;
+};
+
+static void _Template_gcscan(KrkInstance * self) {
+	krk_markValue(((struct TemplateClass*)self)->strings);
+	krk_markValue(((struct TemplateClass*)self)->interpolations);
+}
+
+struct TemplateIterClass {
+	KrkInstance inst;
+	int wantStrings;
+	KrkValue stringsIter;
+	KrkValue interpolationsIter;
+};
+
+static void _TemplateIter_gcscan(KrkInstance * self) {
+	krk_markValue(((struct TemplateIterClass*)self)->stringsIter);
+	krk_markValue(((struct TemplateIterClass*)self)->interpolationsIter);
+}
+
+struct InterpolationClass {
+	KrkInstance inst;
+	KrkValue value, expression, conversion, format_spec;
+};
+
+static void _Interpolation_gcscan(KrkInstance * self) {
+	krk_markValue(((struct InterpolationClass*)self)->value);
+	krk_markValue(((struct InterpolationClass*)self)->expression);
+	krk_markValue(((struct InterpolationClass*)self)->conversion);
+	krk_markValue(((struct InterpolationClass*)self)->format_spec);
+}
+
+#define IS_Template(o) (krk_isInstanceOf(o,KRK_BASE_CLASS(Template)))
+#define AS_Template(o) ((struct TemplateClass*)AS_INSTANCE(o))
+#define IS_TemplateIter(o) (krk_isInstanceOf(o,KRK_BASE_CLASS(TemplateIter)))
+#define AS_TemplateIter(o) ((struct TemplateIterClass*)AS_INSTANCE(o))
+#define IS_Interpolation(o) (krk_isInstanceOf(o,KRK_BASE_CLASS(Interpolation)))
+#define AS_Interpolation(o) ((struct InterpolationClass*)AS_INSTANCE(o))
+
+#undef CURRENT_CTYPE
+#define CURRENT_CTYPE struct TemplateClass *
+
+KRK_Method(Template,__init__) {
+
+	int uargc = 0;
+	const KrkValue * uargs;
+
+	if (!krk_parseArgs(".*", (const char*[]){NULL},
+		&uargc, &uargs)) return NONE_VAL();
+
+	KrkValue strings = krk_list_of(0,NULL,0);
+	self->strings = strings;
+
+	KrkValue interpolations = krk_list_of(0,NULL,0);
+	self->interpolations = interpolations;
+
+	char want = 's';
+	for (int i = 0; i < uargc; ++i) {
+		if (IS_Interpolation(uargs[i])) {
+			if (want == 's') {
+				krk_writeValueArray(AS_LIST(strings), OBJECT_VAL(S("")));
+			}
+
+			krk_writeValueArray(AS_LIST(interpolations), uargs[i]);
+			want = 's';
+		} else if (IS_STRING(uargs[i])) {
+			if (want == 'i') {
+				/* We need to ammend the previous string with this one */
+				krk_push(AS_LIST(strings)->values[AS_LIST(strings)->count-1]);
+				krk_push(uargs[i]);
+				krk_addObjects();
+
+				AS_LIST(strings)->values[AS_LIST(strings)->count-1] = krk_pop();
+			} else {
+				krk_writeValueArray(AS_LIST(strings), uargs[i]);
+				want = 'i';
+			}
+		} else {
+			return krk_runtimeError(vm.exceptions->typeError, "Expected str or Interpolation, not '%T'", uargs[i]);
+		}
+	}
+
+	if (want == 's') {
+		krk_writeValueArray(AS_LIST(strings), OBJECT_VAL(S("")));
+	}
+
+	return NONE_VAL();
+}
+
+KRK_Method(Template,__iter__) {
+	krk_push(OBJECT_VAL(KRK_BASE_CLASS(TemplateIter)));
+	krk_push(OBJECT_VAL(self));
+	return krk_callStack(1);
+}
+
+static int _unpack_template(void * context, const KrkValue * values, size_t count) {
+	/* count should only ever be 1, but whatever */
+	KrkValue list = *(KrkValue*)context;
+	for (size_t i = 0; i < count; ++i) {
+		krk_writeValueArray(AS_LIST(list), values[i]);
+	}
+	return 0;
+}
+
+KRK_Method(Template,__add__) {
+	KrkValue other;
+	if (!krk_parseArgs(".V", (const char*[]){"other"}, &other)) return NONE_VAL();
+	if (!IS_Template(other)) return NOTIMPL_VAL();
+
+	KrkInstance * tmpl = krk_newInstance(KRK_BASE_CLASS(Template));
+	krk_push(OBJECT_VAL(tmpl));
+
+	KrkValue values = krk_list_of(0,NULL,0);
+	krk_push(values);
+	krk_debug_dumpStack(stderr, NULL);
+
+	krk_writeValueArray(AS_LIST(values), OBJECT_VAL(tmpl));
+	krk_unpackIterable(OBJECT_VAL(self), &values, _unpack_template);
+	krk_unpackIterable(other, &values, _unpack_template);
+
+	FUNC_NAME(Template,__init__)(AS_LIST(values)->count, AS_LIST(values)->values, 0);
+
+	krk_pop();
+	return krk_pop();
+}
+
+KRK_Method(Template,__repr__) {
+	return krk_stringFromFormat("%T(strings=%R, interpolations=%R)", OBJECT_VAL(self),
+		self->strings,
+		self->interpolations);
+}
+
+KRK_Method(Template,strings) {
+	if (!krk_parseArgs(".|V", (const char*[]){"strings"}, &self->strings))
+		return NONE_VAL();
+	return self->strings;
+}
+
+KRK_Method(Template,interpolations) {
+	if (!krk_parseArgs(".|V", (const char*[]){"interpolations"}, &self->interpolations))
+		return NONE_VAL();
+	return self->interpolations;
+}
+
+static int _unpack_template_values(void * context, const KrkValue * values, size_t count) {
+	KrkValue tuple = *(KrkValue*)context;
+	for (size_t i = 0; i < count; ++i) {
+		if (!IS_Interpolation(values[i])) {
+			krk_runtimeError(vm.exceptions->typeError, "expected Interpolation, not '%T'", values[i]);
+			return 1;
+		}
+		krk_writeValueArray(&AS_TUPLE(tuple)->values, AS_Interpolation(values[i])->value);
+	}
+	return 0;
+}
+
+KRK_Method(Template,values) {
+	ATTRIBUTE_NOT_ASSIGNABLE();
+
+	KrkValue out = krk_tuple_of(0,NULL,0);
+	krk_push(out);
+	if (krk_unpackIterable(self->interpolations, &out, _unpack_template_values)) return NONE_VAL();
+
+	return krk_pop();
+}
+
+#undef CURRENT_CTYPE
+#define CURRENT_CTYPE struct TemplateIterClass *
+
+KRK_Method(TemplateIter,__init__) {
+	KrkValue tmpl;
+	if (!krk_parseArgs(".V!", (const char *[]){"template"}, KRK_BASE_CLASS(Template), &tmpl)) return NONE_VAL();
+
+	self->wantStrings = 1;
+
+	KrkValue strings = AS_Template(tmpl)->strings;
+	KrkValue interpolations = AS_Template(tmpl)->interpolations;
+
+	KrkClass * type = krk_getType(strings);
+	if (unlikely(!type->_iter)) {
+		return krk_runtimeError(vm.exceptions->typeError, "'%T' object is not iterable", strings);
+	}
+
+	/* Build the iterable */
+	krk_push(strings);
+	self->stringsIter = krk_callDirect(type->_iter, 1);
+
+	type = krk_getType(interpolations);
+	if (unlikely(!type->_iter)) {
+		return krk_runtimeError(vm.exceptions->typeError, "'%T' object is not iterable", interpolations);
+	}
+
+	/* Build the iterable */
+	krk_push(interpolations);
+	self->interpolationsIter = krk_callDirect(type->_iter, 1);
+
+	return NONE_VAL();
+}
+
+KRK_Method(TemplateIter,__call__) {
+	while (1) {
+		if (self->wantStrings) {
+			self->wantStrings = 0;
+			krk_push(self->stringsIter);
+			KrkValue item = krk_callStack(0);
+			if (krk_valuesSame(item, self->stringsIter)) break;
+			if (IS_STRING(item) && AS_STRING(item)->codesLength == 0) {
+				continue;
+			}
+			return item;
+		} else {
+			self->wantStrings = 1;
+			krk_push(self->interpolationsIter);
+			KrkValue item = krk_callStack(0);
+			if (krk_valuesSame(item, self->interpolationsIter)) break;
+			return item;
+		}
+	}
+
+	return OBJECT_VAL(self);
+}
+
+#undef CURRENT_CTYPE
+#define CURRENT_CTYPE struct InterpolationClass *
+
+KRK_Method(Interpolation,__init__) {
+	KrkValue value, expression, conversion, format_spec;
+
+	if (!krk_parseArgs(".VV!VV!",
+		(const char*[]){"value","expression","conversion","format_spec"},
+		&value,
+		KRK_BASE_CLASS(str), &expression,
+		&conversion,
+		KRK_BASE_CLASS(str), &format_spec)) return NONE_VAL();
+
+	if (!IS_NONE(conversion) && !IS_STRING(conversion)) {
+		return krk_runtimeError(vm.exceptions->typeError, "conversion must by str or None, not '%T'", conversion);
+	}
+
+	self->value = value;
+	self->expression = expression;
+	self->conversion = conversion;
+	self->format_spec = format_spec;
+
+	return NONE_VAL();
+}
+
+KRK_Method(Interpolation,__repr__) {
+	return krk_stringFromFormat("%T(%R, %R, %R, %R)", OBJECT_VAL(self),
+		self->value,
+		self->expression,
+		self->conversion,
+		self->format_spec);
+}
+
+KRK_Method(Interpolation,value) {
+	if (!krk_parseArgs(".|V", (const char*[]){"value"}, &self->value))
+		return NONE_VAL();
+	return self->value;
+}
+
+KRK_Method(Interpolation,expression) {
+	if (!krk_parseArgs(".|V!", (const char*[]){"expression"}, KRK_BASE_CLASS(str), &self->expression))
+		return NONE_VAL();
+	return self->expression;
+}
+
+KRK_Method(Interpolation,conversion) {
+	KrkValue tmp = KWARGS_VAL(0);
+	if (!krk_parseArgs(".|V", (const char*[]){"conversion"}, &tmp))
+		return NONE_VAL();
+	if (!IS_KWARGS(tmp)) {
+		if (!(IS_NONE(tmp) || IS_STRING(tmp))) return krk_runtimeError(vm.exceptions->typeError, "conversion must be str or None, not '%T'", tmp);
+		self->conversion = tmp;
+	}
+	return self->conversion;
+}
+
+KRK_Method(Interpolation,format_spec) {
+	if (!krk_parseArgs(".|V!", (const char*[]){"format_spec"}, KRK_BASE_CLASS(str), &self->format_spec))
+		return NONE_VAL();
+	return self->format_spec;
+}
 
 void krk_pushStringBuilder(struct StringBuilder * sb, char c) {
 	if (sb->capacity < sb->length + 1) {
@@ -1340,5 +1626,35 @@ void _createAndBind_strClass(void) {
 	BIND_METHOD(striterator,__init__);
 	BIND_METHOD(striterator,__call__);
 	krk_finalizeClass(striterator);
+
+	KrkClass * Template = ADD_BASE_CLASS(KRK_BASE_CLASS(Template), "Template", KRK_BASE_CLASS(object));
+	Template->allocSize = sizeof(struct TemplateClass);
+	Template->_ongcscan = _Template_gcscan;
+	BIND_METHOD(Template,__init__);
+	BIND_METHOD(Template,__add__);
+	BIND_METHOD(Template,__repr__);
+	BIND_METHOD(Template,__iter__);
+	BIND_PROP(Template,strings);
+	BIND_PROP(Template,interpolations);
+	BIND_PROP(Template,values);
+	krk_finalizeClass(Template);
+
+	KrkClass * TemplateIter = ADD_BASE_CLASS(KRK_BASE_CLASS(TemplateIter), "TemplateIter", KRK_BASE_CLASS(object));
+	TemplateIter->allocSize = sizeof(struct TemplateIterClass);
+	TemplateIter->_ongcscan = _TemplateIter_gcscan;
+	BIND_METHOD(TemplateIter,__init__);
+	BIND_METHOD(TemplateIter,__call__);
+	krk_finalizeClass(TemplateIter);
+
+	KrkClass * Interpolation = ADD_BASE_CLASS(KRK_BASE_CLASS(Interpolation), "Interpolation", KRK_BASE_CLASS(object));
+	Interpolation->allocSize = sizeof(struct InterpolationClass);
+	Interpolation->_ongcscan = _Interpolation_gcscan;
+	BIND_METHOD(Interpolation,__init__);
+	BIND_METHOD(Interpolation,__repr__);
+	BIND_PROP(Interpolation,value);
+	BIND_PROP(Interpolation,expression);
+	BIND_PROP(Interpolation,conversion);
+	BIND_PROP(Interpolation,format_spec);
+	krk_finalizeClass(Interpolation);
 }
 

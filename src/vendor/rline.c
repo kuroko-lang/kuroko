@@ -709,7 +709,7 @@ static int syn_krk_calculate(struct syntax_state * state) {
 				while (c_keyword_qualifier(charat())) paint(1, FLAG_TYPE);
 				return 0;
 			} else if (charat() == '"' || charat() == '\'') {
-				int isFormat = (lastchar() == 'f');
+				int isFormat = (lastchar() == 'f' || lastchar() == 't');
 				if (nextchar() == charat() && charrel(2) == charat()) {
 					int type = charat();
 					paint(3, FLAG_STRING);

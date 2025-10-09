@@ -2003,17 +2003,14 @@ static inline int doTemplateString(int options) {
 
 	if (!isFmt) {
 		/* If there was no format string, add none */
-		krk_push(NONE_VAL());
+		krk_push(OBJECT_VAL(S("")));
 	}
 
 	if (isEqs) {
-		/* If there was an =, move the string expression to the bottom */
-		KrkValue val  = krk_currentThread.stackTop[-4];
-		KrkValue expr = krk_currentThread.stackTop[-3];
-		KrkValue eqs  = krk_currentThread.stackTop[-2];
-		krk_currentThread.stackTop[-4] = eqs;
-		krk_currentThread.stackTop[-3] = val;
-		krk_currentThread.stackTop[-2] = expr;
+		_rotate(4);
+		krk_currentThread.stackTop[-5] = krk_currentThread.stackTop[-2];
+		krk_swap(1);
+		krk_pop();
 	}
 
 	/* Now it's [eq=], val, expr, fmt */
@@ -2024,8 +2021,11 @@ static inline int doTemplateString(int options) {
 	} else {
 		krk_push(NONE_VAL());
 	}
-	/* Except this should be a new Interpolation type */
-	makeCollection(krk_tuple_of,4); /* Tuple of value, expression string, format string, and conversion */
+	krk_swap(1); /* [eq=], val, expr, conv, fmt */
+	_rotate(4); /* space for interpolation class? */
+	krk_currentThread.stackTop[-5] = OBJECT_VAL(KRK_BASE_CLASS(Interpolation));
+	krk_push(krk_callStack(4));
+
 	return 0;
 }
 
@@ -2576,6 +2576,11 @@ _finishReturn: (void)0;
 
 			case OP_IMPORT_STAR: {
 				if (!import_star(frame->globals)) goto _finishException;
+				break;
+			}
+
+			case OP_PUSH_TEMPLATE: {
+				krk_push(OBJECT_VAL(KRK_BASE_CLASS(Template)));
 				break;
 			}
 
@@ -3238,14 +3243,6 @@ _finishPopBlock: (void)0;
 			case OP_TEMPLATE_VALUE: {
 				ONE_BYTE_OPERAND;
 				if (doTemplateString(OPERAND)) goto _finishException;
-				break;
-			}
-
-			case OP_MAKE_TEMPLATE_LONG:
-				THREE_BYTE_OPERAND;
-			case OP_MAKE_TEMPLATE: {
-				ONE_BYTE_OPERAND;
-				makeCollection(krk_tuple_of, OPERAND); /* except this should be a new Template type */
 				break;
 			}
 

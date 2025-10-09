@@ -2902,6 +2902,10 @@ static void string(struct GlobalState * state, int exprType, RewindState *rewind
 
 	int formatElements = 0;
 
+	if (isTemplate) {
+		emitByte(OP_PUSH_TEMPLATE);
+	}
+
 	/* This should capture everything but the quotes. */
 	do {
 		if (isRaw) {
@@ -3112,7 +3116,7 @@ _nextStr:
 		formatElements++;
 	}
 	if (isTemplate) {
-		EMIT_OPERAND_OP(OP_MAKE_TEMPLATE, formatElements);
+		EMIT_OPERAND_OP(OP_CALL, formatElements);
 	} else if (formatElements != 1) {
 		EMIT_OPERAND_OP(OP_MAKE_STRING, formatElements);
 	}

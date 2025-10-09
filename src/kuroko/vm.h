@@ -138,6 +138,9 @@ struct BaseClasses {
 	KrkClass * ThreadClass;          /**< Threading.Thread */
 	KrkClass * LockClass;            /**< Threading.Lock */
 	KrkClass * ellipsisClass;        /**< Type of the Ellipsis (...) singleton */
+	KrkClass * TemplateClass;        /**< Type of a t-string */
+	KrkClass * TemplateIterClass;    /**< Type of Template.__iter__() */
+	KrkClass * InterpolationClass;   /**< Type of an interpolation in a t-string */
 };
 
 /**
