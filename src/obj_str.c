@@ -1218,17 +1218,8 @@ KRK_Method(Template,__repr__) {
 		self->interpolations);
 }
 
-KRK_Method(Template,strings) {
-	if (!krk_parseArgs(".|V", (const char*[]){"strings"}, &self->strings))
-		return NONE_VAL();
-	return self->strings;
-}
-
-KRK_Method(Template,interpolations) {
-	if (!krk_parseArgs(".|V", (const char*[]){"interpolations"}, &self->interpolations))
-		return NONE_VAL();
-	return self->interpolations;
-}
+KRK_Method(Template,strings) { ATTRIBUTE_NOT_ASSIGNABLE(); return self->strings; }
+KRK_Method(Template,interpolations) { ATTRIBUTE_NOT_ASSIGNABLE(); return self->interpolations; }
 
 static int _unpack_template_values(void * context, const KrkValue * values, size_t count) {
 	KrkValue tuple = *(KrkValue*)context;
@@ -1341,34 +1332,10 @@ KRK_Method(Interpolation,__repr__) {
 		self->format_spec);
 }
 
-KRK_Method(Interpolation,value) {
-	if (!krk_parseArgs(".|V", (const char*[]){"value"}, &self->value))
-		return NONE_VAL();
-	return self->value;
-}
-
-KRK_Method(Interpolation,expression) {
-	if (!krk_parseArgs(".|V!", (const char*[]){"expression"}, KRK_BASE_CLASS(str), &self->expression))
-		return NONE_VAL();
-	return self->expression;
-}
-
-KRK_Method(Interpolation,conversion) {
-	KrkValue tmp = KWARGS_VAL(0);
-	if (!krk_parseArgs(".|V", (const char*[]){"conversion"}, &tmp))
-		return NONE_VAL();
-	if (!IS_KWARGS(tmp)) {
-		if (!(IS_NONE(tmp) || IS_STRING(tmp))) return krk_runtimeError(vm.exceptions->typeError, "conversion must be str or None, not '%T'", tmp);
-		self->conversion = tmp;
-	}
-	return self->conversion;
-}
-
-KRK_Method(Interpolation,format_spec) {
-	if (!krk_parseArgs(".|V!", (const char*[]){"format_spec"}, KRK_BASE_CLASS(str), &self->format_spec))
-		return NONE_VAL();
-	return self->format_spec;
-}
+KRK_Method(Interpolation,value) { ATTRIBUTE_NOT_ASSIGNABLE(); return self->value; }
+KRK_Method(Interpolation,expression) { ATTRIBUTE_NOT_ASSIGNABLE(); return self->expression; }
+KRK_Method(Interpolation,conversion) { ATTRIBUTE_NOT_ASSIGNABLE(); return self->conversion; }
+KRK_Method(Interpolation,format_spec) { ATTRIBUTE_NOT_ASSIGNABLE(); return self->format_spec; }
 
 void krk_pushStringBuilder(struct StringBuilder * sb, char c) {
 	if (sb->capacity < sb->length + 1) {
