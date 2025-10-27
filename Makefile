@@ -233,6 +233,29 @@ install: all libkuroko.so ${HEADERS} $(KRKMODS) $(MODULES)
 install-strip: all
 	$(MAKE) INSTALL_PROGRAM='$(INSTALL_PROGRAM) -s' install
 
+.PHONY: uninstall
+uninstall:
+	@echo "Removing programs..."
+	rm -f $(DESTDIR)$(bindir)/kuroko
+	for i in $(TOOLS); do \
+		rm -f $(DESTDIR)$(bindir)/$$i; \
+	done
+	@echo "Removing libraries..."
+	rm -f $(DESTDIR)$(libdir)/libkuroko.so
+	rm -f $(DESTDIR)$(libdir)/$(SONAME)
+	rm -f $(DESTDIR)$(libdir)/libkuroko.a
+	rm -f $(DESTDIR)$(libdir)/kuroko/*.so
+	@echo "Removing source modules..."
+	rm -f $(DESTDIR)$(libdir)/kuroko/foo/bar/*.krk
+	rm -f $(DESTDIR)$(libdir)/kuroko/foo/*.krk
+	rm -f $(DESTDIR)$(libdir)/kuroko/syntax/*.krk
+	rm -f $(DESTDIR)$(libdir)/kuroko/codecs/*.krk
+	rm -f $(DESTDIR)$(libdir)/kuroko/*.krk
+	-rmdir -p $(DESTDIR)$(libdir)/kuroko
+	@echo "Removing headers..."
+	rm -f $(DESTDIR)$(includedir)/kuroko/*.h
+	-rmdir $(DESTDIR)$(includedir)/kuroko
+
 LIBCMIN = $(shell readelf -a libkuroko.so kuroko krk-* modules/*.so | grep GLIBC_ | grep Version | sed s"/.*GLIBC_//" | sed s"/  .*//" | sort --version-sort | tail -1)
 
 # The deb target piggybacks off the install target, creating a temporary DESTDIR
