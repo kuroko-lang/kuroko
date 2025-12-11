@@ -345,9 +345,8 @@ KrkValue krk_set_of(int argc, const KrkValue argv[], int hasKw) {
 	krk_push(outSet);
 	krk_initTable(&AS_set(outSet)->entries);
 
-	while (argc) {
-		krk_tableSet(&AS_set(outSet)->entries, argv[argc-1], BOOLEAN_VAL(1));
-		argc--;
+	for (int i = 0; i < argc; ++i) {
+		krk_tableSet(&AS_set(outSet)->entries, argv[i], BOOLEAN_VAL(1));
 	}
 
 	return krk_pop();
