@@ -123,6 +123,34 @@ KRK_Method(set,__and__) {
 	return krk_pop();
 }
 
+KRK_Method(set,__sub__) {
+	METHOD_TAKES_EXACTLY(1);
+	CHECK_ARG(1,set,struct Set*,them);
+
+	KrkValue outSet = OBJECT_VAL(krk_newInstance(KRK_BASE_CLASS(set)));
+	krk_push(outSet);
+	FUNC_NAME(set,__init__)(1,&outSet,0);
+
+	KrkClass * type = krk_getType(argv[1]);
+	if (!type->_contains)
+		return krk_runtimeError(vm.exceptions->typeError, "unsupported operand types for %s: '%T' and '%T'", "&", argv[0], argv[1]);
+
+	for (size_t i = 0; i < self->entries.capacity; ++i) {
+		KrkTableEntry * entry = &self->entries.entries[i];
+		if (IS_KWARGS(entry->key)) continue;
+
+		krk_push(argv[1]);
+		krk_push(entry->key);
+		KrkValue result = krk_callDirect(type->_contains, 2);
+
+		if (IS_BOOLEAN(result) && !AS_BOOLEAN(result)) {
+			krk_tableSet(&AS_set(outSet)->entries, entry->key, BOOLEAN_VAL(1));
+		}
+	}
+
+	return krk_pop();
+}
+
 KRK_Method(set,__xor__) {
 	METHOD_TAKES_EXACTLY(1);
 	CHECK_ARG(1,set,struct Set*,them);
@@ -371,6 +399,7 @@ void _createAndBind_setClass(void) {
 	BIND_METHOD(set,__xor__);
 	BIND_METHOD(set,__contains__);
 	BIND_METHOD(set,__iter__);
+	BIND_METHOD(set,__sub__);
 	KRK_DOC(BIND_METHOD(set,add),
 		"@brief Add an element to the set.\n"
 		"@arguments value\n\n"
