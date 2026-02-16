@@ -406,6 +406,19 @@ KRK_Function(symlink) {
 	return NONE_VAL();
 }
 
+KRK_Function(readlink) {
+	const char * path;
+	if (!krk_parseArgs("s",(const char*[]){"path"}, &path)) return NONE_VAL();
+
+	char buf[4096];
+	ssize_t size = readlink(path, buf, 4096);
+	if (size < 0) {
+		return krk_runtimeError(KRK_EXC(OSError), "%s", strerror(errno));
+	}
+
+	return OBJECT_VAL(krk_copyString(buf, size));
+}
+
 KRK_Function(tcgetpgrp) {
 	int fd;
 	if (!krk_parseArgs("i",(const char*[]){"fd"}, &fd)) return NONE_VAL();
@@ -807,6 +820,9 @@ KRK_Module(os) {
 		"@brief Create a symbolic link.\n"
 		"@arguments src,dst\n\n"
 		"Creates a symbolic link at @p src pointing to @p dst.");
+	KRK_DOC(BIND_FUNC(module,readlink),
+		"@brief Return a string representing the target of a symbolic link.\n"
+		"@arguments path");
 
 	KRK_DOC(BIND_FUNC(module,tcgetpgrp),
 		"@brief Get the terminal foreground process group.\n"
