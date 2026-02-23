@@ -822,6 +822,7 @@ int main(int argc, char * argv[]) {
 					fprintf(stderr,"usage: %s [flags] [FILE...]\n"
 						"\n"
 						"Interpreter options:\n"
+						" -c cmd      Compile and run the string 'cmd'.\n"
 						" -d          Debug output from the bytecode compiler.\n"
 						" -g          Collect garbage on every allocation.\n"
 						" -G          Report GC collections.\n"
