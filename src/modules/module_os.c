@@ -559,20 +559,13 @@ KRK_Function(execvp) {
 #else
 #define STAT_STRUCT struct stat
 #endif
-KRK_Function(stat) {
-	const char * path;
-	if (!krk_parseArgs("s",(const char*[]){"path"}, &path)) return NONE_VAL();
 
-	STAT_STRUCT buf;
-	int result = stat(path, &buf);
-	if (result == -1) {
-		return krk_runtimeError(KRK_EXC(OSError), "%s", strerror(errno));
-	}
+static KrkValue stat_result_convert(STAT_STRUCT *buf) {
 	KrkInstance * out = krk_newInstance(os_stat_result);
 	krk_push(OBJECT_VAL(out));
 
-#define SET(thing) krk_attachNamedValue(&out->fields, #thing, INTEGER_VAL(buf. thing))
-#define SETL(thing) do { int n = snprintf(lbuf, 100, "%zd", buf. thing); krk_attachNamedValue(&out->fields, #thing, krk_parse_int(lbuf, n < 100 ? n : 99, 10)); } while (0)
+#define SET(thing) krk_attachNamedValue(&out->fields, #thing, INTEGER_VAL(buf-> thing))
+#define SETL(thing) do { int n = snprintf(lbuf, 100, "%zd", (ssize_t) buf-> thing); krk_attachNamedValue(&out->fields, #thing, krk_parse_int(lbuf, n < 100 ? n : 99, 10)); } while (0)
 	char lbuf[100]; /* Should be big enough. */
 
 	SET(st_dev);
@@ -595,6 +588,35 @@ KRK_Function(stat) {
 
 	return krk_pop();
 }
+
+KRK_Function(stat) {
+	const char * path;
+	if (!krk_parseArgs("s",(const char*[]){"path"}, &path)) return NONE_VAL();
+
+	STAT_STRUCT buf;
+	if (stat(path, &buf) < 0) return krk_runtimeError(KRK_EXC(OSError), "%s", strerror(errno));
+	return stat_result_convert(&buf);
+}
+
+#ifndef _WIN32
+KRK_Function(lstat) {
+	const char * path;
+	if (!krk_parseArgs("s",(const char*[]){"path"}, &path)) return NONE_VAL();
+
+	STAT_STRUCT buf;
+	if (lstat(path, &buf) < 0) return krk_runtimeError(KRK_EXC(OSError), "%s", strerror(errno));
+	return stat_result_convert(&buf);
+}
+
+KRK_Function(fstat) {
+	int fd;
+	if (!krk_parseArgs("i",(const char*[]){"fd"}, &fd)) return NONE_VAL();
+
+	STAT_STRUCT buf;
+	if (fstat(fd, &buf) < 0) return krk_runtimeError(KRK_EXC(OSError), "%s", strerror(errno));
+	return stat_result_convert(&buf);
+}
+#endif
 
 #define IS_stat_result(o) (krk_isInstanceOf(o,os_stat_result))
 #define AS_stat_result(o) AS_INSTANCE(o)
@@ -849,6 +871,12 @@ KRK_Module(os) {
 		"@brief Get the status of a file\n"
 		"@arguments path\n\n"
 		"Runs the @c stat system call on @p path. Returns a @ref stat_result.\n");
+
+#ifndef _WIN32
+	/* lstat doesn't exist, and fstat takes weird arguments. */
+	BIND_FUNC(module,lstat);
+	BIND_FUNC(module,fstat);
+#endif
 }
 
 
