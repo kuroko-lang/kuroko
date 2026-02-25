@@ -553,7 +553,6 @@ KRK_Function(execvp) {
 	return krk_runtimeError(KRK_EXC(OSError), "Expected to not return from exec, but did.");
 }
 
-#define SET(thing) krk_attachNamedValue(&out->fields, #thing, INTEGER_VAL(buf. thing))
 #ifdef _WIN32
 #define STAT_STRUCT struct __stat64
 #define stat _stat64
@@ -572,62 +571,58 @@ KRK_Function(stat) {
 	KrkInstance * out = krk_newInstance(os_stat_result);
 	krk_push(OBJECT_VAL(out));
 
+#define SET(thing) krk_attachNamedValue(&out->fields, #thing, INTEGER_VAL(buf. thing))
+#define SETL(thing) do { int n = snprintf(lbuf, 100, "%zd", buf. thing); krk_attachNamedValue(&out->fields, #thing, krk_parse_int(lbuf, n < 100 ? n : 99, 10)); } while (0)
+	char lbuf[100]; /* Should be big enough. */
+
 	SET(st_dev);
 	SET(st_ino);
 	SET(st_mode);
 	SET(st_nlink);
 	SET(st_uid);
 	SET(st_gid);
-	SET(st_size);
 
-	/* TODO times */
+	/* This can all be big; ensure we can fit them by going through string/long parser.
+	 * TODO: Wouldn't it be better to just expose an interface to krk_long_init_si? */
+	SETL(st_size);
+	SETL(st_atime);
+	SETL(st_mtime);
+	SETL(st_ctime);
+#undef SET
+#undef SETL
+
 	/* TODO block sizes */
 
 	return krk_pop();
 }
-#undef SET
 
 #define IS_stat_result(o) (krk_isInstanceOf(o,os_stat_result))
 #define AS_stat_result(o) AS_INSTANCE(o)
 #define CURRENT_NAME  self
 
-#define getProp(name) \
+#define getProp(name,sep) \
 	KrkValue name = NONE_VAL(); \
-	krk_tableGet(&self->fields, OBJECT_VAL(S(#name)), &name); \
-	if (!IS_INTEGER(name)) return krk_runtimeError(vm.exceptions->valueError, "stat_result is invalid")
+	krk_tableGet(&self->fields, OBJECT_VAL(S("st_" #name)), &name); \
+	if (!krk_pushStringBuilderFormat(&sb, "st_" #name "=%R" sep, name)) return krk_discardStringBuilder(&sb)
 
 KRK_Method(stat_result,__repr__) {
 	METHOD_TAKES_NONE();
-	getProp(st_dev);
-	getProp(st_ino);
-	getProp(st_mode);
-	getProp(st_nlink);
-	getProp(st_uid);
-	getProp(st_gid);
-	getProp(st_size);
 
-	char * buf = malloc(1024);
-	size_t len = snprintf(buf,1024,
-		"os.stat_result("
-			"st_dev=%d,"
-			"st_ino=%d,"
-			"st_mode=%d,"
-			"st_nlink=%d,"
-			"st_uid=%d,"
-			"st_gid=%d,"
-			"st_size=%d)",
-		(int)AS_INTEGER(st_dev),
-		(int)AS_INTEGER(st_ino),
-		(int)AS_INTEGER(st_mode),
-		(int)AS_INTEGER(st_nlink),
-		(int)AS_INTEGER(st_uid),
-		(int)AS_INTEGER(st_gid),
-		(int)AS_INTEGER(st_size));
+	struct StringBuilder sb = {0};
+	krk_pushStringBuilderFormat(&sb,"os.stat_result(");
 
-	if (len > 1023) len = 1023;
-	krk_push(OBJECT_VAL(krk_copyString(buf,len)));
-	free(buf);
-	return krk_pop();
+	getProp(dev,",");
+	getProp(ino,",");
+	getProp(mode,",");
+	getProp(nlink,",");
+	getProp(uid,",");
+	getProp(gid,",");
+	getProp(size,",");
+	getProp(atime,",");
+	getProp(mtime,",");
+	getProp(ctime,")");
+
+	return krk_finishStringBuilder(&sb);
 }
 
 KRK_Module(os) {
