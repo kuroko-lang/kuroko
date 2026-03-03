@@ -564,25 +564,24 @@ static KrkValue stat_result_convert(STAT_STRUCT *buf) {
 	KrkInstance * out = krk_newInstance(os_stat_result);
 	krk_push(OBJECT_VAL(out));
 
-#define SET(thing) krk_attachNamedValue(&out->fields, #thing, INTEGER_VAL(buf-> thing))
-#define SETL(thing) do { int n = snprintf(lbuf, 100, "%zd", (ssize_t) buf-> thing); krk_attachNamedValue(&out->fields, #thing, krk_parse_int(lbuf, n < 100 ? n : 99, 10)); } while (0)
+#define SETU(thing) do { int n = snprintf(lbuf, 100, "%llu", (unsigned long long) buf-> thing); krk_attachNamedValue(&out->fields, #thing, krk_parse_int(lbuf, n < 100 ? n : 99, 10)); } while (0)
+#define SETD(thing) do { int n = snprintf(lbuf, 100, "%lld", (long long) buf-> thing); krk_attachNamedValue(&out->fields, #thing, krk_parse_int(lbuf, n < 100 ? n : 99, 10)); } while (0)
 	char lbuf[100]; /* Should be big enough. */
 
-	SET(st_dev);
-	SET(st_ino);
-	SET(st_mode);
-	SET(st_nlink);
-	SET(st_uid);
-	SET(st_gid);
+	SETU(st_dev); /* POSIX doesn't specify, but everyone else assumes unsigned */
+	SETU(st_ino); /* POSIX XSI says definitely unsigned */
 
-	/* This can all be big; ensure we can fit them by going through string/long parser.
-	 * TODO: Wouldn't it be better to just expose an interface to krk_long_init_si? */
-	SETL(st_size);
-	SETL(st_atime);
-	SETL(st_mtime);
-	SETL(st_ctime);
-#undef SET
-#undef SETL
+	/* All of these are signed and potentially big */
+	SETD(st_mode);
+	SETD(st_nlink);
+	SETD(st_uid);
+	SETD(st_gid);
+	SETD(st_size);
+	SETD(st_atime);
+	SETD(st_mtime);
+	SETD(st_ctime);
+#undef SETU
+#undef SETD
 
 	/* TODO block sizes */
 
