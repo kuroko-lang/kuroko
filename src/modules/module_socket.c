@@ -318,32 +318,7 @@ KRK_Method(socket,listen) {
 	return NONE_VAL();
 }
 
-KRK_Method(socket,accept) {
-	struct sockaddr_storage addr;
-	socklen_t addrlen = sizeof(struct sockaddr_storage);
-
-	int result = accept(self->sockfd, (struct sockaddr*)&addr, &addrlen);
-
-	if (result < 0) {
-		return krk_runtimeError(SocketError, "Socket error: %s", strerror(errno));
-	}
-
-	KrkTuple * outTuple = krk_newTuple(2);
-	krk_push(OBJECT_VAL(outTuple));
-
-	struct socket * out = (struct socket*)krk_newInstance(SocketClass);
-	krk_push(OBJECT_VAL(out));
-
-	out->sockfd = result;
-	out->family = self->family;
-	out->type   = self->type;
-	out->proto  = self->proto;
-
-	outTuple->values.values[0] = krk_peek(0);
-	outTuple->values.count = 1;
-	krk_pop();
-
-
+static void sock_push_addr_tuple(struct socket * self, struct sockaddr_storage addr, socklen_t addrlen) {
 	if (self->family == AF_INET) {
 		KrkTuple * addrTuple = krk_newTuple(2); /* TODO: Other formats */
 		krk_push(OBJECT_VAL(addrTuple));
@@ -376,6 +351,50 @@ KRK_Method(socket,accept) {
 	} else {
 		krk_push(NONE_VAL());
 	}
+}
+
+
+KRK_Method(socket,getsockname) {
+	struct sockaddr_storage addr;
+	socklen_t addrlen = sizeof(struct sockaddr_storage);
+
+	int result = getsockname(self->sockfd, (struct sockaddr*)&addr, &addrlen);
+
+	if (result < 0) {
+		return krk_runtimeError(SocketError, "Socket error: %s", strerror(errno));
+	}
+
+	sock_push_addr_tuple(self, addr, addrlen);
+
+	return krk_pop();
+}
+
+KRK_Method(socket,accept) {
+	struct sockaddr_storage addr;
+	socklen_t addrlen = sizeof(struct sockaddr_storage);
+
+	int result = accept(self->sockfd, (struct sockaddr*)&addr, &addrlen);
+
+	if (result < 0) {
+		return krk_runtimeError(SocketError, "Socket error: %s", strerror(errno));
+	}
+
+	KrkTuple * outTuple = krk_newTuple(2);
+	krk_push(OBJECT_VAL(outTuple));
+
+	struct socket * out = (struct socket*)krk_newInstance(SocketClass);
+	krk_push(OBJECT_VAL(out));
+
+	out->sockfd = result;
+	out->family = self->family;
+	out->type   = self->type;
+	out->proto  = self->proto;
+
+	outTuple->values.values[0] = krk_peek(0);
+	outTuple->values.count = 1;
+	krk_pop();
+
+	sock_push_addr_tuple(self, addr, addrlen);
 
 	outTuple->values.values[1] = krk_peek(0);
 	outTuple->values.count = 2;
@@ -567,6 +586,8 @@ KRK_Module(socket) {
 		"@arguments level,optname,value\n\n"
 		"@p level and @p optname should be integer values defined by @c SOL and @c SO options. "
 		"@p value must be either an @ref int or a @ref bytes object.");
+	KRK_DOC(BIND_METHOD(socket,getsockname),
+		"@brief Get address bound to socket\n");
 
 	BIND_PROP(socket,family);
 	BIND_PROP(socket,type);
