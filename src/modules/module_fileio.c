@@ -234,7 +234,7 @@ KRK_Method(File,write) {
 		return NONE_VAL();
 	}
 
-	return INTEGER_VAL(fwrite(AS_CSTRING(argv[1]), 1, AS_STRING(argv[1])->length, file));
+	return krk_int_from_ull(fwrite(AS_CSTRING(argv[1]), 1, AS_STRING(argv[1])->length, file));
 }
 
 KRK_Method(File,close) {
@@ -410,7 +410,7 @@ KRK_Method(BinaryFile,write) {
 		return NONE_VAL();
 	}
 
-	return INTEGER_VAL(fwrite(AS_BYTES(argv[1])->bytes, 1, AS_BYTES(argv[1])->length, file));
+	return krk_int_from_ull(fwrite(AS_BYTES(argv[1])->bytes, 1, AS_BYTES(argv[1])->length, file));
 }
 
 #undef CURRENT_CTYPE
@@ -459,7 +459,7 @@ KRK_Method(Directory,__call__) {
 	krk_push(outDict);
 
 	krk_attachNamedValue(AS_DICT(outDict), "name", OBJECT_VAL(krk_copyString(entry->d_name,strlen(entry->d_name))));
-	krk_attachNamedValue(AS_DICT(outDict), "inode", INTEGER_VAL(entry->d_ino));
+	krk_attachNamedValue(AS_DICT(outDict), "inode", krk_int_from_ull(entry->d_ino));
 
 	return krk_pop();
 }

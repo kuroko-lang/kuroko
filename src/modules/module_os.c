@@ -291,7 +291,7 @@ KRK_Function(lseek) {
 	if (result == -1) {
 		return krk_runtimeError(KRK_EXC(OSError), "%s", strerror(errno));
 	}
-	return INTEGER_VAL(result);
+	return krk_int_from_ll(result);
 }
 
 KRK_Function(open) {
@@ -360,7 +360,7 @@ KRK_Function(write) {
 	if (result == -1) {
 		return krk_runtimeError(KRK_EXC(OSError), "%s", strerror(errno));
 	}
-	return INTEGER_VAL(result);
+	return krk_int_from_ll(result);
 }
 
 #ifndef _WIN32
@@ -564,9 +564,8 @@ static KrkValue stat_result_convert(STAT_STRUCT *buf) {
 	KrkInstance * out = krk_newInstance(os_stat_result);
 	krk_push(OBJECT_VAL(out));
 
-#define SETU(thing) do { int n = snprintf(lbuf, 100, "%llu", (unsigned long long) buf-> thing); krk_attachNamedValue(&out->fields, #thing, krk_parse_int(lbuf, n < 100 ? n : 99, 10)); } while (0)
-#define SETD(thing) do { int n = snprintf(lbuf, 100, "%lld", (long long) buf-> thing); krk_attachNamedValue(&out->fields, #thing, krk_parse_int(lbuf, n < 100 ? n : 99, 10)); } while (0)
-	char lbuf[100]; /* Should be big enough. */
+#define SETU(thing) do { krk_attachNamedValue(&out->fields, #thing, krk_int_from_ull(buf-> thing)); } while (0)
+#define SETD(thing) do { krk_attachNamedValue(&out->fields, #thing, krk_int_from_ll(buf-> thing)); } while (0)
 
 	SETU(st_dev); /* POSIX doesn't specify, but everyone else assumes unsigned */
 	SETU(st_ino); /* POSIX XSI says definitely unsigned */
