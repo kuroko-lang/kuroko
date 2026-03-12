@@ -1571,6 +1571,18 @@ KrkValue krk_parse_int(const char * start, size_t width, unsigned int base) {
 	return make_long_obj(&_value);
 }
 
+KrkValue krk_int_from_ull(unsigned long long i) {
+	KrkLong val;
+	krk_long_init_ui(&val, i);
+	return make_long_obj(&val);
+}
+
+KrkValue krk_int_from_ll(long long i) {
+	KrkLong val;
+	krk_long_init_si(&val, i);
+	return make_long_obj(&val);
+}
+
 KRK_Method(long,__int__) {
 	return INTEGER_VAL(krk_long_medium(self->value));
 }

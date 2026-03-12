@@ -380,3 +380,6 @@ extern int krk_isSubClass(const KrkClass * cls, const KrkClass * base);
 		return krk_pop(); \
 	} \
 	KRK_Module_internal_sig(name)
+
+extern KrkValue krk_int_from_ll(long long i);
+extern KrkValue krk_int_from_ull(unsigned long long i);
