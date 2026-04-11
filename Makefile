@@ -46,6 +46,10 @@ else
   modules/socket.so: MODLIBS += -lws2_32
 endif
 
+ifdef KRK_BUNDLE_ALL
+  KRK_BUNDLE_LIBS=$(patsubst src/modules/module_%.c,%,$(wildcard src/modules/module_*.c))
+endif
+
 ifdef KRK_DISABLE_DOCS
   CFLAGS += -DKRK_NO_DOCUMENTATION -Wno-unused-value
 endif
