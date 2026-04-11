@@ -215,7 +215,7 @@ static int run_comparator(PHeap * left, PHeap * right) {
 KRK_Method(PHeap,insert) {
 	KrkValue value;
 	if (!krk_parseArgs(".V",(const char*[]){"value"}, &value)) return NONE_VAL();
-	struct PHeap * node = calloc(sizeof(struct PHeap), 1);
+	struct PHeap * node = calloc(1, sizeof(struct PHeap));
 	node->owner = self;
 	node->value = value;
 	self->heap = pheap_meld(self->heap, node, run_comparator);
