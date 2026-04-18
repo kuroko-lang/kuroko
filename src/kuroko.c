@@ -21,6 +21,8 @@
 #endif
 #endif
 
+#include "vendor/keigo.h"
+
 #include <kuroko/kuroko.h>
 #include <kuroko/chunk.h>
 #include <kuroko/debug.h>
@@ -762,7 +764,11 @@ int main(int argc, char * argv[]) {
 	int inspectAfter = 0;
 	int opt;
 	int maxDepth = -1;
-	while ((opt = getopt(argc, argv, "+:c:C:dgGim:rR:tTMSV-:")) != -1) {
+	struct Keigo ctx = {0};
+#define optind (ctx.i)
+#define optarg (ctx.arg)
+#define optopt (ctx.opt)
+	while ((opt = keigo(&ctx,argc,argv,"c:C:dgGim:rR:tTMSV-:")) != -1) {
 		switch (opt) {
 			case 'c':
 				runCmd = optarg;
@@ -808,12 +814,8 @@ int main(int argc, char * argv[]) {
 				fprintf(stderr, "%s: option '%c' requires an argument\n", argv[0], optopt);
 				return 1;
 			case '?':
-				if (optopt != '-') {
-					fprintf(stderr, "%s: unrecognized option '%c'\n", argv[0], optopt);
-					return 1;
-				}
-				optarg = argv[optind]+2;
-				/* fall through */
+				fprintf(stderr, "%s: unrecognized option '%c'\n", argv[0], optopt);
+				return 1;
 			case '-':
 				if (!strcmp(optarg,"version")) {
 					return runString(argv,0,"import kuroko; print('Kuroko',kuroko.version)\n");
@@ -843,11 +845,9 @@ int main(int argc, char * argv[]) {
 						argv[0]);
 #endif
 					return 0;
-				} else {
-					fprintf(stderr,"%s: unrecognized option '--%s'\n",
-						argv[0], optarg);
-					return 1;
-				}
+				} 
+				fprintf(stderr,"%s: unrecognized option '--%s'\n", argv[0], optarg);
+				return 1;
 		}
 	}
 

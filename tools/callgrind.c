@@ -20,6 +20,7 @@
 #include <kuroko/debug.h>
 #include <kuroko/util.h>
 #include "../src/opcode_enum.h"
+#include "../src/vendor/keigo.h"
 
 #include "common.h"
 
@@ -234,7 +235,11 @@ int main(int argc, char *argv[]) {
 	snprintf(outfile,1024,"callgrind.out.%d",getpid());
 
 	int opt;
-	while ((opt = getopt(argc, argv, "+:f:qm-:")) != -1) {
+	struct Keigo ctx = {0};
+#define optind (ctx.i)
+#define optarg (ctx.arg)
+#define optopt (ctx.opt)
+	while ((opt = keigo(&ctx,argc,argv,"f:qm-:")) != -1) {
 		switch (opt) {
 			case 'f':
 				snprintf(outfile,1024,"%s", optarg);
@@ -245,20 +250,18 @@ int main(int argc, char *argv[]) {
 			case 'm':
 				moduleAsMain = 1;
 				break;
+			case ':':
+				fprintf(stderr, "%s: option '%c' requires an argument\n", argv[0], optopt);
+				return 1;
 			case '?':
-				if (optopt != '-') {
-					fprintf(stderr, "%s: unrocognized option '%c'\n", argv[0], optopt);
-					return 1;
-				}
-				optarg = argv[optind]+1;
-				/* fall through */
+				fprintf(stderr, "%s: unrecognized option '%c'\n", argv[0], optopt);
+				return 1;
 			case '-':
 				if (!strcmp(optarg,"help")) {
 					return help(argv);
-				} else {
-					fprintf(stderr, "%s: unrecognized option: '--%s'\n", argv[0], optarg);
-					return 1;
 				}
+				fprintf(stderr, "%s: unrecognized option: '--%s'\n", argv[0], optarg);
+				return 1;
 		}
 	}
 	if (optind == argc) {
@@ -269,7 +272,7 @@ int main(int argc, char *argv[]) {
 	krk_initVM(KRK_THREAD_SINGLE_STEP);
 	frameMetadata = malloc(sizeof(*frameMetadata) * krk_currentThread.maximumCallDepth);
 	krk_debug_registerCallback(krk_callgrind_debuggerHook);
-	KrkValue argList = addArgs(argc,argv);
+	KrkValue argList = addArgs(argc,argv,optind);
 
 	krk_startModule("__callgrind__");
 

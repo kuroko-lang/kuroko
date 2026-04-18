@@ -44,7 +44,7 @@ static void findInterpreter(char * argv[]) {
 }
 
 /* Collect arguments for script, also copied from src/kuroko.c */
-static KrkValue addArgs(int argc, char * argv[]) {
+static KrkValue addArgs(int argc, char * argv[], int optind) {
 	for (int arg = optind; arg < argc; ++arg) {
 		krk_push(OBJECT_VAL(krk_copyString(argv[arg],strlen(argv[arg]))));
 	}
