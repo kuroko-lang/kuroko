@@ -1,0 +1,5 @@
+Imported foo.__init__ as foo
+Imported bar.__init__ as foo.bar
+imported baz.krk as foo.bar.baz
+This is it!
+This is it!

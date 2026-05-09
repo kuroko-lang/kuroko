@@ -1,0 +1,5 @@
+from foo.bar.baz import *
+print(qux)
+
+from foo.bar.baz import (qux as renamed,)
+print(renamed)
