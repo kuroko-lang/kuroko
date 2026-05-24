@@ -897,26 +897,25 @@ _finishArgs:
 	if (env_KUROKOPATH) {
 		/* Build a path by splitting */
 		krk_push(OBJECT_VAL(krk_copyString(env_KUROKOPATH,strlen(env_KUROKOPATH))));
+		krk_push(krk_valueGetAttribute(krk_peek(0), "split"));
 		krk_push(OBJECT_VAL(S(":")));
-
-		/* Split into list */
-		KrkValue list = krk_string_split(2,(KrkValue[]){krk_peek(1),krk_peek(0)},0);
+		KrkValue list = krk_callStack(1);
 		krk_push(list);
-		krk_swap(2);
-		krk_pop(); /* colon */
+		krk_swap(1);
 		krk_pop(); /* path */
+		krk_debug_dumpStack(stderr, NULL);
+
+		krk_push(krk_valueGetAttribute(krk_peek(0), "extend"));
 
 		/* Extend with current module_paths */
 		krk_push(krk_valueGetAttribute(OBJECT_VAL(vm.system), "module_paths"));
-
-		extern FUNC_SIG(list,extend);
-		FUNC_NAME(list,extend)(2,(KrkValue[]){krk_peek(1),krk_peek(0)},0);
+		krk_callStack(1);
+		krk_debug_dumpStack(stderr, NULL);
 
 		/* Store */
 		krk_attachNamedValue(&vm.system->fields, "module_paths", list);
 
 		/* Clean up our mess */
-		krk_pop();
 		krk_pop(); /* list */
 	}
 
