@@ -1390,6 +1390,13 @@ KRK_Function(__build_class__) {
 	return krk_pop();
 }
 
+KRK_Function(breakpoint) {
+#ifndef KRK_DISABLE_DEBUG
+	krk_debuggerHook(&krk_currentThread.frames[krk_currentThread.frameCount - 1]);
+#endif
+	return NONE_VAL();
+}
+
 #undef CURRENT_CTYPE
 #define CURRENT_CTYPE KrkUpvalue *
 #define IS_Cell(o) (krk_isObjType((o), KRK_OBJ_UPVALUE))
@@ -1720,5 +1727,7 @@ void _createAndBind_builtins(void) {
 	BUILTIN_FUNCTION("__build_class__", FUNC_NAME(krk,__build_class__),
 		"@brief Internal function to build a type object.\n"
 		"@arguments func, name, base=object, metaclass=type");
+	BUILTIN_FUNCTION("breakpoint", FUNC_NAME(krk,breakpoint),
+		"@brief Trigger a breakpoint.");
 }
 
