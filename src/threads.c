@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include <string.h>
 
 #include <kuroko/kuroko.h>
@@ -9,14 +10,9 @@
 #include <unistd.h>
 #include <pthread.h>
 
-#if defined(__linux__)
-# include <sys/syscall.h>
-# define gettid() syscall(SYS_gettid)
-#elif defined(__toaru__)
-# include <pthread.h>
-#elif defined(_WIN32)
+#if defined(_WIN32)
 # define gettid() GetCurrentThreadId()
-#else
+#elif  !defined(__linux__) && !defined(__toaru__)
 # define gettid() -1
 #endif
 
