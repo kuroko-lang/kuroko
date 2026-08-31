@@ -92,6 +92,9 @@ static char * _sock_type(int type) {
 #ifdef SOCK_RAW
 		case SOCK_RAW: return "SOCK_RAW";
 #endif
+#ifdef SOCK_SEQPACKET
+		case SOCK_SEQPACKET: return "SOCK_SEQPACKET";
+#endif
 		default:
 			snprintf(tmp,30,"%d",type);
 			return tmp;
@@ -667,6 +670,9 @@ KRK_Module(socket) {
 	SOCK_CONST(SOCK_DGRAM);
 #ifdef SOCK_RAW
 	SOCK_CONST(SOCK_RAW);
+#endif
+#ifdef SOCK_SEQPACKET
+	SOCK_CONST(SOCK_SEQPACKET);
 #endif
 
 	/* These are OR'd together with the above on Linux */
