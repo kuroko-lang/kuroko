@@ -303,12 +303,8 @@ KRK_Method(socket,bind) {
 }
 
 KRK_Method(socket,listen) {
-	METHOD_TAKES_AT_MOST(1);
 	int backlog = 0;
-	if (argc > 1) {
-		CHECK_ARG(1,int,krk_integer_type,val);
-		backlog = val >= 0 ? val : 0;
-	}
+	if (!krk_parseArgs(".i", (const char *[]){"backlog"}, &backlog)) return NONE_VAL();
 
 	int result = listen(self->sockfd, backlog);
 	if (result < 0) {
@@ -404,8 +400,8 @@ KRK_Method(socket,accept) {
 }
 
 KRK_Method(socket,shutdown) {
-	METHOD_TAKES_EXACTLY(1);
-	CHECK_ARG(1,int,krk_integer_type,how);
+	int how;
+	if (!krk_parseArgs(".i", (const char *[]){"how"}, &how)) return NONE_VAL();
 
 	int result = shutdown(self->sockfd, how);
 
@@ -417,14 +413,11 @@ KRK_Method(socket,shutdown) {
 }
 
 KRK_Method(socket,recv) {
-	METHOD_TAKES_AT_LEAST(1);
-	METHOD_TAKES_AT_MOST(2);
-	CHECK_ARG(1,int,krk_integer_type,bufsize);
+	size_t bufsize;
 	int flags = 0;
-	if (argc > 2) {
-		CHECK_ARG(2,int,krk_integer_type,_flags);
-		flags = _flags;
-	}
+
+	if (!krk_parseArgs(".N|i", (const char *[]){"bufsize","flags"},
+		&bufsize, &flags)) return NONE_VAL();
 
 	void * buf = malloc(bufsize);
 	ssize_t result = recv(self->sockfd, buf, bufsize, flags);
@@ -438,15 +431,52 @@ KRK_Method(socket,recv) {
 	return OBJECT_VAL(out);
 }
 
-KRK_Method(socket,send) {
-	METHOD_TAKES_AT_LEAST(1);
-	METHOD_TAKES_AT_MOST(2);
-	CHECK_ARG(1,bytes,KrkBytes*,buf);
+KRK_Method(socket,recvfrom) {
+	size_t bufsize;
 	int flags = 0;
-	if (argc > 2) {
-		CHECK_ARG(2,int,krk_integer_type,_flags);
-		flags = _flags;
+
+	if (!krk_parseArgs(".N|i", (const char *[]){"bufsize","flags"},
+		&bufsize, &flags)) return NONE_VAL();
+
+	struct sockaddr_storage addr = {0};
+	socklen_t addrlen = sizeof(struct sockaddr_storage);
+
+	void * buf = malloc(bufsize);
+	ssize_t result = recvfrom(self->sockfd, buf, bufsize, flags, (struct sockaddr*)&addr, &addrlen);
+	if (result < 0) {
+		free(buf);
+		return krk_runtimeError(SocketError, "Socket error: %s", strerror(errno));
 	}
+
+	KrkTuple * outTuple = krk_newTuple(2);
+	krk_push(OBJECT_VAL(outTuple));
+
+	krk_push(OBJECT_VAL(krk_newBytes(result,buf)));
+	outTuple->values.values[0] = krk_peek(0);
+	outTuple->values.count = 1;
+	free(buf);
+	krk_pop();
+
+	fprintf(stderr, "addr family = %u\n", addr.ss_family);
+	fprintf(stderr, "addrlen  = %zu\n", addrlen);
+
+	sock_push_addr_tuple(self, addr, addrlen);
+
+	outTuple->values.values[1] = krk_peek(0);
+	outTuple->values.count = 2;
+	krk_pop();
+
+	return krk_pop();
+}
+
+
+KRK_Method(socket,send) {
+	KrkBytes * buf;
+	int flags = 0;
+
+	if (!krk_parseArgs(".O!|i", (const char *[]){"buf","flags"},
+		KRK_BASE_CLASS(bytes), &buf,
+		&flags)) return NONE_VAL();
 
 	ssize_t result = send(self->sockfd, (void*)buf->bytes, buf->length, flags);
 	if (result < 0) {
@@ -457,20 +487,28 @@ KRK_Method(socket,send) {
 }
 
 KRK_Method(socket,sendto) {
-	METHOD_TAKES_AT_LEAST(1);
-	METHOD_TAKES_AT_MOST(3);
-	CHECK_ARG(1,bytes,KrkBytes*,buf);
+	KrkBytes *buf;
 	int flags = 0;
-	if (argc > 3) {
-		CHECK_ARG(2,int,krk_integer_type,_flags);
-		flags = _flags;
+	KrkValue addr = NONE_VAL();
+
+	if (argc < 4) {
+		if (!krk_parseArgs(".O!V", (const char *[]){"buf","address"},
+			KRK_BASE_CLASS(bytes), &buf,
+			&addr)) {
+			return NONE_VAL();
+		}
+	} else {
+		if (!krk_parseArgs(".O!iV", (const char *[]){"buf","flags","address"},
+			KRK_BASE_CLASS(bytes), &buf,
+			&flags,
+			&addr)) return NONE_VAL();
 	}
 
 	struct sockaddr_storage sock_addr;
 	socklen_t sock_size = 0;
 
 	/* What do we take? I guess a tuple for AF_INET */
-	int parseResult = socket_parse_address(self, argv[argc-1], &sock_addr, &sock_size);
+	int parseResult = socket_parse_address(self, addr, &sock_addr, &sock_size);
 	if (parseResult) {
 		if (!(krk_currentThread.flags & KRK_THREAD_HAS_EXCEPTION))
 			return krk_runtimeError(SocketError, "Unspecified error.");
@@ -491,19 +529,19 @@ KRK_Method(socket,fileno) {
 }
 
 KRK_Method(socket,setsockopt) {
-	METHOD_TAKES_EXACTLY(3);
-	CHECK_ARG(1,int,krk_integer_type,level);
-	CHECK_ARG(2,int,krk_integer_type,optname);
+	int level, optname;
+	KrkValue value;
+	if (!krk_parseArgs(".iiV", (const char *[]){"level","optname","value"}, &level, &optname, &value)) return NONE_VAL();
 
 	int result;
 
-	if (IS_INTEGER(argv[3])) {
-		int val = AS_INTEGER(argv[3]);
+	if (IS_INTEGER(value)) {
+		int val = AS_INTEGER(value);
 		result = setsockopt(self->sockfd, level, optname, (void*)&val, sizeof(int));
-	} else if (IS_BYTES(argv[3])) {
-		result = setsockopt(self->sockfd, level, optname, (void*)AS_BYTES(argv[3])->bytes, AS_BYTES(argv[3])->length);
+	} else if (IS_BYTES(value)) {
+		result = setsockopt(self->sockfd, level, optname, (void*)AS_BYTES(value)->bytes, AS_BYTES(value)->length);
 	} else {
-		return TYPE_ERROR(int or bytes,argv[3]);
+		return TYPE_ERROR(int or bytes,value);
 	}
 
 	if (result < 0) {
@@ -514,8 +552,14 @@ KRK_Method(socket,setsockopt) {
 }
 
 KRK_Function(htons) {
-	FUNCTION_TAKES_EXACTLY(1);
-	CHECK_ARG(0,int,krk_integer_type,value);
+	unsigned short value;
+
+	if (!krk_parseArgs("H",
+		(const char *[]){"value"},
+		&value)) {
+		return NONE_VAL();
+	}
+
 	return INTEGER_VAL(htons(value));
 }
 
@@ -569,6 +613,10 @@ KRK_Module(socket) {
 		"@brief Receive data from a connected socket.\n"
 		"@arguments bufsize,[flags]\n\n"
 		"Receive up to @p bufsize bytes of data, which is returned as a @ref bytes object.");
+	KRK_DOC(BIND_METHOD(socket,recvfrom),
+		"@brief Receive data from a connected socket.\n"
+		"@arguments bufsize,[flags]\n\n"
+		"Receive up to @p bufsize bytes of data, which is returned as tuple of a @ref bytes object and address.");
 	KRK_DOC(BIND_METHOD(socket,send),
 		"@brief Send data to a connected socket.\n"
 		"@arguments buf,[flags]\n\n"
