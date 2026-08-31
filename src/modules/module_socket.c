@@ -19,6 +19,9 @@
 #ifdef AF_UNIX
 #include <sys/un.h>
 #endif
+#if defined(__toaru__) && defined(AF_PEX)
+#include <sys/pex.h>
+#endif
 #include <errno.h>
 
 #include <kuroko/vm.h>
@@ -77,6 +80,9 @@ static char * _af_name(int afval) {
 #endif
 #ifdef AF_UNIX
 		case AF_UNIX: return "AF_UNIX";
+#endif
+#if defined(__toaru__) && defined(AF_PEX)
+		case AF_PEX: return "AF_PEX";
 #endif
 		default:
 			snprintf(tmp,30,"%d",afval);
@@ -251,6 +257,31 @@ static int socket_parse_address(struct socket * self, KrkValue address, struct s
 		memcpy(sun->sun_path, AS_CSTRING(address), AS_STRING(address)->length + 1);
 		return 0;
 #endif
+#if defined(__toaru__) && defined(AF_PEX)
+	} else if (self->family == AF_PEX) {
+		if (IS_str(address)) {
+			if (AS_STRING(address)->length > 99) {
+				krk_runtimeError(vm.exceptions->valueError, "Address is too long");
+				return 1;
+			}
+			struct sockaddr_pex * spex = (struct sockaddr_pex*)sock_addr;
+			*sock_size = sizeof(struct sockaddr_pex);
+			spex->spex_family = AF_PEX;
+			spex->spex_type = PEX_SOCK_SERVER_NAME;
+			memcpy(spex->spex_target, AS_CSTRING(address), AS_STRING(address)->length + 1);
+			return 0;
+		} else if (IS_INTEGER(address)) {
+			struct sockaddr_pex_client * spexc = (struct sockaddr_pex_client*)sock_addr;
+			*sock_size = sizeof(struct sockaddr_pex_client);
+			spexc->spexc_family = AF_PEX;
+			spexc->spexc_type = PEX_SOCK_CLIENT_ADDR;
+			spexc->spexc_addr = AS_INTEGER(address);
+			return 0;
+		} else {
+			krk_runtimeError(vm.exceptions->typeError, "PEX address should be str or int, not '%T'", address);
+			return 1;
+		}
+#endif
 	} else {
 		krk_runtimeError(vm.exceptions->notImplementedError, "Not implemented.");
 		return 1;
@@ -346,6 +377,16 @@ static void sock_push_addr_tuple(struct socket * self, struct sockaddr_storage a
 	} else if (self->family == AF_UNIX) {
 		/* ignore remote path because it's meaningless? */
 		krk_push(OBJECT_VAL(S("")));
+#endif
+#if defined(__toaru__) && defined(AF_PEX)
+	} else if (self->family == AF_PEX) {
+		struct sockaddr_pex * spex = (struct sockaddr_pex*)&addr;
+		if (spex->spex_type == PEX_SOCK_SERVER_NAME) {
+			krk_push(OBJECT_VAL(krk_copyString(spex->spex_target, strlen(spex->spex_target))));
+		} else if (spex->spex_type == PEX_SOCK_CLIENT_ADDR) {
+			struct sockaddr_pex_client * spexc = (struct sockaddr_pex_client*)&addr;
+			krk_push(INTEGER_VAL(spexc->spexc_addr));
+		}
 #endif
 	} else {
 		krk_push(NONE_VAL());
@@ -663,6 +704,9 @@ KRK_Module(socket) {
 #endif
 #ifdef AF_UNIX
 	SOCK_CONST(AF_UNIX);
+#endif
+#if defined(__toaru__) && defined(AF_PEX)
+	SOCK_CONST(AF_PEX);
 #endif
 
 	/* SOCK_ constants, similarly */
