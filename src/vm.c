@@ -32,8 +32,12 @@ KrkVM vm = {0};
  * Despite documentation saying otherwise, a small thread-local
  * can generally be allocated even with dlopen, but this is
  * not guaranteed.
+ *
+ * Doesn't work on Haiku.
  */
+#ifndef __HAIKU__
 __attribute__((tls_model("initial-exec")))
+#endif
 __thread KrkThreadState krk_currentThread;
 #else
 /* There is only one thread, so don't store it as TLS... */

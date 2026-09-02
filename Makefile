@@ -27,7 +27,9 @@ endif
 
 ifeq (,$(findstring mingw,$(CC)))
   CFLAGS  += -pthread
-  LDLIBS  += -ldl -lpthread
+  ifneq (Haiku,$(shell uname -s))
+    LDLIBS  += -ldl -lpthread
+  endif
   BIN_FLAGS = -rdynamic
   LIBRARY = libkuroko.so
   ifeq (Darwin,$(shell uname -s))
