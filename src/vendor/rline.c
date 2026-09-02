@@ -2230,6 +2230,9 @@ static int reverse_search(void) {
 		while ((cin = getch(timeout))) {
 			if (cin == -1) continue;
 			if (!decode(&istate, &c, cin)) {
+				if (_INTR && c == _INTR) {
+					goto _done;
+				}
 				switch (c) {
 					case '\033':
 						have_unget = '\033';
@@ -2305,7 +2308,11 @@ static int read_line(void) {
 	rline_place_cursor();
 
 	while ((cin = getch(timeout))) {
-		if (cin == -1) continue;
+		if (cin == -1) {
+			render_line();
+			rline_place_cursor();
+			continue;
+		}
 		get_size();
 		if (!decode(&istate, &c, cin)) {
 			if (timeout == 0) {
@@ -2362,6 +2369,12 @@ static int read_line(void) {
 						render_line();
 						insert_char('\n');
 						return 1;
+					case 1: /* ^A */
+						cursor_home();
+						break;
+					case 5: /* ^E */
+						cursor_end();
+						break;
 					case 22: /* ^V */
 						/* Don't bother with unicode, just take the next byte */
 						rline_place_cursor();
