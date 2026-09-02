@@ -2338,7 +2338,9 @@ static int read_line(void) {
 						rline_place_cursor();
 						if (!*rline_exit_string) {
 							set_colors(COLOR_ALT_FG, COLOR_ALT_BG);
-							printf("^D\033[0m");
+							printf("%s%c\033[0m",
+								(_EOF < 32 || _EOF == 0x7F) ? "^" : "",
+								_EOF < 32 ? (_EOF + '@') : (_EOF == 0x7F ? '?' : _EOF));
 						}
 						return 1;
 					} else { /* Otherwise act like delete */
