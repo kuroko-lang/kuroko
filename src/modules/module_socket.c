@@ -501,9 +501,6 @@ KRK_Method(socket,recvfrom) {
 	free(buf);
 	krk_pop();
 
-	fprintf(stderr, "addr family = %u\n", addr.ss_family);
-	fprintf(stderr, "addrlen  = %zu\n", addrlen);
-
 	sock_push_addr_tuple(self, addr, addrlen);
 
 	outTuple->values.values[1] = krk_peek(0);
