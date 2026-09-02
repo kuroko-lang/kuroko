@@ -1945,19 +1945,19 @@ static int handle_escape(int * this_buf, int * timeout, int c) {
 		*timeout = 1;
 		return 1;
 	}
-	if (*timeout >= 1 && this_buf[*timeout-1] == '\033' && c == '[') {
+	if (*timeout >= 1 && this_buf[*timeout-1] == '\033' && (c == '[' || c == 'O')) {
 		*timeout = 1;
 		this_buf[*timeout] = c;
 		(*timeout)++;
 		return 0;
 	}
-	if (*timeout >= 2 && this_buf[0] == '\033' && this_buf[1] == '[' &&
+	if (*timeout >= 2 && this_buf[0] == '\033' && (this_buf[1] == '[' || this_buf[1] == 'O') &&
 			(isdigit(c) || c == ';')) {
 		this_buf[*timeout] = c;
 		(*timeout)++;
 		return 0;
 	}
-	if (*timeout >= 2 && this_buf[0] == '\033' && this_buf[1] == '[') {
+	if (*timeout >= 2 && this_buf[0] == '\033' && (this_buf[1] == '[' || this_buf[1] == 'O')) {
 		switch (c) {
 			case 'A': // up
 				history_previous();
