@@ -2022,6 +2022,7 @@ static void set_unbuffered(void) {
 	_EOF  = old.c_cc[VEOF];
 	struct termios new = old;
 	new.c_lflag &= (~ICANON & ~ECHO & ~ISIG);
+	new.c_cc[VMIN] = 1;
 	tcsetattr(STDOUT_FILENO, TCSADRAIN, &new);
 	if (wcwidth(0x3042) != 2) setlocale(LC_CTYPE, "");
 }
