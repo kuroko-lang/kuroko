@@ -1,0 +1,13 @@
+def func():
+    try:
+        return True
+    return False
+
+def noraise():
+    try:
+        raise ValueError()
+        return False
+    return True
+
+print(func())  # Should be True
+print(noraise()) # Should also be True

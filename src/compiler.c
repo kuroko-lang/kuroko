@@ -2499,6 +2499,12 @@ _anotherExcept:
 		}
 	}
 
+	if (nextJump == -1 && firstJump == 0) {
+		/* Completely bare 'try', insert blank 'except' */
+		emitByte(OP_NONE);
+		nextJump = emitJump(OP_FILTER_EXCEPT); /* Patched later */
+	}
+
 	for (int i = firstJump; i < exitJumps; ++i) {
 		patchJump(exitJumpOffsets[i]);
 	}
