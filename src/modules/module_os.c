@@ -681,6 +681,9 @@ KRK_Module(os) {
 #ifdef O_CLOEXEC
 	DO_INT(O_CLOEXEC);
 #endif
+#ifdef O_CLOFORK
+	DO_INT(O_CLOFORK);
+#endif
 #ifdef O_DIRECTORY
 	DO_INT(O_DIRECTORY);
 #endif
@@ -692,6 +695,9 @@ KRK_Module(os) {
 #endif
 #ifdef O_NONBLOCK
 	DO_INT(O_NONBLOCK);
+#endif
+#ifdef O_ACCMODE
+	DO_INT(O_ACCMODE);
 #endif
 
 	DO_INT(SEEK_SET);
